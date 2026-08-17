@@ -31,6 +31,7 @@ if (!directory.includes("JOIN vendor_users vu ON vu.id=ap.vendor_user_id") || !d
 if (directory.includes("ap.job_title") || directory.includes("ap.vendor_id")) failures.push("Merchant adviser projection references columns that do not exist in adviser_profiles");
 if (directory.includes("publicAssignedCanonical") || directory.includes("#selectFairOffer") || directory.includes("fairness_assignment_events")) failures.push("Merchant directory must not mutate Fair Vendor Exposure state");
 if (!shopsPage.includes("getPublicVendorDirectory()")) failures.push("/shops must render the governed public vendor directory projection");
+if (!shopsPage.includes('role="search"') || !shopsPage.includes('name="category"') || !shopsPage.includes("normalizedSearch")) failures.push("/shops must provide server-rendered merchant name and category discovery controls");
 if (!shopsPage.includes("Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση")) failures.push("/shops must explain that directory visibility does not change fair assignment");
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
 if (!vendorPage.includes("getVendorCatalogCards(id)")) failures.push("Public vendor profile products must retain the non-fairness vendor catalog projection");
