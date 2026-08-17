@@ -1,0 +1,9 @@
+{
+  "name": "@buy-local-sparta/media-processing",
+  "version": "0.44.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

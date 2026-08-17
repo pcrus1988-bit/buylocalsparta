@@ -1,0 +1,13 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { adminActivationWorkspace } from "../../../lib/admin-runtime";
+import { getAdminSession } from "../../../lib/admin-session";
+import { WEB_BUILD_VERSION } from "../../../lib/build";
+
+export const metadata:Metadata={title:"Admin · Activation Evidence",robots:{index:false,follow:false}};
+
+export default async function Page(){
+  const principal=await getAdminSession();if(!principal)redirect("/admin/login");const data=await adminActivationWorkspace(principal);const now=Date.now();
+  return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={data.csrfToken}/><section className="shell vendor-hero vendor-hero-compact"><div><div className="eyebrow">Staging / launch gates</div><h1>Activation evidence</h1><p className="lead">Append-only proof that a provider check was actually run for a specific BLS build and environment. Configuration alone is not treated as end-to-end scenario evidence.</p></div></section><section className="shell vendor-section"><div className="admin-summary-grid"><article className="account-card"><strong>Current build</strong><span>{WEB_BUILD_VERSION}</span></article><article className="account-card"><strong>Evidence rows</strong><span>{data.evidence.length}</span></article><article className="account-card"><strong>Current-build rows</strong><span>{data.evidence.filter(x=>x.buildVersion===WEB_BUILD_VERSION).length}</span></article><article className="account-card"><strong>Fresh passed</strong><span>{data.evidence.filter(x=>x.status==='passed'&&(!x.expiresAt||x.expiresAt>now)).length}</span></article></div><div className="vendor-order-list">{data.evidence.length?data.evidence.map(row=><article className="vendor-order" key={row.id}><div className="vendor-order-head"><div><strong>{row.provider} · {row.checkName}</strong><small>{row.environment} · Build {row.buildVersion} · {row.checkKind}</small></div><span className="status-pill">{row.status}{row.expiresAt&&row.expiresAt<=now?' · expired':''}</span></div><div className="vendor-order-lines"><span>Observed {new Date(row.observedAt).toLocaleString('el-GR')}</span><span>Evidence digest {row.evidenceDigest.slice(0,16)}…</span>{row.expiresAt&&<span>Expires {new Date(row.expiresAt).toLocaleString('el-GR')}</span>}</div></article>):<p className="account-gate">No durable activation evidence has been recorded yet. Run <code>npm run stage:preflight -- --record</code> in staging after credentials/services are configured.</p>}</div></section></main>;
+}

@@ -1,0 +1,3 @@
+import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { vendorAdviceWorkspace, vendorSendAdviceMessage } from "../../../../../lib/vendor-backoffice-service";
+export async function POST(request:Request){try{const p=await requireVendorSession(request,true);const b=await request.json() as {conversationId?:unknown;body?:unknown};await vendorSendAdviceMessage(p,typeof b.conversationId==="string"?b.conversationId:"",typeof b.body==="string"?b.body:"");return Response.json(await vendorAdviceWorkspace(p));}catch(e){return Response.json({error:e instanceof Error?e.message:"advice_message_failed"},{status:400})}}

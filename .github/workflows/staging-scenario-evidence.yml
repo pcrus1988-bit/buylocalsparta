@@ -1,0 +1,57 @@
+name: Record Staging Scenario Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider key (viva, boxnow, email, search, object_storage, clamav, mydata, web)
+        required: true
+        type: string
+      check:
+        description: Scenario name, e.g. demo-payment-refund
+        required: true
+        type: string
+      status:
+        description: Result
+        required: true
+        default: passed
+        type: choice
+        options: [passed, failed, blocked]
+      evidence:
+        description: Non-secret provider/reference string; only its SHA-256 digest is persisted
+        required: false
+        type: string
+      note:
+        description: Redacted operator note (max 500 chars)
+        required: false
+        type: string
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      NODE_ENV: production
+      BLS_DEPLOYMENT_ENVIRONMENT: staging
+      BLS_ACTIVATION_EVIDENCE_TTL_HOURS: "168"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --ignore-scripts
+      - name: Record append-only scenario evidence
+        env:
+          EVIDENCE_PROVIDER: ${{ inputs.provider }}
+          EVIDENCE_CHECK: ${{ inputs.check }}
+          EVIDENCE_STATUS: ${{ inputs.status }}
+          EVIDENCE_REFERENCE: ${{ inputs.evidence }}
+          EVIDENCE_NOTE: ${{ inputs.note }}
+        run: >-
+          npm run stage:evidence --
+          --provider="$EVIDENCE_PROVIDER"
+          --check="$EVIDENCE_CHECK"
+          --status="$EVIDENCE_STATUS"
+          --evidence="$EVIDENCE_REFERENCE"
+          --note="$EVIDENCE_NOTE"

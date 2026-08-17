@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm install --ignore-scripts",
+  "buildCommand": "npm --workspace @buy-local-sparta/web run build",
+  "devCommand": "npm --workspace @buy-local-sparta/web run dev",
+  "outputDirectory": "apps/web/.next"
+}

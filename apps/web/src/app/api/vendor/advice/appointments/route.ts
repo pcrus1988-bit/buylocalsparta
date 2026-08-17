@@ -1,0 +1,3 @@
+import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { vendorAdviceWorkspace, vendorAppointmentAction } from "../../../../../lib/vendor-backoffice-service";
+export async function POST(request:Request){try{const p=await requireVendorSession(request,true);const b=await request.json() as {appointmentId?:unknown;action?:unknown};const action=b.action==="cancel"?"cancel":b.action==="complete"?"complete":undefined;if(!action)throw new Error("Unsupported appointment action");await vendorAppointmentAction(p,typeof b.appointmentId==="string"?b.appointmentId:"",action);return Response.json(await vendorAdviceWorkspace(p));}catch(e){return Response.json({error:e instanceof Error?e.message:"appointment_action_failed"},{status:400})}}

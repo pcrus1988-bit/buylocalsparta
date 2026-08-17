@@ -1,0 +1,34 @@
+{
+  "name": "@buy-local-sparta/web",
+  "version": "0.44.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "prebuild": "node scripts/verify-build-context.mjs"
+  },
+  "dependencies": {
+    "@buy-local-sparta/core": "0.24.0",
+    "next": "16.2.11",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "@buy-local-sparta/postgres-runtime": "0.44.0",
+    "pg": "8.22.0",
+    "@buy-local-sparta/viva-payments": "0.44.0",
+    "@buy-local-sparta/object-storage": "0.44.0",
+    "@buy-local-sparta/media-processing": "0.44.0",
+    "@buy-local-sparta/aade-mydata": "0.44.0",
+    "@buy-local-sparta/meilisearch-search": "0.44.0",
+    "@buy-local-sparta/resend-notifications": "0.44.0",
+    "@buy-local-sparta/boxnow-shipping": "0.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.9.0",
+    "@types/pg": "^8.18.0"
+  },
+  "type": "module"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@buy-local-sparta/meilisearch-search",
+  "version": "0.44.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@buy-local-sparta/core": "0.24.0"
+  }
+}

@@ -1,0 +1,73 @@
+name: Production CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Verify dependency-free domain/runtime suite
+        run: npm run check
+      - name: Typecheck Core
+        run: npm run typecheck:core
+      - name: Typecheck Viva payment adapter
+        run: npm run typecheck:viva
+      - name: Typecheck AADE myDATA ERP adapter
+        run: npm run typecheck:mydata
+      - name: Typecheck Meilisearch search adapter
+        run: npm run typecheck:search-provider
+      - name: Typecheck Resend notification adapter
+        run: npm run typecheck:resend
+      - name: Typecheck BOX NOW shipping adapter
+        run: npm run typecheck:boxnow
+      - name: Typecheck object-storage adapter
+        run: npm run typecheck:object-storage
+      - name: Typecheck media processing adapter
+        run: npm run typecheck:media-processing
+      - name: Typecheck media worker
+        run: npm run typecheck:media-worker
+      - name: Typecheck PostgreSQL runtime
+        run: npm run typecheck:postgres-runtime
+      - name: Typecheck live database smoke
+        run: npm run typecheck:db-smoke
+      - name: Typecheck staging activation tooling
+        run: npm run typecheck:activation
+      - name: Apply PostgreSQL/PostGIS migrations
+        run: npm run db:migrate
+      - name: Verify database readiness
+        run: npm run db:ready
+      - name: Run live database integration smoke
+        run: npm run db:smoke
+      - name: Typecheck all long-running workers
+        run: npm run typecheck:workers
+      - name: Build production worker container
+        run: docker build -f deploy/worker.Dockerfile -t buy-local-sparta-worker:ci .
+      - name: Build production Next.js application
+        run: npm run check:web

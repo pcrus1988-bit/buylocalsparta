@@ -1,0 +1,83 @@
+name: Staging Activation Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_url:
+        description: Deployed staging origin, e.g. https://staging.example.gr
+        required: true
+        type: string
+
+env:
+  NODE_ENV: production
+  BLS_DEPLOYMENT_ENVIRONMENT: staging
+  BLS_ACTIVATION_REQUIRED_PROVIDERS: database,viva,mydata,search,email,object_storage,clamav,boxnow,web
+  BLS_ACTIVATION_EVIDENCE_TTL_HOURS: "72"
+  BLS_ALLOW_VIVA_DEMO_PREVIEW: "true"
+  BLS_ALLOW_BOXNOW_STAGE_PREVIEW: "true"
+  VIVA_PAYMENTS_ENABLED: "true"
+  VIVA_ENVIRONMENT: demo
+  BLS_MYDATA_ISSUANCE_ENABLED: "false"
+  AADE_MYDATA_ENVIRONMENT: test
+  BLS_SEARCH_ENABLED: "true"
+  BLS_EMAIL_DELIVERY_ENABLED: "true"
+  BLS_MEDIA_PIPELINE_ENABLED: "true"
+  BLS_BOXNOW_ENABLED: "true"
+  BOXNOW_ENVIRONMENT: stage
+
+jobs:
+  preflight:
+    # Private S3/ClamAV deployments should set repository/environment variable BLS_ACTIVATION_RUNNER to a self-hosted runner label.
+    runs-on: ${{ vars.BLS_ACTIVATION_RUNNER || 'ubuntu-latest' }}
+    environment: staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BLS_AUTH_SECRET: ${{ secrets.BLS_AUTH_SECRET }}
+      VIVA_CLIENT_ID: ${{ secrets.VIVA_CLIENT_ID }}
+      VIVA_CLIENT_SECRET: ${{ secrets.VIVA_CLIENT_SECRET }}
+      VIVA_MERCHANT_ID: ${{ secrets.VIVA_MERCHANT_ID }}
+      VIVA_API_KEY: ${{ secrets.VIVA_API_KEY }}
+      VIVA_SOURCE_CODE: ${{ secrets.VIVA_SOURCE_CODE }}
+      AADE_MYDATA_BASE_URL: ${{ secrets.AADE_MYDATA_BASE_URL }}
+      AADE_MYDATA_USER_ID: ${{ secrets.AADE_MYDATA_USER_ID }}
+      AADE_MYDATA_SUBSCRIPTION_KEY: ${{ secrets.AADE_MYDATA_SUBSCRIPTION_KEY }}
+      AADE_MYDATA_SPEC_VERSION: ${{ vars.AADE_MYDATA_SPEC_VERSION || '2.0.2' }}
+      MEILISEARCH_URL: ${{ secrets.MEILISEARCH_URL }}
+      MEILISEARCH_INDEX_UID: ${{ vars.MEILISEARCH_INDEX_UID || 'bls_products_v1' }}
+      MEILISEARCH_SEARCH_KEY: ${{ secrets.MEILISEARCH_SEARCH_KEY }}
+      MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM: ${{ vars.RESEND_FROM }}
+      RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
+      BLS_NOTIFICATION_SUPPRESSION_SECRET: ${{ secrets.BLS_NOTIFICATION_SUPPRESSION_SECRET }}
+      BLS_OBJECT_STORAGE_BUCKET: ${{ vars.BLS_OBJECT_STORAGE_BUCKET }}
+      BLS_OBJECT_STORAGE_REGION: ${{ vars.BLS_OBJECT_STORAGE_REGION }}
+      BLS_OBJECT_STORAGE_ENDPOINT: ${{ secrets.BLS_OBJECT_STORAGE_ENDPOINT }}
+      BLS_OBJECT_STORAGE_FORCE_PATH_STYLE: ${{ vars.BLS_OBJECT_STORAGE_FORCE_PATH_STYLE || 'false' }}
+      BLS_MEDIA_UPLOAD_ORIGIN: ${{ vars.BLS_MEDIA_UPLOAD_ORIGIN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      BLS_CLAMAV_HOST: ${{ secrets.BLS_CLAMAV_HOST }}
+      BLS_CLAMAV_PORT: ${{ vars.BLS_CLAMAV_PORT || '3310' }}
+      BOXNOW_API_URL: ${{ secrets.BOXNOW_API_URL }}
+      BOXNOW_CLIENT_ID: ${{ secrets.BOXNOW_CLIENT_ID }}
+      BOXNOW_CLIENT_SECRET: ${{ secrets.BOXNOW_CLIENT_SECRET }}
+      BOXNOW_WEBHOOK_SECRET: ${{ secrets.BOXNOW_WEBHOOK_SECRET }}
+      BOXNOW_PARTNER_ID: ${{ secrets.BOXNOW_PARTNER_ID }}
+      NEXT_PUBLIC_BOXNOW_WIDGET_ENABLED: "true"
+      NEXT_PUBLIC_BOXNOW_PARTNER_ID: ${{ vars.NEXT_PUBLIC_BOXNOW_PARTNER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Verify source before external checks
+        run: npm run check && npm run typecheck:activation
+      - name: Confirm staging database schema
+        run: npm run db:ready
+      - name: Run read-only provider preflight and retain evidence
+        env:
+          BLS_PREFLIGHT_WEB_URL: ${{ inputs.web_url }}
+        run: npm run stage:preflight -- --record --web-url="$BLS_PREFLIGHT_WEB_URL"
