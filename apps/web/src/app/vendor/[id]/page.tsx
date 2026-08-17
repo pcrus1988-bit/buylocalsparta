@@ -52,9 +52,10 @@ export default async function VendorPage({ params }: Props) {
               <a className="button vendor-outline" href="/shop">Δες την αγορά</a>
             </div>
           </div>
-          <div className="merchant-portrait" aria-label={`Local merchant profile for ${vendor.name}`}>
+          <div className={`merchant-portrait${vendor.mediaId ? " has-media" : ""}`} aria-label={`Επιλεγμένη εικόνα από το ${vendor.name}`}>
+            {vendor.mediaId && <img src={`/api/media/${encodeURIComponent(vendor.mediaId)}`} alt={vendor.mediaAlt ?? `Επιλεγμένο προϊόν από το ${vendor.name}`} decoding="async" />}
             <span>{(vendor.adviser ?? vendor.name).slice(0, 1).toUpperCase()}</span>
-            <small>{vendor.adviser ?? "Local adviser"}<br />{vendor.demo ? "Demo profile" : "Local adviser"}</small>
+            <small>{vendor.adviser ?? "Local adviser"}<br />{vendor.mediaId ? "Εγκεκριμένη εικόνα καταλόγου" : vendor.demo ? "Demo profile" : "Local adviser"}</small>
           </div>
         </div>
       </section>
