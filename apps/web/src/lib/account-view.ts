@@ -7,7 +7,7 @@ import {
 } from "@buy-local-sparta/core";
 import { createCustomerNotification, customerStateSnapshot } from "./customer-state-runtime";
 import { customerOrder, customerOrders, cancelCustomerCommerceOrder } from "./customer-commerce-runtime";
-import { getCanonicalAvailability, getCanonicalProductSummary, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
+import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -28,13 +28,13 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
   });
   const recommendationSignals = (ids: readonly { canonicalVariantId: string; viewedAt?: number }[]) => ids.flatMap((item) => {
     const product = catalogMap.get(item.canonicalVariantId);
-    return product ? [{ canonicalVariantId: product.id, categoryCode: product.categoryCode, brand: brandFor(product.id), viewedAt: item.viewedAt }] : [];
+    return product ? [{ canonicalVariantId: product.id, categoryCode: product.categoryCode, viewedAt: item.viewedAt }] : [];
   });
   const availabilityEntries = await Promise.all(catalog.map(async (product) => [product.id, (await getCanonicalAvailability(product.id))?.available ?? false] as const));
   const availabilityMap = new Map(availabilityEntries);
   const recommendations = new CustomerRecommendationService().recommend({
     enabled: state.preferences.recommendationsEnabled,
-    products: catalog.map((product) => ({ canonicalVariantId: product.id, categoryCode: product.categoryCode, brand: brandFor(product.id), available: availabilityMap.get(product.id) ?? false, adviceAvailable: true })),
+    products: catalog.map((product) => ({ canonicalVariantId: product.id, categoryCode: product.categoryCode, available: availabilityMap.get(product.id) ?? false, adviceAvailable: true })),
     saved: recommendationSignals(savedProducts),
     recentlyViewed: recommendationSignals(recentlyViewed),
     locale: "el",
@@ -104,11 +104,4 @@ function orderDetailProjection(order: CustomerOrder, csrfToken: string, canCance
     lines: order.lines.map((line) => ({ id: line.id, canonicalVariantId: line.canonicalVariantId, title: line.titleSnapshot, quantity: line.quantity, status: line.status, retailUnitPrice: formatMoney(line.retailUnitPrice), vendorId: line.vendorId, vendorName: vendorNames.get(line.vendorId) ?? line.vendorId })),
     fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds }))
   };
-}
-
-function brandFor(variantId: string): string | undefined {
-  if (variantId === "airpods") return "Apple";
-  if (variantId === "lamp") return "Local Home";
-  if (variantId === "notebook") return "Local Paper";
-  return undefined;
 }
