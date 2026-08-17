@@ -60,7 +60,7 @@ export default async function VendorPage({ params }: Props) {
             <h1>{vendor.name}</h1>
             <p>{vendor.story?.excerpt ?? "Το Buy Local Sparta δίνει χώρο στο κατάστημα, στην τεχνογνωσία του και στους ανθρώπους που μπορούν να σε βοηθήσουν — όχι μόνο σε μια λίστα προϊόντων."}</p>
             <div className="vendor-profile-actions">
-              <a className="button button-light" href="/#advice">Ρώτησε {vendor.adviser ?? "το κατάστημα"}</a>
+              <a className="button button-light" href={`/advice?vendor=${encodeURIComponent(vendor.id)}`}>Ρώτησε {vendor.adviser ?? "το κατάστημα"}</a>
               <a className="button vendor-outline" href="/shop">Δες την αγορά</a>
             </div>
           </div>
