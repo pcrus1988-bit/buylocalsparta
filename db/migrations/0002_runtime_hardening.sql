@@ -5,8 +5,10 @@
 BEGIN;
 
 ALTER TABLE order_lines
-  ADD COLUMN fulfilled_quantity integer NOT NULL DEFAULT 0 CHECK (fulfilled_quantity >= 0),
-  ADD COLUMN refunded_quantity integer NOT NULL DEFAULT 0 CHECK (refunded_quantity >= 0);
+  ADD COLUMN fulfilled_quantity integer NOT NULL DEFAULT 0
+    CONSTRAINT order_lines_fulfilled_quantity_nonnegative_check CHECK (fulfilled_quantity >= 0),
+  ADD COLUMN refunded_quantity integer NOT NULL DEFAULT 0
+    CONSTRAINT order_lines_refunded_quantity_nonnegative_check CHECK (refunded_quantity >= 0);
 
 ALTER TABLE order_lines
   ADD CONSTRAINT order_lines_fulfilled_quantity_check CHECK (fulfilled_quantity <= quantity),

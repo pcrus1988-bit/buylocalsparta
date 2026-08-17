@@ -15,7 +15,7 @@ async function userUuid(db: SqlExecutor, publicId: string): Promise<string> {
 }
 
 async function marketUuid(db: SqlExecutor, publicId: string): Promise<string> {
-  const result = await db.query<SqlRow>("SELECT id::text AS id FROM markets WHERE public_id=$1 OR code=$1 OR id::text=$1", [publicId]);
+  const result = await db.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code=$1 OR id::text=$1", [publicId]);
   if (result.rowCount !== 1) throw new Error(`Market ${publicId} was not found`);
   return String(result.rows[0].id);
 }
