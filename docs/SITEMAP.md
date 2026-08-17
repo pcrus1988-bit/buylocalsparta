@@ -3,7 +3,7 @@
 ## Customer
 
 Home → Shop → Categories (`/category/home-living`, `/category/fashion`, `/category/beauty`, `/category/kids`, `/category/technology`, `/category/gifts`) → Search → Collections → Brand → Canonical Product  
-Shops & People → Directory → Map → Vendor Profile → Location → Adviser  
+Shops & People (`/shops`) → Vendor Profile (`/vendor/[id]`) → Primary Location → Adviser / Published Merchant Story  
 Advice → Advice Hub → Guides → Ask Question → Chat → Consultation Booking  
 Ask Local → Paste Link → Confirm Match → Request → Private Offer → Checkout  
 Cart → Fulfilment Choices → Checkout → Payment → Confirmation → Consolidated Tracking  

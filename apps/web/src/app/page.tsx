@@ -80,7 +80,7 @@ export default async function Home() {
           <div className="eyebrow light">Οι άνθρωποι της αγοράς</div>
           <h2>Δεν αγοράζεις από μια απρόσωπη λίστα.</h2>
           <p>Κάθε συνεργαζόμενο κατάστημα μπορεί να παρουσιάσει την ιστορία, την τεχνογνωσία και τους ανθρώπους του — χωρίς να ανταγωνίζεται δημόσια τον διπλανό του για το ίδιο προϊόν.</p>
-          <a className="button button-light" href="#shop">Γνώρισε τα καταστήματα</a>
+          <a className="button button-light" href="/shops">Γνώρισε τα καταστήματα</a>
         </article>
         <article className="story-panel story-portrait" aria-label="Local merchant storytelling illustration">
           <div className="portrait-frame"><span>LOCAL<br />PEOPLE</span></div>
@@ -122,7 +122,7 @@ export default async function Home() {
       <footer className="footer">
         <div className="shell footer-grid">
           <div><div className="brand footer-brand"><span className="brand-mark">BLS</span><span>Buy Local Sparta</span></div><p>Buy Local. Know Your Vendor. Get Real Advice.</p></div>
-          <div><strong>Αγορές</strong><a href="#shop">Προϊόντα</a><a href="#people">Καταστήματα</a><a href="#ask-local">Ask Local</a></div>
+          <div><strong>Αγορές</strong><a href="#shop">Προϊόντα</a><a href="/shops">Καταστήματα</a><a href="#ask-local">Ask Local</a></div>
           <div><strong>Για καταστήματα</strong><a href="/join">Γίνε συνεργάτης</a></div>
           <div><strong>Πλατφόρμα</strong><a href="#advice">Πώς λειτουργεί</a><a href="/account">Ο λογαριασμός μου</a></div>
         </div>

@@ -1,0 +1,203 @@
+import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { offers, variants, vendors } from "./demo-runtime";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
+
+export type PublicVendorLocation = Readonly<{
+  name: string;
+  addressLine1: string;
+  addressLine2?: string;
+  locality: string;
+  postcode: string;
+  phone?: string;
+  publicEmail?: string;
+  verified: boolean;
+}>;
+
+export type PublicVendorStory = Readonly<{
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+}>;
+
+export type PublicVendorDirectoryEntry = Readonly<{
+  id: string;
+  name: string;
+  adviser?: string;
+  location?: PublicVendorLocation;
+  story?: PublicVendorStory;
+  categoryCodes: readonly string[];
+  canonicalCount: number;
+  demo: boolean;
+}>;
+
+type VendorDirectoryRow = SqlRow & {
+  vendor_id: string;
+  vendor_name: string;
+  adviser_name?: string | null;
+  location_name?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  locality?: string | null;
+  postcode?: string | null;
+  phone?: string | null;
+  public_email?: string | null;
+  location_verified?: boolean | null;
+  story_id?: string | null;
+  story_slug?: string | null;
+  story_title?: string | null;
+  story_excerpt?: string | null;
+  category_codes?: readonly string[] | null;
+  canonical_count?: number | string | null;
+};
+
+function postgresEnabled(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function asCount(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function textArray(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim()))];
+}
+
+function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
+  const addressLine1 = optionalText(row.address_line1);
+  const locality = optionalText(row.locality);
+  const postcode = optionalText(row.postcode);
+  const location = addressLine1 && locality && postcode
+    ? {
+        name: optionalText(row.location_name) ?? row.vendor_name,
+        addressLine1,
+        addressLine2: optionalText(row.address_line2),
+        locality,
+        postcode,
+        phone: optionalText(row.phone),
+        publicEmail: optionalText(row.public_email),
+        verified: row.location_verified === true
+      }
+    : undefined;
+  const storyId = optionalText(row.story_id);
+  const storySlug = optionalText(row.story_slug);
+  const storyTitle = optionalText(row.story_title);
+  const storyExcerpt = optionalText(row.story_excerpt);
+  const story = storyId && storySlug && storyTitle && storyExcerpt
+    ? { id: storyId, slug: storySlug, title: storyTitle, excerpt: storyExcerpt }
+    : undefined;
+  return {
+    id: row.vendor_id,
+    name: row.vendor_name,
+    adviser: optionalText(row.adviser_name),
+    location,
+    story,
+    categoryCodes: textArray(row.category_codes),
+    canonicalCount: asCount(row.canonical_count),
+    demo: false
+  };
+}
+
+async function databaseDirectory(vendorId?: string): Promise<readonly PublicVendorDirectoryEntry[]> {
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
+  const result = await uow.withTransaction({ marketId: "sparta", platformAccess: true }, (tx) => tx.query<VendorDirectoryRow>(`
+    SELECT v.public_id AS vendor_id,
+           v.trading_name AS vendor_name,
+           adviser.name AS adviser_name,
+           location.name AS location_name,
+           location.address_line1,
+           location.address_line2,
+           location.locality,
+           location.postcode,
+           location.phone,
+           location.public_email,
+           location.verified_at IS NOT NULL AS location_verified,
+           story.public_id AS story_id,
+           story.slug AS story_slug,
+           story.title AS story_title,
+           story.excerpt AS story_excerpt,
+           COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
+           COALESCE(assortment.canonical_count, 0)::integer AS canonical_count
+    FROM vendor_businesses v
+    JOIN markets m ON m.id=v.market_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(NULLIF(ap.display_name,''),'Local adviser') AS name
+      FROM adviser_profiles ap
+      JOIN vendor_users vu ON vu.id=ap.vendor_user_id
+      WHERE vu.vendor_id=v.id AND vu.active=true AND ap.active=true
+      ORDER BY ap.created_at,ap.public_id
+      LIMIT 1
+    ) adviser ON true
+    LEFT JOIN LATERAL (
+      SELECT vl.name,vl.address_line1,vl.address_line2,vl.locality,vl.postcode,vl.phone,vl.public_email,vl.verified_at
+      FROM vendor_locations vl
+      WHERE vl.vendor_id=v.id AND vl.active=true
+      ORDER BY vl.is_primary DESC,vl.verified_at DESC NULLS LAST,vl.created_at,vl.id
+      LIMIT 1
+    ) location ON true
+    LEFT JOIN LATERAL (
+      SELECT ms.public_id,ms.slug,ms.title,ms.excerpt
+      FROM merchant_stories ms
+      WHERE ms.vendor_id=v.id
+        AND ms.status='published'
+        AND ms.locale='el'
+        AND ms.vendor_approved_at IS NOT NULL
+        AND ms.published_at IS NOT NULL
+        AND ms.published_at <= now()
+      ORDER BY ms.published_at DESC,ms.updated_at DESC,ms.public_id
+      LIMIT 1
+    ) story ON true
+    LEFT JOIN LATERAL (
+      SELECT array_agg(DISTINCT c.code ORDER BY c.code) AS category_codes,
+             count(DISTINCT cv.id)::integer AS canonical_count
+      FROM vendor_offers vo
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      JOIN vendor_locations offer_location ON offer_location.id=vo.location_id
+      WHERE vo.vendor_id=v.id
+        AND vo.status='approved'
+        AND offer_location.active=true
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+    ) assortment ON true
+    WHERE v.status='active'
+      AND (m.code=$1 OR m.id::text=$1)
+      AND ($2::text IS NULL OR v.public_id=$2 OR v.id::text=$2)
+    ORDER BY v.trading_name,v.public_id
+  `, ["sparta", vendorId ?? null]), { readOnly: true });
+  return result.rows.map(fromDatabaseRow);
+}
+
+function demoDirectory(): readonly PublicVendorDirectoryEntry[] {
+  return vendors.map((vendor) => {
+    const categoryCodes = variants
+      .filter((variant) => (offers[variant.id] ?? []).some((offer) => offer.vendorId === vendor.id))
+      .map((variant) => variant.categoryCode ?? "other");
+    return {
+      id: vendor.id,
+      name: vendor.name,
+      adviser: vendor.adviser,
+      categoryCodes: [...new Set(categoryCodes)],
+      canonicalCount: categoryCodes.length,
+      demo: true
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
+  return postgresEnabled() ? databaseDirectory() : demoDirectory();
+}
+
+export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
+  if (!vendorId.trim()) return undefined;
+  if (postgresEnabled()) return (await databaseDirectory(vendorId))[0];
+  return demoDirectory().find((vendor) => vendor.id === vendorId);
+}
