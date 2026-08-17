@@ -2,6 +2,7 @@ import { formatMoney, money, normalizeSearchText, offerStockIsFresh, type Assign
 import { offers, runtime, variants, vendors } from "./demo-runtime";
 import { canonicalIsPubliclyAllowed } from "./vendor-operations-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 
 export type CatalogCard = Readonly<{
@@ -13,16 +14,54 @@ export type CatalogCard = Readonly<{
   vendorId?: string;
   vendorName?: string;
   adviser?: string;
+  mediaId?: string;
+  mediaAlt?: string;
   availableToSell: number;
   available: boolean;
 }>;
 
 export type PublicVendorView = Readonly<{ id: string; name: string; adviser?: string }>;
 type PublicAssignmentReason = Extract<AssignmentContext["reason"], "search_card" | "product_view" | "recommendation_card">;
+type DatabaseCatalogRecord = Readonly<{
+  id: string;
+  title: string;
+  categoryCode: string;
+  priceMinor: number;
+  available?: boolean;
+  availableToSell?: number;
+  vendorId?: string;
+  vendorName?: string;
+  adviser?: string;
+}>;
 
 function postgresEnabled(): boolean { return Boolean(process.env.DATABASE_URL?.trim()); }
-function fromDb(record: { id: string; title: string; categoryCode: string; priceMinor: number; available?: boolean; availableToSell?: number; vendorId?: string; vendorName?: string; adviser?: string }): CatalogCard {
-  return { id: record.id, title: record.title, categoryCode: record.categoryCode, priceMinor: record.priceMinor, price: formatMoney(money(record.priceMinor)), available: record.available ?? false, availableToSell: record.availableToSell ?? 0, vendorId: record.vendorId, vendorName: record.vendorName, adviser: record.adviser };
+function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage): CatalogCard {
+  return {
+    id: record.id,
+    title: record.title,
+    categoryCode: record.categoryCode,
+    priceMinor: record.priceMinor,
+    price: formatMoney(money(record.priceMinor)),
+    available: record.available ?? false,
+    availableToSell: record.availableToSell ?? 0,
+    vendorId: record.vendorId,
+    vendorName: record.vendorName,
+    adviser: record.adviser,
+    mediaId: image?.mediaId,
+    mediaAlt: image?.altText
+  };
+}
+
+async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[]): Promise<readonly CatalogCard[]> {
+  if (records.length === 0) return [];
+  try {
+    const images = await approvedCatalogImages(records.map((record) => ({ canonicalVariantId: record.id, preferredVendorId: record.vendorId })));
+    const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image]));
+    return records.map((record) => fromDb(record, imageByCanonical.get(record.id)));
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", event: "storefront.public_media_projection_failed", message: error instanceof Error ? error.message : String(error) }));
+    return records.map((record) => fromDb(record));
+  }
 }
 
 export async function getCanonicalProductSummary(id: string): Promise<Readonly<{ id: string; title: string; price: string; priceMinor: number }> | undefined> {
@@ -51,7 +90,8 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
       canonicalIds = canonicals.filter((product) => !normalizedQuery || normalizeSearchText(product.title).includes(normalizedQuery)).map((product) => product.id);
     }
     const assigned = await Promise.all(canonicalIds.map((canonicalVariantId) => commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" })));
-    return assigned.flatMap((record) => record ? [fromDb(record)] : []);
+    const records = assigned.flatMap((record) => record ? [record] : []);
+    return enrichDatabaseRecords(records);
   }
   const visibleVariants = variants
     .filter((variant) => canonicalIsPubliclyAllowed(variant.id))
@@ -63,7 +103,8 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
 export async function getCatalogCard(id: string, visitorKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
   if (postgresEnabled()) {
     const record = await getProductionPostgresRuntime().customerCommerce.publicAssignedCanonical({ canonicalVariantId: id, visitorKey, postcode, reason: "product_view" });
-    return record ? fromDb(record) : undefined;
+    if (!record) return undefined;
+    return (await enrichDatabaseRecords([record]))[0];
   }
   const variant = variants.find((entry) => entry.id === id);
   if (!variant || !canonicalIsPubliclyAllowed(variant.id)) return undefined;
@@ -77,7 +118,10 @@ export async function getPublicVendor(vendorId: string): Promise<PublicVendorVie
 }
 
 export async function getVendorCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
-  if (postgresEnabled()) return (await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId)).map(fromDb);
+  if (postgresEnabled()) {
+    const records = await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId);
+    return enrichDatabaseRecords(records);
+  }
   const vendor = vendors.find((entry) => entry.id === vendorId);
   if (!vendor) return [];
   const now = Date.now();
