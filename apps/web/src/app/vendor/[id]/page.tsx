@@ -34,6 +34,7 @@ export default async function VendorPage({ params }: Props) {
   const products = await getVendorCatalogCards(id);
   const categories = categoriesFor(vendor);
   const location = vendor.location;
+  const storyMedia = vendor.story?.mediaUrl;
 
   return (
     <main>
@@ -52,9 +53,9 @@ export default async function VendorPage({ params }: Props) {
               <a className="button vendor-outline" href="/shop">Δες την αγορά</a>
             </div>
           </div>
-          <div className="merchant-portrait" aria-label={`Local merchant profile for ${vendor.name}`}>
-            <span>{(vendor.adviser ?? vendor.name).slice(0, 1).toUpperCase()}</span>
-            <small>{vendor.adviser ?? "Local adviser"}<br />{vendor.demo ? "Demo profile" : "Local adviser"}</small>
+          <div className={`merchant-portrait${storyMedia ? " has-photo" : ""}`} aria-label={`Local merchant profile for ${vendor.name}`}>
+            {storyMedia ? <img src={storyMedia} alt="" aria-hidden="true" /> : <span>{(vendor.adviser ?? vendor.name).slice(0, 1).toUpperCase()}</span>}
+            <small>{vendor.adviser ?? "Local adviser"}<br />{vendor.demo ? "Demo profile" : storyMedia ? "Approved merchant media" : "Local adviser"}</small>
           </div>
         </div>
       </section>
@@ -75,7 +76,7 @@ export default async function VendorPage({ params }: Props) {
           {vendor.story ? <>
             <h2>{vendor.story.title}</h2>
             <p>{vendor.story.excerpt}</p>
-            <small className="vendor-story-approval">Δημοσιευμένο merchant story με καταγεγραμμένη έγκριση του vendor.</small>
+            <small className="vendor-story-approval">Δημοσιευμένο merchant story με καταγεγραμμένη έγκριση του vendor{storyMedia ? " και εγκεκριμένο οπτικό υλικό." : "."}</small>
           </> : <>
             <h2>Πραγματικός άνθρωπος, όχι απρόσωπη καταχώριση.</h2>
             <p>{vendor.demo ? "Το demo προφίλ δεν παρουσιάζει επινοημένη ιστορία καταστήματος." : "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένη ιστορία για αυτό το κατάστημα. Η πλατφόρμα δεν συμπληρώνει δημόσιο storytelling χωρίς έγκριση."}</p>
