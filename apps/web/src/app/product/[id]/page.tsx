@@ -9,6 +9,15 @@ import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
+const productImageStyle = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+  zIndex: 1
+} as const;
+
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { id } = await params;
   const product = await getCanonicalProductSummary(id);
@@ -29,7 +38,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <SiteHeader compact />
 
       <section className="shell product-detail">
-        <div className={`product-detail-art ${category.artClass}`}><span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span><span className="detail-category">{category.name}</span><span className="detail-symbol" aria-hidden="true">{category.symbol}</span></div>
+        <div className={`product-detail-art ${category.artClass}`}>
+          <span className="detail-category">{category.name}</span>
+          <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
+          {product.mediaId ? <img src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? product.title} decoding="async" style={productImageStyle} /> : null}
+          <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
+        </div>
         <div className="product-detail-copy">
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a> · Διαθέσιμο τοπικά · Sparta 23100</div>
           <h1>{product.title}</h1>
