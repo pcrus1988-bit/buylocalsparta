@@ -4,6 +4,12 @@ Production-oriented implementation of the **Buy Local Sparta** human-first, mult
 
 > **Buy Local. Know Your Vendor. Get Real Advice.**
 
+## Build 0.45.0
+
+Build 0.45.0 closes the merchant-visual gap left by Build 0.44 without weakening the media-governance model. `/shops` and `/vendor/[id]` now prefer approved merchant photography when a Vendor-approved published merchant story explicitly references an eligible Vendor-owned media asset; the existing generated merchant artwork remains the fallback when no governed photo is available. The public media stream independently revalidates Vendor activity, story publication/approval, media ownership, non-product scope, malware scan, rights approval, moderation approval and reviewed object metadata on every read.
+
+Admin `/admin/content` now includes the supported story-to-media association workflow, so no direct SQL is required. Staff can choose only same-Vendor merchant/story images that have passed scan, rights and moderation checks, or remove the association to restore the generated fallback. The mutation requires `content.write`, CSRF verification, PostgreSQL platform scope and canonical Admin auditing. Product media and Fair Vendor Exposure behavior are unchanged. No migration is required; the existing `merchant_stories.og_image` association is used. See `docs/BUILD_0.45.0_REPORT.md` and `docs/GOVERNED_MERCHANT_MEDIA.md`.
+
 ## Build 0.44.0
 
 Build 0.44.0 upgrades the customer storefront from generic category anchors and numbered placeholder art into a category-aware discovery layer. Six Greek-first category landing pages now route through the canonical catalog and existing Fair Vendor Exposure assignment path; `/shop` supports server-side category filtering; saved searches retain category intent; product, vendor and detail cards use a shared category visual system; and the catalog API can filter by category without exposing hidden supplier offers. A new `check:storefront` regression gate protects taxonomy mappings and fairness-routing boundaries. Production merchant/product photography remains a separate media-content activation step. See `docs/BUILD_0.44.0_REPORT.md`.
@@ -47,6 +53,7 @@ The production Next.js workspace can be built with `npm run check:web` after dep
 `npm run check` now starts with a project-consistency gate, then runs migration integrity, the core suite, UI parsing, structural accessibility regression checks and the full HTTP critical-journey smoke test.
 
 - release/package/docs/static-route/security-header/customer-session/vendor-session consistency gate passing
+- merchant-directory regression gate proves active-Vendor/story approval, same-Vendor media ownership, scan/rights/moderation approval, Admin association/CSRF/audit boundaries and Fair Vendor Exposure separation
 - 210 core tests passing
 - 30,000-selection statistical fairness test plus multi-location fairness proof
 - 37 SQL migrations verified by checksum; the pre-production migration-13 freshness-column repair remains explicitly documented in Build 0.34
@@ -54,6 +61,7 @@ The production Next.js workspace can be built with `npm run check:web` after dep
 - 6 rendered development interfaces pass structural accessibility regression checks
 - production-web TypeScript/TSX source passes syntax transpilation and relative-import resolution in the release check
 - strict Core, Viva-provider, AADE myDATA, Meilisearch, Resend, BOX NOW, object-storage, media-processing, media-worker and PostgreSQL-runtime TypeScript checks pass; the live DB integration smoke also has its own NodeNext semantic TypeScript gate
+- Production CI provisions fresh PostgreSQL/PostGIS, applies all migrations, runs live DB smoke, typechecks long-running workers, builds the production worker image and executes the real Next.js production build
 - live DB smoke is configured to prove two-instance customer + Vendor + Admin state plus persistent cart/checkout, oversell protection, atomic Vendor rescue, media intent/scan persistence, canonical search projection, Resend delivery/webhook dedupe and Viva provider-order/capture/refund/cancellation races when PostgreSQL is available
 - direct account-runtime proof passed: authenticate → save product/search → customer-linked checkout → account order/notification projection
 - direct Vendor operations proof passed: scoped catalog bootstrap → manual submit → CSV dry-run/commit → vendor-bound media → pending compliance → analytics/finance projection

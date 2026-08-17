@@ -109,19 +109,43 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
   const result = await uow.withTransaction({ actorUserId: "public-media", marketId: "sparta", platformAccess: true }, (tx) => tx.query<PublicMediaRow>(`
-    SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size
-    FROM product_media pm
-    JOIN canonical_variants cv ON cv.id=pm.canonical_variant_id
-    JOIN markets m ON m.id=cv.market_id
-    WHERE pm.public_id=$1
-      AND m.code='sparta'
-      AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-      AND pm.kind='image'
-      AND pm.scan_status='clean'
-      AND pm.rights_status='approved'
-      AND pm.moderation_status='approved'
-      AND pm.object_key IS NOT NULL
-      AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+    SELECT eligible.media_public_id,eligible.object_key,eligible.content_type,eligible.byte_size
+    FROM (
+      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,0 AS eligibility_rank
+      FROM product_media pm
+      JOIN canonical_variants cv ON cv.id=pm.canonical_variant_id
+      JOIN markets m ON m.id=cv.market_id
+      WHERE pm.public_id=$1
+        AND m.code='sparta'
+        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+        AND pm.kind='image'
+        AND pm.scan_status='clean'
+        AND pm.rights_status='approved'
+        AND pm.moderation_status='approved'
+        AND pm.object_key IS NOT NULL
+        AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+      UNION ALL
+      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,1 AS eligibility_rank
+      FROM product_media pm
+      JOIN vendor_businesses v ON v.id=pm.vendor_id
+      JOIN markets m ON m.id=v.market_id
+      JOIN merchant_stories ms ON ms.vendor_id=v.id AND ms.og_image=pm.public_id
+      WHERE pm.public_id=$1
+        AND m.code='sparta'
+        AND v.status='active'
+        AND pm.canonical_variant_id IS NULL
+        AND ms.status='published'
+        AND ms.vendor_approved_at IS NOT NULL
+        AND ms.published_at IS NOT NULL
+        AND ms.published_at <= now()
+        AND pm.kind='image'
+        AND pm.scan_status='clean'
+        AND pm.rights_status='approved'
+        AND pm.moderation_status='approved'
+        AND pm.object_key IS NOT NULL
+        AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+    ) eligible
+    ORDER BY eligible.eligibility_rank
     LIMIT 1
   `, [mediaId]), { readOnly: true });
 

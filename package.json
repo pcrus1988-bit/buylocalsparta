@@ -1,7 +1,7 @@
 {
   "name": "buy-local-sparta",
   "private": true,
-  "version": "0.44.0",
+  "version": "0.45.0",
   "description": "Human-first multi-vendor local commerce platform for Sparta, Greece",
   "type": "module",
   "workspaces": [
