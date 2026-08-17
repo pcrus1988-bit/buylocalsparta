@@ -5,6 +5,7 @@ import { SiteHeader } from "../../../components/SiteHeader";
 import { getCatalogCards } from "../../../lib/catalog-view";
 import { getVisitorKey } from "../../../lib/visitor";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
+import { SiteFooter } from "../../../components/SiteFooter";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -57,7 +58,7 @@ export default async function CategoryPage({ params }: Props) {
       </section>
 
       <section className="shell category-intro-band" aria-label="Πώς λειτουργεί η κατηγορία">
-        <div><strong>Μία δημόσια παρουσία ανά προϊόν</strong><span>Δεν βάζουμε τα τοπικά καταστήματα σε δημόσιο πόλεμο τιμών για το ίδιο προϊόν.</span></div>
+        <div><strong>Μία δημόσια παρουσία ανά προϊόν</strong><span>Δεν βάζουμε τα τοπικά καταστήματα σε δημόσιο πόλεμο τιμών για το ίδιο προϊόν. <a className="text-link" href="/fairness">Δες τους κανόνες →</a></span></div>
         <div><strong>Τοπικός άνθρωπος όταν χρειάζεται</strong><span>Η ανάθεση συμβούλου και συνεργάτη εκπλήρωσης γίνεται με τους κανόνες δικαιοσύνης της πλατφόρμας.</span></div>
         <div><strong>Ένα checkout</strong><span>Συνδύασε προϊόντα από διαφορετικές κατηγορίες και καταστήματα σε μία αγορά.</span></div>
       </section>
@@ -92,6 +93,7 @@ export default async function CategoryPage({ params }: Props) {
           ))}
         </div>
       </section>
+      <SiteFooter />
     </main>
   );
 }

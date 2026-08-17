@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../lib/public-vendor-directory";
 import { STOREFRONT_CATEGORIES, storefrontCategoryForCode } from "../../lib/storefront-taxonomy";
+import { SiteFooter } from "../../components/SiteFooter";
 
 type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string }> }>;
 
@@ -63,7 +64,7 @@ export default async function ShopsPage({ searchParams }: Props) {
 
       <div className="shops-principles" aria-label="Merchant directory principles">
         <div><strong>Πρόσωπο πίσω από το προϊόν</strong><span>Το προφίλ αναδεικνύει το κατάστημα και τον άνθρωπο που μπορεί να συμβουλέψει.</span></div>
-        <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο καταστημάτων ή στις δημόσιες σελίδες.</span></div>
+        <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο καταστημάτων ή στις δημόσιες σελίδες. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
         <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story εμφανίζεται δημόσια μόνο όταν έχει εγκριθεί από τον vendor και έχει δημοσιευθεί από την πλατφόρμα.</span></div>
       </div>
 
@@ -124,6 +125,7 @@ export default async function ShopsPage({ searchParams }: Props) {
           </div>
         )}
       </section>
+      <SiteFooter />
     </main>
   );
 }

@@ -6,6 +6,7 @@ import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { publicOrigin } from "../../../lib/public-origin";
+import { SiteFooter } from "../../../components/SiteFooter";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -103,6 +104,7 @@ export default async function VendorPage({ params }: Props) {
         </div>
         {products.length ? <div className="product-grid">{products.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={{ name: vendor.name, adviser: vendor.adviser }} key={product.id} />)}</div> : <div className="empty-state"><h2>Δεν υπάρχουν διαθέσιμα canonical προϊόντα για αυτό το προφίλ.</h2><p>Το κατάστημα μπορεί να παραμένει δημόσια ορατό χωρίς να εμφανίζονται ανενεργές ή μη διαθέσιμες προσφορές προϊόντων.</p><a className="button" href="/shop">Δες όλα τα προϊόντα</a></div>}
       </section>
+      <SiteFooter />
     </main>
   );
 }

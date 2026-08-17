@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./storefront-merchants.css";
 import "./storefront-advice.css";
+import "./storefront-content.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 

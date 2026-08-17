@@ -5,6 +5,7 @@ import { getVisitorKey } from "../../lib/visitor";
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
+import { SiteFooter } from "../../components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Προϊόντα",
@@ -68,7 +69,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
             </select>
             <button className="button" type="submit">Εφαρμογή</button>
           </form>
-          <div className="fairness-note"><strong>Fair Vendor Exposure</strong><p>Όταν το ίδιο προϊόν υπάρχει σε περισσότερα καταστήματα, εμφανίζεται μία φορά και το κατάστημα εκπλήρωσης επιλέγεται δίκαια στο παρασκήνιο.</p></div>
+          <div className="fairness-note"><strong>Fair Vendor Exposure</strong><p>Όταν το ίδιο προϊόν υπάρχει σε περισσότερα καταστήματα, εμφανίζεται μία φορά και το κατάστημα εκπλήρωσης επιλέγεται δίκαια στο παρασκήνιο.</p><a className="text-link" href="/fairness">Δες τους κανόνες →</a></div>
         </aside>
 
         <div className="catalog-results">
@@ -82,6 +83,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           )}
         </div>
       </section>
+      <SiteFooter />
     </main>
   );
 }
