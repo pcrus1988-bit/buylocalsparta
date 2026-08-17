@@ -25,6 +25,13 @@ export function productionDatabaseConfigured(env: NodeJS.ProcessEnv = process.en
   return Boolean(resolveDatabaseUrlFromEnv(env));
 }
 
+// Some older web adapters still gate on DATABASE_URL directly. Vercel's Marketplace
+// integration may provide only POSTGRES_URL, so normalize the resolved production URL
+// once before those modules evaluate their runtime gates. This prevents accidental
+// in-memory/demo execution while the real database is connected.
+const bootstrapDatabaseUrl = resolveDatabaseUrlFromEnv();
+if (!process.env.DATABASE_URL?.trim() && bootstrapDatabaseUrl) process.env.DATABASE_URL = bootstrapDatabaseUrl;
+
 function postgresRuntimeEnv(): NodeJS.ProcessEnv {
   const connectionString = resolveDatabaseUrlFromEnv();
   return connectionString ? { ...process.env, DATABASE_URL: connectionString } : process.env;

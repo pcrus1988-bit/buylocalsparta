@@ -1,5 +1,4 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
-import { offers, variants, vendors } from "./demo-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages } from "./public-media-service";
 
@@ -22,7 +21,7 @@ export type PublicVendorStory = Readonly<{
   mediaUrl?: string;
 }>;
 
-export type PublicVendorDirectoryStatus = "partner" | "research" | "demo";
+export type PublicVendorDirectoryStatus = "partner" | "research";
 
 export type PublicVendorDirectoryEntry = Readonly<{
   id: string;
@@ -36,7 +35,6 @@ export type PublicVendorDirectoryEntry = Readonly<{
   mediaId?: string;
   mediaAlt?: string;
   directoryStatus: PublicVendorDirectoryStatus;
-  demo: boolean;
 }>;
 
 type VendorDirectoryRow = SqlRow & {
@@ -114,8 +112,7 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     categoryCodes: isPartner ? textArray(row.category_codes) : [],
     researchCategory: isPartner ? undefined : optionalText(row.research_category),
     canonicalCount: isPartner ? asCount(row.canonical_count) : 0,
-    directoryStatus: isPartner ? "partner" : "research",
-    demo: false
+    directoryStatus: isPartner ? "partner" : "research"
   };
 }
 
@@ -222,25 +219,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
   return result.rows.map(fromDatabaseRow);
 }
 
-function demoDirectory(): readonly PublicVendorDirectoryEntry[] {
-  return vendors.map((vendor) => {
-    const categoryCodes = variants
-      .filter((variant) => (offers[variant.id] ?? []).some((offer) => offer.vendorId === vendor.id))
-      .map((variant) => variant.categoryCode ?? "other");
-    return {
-      id: vendor.id,
-      name: vendor.name,
-      adviser: vendor.adviser,
-      categoryCodes: [...new Set(categoryCodes)],
-      canonicalCount: categoryCodes.length,
-      directoryStatus: "demo" as const,
-      demo: true
-    };
-  }).sort((a, b) => a.name.localeCompare(b.name));
-}
-
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
-  if (!productionDatabaseConfigured()) return demoDirectory();
+  if (!productionDatabaseConfigured()) return [];
   const directory = await databaseDirectory();
   const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
   const images = new Map((await approvedVendorImages(partnerIds)).map((image) => [image.vendorId, image]));
@@ -251,12 +231,9 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
 }
 
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
-  if (!vendorId.trim()) return undefined;
-  if (productionDatabaseConfigured()) {
-    const vendor = (await databaseDirectory(vendorId))[0];
-    if (!vendor || vendor.directoryStatus !== "partner") return undefined;
-    const image = (await approvedVendorImages([vendor.id]))[0];
-    return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
-  }
-  return demoDirectory().find((vendor) => vendor.id === vendorId);
+  if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
+  const vendor = (await databaseDirectory(vendorId))[0];
+  if (!vendor || vendor.directoryStatus !== "partner") return undefined;
+  const image = (await approvedVendorImages([vendor.id]))[0];
+  return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
 }

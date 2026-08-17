@@ -1,5 +1,4 @@
 import { getCatalogCards } from "../../../lib/catalog-view";
-import { productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -18,5 +17,5 @@ export async function GET(request: Request) {
     availableToSell: product.availableToSell,
     vendor: product.vendorId && product.vendorName ? { id: product.vendorId, name: product.vendorName, adviser: product.adviser ?? null } : null
   }));
-  return Response.json({ demoData: !productionDatabaseConfigured(), market: "sparta", products });
+  return Response.json({ market: "sparta", products });
 }

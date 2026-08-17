@@ -98,7 +98,7 @@ export default async function ShopsPage({ searchParams }: Props) {
                     {!storyMedia && <span className="shop-card-initial">{vendor.name.slice(0, 1).toUpperCase()}</span>}
                   </div>
                   <div className="shop-card-body">
-                    <div className="eyebrow">{vendor.directoryStatus === "partner" ? (location?.locality ? `Ενεργός συνεργάτης · ${location.locality}` : "Ενεργός συνεργάτης") : vendor.directoryStatus === "research" ? "Χαρτογραφημένη επιχείρηση · δεν είναι ακόμη συνεργάτης" : "Demo συνεργάτης"}</div>
+                    <div className="eyebrow">{vendor.directoryStatus === "partner" ? (location?.locality ? `Ενεργός συνεργάτης · ${location.locality}` : "Ενεργός συνεργάτης") : "Χαρτογραφημένη επιχείρηση · δεν είναι ακόμη συνεργάτης"}</div>
                     <h2>{vendor.name}</h2>
                     <p className="shop-card-copy">{vendor.story?.excerpt ?? (isResearch ? "Καταχώριση από την ερευνητική βάση του Buy Local Sparta. Τα στοιχεία συνεργασίας, συμβουλής και προϊόντων δεν έχουν ακόμη ενεργοποιηθεί από τον έμπορο." : "Δες το δημόσιο προφίλ, τις διαθέσιμες κατηγορίες και ποιος μπορεί να σε συμβουλέψει.")}</p>
 
@@ -124,7 +124,7 @@ export default async function ShopsPage({ searchParams }: Props) {
         ) : (
           <div className="empty-state">
             <h2>{allVendors.length ? "Δεν βρέθηκε κατάστημα με αυτά τα φίλτρα." : "Η βάση καταστημάτων ετοιμάζεται."}</h2>
-            <p>{allVendors.length ? "Δοκίμασε διαφορετικό όνομα ή επίλεξε άλλη κατηγορία." : "Δεν εμφανίζουμε demo επιχειρήσεις όταν η παραγωγική βάση δεδομένων είναι ενεργή."}</p>
+            <p>{allVendors.length ? "Δοκίμασε διαφορετικό όνομα ή επίλεξε άλλη κατηγορία." : "Δεν υπάρχουν ακόμη δημοσιεύσιμες καταχωρίσεις στην παραγωγική βάση δεδομένων."}</p>
             <a className="button" href={allVendors.length ? "/shops" : "/shop"}>{allVendors.length ? "Καθαρισμός φίλτρων" : "Πήγαινε στα προϊόντα"}</a>
           </div>
         )}
