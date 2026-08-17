@@ -67,6 +67,7 @@ export default async function ShopsPage() {
                   <div className="shop-card-visual" aria-hidden="true">
                     <span className="shop-card-index">SPARTA · {String(index + 1).padStart(2, "0")}</span>
                     <span className="shop-card-initial">{vendor.name.slice(0, 1).toUpperCase()}</span>
+                    {vendor.mediaId && <img src={`/api/media/${encodeURIComponent(vendor.mediaId)}`} alt="" loading="lazy" decoding="async" />}
                   </div>
                   <div className="shop-card-body">
                     <div className="eyebrow">{vendor.demo ? "Demo συνεργάτης" : location?.locality ? `Τοπικό κατάστημα · ${location.locality}` : "Συνεργαζόμενο κατάστημα"}</div>
