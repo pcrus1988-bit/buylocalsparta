@@ -19,12 +19,13 @@ export function WorkspaceQuickLinks({
       <p>Κάθε κάρτα οδηγεί σε ξεχωριστή λειτουργία ή ουσιαστική επόμενη ενέργεια.</p>
     </div>
     <div className="workspace-quick-grid">
-      {links.map((item) => <Link href={item.href} key={item.href} className="workspace-quick-card">
-        <span>{item.kicker}</span>
+      {links.map((item, index) => <Link href={item.href} key={item.href} className="workspace-quick-card">
+        <span className="workspace-quick-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+        <span className="workspace-quick-kicker">{item.kicker}</span>
         {item.value !== undefined && <b>{item.value}</b>}
         <strong>{item.label}</strong>
         <small>{item.description}</small>
-        <i aria-hidden="true">Άνοιγμα →</i>
+        <i aria-hidden="true"><span>Άνοιγμα</span><b>→</b></i>
       </Link>)}
     </div>
   </section>;
