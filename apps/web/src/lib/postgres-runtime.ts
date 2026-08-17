@@ -21,6 +21,10 @@ export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env):
   }
 }
 
+export function productionDatabaseConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(resolveDatabaseUrlFromEnv(env));
+}
+
 function postgresRuntimeEnv(): NodeJS.ProcessEnv {
   const connectionString = resolveDatabaseUrlFromEnv();
   return connectionString ? { ...process.env, DATABASE_URL: connectionString } : process.env;
@@ -31,12 +35,12 @@ export function databaseRuntimeRequired(): boolean {
 }
 
 export function getProductionPostgresRuntime(): ProductionPostgresRuntime {
-  if (!resolveDatabaseUrlFromEnv()) throw new Error("DATABASE_URL or POSTGRES_URL is required for production shared state");
+  if (!productionDatabaseConfigured()) throw new Error("DATABASE_URL or POSTGRES_URL is required for production shared state");
   return globals[globalKey] ?? (globals[globalKey] = createPostgresRuntimeFromEnv({ env: postgresRuntimeEnv(), applicationName: "buy-local-sparta-web" }));
 }
 
 export async function productionDatabaseReadiness() {
-  if (!resolveDatabaseUrlFromEnv()) {
+  if (!productionDatabaseConfigured()) {
     return {
       ok: !databaseRuntimeRequired(),
       checkedAt: Date.now(),
