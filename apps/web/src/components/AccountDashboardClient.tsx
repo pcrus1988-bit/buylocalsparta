@@ -63,6 +63,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
     </section>
 
     <section className="shell account-live-grid">
+      <article className="account-live-card account-wide"><div className="account-card-head"><div><div className="eyebrow">Ask Local</div><h2>Ιδιωτικά αιτήματα & προσφορές</h2></div><a className="text-link" href="/ask-local">Άνοιγμα →</a></div><p className="account-muted">Δες την ανάθεση, την προθεσμία απάντησης και τις ιδιωτικές προσφορές που ανήκουν μόνο στον λογαριασμό σου.</p></article>
       <article className="account-live-card account-wide">
         <div className="account-card-head"><div><div className="eyebrow">Orders</div><h2>Παραγγελίες</h2></div><span className="count-pill">{data.orders.length}</span></div>
         {data.orders.length ? <div className="account-list">{data.orders.map((order) => <div className="order-row" key={order.id}><div><a href={`/account/orders/${order.id}`}><strong>{order.id}</strong></a><small>{date(order.createdAt)} · {order.fulfilmentMode}</small></div><div className="order-lines">{order.lines.map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div><div className="order-total"><strong>{order.total}</strong><span>{order.status}</span></div></div>)}</div> : <div className="account-empty"><p>Δεν έχεις ακόμη παραγγελίες συνδεδεμένες με αυτόν τον λογαριασμό.</p><a href="/shop" className="text-link">Ξεκίνα από την αγορά →</a></div>}
