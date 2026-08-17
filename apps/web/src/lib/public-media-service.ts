@@ -13,6 +13,8 @@ export type ApprovedCatalogImage = Readonly<{
   altText?: string;
 }>;
 
+export type ApprovedVendorImage = Readonly<{ vendorId: string; mediaId: string; altText?: string }>;
+
 export type ApprovedPublicMediaRead = StoredObjectRead & Readonly<{
   mediaId: string;
   contentType: "image/jpeg" | "image/png" | "image/webp";
@@ -31,6 +33,8 @@ type PublicMediaRow = SqlRow & {
   content_type: string;
   byte_size: number | string;
 };
+
+type VendorImageRow = SqlRow & { vendor_public_id: string; media_public_id: string; alt_text?: string | null };
 
 const PUBLIC_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 let storageSingleton: S3ObjectStorage | undefined;
@@ -97,6 +101,42 @@ export async function approvedCatalogImages(requests: readonly CatalogMediaReque
 
   return result.rows.map((row) => ({
     canonicalVariantId: requiredText(row.canonical_public_id, "canonical_public_id"),
+    mediaId: requiredText(row.media_public_id, "media_public_id"),
+    altText: optionalText(row.alt_text)
+  }));
+}
+
+export async function approvedVendorImages(vendorIds: readonly string[]): Promise<readonly ApprovedVendorImage[]> {
+  if (!governedPublicMediaEnabled() || vendorIds.length === 0) return [];
+  const unique = [...new Set(vendorIds.map((id) => id.trim()).filter(Boolean))];
+  if (unique.length === 0) return [];
+  if (unique.length > 250) throw new Error("Public vendor media projection accepts at most 250 vendors per request");
+
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
+  const result = await uow.withTransaction({ actorUserId: "public-storefront", marketId: "sparta", platformAccess: true }, (tx) => tx.query<VendorImageRow>(`
+    SELECT DISTINCT ON (v.public_id)
+           v.public_id AS vendor_public_id,pm.public_id AS media_public_id,pm.alt_text
+    FROM vendor_businesses v
+    JOIN markets m ON m.id=v.market_id
+    JOIN product_media pm ON pm.vendor_id=v.id
+    JOIN canonical_variants cv ON cv.id=pm.canonical_variant_id
+    JOIN vendor_offers vo ON vo.vendor_id=v.id AND vo.canonical_variant_id=cv.id AND vo.status='approved'
+    JOIN vendor_locations vl ON vl.id=vo.location_id AND vl.active=true
+    WHERE v.public_id = ANY($1::text[])
+      AND m.code='sparta' AND v.status='active'
+      AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+      AND pm.kind='image'
+      AND pm.scan_status='clean'
+      AND pm.rights_status='approved'
+      AND pm.moderation_status='approved'
+      AND pm.object_key IS NOT NULL
+      AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+    ORDER BY v.public_id,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.public_id
+  `, [unique]), { readOnly: true });
+
+  return result.rows.map((row) => ({
+    vendorId: requiredText(row.vendor_public_id, "vendor_public_id"),
     mediaId: requiredText(row.media_public_id, "media_public_id"),
     altText: optionalText(row.alt_text)
   }));
