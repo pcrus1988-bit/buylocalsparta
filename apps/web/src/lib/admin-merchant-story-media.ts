@@ -1,5 +1,5 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
-import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
+import { assertAdminPermission, postgresAdminRuntimeEnabled, recordAdminAudit } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type MerchantStoryMediaCandidate = Readonly<{
@@ -141,7 +141,7 @@ export async function adminSetMerchantStoryMedia(
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 12_000, lockTimeoutMs: 3_000 });
-  return uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
+  const changed = await uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const storyResult = await tx.query<StoryRow>(`
       SELECT s.id::text AS story_uuid,
              s.public_id AS story_id,
@@ -182,21 +182,16 @@ export async function adminSetMerchantStoryMedia(
     }
 
     await tx.query(`UPDATE merchant_stories SET og_image=$2,updated_at=now() WHERE id=$1::uuid`, [storyUuid, mediaId ?? null]);
-
-    const actor = await tx.query<SqlRow>(`SELECT id::text AS user_uuid FROM users WHERE public_id=$1 OR id::text=$1 LIMIT 1`, [principal.userId]);
-    const market = await tx.query<SqlRow>(`SELECT id::text AS market_uuid FROM markets WHERE code='sparta' LIMIT 1`);
-    await tx.query(`
-      INSERT INTO audit_events(id,market_id,actor_user_id,actor_role,action,entity_type,entity_id,reason,before_state,after_state,created_at)
-      VALUES(gen_random_uuid(),$1::uuid,$2::uuid,'platform','merchant_story.media_changed','merchant_story',$3,$4,$5::jsonb,$6::jsonb,now())
-    `, [
-      text(market.rows[0]?.market_uuid, "market.market_uuid"),
-      text(actor.rows[0]?.user_uuid, "actor.user_uuid"),
-      text(story.story_id, "story.story_id"),
-      mediaId ? "Approved merchant media associated" : "Merchant media association removed",
-      JSON.stringify({ mediaId: beforeMediaId ?? null }),
-      JSON.stringify({ mediaId: mediaId ?? null })
-    ]);
-
-    return { storyId: text(story.story_id, "story.story_id"), mediaId };
+    return { storyId: text(story.story_id, "story.story_id"), mediaId, beforeMediaId };
   }, { isolation: "serializable" });
+
+  await recordAdminAudit(
+    principal,
+    "merchant_story.media_changed",
+    "merchant_story",
+    changed.storyId,
+    mediaId ? "Approved merchant media associated" : "Merchant media association removed",
+    { beforeMediaId: changed.beforeMediaId ?? null, mediaId: changed.mediaId ?? null }
+  );
+  return { storyId: changed.storyId, mediaId: changed.mediaId };
 }
