@@ -44,7 +44,7 @@ export default async function CategoryPage({ params }: Props) {
             <p>{category.description}</p>
             <div className="hero-actions">
               <a className="button button-light" href={`/shop?category=${category.slug}`}>Δες όλα τα προϊόντα</a>
-              <a className="button category-outline" href="/#ask-local">Ρώτησε τοπικά</a>
+              <a className="button category-outline" href="/ask-local">Ρώτησε τοπικά</a>
             </div>
           </div>
           <div className="category-landing-visual" aria-hidden="true">
@@ -73,7 +73,7 @@ export default async function CategoryPage({ params }: Props) {
               {products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
             </div>
           ) : (
-            <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Η σελίδα είναι έτοιμη για το πραγματικό catalog. Μέχρι τότε, το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/#ask-local">Ask Local</a></div>
+            <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Η σελίδα είναι έτοιμη για το πραγματικό catalog. Μέχρι τότε, το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
           )}
         </div>
       </section>
