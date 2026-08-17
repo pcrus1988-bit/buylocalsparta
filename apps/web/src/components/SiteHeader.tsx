@@ -9,7 +9,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
       <a className="brand" href="/"><span className="brand-mark">BLS</span><span>Buy Local Sparta</span></a>
       <nav className="nav" aria-label="Primary">
         <a href="/shop">Αγορές</a>
-        <a href="/#people">Καταστήματα & άνθρωποι</a>
+        <a href="/shops">Καταστήματα & άνθρωποι</a>
         {!compact && <a href="/#advice">Συμβουλή</a>}
         <a href="/#ask-local">Ask Local</a>
       </nav>
