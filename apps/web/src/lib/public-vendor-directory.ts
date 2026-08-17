@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { offers, variants, vendors } from "./demo-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { approvedVendorImages } from "./public-media-service";
 
 export type PublicVendorLocation = Readonly<{
   name: string;
@@ -28,6 +29,8 @@ export type PublicVendorDirectoryEntry = Readonly<{
   story?: PublicVendorStory;
   categoryCodes: readonly string[];
   canonicalCount: number;
+  mediaId?: string;
+  mediaAlt?: string;
   demo: boolean;
 }>;
 
@@ -193,11 +196,22 @@ function demoDirectory(): readonly PublicVendorDirectoryEntry[] {
 }
 
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
-  return postgresEnabled() ? databaseDirectory() : demoDirectory();
+  if (!postgresEnabled()) return demoDirectory();
+  const directory = await databaseDirectory();
+  const images = new Map((await approvedVendorImages(directory.map((vendor) => vendor.id))).map((image) => [image.vendorId, image]));
+  return directory.map((vendor) => {
+    const image = images.get(vendor.id);
+    return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
+  });
 }
 
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
   if (!vendorId.trim()) return undefined;
-  if (postgresEnabled()) return (await databaseDirectory(vendorId))[0];
+  if (postgresEnabled()) {
+    const vendor = (await databaseDirectory(vendorId))[0];
+    if (!vendor) return undefined;
+    const image = (await approvedVendorImages([vendor.id]))[0];
+    return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
+  }
   return demoDirectory().find((vendor) => vendor.id === vendorId);
 }
