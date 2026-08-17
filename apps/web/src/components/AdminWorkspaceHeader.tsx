@@ -1,10 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+
+const groups = [
+  { label: "Operations", links: [["Overview", "/admin"], ["Orders", "/admin/orders"], ["Shipping", "/admin/shipping"], ["Jobs", "/admin/maintenance"], ["Activation", "/admin/activation"]] },
+  { label: "Commerce", links: [["Vendors", "/admin/vendors"], ["Matching", "/admin/matching"], ["Categories", "/admin/categories"], ["CMS", "/admin/content"]] },
+  { label: "Trust", links: [["Trust", "/admin/trust"], ["Reviews", "/admin/reviews"], ["Recalls", "/admin/recalls"], ["Privacy", "/admin/privacy"]] },
+  { label: "Intelligence", links: [["Finance", "/admin/finance"], ["Tax", "/admin/tax"], ["Fairness", "/admin/fairness"], ["Analytics", "/admin/analytics"], ["System", "/admin/operations"]] }
+] as const;
 
 export function AdminWorkspaceHeader({ csrfToken }: { csrfToken: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [busy, setBusy] = useState(false);
   async function logout() {
     setBusy(true);
@@ -12,27 +21,13 @@ export function AdminWorkspaceHeader({ csrfToken }: { csrfToken: string }) {
     router.replace("/admin/login");
     router.refresh();
   }
-  return <header className="vendor-app-header shell admin-header">
-    <a className="brand" href="/admin"><span className="brand-mark">BLS</span><span>Admin Command Centre</span></a>
-    <nav aria-label="Admin workspace">
-      <a href="/admin">Overview</a>
-      <a href="/admin/vendors">Vendors</a>
-      <a href="/admin/matching">Matching</a>
-      <a href="/admin/trust">Trust</a>
-      <a href="/admin/finance">Finance</a>
-      <a href="/admin/tax">Tax/myDATA</a>
-      <a href="/admin/shipping">Shipping</a>
-      <a href="/admin/fairness">Fairness</a>
-      <a href="/admin/orders">Orders</a>
-      <a href="/admin/reviews">Reviews</a>
-      <a href="/admin/privacy">Privacy</a>
-      <a href="/admin/categories">Categories</a>
-      <a href="/admin/content">CMS</a>
-      <a href="/admin/recalls">Recalls</a>
-      <a href="/admin/analytics">Analytics</a>
-      <a href="/admin/maintenance">Jobs</a>
-      <a href="/admin/operations">Operations</a>
-      <a href="/admin/activation">Activation</a>
+  return <header className="workspace-header shell admin-header">
+    <Link className="brand workspace-identity" href="/admin"><span className="brand-mark">BLS</span><span><strong>Command Centre</strong><small>Governed operations</small></span></Link>
+    <nav className="workspace-nav workspace-nav-admin" aria-label="Admin workspace">
+      {groups.map((group) => <div className="workspace-nav-group" key={group.label}><span className="workspace-nav-label">{group.label}</span><div>{group.links.map(([label, href]) => {
+        const active = pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
+        return <Link href={href} key={href} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined}>{label}</Link>;
+      })}</div></div>)}
     </nav>
     <button className="button button-secondary admin-logout" onClick={logout} disabled={busy}>{busy ? "…" : "Logout"}</button>
   </header>;

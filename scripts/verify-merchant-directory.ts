@@ -29,6 +29,9 @@ for (const boundary of [
   if (!directory.includes(boundary)) failures.push(`Merchant directory projection is missing governance boundary: ${boundary}`);
 }
 if (!directory.includes("new PostgresUnitOfWork(runtime.sqlPool") || !directory.includes("platformAccess: true")) failures.push("Merchant directory PostgreSQL reads must use the scoped unit-of-work boundary");
+for (const boundary of ["pm.scan_status='clean'", "pm.rights_status='approved'", "pm.moderation_status='approved'", "v.status='active'", "vo.status='approved'"]) {
+  if (!publicMedia.includes(boundary)) failures.push(`Vendor imagery projection is missing governance boundary: ${boundary}`);
+}
 if (!directory.includes("JOIN vendor_users vu ON vu.id=ap.vendor_user_id") || !directory.includes("vu.vendor_id=v.id") || !directory.includes("vu.active=true")) failures.push("Merchant adviser projection must follow adviser_profiles.vendor_user_id through active vendor_users");
 if (directory.includes("ap.job_title") || directory.includes("ap.vendor_id")) failures.push("Merchant adviser projection references columns that do not exist in adviser_profiles");
 if (directory.includes("publicAssignedCanonical") || directory.includes("#selectFairOffer") || directory.includes("fairness_assignment_events")) failures.push("Merchant directory must not mutate Fair Vendor Exposure state");
@@ -82,6 +85,7 @@ if (!adminStoryMediaForm.includes('value=""') || !adminStoryMediaForm.includes("
 if (!adminStoryMediaForm.includes('"x-csrf-token": csrfToken')) failures.push("Admin merchant media selector must send the session CSRF token");
 
 if (!shopsPage.includes("getPublicVendorDirectory()")) failures.push("/shops must render the governed public vendor directory projection");
+if (!shopsPage.includes('role="search"') || !shopsPage.includes('name="category"') || !shopsPage.includes("normalizedSearch")) failures.push("/shops must provide server-rendered merchant name and category discovery controls");
 if (!shopsPage.includes("Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση")) failures.push("/shops must explain that directory visibility does not change fair assignment");
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
 if (!vendorPage.includes("getVendorCatalogCards(id)")) failures.push("Public vendor profile products must retain the non-fairness vendor catalog projection");

@@ -5,6 +5,8 @@ import { getPublicVendorDirectoryEntry, type PublicVendorDirectoryEntry } from "
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
+import { publicOrigin } from "../../../lib/public-origin";
+import { SiteFooter } from "../../../components/SiteFooter";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -23,7 +25,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const vendor = await getPublicVendorDirectoryEntry(id);
   return {
     title: vendor ? `${vendor.name} · Τοπικό κατάστημα` : "Κατάστημα",
-    description: vendor?.story?.excerpt ?? (vendor ? `Γνώρισε το ${vendor.name}, τα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το Buy Local Sparta.` : undefined)
+    description: vendor?.story?.excerpt ?? (vendor ? `Γνώρισε το ${vendor.name}, τα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το Buy Local Sparta.` : undefined),
+    alternates: vendor ? { canonical: `/vendor/${encodeURIComponent(vendor.id)}` } : undefined,
+    openGraph: vendor ? { title: vendor.name, description: vendor.story?.excerpt ?? `Τοπικό κατάστημα στη Σπάρτη μέσα από το Buy Local Sparta.`, url: `/vendor/${encodeURIComponent(vendor.id)}`, images: vendor.mediaId ? [`/api/media/${encodeURIComponent(vendor.mediaId)}`] : undefined, type: "website" } : undefined
   };
 }
 
@@ -35,9 +39,18 @@ export default async function VendorPage({ params }: Props) {
   const categories = categoriesFor(vendor);
   const location = vendor.location;
   const storyMedia = vendor.story?.mediaUrl;
+  const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
+  const structuredData = {
+    "@context": "https://schema.org", "@type": "LocalBusiness", "@id": `${vendorUrl}#business`, name: vendor.name, url: vendorUrl,
+    description: vendor.story?.excerpt,
+    image: storyMedia ? `${publicOrigin()}${storyMedia}` : undefined,
+    telephone: location?.phone, email: location?.publicEmail,
+    address: location ? { "@type": "PostalAddress", streetAddress: [location.addressLine1, location.addressLine2].filter(Boolean).join(", "), addressLocality: location.locality, postalCode: location.postcode, addressCountry: "GR" } : undefined
+  };
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Know your vendor · γνώρισε τον άνθρωπο πίσω από την αγορά.</div>
       <SiteHeader />
 
@@ -49,7 +62,7 @@ export default async function VendorPage({ params }: Props) {
             <h1>{vendor.name}</h1>
             <p>{vendor.story?.excerpt ?? "Το Buy Local Sparta δίνει χώρο στο κατάστημα, στην τεχνογνωσία του και στους ανθρώπους που μπορούν να σε βοηθήσουν — όχι μόνο σε μια λίστα προϊόντων."}</p>
             <div className="vendor-profile-actions">
-              <a className="button button-light" href="/#advice">Ρώτησε {vendor.adviser ?? "το κατάστημα"}</a>
+              <a className="button button-light" href={`/ask-local?vendor=${encodeURIComponent(vendor.id)}`}>Ρώτησε {vendor.adviser ?? "το κατάστημα"}</a>
               <a className="button vendor-outline" href="/shop">Δες την αγορά</a>
             </div>
           </div>
@@ -91,6 +104,7 @@ export default async function VendorPage({ params }: Props) {
         </div>
         {products.length ? <div className="product-grid">{products.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={{ name: vendor.name, adviser: vendor.adviser }} key={product.id} />)}</div> : <div className="empty-state"><h2>Δεν υπάρχουν διαθέσιμα canonical προϊόντα για αυτό το προφίλ.</h2><p>Το κατάστημα μπορεί να παραμένει δημόσια ορατό χωρίς να εμφανίζονται ανενεργές ή μη διαθέσιμες προσφορές προϊόντων.</p><a className="button" href="/shop">Δες όλα τα προϊόντα</a></div>}
       </section>
+      <SiteFooter />
     </main>
   );
 }

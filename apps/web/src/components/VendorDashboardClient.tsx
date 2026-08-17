@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Link from "next/link";
+import { WorkspaceQuickLinks } from "./WorkspaceQuickLinks";
 
 type Product = { offerId: string; canonicalVariantId: string; title: string; retailPrice: string; supplierPrice: string; onHand: number; reserved: number; blocked: number; safetyStock: number; availableToSell: number; updatedAt: number };
 type Fulfilment = { id: string; orderId: string; orderStatus: string; status: string; mode: string; postcode: string; createdAt: number; customerIdentified: boolean; merchandiseSubtotal: string; deliveryCharge: string; lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>; actions: readonly string[] };
@@ -43,8 +45,17 @@ export function VendorDashboardClient({ initial }: { initial: Dashboard }) {
   return <>
     <section className="shell vendor-toolbar">
       <div><span className="eyebrow">Vendor session</span><strong>{data.vendor.name}</strong><small>{data.account.email} · {data.account.roles.join(", ")}</small></div>
-      <div className="vendor-toolbar-actions"><a className="button button-secondary" href={`/vendor/${data.vendor.id}`}>Δημόσιο προφίλ</a><button className="button button-secondary" type="button" onClick={logout} disabled={busy === "logout"}>Αποσύνδεση</button></div>
+      <div className="vendor-toolbar-actions"><Link className="button button-secondary" href={`/vendor/${data.vendor.id}`}>Δημόσιο προφίλ</Link><button className="button button-secondary" type="button" onClick={logout} disabled={busy === "logout"}>Αποσύνδεση</button></div>
     </section>
+
+    <WorkspaceQuickLinks eyebrow="Vendor workflow" title="Πήγαινε στην εργασία που χρειάζεται τώρα." links={[
+      { kicker: "Catalog", label: "Προϊόντα & stock", description: "Υπέβαλε προϊόντα και συνέχισε τον canonical matching κύκλο.", href: "/vendor/catalog", value: data.metrics.activeProducts },
+      { kicker: "Fulfilment", label: "Αποστολές", description: "Δημιούργησε labels και κατέγραψε handover στον μεταφορέα.", href: "/vendor/shipping", value: data.metrics.openFulfilments },
+      { kicker: "After-sales", label: "Επιστροφές", description: "Διαχειρίσου μόνο τις επιστροφές που έχουν ανατεθεί στο κατάστημά σου.", href: "/vendor/returns" },
+      { kicker: "Trust", label: "Media & compliance", description: "Ανέβασε δικαιώματα εικόνων και τεκμήρια συμμόρφωσης.", href: "/vendor/trust" },
+      { kicker: "Customer care", label: "Advice inbox", description: "Απάντησε σε ιδιωτικά αιτήματα και προγραμματισμένες συνεδρίες.", href: "/vendor/advice" },
+      { kicker: "Business", label: "Finance & analytics", description: "Δες ελεγχόμενα οικονομικά snapshots και aggregated metrics.", href: "/vendor/finance" }
+    ]} />
 
     {error && <div className="shell form-error vendor-error" role="alert">{error}</div>}
 

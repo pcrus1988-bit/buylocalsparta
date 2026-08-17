@@ -1,7 +1,7 @@
 # Buy Local Sparta — Project Status
 
-**Build started:** 14 August 2026  
-**Current development build:** 0.45.0  
+**Build started:** 14 August 2026
+**Current development build:** 0.45.0
 **Continuity source:** this Git repository. Future work must inspect and preserve the existing implementation before modification.
 
 This file is the current-state continuity record. Detailed historical implementation notes remain in the versioned `docs/BUILD_*.md` reports and provider/deployment runbooks.

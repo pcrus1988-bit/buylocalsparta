@@ -3,6 +3,7 @@ import { getCatalogCards } from "../lib/catalog-view";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { STOREFRONT_CATEGORIES } from "../lib/storefront-taxonomy";
+import { SiteFooter } from "../components/SiteFooter";
 
 export default async function Home() {
   const visitorKey = await getVisitorKey();
@@ -22,8 +23,8 @@ export default async function Home() {
             Ανακάλυψε προϊόντα από τοπικά καταστήματα, μίλα με ανθρώπους που τα γνωρίζουν και αγόρασε με μία ενιαία εμπειρία checkout.
           </p>
           <div className="hero-actions">
-            <a className="button" href="#shop">Ανακάλυψε προϊόντα</a>
-            <a className="button button-secondary" href="#ask-local">Ρώτησε ένα κατάστημα</a>
+            <a className="button" href="/shop">Ανακάλυψε προϊόντα</a>
+            <a className="button button-secondary" href="/ask-local">Ρώτησε ένα κατάστημα</a>
           </div>
           <div className="hero-proof" aria-label="Marketplace benefits">
             <span><strong>1</strong> checkout</span>
@@ -100,6 +101,10 @@ export default async function Home() {
             <div><span>02</span><p><strong>Πάρε πραγματική συμβουλή</strong><small>Ο κατάλληλος τοπικός επαγγελματίας απαντά ιδιωτικά.</small></p></div>
             <div><span>03</span><p><strong>Αγόρασε όταν είσαι έτοιμος</strong><small>Η προσφορά περνά απευθείας στο καλάθι σου.</small></p></div>
           </div>
+          <div className="hero-actions">
+            <a className="button" href="/advice">Βρες τοπικό σύμβουλο</a>
+            <a className="button button-secondary" href="/how-it-works">Δες όλη τη διαδρομή</a>
+          </div>
         </div>
       </section>
 
@@ -109,24 +114,17 @@ export default async function Home() {
           <h2>Ask Local.</h2>
           <p>Πες μας τι ψάχνεις. Το αίτημα δρομολογείται ιδιωτικά σε ένα κατάλληλο κατάστημα — όχι σε δημόσιο bidding war.</p>
         </div>
-        <form className="ask-form">
+        <form className="ask-form" action="/ask-local" method="get">
           <label htmlFor="ask">Τι ψάχνεις;</label>
           <div className="ask-row">
-            <input id="ask" placeholder="π.χ. δώρο για παιδί 8 ετών έως 35€" />
-            <button type="button" className="button">Ρώτησε τοπικά</button>
+            <input id="ask" name="need" minLength={10} maxLength={2000} required placeholder="π.χ. δώρο για παιδί 8 ετών έως 35€" />
+            <button type="submit" className="button">Ρώτησε τοπικά</button>
           </div>
-          <small>Demo interface — δεν αποστέλλεται πραγματικό αίτημα από αυτή τη φόρμα.</small>
+          <small>Θα συνδεθείς με ασφάλεια για να υποβάλεις και να παρακολουθείς το ιδιωτικό αίτημα.</small>
         </form>
       </section>
 
-      <footer className="footer">
-        <div className="shell footer-grid">
-          <div><div className="brand footer-brand"><span className="brand-mark">BLS</span><span>Buy Local Sparta</span></div><p>Buy Local. Know Your Vendor. Get Real Advice.</p></div>
-          <div><strong>Αγορές</strong><a href="#shop">Προϊόντα</a><a href="/shops">Καταστήματα</a><a href="#ask-local">Ask Local</a></div>
-          <div><strong>Για καταστήματα</strong><a href="/join">Γίνε συνεργάτης</a></div>
-          <div><strong>Πλατφόρμα</strong><a href="#advice">Πώς λειτουργεί</a><a href="/account">Ο λογαριασμός μου</a></div>
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

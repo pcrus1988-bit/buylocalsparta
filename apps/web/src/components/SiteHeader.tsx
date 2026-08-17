@@ -10,8 +10,9 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
       <nav className="nav" aria-label="Primary">
         <a href="/shop">Αγορές</a>
         <a href="/shops">Καταστήματα & άνθρωποι</a>
-        {!compact && <a href="/#advice">Συμβουλή</a>}
-        <a href="/#ask-local">Ask Local</a>
+        <a href="/how-it-works">Πώς λειτουργεί</a>
+        {!compact && <a href="/advice">Συμβουλή</a>}
+        <a href="/ask-local">Ask Local</a>
       </nav>
       <div className="header-actions">
         <a className="icon-button header-icon-link" href="/account" aria-label="Λογαριασμός">◎</a>
