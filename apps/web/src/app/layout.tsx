@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./storefront-merchants.css";
 import { CartProvider } from "../components/CartProvider";
+import { publicOrigin } from "../lib/public-origin";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(publicOrigin()),
   title: {
     default: "Buy Local Sparta | Η τοπική αγορά της Σπάρτης online",
     template: "%s | Buy Local Sparta"
@@ -14,7 +16,8 @@ export const metadata: Metadata = {
     title: "Buy Local Sparta",
     description: "Buy Local. Know Your Vendor. Get Real Advice.",
     locale: "el_GR",
-    type: "website"
+    type: "website",
+    url: "/"
   }
 };
 
