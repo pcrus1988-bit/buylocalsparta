@@ -126,17 +126,17 @@ ALTER TABLE payment_dispute_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_dispute_provider_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY delivery_rules_platform_read ON delivery_rules
-  FOR SELECT USING (current_setting('app.platform_access', true) = 'true');
+  FOR SELECT USING ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY delivery_rules_platform_write ON delivery_rules
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY fee_rules_platform_only ON fee_rules
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY fee_snapshots_vendor_read ON fee_snapshots
   FOR SELECT USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM procurements p
       WHERE p.id = fee_snapshots.procurement_id
@@ -144,17 +144,17 @@ CREATE POLICY fee_snapshots_vendor_read ON fee_snapshots
     )
   );
 CREATE POLICY fee_snapshots_platform_write ON fee_snapshots
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY payment_disputes_platform_only ON payment_disputes
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY payment_dispute_evidence_platform_only ON payment_dispute_evidence
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY payment_dispute_provider_events_platform_only ON payment_dispute_provider_events
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

@@ -116,45 +116,45 @@ ALTER TABLE merchant_stories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_collections ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY cms_pages_public_read ON cms_pages FOR SELECT
-  USING (status='published' OR (status='scheduled' AND scheduled_at <= now()) OR current_setting('app.platform_access', true)='true');
+  USING (status='published' OR (status='scheduled' AND scheduled_at <= now()) OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY cms_pages_platform_write ON cms_pages FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY cms_page_translations_public_read ON cms_page_translations FOR SELECT
-  USING (EXISTS (SELECT 1 FROM cms_pages p WHERE p.id=cms_page_translations.page_id AND (p.status='published' OR (p.status='scheduled' AND p.scheduled_at <= now()) OR current_setting('app.platform_access', true)='true')));
+  USING (EXISTS (SELECT 1 FROM cms_pages p WHERE p.id=cms_page_translations.page_id AND (p.status='published' OR (p.status='scheduled' AND p.scheduled_at <= now()) OR (SELECT bls_private.is_platform_runtime()))));
 CREATE POLICY cms_page_translations_platform_write ON cms_page_translations FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY cms_revisions_platform_only ON cms_page_revisions FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY cms_navigation_public_read ON cms_navigation_menus FOR SELECT USING (true);
 CREATE POLICY cms_navigation_platform_write ON cms_navigation_menus FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
-CREATE POLICY cms_redirects_public_read ON cms_redirects FOR SELECT USING (active OR current_setting('app.platform_access', true)='true');
+CREATE POLICY cms_redirects_public_read ON cms_redirects FOR SELECT USING (active OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY cms_redirects_platform_write ON cms_redirects FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY merchant_stories_public_read ON merchant_stories FOR SELECT
-  USING (status='published' OR vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid OR current_setting('app.platform_access', true)='true');
+  USING (status='published' OR vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY merchant_stories_vendor_review ON merchant_stories FOR UPDATE
   USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid AND status IN ('draft','vendor_review'))
   WITH CHECK (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid AND status IN ('vendor_review','approved'));
 CREATE POLICY merchant_stories_platform_write ON merchant_stories FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY product_collections_public_read ON product_collections FOR SELECT
-  USING (status='published' OR current_setting('app.platform_access', true)='true');
+  USING (status='published' OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY product_collections_platform_write ON product_collections FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE TRIGGER cms_page_revisions_append_only BEFORE UPDATE OR DELETE ON cms_page_revisions
   FOR EACH ROW EXECUTE FUNCTION prevent_history_mutation();

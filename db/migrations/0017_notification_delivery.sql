@@ -100,42 +100,42 @@ ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_delivery_attempts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY notification_templates_platform_read ON notification_templates FOR SELECT
-  USING (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY notification_templates_platform_write ON notification_templates FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY notification_preferences_target_read ON notification_preferences FOR SELECT
   USING (
     user_id = nullif(current_setting('app.actor_user_id', true),'')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true),'')::uuid
-    OR current_setting('app.platform_access', true)='true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY notification_preferences_target_insert ON notification_preferences FOR INSERT
   WITH CHECK (
     user_id = nullif(current_setting('app.actor_user_id', true),'')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true),'')::uuid
-    OR current_setting('app.platform_access', true)='true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY notification_preferences_target_update ON notification_preferences FOR UPDATE
   USING (
     user_id = nullif(current_setting('app.actor_user_id', true),'')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true),'')::uuid
-    OR current_setting('app.platform_access', true)='true'
+    OR (SELECT bls_private.is_platform_runtime())
   ) WITH CHECK (
     user_id = nullif(current_setting('app.actor_user_id', true),'')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true),'')::uuid
-    OR current_setting('app.platform_access', true)='true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE POLICY notification_delivery_attempts_platform_only ON notification_delivery_attempts FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 -- Recipient updates remain restricted to read state even after delivery-control columns are added.
 CREATE OR REPLACE FUNCTION guard_notification_target_update() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('app.platform_access', true) <> 'true' THEN
+  IF NOT (SELECT bls_private.is_platform_runtime()) THEN
     IF OLD.user_id IS DISTINCT FROM NEW.user_id
        OR OLD.vendor_id IS DISTINCT FROM NEW.vendor_id
        OR OLD.channel IS DISTINCT FROM NEW.channel

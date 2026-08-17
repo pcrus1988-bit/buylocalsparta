@@ -171,24 +171,24 @@ ALTER TABLE return_repairs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recall_affected_orders ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY return_evidence_scope_read ON return_evidence FOR SELECT USING (
-  current_setting('app.platform_access', true)='true'
+  (SELECT bls_private.is_platform_runtime())
   OR EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.customer_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid)
   OR EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid)
 );
 CREATE POLICY return_evidence_customer_insert ON return_evidence FOR INSERT WITH CHECK (
-  current_setting('app.platform_access', true)='true'
+  (SELECT bls_private.is_platform_runtime())
   OR (
     submitted_by=nullif(current_setting('app.actor_user_id', true),'')::uuid
     AND EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.customer_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid)
   )
 );
 CREATE POLICY return_custody_scope_read ON return_custody_events FOR SELECT USING (
-  current_setting('app.platform_access', true)='true'
+  (SELECT bls_private.is_platform_runtime())
   OR EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.customer_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid)
   OR EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid)
 );
 CREATE POLICY return_custody_scoped_insert ON return_custody_events FOR INSERT WITH CHECK (
-  current_setting('app.platform_access', true)='true'
+  (SELECT bls_private.is_platform_runtime())
   OR (
     actor_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid
     AND EXISTS (
@@ -198,25 +198,25 @@ CREATE POLICY return_custody_scoped_insert ON return_custody_events FOR INSERT W
   )
 );
 
-CREATE POLICY return_replacements_platform ON return_replacements FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY return_replacements_platform ON return_replacements FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY return_replacements_customer_read ON return_replacements FOR SELECT USING (
   EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.customer_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid)
 );
 CREATE POLICY return_replacements_vendor_read ON return_replacements FOR SELECT USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid);
 CREATE POLICY return_replacements_vendor_update ON return_replacements FOR UPDATE USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid) WITH CHECK (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid);
 
-CREATE POLICY return_repairs_platform ON return_repairs FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY return_repairs_platform ON return_repairs FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY return_repairs_customer_read ON return_repairs FOR SELECT USING (
   EXISTS (SELECT 1 FROM returns r WHERE r.id=return_id AND r.customer_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid)
 );
 CREATE POLICY return_repairs_vendor_read ON return_repairs FOR SELECT USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid);
 CREATE POLICY return_repairs_vendor_update ON return_repairs FOR UPDATE USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid) WITH CHECK (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid);
 
-CREATE POLICY recall_affected_platform ON recall_affected_orders FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY recall_affected_platform ON recall_affected_orders FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY recall_affected_customer_read ON recall_affected_orders FOR SELECT USING (customer_user_id=nullif(current_setting('app.actor_user_id', true),'')::uuid);
 CREATE OR REPLACE FUNCTION guard_recall_customer_update() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('app.platform_access', true) <> 'true' THEN
+  IF NOT (SELECT bls_private.is_platform_runtime()) THEN
     IF OLD.notice_id IS DISTINCT FROM NEW.notice_id
        OR OLD.canonical_variant_id IS DISTINCT FROM NEW.canonical_variant_id
        OR OLD.order_id IS DISTINCT FROM NEW.order_id

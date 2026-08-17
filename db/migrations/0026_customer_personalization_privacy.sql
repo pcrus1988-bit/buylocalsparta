@@ -70,34 +70,34 @@ CREATE POLICY saved_products_customer_own ON saved_products
   USING (user_id::text = current_setting('app.actor_user_id', true))
   WITH CHECK (user_id::text = current_setting('app.actor_user_id', true));
 CREATE POLICY saved_products_platform ON saved_products
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY saved_vendors_customer_own ON saved_vendors
   USING (user_id::text = current_setting('app.actor_user_id', true))
   WITH CHECK (user_id::text = current_setting('app.actor_user_id', true));
 CREATE POLICY saved_vendors_platform ON saved_vendors
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY recently_viewed_customer_own ON recently_viewed_products
   USING (user_id::text = current_setting('app.actor_user_id', true))
   WITH CHECK (user_id::text = current_setting('app.actor_user_id', true));
 CREATE POLICY recently_viewed_platform ON recently_viewed_products
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY privacy_requests_customer_read_own ON privacy_requests
-  FOR SELECT USING (user_id::text = current_setting('app.actor_user_id', true) OR current_setting('app.platform_access', true)='true');
+  FOR SELECT USING (user_id::text = current_setting('app.actor_user_id', true) OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY privacy_requests_customer_insert_own ON privacy_requests
-  FOR INSERT WITH CHECK (user_id::text = current_setting('app.actor_user_id', true) OR current_setting('app.platform_access', true)='true');
+  FOR INSERT WITH CHECK (user_id::text = current_setting('app.actor_user_id', true) OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY privacy_requests_platform_update ON privacy_requests
-  FOR UPDATE USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  FOR UPDATE USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE OR REPLACE FUNCTION guard_privacy_request_customer_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('app.platform_access', true) <> 'true' AND TG_OP='UPDATE' THEN
+  IF NOT (SELECT bls_private.is_platform_runtime()) AND TG_OP='UPDATE' THEN
     RAISE EXCEPTION 'Privacy request status/outcome is platform-controlled after submission';
   END IF;
   RETURN NEW;

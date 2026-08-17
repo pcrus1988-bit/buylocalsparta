@@ -56,18 +56,18 @@ CREATE POLICY saved_product_alert_preferences_customer_own ON saved_product_aler
   USING (user_id::text = current_setting('app.actor_user_id', true))
   WITH CHECK (user_id::text = current_setting('app.actor_user_id', true));
 CREATE POLICY saved_product_alert_preferences_platform ON saved_product_alert_preferences
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY saved_product_alert_events_customer_read_own ON saved_product_alert_events
-  FOR SELECT USING (user_id::text = current_setting('app.actor_user_id', true) OR current_setting('app.platform_access', true)='true');
+  FOR SELECT USING (user_id::text = current_setting('app.actor_user_id', true) OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY saved_product_alert_events_platform_insert ON saved_product_alert_events
-  FOR INSERT WITH CHECK (current_setting('app.platform_access', true)='true');
+  FOR INSERT WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY saved_product_alert_events_customer_delete_own ON saved_product_alert_events
   FOR DELETE USING (
     current_setting('app.privacy_erasure', true)='true' AND
-    (user_id::text = current_setting('app.actor_user_id', true) OR current_setting('app.platform_access', true)='true')
+    (user_id::text = current_setting('app.actor_user_id', true) OR (SELECT bls_private.is_platform_runtime()))
   );
 
 COMMIT;

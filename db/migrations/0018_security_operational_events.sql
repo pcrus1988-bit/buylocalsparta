@@ -37,11 +37,11 @@ ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE security_events FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY security_events_platform_read ON security_events FOR SELECT
-  USING (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY security_events_platform_insert ON security_events FOR INSERT
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY security_events_platform_delete ON security_events FOR DELETE
-  USING (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()));
 
 -- Security evidence is append-only. Retention cleanup deletes expired rows rather than
 -- rewriting historical evidence in place.

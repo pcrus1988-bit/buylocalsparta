@@ -42,30 +42,30 @@ CREATE POLICY product_media_vendor_select ON product_media
   FOR SELECT USING (
     vendor_id IS NULL
     OR vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY product_media_vendor_write ON product_media
   FOR ALL USING (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   ) WITH CHECK (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE POLICY product_compliance_vendor_select ON product_compliance_documents
   FOR SELECT USING (
     vendor_id IS NULL
     OR vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY product_compliance_vendor_write ON product_compliance_documents
   FOR ALL USING (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   ) WITH CHECK (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 COMMIT;

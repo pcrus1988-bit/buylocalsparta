@@ -44,7 +44,7 @@ CREATE INDEX mydata_attempts_status_idx ON mydata_transmission_attempts(status, 
 
 ALTER TABLE mydata_transmission_attempts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY mydata_attempts_platform_only ON mydata_transmission_attempts
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

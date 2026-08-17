@@ -27,14 +27,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS vendor_locations_one_primary_idx
 ALTER TABLE vendor_locations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS vendor_locations_vendor_read ON vendor_locations;
 CREATE POLICY vendor_locations_vendor_read ON vendor_locations FOR SELECT
-  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true');
+  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS vendor_locations_vendor_insert ON vendor_locations;
 CREATE POLICY vendor_locations_vendor_insert ON vendor_locations FOR INSERT
-  WITH CHECK (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true');
+  WITH CHECK (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS vendor_locations_vendor_update ON vendor_locations;
 CREATE POLICY vendor_locations_vendor_update ON vendor_locations FOR UPDATE
-  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true')
-  WITH CHECK (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true');
+  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()))
+  WITH CHECK (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()));
 
 CREATE TABLE IF NOT EXISTS fulfilment_capacity_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -57,10 +57,10 @@ CREATE INDEX IF NOT EXISTS fulfilment_capacity_rules_lookup_idx
 ALTER TABLE fulfilment_capacity_rules ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS fulfilment_capacity_rules_vendor_read ON fulfilment_capacity_rules;
 CREATE POLICY fulfilment_capacity_rules_vendor_read ON fulfilment_capacity_rules FOR SELECT
-  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true');
+  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS fulfilment_capacity_rules_vendor_write ON fulfilment_capacity_rules;
 CREATE POLICY fulfilment_capacity_rules_vendor_write ON fulfilment_capacity_rules FOR ALL
-  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true')
-  WITH CHECK (vendor_id=current_setting('app.vendor_id',true)::uuid OR current_setting('app.platform_access',true)='true');
+  USING (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()))
+  WITH CHECK (vendor_id=current_setting('app.vendor_id',true)::uuid OR (SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

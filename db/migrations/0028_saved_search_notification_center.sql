@@ -48,17 +48,17 @@ CREATE POLICY saved_searches_customer_own ON saved_searches
   USING (user_id::text=current_setting('app.actor_user_id', true))
   WITH CHECK (user_id::text=current_setting('app.actor_user_id', true));
 CREATE POLICY saved_searches_platform ON saved_searches
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY saved_search_alert_events_customer_read_own ON saved_search_alert_events FOR SELECT
-  USING (user_id::text=current_setting('app.actor_user_id', true) OR current_setting('app.platform_access', true)='true');
+  USING (user_id::text=current_setting('app.actor_user_id', true) OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY saved_search_alert_events_platform_insert ON saved_search_alert_events FOR INSERT
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY saved_search_alert_events_customer_delete_own ON saved_search_alert_events FOR DELETE
   USING (
     current_setting('app.privacy_erasure', true)='true' AND
-    (user_id::text=current_setting('app.actor_user_id', true) OR current_setting('app.platform_access', true)='true')
+    (user_id::text=current_setting('app.actor_user_id', true) OR (SELECT bls_private.is_platform_runtime()))
   );
 
 -- Notification-center lifecycle remains recipient-controlled without exposing message mutation.
@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS notifications_user_center_idx ON notifications(user_i
 
 CREATE OR REPLACE FUNCTION guard_notification_target_update() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('app.platform_access', true) <> 'true' THEN
+  IF NOT (SELECT bls_private.is_platform_runtime()) THEN
     IF OLD.user_id IS DISTINCT FROM NEW.user_id
        OR OLD.vendor_id IS DISTINCT FROM NEW.vendor_id
        OR OLD.channel IS DISTINCT FROM NEW.channel

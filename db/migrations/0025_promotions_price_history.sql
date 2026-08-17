@@ -218,25 +218,25 @@ ALTER TABLE coupon_redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coupon_redemption_reversals ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY platform_price_history_platform_only ON platform_price_history FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY product_promotions_platform_only ON product_promotions FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY coupon_rules_platform_only ON coupon_rules FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY coupon_product_eligibility_platform_only ON coupon_product_eligibility FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY coupon_category_eligibility_platform_only ON coupon_category_eligibility FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY coupon_redemptions_platform_only ON coupon_redemptions FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY coupon_redemption_reversals_platform_only ON coupon_redemption_reversals FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

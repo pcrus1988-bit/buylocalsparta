@@ -24,9 +24,9 @@ CREATE INDEX provider_activation_evidence_build_idx
 
 ALTER TABLE provider_activation_evidence ENABLE ROW LEVEL SECURITY;
 CREATE POLICY provider_activation_evidence_platform_read ON provider_activation_evidence
-  FOR SELECT USING (current_setting('app.platform_access', true)='true');
+  FOR SELECT USING ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY provider_activation_evidence_platform_insert ON provider_activation_evidence
-  FOR INSERT WITH CHECK (current_setting('app.platform_access', true)='true');
+  FOR INSERT WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE OR REPLACE FUNCTION prevent_provider_activation_evidence_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
