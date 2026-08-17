@@ -1,6 +1,6 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { offers, variants, vendors } from "./demo-runtime";
-import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages } from "./public-media-service";
 
 export type PublicVendorLocation = Readonly<{
@@ -22,6 +22,8 @@ export type PublicVendorStory = Readonly<{
   mediaUrl?: string;
 }>;
 
+export type PublicVendorDirectoryStatus = "partner" | "research" | "demo";
+
 export type PublicVendorDirectoryEntry = Readonly<{
   id: string;
   name: string;
@@ -29,15 +31,18 @@ export type PublicVendorDirectoryEntry = Readonly<{
   location?: PublicVendorLocation;
   story?: PublicVendorStory;
   categoryCodes: readonly string[];
+  researchCategory?: string;
   canonicalCount: number;
   mediaId?: string;
   mediaAlt?: string;
+  directoryStatus: PublicVendorDirectoryStatus;
   demo: boolean;
 }>;
 
 type VendorDirectoryRow = SqlRow & {
   vendor_id: string;
   vendor_name: string;
+  vendor_status: string;
   adviser_name?: string | null;
   location_name?: string | null;
   address_line1?: string | null;
@@ -53,12 +58,9 @@ type VendorDirectoryRow = SqlRow & {
   story_excerpt?: string | null;
   story_media_id?: string | null;
   category_codes?: readonly string[] | null;
+  research_category?: string | null;
   canonical_count?: number | string | null;
 };
-
-function postgresEnabled(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
-}
 
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
@@ -80,6 +82,7 @@ function textArray(value: unknown): readonly string[] {
 }
 
 function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
+  const isPartner = row.vendor_status === "active";
   const addressLine1 = optionalText(row.address_line1);
   const locality = optionalText(row.locality);
   const postcode = optionalText(row.postcode);
@@ -99,17 +102,19 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
   const storySlug = optionalText(row.story_slug);
   const storyTitle = optionalText(row.story_title);
   const storyExcerpt = optionalText(row.story_excerpt);
-  const story = storyId && storySlug && storyTitle && storyExcerpt
+  const story = isPartner && storyId && storySlug && storyTitle && storyExcerpt
     ? { id: storyId, slug: storySlug, title: storyTitle, excerpt: storyExcerpt, mediaUrl: publicMediaUrl(row.story_media_id) }
     : undefined;
   return {
     id: row.vendor_id,
     name: row.vendor_name,
-    adviser: optionalText(row.adviser_name),
+    adviser: isPartner ? optionalText(row.adviser_name) : undefined,
     location,
     story,
-    categoryCodes: textArray(row.category_codes),
-    canonicalCount: asCount(row.canonical_count),
+    categoryCodes: isPartner ? textArray(row.category_codes) : [],
+    researchCategory: isPartner ? undefined : optionalText(row.research_category),
+    canonicalCount: isPartner ? asCount(row.canonical_count) : 0,
+    directoryStatus: isPartner ? "partner" : "research",
     demo: false
   };
 }
@@ -120,6 +125,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
   const result = await uow.withTransaction({ marketId: "sparta", platformAccess: true }, (tx) => tx.query<VendorDirectoryRow>(`
     SELECT v.public_id AS vendor_id,
            v.trading_name AS vendor_name,
+           v.status::text AS vendor_status,
            adviser.name AS adviser_name,
            location.name AS location_name,
            location.address_line1,
@@ -135,6 +141,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            story.excerpt AS story_excerpt,
            story.media_public_id AS story_media_id,
            COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
+           research.category_label AS research_category,
            COALESCE(assortment.canonical_count, 0)::integer AS canonical_count
     FROM vendor_businesses v
     JOIN markets m ON m.id=v.market_id
@@ -142,7 +149,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
       SELECT COALESCE(NULLIF(ap.display_name,''),'Local adviser') AS name
       FROM adviser_profiles ap
       JOIN vendor_users vu ON vu.id=ap.vendor_user_id
-      WHERE vu.vendor_id=v.id AND vu.active=true AND ap.active=true
+      WHERE v.status='active' AND vu.vendor_id=v.id AND vu.active=true AND ap.active=true
       ORDER BY ap.created_at,ap.public_id
       LIMIT 1
     ) adviser ON true
@@ -166,7 +173,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
        AND approved_media.moderation_status='approved'
        AND approved_media.object_key IS NOT NULL
        AND approved_media.content_type IN ('image/jpeg','image/png','image/webp')
-      WHERE ms.vendor_id=v.id
+      WHERE v.status='active'
+        AND ms.vendor_id=v.id
         AND ms.status='published'
         AND ms.locale='el'
         AND ms.vendor_approved_at IS NOT NULL
@@ -182,17 +190,34 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN categories c ON c.id=cv.category_id
       JOIN vendor_locations offer_location ON offer_location.id=vo.location_id
-      WHERE vo.vendor_id=v.id
+      WHERE v.status='active'
+        AND vo.vendor_id=v.id
         AND vo.status='approved'
         AND offer_location.active=true
         AND cv.active=true
         AND cv.suppressed=false
         AND cv.recalled=false
     ) assortment ON true
-    WHERE v.status='active'
-      AND (m.code=$1 OR m.id::text=$1)
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        NULLIF(vc.evidence->>'Subcategory',''),
+        NULLIF(vc.evidence->>'Category',''),
+        NULLIF(vc.evidence->>'Branch',''),
+        NULLIF(vc.evidence->>'category','')
+      ) AS category_label
+      FROM vendor_verification_checks vc
+      WHERE vc.vendor_id=v.id
+        AND vc.type IN ('merchant_census_2026_08','online_store_active_2026_08','gemi_public_record_candidate_2026_08','eshop_health_audit_2026_08')
+      ORDER BY CASE vc.type WHEN 'merchant_census_2026_08' THEN 0 WHEN 'online_store_active_2026_08' THEN 1 ELSE 2 END, vc.checked_at DESC, vc.created_at DESC
+      LIMIT 1
+    ) research ON true
+    WHERE (m.code=$1 OR m.id::text=$1)
+      AND (
+        v.status='active'
+        OR (v.status='invited' AND v.public_id LIKE 'vendor_research_%')
+      )
       AND ($2::text IS NULL OR v.public_id=$2 OR v.id::text=$2)
-    ORDER BY v.trading_name,v.public_id
+    ORDER BY CASE WHEN v.status='active' THEN 0 ELSE 1 END,v.trading_name,v.public_id
   `, ["sparta", vendorId ?? null]), { readOnly: true });
   return result.rows.map(fromDatabaseRow);
 }
@@ -208,15 +233,17 @@ function demoDirectory(): readonly PublicVendorDirectoryEntry[] {
       adviser: vendor.adviser,
       categoryCodes: [...new Set(categoryCodes)],
       canonicalCount: categoryCodes.length,
+      directoryStatus: "demo" as const,
       demo: true
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
-  if (!postgresEnabled()) return demoDirectory();
+  if (!productionDatabaseConfigured()) return demoDirectory();
   const directory = await databaseDirectory();
-  const images = new Map((await approvedVendorImages(directory.map((vendor) => vendor.id))).map((image) => [image.vendorId, image]));
+  const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
+  const images = new Map((await approvedVendorImages(partnerIds)).map((image) => [image.vendorId, image]));
   return directory.map((vendor) => {
     const image = images.get(vendor.id);
     return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
@@ -225,9 +252,10 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
 
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
   if (!vendorId.trim()) return undefined;
-  if (postgresEnabled()) {
+  if (productionDatabaseConfigured()) {
     const vendor = (await databaseDirectory(vendorId))[0];
     if (!vendor) return undefined;
+    if (vendor.directoryStatus !== "partner") return vendor;
     const image = (await approvedVendorImages([vendor.id]))[0];
     return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
   }
