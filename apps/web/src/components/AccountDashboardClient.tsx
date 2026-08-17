@@ -26,6 +26,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
   const router = useRouter();
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
 
   async function refresh() {
     const response = await fetch("/api/account/session", { cache: "no-store" });
@@ -34,12 +35,15 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
   async function mutate(key: string, url: string, options: RequestInit = {}) {
     setBusy(key);
+    setError("");
     try {
       const headers = new Headers(options.headers);
       headers.set("x-csrf-token", data.csrfToken);
       const response = await fetch(url, { ...options, method: options.method ?? "POST", headers });
       if (!response.ok) throw new Error("Η ενέργεια δεν ολοκληρώθηκε");
       await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Η ενέργεια δεν ολοκληρώθηκε");
     } finally {
       setBusy("");
     }
@@ -60,11 +64,18 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
   return <>
     <section className="shell account-toolbar">
-      <div><span className="eyebrow">Signed in</span><strong>{data.account.email}</strong></div>
+      <div className="account-identity"><span className="account-avatar" aria-hidden="true">{data.account.email.slice(0, 1).toUpperCase()}</span><span><small>Signed in as</small><strong>{data.account.email}</strong></span></div>
       <button className="button button-secondary" type="button" onClick={logout} disabled={busy === "logout"}>Αποσύνδεση</button>
     </section>
 
-    <section className="shell account-snapshot" aria-label="Σύνοψη λογαριασμού">
+    <nav className="shell account-section-nav" aria-label="Ενότητες λογαριασμού">
+      <span>Ο λογαριασμός μου</span>
+      <div><a href="#overview">Επισκόπηση</a><a href="#orders">Παραγγελίες</a><a href="#saved">Αποθηκευμένα</a><a href="#notifications">Ειδοποιήσεις</a><a href="#privacy">Ιδιωτικότητα</a></div>
+    </nav>
+
+    {error && <div className="shell account-action-error" role="alert"><strong>Δεν μπορέσαμε να ολοκληρώσουμε την ενέργεια.</strong><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Κλείσιμο μηνύματος">×</button></div>}
+
+    <section className="shell account-snapshot" id="overview" aria-label="Σύνοψη λογαριασμού">
       <div><span>Παραγγελίες</span><strong>{data.orders.length}</strong><small>όλο το ιστορικό αγορών</small></div>
       <div className={data.unreadNotifications ? "needs-attention" : undefined}><span>Νέες ειδοποιήσεις</span><strong>{data.unreadNotifications}</strong><small>{data.unreadNotifications ? "χρειάζονται ανάγνωση" : "είσαι ενημερωμένος"}</small></div>
       <div><span>Αποθηκευμένα</span><strong>{data.savedProducts.length}</strong><small>προϊόντα για αργότερα</small></div>
@@ -78,35 +89,37 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
       { kicker: "Έλεγχος", label: "Privacy controls", description: "Μάθε τι αλλάζουν τα toggles και το αίτημα εξαγωγής.", href: "/privacy-controls" }
     ]} />
 
+    <section className="shell account-section-intro" aria-labelledby="account-activity-title"><div><div className="eyebrow">Live account</div><h2 id="account-activity-title">Η δραστηριότητά σου</h2></div><p>Ό,τι χρειάζεται παρακολούθηση, αλλαγή ή συνέχεια βρίσκεται οργανωμένο παρακάτω.</p></section>
+
     <section className="shell account-live-grid">
-      <article className="account-live-card account-wide"><div className="account-card-head"><div><div className="eyebrow">Ask Local</div><h2>Ιδιωτικά αιτήματα & προσφορές</h2></div><Link className="text-link" href="/ask-local">Άνοιγμα →</Link></div><p className="account-muted">Δες την ανάθεση, την προθεσμία απάντησης και τις ιδιωτικές προσφορές που ανήκουν μόνο στον λογαριασμό σου.</p></article>
-      <article className="account-live-card account-wide">
+      <article className="account-live-card account-wide account-callout" id="ask-local"><div className="account-card-head"><div><div className="eyebrow">Ask Local</div><h2>Ιδιωτικά αιτήματα & προσφορές</h2></div><Link className="text-link" href="/ask-local">Άνοιγμα →</Link></div><p className="account-muted">Δες την ανάθεση, την προθεσμία απάντησης και τις ιδιωτικές προσφορές που ανήκουν μόνο στον λογαριασμό σου.</p></article>
+      <article className="account-live-card account-wide" id="orders">
         <div className="account-card-head"><div><div className="eyebrow">Orders</div><h2>Παραγγελίες</h2></div><span className="count-pill">{data.orders.length}</span></div>
         {data.orders.length ? <div className="account-list">{data.orders.map((order) => <div className="order-row" key={order.id}><div><Link href={`/account/orders/${order.id}`}><strong>{order.id}</strong></Link><small>{date(order.createdAt)} · {order.fulfilmentMode}</small></div><div className="order-lines">{order.lines.map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div><div className="order-total"><strong>{order.total}</strong><span>{order.status}</span></div></div>)}</div> : <div className="account-empty"><p>Δεν έχεις ακόμη παραγγελίες συνδεδεμένες με αυτόν τον λογαριασμό.</p><Link href="/shop" className="text-link">Ξεκίνα από την αγορά →</Link></div>}
       </article>
 
-      <article className="account-live-card">
+      <article className="account-live-card" id="saved">
         <div className="account-card-head"><div><div className="eyebrow">Saved items</div><h2>Αποθηκευμένα</h2></div><span className="count-pill">{data.savedProducts.length}</span></div>
         {data.savedProducts.length ? <div className="mini-list">{data.savedProducts.map((product) => <div key={product.canonicalVariantId}><Link href={`/product/${product.canonicalVariantId}`}><strong>{product.title ?? product.canonicalVariantId}</strong></Link><span>{product.price ?? ""} · {product.available ? "διαθέσιμο" : "μη διαθέσιμο"}</span><button type="button" onClick={() => mutate(`remove-${product.canonicalVariantId}`, `/api/account/saved-products/${encodeURIComponent(product.canonicalVariantId)}`, { method: "DELETE" })}>Αφαίρεση</button></div>)}</div> : <p className="account-muted">Αποθήκευσε προϊόντα από τη σελίδα τους για να τα βρεις εδώ.</p>}
       </article>
 
-      <article className="account-live-card">
+      <article className="account-live-card" id="notifications">
         <div className="account-card-head"><div><div className="eyebrow">Notifications</div><h2>Ειδοποιήσεις</h2></div><span className="count-pill">{data.unreadNotifications} νέα</span></div>
         <div className="mini-list notification-list">{data.notifications.slice(0, 6).map((item) => <div key={item.id} className={item.readAt ? "is-read" : ""}><strong>{item.title}</strong><span>{item.body}</span><small>{date(item.createdAt)}</small></div>)}</div>
         {data.unreadNotifications > 0 && <button className="text-button" type="button" disabled={busy === "notifications"} onClick={() => mutate("notifications", "/api/account/notifications/read-all")}>Σήμανση όλων ως αναγνωσμένα</button>}
       </article>
 
-      <article className="account-live-card">
+      <article className="account-live-card" id="searches">
         <div className="account-card-head"><div><div className="eyebrow">Saved searches</div><h2>Οι αναζητήσεις μου</h2></div><span className="count-pill">{data.savedSearches.length}</span></div>
         {data.savedSearches.length ? <div className="mini-list">{data.savedSearches.map((search) => <div key={search.id}><strong>{search.name}</strong><span>{search.lastObservedCount} τρέχοντα αποτελέσματα · alerts {search.alertsEnabled ? "on" : "off"}</span></div>)}</div> : <p className="account-muted">Κάνε μια αναζήτηση στο marketplace και πάτησε «Αποθήκευση αναζήτησης».</p>}
       </article>
 
-      <article className="account-live-card">
+      <article className="account-live-card" id="recommendations">
         <div className="account-card-head"><div><div className="eyebrow">For you</div><h2>Προτάσεις</h2></div></div>
         {data.recommendations.length ? <div className="mini-list">{data.recommendations.map((item) => <div key={item.canonicalVariantId}><Link href={`/product/${item.canonicalVariantId}`}><strong>{item.title}</strong></Link><span>{item.price}</span><small>{item.explanation}</small></div>)}</div> : <p className="account-muted">Οι προτάσεις εμφανίζονται αφού αποθηκεύσεις ή δεις προϊόντα, και μόνο όταν το personalization είναι ενεργό.</p>}
       </article>
 
-      <article className="account-live-card">
+      <article className="account-live-card" id="privacy">
         <div className="account-card-head"><div><div className="eyebrow">Privacy controls</div><h2>Ιδιωτικότητα</h2></div></div>
         <label className="preference-row"><span><strong>Προσωποποιημένες προτάσεις</strong><small>Χρησιμοποιεί μόνο δικά σου saved/recent signals.</small></span><input type="checkbox" checked={data.preferences.recommendationsEnabled} onChange={(event) => void updatePreferences({ recommendationsEnabled: event.target.checked })} /></label>
         <label className="preference-row"><span><strong>Πρόσφατα προβεβλημένα</strong><small>Απενεργοποίηση διαγράφει το πρόσφατο ιστορικό.</small></span><input type="checkbox" checked={data.preferences.recentlyViewedEnabled} onChange={(event) => void updatePreferences({ recentlyViewedEnabled: event.target.checked })} /></label>
@@ -115,7 +128,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
         <Link className="text-link privacy-guide-link" href="/privacy-controls">Τι κάνουν αυτοί οι έλεγχοι →</Link>
       </article>
 
-      <article className="account-live-card account-wide">
+      <article className="account-live-card account-wide" id="recent">
         <div className="account-card-head"><div><div className="eyebrow">Recently viewed</div><h2>Πρόσφατα προϊόντα</h2></div><span className="count-pill">{data.recentlyViewed.length}</span></div>
         {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={`/product/${item.canonicalVariantId}`} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">Δεν υπάρχει πρόσφατο ιστορικό ή η λειτουργία είναι απενεργοποιημένη.</p>}
       </article>

@@ -5,6 +5,7 @@ import "./storefront-advice.css";
 import "./storefront-content.css";
 import "./storefront-merchant-media.css";
 import "./dashboard-ux.css";
+import "./dashboard-premium.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 
