@@ -21,6 +21,12 @@ export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env):
   }
 }
 
+// Vercel Marketplace integrations commonly inject POSTGRES_URL rather than DATABASE_URL.
+// Normalize that once at module load so legacy runtime gates cannot silently fall back to
+// in-memory/demo adapters while the production database is actually available.
+const bootstrapDatabaseUrl = resolveDatabaseUrlFromEnv();
+if (!process.env.DATABASE_URL?.trim() && bootstrapDatabaseUrl) process.env.DATABASE_URL = bootstrapDatabaseUrl;
+
 function postgresRuntimeEnv(): NodeJS.ProcessEnv {
   const connectionString = resolveDatabaseUrlFromEnv();
   return connectionString ? { ...process.env, DATABASE_URL: connectionString } : process.env;
