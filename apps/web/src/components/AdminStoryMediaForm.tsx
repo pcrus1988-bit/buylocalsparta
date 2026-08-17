@@ -39,7 +39,7 @@ export function AdminStoryMediaForm({
   }
 
   return (
-    <div className="admin-story-media-form">
+    <div className="admin-json-form admin-story-media-form">
       <label>
         <span>Εγκεκριμένη φωτογραφία καταστήματος</span>
         <select value={mediaId} onChange={(event) => setMediaId(event.target.value)} disabled={busy}>
