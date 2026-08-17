@@ -6,6 +6,10 @@ const failures: string[] = [];
 
 const directory = read("apps/web/src/lib/public-vendor-directory.ts");
 const publicMedia = read("apps/web/src/lib/public-media-service.ts");
+const adminStoryMedia = read("apps/web/src/lib/admin-merchant-story-media.ts");
+const adminStoryMediaRoute = read("apps/web/src/app/api/admin/content/story-media/route.ts");
+const adminContentPage = read("apps/web/src/app/admin/content/page.tsx");
+const adminStoryMediaForm = read("apps/web/src/components/AdminStoryMediaForm.tsx");
 const shopsPage = read("apps/web/src/app/shops/page.tsx");
 const vendorPage = read("apps/web/src/app/vendor/[id]/page.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
@@ -59,6 +63,24 @@ if (!vendorPage.includes("storyMedia ? <img") || !vendorPage.includes(": <span>"
 if (!layout.includes('import "./storefront-merchant-media.css"')) failures.push("Root layout must load merchant media presentation styles");
 if (!merchantMediaCss.includes("object-fit:cover") || !merchantMediaCss.includes(".merchant-portrait.has-photo")) failures.push("Merchant media styles must crop approved photography safely inside existing visual frames");
 
+for (const adminBoundary of [
+  "assertAdminPermission(principal, \"content.write\")",
+  "pm.vendor_id=$2::uuid",
+  "pm.canonical_variant_id IS NULL",
+  "pm.scan_status='clean'",
+  "pm.rights_status='approved'",
+  "pm.moderation_status='approved'",
+  "UPDATE merchant_stories SET og_image=$2",
+  "merchant_story.media_changed",
+  "isolation: \"serializable\""
+]) {
+  if (!adminStoryMedia.includes(adminBoundary)) failures.push(`Admin merchant-media mutation is missing governance/audit boundary: ${adminBoundary}`);
+}
+if (!adminStoryMediaRoute.includes('csrf: true') || !adminStoryMediaRoute.includes('permission: "content.write"')) failures.push("Merchant story media API must require Admin content.write and CSRF");
+if (!adminContentPage.includes("adminMerchantStoryMediaWorkspace") || !adminContentPage.includes("AdminStoryMediaForm")) failures.push("Admin content workspace must expose the governed merchant-media association workflow");
+if (!adminStoryMediaForm.includes('value=""') || !adminStoryMediaForm.includes("Χωρίς φωτογραφία")) failures.push("Admin merchant media selector must support explicit removal/fallback restoration");
+if (!adminStoryMediaForm.includes('"x-csrf-token": csrfToken')) failures.push("Admin merchant media selector must send the session CSRF token");
+
 if (!shopsPage.includes("getPublicVendorDirectory()")) failures.push("/shops must render the governed public vendor directory projection");
 if (!shopsPage.includes("Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση")) failures.push("/shops must explain that directory visibility does not change fair assignment");
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
@@ -71,4 +93,4 @@ if (failures.length) {
   console.error("Merchant directory checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Merchant directory checks passed: active-vendor, adviser-schema, story/media approval, public-catalog and fairness boundaries verified.");
+console.log("Merchant directory checks passed: active-vendor, adviser-schema, story/media approval, Admin association, public-catalog and fairness boundaries verified.");
