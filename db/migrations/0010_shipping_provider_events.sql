@@ -46,15 +46,15 @@ ALTER TABLE shipment_provider_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY shipments_vendor_scope ON shipments
   USING (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   )
   WITH CHECK (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE POLICY shipment_provider_events_platform_only ON shipment_provider_events
-  USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

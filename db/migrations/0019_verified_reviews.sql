@@ -137,8 +137,8 @@ ALTER TABLE review_events ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS reviews_platform ON reviews;
 CREATE POLICY reviews_platform ON reviews FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS reviews_customer_own ON reviews;
 CREATE POLICY reviews_customer_own ON reviews FOR SELECT
   USING (user_id=nullif(current_setting('app.user_id', true),'')::uuid);
@@ -151,8 +151,8 @@ CREATE POLICY reviews_vendor_read ON reviews FOR SELECT
 
 DROP POLICY IF EXISTS review_responses_platform ON vendor_review_responses;
 CREATE POLICY review_responses_platform ON vendor_review_responses FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS review_responses_vendor ON vendor_review_responses;
 CREATE POLICY review_responses_vendor ON vendor_review_responses FOR ALL
   USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid)
@@ -160,8 +160,8 @@ CREATE POLICY review_responses_vendor ON vendor_review_responses FOR ALL
 
 DROP POLICY IF EXISTS review_reports_platform ON review_reports;
 CREATE POLICY review_reports_platform ON review_reports FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS review_reports_vendor ON review_reports;
 CREATE POLICY review_reports_vendor ON review_reports FOR ALL
   USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid)
@@ -169,8 +169,8 @@ CREATE POLICY review_reports_vendor ON review_reports FOR ALL
 
 DROP POLICY IF EXISTS review_events_platform ON review_events;
 CREATE POLICY review_events_platform ON review_events FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 DROP POLICY IF EXISTS review_events_vendor_read ON review_events;
 CREATE POLICY review_events_vendor_read ON review_events FOR SELECT
   USING (EXISTS (

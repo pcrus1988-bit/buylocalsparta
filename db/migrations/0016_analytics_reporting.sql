@@ -64,23 +64,23 @@ ALTER TABLE analytics_search_terms_daily ENABLE ROW LEVEL SECURITY;
 
 -- Raw behavioural events are never exposed to merchants; vendor dashboards consume aggregate rows only.
 CREATE POLICY analytics_events_platform_only ON analytics_events FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY analytics_market_daily_platform_only ON analytics_market_daily FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY analytics_search_terms_platform_only ON analytics_search_terms_daily FOR ALL
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY analytics_vendor_daily_read ON analytics_vendor_daily FOR SELECT
-  USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid OR current_setting('app.platform_access', true)='true');
+  USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid OR (SELECT bls_private.is_platform_runtime()));
 CREATE POLICY analytics_vendor_daily_platform_write ON analytics_vendor_daily FOR INSERT
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY analytics_vendor_daily_platform_update ON analytics_vendor_daily FOR UPDATE
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY analytics_vendor_daily_platform_delete ON analytics_vendor_daily FOR DELETE
-  USING (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()));
 
 COMMENT ON TABLE analytics_events IS 'Privacy-minimised raw product/search/commerce events. Visitor identifiers are one-way hashes; raw search terms are sanitized before insertion.';
 COMMENT ON TABLE analytics_vendor_daily IS 'Vendor-safe aggregate analytics only; no competitor or customer-level event data.';

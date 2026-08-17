@@ -113,30 +113,30 @@ CREATE POLICY vendor_calendars_vendor_all ON vendor_location_calendars FOR ALL
   USING (EXISTS (SELECT 1 FROM vendor_locations l WHERE l.id=location_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid))
   WITH CHECK (EXISTS (SELECT 1 FROM vendor_locations l WHERE l.id=location_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid));
 CREATE POLICY vendor_calendars_platform_all ON vendor_location_calendars FOR ALL
-  USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY vendor_opening_vendor_all ON vendor_location_opening_intervals FOR ALL
   USING (EXISTS (SELECT 1 FROM vendor_locations l WHERE l.id=location_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid))
   WITH CHECK (EXISTS (SELECT 1 FROM vendor_locations l WHERE l.id=location_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid));
 CREATE POLICY vendor_opening_platform_all ON vendor_location_opening_intervals FOR ALL
-  USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY vendor_schedule_exception_vendor_all ON vendor_location_schedule_exceptions FOR ALL
   USING (EXISTS (SELECT 1 FROM vendor_locations l WHERE l.id=location_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid))
   WITH CHECK (EXISTS (SELECT 1 FROM vendor_locations l WHERE l.id=location_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid));
 CREATE POLICY vendor_schedule_exception_platform_all ON vendor_location_schedule_exceptions FOR ALL
-  USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY vendor_exception_interval_vendor_all ON vendor_location_exception_intervals FOR ALL
   USING (EXISTS (SELECT 1 FROM vendor_location_schedule_exceptions e JOIN vendor_locations l ON l.id=e.location_id WHERE e.id=exception_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid))
   WITH CHECK (EXISTS (SELECT 1 FROM vendor_location_schedule_exceptions e JOIN vendor_locations l ON l.id=e.location_id WHERE e.id=exception_id AND l.vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid));
 CREATE POLICY vendor_exception_interval_platform_all ON vendor_location_exception_intervals FOR ALL
-  USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY fulfilment_service_zones_vendor_all ON fulfilment_service_zones FOR ALL
   USING (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid)
   WITH CHECK (vendor_id=nullif(current_setting('app.vendor_id', true),'')::uuid);
 CREATE POLICY fulfilment_service_zones_platform_all ON fulfilment_service_zones FOR ALL
-  USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

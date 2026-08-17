@@ -102,12 +102,12 @@ ALTER TABLE vendor_application_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY vendor_applications_owner_read ON vendor_applications
   FOR SELECT USING (
     owner_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY vendor_applications_owner_insert ON vendor_applications
   FOR INSERT WITH CHECK (
     owner_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY vendor_applications_owner_submit ON vendor_applications
   FOR UPDATE USING (
@@ -118,8 +118,8 @@ CREATE POLICY vendor_applications_owner_submit ON vendor_applications
     AND status IN ('application_started','verification_pending')
   );
 CREATE POLICY vendor_applications_platform_update ON vendor_applications
-  FOR UPDATE USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR UPDATE USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY vendor_application_events_owner_read ON vendor_application_events
   FOR SELECT USING (
@@ -127,7 +127,7 @@ CREATE POLICY vendor_application_events_owner_read ON vendor_application_events
       SELECT 1 FROM vendor_applications a
       WHERE a.id = vendor_application_events.application_id
         AND a.owner_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
-    ) OR current_setting('app.platform_access', true) = 'true'
+    ) OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY vendor_application_events_owner_write ON vendor_application_events
   FOR INSERT WITH CHECK (
@@ -140,7 +140,7 @@ CREATE POLICY vendor_application_events_owner_write ON vendor_application_events
     )
   );
 CREATE POLICY vendor_application_events_platform_write ON vendor_application_events
-  FOR INSERT WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR INSERT WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 -- Notification data is private to the target user/vendor or authorized platform staff.
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
@@ -148,24 +148,24 @@ CREATE POLICY notifications_target_read ON notifications
   FOR SELECT USING (
     user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY notifications_platform_insert ON notifications
-  FOR INSERT WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR INSERT WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY notifications_target_update ON notifications
   FOR UPDATE USING (
     user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   ) WITH CHECK (
     user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
     OR vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE OR REPLACE FUNCTION guard_notification_target_update() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('app.platform_access', true) <> 'true' THEN
+  IF NOT (SELECT bls_private.is_platform_runtime()) THEN
     IF OLD.user_id IS DISTINCT FROM NEW.user_id
        OR OLD.vendor_id IS DISTINCT FROM NEW.vendor_id
        OR OLD.channel IS DISTINCT FROM NEW.channel
@@ -197,12 +197,12 @@ ALTER TABLE return_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY returns_scope_read ON returns
   FOR SELECT USING (
     customer_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
     OR vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
   );
 CREATE POLICY returns_customer_insert ON returns
   FOR INSERT WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR (
       customer_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
       AND EXISTS (
@@ -213,12 +213,12 @@ CREATE POLICY returns_customer_insert ON returns
     )
   );
 CREATE POLICY returns_platform_update ON returns
-  FOR UPDATE USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR UPDATE USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY return_lines_scope_read ON return_lines
   FOR SELECT USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM returns r
       WHERE r.id = return_lines.return_id
@@ -232,7 +232,7 @@ CREATE POLICY return_lines_scope_read ON return_lines
   );
 CREATE POLICY return_lines_platform_or_customer_insert ON return_lines
   FOR INSERT WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM returns r
       JOIN order_lines ol ON ol.id = return_lines.order_line_id
@@ -242,12 +242,12 @@ CREATE POLICY return_lines_platform_or_customer_insert ON return_lines
     )
   );
 CREATE POLICY return_lines_platform_update ON return_lines
-  FOR UPDATE USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR UPDATE USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY return_events_scope_read ON return_events
   FOR SELECT USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM returns r
       WHERE r.id = return_events.return_id
@@ -262,7 +262,7 @@ CREATE POLICY return_events_scope_read ON return_events
   );
 CREATE POLICY return_events_platform_or_customer_insert ON return_events
   FOR INSERT WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR actor_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
   );
 

@@ -53,19 +53,19 @@ ALTER TABLE shipment_provider_attempts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY shipping_provider_locations_vendor_read ON shipping_provider_locations
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM vendor_locations vl WHERE vl.id=vendor_location_id AND vl.vendor_id::text=current_setting('app.vendor_id', true))
-    OR current_setting('app.platform_access', true)='true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY shipping_provider_locations_platform_write ON shipping_provider_locations
-  FOR ALL USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY shipment_provider_attempts_vendor_read ON shipment_provider_attempts
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM shipments s WHERE s.id=shipment_id AND s.vendor_id::text=current_setting('app.vendor_id', true))
-    OR current_setting('app.platform_access', true)='true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY shipment_provider_attempts_platform_write ON shipment_provider_attempts
-  FOR ALL USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

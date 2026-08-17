@@ -101,7 +101,7 @@ CREATE TRIGGER order_timeline_no_update BEFORE UPDATE OR DELETE ON order_timelin
 
 CREATE OR REPLACE FUNCTION guard_customer_substitution_decision() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('app.platform_access', true) = 'true' THEN RETURN NEW; END IF;
+  IF (SELECT bls_private.is_platform_runtime()) THEN RETURN NEW; END IF;
   IF nullif(current_setting('app.actor_user_id', true), '')::uuid = OLD.customer_id THEN
     IF NEW.order_id <> OLD.order_id OR NEW.order_line_id <> OLD.order_line_id OR NEW.customer_id <> OLD.customer_id OR NEW.vendor_id <> OLD.vendor_id
        OR NEW.original_canonical_variant_id <> OLD.original_canonical_variant_id OR NEW.proposed_canonical_variant_id <> OLD.proposed_canonical_variant_id
@@ -130,14 +130,14 @@ CREATE POLICY order_timeline_customer_read ON order_timeline_events FOR SELECT U
 CREATE POLICY order_timeline_vendor_read ON order_timeline_events FOR SELECT USING (
   vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
 );
-CREATE POLICY order_timeline_platform_all ON order_timeline_events FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY order_timeline_platform_all ON order_timeline_events FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY order_cancellations_customer_read ON order_cancellations FOR SELECT USING (customer_id=nullif(current_setting('app.actor_user_id', true), '')::uuid);
 CREATE POLICY order_cancellations_customer_insert ON order_cancellations FOR INSERT WITH CHECK (
   customer_id=nullif(current_setting('app.actor_user_id', true), '')::uuid
   AND EXISTS (SELECT 1 FROM customer_orders o WHERE o.id=order_id AND o.user_id=customer_id)
 );
-CREATE POLICY order_cancellations_platform_all ON order_cancellations FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY order_cancellations_platform_all ON order_cancellations FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY order_substitution_customer_read ON order_substitution_requests FOR SELECT USING (customer_id=nullif(current_setting('app.actor_user_id', true), '')::uuid);
 CREATE POLICY order_substitution_customer_update ON order_substitution_requests FOR UPDATE USING (customer_id=nullif(current_setting('app.actor_user_id', true), '')::uuid) WITH CHECK (customer_id=nullif(current_setting('app.actor_user_id', true), '')::uuid);
@@ -146,9 +146,9 @@ CREATE POLICY order_substitution_vendor_insert ON order_substitution_requests FO
   vendor_id=nullif(current_setting('app.vendor_id', true), '')::uuid
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.id=order_line_id AND ol.vendor_id=vendor_id)
 );
-CREATE POLICY order_substitution_platform_all ON order_substitution_requests FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY order_substitution_platform_all ON order_substitution_requests FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY fulfilment_sla_vendor_read ON fulfilment_sla_cases FOR SELECT USING (vendor_id=nullif(current_setting('app.vendor_id', true), '')::uuid);
-CREATE POLICY fulfilment_sla_platform_all ON fulfilment_sla_cases FOR ALL USING (current_setting('app.platform_access', true)='true') WITH CHECK (current_setting('app.platform_access', true)='true');
+CREATE POLICY fulfilment_sla_platform_all ON fulfilment_sla_cases FOR ALL USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

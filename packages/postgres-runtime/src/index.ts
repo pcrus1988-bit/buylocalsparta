@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 38;
+export const EXPECTED_SCHEMA_VERSION = 39;
 
 export type PostgresRuntimeConfig = Readonly<{
   connectionString: string;
@@ -139,7 +139,7 @@ export class ProductionPostgresRuntime {
       const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
       const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
       const extensionsReady = requiredExtensions.length === 3;
-      const serverMajorReady = serverVersionNumber >= 180000 && serverVersionNumber < 190000;
+      const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
       return {
         ok: schemaCurrent && extensionsReady && serverMajorReady,
         checkedAt,
@@ -151,12 +151,12 @@ export class ProductionPostgresRuntime {
         expectedSchemaVersion,
         pendingMigrations,
         message: !serverMajorReady
-          ? `PostgreSQL 18.x is required; server reports ${serverVersion || serverVersionNumber}`
+          ? `PostgreSQL 17.x or 18.x is required; server reports ${serverVersion || serverVersionNumber}`
           : !extensionsReady
             ? `Required extensions are incomplete; found ${requiredExtensions.join(", ") || "none"}`
             : !schemaCurrent
               ? `Database schema ${appliedSchemaVersion} does not match expected ${expectedSchemaVersion}`
-              : "PostgreSQL 18/PostGIS schema is ready"
+              : "PostgreSQL 17/18 with PostGIS schema is ready"
       };
     } catch (error) {
       return {

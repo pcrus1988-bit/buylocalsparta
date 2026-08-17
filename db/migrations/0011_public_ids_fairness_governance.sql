@@ -77,20 +77,20 @@ ALTER TABLE fairness_anomalies ENABLE ROW LEVEL SECURITY;
 CREATE POLICY fairness_appeals_vendor_scope ON fairness_appeals
   USING (
     vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   )
   WITH CHECK (
     vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE POLICY fairness_anomalies_vendor_read ON fairness_anomalies
   FOR SELECT USING (
     vendor_id = nullif(current_setting('app.vendor_id', true), '')::uuid
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY fairness_anomalies_platform_write ON fairness_anomalies
-  FOR ALL USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

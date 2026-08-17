@@ -34,10 +34,10 @@ ALTER TABLE notification_provider_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_destination_suppressions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY notification_provider_events_platform_only ON notification_provider_events
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY notification_destination_suppressions_platform_only ON notification_destination_suppressions
-  USING (current_setting('app.platform_access', true)='true')
-  WITH CHECK (current_setting('app.platform_access', true)='true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

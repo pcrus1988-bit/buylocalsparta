@@ -27,7 +27,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS cart_items_standard_unique
   WHERE private_offer_id IS NULL;
 
 -- Customer commerce rows are defense-in-depth scoped. Server-side checkout uses
--- app.platform_access=true because it must inspect supplier offers across vendors;
+-- credential-bound bls_platform_runtime access because it must inspect supplier offers across vendors;
 -- authenticated account reads may use app.actor_user_id for own rows only.
 ALTER TABLE carts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
@@ -39,11 +39,11 @@ DROP POLICY IF EXISTS carts_customer_or_platform ON carts;
 CREATE POLICY carts_customer_or_platform ON carts
   FOR ALL
   USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
   )
   WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
   );
 
@@ -51,7 +51,7 @@ DROP POLICY IF EXISTS cart_items_customer_or_platform ON cart_items;
 CREATE POLICY cart_items_customer_or_platform ON cart_items
   FOR ALL
   USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM carts c
       WHERE c.id = cart_items.cart_id
@@ -59,7 +59,7 @@ CREATE POLICY cart_items_customer_or_platform ON cart_items
     )
   )
   WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM carts c
       WHERE c.id = cart_items.cart_id
@@ -71,11 +71,11 @@ DROP POLICY IF EXISTS customer_orders_customer_or_platform ON customer_orders;
 CREATE POLICY customer_orders_customer_or_platform ON customer_orders
   FOR ALL
   USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
   )
   WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
   );
 
@@ -83,7 +83,7 @@ DROP POLICY IF EXISTS order_lines_customer_or_platform ON order_lines;
 CREATE POLICY order_lines_customer_or_platform ON order_lines
   FOR ALL
   USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM customer_orders o
       WHERE o.id = order_lines.order_id
@@ -91,7 +91,7 @@ CREATE POLICY order_lines_customer_or_platform ON order_lines
     )
   )
   WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM customer_orders o
       WHERE o.id = order_lines.order_id
@@ -103,7 +103,7 @@ DROP POLICY IF EXISTS payments_customer_or_platform ON payments;
 CREATE POLICY payments_customer_or_platform ON payments
   FOR ALL
   USING (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM customer_orders o
       WHERE o.id = payments.order_id
@@ -111,7 +111,7 @@ CREATE POLICY payments_customer_or_platform ON payments
     )
   )
   WITH CHECK (
-    current_setting('app.platform_access', true) = 'true'
+    (SELECT bls_private.is_platform_runtime())
     OR EXISTS (
       SELECT 1 FROM customer_orders o
       WHERE o.id = payments.order_id

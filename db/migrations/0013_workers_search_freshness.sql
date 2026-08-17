@@ -57,11 +57,11 @@ ALTER TABLE scheduled_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE search_index_state ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY scheduled_jobs_platform_only ON scheduled_jobs
-  USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY search_index_state_platform_only ON search_index_state
-  USING (current_setting('app.platform_access', true) = 'true')
-  WITH CHECK (current_setting('app.platform_access', true) = 'true');
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 COMMIT;

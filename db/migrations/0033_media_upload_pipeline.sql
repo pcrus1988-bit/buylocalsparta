@@ -42,15 +42,15 @@ ALTER TABLE media_upload_intents ENABLE ROW LEVEL SECURITY;
 CREATE POLICY media_upload_intents_vendor_select ON media_upload_intents
   FOR SELECT USING (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 CREATE POLICY media_upload_intents_vendor_write ON media_upload_intents
   FOR ALL USING (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   ) WITH CHECK (
     vendor_id::text = current_setting('app.vendor_id', true)
-    OR current_setting('app.platform_access', true) = 'true'
+    OR (SELECT bls_private.is_platform_runtime())
   );
 
 COMMIT;
