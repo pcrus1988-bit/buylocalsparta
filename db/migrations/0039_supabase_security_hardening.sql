@@ -21,6 +21,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
       AND c.relkind IN ('r', 'p')
+      AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
   LOOP
     EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', target.schema_name, target.table_name);
     IF NOT EXISTS (
