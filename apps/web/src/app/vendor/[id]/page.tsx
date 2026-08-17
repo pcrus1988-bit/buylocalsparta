@@ -5,6 +5,7 @@ import { getPublicVendorDirectoryEntry, type PublicVendorDirectoryEntry } from "
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
+import { publicOrigin } from "../../../lib/public-origin";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -34,9 +35,18 @@ export default async function VendorPage({ params }: Props) {
   const products = await getVendorCatalogCards(id);
   const categories = categoriesFor(vendor);
   const location = vendor.location;
+  const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
+  const structuredData = {
+    "@context": "https://schema.org", "@type": "LocalBusiness", name: vendor.name, url: vendorUrl,
+    description: vendor.story?.excerpt,
+    image: vendor.mediaId ? `${publicOrigin()}/api/media/${encodeURIComponent(vendor.mediaId)}` : undefined,
+    telephone: location?.phone, email: location?.publicEmail,
+    address: location ? { "@type": "PostalAddress", streetAddress: [location.addressLine1, location.addressLine2].filter(Boolean).join(", "), addressLocality: location.locality, postalCode: location.postcode, addressCountry: "GR" } : undefined
+  };
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Know your vendor · γνώρισε τον άνθρωπο πίσω από την αγορά.</div>
       <SiteHeader />
 
