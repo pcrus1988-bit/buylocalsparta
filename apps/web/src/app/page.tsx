@@ -124,7 +124,7 @@ export default async function Home() {
           <div><div className="brand footer-brand"><span className="brand-mark">BLS</span><span>Buy Local Sparta</span></div><p>Buy Local. Know Your Vendor. Get Real Advice.</p></div>
           <div><strong>Αγορές</strong><a href="#shop">Προϊόντα</a><a href="/shops">Καταστήματα</a><a href="#ask-local">Ask Local</a></div>
           <div><strong>Για καταστήματα</strong><a href="/join">Γίνε συνεργάτης</a></div>
-          <div><strong>Πλατφόρμα</strong><a href="#advice">Πώς λειτουργεί</a><a href="/account">Ο λογαριασμός μου</a></div>
+          <div><strong>Πλατφόρμα</strong><a href="/advice">Πώς λειτουργεί</a><a href="/account">Ο λογαριασμός μου</a></div>
         </div>
       </footer>
     </main>
