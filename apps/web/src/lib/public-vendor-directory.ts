@@ -128,9 +128,10 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
     FROM vendor_businesses v
     JOIN markets m ON m.id=v.market_id
     LEFT JOIN LATERAL (
-      SELECT COALESCE(NULLIF(ap.display_name,''),NULLIF(ap.job_title,''),'Local adviser') AS name
+      SELECT COALESCE(NULLIF(ap.display_name,''),'Local adviser') AS name
       FROM adviser_profiles ap
-      WHERE ap.vendor_id=v.id AND ap.active=true
+      JOIN vendor_users vu ON vu.id=ap.vendor_user_id
+      WHERE vu.vendor_id=v.id AND vu.active=true AND ap.active=true
       ORDER BY ap.created_at,ap.public_id
       LIMIT 1
     ) adviser ON true
