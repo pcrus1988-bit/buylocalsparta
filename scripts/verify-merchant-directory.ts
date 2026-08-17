@@ -22,6 +22,11 @@ for (const boundary of [
   if (!directory.includes(boundary)) failures.push(`Merchant directory projection is missing governance boundary: ${boundary}`);
 }
 if (!directory.includes("new PostgresUnitOfWork(runtime.sqlPool") || !directory.includes("platformAccess: true")) failures.push("Merchant directory PostgreSQL reads must use the scoped unit-of-work boundary");
+if (!directory.includes("approvedVendorImages") || !shopsPage.includes("vendor.mediaId") || !vendorPage.includes("vendor.mediaId")) failures.push("Merchant discovery must consume governed vendor imagery with placeholder fallback");
+const publicMedia = read("apps/web/src/lib/public-media-service.ts");
+for (const boundary of ["pm.scan_status='clean'", "pm.rights_status='approved'", "pm.moderation_status='approved'", "v.status='active'", "vo.status='approved'"]) {
+  if (!publicMedia.includes(boundary)) failures.push(`Vendor imagery projection is missing governance boundary: ${boundary}`);
+}
 if (!directory.includes("JOIN vendor_users vu ON vu.id=ap.vendor_user_id") || !directory.includes("vu.vendor_id=v.id") || !directory.includes("vu.active=true")) failures.push("Merchant adviser projection must follow adviser_profiles.vendor_user_id through active vendor_users");
 if (directory.includes("ap.job_title") || directory.includes("ap.vendor_id")) failures.push("Merchant adviser projection references columns that do not exist in adviser_profiles");
 if (directory.includes("publicAssignedCanonical") || directory.includes("#selectFairOffer") || directory.includes("fairness_assignment_events")) failures.push("Merchant directory must not mutate Fair Vendor Exposure state");
