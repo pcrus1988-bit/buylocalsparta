@@ -3,6 +3,7 @@ import "./globals.css";
 import "./storefront-merchants.css";
 import "./storefront-advice.css";
 import "./storefront-content.css";
+import "./storefront-merchant-media.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 

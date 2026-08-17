@@ -65,7 +65,7 @@ export default async function ShopsPage({ searchParams }: Props) {
       <div className="shops-principles" aria-label="Merchant directory principles">
         <div><strong>Πρόσωπο πίσω από το προϊόν</strong><span>Το προφίλ αναδεικνύει το κατάστημα και τον άνθρωπο που μπορεί να συμβουλέψει.</span></div>
         <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο καταστημάτων ή στις δημόσιες σελίδες. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
-        <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story εμφανίζεται δημόσια μόνο όταν έχει εγκριθεί από τον vendor και έχει δημοσιευθεί από την πλατφόρμα.</span></div>
+        <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story και φωτογραφία εμφανίζονται δημόσια μόνο όταν έχουν εγκριθεί και περάσει τους ελέγχους της πλατφόρμας.</span></div>
       </div>
 
       <section className="shell section" aria-labelledby="shops-title">
@@ -86,12 +86,13 @@ export default async function ShopsPage({ searchParams }: Props) {
             {vendors.map((vendor, index) => {
               const categories = categoriesFor(vendor);
               const location = vendor.location;
+              const storyMedia = vendor.story?.mediaUrl;
               return (
                 <article className="shop-card" key={vendor.id}>
-                  <div className="shop-card-visual" aria-hidden="true">
+                  <div className={`shop-card-visual${storyMedia ? " has-photo" : ""}`} aria-hidden="true">
+                    {storyMedia && <img className="shop-card-photo" src={storyMedia} alt="" />}
                     <span className="shop-card-index">SPARTA · {String(index + 1).padStart(2, "0")}</span>
-                    <span className="shop-card-initial">{vendor.name.slice(0, 1).toUpperCase()}</span>
-                    {vendor.mediaId && <img src={`/api/media/${encodeURIComponent(vendor.mediaId)}`} alt="" loading="lazy" decoding="async" />}
+                    {!storyMedia && <span className="shop-card-initial">{vendor.name.slice(0, 1).toUpperCase()}</span>}
                   </div>
                   <div className="shop-card-body">
                     <div className="eyebrow">{vendor.demo ? "Demo συνεργάτης" : location?.locality ? `Τοπικό κατάστημα · ${location.locality}` : "Συνεργαζόμενο κατάστημα"}</div>

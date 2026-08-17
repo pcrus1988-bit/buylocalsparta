@@ -19,6 +19,7 @@ export type PublicVendorStory = Readonly<{
   slug: string;
   title: string;
   excerpt: string;
+  mediaUrl?: string;
 }>;
 
 export type PublicVendorDirectoryEntry = Readonly<{
@@ -50,6 +51,7 @@ type VendorDirectoryRow = SqlRow & {
   story_slug?: string | null;
   story_title?: string | null;
   story_excerpt?: string | null;
+  story_media_id?: string | null;
   category_codes?: readonly string[] | null;
   canonical_count?: number | string | null;
 };
@@ -60,6 +62,11 @@ function postgresEnabled(): boolean {
 
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function publicMediaUrl(value: unknown): string | undefined {
+  const mediaId = optionalText(value);
+  return mediaId && /^media_[A-Za-z0-9_-]{8,128}$/.test(mediaId) ? `/api/media/${encodeURIComponent(mediaId)}` : undefined;
 }
 
 function asCount(value: unknown): number {
@@ -93,7 +100,7 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
   const storyTitle = optionalText(row.story_title);
   const storyExcerpt = optionalText(row.story_excerpt);
   const story = storyId && storySlug && storyTitle && storyExcerpt
-    ? { id: storyId, slug: storySlug, title: storyTitle, excerpt: storyExcerpt }
+    ? { id: storyId, slug: storySlug, title: storyTitle, excerpt: storyExcerpt, mediaUrl: publicMediaUrl(row.story_media_id) }
     : undefined;
   return {
     id: row.vendor_id,
@@ -126,6 +133,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            story.slug AS story_slug,
            story.title AS story_title,
            story.excerpt AS story_excerpt,
+           story.media_public_id AS story_media_id,
            COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
            COALESCE(assortment.canonical_count, 0)::integer AS canonical_count
     FROM vendor_businesses v
@@ -146,8 +154,18 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
       LIMIT 1
     ) location ON true
     LEFT JOIN LATERAL (
-      SELECT ms.public_id,ms.slug,ms.title,ms.excerpt
+      SELECT ms.public_id,ms.slug,ms.title,ms.excerpt,approved_media.public_id AS media_public_id
       FROM merchant_stories ms
+      LEFT JOIN product_media approved_media
+        ON approved_media.public_id=ms.og_image
+       AND approved_media.vendor_id=v.id
+       AND approved_media.canonical_variant_id IS NULL
+       AND approved_media.kind='image'
+       AND approved_media.scan_status='clean'
+       AND approved_media.rights_status='approved'
+       AND approved_media.moderation_status='approved'
+       AND approved_media.object_key IS NOT NULL
+       AND approved_media.content_type IN ('image/jpeg','image/png','image/webp')
       WHERE ms.vendor_id=v.id
         AND ms.status='published'
         AND ms.locale='el'
