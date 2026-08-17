@@ -8,7 +8,7 @@ type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string }>
 
 export const metadata: Metadata = {
   title: "Καταστήματα & άνθρωποι",
-  description: "Γνώρισε τα συνεργαζόμενα καταστήματα της Σπάρτης, τους ανθρώπους τους και τις κατηγορίες που γνωρίζουν πραγματικά."
+  description: "Χαρτογραφημένες τοπικές επιχειρήσεις και ενεργοί συνεργάτες του Buy Local Sparta, με σαφή διάκριση του σταδίου συνεργασίας."
 };
 
 function categoriesFor(vendor: PublicVendorDirectoryEntry) {
@@ -35,8 +35,10 @@ export default async function ShopsPage({ searchParams }: Props) {
     const categories = categoriesFor(vendor);
     if (requestedCategory && !categories.some((category) => category.slug === requestedCategory)) return false;
     if (!needle) return true;
-    return normalizedSearch([vendor.name, vendor.adviser, vendor.location?.locality, vendor.location?.addressLine1, vendor.story?.title].filter(Boolean).join(" ")).includes(needle);
+    return normalizedSearch([vendor.name, vendor.adviser, vendor.location?.locality, vendor.location?.addressLine1, vendor.story?.title, vendor.researchCategory].filter(Boolean).join(" ")).includes(needle);
   });
+  const partnerCount = allVendors.filter((vendor) => vendor.directoryStatus === "partner").length;
+  const researchCount = allVendors.filter((vendor) => vendor.directoryStatus === "research").length;
 
   return (
     <main>
@@ -48,35 +50,35 @@ export default async function ShopsPage({ searchParams }: Props) {
           <div>
             <div className="eyebrow">Know your vendor</div>
             <h1>Γνώρισε την αγορά της Σπάρτης.</h1>
-            <p>Ανακάλυψε τα συνεργαζόμενα καταστήματα, δες τι γνωρίζει καλύτερα το καθένα και βρες τον άνθρωπο που μπορεί να σε βοηθήσει πριν αγοράσεις.</p>
+            <p>Δες τις επιχειρήσεις που έχουμε χαρτογραφήσει και ξεχώρισε καθαρά ποια καταστήματα έχουν ήδη ενεργοποιηθεί ως συνεργάτες του Buy Local Sparta.</p>
             <div className="hero-actions">
-              <a className="button" href="/shop">Δες όλα τα προϊόντα</a>
+              <a className="button" href="/shop">Δες τα ενεργά προϊόντα</a>
               <a className="button button-secondary" href="/ask-local">Ρώτησε τοπικά</a>
             </div>
           </div>
           <div className="shops-hero-art" aria-hidden="true">
             <div className="shops-orbit"><span className="shops-orbit-mark">LOCAL<br />PEOPLE</span></div>
-            <span className="shops-orbit-note shops-orbit-note-a">Σπάρτη · πραγματικά καταστήματα</span>
-            <span className="shops-orbit-note shops-orbit-note-b">Συμβουλή πριν την αγορά</span>
+            <span className="shops-orbit-note shops-orbit-note-a">Σπάρτη · πραγματικές επιχειρήσεις</span>
+            <span className="shops-orbit-note shops-orbit-note-b">Σαφές στάδιο συνεργασίας</span>
           </div>
         </div>
       </section>
 
       <div className="shops-principles" aria-label="Merchant directory principles">
-        <div><strong>Πρόσωπο πίσω από το προϊόν</strong><span>Το προφίλ αναδεικνύει το κατάστημα και τον άνθρωπο που μπορεί να συμβουλέψει.</span></div>
-        <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο καταστημάτων ή στις δημόσιες σελίδες. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
-        <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story και φωτογραφία εμφανίζονται δημόσια μόνο όταν έχουν εγκριθεί και περάσει τους ελέγχους της πλατφόρμας.</span></div>
+        <div><strong>Χαρτογράφηση ≠ συνεργασία</strong><span>Οι καταχωρίσεις έρευνας βασίζονται σε δημόσιες πηγές και δεν παρουσιάζονται ως συμβεβλημένοι συνεργάτες.</span></div>
+        <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
+        <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story, σύμβουλος και φωτογραφία εμφανίζονται μόνο μετά από έγκριση και τους ελέγχους της πλατφόρμας.</span></div>
       </div>
 
       <section className="shell section" aria-labelledby="shops-title">
         <div className="shops-directory-head">
-          <div><div className="eyebrow">Καταστήματα & άνθρωποι</div><h2 id="shops-title">Οι τοπικοί συνεργάτες</h2></div>
-          <p>{vendors.length} από {allVendors.length} {allVendors.length === 1 ? "κατάστημα" : "καταστήματα"} σε αυτή την προβολή. Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση ίδιων προϊόντων.</p>
+          <div><div className="eyebrow">Καταστήματα & άνθρωποι</div><h2 id="shops-title">Η χαρτογραφημένη τοπική αγορά</h2></div>
+          <p>{vendors.length} από {allVendors.length} επιχειρήσεις σε αυτή την προβολή · {partnerCount} ενεργοί συνεργάτες · {researchCount} καταχωρίσεις έρευνας/πρόσκλησης.</p>
         </div>
 
         <form className="shops-filter" action="/shops" method="get" role="search">
-          <label><span>Αναζήτηση καταστήματος</span><input type="search" name="q" defaultValue={query} placeholder="Όνομα, άνθρωπος ή περιοχή" maxLength={80} /></label>
-          <label><span>Κατηγορία</span><select name="category" defaultValue={requestedCategory}><option value="">Όλες οι κατηγορίες</option>{STOREFRONT_CATEGORIES.map((category) => <option value={category.slug} key={category.slug}>{category.label}</option>)}</select></label>
+          <label><span>Αναζήτηση καταστήματος</span><input type="search" name="q" defaultValue={query} placeholder="Όνομα, κατηγορία ή περιοχή" maxLength={80} /></label>
+          <label><span>Κατηγορία ενεργού καταλόγου</span><select name="category" defaultValue={requestedCategory}><option value="">Όλες οι κατηγορίες</option>{STOREFRONT_CATEGORIES.map((category) => <option value={category.slug} key={category.slug}>{category.label}</option>)}</select></label>
           <button className="button" type="submit">Βρες κατάστημα</button>
           {(query || requestedCategory) && <a className="shops-filter-reset" href="/shops">Καθαρισμός</a>}
         </form>
@@ -87,6 +89,7 @@ export default async function ShopsPage({ searchParams }: Props) {
               const categories = categoriesFor(vendor);
               const location = vendor.location;
               const storyMedia = vendor.story?.mediaUrl;
+              const isResearch = vendor.directoryStatus === "research";
               return (
                 <article className="shop-card" key={vendor.id}>
                   <div className={`shop-card-visual${storyMedia ? " has-photo" : ""}`} aria-hidden="true">
@@ -95,23 +98,23 @@ export default async function ShopsPage({ searchParams }: Props) {
                     {!storyMedia && <span className="shop-card-initial">{vendor.name.slice(0, 1).toUpperCase()}</span>}
                   </div>
                   <div className="shop-card-body">
-                    <div className="eyebrow">{vendor.demo ? "Demo συνεργάτης" : location?.locality ? `Τοπικό κατάστημα · ${location.locality}` : "Συνεργαζόμενο κατάστημα"}</div>
+                    <div className="eyebrow">{vendor.directoryStatus === "partner" ? (location?.locality ? `Ενεργός συνεργάτης · ${location.locality}` : "Ενεργός συνεργάτης") : vendor.directoryStatus === "research" ? "Χαρτογραφημένη επιχείρηση · δεν είναι ακόμη συνεργάτης" : "Demo συνεργάτης"}</div>
                     <h2>{vendor.name}</h2>
-                    <p className="shop-card-copy">{vendor.story?.excerpt ?? "Δες το δημόσιο προφίλ, τις διαθέσιμες κατηγορίες και ποιος μπορεί να σε συμβουλέψει."}</p>
+                    <p className="shop-card-copy">{vendor.story?.excerpt ?? (isResearch ? "Καταχώριση από την ερευνητική βάση του Buy Local Sparta. Τα στοιχεία συνεργασίας, συμβουλής και προϊόντων δεν έχουν ακόμη ενεργοποιηθεί από τον έμπορο." : "Δες το δημόσιο προφίλ, τις διαθέσιμες κατηγορίες και ποιος μπορεί να σε συμβουλέψει.")}</p>
 
                     <div className="shop-meta">
                       {vendor.adviser && <div className="shop-meta-row"><span>Συμβουλή</span><strong>{vendor.adviser}</strong></div>}
-                      {location && <div className="shop-meta-row"><span>Τοποθεσία</span><strong>{location.addressLine1}, {location.postcode} {location.locality}</strong></div>}
-                      <div className="shop-meta-row"><span>Κατάλογος</span><strong>{vendor.canonicalCount} {vendor.canonicalCount === 1 ? "προϊόν" : "προϊόντα"}</strong></div>
+                      {location && <div className="shop-meta-row"><span>Τοποθεσία</span><strong>{location.addressLine1}, {location.postcode} {location.locality}{location.verified ? " · επαληθευμένο" : ""}</strong></div>}
+                      {isResearch ? <div className="shop-meta-row"><span>Κατάσταση</span><strong>INVITED · αναμένει onboarding</strong></div> : <div className="shop-meta-row"><span>Κατάλογος</span><strong>{vendor.canonicalCount} {vendor.canonicalCount === 1 ? "προϊόν" : "προϊόντα"}</strong></div>}
                     </div>
 
                     {categories.length > 0 && <div className="shop-category-list" aria-label="Κατηγορίες καταστήματος">
                       {categories.map((category) => <span className="shop-category-chip" key={category.slug}>{category.label}</span>)}
                     </div>}
+                    {isResearch && vendor.researchCategory && <div className="shop-category-list" aria-label="Κατηγορία έρευνας"><span className="shop-category-chip">{vendor.researchCategory}</span></div>}
 
                     <div className="shop-card-action">
-                      <small>{vendor.story ? "Δημοσιευμένη ιστορία καταστήματος" : "Προϊόντα · συμβουλή · στοιχεία"}</small>
-                      <a className="text-link" href={`/vendor/${vendor.id}`}>Γνώρισε το κατάστημα →</a>
+                      {isResearch ? <small>Δημόσια ερευνητική καταχώριση · όχι συμβεβλημένος συνεργάτης</small> : <><small>{vendor.story ? "Δημοσιευμένη ιστορία καταστήματος" : "Προϊόντα · συμβουλή · στοιχεία"}</small><a className="text-link" href={`/vendor/${vendor.id}`}>Γνώρισε το κατάστημα →</a></>}
                     </div>
                   </div>
                 </article>
@@ -120,8 +123,8 @@ export default async function ShopsPage({ searchParams }: Props) {
           </div>
         ) : (
           <div className="empty-state">
-            <h2>{allVendors.length ? "Δεν βρέθηκε κατάστημα με αυτά τα φίλτρα." : "Τα προφίλ ετοιμάζονται."}</h2>
-            <p>{allVendors.length ? "Δοκίμασε διαφορετικό όνομα ή επίλεξε άλλη κατηγορία." : "Μόλις ενεργοποιηθούν συνεργαζόμενα καταστήματα θα εμφανιστούν εδώ χωρίς να δημοσιεύονται μη εγκεκριμένες πληροφορίες."}</p>
+            <h2>{allVendors.length ? "Δεν βρέθηκε κατάστημα με αυτά τα φίλτρα." : "Η βάση καταστημάτων ετοιμάζεται."}</h2>
+            <p>{allVendors.length ? "Δοκίμασε διαφορετικό όνομα ή επίλεξε άλλη κατηγορία." : "Δεν εμφανίζουμε demo επιχειρήσεις όταν η παραγωγική βάση δεδομένων είναι ενεργή."}</p>
             <a className="button" href={allVendors.length ? "/shops" : "/shop"}>{allVendors.length ? "Καθαρισμός φίλτρων" : "Πήγαινε στα προϊόντα"}</a>
           </div>
         )}
