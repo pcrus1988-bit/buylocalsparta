@@ -254,8 +254,7 @@ export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<P
   if (!vendorId.trim()) return undefined;
   if (productionDatabaseConfigured()) {
     const vendor = (await databaseDirectory(vendorId))[0];
-    if (!vendor) return undefined;
-    if (vendor.directoryStatus !== "partner") return vendor;
+    if (!vendor || vendor.directoryStatus !== "partner") return undefined;
     const image = (await approvedVendorImages([vendor.id]))[0];
     return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
   }
