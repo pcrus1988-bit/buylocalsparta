@@ -17,5 +17,5 @@ export async function GET(request: Request) {
     availableToSell: product.availableToSell,
     vendor: product.vendorId && product.vendorName && product.adviser ? { id: product.vendorId, name: product.vendorName, adviser: product.adviser } : null
   }));
-  return Response.json({ demoData: true, market: "sparta", products });
+  return Response.json({ market: "sparta", products });
 }
