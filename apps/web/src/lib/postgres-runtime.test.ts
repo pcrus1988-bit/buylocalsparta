@@ -1,24 +1,33 @@
 import { describe, expect, it } from "vitest";
-
-// Runtime URL precedence is intentionally tested here without opening a database connection.
-function resolveDatabaseUrl(env: NodeJS.ProcessEnv): string | undefined {
-  return env.DATABASE_URL?.trim() || env.POSTGRES_URL?.trim() || undefined;
-}
+import { resolveDatabaseUrlFromEnv } from "./postgres-runtime";
 
 describe("production database URL resolution", () => {
   it("prefers DATABASE_URL when both variables are configured", () => {
-    expect(resolveDatabaseUrl({ DATABASE_URL: " postgres://explicit ", POSTGRES_URL: "postgres://marketplace" })).toBe("postgres://explicit");
+    expect(resolveDatabaseUrlFromEnv({ DATABASE_URL: " postgres://explicit ", POSTGRES_URL: "postgres://marketplace" })).toBe("postgres://explicit");
   });
 
   it("uses Vercel Marketplace POSTGRES_URL when DATABASE_URL is absent", () => {
-    expect(resolveDatabaseUrl({ POSTGRES_URL: " postgres://marketplace " })).toBe("postgres://marketplace");
+    expect(resolveDatabaseUrlFromEnv({ POSTGRES_URL: " postgres://marketplace " })).toBe("postgres://marketplace");
   });
 
   it("uses POSTGRES_URL when DATABASE_URL is blank", () => {
-    expect(resolveDatabaseUrl({ DATABASE_URL: "  ", POSTGRES_URL: "postgres://marketplace" })).toBe("postgres://marketplace");
+    expect(resolveDatabaseUrlFromEnv({ DATABASE_URL: "  ", POSTGRES_URL: "postgres://marketplace" })).toBe("postgres://marketplace");
+  });
+
+  it("keeps TLS enabled but uses node-postgres compatibility mode for Supabase Marketplace URLs", () => {
+    const resolved = resolveDatabaseUrlFromEnv({
+      POSTGRES_URL: "postgresql://postgres:secret@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
+    });
+    expect(resolved).toContain("aws-0-us-east-1.pooler.supabase.com");
+    expect(resolved).toContain("sslmode=no-verify");
+  });
+
+  it("does not weaken an explicit DATABASE_URL configuration", () => {
+    const explicit = "postgresql://app:secret@example.com:5432/app?sslmode=verify-full";
+    expect(resolveDatabaseUrlFromEnv({ DATABASE_URL: explicit })).toBe(explicit);
   });
 
   it("stays database-less when neither variable is configured", () => {
-    expect(resolveDatabaseUrl({})).toBeUndefined();
+    expect(resolveDatabaseUrlFromEnv({})).toBeUndefined();
   });
 });
