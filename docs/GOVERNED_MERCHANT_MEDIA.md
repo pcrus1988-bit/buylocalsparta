@@ -19,4 +19,22 @@ The public directory validates these conditions before emitting a same-origin `/
 
 If no governed merchant image is available, the storefront retains the existing generated merchant artwork/initials. Product cards continue to prefer separately governed canonical product media and use category artwork as their fallback.
 
+## Admin association workflow
+
+The Admin CMS workspace exposes the explicit story-to-media association. It does not accept an arbitrary external image URL and it does not permit staff to bypass media governance.
+
+For each merchant story, the selector contains only media that:
+
+- belongs to the same Vendor as the story;
+- is not assigned to a canonical product;
+- is an image in the supported public formats;
+- has completed the malware scan successfully;
+- has approved rights provenance;
+- has approved moderation;
+- points to a verified private object.
+
+The mutation is protected by the Admin `content.write` permission and CSRF verification, runs under the platform PostgreSQL scope in a serializable transaction, and records the change through the canonical Admin audit path. Selecting the empty option removes the association and immediately restores the generated storefront fallback.
+
+Database-less previews deliberately do not persist real merchant-media associations.
+
 This feature intentionally does not scrape or automatically import storefront/merchant photography from the public web. Rights provenance remains part of the existing media-governance workflow.
