@@ -35,5 +35,6 @@
   "0034_aade_mydata_erp_bridge.sql": "647855da6b78c841914fed9a14f6e8ba592259226937a553a0555eae1fe85c78",
   "0035_search_email_providers.sql": "40adeeaf0aa33d20061f09bcdefdf1c2c286d5d056cfe036cc354a461cc129fc",
   "0036_boxnow_shipping_bridge.sql": "5c814821af63d30e9ed6bf8f5115196e5185da658d8862c8d96ac46efb88d2e5",
-  "0037_activation_evidence.sql": "9212e8f67297974356efa90eaab813fb53ecd2cf74a91b9f965e9141213506fa"
+  "0037_activation_evidence.sql": "9212e8f67297974356efa90eaab813fb53ecd2cf74a91b9f965e9141213506fa",
+  "0038_paid_reservation_consumption.sql": "b53e31e3ae044cccc56734163a949eec8b2a3767b889059d7a5ced4552f2fd82"
 }
