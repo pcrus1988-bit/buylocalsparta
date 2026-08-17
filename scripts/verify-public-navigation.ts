@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 const root = process.cwd();
 const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
 const failures: string[] = [];
-const requiredRoutes = ["about", "delivery-pickup", "fairness", "help", "how-it-works"] as const;
+const requiredRoutes = ["about", "delivery-pickup", "fairness", "help", "how-it-works", "payments-security", "privacy-controls", "returns-refunds", "join/requirements"] as const;
 const publicPages = [
   "apps/web/src/app/page.tsx",
   "apps/web/src/app/shop/page.tsx",
@@ -39,7 +39,7 @@ for (const destination of ["/shop", "/shops", "/how-it-works", "/advice", "/ask-
 }
 
 const footer = read("apps/web/src/components/SiteFooter.tsx");
-for (const destination of ["/how-it-works", "/fairness", "/delivery-pickup", "/about", "/help", "/join"]) {
+for (const destination of ["/how-it-works", "/fairness", "/delivery-pickup", "/payments-security", "/returns-refunds", "/privacy-controls", "/about", "/help", "/join"]) {
   if (!footer.includes(`"${destination}"`)) failures.push(`Public footer is missing ${destination}`);
 }
 
@@ -49,6 +49,10 @@ for (const route of requiredRoutes) if (!sitemap.includes(`\`${"${origin}"}/${ro
 const product = read("apps/web/src/app/product/[id]/page.tsx");
 if (product.includes('href="/advice">Πώς λειτουργεί')) failures.push("Product page still misroutes the how-it-works CTA to advice");
 if (!product.includes('href="/how-it-works">Πώς λειτουργεί')) failures.push("Product page is missing the real how-it-works destination");
+
+const join = read("apps/web/src/app/join/page.tsx");
+if (join.includes('href="#eligibility"')) failures.push("Partner onboarding still uses the explanatory eligibility anchor as its primary CTA");
+if (!join.includes('href="/join/requirements"')) failures.push("Partner onboarding is missing the operational readiness route");
 
 for (const path of publicPages) {
   if (!existsSync(`${root}/${path}`)) continue;

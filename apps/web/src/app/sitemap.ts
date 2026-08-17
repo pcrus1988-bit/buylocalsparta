@@ -17,9 +17,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${origin}/how-it-works`, changeFrequency: "monthly", priority: 0.75 },
     { url: `${origin}/fairness`, changeFrequency: "monthly", priority: 0.65 },
     { url: `${origin}/delivery-pickup`, changeFrequency: "monthly", priority: 0.65 },
+    { url: `${origin}/payments-security`, changeFrequency: "monthly", priority: 0.65 },
+    { url: `${origin}/returns-refunds`, changeFrequency: "monthly", priority: 0.65 },
+    { url: `${origin}/privacy-controls`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${origin}/about`, changeFrequency: "monthly", priority: 0.65 },
     { url: `${origin}/help`, changeFrequency: "monthly", priority: 0.65 },
     { url: `${origin}/join`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${origin}/join/requirements`, changeFrequency: "monthly", priority: 0.55 },
     ...STOREFRONT_CATEGORIES.map((category) => ({ url: `${origin}/category/${category.slug}`, changeFrequency: "daily" as const, priority: 0.8 }))
   ];
   const [products, vendors] = await Promise.allSettled([getPublicCatalogProducts(), getPublicVendorDirectory()]);

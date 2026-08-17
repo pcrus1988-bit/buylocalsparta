@@ -5,11 +5,11 @@ const groups = [
   },
   {
     title: "Πώς λειτουργεί",
-    links: [["Η εμπειρία αγοράς", "/how-it-works"], ["Δίκαιη ανάθεση", "/fairness"], ["Παράδοση & παραλαβή", "/delivery-pickup"]]
+    links: [["Η εμπειρία αγοράς", "/how-it-works"], ["Πληρωμές & ασφάλεια", "/payments-security"], ["Παράδοση & παραλαβή", "/delivery-pickup"], ["Επιστροφές & refunds", "/returns-refunds"]]
   },
   {
     title: "Buy Local Sparta",
-    links: [["Η ιδέα και η αποστολή", "/about"], ["Κέντρο βοήθειας", "/help"], ["Γίνε συνεργάτης", "/join"]]
+    links: [["Η ιδέα και η αποστολή", "/about"], ["Δίκαιη ανάθεση", "/fairness"], ["Privacy controls", "/privacy-controls"], ["Κέντρο βοήθειας", "/help"], ["Γίνε συνεργάτης", "/join"]]
   }
 ] as const;
 
