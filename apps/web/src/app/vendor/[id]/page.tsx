@@ -24,7 +24,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const vendor = await getPublicVendorDirectoryEntry(id);
   return {
     title: vendor ? `${vendor.name} · Τοπικό κατάστημα` : "Κατάστημα",
-    description: vendor?.story?.excerpt ?? (vendor ? `Γνώρισε το ${vendor.name}, τα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το Buy Local Sparta.` : undefined)
+    description: vendor?.story?.excerpt ?? (vendor ? `Γνώρισε το ${vendor.name}, τα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το Buy Local Sparta.` : undefined),
+    alternates: vendor ? { canonical: `/vendor/${encodeURIComponent(vendor.id)}` } : undefined,
+    openGraph: vendor ? { title: vendor.name, description: vendor.story?.excerpt ?? `Τοπικό κατάστημα στη Σπάρτη μέσα από το Buy Local Sparta.`, url: `/vendor/${encodeURIComponent(vendor.id)}`, images: vendor.mediaId ? [`/api/media/${encodeURIComponent(vendor.mediaId)}`] : undefined, type: "website" } : undefined
   };
 }
 
@@ -37,7 +39,7 @@ export default async function VendorPage({ params }: Props) {
   const location = vendor.location;
   const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
   const structuredData = {
-    "@context": "https://schema.org", "@type": "LocalBusiness", name: vendor.name, url: vendorUrl,
+    "@context": "https://schema.org", "@type": "LocalBusiness", "@id": `${vendorUrl}#business`, name: vendor.name, url: vendorUrl,
     description: vendor.story?.excerpt,
     image: vendor.mediaId ? `${publicOrigin()}/api/media/${encodeURIComponent(vendor.mediaId)}` : undefined,
     telephone: location?.phone, email: location?.publicEmail,
