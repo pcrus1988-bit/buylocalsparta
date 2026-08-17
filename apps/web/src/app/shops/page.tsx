@@ -50,7 +50,7 @@ export default async function ShopsPage({ searchParams }: Props) {
             <p>Ανακάλυψε τα συνεργαζόμενα καταστήματα, δες τι γνωρίζει καλύτερα το καθένα και βρες τον άνθρωπο που μπορεί να σε βοηθήσει πριν αγοράσεις.</p>
             <div className="hero-actions">
               <a className="button" href="/shop">Δες όλα τα προϊόντα</a>
-              <a className="button button-secondary" href="/#ask-local">Ρώτησε τοπικά</a>
+              <a className="button button-secondary" href="/ask-local">Ρώτησε τοπικά</a>
             </div>
           </div>
           <div className="shops-hero-art" aria-hidden="true">
