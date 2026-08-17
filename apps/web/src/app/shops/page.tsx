@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../lib/public-vendor-directory";
-import { storefrontCategoryForCode } from "../../lib/storefront-taxonomy";
+import { STOREFRONT_CATEGORIES, storefrontCategoryForCode } from "../../lib/storefront-taxonomy";
+
+type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string }> }>;
 
 export const metadata: Metadata = {
   title: "Καταστήματα & άνθρωποι",
@@ -18,8 +20,22 @@ function categoriesFor(vendor: PublicVendorDirectoryEntry) {
   });
 }
 
-export default async function ShopsPage() {
-  const vendors = await getPublicVendorDirectory();
+function normalizedSearch(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");
+}
+
+export default async function ShopsPage({ searchParams }: Props) {
+  const allVendors = await getPublicVendorDirectory();
+  const params = await searchParams;
+  const query = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
+  const requestedCategory = STOREFRONT_CATEGORIES.some((category) => category.slug === params.category) ? params.category ?? "" : "";
+  const needle = normalizedSearch(query);
+  const vendors = allVendors.filter((vendor) => {
+    const categories = categoriesFor(vendor);
+    if (requestedCategory && !categories.some((category) => category.slug === requestedCategory)) return false;
+    if (!needle) return true;
+    return normalizedSearch([vendor.name, vendor.adviser, vendor.location?.locality, vendor.location?.addressLine1, vendor.story?.title].filter(Boolean).join(" ")).includes(needle);
+  });
 
   return (
     <main>
@@ -54,8 +70,15 @@ export default async function ShopsPage() {
       <section className="shell section" aria-labelledby="shops-title">
         <div className="shops-directory-head">
           <div><div className="eyebrow">Καταστήματα & άνθρωποι</div><h2 id="shops-title">Οι τοπικοί συνεργάτες</h2></div>
-          <p>{vendors.length} {vendors.length === 1 ? "κατάστημα" : "καταστήματα"} διαθέσιμα σε αυτή την προβολή. Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση ίδιων προϊόντων.</p>
+          <p>{vendors.length} από {allVendors.length} {allVendors.length === 1 ? "κατάστημα" : "καταστήματα"} σε αυτή την προβολή. Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση ίδιων προϊόντων.</p>
         </div>
+
+        <form className="shops-filter" action="/shops" method="get" role="search">
+          <label><span>Αναζήτηση καταστήματος</span><input type="search" name="q" defaultValue={query} placeholder="Όνομα, άνθρωπος ή περιοχή" maxLength={80} /></label>
+          <label><span>Κατηγορία</span><select name="category" defaultValue={requestedCategory}><option value="">Όλες οι κατηγορίες</option>{STOREFRONT_CATEGORIES.map((category) => <option value={category.slug} key={category.slug}>{category.label}</option>)}</select></label>
+          <button className="button" type="submit">Βρες κατάστημα</button>
+          {(query || requestedCategory) && <a className="shops-filter-reset" href="/shops">Καθαρισμός</a>}
+        </form>
 
         {vendors.length ? (
           <div className="shops-grid">
@@ -95,9 +118,9 @@ export default async function ShopsPage() {
           </div>
         ) : (
           <div className="empty-state">
-            <h2>Τα προφίλ ετοιμάζονται.</h2>
-            <p>Μόλις ενεργοποιηθούν συνεργαζόμενα καταστήματα θα εμφανιστούν εδώ χωρίς να δημοσιεύονται μη εγκεκριμένες πληροφορίες.</p>
-            <a className="button" href="/shop">Πήγαινε στα προϊόντα</a>
+            <h2>{allVendors.length ? "Δεν βρέθηκε κατάστημα με αυτά τα φίλτρα." : "Τα προφίλ ετοιμάζονται."}</h2>
+            <p>{allVendors.length ? "Δοκίμασε διαφορετικό όνομα ή επίλεξε άλλη κατηγορία." : "Μόλις ενεργοποιηθούν συνεργαζόμενα καταστήματα θα εμφανιστούν εδώ χωρίς να δημοσιεύονται μη εγκεκριμένες πληροφορίες."}</p>
+            <a className="button" href={allVendors.length ? "/shops" : "/shop"}>{allVendors.length ? "Καθαρισμός φίλτρων" : "Πήγαινε στα προϊόντα"}</a>
           </div>
         )}
       </section>
