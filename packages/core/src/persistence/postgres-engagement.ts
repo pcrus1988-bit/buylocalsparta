@@ -150,19 +150,13 @@ export class PostgresEngagementRepository {
   async recordSavedSearchAlertEvent(input: { scope: DatabaseScope; event: SavedSearchAlertEvent }): Promise<void> {
     await this.#uow.withTransaction({ ...input.scope, platformAccess: true }, async (tx) => {
       const uid = await userUuid(tx, input.event.userId);
+      const cid = await canonicalUuid(tx, input.event.canonicalVariantId);
       const search = await tx.query<SqlRow>("SELECT id::text AS id FROM saved_searches WHERE public_id=$1 AND user_id=$2", [input.event.savedSearchId, uid]);
       if (search.rowCount !== 1) throw new Error("Saved search was not found");
-      await tx.query(`INSERT INTO saved_search_alert_events
-        (id,public_id,saved_search_id,user_id,canonical_public_ids,created_at)
-        VALUES ($1,$2,$3,$4,$5::text[],$6)`, [randomUUID(), input.event.id, String(search.rows[0].id), uid, [...input.event.canonicalVariantIds], new Date(input.event.createdAt)]);
+      await tx.query(`INSERT INTO saved_search_alert_events (id,public_id,saved_search_id,user_id,canonical_variant_id,event_type,created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (saved_search_id,canonical_variant_id) DO NOTHING`,
+      [randomUUID(), input.event.id, String(search.rows[0].id), uid, cid, input.event.type, new Date(input.event.createdAt)]);
     });
   }
 
-  async clearUserSavedSearchEvents(input: { scope: DatabaseScope; userId: string }): Promise<void> {
-    await this.#uow.withTransaction(input.scope, async (tx) => {
-      const uid = await userUuid(tx, input.userId);
-      await tx.query("SELECT set_config('app.privacy_erasure','true',true)");
-      await tx.query("DELETE FROM saved_search_alert_events WHERE user_id=$1", [uid]);
-    });
-  }
 }
