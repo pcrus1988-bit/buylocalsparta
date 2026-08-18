@@ -11,6 +11,7 @@ import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runti
 import { ResendEmailProvider, resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
 import { accountAuthSecret, getAccountRuntime } from "./account-runtime";
 import { customerStateBackend } from "./customer-state-runtime";
+import { isProvisionalVendorApplicantPasswordHash } from "./provisional-account";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { publicOrigin } from "./public-origin";
 
@@ -90,6 +91,37 @@ export async function registerCustomer(input: { email: string; password: string;
   const runtime = getProductionPostgresRuntime();
   const existing = await runtime.persistence.identity.findAccountForAuthentication(email);
   if (existing) {
+    if (
+      existing.status === "pending_verification" &&
+      !existing.emailVerified &&
+      existing.roles.includes("customer") &&
+      isProvisionalVendorApplicantPasswordHash(existing.passwordHash)
+    ) {
+      const claimed: UserAccount = {
+        id: existing.id,
+        email: existing.email,
+        passwordHash: hashPassword(input.password),
+        status: "pending_verification",
+        roles: [...existing.roles],
+        vendorId: existing.vendorId,
+        emailVerified: false,
+        createdAt: existing.createdAt
+      };
+      const verificationToken = createVerificationToken();
+      await runtime.persistence.identity.saveAccount({
+        scope: { platformAccess: true, marketId: "sparta", requestId: `customer-register-claim:${existing.id}` },
+        account: claimed
+      });
+      await runtime.persistence.identity.saveEmailVerification({
+        scope: { platformAccess: true, marketId: "sparta", requestId: `customer-register-claim-verification:${existing.id}` },
+        verification: verificationRecord(existing.id, verificationToken, input.now)
+      });
+      return {
+        account: { id: existing.id, email: existing.email, status: claimed.status, emailVerified: false, createdAt: existing.createdAt },
+        verificationToken,
+        resent: false
+      };
+    }
     if (
       existing.status === "pending_verification" &&
       !existing.emailVerified &&
