@@ -122,6 +122,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/privacy",
   "/admin/recalls",
   "/admin/research-vendors",
+  "/admin/research-vendors/[id]",
   "/admin/reviews",
   "/admin/shipping",
   "/admin/tax",
