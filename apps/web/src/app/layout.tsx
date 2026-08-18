@@ -9,6 +9,7 @@ import "./dashboard-premium.css";
 import "./site-polish.css";
 import "./workspace-polish.css";
 import "./checkout-polish.css";
+import "./dashboard-luxury.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 
