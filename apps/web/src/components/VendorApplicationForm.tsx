@@ -30,7 +30,7 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
     setError("");
     setErrorCode("");
     const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const payload: Record<string, unknown> = Object.fromEntries(form.entries());
     payload.acceptedAccuracy = form.get("acceptedAccuracy") === "on";
     payload.acceptedGovernedOnboarding = form.get("acceptedGovernedOnboarding") === "on";
     payload.acceptedPrivacy = form.get("acceptedPrivacy") === "on";
