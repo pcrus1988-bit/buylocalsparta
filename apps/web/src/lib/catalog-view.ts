@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { formatMoney, money, normalizeSearchText } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
@@ -48,6 +49,65 @@ function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage): Ca
   };
 }
 
+function hashVisitor(visitorKey: string): string {
+  return createHash("sha256").update(visitorKey).digest("hex");
+}
+
+function safeMinor(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error(`Invalid ${field} from PostgreSQL`);
+  return parsed;
+}
+
+/**
+ * Resolve the exact offer that the fairness engine persisted for this visitor.
+ * Canonical product price is deliberately NOT used as a customer-facing fallback:
+ * each vendor's offer price is the final retail price, and different visitors may
+ * therefore see different prices for the same canonical product.
+ */
+async function withStickyAssignedOfferPrice(record: DatabaseCatalogRecord, visitorKey: string, postcode: string): Promise<DatabaseCatalogRecord | undefined> {
+  if (!record.available || !record.vendorId) return undefined;
+  const runtime = getProductionPostgresRuntime();
+  const result = await runtime.nativePool.query(`
+    SELECT vo.customer_price_minor
+    FROM sticky_assignments sa
+    JOIN canonical_variants cv ON cv.id=sa.canonical_variant_id
+    JOIN vendor_offers vo ON vo.id=sa.offer_id
+    JOIN vendor_businesses v ON v.id=vo.vendor_id
+    WHERE cv.public_id=$1
+      AND sa.visitor_hash=$2
+      AND sa.postcode_scope=$3
+      AND sa.released_at IS NULL
+      AND sa.expires_at>now()
+      AND vo.status='approved'
+      AND v.public_id=$4
+    ORDER BY sa.locked_at DESC
+    LIMIT 1
+  `, [record.id, hashVisitor(visitorKey), postcode, record.vendorId]);
+  if (!result.rowCount) throw new Error(`Assigned vendor offer price is missing for canonical ${record.id}`);
+  return { ...record, priceMinor: safeMinor(result.rows[0]?.customer_price_minor, "customer_price_minor") };
+}
+
+async function withVendorOfferPrice(record: DatabaseCatalogRecord, vendorId: string): Promise<DatabaseCatalogRecord | undefined> {
+  const runtime = getProductionPostgresRuntime();
+  const result = await runtime.nativePool.query(`
+    SELECT vo.customer_price_minor
+    FROM vendor_offers vo
+    JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+    JOIN vendor_businesses v ON v.id=vo.vendor_id
+    JOIN vendor_locations l ON l.id=vo.location_id
+    LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+    WHERE cv.public_id=$1
+      AND v.public_id=$2
+      AND vo.status='approved'
+      AND l.active=true
+    ORDER BY ib.stock_confirmed_at DESC NULLS LAST, vo.updated_at DESC, vo.public_id
+    LIMIT 1
+  `, [record.id, vendorId]);
+  if (!result.rowCount) return undefined;
+  return { ...record, priceMinor: safeMinor(result.rows[0]?.customer_price_minor, "customer_price_minor") };
+}
+
 async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[]): Promise<readonly CatalogCard[]> {
   if (records.length === 0) return [];
   try {
@@ -70,6 +130,10 @@ async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<b
   return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).some((product) => product.id === canonicalVariantId);
 }
 
+/**
+ * Metadata-only helper retained for internal callers. Customer-facing surfaces must
+ * use getCatalogCard(s), because a canonical product has no authoritative retail price.
+ */
 export async function getCanonicalProductSummary(id: string): Promise<Readonly<{ id: string; title: string; price: string; priceMinor: number }> | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
   const product = (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).find((entry) => entry.id === id);
@@ -92,8 +156,8 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
     canonicalIds = canonicals.filter((product) => !normalizedQuery || normalizeSearchText(product.title).includes(normalizedQuery)).map((product) => product.id);
   }
   const assigned = await Promise.all(canonicalIds.map((canonicalVariantId) => commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" })));
-  const records = assigned.flatMap((record) => record ? [record] : []);
-  return enrichDatabaseRecords(records);
+  const priced = await Promise.all(assigned.flatMap((record) => record ? [record] : []).map((record) => withStickyAssignedOfferPrice(record, visitorKey, postcode)));
+  return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []));
 }
 
 export async function getCatalogCard(id: string, visitorKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
@@ -101,7 +165,9 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   if (!await canonicalIsPubliclyAllowed(id)) return undefined;
   const record = await getProductionPostgresRuntime().customerCommerce.publicAssignedCanonical({ canonicalVariantId: id, visitorKey, postcode, reason: "product_view" });
   if (!record) return undefined;
-  return (await enrichDatabaseRecords([record]))[0];
+  const priced = await withStickyAssignedOfferPrice(record, visitorKey, postcode);
+  if (!priced) return undefined;
+  return (await enrichDatabaseRecords([priced]))[0];
 }
 
 export async function getPublicVendor(vendorId: string): Promise<PublicVendorView | undefined> {
@@ -112,7 +178,8 @@ export async function getPublicVendor(vendorId: string): Promise<PublicVendorVie
 export async function getVendorCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
   const records = await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId);
-  return enrichDatabaseRecords(records);
+  const priced = await Promise.all(records.map((record) => withVendorOfferPrice(record, vendorId)));
+  return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []));
 }
 
 export async function getCanonicalAvailability(id: string, postcode = "23100"): Promise<Readonly<{ available: boolean; availableToSell: number }> | undefined> {
@@ -121,6 +188,10 @@ export async function getCanonicalAvailability(id: string, postcode = "23100"): 
   return result ? { available: result.available, availableToSell: result.availableToSell } : undefined;
 }
 
+/**
+ * Internal/non-personalized projection only. Do not use this helper to render a price
+ * to a customer; customer-facing price must come from an assigned vendor offer.
+ */
 export async function getPublicCatalogProducts(): Promise<readonly Readonly<{ id: string; title: string; priceMinor: number; price: string; categoryCode: string }>[] > {
   if (!productionDatabaseConfigured()) return [];
   return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).map((product) => ({ id: product.id, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)), categoryCode: product.categoryCode }));
