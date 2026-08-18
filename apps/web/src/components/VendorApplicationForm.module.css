@@ -1,0 +1,31 @@
+.twoColumn {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.twoColumn label {
+  min-width: 0;
+}
+
+.twoColumn label > span {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.honeypot {
+  position: absolute !important;
+  left: -10000px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 620px) {
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+}
