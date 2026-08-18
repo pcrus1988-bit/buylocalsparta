@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
+import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getCatalogCards } from "../../../lib/catalog-view";
-import { getVisitorKey } from "../../../lib/visitor";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
-import { SiteFooter } from "../../../components/SiteFooter";
+import { getVisitorKey } from "../../../lib/visitor";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -16,10 +16,11 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const category = storefrontCategoryBySlug(slug);
-  if (!category) return { title: "Κατηγορία" };
+  if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
   return {
-    title: `${category.label} · Buy Local Sparta`,
-    description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`
+    title: category.label,
+    description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`,
+    alternates: { canonical: `/category/${category.slug}` }
   };
 }
 
