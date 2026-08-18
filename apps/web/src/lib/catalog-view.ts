@@ -255,9 +255,45 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
     const product = canonicalById.get(id);
     return product ? matchesCatalogFilters(product, metadata.get(id), filters) : false;
   });
-  const assigned = await Promise.all(canonicalIds.map((canonicalVariantId) => commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" })));
-  const priced = await Promise.all(assigned.flatMap((record) => record ? [record] : []).map((record) => withStorefrontDisplayPrice(record, visitorKey, postcode)));
-  return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []), metadata);
+
+  // Fairness assignment writes sticky/rotation state. Running one serializable
+  // transaction per product in Promise.all can deadlock on overlapping vendor rows
+  // and can exhaust the serverless PostgreSQL pool. Keep discovery deterministic and
+  // bounded by assigning sequentially. If one assignment is temporarily contended,
+  // render that canonical as unavailable rather than failing the entire storefront.
+  const assigned: DatabaseCatalogRecord[] = [];
+  for (const canonicalVariantId of canonicalIds) {
+    try {
+      const record = await commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" });
+      if (record) assigned.push(record);
+    } catch (error) {
+      const fallback = canonicalById.get(canonicalVariantId);
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.catalog_assignment_degraded",
+        canonicalVariantId,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      if (fallback) assigned.push({ ...fallback, available: false, availableToSell: 0 });
+    }
+  }
+
+  const priced: DatabaseCatalogRecord[] = [];
+  for (const record of assigned) {
+    try {
+      const display = await withStorefrontDisplayPrice(record, visitorKey, postcode);
+      if (display) priced.push(display);
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.catalog_price_degraded",
+        canonicalVariantId: record.id,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      priced.push({ ...record, available: false, availableToSell: 0, vendorId: undefined, vendorName: undefined, adviser: undefined });
+    }
+  }
+  return enrichDatabaseRecords(priced, metadata);
 }
 
 export async function getCatalogCard(id: string, visitorKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
