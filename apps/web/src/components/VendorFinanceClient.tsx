@@ -1,2 +1,79 @@
-"use client";import { useRouter } from "next/navigation";import { useState } from "react";
-type W={csrfToken:string;procurements:readonly any[];settlements:readonly any[]};export function VendorFinanceClient({initial}:{initial:W}){const router=useRouter();const[error,setError]=useState("");async function submit(e:React.FormEvent<HTMLFormElement>,id:string){e.preventDefault();const f=new FormData(e.currentTarget);setError("");const r=await fetch("/api/vendor/finance/invoices",{method:"POST",headers:{"content-type":"application/json","x-csrf-token":initial.csrfToken},body:JSON.stringify({procurementId:id,invoiceNumber:f.get("number"),invoiceGrossMinor:Number(f.get("gross"))})});const p=await r.json();if(!r.ok){setError(p.error??"Invoice failed");return}router.refresh()}return <>{error&&<div className="shell form-error vendor-error">{error}</div>}<section className="shell vendor-section"><div className="section-heading"><div><div className="eyebrow">Procurement</div><h2>Supplier invoices</h2></div></div><div className="vendor-order-list">{initial.procurements.map(p=><article className="vendor-order" key={p.id}><div className="vendor-order-head"><div><strong>{p.orderId}</strong><small>{p.id} · updated {new Date(p.updatedAt).toLocaleString("el-GR")}</small></div><span className="status-pill">{p.status}</span></div><div className="vendor-order-lines"><span>Supplier gross {p.gross}</span><span>Platform service fee {p.serviceFeeGross} · shipping reimbursement {p.shippingReimbursement}</span><span><strong>Payable {p.payable}</strong></span>{p.invoiceNumber&&<span>Invoice {p.invoiceNumber}</span>}</div>{["accrued","matched","disputed"].includes(p.status)&&!p.invoiceNumber&&<form className="vendor-message-form" onSubmit={e=>void submit(e,p.id)}><input name="number" required placeholder="Invoice number"/><input name="gross" required type="number" min="0" step="1" placeholder="Gross € cents"/><button className="button">Submit invoice</button></form>}</article>)}{!initial.procurements.length&&<div className="account-empty">Δεν υπάρχουν ακόμη fulfilled procurement records.</div>}</div></section><section className="vendor-section section-tint"><div className="shell"><div className="section-heading"><div><div className="eyebrow">Read-only payout tracking</div><h2>Settlements</h2></div></div><div className="vendor-order-list">{initial.settlements.map(s=><article className="vendor-order" key={s.id}><div className="vendor-order-head"><div><strong>{s.batchNumber}</strong><small>{s.totalPayable} · {s.payoutReference??"No payout reference yet"}</small></div><span className="status-pill">{s.status}</span></div></article>)}{!initial.settlements.length&&<div className="account-empty">No settlement batch includes this vendor yet.</div>}</div></div></section></>}
+"use client";
+
+import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
+
+type Workspace = { csrfToken: string; procurements: readonly any[]; settlements: readonly any[] };
+
+export function VendorFinanceClient({ initial }: { initial: Workspace }) {
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+
+  const invoiceNeeded = initial.procurements.filter((item) => ["accrued", "matched", "disputed"].includes(item.status) && !item.invoiceNumber).length;
+  const payable = initial.procurements.filter((item) => item.status === "payable").length;
+  const paid = initial.settlements.filter((item) => ["paid", "settled"].includes(item.status)).length;
+
+  async function submit(event: FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(id);
+    setError("");
+    try {
+      const response = await fetch("/api/vendor/finance/invoices", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
+        body: JSON.stringify({ procurementId: id, invoiceNumber: form.get("number"), invoiceGrossMinor: Number(form.get("gross")) })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Η υποβολή invoice απέτυχε");
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Η υποβολή invoice απέτυχε");
+    } finally { setBusy(""); }
+  }
+
+  return <>
+    {error && <div className="shell form-error vendor-error" role="alert">{error}</div>}
+
+    <WorkspaceMetricStrip items={[
+      { label: "Procurements", value: initial.procurements.length },
+      { label: "Invoice needed", value: invoiceNeeded, tone: invoiceNeeded ? "attention" : "default" },
+      { label: "Payable", value: payable, tone: payable ? "positive" : "default" },
+      { label: "Settled batches", value: paid, tone: paid ? "positive" : "default" }
+    ]} />
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Supplier invoices" title="Procurements" note="Το invoice υποβάλλεται έναντι συγκεκριμένου procurement. Approval και payout παραμένουν platform-controlled." />
+      {initial.procurements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν fulfilled procurements." body="Νέα supplier accruals θα εμφανιστούν εδώ όταν ολοκληρωθούν ανατεθειμένες γραμμές παραγγελιών." /> : <div className="workspace-queue-list">{initial.procurements.map((item) => {
+        const needsInvoice = ["accrued", "matched", "disputed"].includes(item.status) && !item.invoiceNumber;
+        return <article className="workspace-queue-card" key={item.id}>
+          <div className="workspace-queue-head"><div><strong>Order {item.orderId}</strong><small>{item.invoiceNumber ? `Invoice ${item.invoiceNumber}` : "Invoice not submitted"}</small></div><span className="status-pill">{item.status}</span></div>
+          <div className="workspace-queue-primary"><span>Gross {item.gross}</span><span>Payable {item.payable}</span><span>Fee {item.serviceFeeGross}</span></div>
+          <WorkspaceRecordDetails label="Accounting breakdown & references">
+            <div className="workspace-compact-list">
+              <div className="workspace-compact-row"><strong>Procurement ID</strong><span>{item.id}</span></div>
+              <div className="workspace-compact-row"><strong>Shipping reimbursement</strong><span>{item.shippingReimbursement}</span></div>
+              <div className="workspace-compact-row"><strong>Last update</strong><span>{new Date(item.updatedAt).toLocaleString("el-GR")}</span></div>
+            </div>
+          </WorkspaceRecordDetails>
+          {needsInvoice && <details className="workspace-tool-panel" style={{ marginTop: 12 }}>
+            <summary><span><strong>Υποβολή invoice</strong><small>Χρειάζεται invoice number και gross amount σε cents.</small></span></summary>
+            <div className="workspace-tool-body"><form onSubmit={(event) => void submit(event, item.id)}><div className="workspace-form-grid"><div className="workspace-form-field"><label htmlFor={`invoice-number-${item.id}`}>Invoice number</label><input id={`invoice-number-${item.id}`} name="number" required /></div><div className="workspace-form-field"><label htmlFor={`invoice-gross-${item.id}`}>Gross · cents</label><input id={`invoice-gross-${item.id}`} name="gross" required type="number" min="0" step="1" /></div></div><div className="workspace-form-actions"><button className="button" disabled={busy === item.id}>{busy === item.id ? "Υποβολή…" : "Submit invoice"}</button></div></form></div>
+          </details>}
+        </article>;
+      })}</div>}
+    </section>
+
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Read-only payout tracking" title="Settlements" note="Η σελίδα δείχνει την κατάσταση batch και payout reference χωρίς vendor approval controls." />
+      {initial.settlements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχει settlement batch για το κατάστημά σου." /> : <div className="workspace-queue-list">{initial.settlements.map((settlement) => <article className="workspace-queue-card" key={settlement.id}>
+        <div className="workspace-queue-head"><div><strong>{settlement.batchNumber}</strong><small>{settlement.payoutReference ?? "Payout reference pending"}</small></div><span className="status-pill">{settlement.status}</span></div>
+        <div className="workspace-queue-primary"><span>{settlement.totalPayable}</span></div>
+        <WorkspaceRecordDetails label="Settlement reference"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Batch ID</strong><span>{settlement.id}</span></div>{settlement.payoutReference && <div className="workspace-compact-row"><strong>Payout reference</strong><span>{settlement.payoutReference}</span></div>}</div></WorkspaceRecordDetails>
+      </article>)}</div>}
+    </div></section>
+  </>;
+}

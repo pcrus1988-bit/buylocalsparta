@@ -1,3 +1,54 @@
-import { redirect } from "next/navigation";import type { Metadata } from "next";import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";import { adminOperationsWorkspace } from "../../../lib/admin-runtime";import { getAdminSession } from "../../../lib/admin-session";
-export const metadata:Metadata={title:"Admin · Operations",robots:{index:false,follow:false}};
-export default async function Page(){const p=await getAdminSession();if(!p)redirect('/admin/login');const d=await adminOperationsWorkspace(p);return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={d.csrfToken}/><section className="shell vendor-hero vendor-hero-compact"><div><div className="eyebrow">Readiness · security · audit</div><h1>Operations</h1><p className="lead">Operational health separates critical readiness from non-critical degradation. Security telemetry is privacy-minimised; privileged mutations append audit records.</p></div></section><section className="shell vendor-section"><div className="vendor-kpis">{d.health.checks.map(c=><div key={c.name}><span>{c.name}</span><strong className="admin-health-state">{c.state}</strong><small>{c.critical?'critical':'non-critical'} · {c.latencyMs}ms</small></div>)}</div><div className="vendor-two-col"><article className="vendor-card-form"><div className="eyebrow">Security · 24h</div><h2>{d.security.summary.total} events</h2>{Object.entries(d.security.summary.byType).map(([k,v])=><p key={k}>{k}: <b>{v}</b></p>)}</article><article className="vendor-card-form"><div className="eyebrow">Audit trail</div><h2>{d.audit.length} recent entries</h2>{d.audit.slice(0,12).map(e=><p key={e.id}><b>{e.action}</b><br/><small>{e.entityType} · {e.entityId} · {e.actorRole??'role'}</small></p>)}</article></div></section></main>}
+import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { adminOperationsWorkspace } from "../../../lib/admin-runtime";
+import { getAdminSession } from "../../../lib/admin-session";
+
+export const metadata: Metadata = { title: "Admin · Operations", robots: { index: false, follow: false } };
+
+export default async function Page() {
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  const data = await adminOperationsWorkspace(principal);
+  const nonReady = data.health.checks.filter((check) => !["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase())).length;
+  const criticalIssues = data.health.checks.filter((check) => check.critical && !["ready", "healthy", "ok"].includes(String(check.state).toLowerCase())).length;
+
+  return <main className="vendor-app admin-app">
+    <AdminWorkspaceHeader csrfToken={data.csrfToken} />
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Operational health</div><h1>Operations</h1><p className="lead">Readiness, security telemetry και audit trail σε μία επιφάνεια με τα προβλήματα πρώτα και τις τεχνικές λεπτομέρειες δεύτερες.</p></div></section>
+
+    <WorkspaceMetricStrip items={[
+      { label: "Readiness checks", value: data.health.checks.length },
+      { label: "Needs attention", value: nonReady, tone: nonReady ? "attention" : "positive" },
+      { label: "Critical issues", value: criticalIssues, tone: criticalIssues ? "attention" : "positive" },
+      { label: "Security events · 24h", value: data.security.summary.total }
+    ]} />
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Dependencies" title="Readiness" note="Disabled non-critical integrations are shown as configuration state, not as false production failures." />
+      <div className="workspace-queue-list">{data.health.checks.map((check) => {
+        const healthy = ["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase());
+        return <article className="workspace-queue-card" key={check.name}>
+          <div className="workspace-queue-head"><div><strong>{check.name}</strong><small>{check.critical ? "Critical dependency" : "Non-critical dependency"}</small></div><span className={`status-pill${healthy ? "" : " needs-attention"}`}>{check.state}</span></div>
+          <div className="workspace-queue-primary"><span>{check.latencyMs} ms</span><span>{check.critical ? "critical" : "non-critical"}</span></div>
+        </article>;
+      })}</div>
+    </section>
+
+    <section className="vendor-section section-tint"><div className="shell">
+      <div className="workspace-dual-grid">
+        <article className="workspace-queue-card">
+          <WorkspaceSectionHeading eyebrow="Security · 24h" title={`${data.security.summary.total} events`} />
+          {Object.keys(data.security.summary.byType).length ? <div className="workspace-compact-list">{Object.entries(data.security.summary.byType).map(([type, count]) => <div className="workspace-compact-row" key={type}><strong>{type}</strong><span>{count}</span></div>)}</div> : <p className="workspace-queue-summary">No security events in the current window.</p>}
+          <p className="workspace-inline-note">Security telemetry remains privacy-minimised; raw passwords, cookies and session secrets do not belong in event detail.</p>
+        </article>
+        <article className="workspace-queue-card">
+          <WorkspaceSectionHeading eyebrow="Audit" title={`${data.audit.length} recent entries`} />
+          {data.audit.length ? <div className="workspace-compact-list">{data.audit.slice(0, 8).map((entry) => <div className="workspace-compact-row" key={entry.id}><strong>{entry.action}</strong><span>{entry.entityType} · {entry.actorRole ?? "role"}</span><small>{entry.entityId}</small></div>)}</div> : <p className="workspace-queue-summary">No recent audit entries.</p>}
+          {data.audit.length > 8 && <WorkspaceRecordDetails label={`Show ${data.audit.length - 8} more audit entries`}><div className="workspace-compact-list">{data.audit.slice(8).map((entry) => <div className="workspace-compact-row" key={entry.id}><strong>{entry.action}</strong><span>{entry.entityType} · {entry.actorRole ?? "role"}</span><small>{entry.entityId}</small></div>)}</div></WorkspaceRecordDetails>}
+        </article>
+      </div>
+    </div></section>
+  </main>;
+}

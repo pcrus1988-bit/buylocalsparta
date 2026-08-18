@@ -1,1 +1,44 @@
-import{redirect}from"next/navigation";import{AdminWorkspaceHeader}from"../../../components/AdminWorkspaceHeader";import{AdminJsonForm}from"../../../components/AdminJsonForm";import{AdminActionButton}from"../../../components/AdminActionButton";import{adminRecallWorkspace}from"../../../lib/admin-governance-runtime";import{getAdminSession}from"../../../lib/admin-session";export default async function Page(){const p=await getAdminSession();if(!p)redirect('/admin/login');let d;try{d=await adminRecallWorkspace(p)}catch{redirect('/admin')}return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={d.csrfToken}/><section className="shell vendor-hero vendor-hero-compact"><div><div className="eyebrow">Product safety governance</div><h1>Recalls</h1></div></section><section className="shell vendor-section"><AdminJsonForm endpoint="/api/admin/recalls" csrfToken={d.csrfToken} label="Open recall" fields={[{name:'canonicalVariantId',label:'Canonical product',type:'select',options:d.products.map(x=>x.id)},{name:'severity',label:'Severity',type:'select',options:['low','medium','high','critical']},{name:'details',label:'Recall details'}]}/><div className="vendor-order-list admin-list-gap">{d.notices.map(n=><article className="vendor-order" key={n.id}><div className="vendor-order-head"><div><strong>{n.type} · {n.canonicalVariantId}</strong><small>{n.details}</small></div><span className="status-pill">{n.status}</span></div>{n.status==='open'&&<AdminActionButton label="Resolve + restore" endpoint="/api/admin/recalls/action" csrfToken={d.csrfToken} body={{noticeId:n.id,restoreProduct:true}} reasonPrompt="Resolution"/>}</article>)}</div><p>{d.affected.length} affected-customer recall records currently identified.</p></section></main>}
+import { redirect } from "next/navigation";
+import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { AdminJsonForm } from "../../../components/AdminJsonForm";
+import { AdminActionButton } from "../../../components/AdminActionButton";
+import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { adminRecallWorkspace } from "../../../lib/admin-governance-runtime";
+import { getAdminSession } from "../../../lib/admin-session";
+
+export default async function Page() {
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  let data;
+  try { data = await adminRecallWorkspace(principal); } catch { redirect("/admin"); }
+  const open = data.notices.filter((notice) => notice.status === "open").length;
+  const resolved = data.notices.filter((notice) => notice.status !== "open").length;
+
+  return <main className="vendor-app admin-app">
+    <AdminWorkspaceHeader csrfToken={data.csrfToken} />
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Product safety</div><h1>Recalls</h1><p className="lead">Open safety notices stay visually urgent; creation and technical product references remain deliberate secondary actions.</p></div></section>
+
+    <WorkspaceMetricStrip items={[
+      { label: "Notices", value: data.notices.length },
+      { label: "Open", value: open, tone: open ? "attention" : "positive" },
+      { label: "Resolved", value: resolved },
+      { label: "Affected customers", value: data.affected.length, tone: data.affected.length ? "attention" : "default" }
+    ]} />
+
+    <section className="shell vendor-section">
+      <details className="workspace-tool-panel">
+        <summary><span><strong>Open new recall</strong><small>Safety action · choose canonical product, severity and details.</small></span></summary>
+        <div className="workspace-tool-body"><AdminJsonForm endpoint="/api/admin/recalls" csrfToken={data.csrfToken} label="Open recall" fields={[{ name: "canonicalVariantId", label: "Canonical product", type: "select", options: data.products.map((product) => product.id) }, { name: "severity", label: "Severity", type: "select", options: ["low", "medium", "high", "critical"] }, { name: "details", label: "Recall details" }]} /></div>
+      </details>
+    </section>
+
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Safety notices" title="Recall queue" note="Resolve + restore remains explicit; an open recall never disappears behind a passive content card." />
+      {data.notices.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν product safety notices." /> : <div className="workspace-queue-list">{data.notices.map((notice) => <article className="workspace-queue-card" key={notice.id}>
+        <div className="workspace-queue-head"><div><strong>{notice.type}</strong><small>{notice.details}</small></div><span className="status-pill">{notice.status}</span></div>
+        <WorkspaceRecordDetails label="Product & notice references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Canonical variant</strong><span>{notice.canonicalVariantId}</span></div><div className="workspace-compact-row"><strong>Notice ID</strong><span>{notice.id}</span></div></div></WorkspaceRecordDetails>
+        {notice.status === "open" && <div className="workspace-action-bar"><span>Product remains governed by the active notice.</span><div className="workspace-action-buttons"><AdminActionButton label="Resolve + restore" endpoint="/api/admin/recalls/action" csrfToken={data.csrfToken} body={{ noticeId: notice.id, restoreProduct: true }} reasonPrompt="Resolution" /></div></div>}
+      </article>)}</div>}
+    </div></section>
+  </main>;
+}
