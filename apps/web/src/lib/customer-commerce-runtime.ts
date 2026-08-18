@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CustomerOrder, FulfilmentMode, SessionPrincipal } from "@buy-local-sparta/core";
 import type { PersistentCartSnapshot } from "@buy-local-sparta/postgres-runtime";
 import { runtime as developmentRuntime } from "./demo-runtime";
@@ -48,9 +49,41 @@ export async function cancelCustomerCommerceOrder(principal: SessionPrincipal, i
   return developmentRuntime.commerce.cancelOrder({ orderId: order.id, reason: input.reason, idempotencyKey: `web-customer-cancel:${order.id}`, now: input.now });
 }
 
-export async function persistentCustomerCart(principal: SessionPrincipal): Promise<PersistentCartSnapshot | undefined> {
+function visitorHash(visitorKey: string): string {
+  return createHash("sha256").update(visitorKey).digest("hex");
+}
+
+export async function persistentCustomerCart(principal: SessionPrincipal, visitorKey?: string, postcode = "23100"): Promise<PersistentCartSnapshot | undefined> {
   if (!postgresCommerceEnabled()) return undefined;
-  return getProductionPostgresRuntime().customerCommerce.customerCart(principal.userId);
+  const runtime = getProductionPostgresRuntime();
+  const cart = await runtime.customerCommerce.customerCart(principal.userId);
+  if (!visitorKey || cart.items.length === 0) return cart;
+
+  const items = await Promise.all(cart.items.map(async (item) => {
+    await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: item.canonicalVariantId, visitorKey, postcode, reason: "checkout" });
+    const result = await runtime.nativePool.query(`
+      SELECT vo.customer_price_minor,
+             GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) AS available_to_sell
+      FROM sticky_assignments sa
+      JOIN canonical_variants cv ON cv.id=sa.canonical_variant_id
+      JOIN vendor_offers vo ON vo.id=sa.offer_id
+      JOIN inventory_balances ib ON ib.offer_id=vo.id
+      WHERE cv.public_id=$1
+        AND sa.visitor_hash=$2
+        AND sa.postcode_scope=$3
+        AND sa.released_at IS NULL
+        AND sa.expires_at>now()
+        AND vo.status='approved'
+      ORDER BY sa.locked_at DESC
+      LIMIT 1
+    `, [item.canonicalVariantId, visitorHash(visitorKey), postcode]);
+    if (!result.rowCount) return { ...item, available: false };
+    const priceMinor = Number(result.rows[0]?.customer_price_minor);
+    const availableToSell = Number(result.rows[0]?.available_to_sell ?? 0);
+    if (!Number.isSafeInteger(priceMinor) || priceMinor < 0) throw new Error("Invalid assigned customer price");
+    return { ...item, priceMinor, available: availableToSell >= item.quantity };
+  }));
+  return { ...cart, items };
 }
 
 export async function syncPersistentCustomerCart(principal: SessionPrincipal, items: readonly { canonicalVariantId: string; quantity: number }[], now = Date.now()): Promise<PersistentCartSnapshot | undefined> {
