@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { ADMIN_WORKSPACE_NAVIGATION, VENDOR_WORKSPACE_NAVIGATION, WORKSPACE_PAGE_ROUTES } from "../apps/web/src/lib/workspace-navigation.ts";
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
@@ -12,9 +13,15 @@ else {
   if (!source.includes("workspace-quick-card")) failures.push("Workspace quick links need a consistent interactive card affordance");
 }
 
-for (const [name, path, rootRoute, expectedGroups] of [
-  ["Vendor", "apps/web/src/components/VendorWorkspaceHeader.tsx", "/vendor", ["Operations", "Business"]],
-  ["Admin", "apps/web/src/components/AdminWorkspaceHeader.tsx", "/admin", ["Operations", "Commerce", "Trust", "Intelligence"]]
+for (const route of WORKSPACE_PAGE_ROUTES) {
+  const page = route === "/vendor" ? "apps/web/src/app/vendor/page.tsx" : route === "/admin" ? "apps/web/src/app/admin/page.tsx" : `apps/web/src/app${route}/page.tsx`;
+  if (!existsSync(`${root}/${page}`)) failures.push(`Workspace navigation points to missing page ${route}`);
+}
+if (new Set(WORKSPACE_PAGE_ROUTES).size !== WORKSPACE_PAGE_ROUTES.length) failures.push("Workspace navigation contains duplicate destinations");
+
+for (const [name, path, registry, registryName] of [
+  ["Vendor", "apps/web/src/components/VendorWorkspaceHeader.tsx", VENDOR_WORKSPACE_NAVIGATION, "VENDOR_WORKSPACE_NAVIGATION"],
+  ["Admin", "apps/web/src/components/AdminWorkspaceHeader.tsx", ADMIN_WORKSPACE_NAVIGATION, "ADMIN_WORKSPACE_NAVIGATION"]
 ] as const) {
   const source = read(path);
   if (!source.includes("usePathname")) failures.push(`${name} workspace navigation is missing route awareness`);
@@ -22,9 +29,15 @@ for (const [name, path, rootRoute, expectedGroups] of [
   if (!source.includes("workspace-menu-toggle")) failures.push(`${name} workspace navigation is missing its mobile menu control`);
   if (!source.includes('aria-current={active ? "page"')) failures.push(`${name} workspace navigation is missing accessible active state`);
   if (!source.includes('from "next/link"')) failures.push(`${name} workspace navigation must use Next Link`);
-  if (!source.includes(`href="${rootRoute}"`)) failures.push(`${name} identity must lead to its workspace overview`);
-  for (const group of expectedGroups) if (!source.includes(`label: "${group}"`)) failures.push(`${name} workspace is missing ${group} grouping`);
+  if (!source.includes(registryName)) failures.push(`${name} workspace header must use the canonical workspace navigation registry`);
+  for (const group of registry) if (!group.links.length) failures.push(`${name} workspace group ${group.label} cannot be empty`);
 }
+
+const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
+if (!vendorHeader.includes('fetch("/api/vendor/session"') || !vendorHeader.includes('fetch("/api/vendor/logout"')) failures.push("Vendor workspace must expose secure logout from every private vendor page");
+if (!vendorHeader.includes("x-csrf-token")) failures.push("Vendor workspace logout must preserve CSRF protection");
+const vendorDashboard = read("apps/web/src/components/VendorDashboardClient.tsx");
+if (vendorDashboard.includes('fetch("/api/vendor/logout"')) failures.push("Vendor logout must not be duplicated in the overview client once the shared header owns it");
 
 const account = read("apps/web/src/components/AccountDashboardClient.tsx");
 for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-controls", "/ask-local"]) {
@@ -51,21 +64,14 @@ const css = read("apps/web/src/app/dashboard-ux.css");
 for (const selector of [".workspace-header", ".workspace-nav a.is-active", ".workspace-quick-grid", ".account-snapshot"]) {
   if (!css.includes(selector)) failures.push(`Dashboard UX stylesheet is missing ${selector}`);
 }
-
-const premiumCssPath = "apps/web/src/app/dashboard-premium.css";
-if (!existsSync(`${root}/${premiumCssPath}`)) failures.push("Missing premium dashboard design system");
-else {
-  const premiumCss = read(premiumCssPath);
-  for (const requirement of ["--dash-navy", "--dash-gold", "padding-left: 282px", ".workspace-menu-toggle", ".workspace-header.is-menu-open", ".account-section-nav", ":focus-visible", "@media (max-width: 1020px)"]) {
-    if (!premiumCss.includes(requirement)) failures.push(`Premium dashboard design system is missing ${requirement}`);
-  }
+const premiumCss = read("apps/web/src/app/dashboard-premium.css");
+for (const requirement of ["--dash-navy", "--dash-gold", "padding-left: 282px", ".workspace-menu-toggle", ".workspace-header.is-menu-open", ".account-section-nav", ":focus-visible", "@media (max-width: 1020px)"]) {
+  if (!premiumCss.includes(requirement)) failures.push(`Premium dashboard design system is missing ${requirement}`);
 }
-
-if (!read("apps/web/src/app/layout.tsx").includes('import "./dashboard-premium.css"')) failures.push("Premium dashboard stylesheet is not loaded after the base dashboard styles");
+if (!read("apps/web/src/app/layout.tsx").includes('import "./workspace-polish.css"')) failures.push("Workspace polish stylesheet is not loaded after the shared dashboard styles");
 
 if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-
-console.log("Dashboard UX checks passed: premium responsive navigation, task anchors, status summaries and customer/vendor/admin paths verified.");
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical workspace destinations, shared logout, responsive navigation and task paths verified.`);

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { WorkspaceQuickLinks } from "./WorkspaceQuickLinks";
@@ -13,7 +12,6 @@ const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "m
 const actionLabel: Record<string, string> = { accept: "Αποδοχή", reject: "Απόρριψη", ready: "Έτοιμο για παραλαβή", delivered: "Παραδόθηκε τοπικά" };
 
 export function VendorDashboardClient({ initial }: { initial: Dashboard }) {
-  const router = useRouter();
   const [data, setData] = useState(initial);
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>(() => Object.fromEntries(initial.products.map((product) => [product.offerId, String(product.onHand)])));
   const [busy, setBusy] = useState("");
@@ -34,18 +32,10 @@ export function VendorDashboardClient({ initial }: { initial: Dashboard }) {
     } finally { setBusy(""); }
   }
 
-  async function logout() {
-    setBusy("logout");
-    try {
-      await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": data.csrfToken } });
-      router.replace("/vendor/login"); router.refresh();
-    } finally { setBusy(""); }
-  }
-
   return <>
     <section className="shell vendor-toolbar">
       <div><span className="eyebrow">Vendor session</span><strong>{data.vendor.name}</strong><small>{data.account.email} · {data.account.roles.join(", ")}</small></div>
-      <div className="vendor-toolbar-actions"><Link className="button button-secondary" href={`/vendor/${data.vendor.id}`}>Δημόσιο προφίλ</Link><button className="button button-secondary" type="button" onClick={logout} disabled={busy === "logout"}>Αποσύνδεση</button></div>
+      <div className="vendor-toolbar-actions"><Link className="button button-secondary" href={`/vendor/${data.vendor.id}`}>Δημόσιο προφίλ</Link></div>
     </section>
 
     <WorkspaceQuickLinks eyebrow="Vendor workflow" title="Πήγαινε στην εργασία που χρειάζεται τώρα." links={[
