@@ -59,8 +59,27 @@ jobs:
         run: npm run typecheck:db-smoke
       - name: Typecheck staging activation tooling
         run: npm run typecheck:activation
+      - name: Bootstrap Supabase role topology
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+          END
+          $$;
+          SQL
       - name: Apply PostgreSQL/PostGIS migrations
         run: npm run db:migrate
+      - name: Bind CI platform runtime credential
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
         run: npm run db:ready
       - name: Run live database integration smoke

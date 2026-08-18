@@ -66,7 +66,7 @@ export default async function ShopsPage({ searchParams }: Props) {
 
       <div className="shops-principles" aria-label="Merchant directory principles">
         <div><strong>Χαρτογράφηση ≠ συνεργασία</strong><span>Οι καταχωρίσεις έρευνας βασίζονται σε δημόσιες πηγές και δεν παρουσιάζονται ως συμβεβλημένοι συνεργάτες.</span></div>
-        <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
+        <div><strong>Χωρίς δημόσιο πόλεμο τιμών</strong><span>Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση. Τα κρυφά supplier offers δεν εμφανίζονται στον κατάλογο. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
         <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story, σύμβουλος και φωτογραφία εμφανίζονται μόνο μετά από έγκριση και τους ελέγχους της πλατφόρμας.</span></div>
       </div>
 
