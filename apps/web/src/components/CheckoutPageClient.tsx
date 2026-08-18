@@ -12,6 +12,8 @@ type Props = Readonly<{
   boxNowEnabled: boolean;
 }>;
 
+type FulfilmentOption = readonly ["pickup" | "local_delivery" | "shipping", string, string];
+
 export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled }: Props) {
   const { items, subtotalMinor, hydrated, clear } = useCart();
   const [postcode, setPostcode] = useState("23100");
@@ -86,11 +88,11 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     } finally { setBusy(false); }
   }
 
-  const fulfilmentOptions = [
+  const fulfilmentOptions: FulfilmentOption[] = [
     ["pickup", "Παραλαβή από κατάστημα", "Δωρεάν όταν διατίθεται"],
-    ["local_delivery", "Τοπική παράδοση", "Για επιλέξιμους ΤΚ"],
-    ...(boxNowEnabled ? [["shipping", "BOX NOW locker", "Παραλαβή από επιλεγμένο locker"]] : [])
-  ] as ReadonlyArray<readonly ["pickup" | "local_delivery" | "shipping", string, string]>;
+    ["local_delivery", "Τοπική παράδοση", "Για επιλέξιμους ΤΚ"]
+  ];
+  if (boxNowEnabled) fulfilmentOptions.push(["shipping", "BOX NOW locker", "Παραλαβή από επιλεγμένο locker"]);
 
   return <div className="checkout-layout">
     <form className="checkout-form" onSubmit={submit}>
