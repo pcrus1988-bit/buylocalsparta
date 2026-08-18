@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { PRIMARY_NAVIGATION } from "../apps/web/src/lib/site-navigation.ts";
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
@@ -14,7 +15,6 @@ const shopsPage = read("apps/web/src/app/shops/page.tsx");
 const vendorPage = read("apps/web/src/app/vendor/[id]/page.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
 const merchantMediaCss = read("apps/web/src/app/storefront-merchant-media.css");
-const header = read("apps/web/src/components/SiteHeader.tsx");
 const home = read("apps/web/src/app/page.tsx");
 
 for (const boundary of [
@@ -90,7 +90,7 @@ if (!shopsPage.includes("Η παρουσία εδώ δεν αλλάζει τη �
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
 if (!vendorPage.includes("getVendorCatalogCards(id)")) failures.push("Public vendor profile products must retain the non-fairness vendor catalog projection");
 if (!vendorPage.includes("vendor.story ?")) failures.push("Public vendor profile must distinguish approved storytelling from the no-story fallback");
-if (!header.includes('href="/shops"')) failures.push("Primary navigation must link directly to /shops");
+if (!PRIMARY_NAVIGATION.some((link) => link.href === "/shops")) failures.push("Primary navigation registry must link directly to /shops");
 if (!home.includes('href="/shops"')) failures.push("Homepage merchant storytelling must link to /shops");
 
 if (failures.length) {
