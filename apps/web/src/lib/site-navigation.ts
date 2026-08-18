@@ -117,6 +117,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/content",
   "/admin/fairness",
   "/admin/finance",
+  "/admin/finance/agreements",
   "/admin/maintenance",
   "/admin/matching",
   "/admin/operations",
