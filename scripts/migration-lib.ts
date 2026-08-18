@@ -44,14 +44,19 @@ export async function loadManifest(path: string): Promise<ChecksumManifest> {
 
 export function verifyMigrationManifest(migrations: readonly MigrationFile[], manifest: ChecksumManifest): void {
   const migrationNames = new Set(migrations.map((migration) => migration.filename));
+  const failures: string[] = [];
   for (const migration of migrations) {
     const expected = manifest[migration.filename];
-    if (!expected) throw new Error(`Migration ${migration.filename} is missing from checksum manifest`);
-    if (expected !== migration.sha256) throw new Error(`Migration ${migration.filename} was modified after checksum registration`);
+    if (!expected) {
+      failures.push(`Migration ${migration.filename} is missing from checksum manifest; sha256=${migration.sha256}`);
+      continue;
+    }
+    if (expected !== migration.sha256) failures.push(`Migration ${migration.filename} was modified after checksum registration; expected=${expected}; actual=${migration.sha256}`);
   }
   for (const filename of Object.keys(manifest)) {
-    if (!migrationNames.has(filename)) throw new Error(`Checksum manifest references missing migration ${filename}`);
+    if (!migrationNames.has(filename)) failures.push(`Checksum manifest references missing migration ${filename}`);
   }
+  if (failures.length) throw new Error(failures.join("\n"));
 }
 
 export function migrationDirectoryFrom(importMetaUrl: string): string {
