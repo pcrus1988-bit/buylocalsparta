@@ -11,6 +11,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 
 const ALLOWED_CATEGORIES = new Set(["home-living", "fashion", "beauty", "kids", "technology", "gifts"]);
+const ALLOWED_PLAN_CODES = new Set(["founding_2026", "annual", "monthly"]);
 const globals = globalThis as typeof globalThis & {
   __blsVendorApplicationRateLimiter?: PostgresFixedWindowRateLimiter;
 };
@@ -26,7 +27,7 @@ export type VendorApplicationInput = Readonly<{
   postcode: string;
   primaryCategory: string;
   shopStory?: string;
-  requestedPlanCode: "free_listing" | "founding_2026";
+  requestedPlanCode: "founding_2026" | "annual" | "monthly";
 }>;
 
 export type VendorApplicationReceipt = Readonly<{
@@ -61,8 +62,6 @@ export async function submitVendorApplication(input: {
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-vendor-application:${randomUUID()}` },
     async (tx) => {
-      // markets has no status/active column. Market availability is represented by the
-      // presence of the configured market row; plan availability is governed separately.
       const market = await tx.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code='sparta' LIMIT 1");
       if (!market.rowCount) throw new Error("MARKET_UNAVAILABLE");
       const marketUuid = requiredText(market.rows[0].id, "market.id");
@@ -70,8 +69,6 @@ export async function submitVendorApplication(input: {
       const plan = await tx.query<SqlRow>("SELECT 1 AS present FROM vendor_plans WHERE market_id=$1 AND code=$2 AND status='active' LIMIT 1", [marketUuid, application.requestedPlanCode]);
       if (!plan.rowCount) throw new Error("PLAN_UNAVAILABLE");
 
-      // One legal business must not be able to create parallel applicant/vendor identities.
-      // Keep the public error generic so the endpoint does not disclose who owns an AFM.
       const duplicateBusiness = await tx.query<SqlRow>(`
         SELECT 1 AS present FROM vendor_applications WHERE tax_number=$1
         UNION ALL
@@ -142,10 +139,7 @@ async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal):
 
 async function provisionalOwner(tx: SqlExecutor, email: string, now: number): Promise<{ uuid: string; publicId: string; provisional: true }> {
   const existing = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE lower(email::text)=lower($1) LIMIT 1 FOR UPDATE", [email]);
-  if (existing.rowCount) {
-    // Never let an anonymous request attach an application to an already registered identity.
-    throw new Error("EXISTING_ACCOUNT_LOGIN_REQUIRED");
-  }
+  if (existing.rowCount) throw new Error("EXISTING_ACCOUNT_LOGIN_REQUIRED");
 
   const uuid = randomUUID();
   const publicId = id("usr");
@@ -190,7 +184,7 @@ function normalizeApplication(input: VendorApplicationInput): VendorApplicationI
   const primaryCategory = requiredLimited(input.primaryCategory, "Κατηγορία", 80).toLowerCase();
   if (!ALLOWED_CATEGORIES.has(primaryCategory)) throw new Error("Επίλεξε έγκυρη κατηγορία καταστήματος.");
   const shopStory = limitedOptional(input.shopStory, 1500);
-  if (!(["free_listing", "founding_2026"] as const).includes(input.requestedPlanCode)) throw new Error("Μη έγκυρη επιλογή προγράμματος.");
+  if (!ALLOWED_PLAN_CODES.has(input.requestedPlanCode)) throw new Error("Μη έγκυρη επιλογή προγράμματος.");
   return { legalName, tradingName, taxNumber, gemiNumber, contactEmail, phone, address, postcode, primaryCategory, shopStory, requestedPlanCode: input.requestedPlanCode };
 }
 
