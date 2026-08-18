@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import styles from "./VendorApplicationForm.module.css";
 
 const categories = [
   ["home-living", "Για το σπίτι · φωτισμός · διακόσμηση"],
@@ -20,12 +21,14 @@ type Receipt = Readonly<{
 export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?: string; signedInEmail?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
   const [receipt, setReceipt] = useState<Receipt | undefined>();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
+    setErrorCode("");
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
     payload.acceptedAccuracy = form.get("acceptedAccuracy") === "on";
@@ -41,7 +44,10 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
         body: JSON.stringify(payload)
       });
       const data = await response.json() as Partial<Receipt> & { error?: string; code?: string };
-      if (!response.ok) throw new Error(data.error ?? "Η αίτηση δεν καταχωρίστηκε.");
+      if (!response.ok) {
+        setErrorCode(data.code ?? "");
+        throw new Error(data.error ?? "Η αίτηση δεν καταχωρίστηκε.");
+      }
       if (!data.reference || typeof data.accountClaimRequired !== "boolean") throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε αριθμός αναφοράς.");
       setReceipt({ reference: data.reference, accountClaimRequired: data.accountClaimRequired, message: data.message ?? "Η αίτηση καταχωρίστηκε." });
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -78,7 +84,7 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
     <label htmlFor="vendor-trading-name">Εμπορική ονομασία / διακριτικός τίτλος *</label>
     <input id="vendor-trading-name" name="tradingName" required maxLength={120} />
 
-    <div className="form-grid-two">
+    <div className={styles.twoColumn}>
       <label htmlFor="vendor-tax-number"><span>ΑΦΜ *</span><input id="vendor-tax-number" name="taxNumber" required inputMode="numeric" pattern="[0-9]{9}" maxLength={9} placeholder="9 ψηφία" /></label>
       <label htmlFor="vendor-gemi"><span>Αριθμός ΓΕΜΗ</span><input id="vendor-gemi" name="gemiNumber" inputMode="numeric" pattern="[0-9]{8,20}" maxLength={20} /></label>
     </div>
@@ -125,8 +131,9 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
     <label className="checkbox-row" htmlFor="vendor-governance"><input id="vendor-governance" name="acceptedGovernedOnboarding" type="checkbox" required /><span>Κατανοώ ότι η συνεργασία απαιτεί επαλήθευση, catalog onboarding, test readiness και τελική ενεργοποίηση από Admin.</span></label>
     <label className="checkbox-row" htmlFor="vendor-privacy"><input id="vendor-privacy" name="acceptedPrivacy" type="checkbox" required /><span>Συμφωνώ με την επεξεργασία των στοιχείων για αξιολόγηση της αίτησης και έχω διαβάσει τα <a href="/privacy-controls">privacy controls</a>.</span></label>
 
-    <div className="form-honeypot" aria-hidden="true"><label htmlFor="vendor-website">Website</label><input id="vendor-website" name="website" tabIndex={-1} autoComplete="off" /></div>
+    <div className={styles.honeypot} aria-hidden="true"><label htmlFor="vendor-website">Website</label><input id="vendor-website" name="website" tabIndex={-1} autoComplete="off" /></div>
     {error && <p className="form-error" role="alert">{error}</p>}
+    {errorCode === "login_required" && <a className="button button-secondary" href="/login?next=%2Fjoin%2Fapply">Σύνδεση και επιστροφή στην αίτηση</a>}
     <button className="button" type="submit" disabled={busy}>{busy ? "Καταχώριση…" : "Υποβολή για έλεγχο"}</button>
     {!signedInEmail && <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href="/login?next=%2Fjoin%2Fapply">Συνδέσου πριν την αίτηση →</a></p>}
   </form>;
