@@ -81,7 +81,5 @@ export async function GET(request: Request) {
       { ok: false, error: error instanceof Error ? error.message : "admin_bootstrap_failed" },
       { status: 500, headers: { "cache-control": "no-store" } }
     );
-  } finally {
-    await db.sqlPool.end().catch(() => undefined);
   }
 }
