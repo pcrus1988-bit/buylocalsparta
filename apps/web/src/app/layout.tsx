@@ -11,6 +11,7 @@ import "./workspace-polish.css";
 import "./checkout-polish.css";
 import "./dashboard-luxury.css";
 import "./workspace-pages.css";
+import "./workspace-metrics-polish.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 
