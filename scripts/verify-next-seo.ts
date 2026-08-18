@@ -32,7 +32,8 @@ if (!vendor.includes('replaceAll("<", "\\\\u003c")')) failures.push("Structured 
 for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', 'availableAtOrFrom:', '"@type": "BreadcrumbList"']) {
   if (!product.includes(contract)) failures.push(`Product SEO contract is missing ${contract}`);
 }
-if (!product.includes('alternates: { canonical:') || !vendor.includes('alternates: vendor ? { canonical:')) failures.push("Product and vendor metadata must publish canonical URLs");
+const vendorPublishesCanonical = vendor.includes('alternates: vendor ? { canonical:') || vendor.includes('alternates: { canonical: `/vendor/${encodeURIComponent(vendor.id)}` }');
+if (!product.includes('alternates: { canonical:') || !vendorPublishesCanonical) failures.push("Product and vendor metadata must publish canonical URLs");
 if (product.includes("vendorPrice") || product.includes("supplierPrice")) failures.push("Product structured data must not expose hidden supplier pricing");
 
 if (failures.length) {
