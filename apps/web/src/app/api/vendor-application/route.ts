@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       postcode: stringField(body.postcode),
       primaryCategory: stringField(body.primaryCategory),
       shopStory: optionalStringField(body.shopStory),
-      requestedPlanCode: body.requestedPlanCode === "founding_2026" ? "founding_2026" : "free_listing"
+      requestedPlanCode: planField(body.requestedPlanCode)
     };
     const receipt = await submitVendorApplication({ application, principal, now });
     return Response.json(
@@ -111,6 +111,11 @@ function stringField(value: unknown): string {
 
 function optionalStringField(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function planField(value: unknown): VendorApplicationInput["requestedPlanCode"] {
+  if (value === "founding_2026" || value === "annual" || value === "monthly") return value;
+  throw new Error("Μη έγκυρη επιλογή προγράμματος.");
 }
 
 function isPublicValidationError(message: string): boolean {
