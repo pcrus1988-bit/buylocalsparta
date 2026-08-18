@@ -3,24 +3,9 @@ import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
-const researchEvidenceTypes = [
-  "merchant_census_2026_08",
-  "online_store_active_2026_08",
-  "gemi_public_record_candidate_2026_08",
-  "eshop_health_audit_2026_08"
-] as const;
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value : String(value ?? "");
-}
-function optionalText(value: unknown): string | undefined {
-  const valueText = typeof value === "string" ? value.trim() : "";
-  return valueText || undefined;
-}
-function numberValue(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+function text(value: unknown): string { return typeof value === "string" ? value : String(value ?? ""); }
+function optionalText(value: unknown): string | undefined { const valueText = typeof value === "string" ? value.trim() : ""; return valueText || undefined; }
+function numberValue(value: unknown): number { const parsed = Number(value ?? 0); return Number.isFinite(parsed) ? parsed : 0; }
 
 export type ResearchVendorRecord = {
   id: string;
@@ -69,35 +54,20 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
-    const evidenceTypes = [...researchEvidenceTypes];
     const summaryResult = await tx.query<SqlRow>(`
-      WITH research AS (
-        SELECT DISTINCT vb.id, vb.status::text AS status
-        FROM vendor_businesses vb
-        JOIN markets m ON m.id = vb.market_id
-        LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id = vb.id
-        LEFT JOIN vendor_verification_checks vvc ON vvc.vendor_id = vb.id AND vvc.type = ANY($1::text[])
-        WHERE m.code = 'sparta'
-          AND (vb.public_id LIKE 'vendor_research_%' OR vrp.vendor_id IS NOT NULL OR vvc.id IS NOT NULL)
-      )
       SELECT
         count(*)::int AS total,
-        count(*) FILTER (WHERE status = 'invited')::int AS invited,
-        count(*) FILTER (WHERE status IN ('application_started','verification_pending','catalog_onboarding','test_ready'))::int AS in_progress,
-        count(*) FILTER (WHERE status = 'active')::int AS active,
-        count(*) FILTER (WHERE status IN ('restricted','suspended','closed'))::int AS restricted
-      FROM research`, [evidenceTypes]);
-
-    const evidenceResult = await tx.query<SqlRow>(`
-      SELECT
-        count(DISTINCT vb.id)::int AS with_evidence,
-        count(DISTINCT vb.id) FILTER (WHERE vrp.outreach_priority LIKE 'A —%')::int AS priority_a,
-        count(DISTINCT vb.id) FILTER (WHERE COALESCE(vrp.online_shop_active,'') NOT IN ('','Not verified'))::int AS online
+        count(*) FILTER (WHERE vb.status::text = 'invited')::int AS invited,
+        count(*) FILTER (WHERE vb.status::text IN ('application_started','verification_pending','catalog_onboarding','test_ready'))::int AS in_progress,
+        count(*) FILTER (WHERE vb.status::text = 'active')::int AS active,
+        count(*) FILTER (WHERE vb.status::text IN ('restricted','suspended','closed'))::int AS restricted,
+        count(*) FILTER (WHERE EXISTS (SELECT 1 FROM vendor_research_source_links l WHERE l.vendor_id = vb.id))::int AS with_evidence,
+        count(*) FILTER (WHERE vrp.outreach_priority LIKE 'A —%')::int AS priority_a,
+        count(*) FILTER (WHERE vrp.online_shop_url IS NOT NULL AND btrim(vrp.online_shop_url) <> '')::int AS online
       FROM vendor_businesses vb
-      JOIN markets m ON m.id = vb.market_id
+      JOIN markets m ON m.id = vb.market_id AND m.code = 'sparta'
       LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id = vb.id
-      LEFT JOIN vendor_research_source_links vrsl ON vrsl.vendor_id = vb.id
-      WHERE m.code = 'sparta' AND vb.public_id LIKE 'vendor_research_%'`);
+      WHERE vb.public_id LIKE 'vendor_research_%' OR vrp.vendor_id IS NOT NULL`);
 
     const rows = await tx.query<SqlRow>(`
       SELECT
@@ -105,15 +75,15 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         vb.trading_name,
         vb.legal_name,
         vb.status::text AS status,
-        COALESCE(vrp.primary_phone,vl.phone) AS phone,
-        COALESCE(vrp.primary_email::text,vl.public_email::text) AS public_email,
-        vl.address_line1,
-        vl.locality,
-        vl.postcode,
+        COALESCE(vrp.research_address_line1, vl.address_line1) AS address_line1,
+        COALESCE(vrp.research_locality, vl.locality) AS locality,
+        COALESCE(vrp.research_postcode, vl.postcode) AS postcode,
+        COALESCE(vrp.primary_phone, vl.phone) AS phone,
+        COALESCE(vrp.primary_email::text, vl.public_email::text) AS public_email,
         vpt.short_description,
-        COALESCE(ev.evidence_count,0)::int AS evidence_count,
-        COALESCE(ev.verified_count,0)::int AS verified_count,
-        COALESCE(src.source_record_count,0)::int AS source_record_count,
+        COALESCE(src.source_record_count, 0)::int AS source_record_count,
+        COALESCE(ver.evidence_count, 0)::int AS evidence_count,
+        COALESCE(ver.verified_count, 0)::int AS verified_count,
         vs.status AS subscription_status,
         vp.code AS plan_code,
         vb.updated_at::text AS updated_at,
@@ -132,37 +102,36 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         vrp.latest_issue_severity,
         vrp.latest_issue_type
       FROM vendor_businesses vb
-      JOIN markets m ON m.id = vb.market_id
+      JOIN markets m ON m.id = vb.market_id AND m.code = 'sparta'
       LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id = vb.id
       LEFT JOIN LATERAL (
-        SELECT l.address_line1,l.locality,l.postcode,l.phone,l.public_email
+        SELECT l.address_line1, l.locality, l.postcode, l.phone, l.public_email
         FROM vendor_locations l
         WHERE l.vendor_id = vb.id
-        ORDER BY l.is_primary DESC NULLS LAST,l.active DESC,l.created_at ASC
+        ORDER BY l.is_primary DESC NULLS LAST, l.active DESC, l.created_at ASC
         LIMIT 1
       ) vl ON true
       LEFT JOIN vendor_profile_translations vpt ON vpt.vendor_id = vb.id AND vpt.locale = 'el'
-      LEFT JOIN LATERAL (
-        SELECT count(*)::int AS evidence_count,
-               count(*) FILTER (WHERE status IN ('verified','passed','approved'))::int AS verified_count
-        FROM vendor_verification_checks c
-        WHERE c.vendor_id = vb.id AND c.type = ANY($1::text[])
-      ) ev ON true
       LEFT JOIN LATERAL (
         SELECT count(*)::int AS source_record_count
         FROM vendor_research_source_links l
         WHERE l.vendor_id = vb.id
       ) src ON true
       LEFT JOIN LATERAL (
-        SELECT s.status,s.plan_id
+        SELECT count(*)::int AS evidence_count,
+               count(*) FILTER (WHERE c.status IN ('verified','passed','approved'))::int AS verified_count
+        FROM vendor_verification_checks c
+        WHERE c.vendor_id = vb.id
+      ) ver ON true
+      LEFT JOIN LATERAL (
+        SELECT s.status, s.plan_id
         FROM vendor_subscriptions s
         WHERE s.vendor_id = vb.id
-        ORDER BY s.updated_at DESC NULLS LAST,s.created_at DESC
+        ORDER BY s.updated_at DESC NULLS LAST, s.created_at DESC
         LIMIT 1
       ) vs ON true
       LEFT JOIN vendor_plans vp ON vp.id = vs.plan_id
-      WHERE m.code = 'sparta'
-        AND (vb.public_id LIKE 'vendor_research_%' OR vrp.vendor_id IS NOT NULL)
+      WHERE vb.public_id LIKE 'vendor_research_%' OR vrp.vendor_id IS NOT NULL
       ORDER BY
         CASE vb.status::text
           WHEN 'invited' THEN 0
@@ -173,24 +142,23 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
           WHEN 'active' THEN 5
           ELSE 6
         END,
-        COALESCE(vrp.outreach_score,0) DESC,
-        lower(vb.trading_name),vb.public_id
-      LIMIT 500`, [evidenceTypes]);
+        COALESCE(vrp.outreach_score, 0) DESC,
+        lower(vb.trading_name), vb.public_id
+      LIMIT 500`);
 
-    const summaryRow = summaryResult.rows[0] ?? {};
-    const evidenceRow = evidenceResult.rows[0] ?? {};
+    const summary = summaryResult.rows[0] ?? {};
     return {
       csrfToken: principal.csrfToken,
       databaseConfigured: true,
       summary: {
-        total: numberValue(summaryRow.total),
-        invited: numberValue(summaryRow.invited),
-        inProgress: numberValue(summaryRow.in_progress),
-        active: numberValue(summaryRow.active),
-        restricted: numberValue(summaryRow.restricted),
-        withEvidence: numberValue(evidenceRow.with_evidence),
-        priorityA: numberValue(evidenceRow.priority_a),
-        online: numberValue(evidenceRow.online)
+        total: numberValue(summary.total),
+        invited: numberValue(summary.invited),
+        inProgress: numberValue(summary.in_progress),
+        active: numberValue(summary.active),
+        restricted: numberValue(summary.restricted),
+        withEvidence: numberValue(summary.with_evidence),
+        priorityA: numberValue(summary.priority_a),
+        online: numberValue(summary.online)
       },
       vendors: rows.rows.map((row): ResearchVendorRecord => ({
         id: text(row.public_id),
