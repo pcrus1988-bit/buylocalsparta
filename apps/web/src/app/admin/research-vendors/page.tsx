@@ -8,7 +8,7 @@ import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime"
 export const metadata: Metadata = { title: "Admin · Research Vendors", robots: { index: false, follow: false } };
 
 function locationLine(vendor: { address?: string; locality?: string; postcode?: string }) {
-  return [vendor.address, vendor.locality, vendor.postcode].filter(Boolean).join(" · ") || "No location recorded";
+  return [vendor.address, vendor.locality, vendor.postcode].filter(Boolean).join(" · ") || "Location available in source dossier where imported";
 }
 
 export default async function ResearchVendorsPage() {
@@ -18,10 +18,10 @@ export default async function ResearchVendorsPage() {
   const metrics = [
     ["Research prospects", data.summary.total],
     ["Invited", data.summary.invited],
-    ["In onboarding", data.summary.inProgress],
+    ["Priority A", data.summary.priorityA],
+    ["Online-shop leads", data.summary.online],
     ["Evidence-backed", data.summary.withEvidence],
-    ["Active partners", data.summary.active],
-    ["Restricted / closed", data.summary.restricted]
+    ["Active partners", data.summary.active]
   ] as const;
 
   return <main className="vendor-app admin-app">
@@ -30,7 +30,7 @@ export default async function ResearchVendorsPage() {
       <div>
         <div className="eyebrow">Acquisition intelligence · research ≠ partnership</div>
         <h1>Research vendors</h1>
-        <p className="lead">Businesses discovered through the Sparta research dataset live here before they enter the formal application and activation workflow. A research record is never treated as an approved partner merely because it exists in the database.</p>
+        <p className="lead">Complete invited-vendor acquisition database sourced from the Sparta research workbook. Open any business to review its census, outreach, ΓΕΜΗ candidate research, online-shop evidence, dated issue audits and complete linked source rows.</p>
         <div className="hero-actions">
           <Link className="button" href="/admin/vendors">Vendor applications</Link>
           <Link className="button button-secondary" href="/admin/categories">Category governance</Link>
@@ -39,8 +39,8 @@ export default async function ResearchVendorsPage() {
       </div>
       <aside className={data.databaseConfigured ? undefined : "needs-attention"}>
         <span>Data source</span>
-        <strong>{data.databaseConfigured ? "PostgreSQL" : "Unavailable"}</strong>
-        <p>{data.databaseConfigured ? "Read-only acquisition view from vendor, location, profile, subscription and verification tables." : "Production database is not configured."}</p>
+        <strong>{data.databaseConfigured ? "PostgreSQL dossiers" : "Unavailable"}</strong>
+        <p>{data.databaseConfigured ? "Operational vendor lifecycle stays separate from public-source acquisition research." : "Production database is not configured."}</p>
       </aside>
     </section>
 
@@ -49,38 +49,50 @@ export default async function ResearchVendorsPage() {
     </section>
 
     <section className="shell vendor-section">
+      <article className="vendor-card-form needs-attention">
+        <div className="eyebrow">Research-use boundary</div>
+        <p>Workbook information is a dated public-source baseline. Directory, ΓΕΜΗ, online-shop and website-health observations must be reconfirmed before merchant outreach, contracting or activation. Research data never upgrades a business to an active partner.</p>
+      </article>
+    </section>
+
+    <section className="shell vendor-section">
       <div className="section-heading">
         <div><div className="eyebrow">Acquisition queue</div><h2>Mapped businesses</h2></div>
-        <p className="section-note">Next governed step: owner contact/claim → formal application → verification → catalog onboarding → test-ready → activation.</p>
+        <p className="section-note">Open a dossier → contact/claim → formal application → verification → catalog onboarding → test-ready → activation.</p>
       </div>
 
       {data.vendors.length === 0 ? <article className="vendor-card-form">
         <div className="eyebrow">No imported research records</div>
         <h3>The acquisition queue is currently empty.</h3>
-        <p>No fictional or demo businesses are substituted. Import or restore the verified Sparta research dataset to populate this queue.</p>
-        <div className="hero-actions"><Link className="button button-secondary" href="/admin/vendors">Review formal applications</Link></div>
+        <p>No fictional or demo businesses are substituted.</p>
       </article> : <div className="vendor-order-list">{data.vendors.map((vendor) => <article className="vendor-order" key={vendor.id}>
         <div className="vendor-order-head">
-          <div><strong>{vendor.tradingName}</strong><small>{vendor.legalName} · {vendor.id}</small></div>
+          <div><strong>{vendor.tradingName}</strong><small>{vendor.legalName} · {vendor.censusId ? `Census ${vendor.censusId} · ` : ""}{vendor.id}</small></div>
           <span className="status-pill">{vendor.status}</span>
         </div>
         <div className="vendor-order-lines">
-          <span>{locationLine(vendor)}</span>
-          <span>{vendor.phone ?? "No phone"} · {vendor.email ?? "No public email"}</span>
-          <span>Evidence: {vendor.evidenceCount} · Verified: {vendor.verificationCount}</span>
-          <span>Plan: {vendor.planCode ?? "—"} · Subscription: {vendor.subscriptionStatus ?? "—"}</span>
+          <span>{[vendor.majorBranch,vendor.subBranch].filter(Boolean).join(" · ") || "Research classification pending import"}</span>
+          <span>{[vendor.scope,vendor.distanceKm == null ? undefined : `${vendor.distanceKm} km`].filter(Boolean).join(" · ") || locationLine(vendor)}</span>
+          <span>{vendor.phone ?? "No phone loaded"} · {vendor.email ?? "No email loaded"}</span>
+          <span>Outreach: {vendor.outreachPriority ?? "—"}{vendor.outreachScore == null ? "" : ` · score ${vendor.outreachScore}`}</span>
+          <span>Online: {vendor.onlineShopStatus ?? "—"} · ΓΕΜΗ: {vendor.gemiResearch ?? "—"}</span>
+          <span>Source rows: {vendor.sourceRecordCount} · Verification evidence: {vendor.evidenceCount}</span>
+          {(vendor.latestIssueSeverity || vendor.latestIssueType) && <span>Website audit: {vendor.latestIssueSeverity ?? "—"} · {vendor.latestIssueType ?? "—"}</span>}
         </div>
         <div className="vendor-order-foot">
-          <span>{vendor.shortDescription ?? "Research record awaiting merchant-owned profile content."}</span>
-          <div><Link className="text-link" href="/admin/vendors">Continue through governed application →</Link></div>
+          <span>{vendor.regulationFlag ?? vendor.shortDescription ?? "Invited research prospect."}</span>
+          <div className="hero-actions">
+            <Link className="button button-secondary" href={`/admin/research-vendors/${encodeURIComponent(vendor.id)}`}>Open full research card</Link>
+            <Link className="text-link" href="/admin/vendors">Application workflow →</Link>
+          </div>
         </div>
       </article>)}</div>}
     </section>
 
     <section className="shell vendor-section">
       <div className="vendor-two-col admin-summary">
-        <article className="vendor-card-form"><div className="eyebrow">Workflow boundary</div><h2>Research is not onboarding</h2><p>Research records may contain public business evidence and contact details, but activation controls remain in the vendor application workflow. No business becomes public commerce inventory from this screen.</p><Link className="text-link" href="/admin/vendors">Open application workflow →</Link></article>
-        <article className="vendor-card-form"><div className="eyebrow">Catalog readiness</div><h2>Products remain separately governed</h2><p>After merchant onboarding, products still require category assignment, canonical matching, offer approval, inventory freshness and publication gates.</p><Link className="text-link" href="/admin/matching">Open product matching →</Link></article>
+        <article className="vendor-card-form"><div className="eyebrow">Workflow boundary</div><h2>Research is not onboarding</h2><p>Research records may contain public business evidence and contact details, but activation controls remain in the vendor application workflow.</p><Link className="text-link" href="/admin/vendors">Open application workflow →</Link></article>
+        <article className="vendor-card-form"><div className="eyebrow">Catalog readiness</div><h2>Products remain separately governed</h2><p>Products still require category assignment, canonical matching, offer approval, inventory freshness and publication gates.</p><Link className="text-link" href="/admin/matching">Open product matching →</Link></article>
       </div>
     </section>
   </main>;
