@@ -2,6 +2,11 @@ import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages } from "./public-media-service";
 
+export type PublicVendorCoordinates = Readonly<{
+  latitude: number;
+  longitude: number;
+}>;
+
 export type PublicVendorLocation = Readonly<{
   name: string;
   addressLine1: string;
@@ -10,6 +15,7 @@ export type PublicVendorLocation = Readonly<{
   postcode: string;
   phone?: string;
   publicEmail?: string;
+  coordinates?: PublicVendorCoordinates;
   verified: boolean;
 }>;
 
@@ -49,6 +55,8 @@ type VendorDirectoryRow = SqlRow & {
   postcode?: string | null;
   phone?: string | null;
   public_email?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   location_verified?: boolean | null;
   story_id?: string | null;
   story_slug?: string | null;
@@ -74,6 +82,11 @@ function asCount(value: unknown): number {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function asCoordinate(value: unknown, minimum: number, maximum: number): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : undefined;
+}
+
 function textArray(value: unknown): readonly string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim()))];
@@ -84,6 +97,9 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
   const addressLine1 = optionalText(row.address_line1);
   const locality = optionalText(row.locality);
   const postcode = optionalText(row.postcode);
+  const latitude = asCoordinate(row.latitude, -90, 90);
+  const longitude = asCoordinate(row.longitude, -180, 180);
+  const coordinates = latitude !== undefined && longitude !== undefined ? { latitude, longitude } : undefined;
   const location = addressLine1 && locality && postcode
     ? {
         name: optionalText(row.location_name) ?? row.vendor_name,
@@ -93,6 +109,7 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
         postcode,
         phone: optionalText(row.phone),
         publicEmail: optionalText(row.public_email),
+        coordinates,
         verified: row.location_verified === true
       }
     : undefined;
@@ -131,6 +148,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            location.postcode,
            location.phone,
            location.public_email,
+           location.latitude,
+           location.longitude,
            location.verified_at IS NOT NULL AS location_verified,
            story.public_id AS story_id,
            story.slug AS story_slug,
@@ -151,7 +170,9 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
       LIMIT 1
     ) adviser ON true
     LEFT JOIN LATERAL (
-      SELECT vl.name,vl.address_line1,vl.address_line2,vl.locality,vl.postcode,vl.phone,vl.public_email,vl.verified_at
+      SELECT vl.name,vl.address_line1,vl.address_line2,vl.locality,vl.postcode,vl.phone,vl.public_email,vl.verified_at,
+             CASE WHEN vl.coordinates IS NULL THEN NULL ELSE ST_Y(vl.coordinates::geometry) END AS latitude,
+             CASE WHEN vl.coordinates IS NULL THEN NULL ELSE ST_X(vl.coordinates::geometry) END AS longitude
       FROM vendor_locations vl
       WHERE vl.vendor_id=v.id AND vl.active=true
       ORDER BY vl.is_primary DESC,vl.verified_at DESC NULLS LAST,vl.created_at,vl.id
@@ -233,7 +254,8 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
   if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
   const vendor = (await databaseDirectory(vendorId))[0];
-  if (!vendor || vendor.directoryStatus !== "partner") return undefined;
+  if (!vendor) return undefined;
+  if (vendor.directoryStatus === "research") return vendor;
   const image = (await approvedVendorImages([vendor.id]))[0];
   return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
 }
