@@ -4,7 +4,7 @@ import { SiteFooter } from "../../components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Γίνε συνεργάτης",
-  description: "Μάθε ποια καταστήματα μπορούν να συμμετέχουν, τι προσφέρει η πλατφόρμα και ποια είναι τα πραγματικά στάδια ενεργοποίησης.",
+  description: "Μάθε ποια καταστήματα μπορούν να συμμετέχουν, τα διαθέσιμα προγράμματα συνεργασίας και τα πραγματικά στάδια ενεργοποίησης.",
   alternates: { canonical: "/join" }
 };
 
@@ -24,6 +24,36 @@ const benefits = [
   ["Δίκαιη συμμετοχή", "Τα ίδια προϊόντα ενοποιούνται και η επιλέξιμη εκπλήρωση ακολουθεί τον μηχανισμό Fair Vendor Exposure."]
 ] as const;
 
+const plans = [
+  {
+    name: "Founding Partner",
+    eyebrow: "Περιορισμένο · έως 50 συνεργάτες",
+    setup: "€1.500",
+    recurring: "€0",
+    recurringLabel: "συνδρομή",
+    commission: "2%",
+    note: "36 μήνες προστατευμένου Founding Partner καθεστώτος και η χαμηλότερη προμήθεια πωλήσεων."
+  },
+  {
+    name: "Annual",
+    eyebrow: "Καλύτερη αξία",
+    setup: "€299",
+    recurring: "€399 / έτος",
+    recurringLabel: "ετήσια συνδρομή",
+    commission: "5%",
+    note: "Ετήσια συνεργασία με χαμηλότερο αρχικό κόστος και χαμηλότερη προμήθεια από το μηνιαίο πρόγραμμα."
+  },
+  {
+    name: "Monthly",
+    eyebrow: "Μέγιστη ευελιξία",
+    setup: "€499",
+    recurring: "€49 / μήνα",
+    recurringLabel: "μηνιαία συνδρομή",
+    commission: "7%",
+    note: "Μηνιαία συνεργασία χωρίς ετήσια δέσμευση, με πλήρη πρόσβαση στις βασικές λειτουργίες marketplace."
+  }
+] as const;
+
 export default function JoinPage() {
   return <main>
     <div className="announcement">Για καταστήματα της Σπάρτης και της ευρύτερης περιοχής.</div>
@@ -35,7 +65,12 @@ export default function JoinPage() {
       <div className="category-grid">{steps.map(([number,title,body]) => <article className="category-card" key={number}><span className="category-mark">{number}</span><span><strong>{title}</strong><small>{body}</small></span></article>)}</div>
     </section>
     <section className="section section-tint"><div className="shell"><div className="section-heading"><div><div className="eyebrow">Τι αποκτά το κατάστημα</div><h2>Ένα πραγματικό λειτουργικό workspace.</h2></div><p className="section-note">Οι δυνατότητες ενεργοποιούνται σύμφωνα με τον ρόλο, το πλάνο και την ολοκλήρωση των απαιτούμενων ελέγχων.</p></div><div className="principle-grid">{benefits.map(([title, body], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><h3>{title}</h3><p>{body}</p></article>)}</div></div></section>
-    <section className="shell ask-local section"><div><div className="eyebrow">Pilot phase</div><h2>Founding / Early Bird</h2><p>Η εγκεκριμένη configuration του build διατηρεί το Founding / Early Bird πλαίσιο. Η αίτηση μπορεί να δηλώσει ενδιαφέρον, αλλά χρέωση, σύμβαση και ενεργοποίηση γίνονται μόνο μετά την αποδοχή των τελικών όρων.</p><div className="hero-actions"><a className="button" href="/join/apply">Υπόβαλε αίτηση Founding</a><a className="button button-secondary" href="/about">Η αποστολή της πλατφόρμας</a></div></div><div className="fairness-note"><strong>Είσαι ήδη εγκεκριμένος συνεργάτης;</strong><p>Συνδέσου στο προστατευμένο vendor workspace. Η δημόσια αίτηση οδηγεί μόνο σε verification και όχι σε shortcut ενεργοποίησης.</p><a className="text-link" href="/vendor/login">Είσοδος συνεργαζόμενου καταστήματος →</a></div></section>
+    <section className="shell section" id="plans">
+      <div className="section-heading"><div><div className="eyebrow">Προγράμματα συνεργασίας</div><h2>Τρεις καθαρές επιλογές.</h2></div><p className="section-note">Κάθε πρόγραμμα συνδυάζει εφάπαξ κόστος ένταξης, συνδρομή και προμήθεια μόνο στις ολοκληρωμένες πωλήσεις μέσω της πλατφόρμας.</p></div>
+      <div className="principle-grid">{plans.map((plan) => <article key={plan.name}><span>{plan.eyebrow}</span><h3>{plan.name}</h3><p><strong>{plan.setup}</strong> εφάπαξ κόστος ένταξης</p><p><strong>{plan.recurring}</strong> {plan.recurringLabel}</p><p><strong>{plan.commission}</strong> προμήθεια πωλήσεων</p><p>{plan.note}</p><a className="text-link" href={`/join/apply?plan=${plan.name === "Founding Partner" ? "founding_2026" : plan.name.toLowerCase()}`}>Επίλεξε {plan.name} →</a></article>)}</div>
+      <p className="section-note">Οι τιμές εμφανίζονται προ ΦΠΑ όπου εφαρμόζεται. Η επιλογή προγράμματος στην αίτηση είναι δήλωση ενδιαφέροντος· χρέωση και ενεργοποίηση πραγματοποιούνται μόνο μετά την επαλήθευση και την αποδοχή των τελικών όρων.</p>
+    </section>
+    <section className="shell ask-local section"><div><div className="eyebrow">Founding Partner</div><h2>Περιορισμένη θέση στην πρώτη ομάδα συνεργατών.</h2><p>Το Founding Partner πρόγραμμα παραμένει διαθέσιμο έως τη συμπλήρωση των 50 συνεργατών: €1.500 εφάπαξ, χωρίς επαναλαμβανόμενη συνδρομή και με 2% προμήθεια πωλήσεων κατά την προστατευμένη περίοδο των 36 μηνών.</p><div className="hero-actions"><a className="button" href="/join/apply?plan=founding_2026">Υπόβαλε αίτηση Founding</a><a className="button button-secondary" href="/about">Η αποστολή της πλατφόρμας</a></div></div><div className="fairness-note"><strong>Είσαι ήδη εγκεκριμένος συνεργάτης;</strong><p>Συνδέσου στο προστατευμένο vendor workspace. Η δημόσια αίτηση οδηγεί μόνο σε verification και όχι σε shortcut ενεργοποίησης.</p><a className="text-link" href="/vendor/login">Είσοδος συνεργαζόμενου καταστήματος →</a></div></section>
     <SiteFooter />
   </main>;
 }
