@@ -1,6 +1,7 @@
 import { previewVendorProductCsv, type SessionPrincipal } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { postgresVendorRuntimeEnabled, vendorDashboard } from "./vendor-runtime";
+import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
+import { vendorCatalogControlWorkspace } from "./vendor-catalog-control-service";
 import { mediaUploadMode } from "./media-upload-service";
 import {
   createVendorProductDraft as memoryCreateDraft,
@@ -23,11 +24,11 @@ import {
 const db = () => getProductionPostgresRuntime().vendorOperations;
 
 export async function vendorCatalogWorkspace(principal: SessionPrincipal) {
-  const [catalog, dashboard] = await Promise.all([
+  const [catalog, controls] = await Promise.all([
     postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : Promise.resolve(memoryCatalogWorkspace(principal)),
-    vendorDashboard(principal)
+    vendorCatalogControlWorkspace(principal)
   ]);
-  return { ...catalog, catalogProducts: dashboard.products };
+  return { ...catalog, ...controls };
 }
 
 export async function createVendorProductDraft(principal: SessionPrincipal, input: {
@@ -99,10 +100,7 @@ export async function vendorReturnOperationalAction(principal: SessionPrincipal,
 }
 
 export function synchronizeOperationalEvents(): void {
-  // PostgreSQL commerce writes are already authoritative/durable and are consumed through
-  // database projections. Development mode retains the legacy deterministic synchronization.
   if (!postgresVendorRuntimeEnabled()) {
-    // Imported lazily through the module binding above; no-op in database mode.
     void import("./vendor-operations-runtime").then((module) => module.synchronizeOperationalEvents());
   }
 }
