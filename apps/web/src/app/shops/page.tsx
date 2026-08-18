@@ -70,7 +70,8 @@ export default async function ShopsPage({ searchParams }: Props) {
             <h1>Γνώρισε την αγορά της Σπάρτης.</h1>
             <p>Περιηγήσου στις χαρτογραφημένες επιχειρήσεις ανά κατηγορία και υποκατηγορία. Κάθε δημόσια καταχώριση δείχνει καθαρά αν πρόκειται για ενεργό συνεργάτη ή για επιχείρηση που έχει εντοπιστεί από δημόσιες πηγές και έχει προσκληθεί στο δίκτυο.</p>
             <div className="hero-actions">
-              <a className="button" href="/shop">Δες τα ενεργά προϊόντα</a>
+              <a className="button" href="/shops/map">Δες τα στον χάρτη</a>
+              <a className="button button-secondary" href="/shop">Δες τα ενεργά προϊόντα</a>
               <a className="button button-secondary" href="/ask-local">Ρώτησε τοπικά</a>
             </div>
           </div>
@@ -91,7 +92,7 @@ export default async function ShopsPage({ searchParams }: Props) {
       <section className="shell section" aria-labelledby="shops-title">
         <div className="shops-directory-head">
           <div><div className="eyebrow">Καταστήματα & άνθρωποι</div><h2 id="shops-title">Η χαρτογραφημένη τοπική αγορά</h2></div>
-          <p>{vendors.length} από {allVendors.length} επιχειρήσεις σε αυτή την προβολή · {partnerCount} ενεργοί συνεργάτες · {researchCount} δημόσιες καταχωρίσεις έρευνας/πρόσκλησης.</p>
+          <p>{vendors.length} από {allVendors.length} επιχειρήσεις σε αυτή την προβολή · {partnerCount} ενεργοί συνεργάτες · {researchCount} δημόσιες καταχωρίσεις έρευνας/πρόσκλησης. <a className="text-link" href="/shops/map">Άνοιγμα χάρτη →</a></p>
         </div>
 
         <div className="shop-category-list" aria-label="Κύριες κατηγορίες καταστημάτων">
