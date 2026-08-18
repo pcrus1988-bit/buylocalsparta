@@ -1,0 +1,14 @@
+/* Final readability polish for operational KPI and financial values. */
+.workspace-page-metric > strong,
+.workspace-queue-primary,
+.order-summary strong,
+.vendor-kpis strong,
+.account-snapshot strong,
+.dashboard-insight-grid strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-page-section-heading h2,
+.dashboard-hero-refined h1 {
+  text-wrap: balance;
+}
