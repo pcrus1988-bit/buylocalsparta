@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCanonicalProductSummary, getCatalogCard } from "../../../lib/catalog-view";
 import { getVisitorKey } from "../../../lib/visitor";
 import { AddToCartButton } from "../../../components/AddToCartButton";
+import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTracker";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
@@ -80,6 +81,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <main>
+      <ProductAnalyticsTracker canonicalVariantId={product.id} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Buy Local. Know Your Vendor. Get Real Advice.</div>
       <SiteHeader compact />
