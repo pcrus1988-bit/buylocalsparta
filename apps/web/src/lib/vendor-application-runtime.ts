@@ -10,6 +10,7 @@ import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runti
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 
+const ALLOWED_CATEGORIES = new Set(["home-living", "fashion", "beauty", "kids", "technology", "gifts"]);
 const globals = globalThis as typeof globalThis & {
   __blsVendorApplicationRateLimiter?: PostgresFixedWindowRateLimiter;
 };
@@ -66,6 +67,16 @@ export async function submitVendorApplication(input: {
 
       const plan = await tx.query<SqlRow>("SELECT 1 AS present FROM vendor_plans WHERE market_id=$1 AND code=$2 AND status='active' LIMIT 1", [marketUuid, application.requestedPlanCode]);
       if (!plan.rowCount) throw new Error("PLAN_UNAVAILABLE");
+
+      // One legal business must not be able to create parallel applicant/vendor identities.
+      // Keep the public error generic so the endpoint does not disclose who owns an AFM.
+      const duplicateBusiness = await tx.query<SqlRow>(`
+        SELECT 1 AS present FROM vendor_applications WHERE tax_number=$1
+        UNION ALL
+        SELECT 1 AS present FROM vendor_businesses WHERE tax_number=$1
+        LIMIT 1
+      `, [application.taxNumber]);
+      if (duplicateBusiness.rowCount) throw new Error("BUSINESS_ALREADY_REGISTERED");
 
       const owner = input.principal
         ? await authenticatedOwner(tx, input.principal)
@@ -128,7 +139,7 @@ async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal):
 }
 
 async function provisionalOwner(tx: SqlExecutor, email: string, now: number): Promise<{ uuid: string; publicId: string; provisional: true }> {
-  const existing = await tx.query<SqlRow>("SELECT id::text AS id,public_id,password_hash,status::text AS status,email_verified_at FROM users WHERE lower(email::text)=lower($1) LIMIT 1 FOR UPDATE", [email]);
+  const existing = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE lower(email::text)=lower($1) LIMIT 1 FOR UPDATE", [email]);
   if (existing.rowCount) {
     // Never let an anonymous request attach an application to an already registered identity.
     throw new Error("EXISTING_ACCOUNT_LOGIN_REQUIRED");
@@ -175,6 +186,7 @@ function normalizeApplication(input: VendorApplicationInput): VendorApplicationI
   const postcode = input.postcode.trim();
   if (!/^\d{5}$/.test(postcode)) throw new Error("Ο ταχυδρομικός κώδικας πρέπει να έχει 5 ψηφία.");
   const primaryCategory = requiredLimited(input.primaryCategory, "Κατηγορία", 80).toLowerCase();
+  if (!ALLOWED_CATEGORIES.has(primaryCategory)) throw new Error("Επίλεξε έγκυρη κατηγορία καταστήματος.");
   const shopStory = limitedOptional(input.shopStory, 1500);
   if (!(["free_listing", "founding_2026"] as const).includes(input.requestedPlanCode)) throw new Error("Μη έγκυρη επιλογή προγράμματος.");
   return { legalName, tradingName, taxNumber, gemiNumber, contactEmail, phone, address, postcode, primaryCategory, shopStory, requestedPlanCode: input.requestedPlanCode };
