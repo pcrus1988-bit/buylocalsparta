@@ -12,6 +12,7 @@ const product = read("apps/web/src/app/product/[id]/page.tsx");
 for (const required of ["getPublicCatalogProducts()", "getPublicVendorDirectory()", "STOREFRONT_CATEGORIES", "Promise.allSettled", "INDEXABLE_STATIC_ROUTES"]) {
   if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
 }
+if (!sitemap.includes('.filter((vendor) => vendor.directoryStatus === "partner")')) failures.push("XML sitemap must exclude research-only vendor records because only partner vendor profiles are resolvable public pages");
 if (!robots.includes("ROBOTS_DISALLOW_PATHS")) failures.push("Robots rules must use the canonical route registry");
 for (const privatePath of ["/account", "/admin", "/api", "/checkout", "/login", "/register", "/verify-email", "/join/apply", "/vendor/login"]) {
   if (!ROBOTS_DISALLOW_PATHS.includes(privatePath as (typeof ROBOTS_DISALLOW_PATHS)[number])) failures.push(`Robots registry does not protect ${privatePath}`);
@@ -34,4 +35,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: canonical route registry, dynamic public sitemap, private-route robots boundaries, metadata origin and structured data verified.");
+console.log("Next SEO checks passed: canonical route registry, resolvable dynamic public sitemap, private-route robots boundaries, metadata origin and structured data verified.");

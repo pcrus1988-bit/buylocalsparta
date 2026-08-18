@@ -14,7 +14,7 @@ type IndexableStaticRoute = SiteLink & Readonly<{
 export const SITE_LINKS = {
   home: { label: "Αρχική", href: "/", description: "Η κεντρική είσοδος στην τοπική αγορά της Σπάρτης." },
   shop: { label: "Προϊόντα", href: "/shop", description: "Ο ενιαίος κατάλογος προϊόντων του marketplace." },
-  shops: { label: "Καταστήματα & άνθρωποι", href: "/shops", description: "Ενεργά τοπικά καταστήματα, ιστορίες και άνθρωποι." },
+  shops: { label: "Καταστήματα & άνθρωποι", href: "/shops", description: "Χαρτογραφημένες τοπικές επιχειρήσεις και ενεργοί συνεργάτες, με σαφή ένδειξη του σταδίου συνεργασίας." },
   advice: { label: "Συμβουλή από κατάστημα", href: "/advice", description: "Βρες δημόσια διαθέσιμους τοπικούς συμβούλους πριν αγοράσεις." },
   askLocal: { label: "Ask Local", href: "/ask-local", description: "Στείλε ιδιωτικά αυτό που ψάχνεις σε κατάλληλο τοπικό συνεργάτη." },
   howItWorks: { label: "Πώς λειτουργεί", href: "/how-it-works", description: "Από την ανακάλυψη μέχρι checkout, fulfilment και υποστήριξη." },
