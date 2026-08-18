@@ -1,5 +1,5 @@
 -- Buy Local Sparta — customer taxonomy: automotive, agriculture, pets, outdoors and specialist retail
--- Existing IDs remain unchanged; only new descendants and semantic parent updates are added.
+-- Existing IDs remain unchanged; restricted legacy branches are not expanded here.
 
 BEGIN;
 
@@ -49,14 +49,13 @@ VALUES
   ('agricultural-hand-tools', 'agriculture-pets-outdoors', 'Γεωργικά εργαλεία χειρός', 'Agricultural hand tools', 'product_class', true, 10, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
   ('irrigation-watering', 'agriculture-pets-outdoors', 'Άρδευση & πότισμα', 'Irrigation & watering', 'product_class', true, 20, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
   ('greenhouse-growing-supplies', 'agriculture-pets-outdoors', 'Θερμοκήπιο & καλλιεργητικά είδη', 'Greenhouse & growing supplies', 'product_class', true, 30, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
+  ('camping-outdoor-equipment', 'agriculture-pets-outdoors', 'Camping & εξοπλισμός υπαίθρου', 'Camping & outdoor equipment', 'product_class', true, 40, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
+  ('fishing-equipment', 'agriculture-pets-outdoors', 'Εξοπλισμός αλιείας', 'Fishing equipment', 'product_class', true, 50, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
   ('agricultural-machinery-accessories', 'agricultural-supplies-machinery', 'Αξεσουάρ γεωργικών μηχανημάτων', 'Agricultural machinery accessories', 'product_class', true, 10, NULL, NULL, NULL, NULL, NULL, NULL),
   ('regulated-agricultural-supplies', 'agricultural-supplies-machinery', 'Ρυθμιζόμενα γεωργικά εφόδια', 'Regulated agricultural supplies', 'product_class', true, 20, NULL, NULL, NULL, NULL, NULL, NULL),
   ('beehives-components', 'beekeeping-supplies', 'Κυψέλες & εξαρτήματα', 'Beehives & components', 'product_class', true, 10, NULL, NULL, NULL, NULL, NULL, NULL),
   ('beekeeping-protective-clothing', 'beekeeping-supplies', 'Προστατευτική ένδυση μελισσοκομίας', 'Beekeeping protective clothing', 'product_class', true, 20, NULL, NULL, NULL, NULL, NULL, NULL),
   ('beekeeping-tools-accessories', 'beekeeping-supplies', 'Εργαλεία & αξεσουάρ μελισσοκομίας', 'Beekeeping tools & accessories', 'product_class', true, 30, NULL, NULL, NULL, NULL, NULL, NULL),
-  ('camping-outdoor-equipment', 'hunting-fishing-outdoor-goods', 'Camping & εξοπλισμός υπαίθρου', 'Camping & outdoor equipment', 'product_class', true, 10, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
-  ('fishing-equipment', 'hunting-fishing-outdoor-goods', 'Εξοπλισμός αλιείας', 'Fishing equipment', 'product_class', true, 20, 'standard', NULL, NULL, true, NULL, ARRAY['pickup','local_delivery','shipping']::text[]),
-  ('hunting-nonweapon-accessories', 'hunting-fishing-outdoor-goods', 'Αξεσουάρ κυνηγιού (μη όπλα)', 'Hunting accessories (non-weapons)', 'product_class', true, 30, NULL, NULL, NULL, NULL, NULL, NULL),
   ('retail-packaging', 'packaging-shop-office-equipment', 'Συσκευασία λιανικής', 'Retail packaging', 'product_class', true, 10, NULL, NULL, NULL, NULL, NULL, NULL),
   ('shipping-packaging', 'packaging-shop-office-equipment', 'Συσκευασία αποστολών', 'Shipping packaging', 'product_class', true, 20, NULL, NULL, NULL, NULL, NULL, NULL),
   ('labels-tags', 'packaging-shop-office-equipment', 'Ετικέτες & καρτελάκια', 'Labels & tags', 'product_class', true, 30, NULL, NULL, NULL, NULL, NULL, NULL),
@@ -122,7 +121,7 @@ ON CONFLICT (category_id,locale) DO UPDATE SET name=EXCLUDED.name;
 
 UPDATE categories c
 SET taxonomy_role='navigation_group', assignable=false, updated_at=now()
-WHERE c.code IN ('automotive-parts-accessories','vehicles-motorcycles-bicycles','pet-animal-supplies','beekeeping-supplies','hunting-fishing-outdoor-goods','packaging-shop-office-equipment','religious-ceremonial-goods')
+WHERE c.code IN ('automotive-parts-accessories','vehicles-motorcycles-bicycles','pet-animal-supplies','beekeeping-supplies','packaging-shop-office-equipment','religious-ceremonial-goods')
 AND NOT EXISTS (SELECT 1 FROM canonical_variants v WHERE v.category_id=c.id)
 AND NOT EXISTS (SELECT 1 FROM vendor_product_submissions s WHERE s.category_id=c.id);
 
