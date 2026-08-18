@@ -10,9 +10,9 @@ const BOXNOW_WIDGET_ENABLED = process.env.NEXT_PUBLIC_BOXNOW_WIDGET_ENABLED === 
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr" : ""}`,
-  "img-src 'self' data: blob:",
+  "style-src 'self' 'unsafe-inline' https://unpkg.com",
+  `script-src 'self' 'unsafe-inline' https://unpkg.com${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr" : ""}`,
+  "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
   `connect-src 'self'${MEDIA_UPLOAD_ORIGIN ? ` ${MEDIA_UPLOAD_ORIGIN}` : ""}${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr https://map.boxnow.gr" : ""}`,
   `frame-src 'self'${BOXNOW_WIDGET_ENABLED ? " https://map.boxnow.gr https://widget-v4.boxnow.gr https://widget-v5.boxnow.gr" : ""}`,
   "frame-ancestors 'none'",
