@@ -61,7 +61,9 @@ export async function submitVendorApplication(input: {
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-vendor-application:${randomUUID()}` },
     async (tx) => {
-      const market = await tx.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code='sparta' AND active=true LIMIT 1");
+      // markets has no status/active column. Market availability is represented by the
+      // presence of the configured market row; plan availability is governed separately.
+      const market = await tx.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code='sparta' LIMIT 1");
       if (!market.rowCount) throw new Error("MARKET_UNAVAILABLE");
       const marketUuid = requiredText(market.rows[0].id, "market.id");
 

@@ -88,7 +88,20 @@ export async function POST(request: Request) {
     if (code === "CUSTOMER_ACCOUNT_REQUIRED") {
       return Response.json({ code: "account_required", error: "Χρειάζεται ενεργός λογαριασμός πελάτη για αυτή τη συνεδρία." }, { status: 403, headers: { "Cache-Control": "no-store" } });
     }
-    return Response.json({ code: "application_invalid", error: code }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    if (isPublicValidationError(code)) {
+      return Response.json({ code: "application_invalid", error: code }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
+
+    console.error(JSON.stringify({
+      level: "error",
+      event: "vendor_application.submit_failed",
+      message: code,
+      errorName: error instanceof Error ? error.name : "UnknownError"
+    }));
+    return Response.json(
+      { code: "application_failed", error: "Δεν μπορέσαμε να καταχωρίσουμε την αίτηση λόγω τεχνικού προβλήματος. Δοκίμασε ξανά σε λίγο ή επικοινώνησε με την ομάδα Buy Local Sparta." },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }
 
@@ -98,4 +111,23 @@ function stringField(value: unknown): string {
 
 function optionalStringField(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function isPublicValidationError(message: string): boolean {
+  return [
+    "Χρειάζεται να επιβεβαιώσεις",
+    "Νομική επωνυμία:",
+    "Εμπορική ονομασία:",
+    "Το ΑΦΜ",
+    "Ο αριθμός ΓΕΜΗ",
+    "Χρειάζεται έγκυρο email",
+    "Τηλέφωνο:",
+    "Το τηλέφωνο",
+    "Διεύθυνση:",
+    "Ο ταχυδρομικός κώδικας",
+    "Κατηγορία:",
+    "Επίλεξε έγκυρη κατηγορία",
+    "Το κείμενο μπορεί",
+    "Μη έγκυρη επιλογή προγράμματος"
+  ].some((prefix) => message.startsWith(prefix));
 }
