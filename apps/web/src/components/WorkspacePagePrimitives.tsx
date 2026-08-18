@@ -4,7 +4,7 @@ export type WorkspaceMetric = Readonly<{
   label: string;
   value: ReactNode;
   tone?: "default" | "attention" | "positive";
-  hint?: string;
+  hint?: string | undefined;
 }>;
 
 export function WorkspaceMetricStrip({
