@@ -64,6 +64,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Διοίκηση",
     links: [
       { label: "Οικονομικά", href: "/admin/finance", icon: "€" },
+      { label: "Συμφωνίες vendors", href: "/admin/finance/agreements", icon: "%" },
       { label: "Φορολογία", href: "/admin/tax", icon: "#" },
       { label: "Fairness", href: "/admin/fairness", icon: "⚖" },
       { label: "Analytics", href: "/admin/analytics", icon: "∿" }
