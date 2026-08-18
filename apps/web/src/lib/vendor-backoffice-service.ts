@@ -1,6 +1,6 @@
 import { previewVendorProductCsv, type SessionPrincipal } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
+import { postgresVendorRuntimeEnabled, vendorDashboard } from "./vendor-runtime";
 import { mediaUploadMode } from "./media-upload-service";
 import {
   createVendorProductDraft as memoryCreateDraft,
@@ -23,7 +23,11 @@ import {
 const db = () => getProductionPostgresRuntime().vendorOperations;
 
 export async function vendorCatalogWorkspace(principal: SessionPrincipal) {
-  return postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : memoryCatalogWorkspace(principal);
+  const [catalog, dashboard] = await Promise.all([
+    postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : Promise.resolve(memoryCatalogWorkspace(principal)),
+    vendorDashboard(principal)
+  ]);
+  return { ...catalog, catalogProducts: dashboard.products };
 }
 
 export async function createVendorProductDraft(principal: SessionPrincipal, input: {
