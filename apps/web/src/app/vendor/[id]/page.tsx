@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
     description,
-    alternates: { canonical: `/vendor/${encodeURIComponent(vendor.id)}` },
+    alternates: vendor ? { canonical: `/vendor/${encodeURIComponent(vendor.id)}` } : undefined,
     openGraph: { title: vendor.name, description, url: `/vendor/${encodeURIComponent(vendor.id)}`, images: vendor.mediaId ? [`/api/media/${encodeURIComponent(vendor.mediaId)}`] : undefined, type: "website" }
   };
 }
