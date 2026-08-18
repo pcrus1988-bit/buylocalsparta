@@ -1,22 +1,59 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { PRIMARY_NAVIGATION } from "../lib/site-navigation";
 import { useCart } from "./CartProvider";
+
+function navigationActive(pathname: string, href: string): boolean {
+  if (href === "/shop") return pathname === "/shop" || pathname.startsWith("/category/") || pathname.startsWith("/product/");
+  if (href === "/shops") return pathname === "/shops" || /^\/vendor\/[^/]+$/.test(pathname);
+  return pathname === href;
+}
 
 export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { count } = useCart();
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <header className="site-header shell">
-      <a className="brand" href="/"><span className="brand-mark">BLS</span><span>Buy Local Sparta</span></a>
-      <nav className="nav" aria-label="Primary">
-        <a href="/shop">Αγορές</a>
-        <a href="/shops">Καταστήματα & άνθρωποι</a>
-        <a href="/how-it-works">Πώς λειτουργεί</a>
-        {!compact && <a href="/advice">Συμβουλή</a>}
-        <a href="/ask-local">Ask Local</a>
+    <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
+      <Link className="brand" href="/" aria-label="Buy Local Sparta · αρχική" onClick={() => setMenuOpen(false)}>
+        <span className="brand-mark">BLS</span><span>Buy Local Sparta</span>
+      </Link>
+
+      <button
+        className="public-menu-toggle"
+        type="button"
+        aria-expanded={menuOpen}
+        aria-controls="public-site-navigation"
+        onClick={() => setMenuOpen((current) => !current)}
+      >
+        <span>{menuOpen ? "Κλείσιμο" : "Μενού"}</span>
+        <i aria-hidden="true" />
+      </button>
+
+      <nav id="public-site-navigation" className="nav" aria-label="Κύρια πλοήγηση">
+        {PRIMARY_NAVIGATION.map((link) => {
+          const active = navigationActive(pathname, link.href);
+          return (
+            <Link
+              href={link.href}
+              key={link.href}
+              className={active ? "is-active" : undefined}
+              aria-current={active ? "page" : undefined}
+              onClick={() => setMenuOpen(false)}
+            >
+              {link.label}
+            </Link>
+          );
+        })}
       </nav>
+
       <div className="header-actions">
-        <a className="icon-button header-icon-link" href="/account" aria-label="Λογαριασμός">◎</a>
-        <a className="cart-button" href="/cart">Καλάθι <span>{count}</span></a>
+        <Link className={`icon-button header-icon-link${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός">◎</Link>
+        <Link className={`cart-button${pathname === "/cart" ? " is-active" : ""}`} href="/cart">Καλάθι <span>{count}</span></Link>
       </div>
     </header>
   );

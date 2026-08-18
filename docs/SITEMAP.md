@@ -1,28 +1,95 @@
 # Application Sitemap
 
-## Customer
+This document lists **implemented routes only**. Product ideas and future capabilities are intentionally kept separate so this file never implies that a page or workflow exists when it does not.
 
-Home → Shop → Categories (`/category/home-living`, `/category/fashion`, `/category/beauty`, `/category/kids`, `/category/technology`, `/category/gifts`) → Search → Collections → Brand → Canonical Product  
-Shops & People (`/shops`) → Vendor Profile (`/vendor/[id]`) → Primary Location → Adviser / Published Merchant Story  
-Advice → Advice Hub → Guides → Ask Question → Chat → Consultation Booking  
-Ask Local → Paste Link → Confirm Match → Request → Private Offer → Checkout  
-Cart → Fulfilment Choices → Checkout → Payment → Confirmation → Consolidated Tracking  
-Login → Account → Orders → Order Detail / Pre-handover Cancellation → Saved Products → Saved Searches → Notifications → Recommendations → Recently Viewed → Privacy Controls → Profile/Addresses/Returns/Messages/Appointments/Tax Documents (remaining production surfaces)  
-Trust → How It Works → Seller Disclosure → Delivery → Returns/Guarantee → Payments → Privacy/Cookies → Accessibility → Complaints/Recalls  
-Merchant Acquisition → Why Join → Plans → Application → Onboarding → Merchant Terms → Login
+## Public storefront
+
+### Discovery
+- `/` — Home
+- `/shop` — Product catalogue
+- `/category/[slug]` — Governed storefront category
+- `/product/[id]` — Canonical product detail
+- `/shops` — Merchant directory
+- `/vendor/[id]` — Public merchant profile
+- `/sitemap` — Human-readable site map
+
+### Advice and customer help
+- `/advice` — Browse public adviser profiles / start from a specific product or merchant
+- `/ask-local` — Private customer request routed to an appropriate local merchant
+- `/help` — Help centre
+
+`/advice` and `/ask-local` are deliberately separate: Advice is a public discovery surface for people and expertise; Ask Local is the private request workflow.
+
+### How the marketplace works
+- `/how-it-works`
+- `/fairness`
+- `/delivery-pickup`
+- `/payments-security`
+- `/returns-refunds`
+- `/privacy-controls`
+- `/about`
+
+### Merchant acquisition
+- `/join` — Partnership proposition
+- `/join/requirements` — Readiness checklist
+- `/join/apply` — Governed application form; intentionally excluded from search indexing
+
+## Customer utility and private routes
+
+These routes are functional but are not XML-sitemap content:
+- `/login`
+- `/register`
+- `/verify-email`
+- `/cart`
+- `/checkout`
+- `/checkout/success`
+- `/checkout/failure`
+- `/account`
+- `/account/orders/[id]`
 
 ## Vendor workspace
 
-Vendor Login → Today Dashboard → Assigned Orders (accept/reject/pickup-ready/local delivery) → Inventory → Products/CSV Import → Media/Compliance → Advice/Appointments/Notifications → Analytics → Supplier Invoices/Settlements → Returns/Repair/Replacement → BOX NOW Shipping/Labels → Public Storefront Profile
+Private vendor routes:
+- `/vendor`
+- `/vendor/login`
+- `/vendor/catalog`
+- `/vendor/advice`
+- `/vendor/shipping`
+- `/vendor/returns`
+- `/vendor/trust`
+- `/vendor/finance`
+- `/vendor/analytics`
 
-Remaining production Vendor surfaces: team/role administration, multi-location settings and additional carrier/provider adapters beyond the first BOX NOW integration.
+The public `/vendor/[id]` profile shares the namespace but is a separate, indexable storefront route. Robots rules therefore block private vendor pages explicitly rather than blocking `/vendor` as a whole.
 
-## Admin
+## Admin workspace
 
-Admin Login → Command Centre → Vendors/KYB → Product Matching / Canonical Creation → Trust / Media / Compliance → Orders / Returns → Reviews → Privacy → Categories → CMS / SEO → Recalls → Finance / Payables / Maker-Checker Settlements → Fairness Appeals → Market Analytics → Maintenance / Search Jobs → Operations / Readiness / Security / Audit
+Private admin routes:
+- `/admin`
+- `/admin/login`
+- `/admin/vendors`
+- `/admin/research-vendors`
+- `/admin/matching`
+- `/admin/categories`
+- `/admin/content`
+- `/admin/orders`
+- `/admin/shipping`
+- `/admin/trust`
+- `/admin/reviews`
+- `/admin/recalls`
+- `/admin/privacy`
+- `/admin/finance`
+- `/admin/tax`
+- `/admin/fairness`
+- `/admin/analytics`
+- `/admin/maintenance`
+- `/admin/operations`
+- `/admin/activation`
 
-Implemented production Next.js Admin surfaces: `/admin`, `/admin/vendors`, `/admin/matching`, `/admin/trust`, `/admin/orders`, `/admin/reviews`, `/admin/privacy`, `/admin/categories`, `/admin/content`, `/admin/recalls`, `/admin/finance`, `/admin/fairness`, `/admin/analytics`, `/admin/maintenance`, `/admin/operations`, `/admin/shipping`.
+## Technical routes
 
-Remaining production Admin work is primarily persistence/provider depth rather than missing top-level surfaces: PostgreSQL-backed shared state, richer record-detail/editing UX, public CMS rendering, durable distributed workers/search provider, production file/media processing, notification/provider operations and live operational integrations.
+`/api/**` routes are application interfaces, not user navigation or search-index content. They must never be presented as ordinary links.
 
-- `/admin/activation` — platform-only staging/launch activation evidence by provider/build/environment.
+## Future capabilities — not current routes
+
+The broader product blueprint includes additional capabilities such as richer profile/address management, consultation scheduling, additional carrier adapters, team/role administration, richer CMS surfaces, and deeper provider integrations. Unless a route appears in one of the implemented sections above, it must not be represented in customer navigation as an available page.
