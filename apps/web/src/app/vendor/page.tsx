@@ -1,21 +1,30 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { VendorDashboardClient } from "../../components/VendorDashboardClient";
 import { VendorCatalogDashboardOverview } from "../../components/VendorCatalogDashboardOverview";
 import { VendorWorkspaceHeader } from "../../components/VendorWorkspaceHeader";
+import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
 import { getVendorSession } from "../../lib/vendor-session";
 import { vendorDashboard } from "../../lib/vendor-runtime";
 import { vendorCatalogControlWorkspace } from "../../lib/vendor-catalog-control-service";
+import { vendorProductAnalytics } from "../../lib/vendor-product-analytics";
 
 export const metadata: Metadata = { title: "Vendor Backoffice", robots: { index: false, follow: false } };
+
+function euro(minor: number): string {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+}
 
 export default async function VendorBackofficePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
-  const [dashboard, catalog] = await Promise.all([
+  const [dashboard, catalog, analytics] = await Promise.all([
     vendorDashboard(principal),
-    vendorCatalogControlWorkspace(principal)
+    vendorCatalogControlWorkspace(principal),
+    vendorProductAnalytics(principal.vendorId ?? "", { periodDays: 30 })
   ]);
+  const performance = analytics.totals;
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -32,6 +41,22 @@ export default async function VendorBackofficePage() {
       </aside>
     </section>
     <VendorCatalogDashboardOverview metrics={catalog.catalogMetrics} products={catalog.catalogProducts} categories={catalog.categories} />
+
+    <section className="shell vendor-section" id="performance-overview">
+      <WorkspaceSectionHeading eyebrow="Performance · 30 days" title="Από ενδιαφέρον σε αγορά" note="Ζωντανά supplier-scoped στοιχεία από Fair Vendor Exposure και το commerce funnel." />
+      <WorkspaceMetricStrip items={[
+        { label: "Fair impressions", value: performance.impressions },
+        { label: "Product views", value: performance.pageViews },
+        { label: "Cart adds", value: performance.addToCarts },
+        { label: "Checkout starts", value: performance.checkoutStarts },
+        { label: "Sales", value: performance.purchases },
+        { label: "Retail sales", value: euro(performance.revenueMinor) }
+      ]} />
+      <div className="workspace-queue-card" style={{ marginTop: 14 }}>
+        <div className="workspace-queue-head"><div><strong>Αναλυτικά στατιστικά</strong><small>Όλο το κατάστημα, ανά κατηγορία, ανά προϊόν και με χρονικά φίλτρα.</small></div><Link className="button" href="/vendor/analytics">Analytics & φίλτρα</Link></div>
+      </div>
+    </section>
+
     <VendorDashboardClient initial={dashboard} />
   </main>;
 }
