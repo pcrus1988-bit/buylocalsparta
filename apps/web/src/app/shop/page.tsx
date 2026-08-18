@@ -28,14 +28,17 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const brand = valueOf(params.brand);
   const color = valueOf(params.color);
   const size = valueOf(params.size);
+  const fit = valueOf(params.fit);
   const categoryView = storefrontCategoryBySlug(category);
   const visitorKey = await getVisitorKey();
   const facets = await getCatalogFacets(category, query);
   let products = [...await getCatalogCards(visitorKey, "23100", query, category, { subcategory, brand, color, size })];
+  const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
+  if (fit) products = products.filter((product) => product.fit === fit);
   if (availability === "available") products = products.filter((product) => product.available);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
-  const hasDetailedFilters = Boolean(subcategory || brand || color || size);
+  const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit);
 
   return (
     <main>
@@ -93,6 +96,14 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               <select id="size" name="size" defaultValue={size}>
                 <option value="">Όλα τα μεγέθη</option>
                 {facets.sizes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </> : null}
+
+            {fitOptions.length > 0 ? <>
+              <label htmlFor="fit">Εφαρμογή</label>
+              <select id="fit" name="fit" defaultValue={fit}>
+                <option value="">Όλες οι εφαρμογές</option>
+                {fitOptions.map((item) => <option value={item} key={item}>{item}</option>)}
               </select>
             </> : null}
 
