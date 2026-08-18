@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { setVendorCatalogVisibility, vendorCatalogControlWorkspace } from "../../../../../lib/vendor-catalog-control-service";
+import { setVendorProductVisibility } from "../../../../../lib/vendor-product-visibility-service";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 
 async function resolveActorPrincipal(principal: SessionPrincipal): Promise<SessionPrincipal> {
@@ -21,12 +22,20 @@ export async function PUT(request: Request) {
     const scope = body.scope === "category" ? "category" : body.scope === "product" ? "product" : undefined;
     if (!scope) throw new Error("Visibility scope must be product or category");
     if (typeof body.visible !== "boolean") throw new Error("Visibility must be true or false");
-    await setVendorCatalogVisibility(principal, {
-      scope,
-      visible: body.visible,
-      offerId: typeof body.offerId === "string" ? body.offerId : undefined,
-      categoryId: typeof body.categoryId === "string" ? body.categoryId : undefined
-    });
+
+    if (scope === "product") {
+      await setVendorProductVisibility(principal, {
+        offerId: typeof body.offerId === "string" ? body.offerId : "",
+        visible: body.visible
+      });
+    } else {
+      await setVendorCatalogVisibility(principal, {
+        scope: "category",
+        visible: body.visible,
+        categoryId: typeof body.categoryId === "string" ? body.categoryId : undefined
+      });
+    }
+
     return Response.json(await vendorCatalogControlWorkspace(principal));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_visibility_failed" }, { status: 400 });
