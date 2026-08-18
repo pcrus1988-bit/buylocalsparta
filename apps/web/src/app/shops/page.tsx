@@ -6,6 +6,8 @@ import { SiteFooter } from "../../components/SiteFooter";
 
 type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string; subcategory?: string; status?: string }> }>;
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Καταστήματα & άνθρωποι",
   description: "Χαρτογραφημένες τοπικές επιχειρήσεις και ενεργοί συνεργάτες του Buy Local Sparta, οργανωμένοι ανά κατηγορία και υποκατηγορία με σαφή διάκριση του σταδίου συνεργασίας."
