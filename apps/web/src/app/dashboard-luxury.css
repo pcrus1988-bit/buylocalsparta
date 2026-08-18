@@ -1,0 +1,487 @@
+/* Final dashboard visual layer: calmer density, collapsible workspace navigation and consistent premium hierarchy. */
+
+.account-app {
+  min-height: 100vh;
+  background: radial-gradient(circle at 88% 4%, rgba(185, 148, 81, .09), transparent 26rem), linear-gradient(180deg, #faf8f3 0%, #f4f0e7 100%);
+}
+
+/* Collapsible workspace rail */
+.workspace-header {
+  padding: 20px 18px 16px;
+}
+
+.workspace-context {
+  margin: 20px 2px 13px;
+  padding: 14px 14px;
+  border-radius: 14px;
+}
+
+.workspace-context strong {
+  margin-top: 5px;
+  font-size: 16px;
+}
+
+.workspace-context small {
+  margin-top: 8px;
+}
+
+.workspace-nav {
+  gap: 8px;
+  padding: 2px 2px 15px;
+}
+
+.workspace-nav-group {
+  border: 1px solid transparent;
+  border-radius: 13px;
+}
+
+.workspace-nav-group > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 0 10px;
+  color: rgba(255, 255, 255, .47);
+  border-radius: 10px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color .18s ease, background .18s ease;
+}
+
+.workspace-nav-group > summary::-webkit-details-marker { display: none; }
+.workspace-nav-group > summary::after {
+  content: "⌄";
+  color: rgba(229, 212, 174, .7);
+  font-size: 11px;
+  transition: transform .18s ease;
+}
+.workspace-nav-group[open] > summary::after { transform: rotate(180deg); }
+.workspace-nav-group > summary:hover { color: #fff; background: rgba(255, 255, 255, .045); }
+.workspace-nav-group > summary > span { flex: 1; font-size: 8px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
+.workspace-nav-group > summary > small { min-width: 21px; height: 21px; display: inline-grid; place-items: center; color: rgba(255, 255, 255, .55); border: 1px solid rgba(255, 255, 255, .09); border-radius: 999px; font-size: 8px; }
+.workspace-nav-group[open] > summary { color: var(--dash-gold-soft); }
+.workspace-nav-group[open] > summary > small { color: var(--dash-gold-soft); border-color: rgba(229, 212, 174, .2); background: rgba(229, 212, 174, .07); }
+
+.workspace-nav-group > div {
+  display: grid;
+  gap: 3px;
+  padding: 3px 0 7px;
+}
+
+.workspace-nav a {
+  min-height: 38px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  padding: 0 10px 0 7px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+.workspace-link-icon {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, .55);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 8px;
+  font: 500 11px/1 Georgia, serif;
+  transition: color .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.workspace-nav a:hover .workspace-link-icon {
+  color: #fff;
+  border-color: rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .045);
+}
+
+.workspace-nav a.is-active .workspace-link-icon {
+  color: var(--dash-navy);
+  border-color: rgba(23, 40, 59, .14);
+  background: rgba(255, 255, 255, .34);
+}
+
+.workspace-footer {
+  padding-top: 12px;
+}
+
+/* Overview hero and toolbar */
+.vendor-app .dashboard-hero-refined,
+.account-app .dashboard-hero-refined {
+  min-height: 215px;
+  padding-top: 48px;
+  padding-bottom: 30px;
+}
+
+.vendor-app .dashboard-hero-refined h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(40px, 4.4vw, 58px);
+}
+
+.account-app .dashboard-hero-refined {
+  padding-top: 56px;
+  padding-bottom: 34px;
+}
+
+.account-app .dashboard-hero-refined h1 {
+  max-width: 840px;
+  margin: 9px 0 12px;
+  font-size: clamp(44px, 5.2vw, 68px);
+}
+
+.vendor-app .dashboard-hero-refined .lead,
+.account-app .dashboard-hero-refined .lead {
+  max-width: 650px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.dashboard-health-card {
+  min-height: 128px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vendor-app .dashboard-health-card p {
+  max-width: 280px;
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.dashboard-toolbar-refined {
+  min-height: 68px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  box-shadow: 0 8px 22px rgba(31, 42, 52, .045);
+}
+
+/* Compact quick actions */
+.workspace-quick-section.is-compact {
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-heading {
+  margin-bottom: 14px;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-heading h2 {
+  font-size: clamp(27px, 2.5vw, 36px);
+}
+
+.workspace-quick-section.is-compact .workspace-quick-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-card {
+  min-height: 148px;
+  padding: 17px;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(31, 42, 52, .035);
+}
+
+.workspace-quick-section.is-compact .workspace-quick-card::after {
+  right: -57px;
+  bottom: -70px;
+  opacity: .7;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-card > strong {
+  max-width: 78%;
+  margin-top: 18px;
+  font-size: 20px;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-card > small {
+  display: -webkit-box;
+  margin-top: 7px;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-card > b {
+  top: 34px;
+  font-size: 25px;
+}
+
+.workspace-quick-section.is-compact .workspace-quick-card > i {
+  padding-top: 12px;
+}
+
+/* KPI language: compact, scannable, no decorative bulk */
+.dashboard-kpis-refined {
+  gap: 9px;
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+.dashboard-kpis-refined > div {
+  min-height: 94px;
+  padding: 15px 16px;
+  border-radius: 15px;
+  box-shadow: 0 5px 18px rgba(31, 42, 52, .03);
+}
+
+.dashboard-kpis-refined > div::after {
+  width: 66px;
+  height: 66px;
+  opacity: .72;
+}
+
+.dashboard-kpis-refined > div > strong {
+  font-size: 28px;
+}
+
+.account-snapshot.dashboard-kpis-refined > div > span,
+.account-snapshot.dashboard-kpis-refined > div > strong {
+  display: block;
+}
+
+.account-snapshot.dashboard-kpis-refined > div > span {
+  color: var(--dash-muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.account-snapshot.dashboard-kpis-refined > div > strong {
+  margin-top: 12px;
+  color: var(--dash-navy);
+  font: 500 31px/1 Georgia, serif;
+}
+
+/* Section headers */
+.dashboard-section-heading {
+  align-items: end;
+}
+
+.dashboard-section-heading h2 {
+  margin-top: 5px;
+}
+
+.dashboard-section-heading .section-note,
+.account-section-intro.dashboard-section-heading p {
+  max-width: 320px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+/* Admin insight cards */
+.dashboard-insights-section {
+  padding-top: 16px;
+}
+
+.dashboard-insight-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, .7fr);
+  gap: 12px;
+}
+
+.dashboard-insight-card {
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid var(--dash-line);
+  border-radius: 18px;
+  background: rgba(255, 253, 249, .9);
+  box-shadow: 0 8px 26px rgba(31, 42, 52, .04);
+}
+
+.dashboard-insight-card h2 {
+  margin: 7px 0 20px;
+  color: var(--dash-navy);
+  font-size: 30px;
+}
+
+.dashboard-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-stat-grid > div {
+  min-width: 0;
+  padding: 13px 12px;
+  border: 1px solid #e7e0d5;
+  border-radius: 12px;
+  background: #f8f5ef;
+}
+
+.dashboard-stat-grid span,
+.dashboard-stat-grid strong {
+  display: block;
+}
+
+.dashboard-stat-grid span {
+  color: var(--dash-muted);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.dashboard-stat-grid strong {
+  margin-top: 9px;
+  overflow: hidden;
+  color: var(--dash-navy);
+  font: 500 22px/1.1 Georgia, serif;
+  text-overflow: ellipsis;
+}
+
+.dashboard-security-number {
+  margin-top: 4px;
+  color: var(--dash-navy);
+  font: 500 62px/1 Georgia, serif;
+}
+
+.dashboard-insight-card > p {
+  max-width: 320px;
+  margin: 16px 0 0;
+  color: var(--dash-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+/* Vendor operations */
+.vendor-app .vendor-section {
+  padding-top: 36px;
+  padding-bottom: 48px;
+}
+
+.vendor-order,
+.vendor-product {
+  border-radius: 17px;
+  box-shadow: 0 6px 20px rgba(31, 42, 52, .035);
+}
+
+.dashboard-finance-panel {
+  padding: 24px;
+}
+
+.dashboard-finance-panel h2 {
+  margin: 7px 0 5px;
+  font-size: 38px;
+}
+
+.dashboard-finance-panel p {
+  margin-bottom: 0;
+}
+
+/* Customer account */
+.account-app .account-toolbar,
+.account-app .account-section-nav,
+.account-app .account-snapshot,
+.account-app .workspace-quick-section,
+.account-app .account-section-intro,
+.account-app .account-live-grid,
+.account-app .account-action-error {
+  width: min(1140px, calc(100% - 44px));
+}
+
+.account-section-nav {
+  border-radius: 15px;
+  box-shadow: 0 8px 24px rgba(31, 42, 52, .055);
+}
+
+.account-section-nav-primary a,
+.account-section-nav-more > summary {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.account-live-grid {
+  gap: 12px;
+  padding-bottom: 70px;
+}
+
+.account-live-card {
+  padding: 20px;
+  border-radius: 18px;
+  box-shadow: 0 6px 22px rgba(31, 42, 52, .035);
+}
+
+.account-live-card.account-callout {
+  background: linear-gradient(135deg, rgba(255, 253, 249, .98), rgba(244, 234, 211, .72));
+  border-color: rgba(185, 148, 81, .42);
+}
+
+.account-card-head h2 {
+  margin-top: 5px;
+  font-size: 27px;
+}
+
+.account-muted {
+  max-width: 560px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.mini-list > div,
+.order-row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.preference-row {
+  padding-block: 13px;
+}
+
+.preference-row small {
+  max-width: 340px;
+  line-height: 1.4;
+}
+
+/* Focus remains explicit on custom disclosures. */
+.workspace-nav-group > summary:focus-visible,
+.account-section-nav-more > summary:focus-visible {
+  outline: 2px solid var(--dash-gold);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1220px) {
+  .workspace-quick-section.is-compact .workspace-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1020px) {
+  .workspace-header { padding: 12px 18px; }
+  .workspace-header.is-menu-open .workspace-nav { gap: 8px; }
+  .workspace-nav-group { min-width: 0; }
+  .workspace-nav-group > summary { background: rgba(255, 255, 255, .035); }
+  .workspace-nav-group > div { padding-bottom: 4px; }
+  .account-app .account-toolbar,
+  .account-app .account-section-nav,
+  .account-app .account-snapshot,
+  .account-app .workspace-quick-section,
+  .account-app .account-section-intro,
+  .account-app .account-live-grid,
+  .account-app .account-action-error { width: min(100% - 32px, 1140px); }
+}
+
+@media (max-width: 780px) {
+  .vendor-app .dashboard-hero-refined,
+  .account-app .dashboard-hero-refined { padding-top: 36px; padding-bottom: 25px; }
+  .dashboard-insight-grid { grid-template-columns: 1fr; }
+  .dashboard-health-card { min-height: 105px; }
+  .dashboard-section-heading { align-items: flex-start; }
+}
+
+@media (max-width: 560px) {
+  .workspace-quick-section.is-compact .workspace-quick-grid { grid-template-columns: 1fr; }
+  .workspace-quick-section.is-compact .workspace-quick-card { min-height: 132px; }
+  .dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-app .dashboard-hero-refined h1 { font-size: 43px; }
+  .account-live-card { padding: 17px; }
+  .account-card-head h2 { font-size: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-nav-group > summary::after,
+  .workspace-link-icon { transition: none; }
+}
