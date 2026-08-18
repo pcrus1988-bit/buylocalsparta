@@ -6,7 +6,7 @@ import { useState } from "react";
 
 const groups = [
   { label: "Operations", links: [["Overview", "/admin"], ["Orders", "/admin/orders"], ["Shipping", "/admin/shipping"], ["Jobs", "/admin/maintenance"], ["Activation", "/admin/activation"]] },
-  { label: "Commerce", links: [["Vendors", "/admin/vendors"], ["Matching", "/admin/matching"], ["Categories", "/admin/categories"], ["CMS", "/admin/content"]] },
+  { label: "Commerce", links: [["Research", "/admin/research-vendors"], ["Vendors", "/admin/vendors"], ["Matching", "/admin/matching"], ["Categories", "/admin/categories"], ["CMS", "/admin/content"]] },
   { label: "Trust", links: [["Trust", "/admin/trust"], ["Reviews", "/admin/reviews"], ["Recalls", "/admin/recalls"], ["Privacy", "/admin/privacy"]] },
   { label: "Intelligence", links: [["Finance", "/admin/finance"], ["Tax", "/admin/tax"], ["Fairness", "/admin/fairness"], ["Analytics", "/admin/analytics"], ["System", "/admin/operations"]] }
 ] as const;
