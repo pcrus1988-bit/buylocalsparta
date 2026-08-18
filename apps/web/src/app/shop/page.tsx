@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getCatalogCards } from "../../lib/catalog-view";
+import { getCatalogCards, getCatalogFacets } from "../../lib/catalog-view";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
 import { SaveSearchButton } from "../../components/SaveSearchButton";
@@ -24,12 +24,18 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
   const category = valueOf(params.category);
+  const subcategory = valueOf(params.subcategory);
+  const brand = valueOf(params.brand);
+  const color = valueOf(params.color);
+  const size = valueOf(params.size);
   const categoryView = storefrontCategoryBySlug(category);
   const visitorKey = await getVisitorKey();
-  let products = [...await getCatalogCards(visitorKey, "23100", query, category)];
+  const facets = await getCatalogFacets(category, query);
+  let products = [...await getCatalogCards(visitorKey, "23100", query, category, { subcategory, brand, color, size })];
   if (availability === "available") products = products.filter((product) => product.available);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
+  const hasDetailedFilters = Boolean(subcategory || brand || color || size);
 
   return (
     <main>
@@ -51,11 +57,45 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           <form className="filter-form" action="/shop">
             <label htmlFor="q">Αναζήτηση</label>
             <input id="q" name="q" defaultValue={valueOf(params.q)} placeholder={categoryView?.searchHint ?? "Τι ψάχνεις;"} />
-            <label htmlFor="category">Κατηγορία</label>
+
+            <label htmlFor="category">Τμήμα</label>
             <select id="category" name="category" defaultValue={category}>
-              <option value="">Όλες οι κατηγορίες</option>
+              <option value="">Όλα τα τμήματα</option>
               {STOREFRONT_CATEGORIES.map((item) => <option value={item.slug} key={item.slug}>{item.label}</option>)}
             </select>
+
+            {facets.subcategories.length > 0 ? <>
+              <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
+              <select id="subcategory" name="subcategory" defaultValue={subcategory}>
+                <option value="">Όλες οι υποκατηγορίες</option>
+                {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </> : null}
+
+            {facets.brands.length > 0 ? <>
+              <label htmlFor="brand">Μάρκα</label>
+              <select id="brand" name="brand" defaultValue={brand}>
+                <option value="">Όλες οι μάρκες</option>
+                {facets.brands.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </> : null}
+
+            {facets.colors.length > 0 ? <>
+              <label htmlFor="color">Χρώμα</label>
+              <select id="color" name="color" defaultValue={color}>
+                <option value="">Όλα τα χρώματα</option>
+                {facets.colors.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </> : null}
+
+            {facets.sizes.length > 0 ? <>
+              <label htmlFor="size">Μέγεθος</label>
+              <select id="size" name="size" defaultValue={size}>
+                <option value="">Όλα τα μεγέθη</option>
+                {facets.sizes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </> : null}
+
             <label htmlFor="availability">Διαθεσιμότητα</label>
             <select id="availability" name="availability" defaultValue={availability}>
               <option value="">Όλα</option>
@@ -68,14 +108,15 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               <option value="price-desc">Τιμή: υψηλά → χαμηλά</option>
             </select>
             <button className="button" type="submit">Εφαρμογή</button>
+            {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός φίλτρων</a> : null}
           </form>
           <div className="fairness-note"><strong>Fair Vendor Exposure</strong><p>Όταν το ίδιο προϊόν υπάρχει σε περισσότερα καταστήματα, εμφανίζεται μία φορά και το κατάστημα εκπλήρωσης επιλέγεται δίκαια στο παρασκήνιο.</p><a className="text-link" href="/fairness">Δες τους κανόνες →</a></div>
         </aside>
 
         <div className="catalog-results">
-          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
+          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {facets.subcategories.find((item) => item.value === subcategory)?.label}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
           {products.length === 0 ? (
-            <div className="empty-state"><div className="eyebrow">0 αποτελέσματα</div><h2>Δεν το βρήκαμε ακόμα.</h2><p>Δοκίμασε διαφορετική αναζήτηση ή χρησιμοποίησε το Ask Local για να ρωτήσουμε κατάλληλο κατάστημα ιδιωτικά.</p><a className="button" href="/ask-local">Ask Local</a></div>
+            <div className="empty-state"><div className="eyebrow">0 αποτελέσματα</div><h2>Δεν το βρήκαμε ακόμα.</h2><p>Δοκίμασε διαφορετικά φίλτρα ή χρησιμοποίησε το Ask Local για να ρωτήσουμε κατάλληλο κατάστημα ιδιωτικά.</p><a className="button" href="/ask-local">Ask Local</a></div>
           ) : (
             <div className="product-grid catalog-product-grid">
               {products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
