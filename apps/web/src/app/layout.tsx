@@ -7,6 +7,7 @@ import "./storefront-merchant-media.css";
 import "./dashboard-ux.css";
 import "./dashboard-premium.css";
 import "./site-polish.css";
+import "./workspace-polish.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 

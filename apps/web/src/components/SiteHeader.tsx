@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { PRIMARY_NAVIGATION } from "../lib/site-navigation";
+import { NON_INDEXABLE_PAGE_ROUTES, PRIMARY_NAVIGATION } from "../lib/site-navigation";
 import { useCart } from "./CartProvider";
+
+const PRIVATE_VENDOR_ROUTES = new Set(NON_INDEXABLE_PAGE_ROUTES.filter((route) => route.startsWith("/vendor/")) as ReadonlyArray<string>);
 
 function navigationActive(pathname: string, href: string): boolean {
   if (href === "/shop") return pathname === "/shop" || pathname.startsWith("/category/") || pathname.startsWith("/product/");
-  if (href === "/shops") return pathname === "/shops" || /^\/vendor\/[^/]+$/.test(pathname);
+  if (href === "/shops") return pathname === "/shops" || (/^\/vendor\/[^/]+$/.test(pathname) && !PRIVATE_VENDOR_ROUTES.has(pathname));
   return pathname === href;
 }
 

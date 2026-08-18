@@ -1,0 +1,20 @@
+.workspace-footer-stacked { align-items: stretch; flex-direction: column; }
+.workspace-footer-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.workspace-footer-actions .workspace-footer-action { width: 100%; justify-content: center; white-space: nowrap; }
+.workspace-public-link { text-decoration: none; }
+
+.login-copy .lead.compact { max-width: 590px; line-height: 1.72; }
+.login-panel { border-radius: 22px; }
+.login-panel > h2 { margin-bottom: 20px; }
+
+@media (max-width: 1020px) {
+  .workspace-footer-stacked { flex-direction: row; align-items: center; }
+  .workspace-footer-actions { display: flex; }
+  .workspace-footer-actions .workspace-footer-action { width: auto; }
+}
+
+@media (max-width: 620px) {
+  .workspace-footer-stacked { align-items: stretch; flex-direction: column; }
+  .workspace-footer-actions { display: grid; }
+  .workspace-footer-actions .workspace-footer-action { width: 100%; }
+}
