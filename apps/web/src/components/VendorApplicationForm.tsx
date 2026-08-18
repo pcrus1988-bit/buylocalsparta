@@ -113,11 +113,12 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
 
     <div className="eyebrow">4 · Συνεργασία</div>
     <label htmlFor="vendor-plan">Ενδιαφέρον προγράμματος *</label>
-    <select id="vendor-plan" name="requestedPlanCode" required defaultValue="founding_2026">
-      <option value="founding_2026">Founding / Early Bird — 36 μήνες · €1.500 + ΦΠΑ · μετά από έγκριση</option>
-      <option value="free_listing">Free Listing — προφίλ/συμβουλή, χωρίς checkout</option>
+    <select id="vendor-plan" name="requestedPlanCode" required defaultValue="annual">
+      <option value="founding_2026">Founding Partner — €1.500 εφάπαξ · €0 συνδρομή · 2% προμήθεια</option>
+      <option value="annual">Annual — €299 εφάπαξ · €399/έτος · 5% προμήθεια</option>
+      <option value="monthly">Monthly — €499 εφάπαξ · €49/μήνα · 7% προμήθεια</option>
     </select>
-    <small>Η επιλογή είναι δήλωση ενδιαφέροντος. Δεν δημιουργεί χρέωση ή σύμβαση. Οι τελικοί όροι επιβεβαιώνονται πριν από την ενεργοποίηση.</small>
+    <small>Η επιλογή είναι δήλωση ενδιαφέροντος. Δεν δημιουργεί χρέωση ή σύμβαση. Οι τελικοί όροι επιβεβαιώνονται πριν από την ενεργοποίηση. Οι τιμές είναι προ ΦΠΑ όπου εφαρμόζεται.</small>
 
     <label htmlFor="vendor-story">Πες μας για το κατάστημα</label>
     <textarea id="vendor-story" name="shopStory" rows={6} maxLength={1500} placeholder="Τι πουλάτε, τι σας ξεχωρίζει, σε τι είδους συμβουλή μπορείτε να βοηθήσετε τον πελάτη, πώς διαχειρίζεστε σήμερα προϊόντα και stock;" />
