@@ -44,11 +44,18 @@ for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-con
   if (!account.includes(`href: "${destination}"`) && !account.includes(`href="${destination}"`)) failures.push(`Account dashboard is missing task path ${destination}`);
 }
 if (!account.includes("account-snapshot")) failures.push("Account dashboard is missing an at-a-glance status summary");
-if (!account.includes("account-section-nav")) failures.push("Account dashboard is missing direct section navigation");
-for (const sectionId of ["overview", "orders", "saved", "notifications", "privacy", "recent"]) {
+if (!account.includes("AccountSectionNavigation")) failures.push("Account dashboard must use the comprehensive shared section navigation");
+for (const sectionId of ["overview", "ask-local", "orders", "saved", "notifications", "searches", "recommendations", "privacy", "recent"]) {
   if (!account.includes(`id="${sectionId}"`)) failures.push(`Account dashboard is missing the ${sectionId} task anchor`);
 }
 if (!account.includes('role="alert"')) failures.push("Account dashboard mutations need recoverable error feedback");
+
+const accountNav = read("apps/web/src/components/AccountSectionNavigation.tsx");
+if (!accountNav.includes("account-section-nav")) failures.push("Customer account section navigation is missing its sticky navigation shell");
+for (const sectionId of ["overview", "ask-local", "orders", "saved", "notifications", "searches", "recommendations", "privacy", "recent"]) {
+  if (!accountNav.includes(`href: "#${sectionId}"`)) failures.push(`Customer account navigation does not expose the real #${sectionId} section`);
+}
+if (!accountNav.includes("<details") || !accountNav.includes("<summary>Περισσότερα</summary>")) failures.push("Customer account must keep secondary capabilities discoverable without overcrowding the primary navigation");
 
 const vendor = read("apps/web/src/components/VendorDashboardClient.tsx");
 for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/returns", "/vendor/trust", "/vendor/advice", "/vendor/finance"]) {
@@ -68,10 +75,14 @@ const premiumCss = read("apps/web/src/app/dashboard-premium.css");
 for (const requirement of ["--dash-navy", "--dash-gold", "padding-left: 282px", ".workspace-menu-toggle", ".workspace-header.is-menu-open", ".account-section-nav", ":focus-visible", "@media (max-width: 1020px)"]) {
   if (!premiumCss.includes(requirement)) failures.push(`Premium dashboard design system is missing ${requirement}`);
 }
+const polishCss = read("apps/web/src/app/workspace-polish.css");
+for (const requirement of [".account-section-nav-content", ".account-section-nav-more", ".account-section-nav-primary"]) {
+  if (!polishCss.includes(requirement)) failures.push(`Workspace polish is missing comprehensive customer navigation style ${requirement}`);
+}
 if (!read("apps/web/src/app/layout.tsx").includes('import "./workspace-polish.css"')) failures.push("Workspace polish stylesheet is not loaded after the shared dashboard styles");
 
 if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical workspace destinations, shared logout, responsive navigation and task paths verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical workspace destinations, comprehensive customer sections, shared logout, responsive navigation and task paths verified.`);
