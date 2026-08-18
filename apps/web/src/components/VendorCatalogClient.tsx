@@ -1,14 +1,125 @@
 "use client";
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
-type Workspace = { csrfToken:string; vendorId:string; csvTemplate:string; submissions:ReadonlyArray<{id:string;vendorSku?:string;title:string;categoryCode:string;status:string;canonicalVariantId?:string;supplierPrice:string;stockOnHand:number;fulfilmentModes:readonly string[];adviceAvailable:boolean;rejectionReason?:string;updatedAt:number;candidates:ReadonlyArray<{id:string;canonicalVariantId:string;canonicalTitle:string;level:string;confidence:number;status:string}>}> };
-const when=(n:number)=>new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short"}).format(new Date(n));
-export function VendorCatalogClient({initial}:{initial:Workspace}){const router=useRouter();const[busy,setBusy]=useState("");const[error,setError]=useState("");const[preview,setPreview]=useState<{totalRows:number;rows:readonly unknown[];errors:readonly {rowNumber:number;field?:string;message:string}[]}|null>(null);const[csv,setCsv]=useState(`${initial.csvTemplate}\nSKU-001,technology,Demo product,Demo Brand,Model X,,1000,5,1,pickup,true,colour=black`);
-async function call(key:string,url:string,body:unknown){setBusy(key);setError("");try{const r=await fetch(url,{method:"POST",headers:{"content-type":"application/json","x-csrf-token":initial.csrfToken},body:JSON.stringify(body)});const p=await r.json();if(!r.ok)throw new Error(p.error??"Η ενέργεια απέτυχε");if(p.preview)setPreview(p.preview);router.refresh();return p}catch(e){setError(e instanceof Error?e.message:"Η ενέργεια απέτυχε")}finally{setBusy("")}}
-return <>
-{error&&<div className="shell form-error vendor-error" role="alert">{error}</div>}
-<section className="shell vendor-section"><div className="section-heading"><div><div className="eyebrow">Manual source product</div><h2>Νέο προϊόν</h2></div><p className="section-note">Η δημιουργία είναι draft. Η υποβολή ενεργοποιεί matching· δεν δημοσιεύει αυτόματα νέο canonical product.</p></div><form className="vendor-inline-form" onSubmit={(e)=>{e.preventDefault();const f=new FormData(e.currentTarget);void call("create","/api/vendor/catalog/products",{title:f.get("title"),categoryCode:f.get("category"),vendorSku:f.get("sku"),brand:f.get("brand"),supplierUnitPriceMinor:Number(f.get("price")),stockOnHand:Number(f.get("stock")),safetyStock:Number(f.get("safety"))})}}><input name="title" required placeholder="Τίτλος προϊόντος"/><input name="category" required placeholder="category code"/><input name="sku" placeholder="SKU"/><input name="brand" placeholder="Brand"/><input name="price" required type="number" min="0" step="1" placeholder="Supplier € cents"/><input name="stock" required type="number" min="0" step="1" placeholder="Stock"/><input name="safety" type="number" min="0" step="1" defaultValue="0" placeholder="Safety"/><button className="button" disabled={busy==="create"}>Αποθήκευση draft</button></form></section>
-<section className="vendor-section section-tint"><div className="shell"><div className="section-heading"><div><div className="eyebrow">CSV import</div><h2>Dry-run → Confirm</h2></div></div><textarea className="vendor-csv" value={csv} onChange={(e)=>setCsv(e.target.value)} aria-label="CSV import"/><div className="vendor-toolbar-actions"><button className="button button-secondary" onClick={()=>void call("preview","/api/vendor/catalog/import",{csv,confirm:false})} disabled={!!busy}>Dry-run</button><button className="button" onClick={()=>void call("commit","/api/vendor/catalog/import",{csv,confirm:true})} disabled={!!busy||Boolean(preview?.errors.length)}>Confirm import</button></div>{preview&&<div className="vendor-preview"><strong>{preview.totalRows} rows · {preview.errors.length} errors</strong>{preview.errors.map((e,i)=><span key={i}>Row {e.rowNumber}{e.field?` · ${e.field}`:""}: {e.message}</span>)}</div>}</div></section>
-<section className="shell vendor-section"><div className="section-heading"><div><div className="eyebrow">Product Matching Centre handoff</div><h2>Source products</h2></div></div><div className="vendor-order-list">{initial.submissions.map((item)=><article className="vendor-order" key={item.id}><div className="vendor-order-head"><div><strong>{item.title}</strong><small>{item.vendorSku??item.id} · {item.categoryCode} · {when(item.updatedAt)}</small></div><span className="status-pill">{item.status}</span></div><div className="vendor-order-lines"><span>Supplier price {item.supplierPrice} · stock {item.stockOnHand}</span>{item.canonicalVariantId&&<span>Linked canonical: <strong>{item.canonicalVariantId}</strong></span>}{item.candidates.map(c=><span key={c.id}>Candidate: {c.canonicalTitle} · {c.level} · {(c.confidence*100).toFixed(0)}% · {c.status}</span>)}{item.rejectionReason&&<span>Reason: {item.rejectionReason}</span>}</div><div className="vendor-order-foot"><span>Final match/offer approval is platform-controlled.</span>{["draft","needs_review","linked","rejected"].includes(item.status)&&<button className="button" disabled={!!busy} onClick={()=>void call(`submit:${item.id}`,`/api/vendor/catalog/products/${item.id}/submit`,{})}>Υποβολή</button>}</div></article>)}{!initial.submissions.length&&<div className="account-empty">Δεν υπάρχουν source products.</div>}</div></section>
-</>}
+type Workspace = {
+  csrfToken: string;
+  vendorId: string;
+  csvTemplate: string;
+  submissions: ReadonlyArray<{
+    id: string;
+    vendorSku?: string;
+    title: string;
+    categoryCode: string;
+    status: string;
+    canonicalVariantId?: string;
+    supplierPrice: string;
+    stockOnHand: number;
+    fulfilmentModes: readonly string[];
+    adviceAvailable: boolean;
+    rejectionReason?: string;
+    updatedAt: number;
+    candidates: ReadonlyArray<{ id: string; canonicalVariantId: string; canonicalTitle: string; level: string; confidence: number; status: string }>;
+  }>;
+};
+
+type Preview = { totalRows: number; rows: readonly unknown[]; errors: readonly { rowNumber: number; field?: string; message: string }[] };
+
+const when = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+export function VendorCatalogClient({ initial }: { initial: Workspace }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [csv, setCsv] = useState(initial.csvTemplate);
+
+  const awaitingReview = initial.submissions.filter((item) => ["submitted", "needs_review"].includes(item.status)).length;
+  const linked = initial.submissions.filter((item) => Boolean(item.canonicalVariantId)).length;
+  const rejected = initial.submissions.filter((item) => item.status === "rejected").length;
+
+  async function call(key: string, url: string, body: unknown) {
+    setBusy(key);
+    setError("");
+    try {
+      const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken }, body: JSON.stringify(body) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Η ενέργεια απέτυχε");
+      if (payload.preview) setPreview(payload.preview as Preview);
+      router.refresh();
+      return payload;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Η ενέργεια απέτυχε");
+    } finally { setBusy(""); }
+  }
+
+  const canConfirmImport = Boolean(preview && preview.totalRows > 0 && preview.errors.length === 0);
+
+  return <>
+    {error && <div className="shell form-error vendor-error" role="alert">{error}</div>}
+
+    <WorkspaceMetricStrip items={[
+      { label: "Source products", value: initial.submissions.length },
+      { label: "Needs review", value: awaitingReview, tone: awaitingReview ? "attention" : "default" },
+      { label: "Linked", value: linked, tone: linked ? "positive" : "default" },
+      { label: "Rejected", value: rejected, tone: rejected ? "attention" : "default" }
+    ]} />
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Add products" title="Νέο προϊόν" note="Manual entry για μεμονωμένα προϊόντα. Η αποθήκευση δημιουργεί draft και όχι δημόσιο listing." />
+      <details className="workspace-tool-panel" open>
+        <summary><span><strong>Χειροκίνητη καταχώρηση</strong><small>Γρήγορη δημιουργία ενός source product.</small></span></summary>
+        <div className="workspace-tool-body">
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void call("create", "/api/vendor/catalog/products", {
+              title: form.get("title"), categoryCode: form.get("category"), vendorSku: form.get("sku"), brand: form.get("brand"),
+              supplierUnitPriceMinor: Number(form.get("price")), stockOnHand: Number(form.get("stock")), safetyStock: Number(form.get("safety"))
+            });
+          }}>
+            <div className="workspace-form-grid">
+              <div className="workspace-form-field span-2"><label htmlFor="catalog-title">Τίτλος προϊόντος</label><input id="catalog-title" name="title" required /></div>
+              <div className="workspace-form-field"><label htmlFor="catalog-category">Category code</label><input id="catalog-category" name="category" required /></div>
+              <div className="workspace-form-field"><label htmlFor="catalog-sku">SKU</label><input id="catalog-sku" name="sku" /></div>
+              <div className="workspace-form-field"><label htmlFor="catalog-brand">Brand</label><input id="catalog-brand" name="brand" /></div>
+              <div className="workspace-form-field"><label htmlFor="catalog-price">Supplier price · cents</label><input id="catalog-price" name="price" required type="number" min="0" step="1" /></div>
+              <div className="workspace-form-field"><label htmlFor="catalog-stock">Stock</label><input id="catalog-stock" name="stock" required type="number" min="0" step="1" /></div>
+              <div className="workspace-form-field"><label htmlFor="catalog-safety">Safety stock</label><input id="catalog-safety" name="safety" type="number" min="0" step="1" defaultValue="0" /></div>
+            </div>
+            <div className="workspace-form-actions"><button className="button" disabled={busy === "create"}>{busy === "create" ? "Αποθήκευση…" : "Αποθήκευση draft"}</button></div>
+          </form>
+        </div>
+      </details>
+
+      <details className="workspace-tool-panel">
+        <summary><span><strong>Μαζική εισαγωγή CSV</strong><small>Advanced εργαλείο · πρώτα dry-run, μετά confirm.</small></span></summary>
+        <div className="workspace-tool-body">
+          <div className="workspace-inline-note">Το CSV ξεκινά μόνο με το ασφαλές template. Δεν προστίθεται demo product και κάθε αλλαγή ακυρώνει το προηγούμενο preview.</div>
+          <div className="workspace-form-field" style={{ marginTop: 12 }}><label htmlFor="catalog-csv">CSV data</label><textarea id="catalog-csv" className="vendor-csv" value={csv} onChange={(event) => { setCsv(event.target.value); setPreview(null); }} /></div>
+          <div className="workspace-form-actions"><button type="button" className="button button-secondary" onClick={() => void call("preview", "/api/vendor/catalog/import", { csv, confirm: false })} disabled={Boolean(busy)}>Dry-run</button><button type="button" className="button" onClick={() => void call("commit", "/api/vendor/catalog/import", { csv, confirm: true })} disabled={Boolean(busy) || !canConfirmImport}>Confirm import</button></div>
+          {preview && <div className="vendor-preview"><strong>{preview.totalRows} rows · {preview.errors.length} errors</strong>{preview.errors.map((item, index) => <span key={`${item.rowNumber}:${item.field ?? index}`}>Row {item.rowNumber}{item.field ? ` · ${item.field}` : ""}: {item.message}</span>)}{preview.errors.length === 0 && preview.totalRows > 0 && <span>Το preview είναι καθαρό. Μπορείς να επιβεβαιώσεις την εισαγωγή.</span>}</div>}
+        </div>
+      </details>
+    </section>
+
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Product Matching Centre" title="Source products" note="Canonical evidence και IDs εμφανίζονται μόνο όταν τα χρειάζεσαι." />
+      {initial.submissions.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν source products." body="Δημιούργησε ένα προϊόν ή χρησιμοποίησε το CSV εργαλείο για μαζική εισαγωγή." /> : <div className="workspace-queue-list">{initial.submissions.map((item) => <article className="workspace-queue-card" key={item.id}>
+        <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>{item.vendorSku ?? "Χωρίς SKU"} · {item.categoryCode} · {when(item.updatedAt)}</small></div><span className="status-pill">{item.status}</span></div>
+        <div className="workspace-queue-primary"><span>{item.supplierPrice}</span><span>Stock {item.stockOnHand}</span><span>{item.canonicalVariantId ? "Linked" : `${item.candidates.length} candidates`}</span></div>
+        {item.rejectionReason && <p className="workspace-queue-summary">{item.rejectionReason}</p>}
+        <WorkspaceRecordDetails label="Matching evidence & technical details" open={item.status === "rejected"}>
+          <div className="workspace-compact-list">
+            <div className="workspace-compact-row"><strong>Source product</strong><span>{item.id}</span></div>
+            {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span>{item.canonicalVariantId}</span></div>}
+            {item.candidates.map((candidate) => <div className="workspace-compact-row" key={candidate.id}><strong>{candidate.canonicalTitle}</strong><span>{candidate.level} · {(candidate.confidence * 100).toFixed(0)}%</span><small>{candidate.status} · {candidate.canonicalVariantId}</small></div>)}
+          </div>
+        </WorkspaceRecordDetails>
+        <div className="workspace-action-bar"><span>Platform-controlled match & offer approval.</span><div className="workspace-action-buttons">{["draft", "needs_review", "linked", "rejected"].includes(item.status) && <button className="button" disabled={Boolean(busy)} onClick={() => void call(`submit:${item.id}`, `/api/vendor/catalog/products/${item.id}/submit`, {})}>{busy === `submit:${item.id}` ? "Υποβολή…" : "Υποβολή"}</button>}</div></div>
+      </article>)}</div>}
+    </div></section>
+  </>;
+}
