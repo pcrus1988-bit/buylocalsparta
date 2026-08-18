@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 39;
+export const EXPECTED_SCHEMA_VERSION = 44;
 
 export type PostgresRuntimeConfig = Readonly<{
   connectionString: string;
@@ -115,7 +115,7 @@ export class ProductionPostgresRuntime {
     this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
     this.search = config.search ? new PostgresProductionSearchService(this.sqlPool, config.search) : undefined;
     this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
-    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
+    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow), this.persistence.shipping) : undefined;
     this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool);
   }
 
@@ -176,7 +176,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
   if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL runtime");
   return {
     connectionString,
-    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
+    applicationName,
     maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
     connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
     idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
@@ -203,7 +203,7 @@ function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
   const baseUrl=env.BOXNOW_API_URL?.trim(); const clientId=env.BOXNOW_CLIENT_ID?.trim(); const clientSecret=env.BOXNOW_CLIENT_SECRET?.trim();
   if(!baseUrl||!clientId||!clientSecret) throw new Error("BOXNOW_API_URL, BOXNOW_CLIENT_ID and BOXNOW_CLIENT_SECRET are required when BLS_BOXNOW_ENABLED=true");
   const webhookSecret=env.BOXNOW_WEBHOOK_SECRET?.trim(); if(!webhookSecret || webhookSecret.length<16) throw new Error("BOXNOW_WEBHOOK_SECRET must be configured when BLS_BOXNOW_ENABLED=true");
-  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BOXNOW_REQUEST_TIMEOUT_MS") };
+  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BLS_BOXNOW_REQUEST_TIMEOUT_MS") };
 }
 
 function vivaConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): VivaConfig {
