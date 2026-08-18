@@ -76,6 +76,9 @@ export async function POST(request: Request) {
     if (code === "EXISTING_ACCOUNT_LOGIN_REQUIRED") {
       return Response.json({ code: "login_required", error: "Υπάρχει ήδη λογαριασμός με αυτό το email. Συνδέσου πρώτα ώστε η αίτηση να συνδεθεί με τον σωστό ιδιοκτήτη." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
+    if (code === "BUSINESS_ALREADY_REGISTERED") {
+      return Response.json({ code: "business_already_registered", error: "Υπάρχει ήδη αίτηση ή ενεργή συνεργασία για αυτή την επιχείρηση. Επικοινώνησε με την ομάδα Buy Local Sparta για να συνεχίσουμε με ασφάλεια από την υπάρχουσα εγγραφή." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
     if (code === "APPLICATION_EXISTS") {
       return Response.json({ code: "application_exists", error: "Υπάρχει ήδη αίτηση εμπόρου για αυτόν τον ιδιοκτήτη. Η ομάδα μας θα συνεχίσει από την υπάρχουσα αίτηση." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
