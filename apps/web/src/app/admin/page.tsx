@@ -4,5 +4,77 @@ import { AdminWorkspaceHeader } from "../../components/AdminWorkspaceHeader";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
 import { adminDashboard } from "../../lib/admin-runtime";
 import { getAdminSession } from "../../lib/admin-session";
+
 export const metadata: Metadata = { title: "Admin Command Centre", robots: { index: false, follow: false } };
-export default async function AdminPage(){const p=await getAdminSession();if(!p)redirect("/admin/login");const d=await adminDashboard(p);const metrics=[['Vendor verification',d.metrics.vendorVerificationQueue],['Catalog review',d.metrics.catalogReviewQueue],['Pending media',d.metrics.pendingMedia],['Compliance',d.metrics.pendingCompliance],['Payables',d.metrics.payableProcurements],['Fairness appeals',d.metrics.fairnessAppeals],['Orders',d.metrics.orders],['Applications',d.metrics.vendorApplications]];return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={d.csrfToken}/><section className="shell vendor-hero"><div><div className="eyebrow">Platform operations · least privilege</div><h1>Command Centre</h1><p className="lead">One operational view across marketplace governance. Platform actions remain auditable and do not expose merchant approval controls to Vendor users.</p></div><aside className={d.health.ok?'':'needs-attention'}><span>Readiness</span><strong>{d.health.state}</strong><p>{d.health.ok?'Critical dependencies report ready.':'A critical dependency needs attention.'}</p></aside></section><section className="shell"><div className="vendor-kpis admin-kpis">{metrics.map(([l,v])=><div className={Number(v)>0?'has-work':undefined} key={String(l)}><span>{l}</span><strong>{v}</strong></div>)}</div></section><WorkspaceQuickLinks eyebrow="Priority queues" title="Move from signal to governed action." links={[{kicker:"Acquisition",label:"Research vendors",description:"Review mapped Sparta businesses before owner claim, application and activation.",href:"/admin/research-vendors"},{kicker:"Onboarding",label:"Vendor applications",description:"Verify businesses and advance only eligible activation stages.",href:"/admin/vendors",value:d.metrics.vendorVerificationQueue},{kicker:"Catalog",label:"Product matching",description:"Resolve canonical candidates and approve governed public offers.",href:"/admin/matching",value:d.metrics.catalogReviewQueue},{kicker:"Trust",label:"Media & compliance",description:"Review scan, rights, moderation and product evidence queues.",href:"/admin/trust",value:d.metrics.pendingMedia+d.metrics.pendingCompliance},{kicker:"Commerce",label:"Orders & returns",description:"Inspect order state, cancellations, returns and refund approvals.",href:"/admin/orders",value:d.metrics.orders},{kicker:"Finance",label:"Payables & settlement",description:"Use maker/checker controls for invoices, settlements and payouts.",href:"/admin/finance",value:d.metrics.payableProcurements},{kicker:"Governance",label:"Fairness appeals",description:"Review assignment evidence and resolve appeals without exposing bids.",href:"/admin/fairness",value:d.metrics.fairnessAppeals}]} /><section className="shell"><div className="vendor-two-col admin-summary"><article className="vendor-card-form"><div className="eyebrow">Market intelligence · 30d</div><h2>Demand & commerce</h2><p>Searches: <b>{d.analytics.searches}</b> · Success: <b>{Math.round(d.analytics.searchSuccessRate*100)}%</b> · Unique CTR: <b>{Math.round(d.analytics.uniqueSearchCtr*100)}%</b></p><p>Orders: <b>{d.analytics.orders}</b> · GMV: <b>{d.analytics.grossMerchandiseValue}</b> · AOV: <b>{d.analytics.averageOrderValue}</b></p></article><article className="vendor-card-form"><div className="eyebrow">Security · last 24h</div><h2>Privacy-minimised events</h2><p>Total events: <b>{d.security.total}</b></p><p>Raw passwords, cookies, tokens, emails and phone numbers are not accepted into the security-event detail sink.</p></article></div></section></main>}
+
+export default async function AdminPage() {
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  const dashboard = await adminDashboard(principal);
+  const metrics = [
+    ["Vendor checks", dashboard.metrics.vendorVerificationQueue],
+    ["Catalog review", dashboard.metrics.catalogReviewQueue],
+    ["Trust queue", dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance],
+    ["Payables", dashboard.metrics.payableProcurements],
+    ["Fairness", dashboard.metrics.fairnessAppeals],
+    ["Orders", dashboard.metrics.orders]
+  ] as const;
+
+  return <main className="vendor-app admin-app">
+    <AdminWorkspaceHeader csrfToken={dashboard.csrfToken} />
+
+    <section className="shell vendor-hero dashboard-hero-refined">
+      <div>
+        <div className="eyebrow">Admin · Platform operations</div>
+        <h1>Κέντρο λειτουργίας</h1>
+        <p className="lead">Οι ουρές που χρειάζονται απόφαση, σε μία καθαρή εικόνα.</p>
+      </div>
+      <aside className={dashboard.health.ok ? "dashboard-health-card" : "dashboard-health-card needs-attention"}>
+        <span>Readiness</span>
+        <strong>{dashboard.health.state}</strong>
+        <p>{dashboard.health.ok ? "Οι κρίσιμες εξαρτήσεις είναι έτοιμες." : "Απαιτείται έλεγχος υποδομής."}</p>
+      </aside>
+    </section>
+
+    <section className="shell">
+      <div className="vendor-kpis admin-kpis dashboard-kpis-refined">
+        {metrics.map(([label, value]) => <div className={Number(value) > 0 ? "has-work" : undefined} key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </div>
+    </section>
+
+    <WorkspaceQuickLinks
+      density="compact"
+      eyebrow="Κύριες ουρές"
+      title="Εκεί που χρειάζεται απόφαση τώρα."
+      links={[
+        { kicker: "Acquisition", label: "Έρευνα vendors", description: "Υποψήφιοι πριν το onboarding.", href: "/admin/research-vendors" },
+        { kicker: "Onboarding", label: "Συνεργάτες", description: "Έλεγχος και ενεργοποίηση.", href: "/admin/vendors", value: dashboard.metrics.vendorVerificationQueue },
+        { kicker: "Catalog", label: "Matching", description: "Canonical έλεγχος προϊόντων.", href: "/admin/matching", value: dashboard.metrics.catalogReviewQueue },
+        { kicker: "Commerce", label: "Παραγγελίες", description: "Exceptions, returns και refunds.", href: "/admin/orders", value: dashboard.metrics.orders },
+        { kicker: "Trust", label: "Συμμόρφωση", description: "Media και τεκμήρια ασφάλειας.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance },
+        { kicker: "Finance", label: "Οικονομικά", description: "Payables και settlements.", href: "/admin/finance", value: dashboard.metrics.payableProcurements }
+      ]}
+    />
+
+    <section className="shell vendor-section dashboard-insights-section">
+      <div className="dashboard-insight-grid">
+        <article className="dashboard-insight-card">
+          <div className="eyebrow">Marketplace · 30 ημέρες</div>
+          <h2>Εμπορική εικόνα</h2>
+          <div className="dashboard-stat-grid">
+            <div><span>Searches</span><strong>{dashboard.analytics.searches}</strong></div>
+            <div><span>Success</span><strong>{Math.round(dashboard.analytics.searchSuccessRate * 100)}%</strong></div>
+            <div><span>Orders</span><strong>{dashboard.analytics.orders}</strong></div>
+            <div><span>GMV</span><strong>{dashboard.analytics.grossMerchandiseValue}</strong></div>
+          </div>
+        </article>
+        <article className="dashboard-insight-card">
+          <div className="eyebrow">Security · 24 ώρες</div>
+          <h2>Σήματα ασφάλειας</h2>
+          <div className="dashboard-security-number">{dashboard.security.total}</div>
+          <p>Privacy-minimised events · χωρίς raw credentials ή στοιχεία επικοινωνίας.</p>
+        </article>
+      </div>
+    </section>
+  </main>;
+}
