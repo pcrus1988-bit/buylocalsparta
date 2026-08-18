@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
+import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchVendorDossier, type ResearchSourceRecord } from "../../../../lib/research-vendors-runtime";
 
@@ -32,25 +33,32 @@ function renderTextValue(value: unknown) {
   if (typeof value === "number") return <span>{value.toLocaleString("el-GR")}</span>;
   if (typeof value !== "string") return <span>{JSON.stringify(value)}</span>;
 
-  const urls = value.split(";").map((part) => safeHttpUrl(part.trim())).filter((url): url is string => Boolean(url));
-  if (urls.length > 0 && urls.length === value.split(";").length) {
+  const parts = value.split(";");
+  const urls = parts.map((part) => safeHttpUrl(part.trim())).filter((url): url is string => Boolean(url));
+  if (urls.length > 0 && urls.length === parts.length) {
     return <span>{urls.map((url, index) => <span key={url}>{index > 0 ? " · " : null}<a className="text-link" href={url} target="_blank" rel="noreferrer">Open source ↗</a></span>)}</span>;
   }
   return <span>{value}</span>;
 }
 
+function DetailRow({ label, children, hint }: Readonly<{ label: string; children: React.ReactNode; hint?: string }>) {
+  return <div className="workspace-compact-row"><strong>{label}</strong><span>{children}</span>{hint && <small>{hint}</small>}</div>;
+}
+
 function SourceCard({ source }: { source: ResearchSourceRecord }) {
   const entries = Object.entries(source.payload);
-  return <article className="vendor-order">
-    <div className="vendor-order-head">
-      <div><strong>{sourceLabels[source.sourceType] ?? source.sourceType}</strong><small>{source.title} · {source.sourceKey}</small></div>
-      <span className="status-pill">{source.checkedAt ?? "undated"}</span>
+  return <details className="workspace-tool-panel">
+    <summary><span><strong>{sourceLabels[source.sourceType] ?? source.sourceType}</strong><small>{source.title} · {source.checkedAt ?? "undated"}</small></span></summary>
+    <div className="workspace-tool-body">
+      <div className="workspace-queue-primary"><span>{source.linkRole}</span><span>{entries.length} stored fields</span></div>
+      <WorkspaceRecordDetails label="Source key & raw workbook fields">
+        <div className="workspace-compact-list">
+          <DetailRow label="Source key">{source.sourceKey}</DetailRow>
+          {entries.length === 0 ? <DetailRow label="Payload">No payload fields stored.</DetailRow> : entries.map(([key, value]) => <DetailRow label={key} key={key}>{renderTextValue(value)}</DetailRow>)}
+        </div>
+      </WorkspaceRecordDetails>
     </div>
-    <div className="vendor-order-lines">
-      <span>Link role: {source.linkRole}</span>
-      {entries.length === 0 ? <span>No payload fields stored.</span> : entries.map(([key, value]) => <span key={key}><strong>{key}:</strong> {renderTextValue(value)}</span>)}
-    </div>
-  </article>;
+  </details>;
 }
 
 export default async function ResearchVendorDossierPage({ params }: Props) {
@@ -63,13 +71,8 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
   if (!data.databaseConfigured || !data.vendor) {
     return <main className="vendor-app admin-app">
       <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-      <section className="shell vendor-section">
-        <article className="vendor-card-form needs-attention">
-          <div className="eyebrow">Research dossier unavailable</div>
-          <h1>Production database is not configured.</h1>
-          <Link className="text-link" href="/admin/research-vendors">← Back to research vendors</Link>
-        </article>
-      </section>
+      <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Research dossier unavailable</div><h1>Vendor dossier</h1><p className="lead">The production database is not configured, so no fallback dossier is generated.</p></div></section>
+      <section className="shell vendor-section"><WorkspaceEmptyState title="Production research data is unavailable." body="Research records remain database-backed and are never replaced with demo vendor data." action={<Link className="button button-secondary" href="/admin/research-vendors">← Research vendors</Link>} /></section>
     </main>;
   }
 
@@ -77,150 +80,122 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
   const onlineShopUrl = safeHttpUrl(vendor.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.directoryProfile);
   const profileEntries = Object.entries(vendor.profilePayload);
+  const location = [vendor.address, vendor.locality, vendor.postcode].filter(Boolean).join(" · ") || "—";
+  const commerceSignals = [vendor.recommendedCommerceMode, vendor.onlineShopActive, vendor.storefrontStatus].filter(Boolean);
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
 
-    <section className="shell vendor-hero vendor-hero-compact">
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Invited vendor dossier · workbook-backed acquisition intelligence</div>
+        <div className="eyebrow">Invited vendor dossier · acquisition research</div>
         <h1>{vendor.tradingName}</h1>
-        <p className="lead">{vendor.legalName}{vendor.primaryCensusId === undefined ? "" : ` · Census #${vendor.primaryCensusId}`}. This page shows the complete stored research record while keeping research clearly separate from merchant-verified onboarding data.</p>
+        <p className="lead">{vendor.legalName}{vendor.majorBranch ? ` · ${vendor.majorBranch}` : ""}{vendor.subBranch ? ` / ${vendor.subBranch}` : ""}</p>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/admin/research-vendors">← All research vendors</Link>
-          <Link className="button" href="/admin/vendors">Formal application workflow</Link>
-          {onlineShopUrl ? <a className="text-link" href={onlineShopUrl} target="_blank" rel="noreferrer">Open online shop ↗</a> : null}
+          <Link className="button button-secondary" href="/admin/research-vendors">← Research queue</Link>
+          <Link className="button" href="/admin/vendors">Application workflow</Link>
+          {onlineShopUrl && <a className="text-link" href={onlineShopUrl} target="_blank" rel="noreferrer">Online shop ↗</a>}
         </div>
       </div>
       <aside>
-        <span>Status</span>
+        <span>Acquisition status</span>
         <strong>{vendor.status}</strong>
-        <p>{vendor.outreachPriority ?? "No outreach priority"}{vendor.outreachScore === undefined ? "" : ` · score ${vendor.outreachScore}/10`}</p>
+        <p>{vendor.outreachPriority ?? "No outreach priority"}{vendor.outreachScore === undefined ? "" : ` · ${vendor.outreachScore}/10`}</p>
       </aside>
     </section>
 
-    <section className="shell">
-      <div className="vendor-kpis admin-kpis">
-        <div className="has-work"><span>Research sources</span><strong>{vendor.researchSourceCount}</strong></div>
-        <div className={vendor.evidenceCount > 0 ? "has-work" : undefined}><span>Verification evidence</span><strong>{vendor.evidenceCount}</strong></div>
-        <div className={vendor.verificationCount > 0 ? "has-work" : undefined}><span>Verified checks</span><strong>{vendor.verificationCount}</strong></div>
-        <div><span>Source kind</span><strong>{vendor.sourceKind ?? "—"}</strong></div>
-        <div><span>Plan</span><strong>{vendor.planCode ?? "—"}</strong></div>
-        <div><span>Subscription</span><strong>{vendor.subscriptionStatus ?? "—"}</strong></div>
-      </div>
-    </section>
+    <WorkspaceMetricStrip items={[
+      { label: "Research sources", value: vendor.researchSourceCount },
+      { label: "Evidence", value: vendor.evidenceCount, tone: vendor.evidenceCount ? "positive" : "default" },
+      { label: "Verified checks", value: vendor.verificationCount, tone: vendor.verificationCount ? "positive" : "default" },
+      { label: "Outreach score", value: vendor.outreachScore === undefined ? "—" : `${vendor.outreachScore}/10`, tone: vendor.outreachPriority ? "attention" : "default", hint: vendor.outreachPriority ?? vendor.sourceKind ?? undefined }
+    ]} />
 
     <section className="shell vendor-section">
-      <div className="vendor-two-col admin-summary">
-        <article className="vendor-card-form">
-          <div className="eyebrow">Business & contact</div>
-          <h2>Research identity</h2>
-          <div className="vendor-order-lines">
-            <span><strong>Trading name:</strong> {vendor.tradingName}</span>
-            <span><strong>Legal / directory name:</strong> {vendor.legalName}</span>
-            <span><strong>Address:</strong> {[vendor.address, vendor.locality, vendor.postcode].filter(Boolean).join(" · ") || "—"}</span>
-            <span><strong>Distance:</strong> {vendor.distanceKm === undefined ? "—" : `${vendor.distanceKm.toLocaleString("el-GR")} km`}</span>
-            <span><strong>Phone:</strong> {vendor.phone ?? "—"}</span>
-            <span><strong>Email:</strong> {vendor.email ?? "—"}</span>
-            <span><strong>Marketplace scope:</strong> {vendor.marketplaceScope ?? "—"}</span>
-            <span><strong>Checked:</strong> {vendor.checkedAt ?? "—"}</span>
+      <WorkspaceSectionHeading eyebrow="At a glance" title="Research profile" note="Merchant-verified onboarding remains authoritative. This section is acquisition intelligence only." />
+      <div className="workspace-dual-grid">
+        <article className="workspace-queue-card">
+          <div className="workspace-queue-head"><div><strong>Business & contact</strong><small>{location}</small></div><span className="status-pill">{vendor.marketplaceScope ?? "scope pending"}</span></div>
+          <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+            <DetailRow label="Legal / directory name">{vendor.legalName}</DetailRow>
+            <DetailRow label="Phone">{vendor.phone ?? "—"}</DetailRow>
+            <DetailRow label="Email">{vendor.email ?? "—"}</DetailRow>
+            <DetailRow label="Distance">{vendor.distanceKm === undefined ? "—" : `${vendor.distanceKm.toLocaleString("el-GR")} km`}</DetailRow>
           </div>
+          <WorkspaceRecordDetails label="Census, source & timestamp references">
+            <div className="workspace-compact-list">
+              <DetailRow label="Primary census ID">{vendor.primaryCensusId ?? "—"}</DetailRow>
+              <DetailRow label="Source kind">{vendor.sourceKind ?? "—"}</DetailRow>
+              <DetailRow label="Checked">{vendor.checkedAt ?? "—"}</DetailRow>
+              <DetailRow label="Marketplace scope">{vendor.marketplaceScope ?? "—"}</DetailRow>
+            </div>
+          </WorkspaceRecordDetails>
         </article>
 
-        <article className="vendor-card-form">
-          <div className="eyebrow">Category & commerce fit</div>
-          <h2>Acquisition profile</h2>
-          <div className="vendor-order-lines">
-            <span><strong>Major branch:</strong> {vendor.majorBranch ?? "—"}</span>
-            <span><strong>Sub-branch:</strong> {vendor.subBranch ?? "—"}</span>
-            <span><strong>Directory categories:</strong> {vendor.directoryCategories ?? "—"}</span>
-            <span><strong>Regulation flag:</strong> {vendor.regulationFlag ?? "—"}</span>
-            <span><strong>Storefront status:</strong> {vendor.storefrontStatus ?? "—"}</span>
-            <span><strong>Recommended commerce mode:</strong> {vendor.recommendedCommerceMode ?? "—"}</span>
-            <span><strong>Seller relationship:</strong> {vendor.sellerRelationship ?? "—"}</span>
+        <article className="workspace-queue-card">
+          <div className="workspace-queue-head"><div><strong>Commerce fit</strong><small>{commerceSignals.join(" · ") || "Awaiting classification"}</small></div><span className="status-pill">{vendor.recommendedCommerceMode ?? "unclassified"}</span></div>
+          <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+            <DetailRow label="Major branch">{vendor.majorBranch ?? "—"}</DetailRow>
+            <DetailRow label="Sub-branch">{vendor.subBranch ?? "—"}</DetailRow>
+            <DetailRow label="Online shop">{vendor.onlineShopActive ?? "Not verified"}</DetailRow>
+            <DetailRow label="Seller relationship">{vendor.sellerRelationship ?? "—"}</DetailRow>
           </div>
-        </article>
-      </div>
-    </section>
-
-    <section className="shell vendor-section">
-      <div className="vendor-two-col admin-summary">
-        <article className="vendor-card-form">
-          <div className="eyebrow">Online commerce</div>
-          <h2>E-shop status</h2>
-          <div className="vendor-order-lines">
-            <span><strong>Online shop active:</strong> {vendor.onlineShopActive ?? "Not verified"}</span>
-            <span><strong>Domain:</strong> {onlineShopUrl ? <a className="text-link" href={onlineShopUrl} target="_blank" rel="noreferrer">{vendor.onlineShopUrl} ↗</a> : vendor.onlineShopUrl ?? "—"}</span>
-            <span><strong>Latest issue severity:</strong> {vendor.latestIssueSeverity ?? "—"}</span>
-            <span><strong>Latest issue type:</strong> {vendor.latestIssueType ?? "—"}</span>
-          </div>
-        </article>
-
-        <article className="vendor-card-form">
-          <div className="eyebrow">ΓΕΜΗ & verification</div>
-          <h2>Candidate legal data</h2>
-          <div className="vendor-order-lines">
-            <span><strong>ΓΕΜΗ research:</strong> {vendor.gemiResearch ?? "—"}</span>
-            <span><strong>Candidate legal name:</strong> {vendor.candidateLegalName ?? "—"}</span>
-            <span><strong>Candidate ΓΕΜΗ:</strong> {vendor.candidateGemi ?? "—"}</span>
-            <span><strong>Candidate VAT:</strong> {vendor.candidateVat ?? "—"}</span>
-            <span><strong>Verified business ΓΕΜΗ:</strong> {vendor.gemiNumber ?? "—"}</span>
-            <span><strong>Verified business VAT:</strong> {vendor.taxNumber ?? "—"}</span>
-            <span><strong>Legal form:</strong> {vendor.legalForm ?? "—"}</span>
-            <span><strong>Verification completed:</strong> {vendor.verificationCompletedAt ?? "—"}</span>
-          </div>
+          <WorkspaceRecordDetails label="Category & regulation detail">
+            <div className="workspace-compact-list">
+              <DetailRow label="Directory categories">{vendor.directoryCategories ?? "—"}</DetailRow>
+              <DetailRow label="Regulation flag">{vendor.regulationFlag ?? "—"}</DetailRow>
+              <DetailRow label="Storefront status">{vendor.storefrontStatus ?? "—"}</DetailRow>
+              <DetailRow label="Recommended commerce mode">{vendor.recommendedCommerceMode ?? "—"}</DetailRow>
+            </div>
+          </WorkspaceRecordDetails>
         </article>
       </div>
     </section>
 
-    <section className="shell vendor-section">
-      <article className="vendor-card-form">
-        <div className="eyebrow">Next action</div>
-        <h2>Outreach & verification guidance</h2>
-        <p>{vendor.verificationAction ?? "No specific verification action recorded."}</p>
-        <div className="hero-actions">
-          {directoryProfile ? <a className="button button-secondary" href={directoryProfile} target="_blank" rel="noreferrer">Open directory profile ↗</a> : null}
-          {vendor.listingSource ? <span className="section-note">Listing source retained in the raw research snapshot below.</span> : null}
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Next action" title="Outreach & verification" note="Lead with the evidence needed for the next contact; open legal and e-shop details only when required." />
+      <article className="workspace-queue-card">
+        <div className="workspace-queue-head"><div><strong>{vendor.verificationAction ?? "No specific verification action recorded."}</strong><small>{vendor.outreachPriority ?? "No outreach priority"}{vendor.outreachScore === undefined ? "" : ` · score ${vendor.outreachScore}/10`}</small></div><span className="status-pill">{vendor.status}</span></div>
+        <div className="workspace-action-bar">
+          <span>Research → owner contact / claim → formal application → verification.</span>
+          <div className="workspace-action-buttons">{directoryProfile && <a className="button button-secondary" href={directoryProfile} target="_blank" rel="noreferrer">Directory profile ↗</a>}{onlineShopUrl && <a className="button button-secondary" href={onlineShopUrl} target="_blank" rel="noreferrer">Online shop ↗</a>}<Link className="button" href="/admin/vendors">Application workflow</Link></div>
         </div>
       </article>
-    </section>
+
+      <div className="workspace-dual-grid" style={{ marginTop: 12 }}>
+        <details className="workspace-tool-panel">
+          <summary><span><strong>E-shop evidence</strong><small>{vendor.onlineShopActive ?? "Not verified"}{vendor.latestIssueSeverity ? ` · ${vendor.latestIssueSeverity}` : ""}</small></span></summary>
+          <div className="workspace-tool-body"><div className="workspace-compact-list"><DetailRow label="Domain">{onlineShopUrl ? <a className="text-link" href={onlineShopUrl} target="_blank" rel="noreferrer">{vendor.onlineShopUrl} ↗</a> : vendor.onlineShopUrl ?? "—"}</DetailRow><DetailRow label="Latest issue severity">{vendor.latestIssueSeverity ?? "—"}</DetailRow><DetailRow label="Latest issue type">{vendor.latestIssueType ?? "—"}</DetailRow></div></div>
+        </details>
+        <details className="workspace-tool-panel">
+          <summary><span><strong>ΓΕΜΗ & legal candidate</strong><small>{vendor.gemiResearch ?? "No ΓΕΜΗ research status"}</small></span></summary>
+          <div className="workspace-tool-body"><div className="workspace-compact-list"><DetailRow label="Candidate legal name">{vendor.candidateLegalName ?? "—"}</DetailRow><DetailRow label="Candidate ΓΕΜΗ">{vendor.candidateGemi ?? "—"}</DetailRow><DetailRow label="Candidate VAT">{vendor.candidateVat ?? "—"}</DetailRow><DetailRow label="Verified ΓΕΜΗ">{vendor.gemiNumber ?? "—"}</DetailRow><DetailRow label="Verified VAT">{vendor.taxNumber ?? "—"}</DetailRow><DetailRow label="Legal form">{vendor.legalForm ?? "—"}</DetailRow><DetailRow label="Verification completed">{vendor.verificationCompletedAt ?? "—"}</DetailRow></div></div>
+        </details>
+      </div>
+    </div></section>
 
     <section className="shell vendor-section">
-      <div className="section-heading">
-        <div><div className="eyebrow">Complete evidence trail</div><h2>Workbook source records</h2></div>
-        <p className="section-note">These cards expose every key/value pair stored from the original research rows. They are evidence for acquisition and verification, not merchant-approved public profile copy.</p>
-      </div>
-      <div className="vendor-order-list">
-        {vendor.sources.length > 0 ? vendor.sources.map((source) => <SourceCard source={source} key={`${source.sourceType}:${source.sourceKey}`} />) : <article className="vendor-card-form"><p>No linked source records were found.</p></article>}
-      </div>
+      <WorkspaceSectionHeading eyebrow="Evidence trail" title="Workbook source records" note="Every stored source remains available, but raw key/value data is collapsed until an investigation needs it." />
+      {vendor.sources.length > 0 ? <div className="workspace-queue-list">{vendor.sources.map((source) => <SourceCard source={source} key={`${source.sourceType}:${source.sourceKey}`} />)}</div> : <WorkspaceEmptyState title="No linked source records were found." />}
     </section>
 
-    <section className="shell vendor-section">
-      <div className="vendor-two-col admin-summary">
-        <article className="vendor-card-form">
-          <div className="eyebrow">Normalized snapshot</div>
-          <h2>Primary research payload</h2>
-          <div className="vendor-order-lines">
-            {profileEntries.length > 0 ? profileEntries.map(([key, value]) => <span key={key}><strong>{key}:</strong> {renderTextValue(value)}</span>) : <span>No normalized payload stored.</span>}
-          </div>
-        </article>
-        <article className="vendor-card-form">
-          <div className="eyebrow">Verification records</div>
-          <h2>Research checks</h2>
-          <div className="vendor-order-lines">
-            {vendor.verifications.length > 0 ? vendor.verifications.map((verification, index) => <span key={`${verification.type}:${verification.checkedAt ?? index}`}><strong>{verification.type}:</strong> {verification.status}{verification.checkedAt ? ` · ${verification.checkedAt}` : ""}</span>) : <span>No research verification checks stored.</span>}
-          </div>
-        </article>
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Deep evidence" title="Normalized payload & research checks" note="Low-level research data stays available without dominating the dossier." />
+      <div className="workspace-dual-grid">
+        <details className="workspace-tool-panel">
+          <summary><span><strong>Primary research payload</strong><small>{profileEntries.length} normalized fields</small></span></summary>
+          <div className="workspace-tool-body">{profileEntries.length > 0 ? <div className="workspace-compact-list">{profileEntries.map(([key, value]) => <DetailRow label={key} key={key}>{renderTextValue(value)}</DetailRow>)}</div> : <p className="workspace-queue-summary">No normalized payload stored.</p>}</div>
+        </details>
+        <details className="workspace-tool-panel">
+          <summary><span><strong>Research verification checks</strong><small>{vendor.verifications.length} records</small></span></summary>
+          <div className="workspace-tool-body">{vendor.verifications.length > 0 ? <div className="workspace-compact-list">{vendor.verifications.map((verification, index) => <DetailRow label={verification.type} key={`${verification.type}:${verification.checkedAt ?? index}`} hint={verification.checkedAt}>{verification.status}</DetailRow>)}</div> : <p className="workspace-queue-summary">No research verification checks stored.</p>}</div>
+        </details>
       </div>
-    </section>
+    </div></section>
 
     <section className="shell vendor-section">
-      <article className="vendor-card-form">
-        <div className="eyebrow">Governance boundary</div>
-        <h2>Research remains internal until claimed and verified</h2>
-        <p>This dossier can guide outreach and onboarding, but public-source legal candidates, e-shop observations, contact data and issue notes must not be treated as merchant-approved storefront content. The formal vendor application and verification workflow remains the authority for activation.</p>
-        <Link className="text-link" href="/admin/vendors">Continue to governed vendor onboarding →</Link>
-      </article>
+      <div className="workspace-inline-note">This dossier is internal acquisition intelligence. Public-source legal candidates, e-shop observations, contact data and issue notes are not merchant-approved storefront content. Formal vendor application and verification remain the authority for activation.</div>
+      <div className="workspace-form-actions"><Link className="text-link" href="/admin/vendors">Continue to governed vendor onboarding →</Link></div>
     </section>
   </main>;
 }
