@@ -35,9 +35,24 @@ export type ResearchVendorRecord = {
   shortDescription?: string;
   evidenceCount: number;
   verificationCount: number;
+  sourceRecordCount: number;
   subscriptionStatus?: string;
   planCode?: string;
   updatedAt?: string;
+  sourceKind?: string;
+  censusId?: number;
+  majorBranch?: string;
+  subBranch?: string;
+  scope?: string;
+  distanceKm?: number;
+  outreachPriority?: string;
+  outreachScore?: number;
+  regulationFlag?: string;
+  onlineShopStatus?: string;
+  onlineShopUrl?: string;
+  gemiResearch?: string;
+  latestIssueSeverity?: string;
+  latestIssueType?: string;
 };
 
 export async function researchVendorsWorkspace(principal: SessionPrincipal) {
@@ -45,7 +60,7 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
   if (!productionDatabaseConfigured()) {
     return {
       csrfToken: principal.csrfToken,
-      summary: { total: 0, invited: 0, inProgress: 0, active: 0, restricted: 0, withEvidence: 0 },
+      summary: { total: 0, invited: 0, inProgress: 0, active: 0, restricted: 0, withEvidence: 0, priorityA: 0, online: 0 },
       vendors: [] as ResearchVendorRecord[],
       databaseConfigured: false
     };
@@ -60,9 +75,10 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         SELECT DISTINCT vb.id, vb.status::text AS status
         FROM vendor_businesses vb
         JOIN markets m ON m.id = vb.market_id
+        LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id = vb.id
         LEFT JOIN vendor_verification_checks vvc ON vvc.vendor_id = vb.id AND vvc.type = ANY($1::text[])
         WHERE m.code = 'sparta'
-          AND (vb.public_id LIKE 'vendor_research_%' OR vvc.id IS NOT NULL)
+          AND (vb.public_id LIKE 'vendor_research_%' OR vrp.vendor_id IS NOT NULL OR vvc.id IS NOT NULL)
       )
       SELECT
         count(*)::int AS total,
@@ -72,12 +88,16 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         count(*) FILTER (WHERE status IN ('restricted','suspended','closed'))::int AS restricted
       FROM research`, [evidenceTypes]);
 
-    const withEvidenceResult = await tx.query<SqlRow>(`
-      SELECT count(DISTINCT vb.id)::int AS with_evidence
+    const evidenceResult = await tx.query<SqlRow>(`
+      SELECT
+        count(DISTINCT vb.id)::int AS with_evidence,
+        count(DISTINCT vb.id) FILTER (WHERE vrp.outreach_priority LIKE 'A —%')::int AS priority_a,
+        count(DISTINCT vb.id) FILTER (WHERE COALESCE(vrp.online_shop_active,'') NOT IN ('','Not verified'))::int AS online
       FROM vendor_businesses vb
       JOIN markets m ON m.id = vb.market_id
-      JOIN vendor_verification_checks vvc ON vvc.vendor_id = vb.id AND vvc.type = ANY($1::text[])
-      WHERE m.code = 'sparta'`, [evidenceTypes]);
+      LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id = vb.id
+      LEFT JOIN vendor_research_source_links vrsl ON vrsl.vendor_id = vb.id
+      WHERE m.code = 'sparta' AND vb.public_id LIKE 'vendor_research_%'`);
 
     const rows = await tx.query<SqlRow>(`
       SELECT
@@ -85,19 +105,35 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         vb.trading_name,
         vb.legal_name,
         vb.status::text AS status,
+        COALESCE(vrp.primary_phone,vl.phone) AS phone,
+        COALESCE(vrp.primary_email::text,vl.public_email::text) AS public_email,
         vl.address_line1,
         vl.locality,
         vl.postcode,
-        vl.phone,
-        vl.public_email::text AS public_email,
         vpt.short_description,
         COALESCE(ev.evidence_count,0)::int AS evidence_count,
         COALESCE(ev.verified_count,0)::int AS verified_count,
+        COALESCE(src.source_record_count,0)::int AS source_record_count,
         vs.status AS subscription_status,
         vp.code AS plan_code,
-        vb.updated_at::text AS updated_at
+        vb.updated_at::text AS updated_at,
+        vrp.source_kind,
+        vrp.primary_census_id,
+        vrp.major_branch,
+        vrp.sub_branch,
+        vrp.marketplace_scope,
+        vrp.distance_km,
+        vrp.outreach_priority,
+        vrp.outreach_score,
+        vrp.regulation_flag,
+        vrp.online_shop_active,
+        vrp.online_shop_url,
+        vrp.gemi_research,
+        vrp.latest_issue_severity,
+        vrp.latest_issue_type
       FROM vendor_businesses vb
       JOIN markets m ON m.id = vb.market_id
+      LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id = vb.id
       LEFT JOIN LATERAL (
         SELECT l.address_line1,l.locality,l.postcode,l.phone,l.public_email
         FROM vendor_locations l
@@ -113,6 +149,11 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         WHERE c.vendor_id = vb.id AND c.type = ANY($1::text[])
       ) ev ON true
       LEFT JOIN LATERAL (
+        SELECT count(*)::int AS source_record_count
+        FROM vendor_research_source_links l
+        WHERE l.vendor_id = vb.id
+      ) src ON true
+      LEFT JOIN LATERAL (
         SELECT s.status,s.plan_id
         FROM vendor_subscriptions s
         WHERE s.vendor_id = vb.id
@@ -121,13 +162,7 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
       ) vs ON true
       LEFT JOIN vendor_plans vp ON vp.id = vs.plan_id
       WHERE m.code = 'sparta'
-        AND (
-          vb.public_id LIKE 'vendor_research_%'
-          OR EXISTS (
-            SELECT 1 FROM vendor_verification_checks c2
-            WHERE c2.vendor_id = vb.id AND c2.type = ANY($1::text[])
-          )
-        )
+        AND (vb.public_id LIKE 'vendor_research_%' OR vrp.vendor_id IS NOT NULL)
       ORDER BY
         CASE vb.status::text
           WHEN 'invited' THEN 0
@@ -138,10 +173,12 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
           WHEN 'active' THEN 5
           ELSE 6
         END,
+        COALESCE(vrp.outreach_score,0) DESC,
         lower(vb.trading_name),vb.public_id
       LIMIT 500`, [evidenceTypes]);
 
     const summaryRow = summaryResult.rows[0] ?? {};
+    const evidenceRow = evidenceResult.rows[0] ?? {};
     return {
       csrfToken: principal.csrfToken,
       databaseConfigured: true,
@@ -151,7 +188,9 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         inProgress: numberValue(summaryRow.in_progress),
         active: numberValue(summaryRow.active),
         restricted: numberValue(summaryRow.restricted),
-        withEvidence: numberValue(withEvidenceResult.rows[0]?.with_evidence)
+        withEvidence: numberValue(evidenceRow.with_evidence),
+        priorityA: numberValue(evidenceRow.priority_a),
+        online: numberValue(evidenceRow.online)
       },
       vendors: rows.rows.map((row): ResearchVendorRecord => ({
         id: text(row.public_id),
@@ -166,9 +205,24 @@ export async function researchVendorsWorkspace(principal: SessionPrincipal) {
         shortDescription: optionalText(row.short_description),
         evidenceCount: numberValue(row.evidence_count),
         verificationCount: numberValue(row.verified_count),
+        sourceRecordCount: numberValue(row.source_record_count),
         subscriptionStatus: optionalText(row.subscription_status),
         planCode: optionalText(row.plan_code),
-        updatedAt: optionalText(row.updated_at)
+        updatedAt: optionalText(row.updated_at),
+        sourceKind: optionalText(row.source_kind),
+        censusId: row.primary_census_id == null ? undefined : numberValue(row.primary_census_id),
+        majorBranch: optionalText(row.major_branch),
+        subBranch: optionalText(row.sub_branch),
+        scope: optionalText(row.marketplace_scope),
+        distanceKm: row.distance_km == null ? undefined : numberValue(row.distance_km),
+        outreachPriority: optionalText(row.outreach_priority),
+        outreachScore: row.outreach_score == null ? undefined : numberValue(row.outreach_score),
+        regulationFlag: optionalText(row.regulation_flag),
+        onlineShopStatus: optionalText(row.online_shop_active),
+        onlineShopUrl: optionalText(row.online_shop_url),
+        gemiResearch: optionalText(row.gemi_research),
+        latestIssueSeverity: optionalText(row.latest_issue_severity),
+        latestIssueType: optionalText(row.latest_issue_type)
       }))
     };
   }, { readOnly: true });
