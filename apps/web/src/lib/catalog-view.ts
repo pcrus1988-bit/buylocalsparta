@@ -61,9 +61,8 @@ function safeMinor(value: unknown, field: string): number {
 
 /**
  * Resolve the exact offer that the fairness engine persisted for this visitor.
- * Canonical product price is deliberately NOT used as a customer-facing fallback:
- * each vendor's offer price is the final retail price, and different visitors may
- * therefore see different prices for the same canonical product.
+ * Available products must always use the assigned offer price. Canonical/reference
+ * prices are only shown when the product is explicitly non-purchasable.
  */
 async function withStickyAssignedOfferPrice(record: DatabaseCatalogRecord, visitorKey: string, postcode: string): Promise<DatabaseCatalogRecord | undefined> {
   if (!record.available || !record.vendorId) return undefined;
@@ -86,6 +85,17 @@ async function withStickyAssignedOfferPrice(record: DatabaseCatalogRecord, visit
   `, [record.id, hashVisitor(visitorKey), postcode, record.vendorId]);
   if (!result.rowCount) throw new Error(`Assigned vendor offer price is missing for canonical ${record.id}`);
   return { ...record, priceMinor: safeMinor(result.rows[0]?.customer_price_minor, "customer_price_minor") };
+}
+
+/**
+ * Storefront discovery should include active canonicals even before a sellable offer
+ * exists. In that state the card is rendered as unavailable and its canonical price
+ * is informational only; cart/checkout remain disabled until an assigned approved
+ * offer with fresh inventory exists.
+ */
+async function withStorefrontDisplayPrice(record: DatabaseCatalogRecord, visitorKey: string, postcode: string): Promise<DatabaseCatalogRecord | undefined> {
+  if (!record.available) return record;
+  return withStickyAssignedOfferPrice(record, visitorKey, postcode);
 }
 
 async function withVendorOfferPrice(record: DatabaseCatalogRecord, vendorId: string): Promise<DatabaseCatalogRecord | undefined> {
@@ -131,8 +141,8 @@ async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<b
 }
 
 /**
- * Metadata-only helper retained for internal callers. Customer-facing surfaces must
- * use getCatalogCard(s), because a canonical product has no authoritative retail price.
+ * Metadata-only helper retained for internal callers. Customer-facing purchasable
+ * surfaces still resolve their price from an assigned vendor offer.
  */
 export async function getCanonicalProductSummary(id: string): Promise<Readonly<{ id: string; title: string; price: string; priceMinor: number }> | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
@@ -156,7 +166,7 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
     canonicalIds = canonicals.filter((product) => !normalizedQuery || normalizeSearchText(product.title).includes(normalizedQuery)).map((product) => product.id);
   }
   const assigned = await Promise.all(canonicalIds.map((canonicalVariantId) => commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" })));
-  const priced = await Promise.all(assigned.flatMap((record) => record ? [record] : []).map((record) => withStickyAssignedOfferPrice(record, visitorKey, postcode)));
+  const priced = await Promise.all(assigned.flatMap((record) => record ? [record] : []).map((record) => withStorefrontDisplayPrice(record, visitorKey, postcode)));
   return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []));
 }
 
@@ -165,7 +175,7 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   if (!await canonicalIsPubliclyAllowed(id)) return undefined;
   const record = await getProductionPostgresRuntime().customerCommerce.publicAssignedCanonical({ canonicalVariantId: id, visitorKey, postcode, reason: "product_view" });
   if (!record) return undefined;
-  const priced = await withStickyAssignedOfferPrice(record, visitorKey, postcode);
+  const priced = await withStorefrontDisplayPrice(record, visitorKey, postcode);
   if (!priced) return undefined;
   return (await enrichDatabaseRecords([priced]))[0];
 }
@@ -189,8 +199,8 @@ export async function getCanonicalAvailability(id: string, postcode = "23100"): 
 }
 
 /**
- * Internal/non-personalized projection only. Do not use this helper to render a price
- * to a customer; customer-facing price must come from an assigned vendor offer.
+ * Internal/non-personalized projection only. Do not use this helper as the price
+ * source for a purchasable customer flow; live prices come from assigned offers.
  */
 export async function getPublicCatalogProducts(): Promise<readonly Readonly<{ id: string; title: string; priceMinor: number; price: string; categoryCode: string }>[] > {
   if (!productionDatabaseConfigured()) return [];
