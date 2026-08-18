@@ -46,6 +46,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     "@context": "https://schema.org",
     "@graph": [
       {
+        "@type": "Organization",
+        "@id": `${origin}#organization`,
+        name: "Buy Local Sparta",
+        url: origin
+      },
+      {
         "@type": "Product",
         "@id": `${productUrl}#product`,
         name: product.title,
