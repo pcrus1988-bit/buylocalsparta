@@ -29,6 +29,14 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: "BLS_AUTH_SECRET is not configured" }, { status: 503 });
   }
 
+  const connectionUrl = process.env.DATABASE_URL?.trim()
+    || process.env.POSTGRES_URL?.trim()
+    || process.env.POSTGRES_URL_NON_POOLING?.trim();
+  if (!connectionUrl) {
+    return Response.json({ ok: false, error: "No PostgreSQL connection URL is configured" }, { status: 503 });
+  }
+  process.env.DATABASE_URL = connectionUrl;
+
   const db = createPostgresRuntimeFromEnv({ applicationName: "buy-local-sparta-admin-bootstrap-once" });
   const now = Date.now();
   const requestId = `admin-bootstrap-${randomUUID()}`;
