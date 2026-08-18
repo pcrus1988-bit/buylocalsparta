@@ -14,6 +14,14 @@ function tokenMatches(value: string) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+function normalizeConnectionUrl(raw: string) {
+  const url = new URL(raw);
+  if (url.searchParams.get("sslmode") === "require" && !url.searchParams.has("uselibpqcompat")) {
+    url.searchParams.set("uselibpqcompat", "true");
+  }
+  return url.toString();
+}
+
 export async function GET(request: Request) {
   if (process.env.VERCEL_ENV !== "production") {
     return new Response(null, { status: 404 });
@@ -29,13 +37,13 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: "BLS_AUTH_SECRET is not configured" }, { status: 503 });
   }
 
-  const connectionUrl = process.env.DATABASE_URL?.trim()
+  const rawConnectionUrl = process.env.DATABASE_URL?.trim()
     || process.env.POSTGRES_URL?.trim()
     || process.env.POSTGRES_URL_NON_POOLING?.trim();
-  if (!connectionUrl) {
+  if (!rawConnectionUrl) {
     return Response.json({ ok: false, error: "No PostgreSQL connection URL is configured" }, { status: 503 });
   }
-  process.env.DATABASE_URL = connectionUrl;
+  process.env.DATABASE_URL = normalizeConnectionUrl(rawConnectionUrl);
 
   const db = createPostgresRuntimeFromEnv({ applicationName: "buy-local-sparta-admin-bootstrap-once" });
   const now = Date.now();
