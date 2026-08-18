@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { formatMoney, money, normalizeSearchText } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
+import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 
 export type CatalogCard = Readonly<{
@@ -10,6 +11,15 @@ export type CatalogCard = Readonly<{
   price: string;
   priceMinor: number;
   categoryCode: string;
+  categoryLabel?: string;
+  mpn?: string;
+  description?: string;
+  brand?: string;
+  color?: string;
+  sizes: readonly string[];
+  fit?: string;
+  composition?: string;
+  madeIn?: string;
   vendorId?: string;
   vendorName?: string;
   adviser?: string;
@@ -17,6 +27,21 @@ export type CatalogCard = Readonly<{
   mediaAlt?: string;
   availableToSell: number;
   available: boolean;
+}>;
+
+export type CatalogFilters = Readonly<{
+  subcategory?: string;
+  brand?: string;
+  color?: string;
+  size?: string;
+}>;
+
+export type CatalogFacetOption = Readonly<{ value: string; label: string }>;
+export type CatalogFacets = Readonly<{
+  subcategories: readonly CatalogFacetOption[];
+  brands: readonly CatalogFacetOption[];
+  colors: readonly CatalogFacetOption[];
+  sizes: readonly CatalogFacetOption[];
 }>;
 
 export type PublicVendorView = Readonly<{ id: string; name: string; adviser?: string }>;
@@ -32,11 +57,20 @@ type DatabaseCatalogRecord = Readonly<{
   adviser?: string;
 }>;
 
-function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage): CatalogCard {
+function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage, metadata?: CatalogMetadata): CatalogCard {
   return {
     id: record.id,
     title: record.title,
     categoryCode: record.categoryCode,
+    categoryLabel: metadata?.categoryLabel,
+    mpn: metadata?.mpn,
+    description: metadata?.description,
+    brand: metadata?.brand,
+    color: metadata?.color,
+    sizes: metadata?.sizes ?? [],
+    fit: metadata?.fit,
+    composition: metadata?.composition,
+    madeIn: metadata?.madeIn,
     priceMinor: record.priceMinor,
     price: formatMoney(money(record.priceMinor)),
     available: record.available ?? false,
@@ -57,6 +91,29 @@ function safeMinor(value: unknown, field: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error(`Invalid ${field} from PostgreSQL`);
   return parsed;
+}
+
+function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
+  if (!right) return true;
+  return normalizeSearchText(left ?? "") === normalizeSearchText(right);
+}
+
+function matchesCatalogFilters(record: DatabaseCatalogRecord, metadata: CatalogMetadata | undefined, filters: CatalogFilters): boolean {
+  if (filters.subcategory && record.categoryCode !== filters.subcategory) return false;
+  if (!sameFilterValue(metadata?.brand, filters.brand)) return false;
+  if (!sameFilterValue(metadata?.color, filters.color)) return false;
+  if (filters.size && !(metadata?.sizes ?? []).some((size) => sameFilterValue(size, filters.size))) return false;
+  return true;
+}
+
+function matchesCatalogQuery(record: DatabaseCatalogRecord, metadata: CatalogMetadata | undefined, normalizedQuery: string): boolean {
+  if (!normalizedQuery) return true;
+  return [record.title, metadata?.description, metadata?.brand, metadata?.color, metadata?.mpn, metadata?.categoryLabel]
+    .some((value) => normalizeSearchText(value ?? "").includes(normalizedQuery));
+}
+
+function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b, "el")).map((value) => ({ value, label: value }));
 }
 
 /**
@@ -118,15 +175,16 @@ async function withVendorOfferPrice(record: DatabaseCatalogRecord, vendorId: str
   return { ...record, priceMinor: safeMinor(result.rows[0]?.customer_price_minor, "customer_price_minor") };
 }
 
-async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[]): Promise<readonly CatalogCard[]> {
+async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[], providedMetadata?: ReadonlyMap<string, CatalogMetadata>): Promise<readonly CatalogCard[]> {
   if (records.length === 0) return [];
+  const metadata = providedMetadata ?? await loadCatalogMetadata(records.map((record) => record.id));
   try {
     const images = await approvedCatalogImages(records.map((record) => ({ canonicalVariantId: record.id, preferredVendorId: record.vendorId })));
     const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image]));
-    return records.map((record) => fromDb(record, imageByCanonical.get(record.id)));
+    return records.map((record) => fromDb(record, imageByCanonical.get(record.id), metadata.get(record.id)));
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "storefront.public_media_projection_failed", message: error instanceof Error ? error.message : String(error) }));
-    return records.map((record) => fromDb(record));
+    return records.map((record) => fromDb(record, undefined, metadata.get(record.id)));
   }
 }
 
@@ -150,12 +208,40 @@ export async function getCanonicalProductSummary(id: string): Promise<Readonly<{
   return product ? { id: product.id, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)) } : undefined;
 }
 
-export async function getCatalogCards(visitorKey: string, postcode = "23100", query = "", category = ""): Promise<readonly CatalogCard[]> {
+export async function getCatalogFacets(category = "", query = ""): Promise<CatalogFacets> {
+  if (!productionDatabaseConfigured()) return { subcategories: [], brands: [], colors: [], sizes: [] };
+  const normalizedQuery = normalizeSearchText(query);
+  const canonicals = (await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
+    .filter((product) => categoryCodeMatches(product.categoryCode, category));
+  const metadata = await loadCatalogMetadata(canonicals.map((product) => product.id));
+  const visible = canonicals.filter((product) => matchesCatalogQuery(product, metadata.get(product.id), normalizedQuery));
+  const subcategoryMap = new Map<string, string>();
+  const brands: string[] = [];
+  const colors: string[] = [];
+  const sizes: string[] = [];
+  for (const product of visible) {
+    const details = metadata.get(product.id);
+    subcategoryMap.set(product.categoryCode, details?.categoryLabel ?? product.categoryCode);
+    if (details?.brand) brands.push(details.brand);
+    if (details?.color) colors.push(details.color);
+    sizes.push(...(details?.sizes ?? []));
+  }
+  return {
+    subcategories: [...subcategoryMap.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "el")),
+    brands: facetOptions(brands),
+    colors: facetOptions(colors),
+    sizes: facetOptions(sizes)
+  };
+}
+
+export async function getCatalogCards(visitorKey: string, postcode = "23100", query = "", category = "", filters: CatalogFilters = {}): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
   const normalizedQuery = normalizeSearchText(query);
   const production = getProductionPostgresRuntime();
   const commerce = production.customerCommerce;
   const canonicals = (await commerce.publicCanonicals()).filter((product) => categoryCodeMatches(product.categoryCode, category));
+  const metadata = await loadCatalogMetadata(canonicals.map((product) => product.id));
+  const canonicalById = new Map(canonicals.map((product) => [product.id, product]));
   let canonicalIds: readonly string[];
   if (normalizedQuery && process.env.BLS_SEARCH_ENABLED === "true") {
     if (!production.search) throw new Error("Production search is enabled but the Meilisearch runtime is unavailable");
@@ -163,11 +249,15 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
     const allowedIds = new Set(canonicals.map((product) => product.id));
     canonicalIds = hits.map((hit) => hit.document.id).filter((id) => allowedIds.has(id));
   } else {
-    canonicalIds = canonicals.filter((product) => !normalizedQuery || normalizeSearchText(product.title).includes(normalizedQuery)).map((product) => product.id);
+    canonicalIds = canonicals.filter((product) => matchesCatalogQuery(product, metadata.get(product.id), normalizedQuery)).map((product) => product.id);
   }
+  canonicalIds = canonicalIds.filter((id) => {
+    const product = canonicalById.get(id);
+    return product ? matchesCatalogFilters(product, metadata.get(id), filters) : false;
+  });
   const assigned = await Promise.all(canonicalIds.map((canonicalVariantId) => commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" })));
   const priced = await Promise.all(assigned.flatMap((record) => record ? [record] : []).map((record) => withStorefrontDisplayPrice(record, visitorKey, postcode)));
-  return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []));
+  return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []), metadata);
 }
 
 export async function getCatalogCard(id: string, visitorKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
@@ -177,7 +267,8 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   if (!record) return undefined;
   const priced = await withStorefrontDisplayPrice(record, visitorKey, postcode);
   if (!priced) return undefined;
-  return (await enrichDatabaseRecords([priced]))[0];
+  const metadata = await loadCatalogMetadata([id]);
+  return (await enrichDatabaseRecords([priced], metadata))[0];
 }
 
 export async function getPublicVendor(vendorId: string): Promise<PublicVendorView | undefined> {
@@ -189,7 +280,9 @@ export async function getVendorCatalogCards(vendorId: string): Promise<readonly 
   if (!productionDatabaseConfigured()) return [];
   const records = await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId);
   const priced = await Promise.all(records.map((record) => withVendorOfferPrice(record, vendorId)));
-  return enrichDatabaseRecords(priced.flatMap((record) => record ? [record] : []));
+  const availableRecords = priced.flatMap((record) => record ? [record] : []);
+  const metadata = await loadCatalogMetadata(availableRecords.map((record) => record.id));
+  return enrichDatabaseRecords(availableRecords, metadata);
 }
 
 export async function getCanonicalAvailability(id: string, postcode = "23100"): Promise<Readonly<{ available: boolean; availableToSell: number }> | undefined> {
