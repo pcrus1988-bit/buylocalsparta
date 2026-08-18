@@ -9,7 +9,8 @@ type Props = Readonly<{ searchParams: Promise<{ vendor?: string }> }>;
 
 export const metadata: Metadata = {
   title: "Χάρτης καταστημάτων",
-  description: "Βρες τοπικά καταστήματα στη Σπάρτη πάνω στον χάρτη, φιλτράρισε ανά κατηγορία και απόσταση και άνοιξε απευθείας το δημόσιο dossier κάθε επιχείρησης."
+  description: "Βρες τοπικά καταστήματα στη Σπάρτη πάνω στον χάρτη, φιλτράρισε ανά κατηγορία και απόσταση και άνοιξε απευθείας το δημόσιο dossier κάθε επιχείρησης.",
+  alternates: { canonical: "/shops/map" }
 };
 
 function categoryKey(value: string): string {
