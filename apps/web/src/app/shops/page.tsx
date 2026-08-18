@@ -52,7 +52,8 @@ export default async function ShopsPage({ searchParams }: Props) {
             <h1>Γνώρισε την αγορά της Σπάρτης.</h1>
             <p>Δες τις επιχειρήσεις που έχουμε χαρτογραφήσει και ξεχώρισε καθαρά ποια καταστήματα έχουν ήδη ενεργοποιηθεί ως συνεργάτες του Buy Local Sparta.</p>
             <div className="hero-actions">
-              <a className="button" href="/shop">Δες τα ενεργά προϊόντα</a>
+              <a className="button" href="/shops/map">Δες τα στον χάρτη</a>
+              <a className="button button-secondary" href="/shop">Δες τα ενεργά προϊόντα</a>
               <a className="button button-secondary" href="/ask-local">Ρώτησε τοπικά</a>
             </div>
           </div>
@@ -73,7 +74,7 @@ export default async function ShopsPage({ searchParams }: Props) {
       <section className="shell section" aria-labelledby="shops-title">
         <div className="shops-directory-head">
           <div><div className="eyebrow">Καταστήματα & άνθρωποι</div><h2 id="shops-title">Η χαρτογραφημένη τοπική αγορά</h2></div>
-          <p>{vendors.length} από {allVendors.length} επιχειρήσεις σε αυτή την προβολή · {partnerCount} ενεργοί συνεργάτες · {researchCount} καταχωρίσεις έρευνας/πρόσκλησης.</p>
+          <p>{vendors.length} από {allVendors.length} επιχειρήσεις σε αυτή την προβολή · {partnerCount} ενεργοί συνεργάτες · {researchCount} καταχωρίσεις έρευνας/πρόσκλησης. <a className="text-link" href="/shops/map">Άνοιγμα χάρτη →</a></p>
         </div>
 
         <form className="shops-filter" action="/shops" method="get" role="search">
@@ -114,7 +115,8 @@ export default async function ShopsPage({ searchParams }: Props) {
                     {isResearch && vendor.researchCategory && <div className="shop-category-list" aria-label="Κατηγορία έρευνας"><span className="shop-category-chip">{vendor.researchCategory}</span></div>}
 
                     <div className="shop-card-action">
-                      {isResearch ? <small>Δημόσια ερευνητική καταχώριση · όχι συμβεβλημένος συνεργάτης</small> : <><small>{vendor.story ? "Δημοσιευμένη ιστορία καταστήματος" : "Προϊόντα · συμβουλή · στοιχεία"}</small><a className="text-link" href={`/vendor/${vendor.id}`}>Γνώρισε το κατάστημα →</a></>}
+                      <small>{isResearch ? "Δημόσια ερευνητική καταχώριση · όχι συμβεβλημένος συνεργάτης" : (vendor.story ? "Δημοσιευμένη ιστορία καταστήματος" : "Προϊόντα · συμβουλή · στοιχεία")}</small>
+                      <a className="text-link" href={`/vendor/${encodeURIComponent(vendor.id)}`}>{isResearch ? "Δες το δημόσιο dossier →" : "Γνώρισε το κατάστημα →"}</a>
                     </div>
                   </div>
                 </article>
