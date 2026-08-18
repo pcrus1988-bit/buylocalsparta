@@ -83,6 +83,78 @@ for (const destination of ["/admin/research-vendors", "/admin/vendors", "/admin/
 if (!admin.includes('density="compact"')) failures.push("Admin dashboard quick actions must use compact premium density");
 if (!admin.includes("dashboard-insight-grid")) failures.push("Admin dashboard must keep analytics compact instead of returning to text-heavy summary cards");
 
+const primitives = "apps/web/src/components/WorkspacePagePrimitives.tsx";
+if (!existsSync(`${root}/${primitives}`)) failures.push("Missing shared operational workspace page primitives");
+else {
+  const source = read(primitives);
+  for (const requirement of ["WorkspaceMetricStrip", "WorkspaceSectionHeading", "WorkspaceEmptyState", "WorkspaceRecordDetails", "<details"]) {
+    if (!source.includes(requirement)) failures.push(`Operational workspace primitives are missing ${requirement}`);
+  }
+}
+
+const operationalPages = [
+  "apps/web/src/app/admin/vendors/page.tsx",
+  "apps/web/src/app/admin/research-vendors/page.tsx",
+  "apps/web/src/app/admin/matching/page.tsx",
+  "apps/web/src/app/admin/orders/page.tsx",
+  "apps/web/src/app/admin/finance/page.tsx",
+  "apps/web/src/app/admin/trust/page.tsx",
+  "apps/web/src/app/admin/categories/page.tsx",
+  "apps/web/src/app/admin/content/page.tsx",
+  "apps/web/src/app/admin/reviews/page.tsx",
+  "apps/web/src/app/admin/recalls/page.tsx",
+  "apps/web/src/app/admin/privacy/page.tsx",
+  "apps/web/src/app/admin/tax/page.tsx",
+  "apps/web/src/app/admin/fairness/page.tsx",
+  "apps/web/src/app/admin/analytics/page.tsx",
+  "apps/web/src/app/admin/operations/page.tsx",
+  "apps/web/src/app/admin/maintenance/page.tsx",
+  "apps/web/src/app/admin/activation/page.tsx",
+  "apps/web/src/app/vendor/catalog/page.tsx",
+  "apps/web/src/app/vendor/shipping/page.tsx",
+  "apps/web/src/app/vendor/returns/page.tsx",
+  "apps/web/src/app/vendor/trust/page.tsx",
+  "apps/web/src/app/vendor/advice/page.tsx",
+  "apps/web/src/app/vendor/finance/page.tsx",
+  "apps/web/src/app/vendor/analytics/page.tsx"
+] as const;
+for (const path of operationalPages) {
+  const source = read(path);
+  if (!source.includes("dashboard-hero-refined")) failures.push(`Operational workspace page is missing refined task hierarchy: ${path}`);
+}
+
+for (const path of [
+  "apps/web/src/components/VendorCatalogClient.tsx",
+  "apps/web/src/components/VendorShippingClient.tsx",
+  "apps/web/src/components/VendorReturnsClient.tsx",
+  "apps/web/src/components/VendorTrustClient.tsx",
+  "apps/web/src/components/VendorAdviceClient.tsx",
+  "apps/web/src/components/VendorFinanceClient.tsx",
+  "apps/web/src/components/AdminShippingClient.tsx"
+]) {
+  const source = read(path);
+  if (!source.includes("WorkspaceMetricStrip")) failures.push(`Operational client is missing a scannable metric strip: ${path}`);
+  if (!source.includes("workspace-queue")) failures.push(`Operational client is missing shared queue hierarchy: ${path}`);
+}
+
+const catalogClient = read("apps/web/src/components/VendorCatalogClient.tsx");
+if (catalogClient.includes("Demo product")) failures.push("Vendor CSV import must never prefill a demo product into a real import surface");
+if (!catalogClient.includes("initial.csvTemplate")) failures.push("Vendor CSV import must start from the canonical safe template");
+if (!catalogClient.includes("setPreview(null)")) failures.push("Editing vendor CSV must invalidate stale preview evidence");
+if (!catalogClient.includes("preview.totalRows > 0 && preview.errors.length === 0")) failures.push("Vendor CSV confirm must require a clean non-empty dry run");
+
+const vendorShippingPage = read("apps/web/src/app/vendor/shipping/page.tsx");
+const adminShippingPage = read("apps/web/src/app/admin/shipping/page.tsx");
+for (const [name, source] of [["Vendor", vendorShippingPage], ["Admin", adminShippingPage]] as const) {
+  if (!source.includes("boxNowShippingEnabled()")) failures.push(`${name} shipping page must use the real provider capability gate`);
+  if (!source.includes("WorkspaceEmptyState")) failures.push(`${name} shipping page must render a truthful disabled-provider state`);
+}
+
+const orderDetail = read("apps/web/src/components/OrderDetailClient.tsx");
+if (!orderDetail.includes("order-cancel-disclosure")) failures.push("Customer cancellation must use progressive disclosure instead of a permanently prominent destructive card");
+if (!orderDetail.includes('href="/delivery-pickup"') || !orderDetail.includes('href="/returns-refunds"')) failures.push("Customer order detail must expose delivery and returns help paths");
+if (!orderDetail.includes("WorkspaceRecordDetails")) failures.push("Customer order detail must keep fulfilment technical identifiers secondary");
+
 const css = read("apps/web/src/app/dashboard-ux.css");
 for (const selector of [".workspace-header", ".workspace-nav a.is-active", ".workspace-quick-grid", ".account-snapshot"]) {
   if (!css.includes(selector)) failures.push(`Dashboard UX stylesheet is missing ${selector}`);
@@ -99,12 +171,18 @@ const luxuryCss = read("apps/web/src/app/dashboard-luxury.css");
 for (const requirement of [".workspace-nav-group > summary", ".workspace-link-icon", ".workspace-quick-section.is-compact", ".dashboard-kpis-refined", ".dashboard-insight-grid", ".account-live-card"]) {
   if (!luxuryCss.includes(requirement)) failures.push(`Premium low-density dashboard layer is missing ${requirement}`);
 }
+const pageCss = read("apps/web/src/app/workspace-pages.css");
+for (const requirement of [".workspace-page-metrics", ".workspace-tool-panel", ".workspace-queue-card", ".workspace-record-details", ".workspace-action-bar", ".order-cancel-disclosure", "@media (max-width: 560px)"]) {
+  if (!pageCss.includes(requirement)) failures.push(`Operational workspace page layer is missing ${requirement}`);
+}
 const layout = read("apps/web/src/app/layout.tsx");
 if (!layout.includes('import "./workspace-polish.css"')) failures.push("Workspace polish stylesheet is not loaded after the shared dashboard styles");
-if (!layout.includes('import "./dashboard-luxury.css"')) failures.push("Premium dashboard layer is not loaded last in the shared app layout");
+if (!layout.includes('import "./dashboard-luxury.css"')) failures.push("Premium dashboard layer is not loaded in the shared app layout");
+if (!layout.includes('import "./workspace-pages.css"')) failures.push("Operational workspace page layer is not loaded in the shared app layout");
+if (layout.indexOf('import "./workspace-pages.css"') < layout.indexOf('import "./dashboard-luxury.css"')) failures.push("Operational workspace page layer must load after the dashboard shell layer");
 
 if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, collapsible grouped navigation, compact actions, customer sections and secure workspace controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, collapsible navigation, progressive operational queues, safe bulk import, truthful provider gates and customer transaction controls verified.`);
