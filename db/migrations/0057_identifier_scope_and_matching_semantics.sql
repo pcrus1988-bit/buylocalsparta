@@ -12,6 +12,16 @@ ALTER TABLE product_identifiers
   ADD CONSTRAINT product_identifiers_scope_check
   CHECK (identifier_scope IN ('trade_item','family','style','unknown'));
 
+-- Backfill pre-existing rows before enforcing the strong-identifier scope invariant.
+UPDATE product_identifiers
+SET identifier_scope='trade_item',updated_at=now()
+WHERE identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn10','isbn13');
+
+UPDATE product_identifiers
+SET identifier_scope='unknown',updated_at=now()
+WHERE identifier_type IN ('mpn','manufacturer_code')
+  AND source='legacy_column_sync';
+
 ALTER TABLE product_identifiers
   ADD CONSTRAINT product_identifiers_strong_scope_check
   CHECK (
@@ -35,17 +45,6 @@ $$;
 CREATE TRIGGER product_identifiers_normalize_scope
   BEFORE INSERT OR UPDATE OF identifier_type,identifier_scope ON product_identifiers
   FOR EACH ROW EXECUTE FUNCTION bls_private.normalize_identifier_scope();
-
-UPDATE product_identifiers
-SET identifier_scope='trade_item',updated_at=now()
-WHERE identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn10','isbn13');
-
--- Legacy fashion/article numbers are retained as useful matching evidence, but their
--- exact trade-item scope is not asserted until manufacturer evidence confirms it.
-UPDATE product_identifiers
-SET identifier_scope='unknown',updated_at=now()
-WHERE identifier_type IN ('mpn','manufacturer_code')
-  AND source='legacy_column_sync';
 
 CREATE INDEX product_identifiers_brand_scoped_lookup_idx
   ON product_identifiers(identifier_type,issuer_brand_id,normalized_value,identifier_scope,active)
