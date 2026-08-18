@@ -218,15 +218,12 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
     ) assortment ON true
     LEFT JOIN LATERAL (
       SELECT COALESCE(
-        NULLIF(vc.evidence->>'Subcategory',''),
-        NULLIF(vc.evidence->>'Category',''),
-        NULLIF(vc.evidence->>'Branch',''),
-        NULLIF(vc.evidence->>'category','')
+        NULLIF(vrp.sub_branch,''),
+        NULLIF(vrp.directory_categories,''),
+        NULLIF(vrp.major_branch,'')
       ) AS category_label
-      FROM vendor_verification_checks vc
-      WHERE vc.vendor_id=v.id
-        AND vc.type IN ('merchant_census_2026_08','online_store_active_2026_08','gemi_public_record_candidate_2026_08','eshop_health_audit_2026_08')
-      ORDER BY CASE vc.type WHEN 'merchant_census_2026_08' THEN 0 WHEN 'online_store_active_2026_08' THEN 1 ELSE 2 END, vc.checked_at DESC, vc.created_at DESC
+      FROM vendor_research_profiles vrp
+      WHERE vrp.vendor_id=v.id
       LIMIT 1
     ) research ON true
     WHERE (m.code=$1 OR m.id::text=$1)
