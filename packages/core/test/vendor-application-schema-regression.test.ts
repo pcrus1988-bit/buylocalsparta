@@ -11,7 +11,7 @@ function read(path: string): string {
 
 test("vendor application market lookup matches the markets schema", () => {
   const runtime = read("apps/web/src/lib/vendor-application-runtime.ts");
-  const migrations = read("db/migrations/0001_initial_marketplace_schema.sql");
+  const migrations = read("db/migrations/0001_core.sql");
 
   assert.match(migrations, /CREATE TABLE markets/i, "initial schema must define markets");
   assert.doesNotMatch(runtime, /FROM markets WHERE code='sparta' AND active\s*=\s*true/i,
