@@ -60,6 +60,16 @@ async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[]):
   }
 }
 
+/**
+ * Authoritative public-admission check used before a direct fairness assignment.
+ * `publicCanonicals()` is itself filtered in PostgreSQL to active, non-suppressed,
+ * non-recalled canonicals, so compliance/recall holds cannot reach assignment.
+ */
+async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<boolean> {
+  if (!productionDatabaseConfigured()) return false;
+  return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).some((product) => product.id === canonicalVariantId);
+}
+
 export async function getCanonicalProductSummary(id: string): Promise<Readonly<{ id: string; title: string; price: string; priceMinor: number }> | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
   const product = (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).find((entry) => entry.id === id);
@@ -88,6 +98,7 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
 
 export async function getCatalogCard(id: string, visitorKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
+  if (!await canonicalIsPubliclyAllowed(id)) return undefined;
   const record = await getProductionPostgresRuntime().customerCommerce.publicAssignedCanonical({ canonicalVariantId: id, visitorKey, postcode, reason: "product_view" });
   if (!record) return undefined;
   return (await enrichDatabaseRecords([record]))[0];
