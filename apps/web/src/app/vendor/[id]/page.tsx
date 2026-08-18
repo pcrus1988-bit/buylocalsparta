@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
     description,
-    alternates: vendor ? { canonical: `/vendor/${encodeURIComponent(vendor.id)}` } : undefined,
+    alternates: { canonical: `/vendor/${encodeURIComponent(vendor.id)}` },
     openGraph: { title: vendor.name, description, url: `/vendor/${encodeURIComponent(vendor.id)}`, images: vendor.mediaId ? [`/api/media/${encodeURIComponent(vendor.mediaId)}`] : undefined, type: "website" }
   };
 }
@@ -53,6 +53,7 @@ export default async function VendorPage({ params }: Props) {
   const website = safeHttpUrl(vendor.research?.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.research?.directoryProfileUrl);
   const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
+  const mapHref = `/shops/map?vendor=${encodeURIComponent(vendor.id)}`;
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -64,7 +65,8 @@ export default async function VendorPage({ params }: Props) {
     telephone: location?.phone,
     email: location?.publicEmail,
     sameAs: [website, directoryProfile].filter(Boolean),
-    address: location ? { "@type": "PostalAddress", streetAddress: [location.addressLine1, location.addressLine2].filter(Boolean).join(", "), addressLocality: location.locality, postalCode: location.postcode, addressCountry: "GR" } : undefined
+    address: location ? { "@type": "PostalAddress", streetAddress: [location.addressLine1, location.addressLine2].filter(Boolean).join(", "), addressLocality: location.locality, postalCode: location.postcode, addressCountry: "GR" } : undefined,
+    geo: location?.coordinates ? { "@type": "GeoCoordinates", latitude: location.coordinates.latitude, longitude: location.coordinates.longitude } : undefined
   };
 
   return (
@@ -105,6 +107,7 @@ export default async function VendorPage({ params }: Props) {
           {!isResearch && <div className="vendor-fact"><strong>Τοπική συμβουλή</strong><span>{vendor.adviser ?? "Διαθέσιμη μέσω του καταστήματος"}</span></div>}
           {!isResearch && <div className="vendor-fact"><strong>Δημόσιος κατάλογος</strong><span>{vendor.canonicalCount} {vendor.canonicalCount === 1 ? "canonical προϊόν" : "canonical προϊόντα"}</span></div>}
           {location && <div className="vendor-fact"><strong>Τοποθεσία</strong><span>{location.addressLine1}{location.addressLine2 ? `, ${location.addressLine2}` : ""}<br />{location.postcode} {location.locality}{location.verified ? " · επαληθευμένο σημείο" : ""}</span></div>}
+          {location?.coordinates && <div className="vendor-fact"><strong>Χάρτης</strong><span><a className="text-link" href={mapHref}>Προβολή επιλεγμένου καταστήματος στον χάρτη →</a></span></div>}
           {location?.phone && <div className="vendor-fact"><strong>Τηλέφωνο</strong><span><a href={`tel:${location.phone}`}>{location.phone}</a></span></div>}
           {location?.publicEmail && <div className="vendor-fact"><strong>Email</strong><span><a href={`mailto:${location.publicEmail}`}>{location.publicEmail}</a></span></div>}
           {vendor.taxonomies.length > 0 && <div className="vendor-fact"><strong>Κατηγορία & υποκατηγορία</strong><div className="vendor-category-row">{vendor.taxonomies.map((taxonomy) => <a className="shop-category-chip" href={`/shops?category=${encodeURIComponent(taxonomy.categorySlug)}${taxonomy.subcategorySlug ? `&subcategory=${encodeURIComponent(taxonomy.subcategorySlug)}` : ""}`} key={`${taxonomy.categorySlug}-${taxonomy.subcategorySlug ?? "all"}`}>{taxonomy.categoryLabel}{taxonomy.subcategoryLabel ? ` · ${taxonomy.subcategoryLabel}` : ""}</a>)}</div></div>}
