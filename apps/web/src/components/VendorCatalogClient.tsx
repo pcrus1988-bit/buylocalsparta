@@ -1,13 +1,29 @@
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
+
+type CatalogProduct = {
+  offerId: string;
+  canonicalVariantId: string;
+  title: string;
+  retailPrice: string;
+  supplierPrice: string;
+  onHand: number;
+  reserved: number;
+  blocked: number;
+  safetyStock: number;
+  availableToSell: number;
+  updatedAt: number;
+};
 
 type Workspace = {
   csrfToken: string;
   vendorId: string;
   csvTemplate: string;
+  catalogProducts: ReadonlyArray<CatalogProduct>;
   submissions: ReadonlyArray<{
     id: string;
     vendorSku?: string;
@@ -35,19 +51,26 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [csv, setCsv] = useState(initial.csvTemplate);
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>(() => Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, String(product.onHand)])));
+
+  useEffect(() => {
+    setStockDrafts(Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, String(product.onHand)])));
+  }, [initial.catalogProducts]);
 
   const awaitingReview = initial.submissions.filter((item) => ["submitted", "needs_review"].includes(item.status)).length;
   const linked = initial.submissions.filter((item) => Boolean(item.canonicalVariantId)).length;
   const rejected = initial.submissions.filter((item) => item.status === "rejected").length;
+  const availableProducts = initial.catalogProducts.filter((item) => item.availableToSell > 0).length;
+  const outOfStock = initial.catalogProducts.filter((item) => item.availableToSell <= 0).length;
 
-  async function call(key: string, url: string, body: unknown) {
+  async function call(key: string, url: string, body: unknown, method = "POST") {
     setBusy(key);
     setError("");
     try {
-      const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken }, body: JSON.stringify(body) });
-      const payload = await response.json();
+      const response = await fetch(url, { method, headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken }, body: JSON.stringify(body) });
+      const payload = await response.json() as { error?: string; preview?: Preview };
       if (!response.ok) throw new Error(payload.error ?? "Η ενέργεια απέτυχε");
-      if (payload.preview) setPreview(payload.preview as Preview);
+      if (payload.preview) setPreview(payload.preview);
       router.refresh();
       return payload;
     } catch (cause) {
@@ -61,11 +84,31 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
     {error && <div className="shell form-error vendor-error" role="alert">{error}</div>}
 
     <WorkspaceMetricStrip items={[
-      { label: "Source products", value: initial.submissions.length },
-      { label: "Needs review", value: awaitingReview, tone: awaitingReview ? "attention" : "default" },
-      { label: "Linked", value: linked, tone: linked ? "positive" : "default" },
-      { label: "Rejected", value: rejected, tone: rejected ? "attention" : "default" }
+      { label: "Ενεργά προϊόντα", value: initial.catalogProducts.length, tone: initial.catalogProducts.length ? "positive" : "default" },
+      { label: "Με διαθέσιμο stock", value: availableProducts, tone: availableProducts ? "positive" : "default" },
+      { label: "Χωρίς stock", value: outOfStock, tone: outOfStock ? "attention" : "default" },
+      { label: "Προς έλεγχο", value: awaitingReview, tone: awaitingReview ? "attention" : "default" }
     ]} />
+
+    <section className="shell vendor-section" id="live-catalog">
+      <WorkspaceSectionHeading eyebrow="Live catalogue" title="Τα προϊόντα του καταστήματός σου" note="Εδώ εμφανίζονται τα πραγματικά approved offers που είναι συνδεδεμένα με το κατάστημά σου. Το matching queue πιο κάτω είναι ξεχωριστή ροή onboarding και δεν είναι ο κατάλογός σου." />
+      {initial.catalogProducts.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη ενεργά προϊόντα." body="Δημιούργησε νέο προϊόν ή εισήγαγε CSV. Μόλις ολοκληρωθεί το matching και εγκριθεί το offer, θα εμφανιστεί εδώ." /> : <div className="vendor-product-grid">{initial.catalogProducts.map((product) => <article className="vendor-product" key={product.offerId}>
+        <div className="vendor-product-title"><div><strong>{product.title}</strong><small>{product.canonicalVariantId}</small></div><span className="status-pill">{product.availableToSell > 0 ? "Ενεργό" : "Χωρίς stock"}</span></div>
+        <dl>
+          <div><dt>Τιμή πελάτη</dt><dd>{product.retailPrice}</dd></div>
+          <div><dt>On hand</dt><dd>{product.onHand}</dd></div>
+          <div><dt>Δεσμευμένα</dt><dd>{product.reserved}</dd></div>
+          <div><dt>Διαθέσιμα</dt><dd>{product.availableToSell}</dd></div>
+        </dl>
+        <div className="stock-editor">
+          <label htmlFor={`catalog-stock-${product.offerId}`}>Stock</label>
+          <input id={`catalog-stock-${product.offerId}`} type="number" min={product.reserved} max={1000000} step="1" value={stockDrafts[product.offerId] ?? String(product.onHand)} onChange={(event) => setStockDrafts((current) => ({ ...current, [product.offerId]: event.target.value }))} />
+          <button className="button" type="button" disabled={busy === `stock:${product.offerId}`} onClick={() => void call(`stock:${product.offerId}`, "/api/vendor/inventory", { offerId: product.offerId, onHand: Number(stockDrafts[product.offerId]) }, "PUT")}>{busy === `stock:${product.offerId}` ? "Αποθήκευση…" : "Ενημέρωση"}</button>
+        </div>
+        <small>Offer {product.offerId} · ενημέρωση {when(product.updatedAt)}</small>
+      </article>)}</div>}
+      <div className="workspace-form-actions"><Link className="button button-secondary" href="/vendor#inventory">Πλήρης διαχείριση αποθέματος</Link></div>
+    </section>
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Add products" title="Νέο προϊόν" note="Η τιμή που ορίζεις είναι η τελική τιμή που θα δει και θα πληρώσει ο πελάτης. Το Buy Local δεν προσθέτει markup στην τιμή προϊόντος." />
@@ -116,8 +159,16 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Product Matching Centre" title="Source products" note="Κάθε source product συνδέεται με ένα canonical προϊόν. Πολλοί vendors μπορούν να έχουν ξεχωριστή τιμή και stock στο ίδιο canonical." />
-      {initial.submissions.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν source products." body="Δημιούργησε ένα προϊόν ή χρησιμοποίησε το CSV εργαλείο για μαζική εισαγωγή." /> : <div className="workspace-queue-list">{initial.submissions.map((item) => <article className="workspace-queue-card" key={item.id}>
+      <WorkspaceSectionHeading eyebrow="Product Matching Centre" title="Onboarding & matching" note="Τα source products είναι εγγραφές εισαγωγής και matching. Δεν αντιπροσωπεύουν το σύνολο των ήδη ενεργών προϊόντων του καταστήματος." />
+    </div>
+      <WorkspaceMetricStrip items={[
+        { label: "Source records", value: initial.submissions.length },
+        { label: "Needs review", value: awaitingReview, tone: awaitingReview ? "attention" : "default" },
+        { label: "Linked", value: linked, tone: linked ? "positive" : "default" },
+        { label: "Rejected", value: rejected, tone: rejected ? "attention" : "default" }
+      ]} />
+      <div className="shell">
+      {initial.submissions.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν εκκρεμείς source products." body="Αυτό είναι φυσιολογικό όταν τα προϊόντα έχουν ήδη εγκριθεί και βρίσκονται στον live κατάλογο πιο πάνω." /> : <div className="workspace-queue-list">{initial.submissions.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>{item.vendorSku ?? "Χωρίς SKU"} · {item.categoryCode} · {when(item.updatedAt)}</small></div><span className="status-pill">{item.status}</span></div>
         <div className="workspace-queue-primary"><span>Τελική τιμή {item.supplierPrice}</span><span>Stock {item.stockOnHand}</span><span>{item.canonicalVariantId ? "Linked" : `${item.candidates.length} candidates`}</span></div>
         {item.rejectionReason && <p className="workspace-queue-summary">{item.rejectionReason}</p>}
@@ -130,6 +181,7 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
         </WorkspaceRecordDetails>
         <div className="workspace-action-bar"><span>Το matching και η έγκριση offer ελέγχονται από την πλατφόρμα.</span><div className="workspace-action-buttons">{item.status === "draft" && <button className="button" disabled={Boolean(busy)} onClick={() => void call(`submit:${item.id}`, `/api/vendor/catalog/products/${item.id}/submit`, {})}>{busy === `submit:${item.id}` ? "Υποβολή…" : "Υποβολή"}</button>}</div></div>
       </article>)}</div>}
-    </div></section>
+      </div>
+    </section>
   </>;
 }
