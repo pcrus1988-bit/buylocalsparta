@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getCatalogCards, getCatalogFacets } from "../../lib/catalog-view";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
+import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-analytics";
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
@@ -38,6 +39,21 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   if (availability === "available") products = products.filter((product) => product.available);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
+  await recordStorefrontSearchAnalytics({
+    visitorKey,
+    query,
+    resultCount: products.length,
+    categoryCode: subcategory || category || undefined,
+    filters: {
+      subcategory: subcategory || undefined,
+      brand: brand || undefined,
+      color: color || undefined,
+      size: size || undefined,
+      fit: fit || undefined,
+      availability: availability || undefined,
+      sort: sort || undefined
+    }
+  });
   const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit);
 
   return (
