@@ -82,7 +82,7 @@ export default async function ShopsPage({ searchParams }: Props) {
 
       <div className="shops-principles" aria-label="Merchant directory principles">
         <div><strong>Χαρτογράφηση ≠ συνεργασία</strong><span>Οι ερευνητικές καταχωρίσεις βασίζονται αποκλειστικά σε δημόσια επιχειρηματικά στοιχεία και δεν παρουσιάζονται ως συμβεβλημένοι συνεργάτες.</span></div>
-        <div><strong>Δημόσια στοιχεία, όχι εσωτερικές σημειώσεις</strong><span>Διεύθυνση, τηλέφωνο, website και δημόσια κατηγοριοποίηση μπορούν να εμφανίζονται. Internal outreach, scoring και verification intelligence παραμένουν ιδιωτικά.</span></div>
+        <div><strong>Δημόσια στοιχεία, όχι εσωτερικές σημειώσεις</strong><span>Διεύθυνση, τηλέφωνο, website και δημόσια κατηγοριοποίηση μπορούν να εμφανίζονται. Internal outreach, scoring και verification intelligence παραμένουν ιδιωτικά. Η παρουσία εδώ δεν αλλάζει τη δίκαιη ανάθεση ούτε αποκαλύπτει κρυφές supplier offers. <a className="text-link" href="/fairness">Δες πώς λειτουργεί →</a></span></div>
         <div><strong>Ιστορίες μόνο με έγκριση</strong><span>Merchant story, σύμβουλος και εγκεκριμένες φωτογραφίες εμφανίζονται μόνο μετά από onboarding και έγκριση του εμπόρου.</span></div>
       </div>
 
