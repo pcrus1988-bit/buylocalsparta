@@ -34,8 +34,9 @@ export function CatalogProductCard({ product, index = 0, vendorContext }: { prod
         <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
       </a>
       <div className="product-body">
-        <div className="eyebrow">{category.label}</div>
+        <div className="eyebrow">{product.categoryLabel ?? category.label}{product.mpn ? ` · Κωδ. ${product.mpn}` : ""}</div>
         <h3><a href={`/product/${product.id}`}>{product.title}</a></h3>
+        {product.description ? <p className="partner">{product.description}</p> : null}
         {vendorName && adviser ? (
           <p className="partner">Συμβουλή & παραλαβή από <strong>{vendorHref ? <a href={vendorHref}>{vendorName}</a> : vendorName}</strong> · Ρώτησε {adviser}.</p>
         ) : vendorName ? (
