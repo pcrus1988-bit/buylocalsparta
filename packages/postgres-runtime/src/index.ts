@@ -2,7 +2,7 @@ import { PostgresPersistenceBundle, type ReleasableSqlExecutor, type SqlPool, ty
 import { Pool, type PoolClient, type PoolConfig, type QueryResultRow } from "pg";
 import { PostgresCustomerCommerceService } from "./customer-commerce.ts";
 import { PostgresVendorOperationsService } from "./vendor-operations.ts";
-import { PostgresAdminOperationsService } from "./admin-operations.ts";
+import { PostgresAdminOperationsLiveService } from "./admin-operations-live.ts";
 import { PostgresAdminGovernanceService } from "./admin-governance.ts";
 import { VivaPaymentsClient, vivaConfigFromEnv, type VivaConfig } from "@buy-local-sparta/viva-payments";
 import { PostgresVivaPaymentsService } from "./viva-payments.ts";
@@ -82,7 +82,7 @@ export class ProductionPostgresRuntime {
   readonly persistence: PostgresPersistenceBundle;
   readonly customerCommerce: PostgresCustomerCommerceService;
   readonly vendorOperations: PostgresVendorOperationsService;
-  readonly adminOperations: PostgresAdminOperationsService;
+  readonly adminOperations: PostgresAdminOperationsLiveService;
   readonly adminGovernance: PostgresAdminGovernanceService;
   readonly vivaPayments?: PostgresVivaPaymentsService;
   readonly mediaPipeline: PostgresMediaPipelineService;
@@ -108,7 +108,7 @@ export class ProductionPostgresRuntime {
     this.persistence = new PostgresPersistenceBundle(this.sqlPool);
     this.customerCommerce = new PostgresCustomerCommerceService(this.sqlPool);
     this.vendorOperations = new PostgresVendorOperationsService(this.sqlPool);
-    this.adminOperations = new PostgresAdminOperationsService(this.sqlPool, this.persistence);
+    this.adminOperations = new PostgresAdminOperationsLiveService(this.sqlPool, this.persistence);
     this.adminGovernance = new PostgresAdminGovernanceService(this.sqlPool, this.persistence, this.adminOperations);
     this.vivaPayments = config.viva ? new PostgresVivaPaymentsService(this.sqlPool, new VivaPaymentsClient(config.viva), { emailNotificationsEnabled: Boolean(config.resend) }) : undefined;
     this.mediaPipeline = new PostgresMediaPipelineService(this.sqlPool, { maxBytes: config.mediaMaxBytes });
