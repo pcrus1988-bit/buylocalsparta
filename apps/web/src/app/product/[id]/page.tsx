@@ -68,6 +68,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
         }
       },
       {
+        "@type": "Organization",
+        "@id": `${origin}/#organization`,
+        name: "Buy Local Sparta",
+        url: origin
+      },
+      {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Αρχική", item: origin },
