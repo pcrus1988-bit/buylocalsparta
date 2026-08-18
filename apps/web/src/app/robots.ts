@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { publicOrigin } from "../lib/public-origin";
+import { ROBOTS_DISALLOW_PATHS } from "../lib/site-navigation";
 
 export default function robots(): MetadataRoute.Robots {
   const origin = publicOrigin();
@@ -7,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/account", "/admin", "/api", "/cart", "/checkout", "/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/finance", "/vendor/login", "/vendor/returns", "/vendor/shipping", "/vendor/trust"]
+      disallow: [...ROBOTS_DISALLOW_PATHS]
     },
     sitemap: `${origin}/sitemap.xml`,
     host: origin

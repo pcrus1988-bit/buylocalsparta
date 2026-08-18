@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { INDEXABLE_STATIC_ROUTES, ROBOTS_DISALLOW_PATHS } from "../apps/web/src/lib/site-navigation.ts";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const failures: string[] = [];
@@ -8,8 +9,18 @@ const layout = read("apps/web/src/app/layout.tsx");
 const vendor = read("apps/web/src/app/vendor/[id]/page.tsx");
 const product = read("apps/web/src/app/product/[id]/page.tsx");
 
-for (const required of ["getPublicCatalogProducts()", "getPublicVendorDirectory()", "STOREFRONT_CATEGORIES", "Promise.allSettled"]) if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
-for (const privatePath of ["/account", "/admin", "/api", "/checkout", "/vendor/login"]) if (!robots.includes(`\"${privatePath}\"`)) failures.push(`Robots rules do not protect ${privatePath}`);
+for (const required of ["getPublicCatalogProducts()", "getPublicVendorDirectory()", "STOREFRONT_CATEGORIES", "Promise.allSettled", "INDEXABLE_STATIC_ROUTES"]) {
+  if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
+}
+if (!robots.includes("ROBOTS_DISALLOW_PATHS")) failures.push("Robots rules must use the canonical route registry");
+for (const privatePath of ["/account", "/admin", "/api", "/checkout", "/login", "/register", "/verify-email", "/join/apply", "/vendor/login"]) {
+  if (!ROBOTS_DISALLOW_PATHS.includes(privatePath as (typeof ROBOTS_DISALLOW_PATHS)[number])) failures.push(`Robots registry does not protect ${privatePath}`);
+}
+for (const route of INDEXABLE_STATIC_ROUTES) {
+  if (ROBOTS_DISALLOW_PATHS.some((privatePath) => route.href === privatePath || (privatePath !== "/" && route.href.startsWith(`${privatePath}/`)))) {
+    failures.push(`Indexable route ${route.href} conflicts with robots exclusion ${ROBOTS_DISALLOW_PATHS.find((privatePath) => route.href === privatePath || route.href.startsWith(`${privatePath}/`))}`);
+  }
+}
 if (!layout.includes("metadataBase: new URL(publicOrigin())")) failures.push("Root metadata must use the deployment-aware public origin");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
 if (!vendor.includes('replaceAll("<", "\\\\u003c")')) failures.push("Structured data must escape HTML-opening characters");
@@ -23,4 +34,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: dynamic public sitemap, private-route robots boundaries, metadata origin and LocalBusiness JSON-LD verified.");
+console.log("Next SEO checks passed: canonical route registry, dynamic public sitemap, private-route robots boundaries, metadata origin and structured data verified.");
