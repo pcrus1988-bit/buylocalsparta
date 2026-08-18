@@ -124,7 +124,7 @@ function formatDistance(distance: number): string {
   return distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} μ.` : `${distance.toLocaleString("el-GR", { maximumFractionDigits: 1 })} χλμ.`;
 }
 
-export function VendorMapDirectory({ vendors, categories }: { vendors: readonly VendorMapEntry[]; categories: readonly VendorMapCategory[] }) {
+export function VendorMapDirectory({ vendors, categories, initialVendorId }: { vendors: readonly VendorMapEntry[]; categories: readonly VendorMapCategory[]; initialVendorId?: string }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerRef = useRef<LeafletLayerGroup | null>(null);
@@ -138,7 +138,7 @@ export function VendorMapDirectory({ vendors, categories }: { vendors: readonly 
   const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [geoMessage, setGeoMessage] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => initialVendorId && vendors.some((vendor) => vendor.id === initialVendorId) ? initialVendorId : null);
 
   const filteredVendors = useMemo(() => {
     const needle = normalizedSearch(query);
