@@ -60,7 +60,9 @@ export async function persistentCustomerCart(principal: SessionPrincipal, visito
   if (!visitorKey || cart.items.length === 0) return cart;
 
   const items = await Promise.all(cart.items.map(async (item) => {
-    await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: item.canonicalVariantId, visitorKey, postcode, reason: "checkout" });
+    // Cart is a continuation of the customer's product view. The fairness service reuses
+    // an existing sticky assignment before considering any new allocation.
+    await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: item.canonicalVariantId, visitorKey, postcode, reason: "product_view" });
     const result = await runtime.nativePool.query(`
       SELECT vo.customer_price_minor,
              GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) AS available_to_sell
