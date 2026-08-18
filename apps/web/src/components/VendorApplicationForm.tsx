@@ -76,7 +76,7 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
     </div>;
   }
 
-  return <form className="login-form" onSubmit={submit}>
+  return <form className={`login-form ${styles.form}`} onSubmit={submit}>
     <div className="eyebrow">1 · Επιχείρηση</div>
     <label htmlFor="vendor-legal-name">Νομική επωνυμία *</label>
     <input id="vendor-legal-name" name="legalName" required maxLength={160} autoComplete="organization" />
