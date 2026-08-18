@@ -1,3 +1,35 @@
+.form input:not([type="checkbox"]),
+.form select,
+.form textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 13px;
+  background: #f8f4eb;
+  color: var(--ink);
+  font: inherit;
+}
+
+.form textarea {
+  min-height: 140px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.form select {
+  padding-right: 34px;
+}
+
+.form input:focus-visible,
+.form select:focus-visible,
+.form textarea:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 3px;
+}
+
 .twoColumn {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
