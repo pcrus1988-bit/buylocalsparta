@@ -6,6 +6,7 @@ const failures: string[] = [];
 const sitemap = read("apps/web/src/app/sitemap.ts");
 const robots = read("apps/web/src/app/robots.ts");
 const layout = read("apps/web/src/app/layout.tsx");
+const category = read("apps/web/src/app/category/[slug]/page.tsx");
 const vendor = read("apps/web/src/app/vendor/[id]/page.tsx");
 const product = read("apps/web/src/app/product/[id]/page.tsx");
 
@@ -23,6 +24,9 @@ for (const route of INDEXABLE_STATIC_ROUTES) {
   }
 }
 if (!layout.includes("metadataBase: new URL(publicOrigin())")) failures.push("Root metadata must use the deployment-aware public origin");
+if (!category.includes("title: category.label")) failures.push("Category metadata must rely on the root title template rather than duplicating the Buy Local Sparta brand");
+if (!category.includes('alternates: { canonical: `/category/${category.slug}` }')) failures.push("Category pages must publish self-canonical URLs");
+if (category.includes('title: `${category.label} · Buy Local Sparta`')) failures.push("Category title must not duplicate the root Buy Local Sparta title template");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
 if (!vendor.includes('replaceAll("<", "\\\\u003c")')) failures.push("Structured data must escape HTML-opening characters");
 for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', 'availableAtOrFrom:', '"@type": "BreadcrumbList"']) {
@@ -35,4 +39,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: canonical route registry, resolvable dynamic public sitemap, private-route robots boundaries, metadata origin and structured data verified.");
+console.log("Next SEO checks passed: canonical route registry, category title/canonical hygiene, resolvable dynamic public sitemap, private-route robots boundaries, metadata origin and structured data verified.");
