@@ -12,13 +12,15 @@ const categories = [
   ["gifts", "Δώρα · βιβλία · χαρτικά · ειδικά είδη"]
 ] as const;
 
+type PlanCode = "founding_2026" | "annual" | "monthly";
+
 type Receipt = Readonly<{
   reference: string;
   accountClaimRequired: boolean;
   message: string;
 }>;
 
-export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?: string; signedInEmail?: string }) {
+export function VendorApplicationForm({ csrfToken, signedInEmail, initialPlanCode = "annual" }: { csrfToken?: string; signedInEmail?: string; initialPlanCode?: PlanCode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [errorCode, setErrorCode] = useState("");
@@ -113,7 +115,7 @@ export function VendorApplicationForm({ csrfToken, signedInEmail }: { csrfToken?
 
     <div className="eyebrow">4 · Συνεργασία</div>
     <label htmlFor="vendor-plan">Ενδιαφέρον προγράμματος *</label>
-    <select id="vendor-plan" name="requestedPlanCode" required defaultValue="annual">
+    <select id="vendor-plan" name="requestedPlanCode" required defaultValue={initialPlanCode}>
       <option value="founding_2026">Founding Partner — €1.500 εφάπαξ · €0 συνδρομή · 2% προμήθεια</option>
       <option value="annual">Annual — €299 εφάπαξ · €399/έτος · 5% προμήθεια</option>
       <option value="monthly">Monthly — €499 εφάπαξ · €49/μήνα · 7% προμήθεια</option>
