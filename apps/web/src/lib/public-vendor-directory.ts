@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages } from "./public-media-service";
+import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
 
 export type PublicVendorLocation = Readonly<{
   name: string;
@@ -21,6 +22,20 @@ export type PublicVendorStory = Readonly<{
   mediaUrl?: string;
 }>;
 
+export type PublicVendorResearchProfile = Readonly<{
+  sourceKind?: string;
+  majorBranch?: string;
+  subBranch?: string;
+  marketplaceScope?: string;
+  distanceKm?: number;
+  storefrontStatus?: string;
+  directoryCategories?: string;
+  directoryProfileUrl?: string;
+  onlineShopActive?: string;
+  onlineShopUrl?: string;
+  checkedAt?: string;
+}>;
+
 export type PublicVendorDirectoryStatus = "partner" | "research";
 
 export type PublicVendorDirectoryEntry = Readonly<{
@@ -31,6 +46,8 @@ export type PublicVendorDirectoryEntry = Readonly<{
   story?: PublicVendorStory;
   categoryCodes: readonly string[];
   researchCategory?: string;
+  taxonomies: readonly PublicVendorTaxonomy[];
+  research?: PublicVendorResearchProfile;
   canonicalCount: number;
   mediaId?: string;
   mediaAlt?: string;
@@ -56,7 +73,17 @@ type VendorDirectoryRow = SqlRow & {
   story_excerpt?: string | null;
   story_media_id?: string | null;
   category_codes?: readonly string[] | null;
-  research_category?: string | null;
+  research_source_kind?: string | null;
+  research_major_branch?: string | null;
+  research_sub_branch?: string | null;
+  research_marketplace_scope?: string | null;
+  research_distance_km?: number | string | null;
+  research_storefront_status?: string | null;
+  research_directory_categories?: string | null;
+  research_directory_profile?: string | null;
+  research_online_shop_active?: string | null;
+  research_online_shop_url?: string | null;
+  research_checked_at?: string | null;
   canonical_count?: number | string | null;
 };
 
@@ -72,6 +99,11 @@ function publicMediaUrl(value: unknown): string | undefined {
 function asCount(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function textArray(value: unknown): readonly string[] {
@@ -103,14 +135,34 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
   const story = isPartner && storyId && storySlug && storyTitle && storyExcerpt
     ? { id: storyId, slug: storySlug, title: storyTitle, excerpt: storyExcerpt, mediaUrl: publicMediaUrl(row.story_media_id) }
     : undefined;
+  const categoryCodes = isPartner ? textArray(row.category_codes) : [];
+  const majorBranch = optionalText(row.research_major_branch);
+  const subBranch = optionalText(row.research_sub_branch);
+  const research: PublicVendorResearchProfile | undefined = optionalText(row.research_source_kind) || majorBranch || subBranch
+    ? {
+        sourceKind: optionalText(row.research_source_kind),
+        majorBranch,
+        subBranch,
+        marketplaceScope: optionalText(row.research_marketplace_scope),
+        distanceKm: optionalNumber(row.research_distance_km),
+        storefrontStatus: optionalText(row.research_storefront_status),
+        directoryCategories: optionalText(row.research_directory_categories),
+        directoryProfileUrl: optionalText(row.research_directory_profile),
+        onlineShopActive: optionalText(row.research_online_shop_active),
+        onlineShopUrl: optionalText(row.research_online_shop_url),
+        checkedAt: optionalText(row.research_checked_at)
+      }
+    : undefined;
   return {
     id: row.vendor_id,
     name: row.vendor_name,
     adviser: isPartner ? optionalText(row.adviser_name) : undefined,
     location,
     story,
-    categoryCodes: isPartner ? textArray(row.category_codes) : [],
-    researchCategory: isPartner ? undefined : optionalText(row.research_category),
+    categoryCodes,
+    researchCategory: isPartner ? undefined : subBranch,
+    taxonomies: publicVendorTaxonomies({ majorBranch, subBranch, categoryCodes }),
+    research,
     canonicalCount: isPartner ? asCount(row.canonical_count) : 0,
     directoryStatus: isPartner ? "partner" : "research"
   };
@@ -138,10 +190,21 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            story.excerpt AS story_excerpt,
            story.media_public_id AS story_media_id,
            COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
-           research.category_label AS research_category,
+           vrp.source_kind AS research_source_kind,
+           vrp.major_branch AS research_major_branch,
+           vrp.sub_branch AS research_sub_branch,
+           vrp.marketplace_scope AS research_marketplace_scope,
+           vrp.distance_km AS research_distance_km,
+           vrp.storefront_status AS research_storefront_status,
+           vrp.directory_categories AS research_directory_categories,
+           vrp.directory_profile AS research_directory_profile,
+           vrp.online_shop_active AS research_online_shop_active,
+           vrp.online_shop_url AS research_online_shop_url,
+           vrp.checked_at::text AS research_checked_at,
            COALESCE(assortment.canonical_count, 0)::integer AS canonical_count
     FROM vendor_businesses v
     JOIN markets m ON m.id=v.market_id
+    LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id=v.id
     LEFT JOIN LATERAL (
       SELECT COALESCE(NULLIF(ap.display_name,''),'Local adviser') AS name
       FROM adviser_profiles ap
@@ -195,19 +258,6 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
         AND cv.suppressed=false
         AND cv.recalled=false
     ) assortment ON true
-    LEFT JOIN LATERAL (
-      SELECT COALESCE(
-        NULLIF(vc.evidence->>'Subcategory',''),
-        NULLIF(vc.evidence->>'Category',''),
-        NULLIF(vc.evidence->>'Branch',''),
-        NULLIF(vc.evidence->>'category','')
-      ) AS category_label
-      FROM vendor_verification_checks vc
-      WHERE vc.vendor_id=v.id
-        AND vc.type IN ('merchant_census_2026_08','online_store_active_2026_08','gemi_public_record_candidate_2026_08','eshop_health_audit_2026_08')
-      ORDER BY CASE vc.type WHEN 'merchant_census_2026_08' THEN 0 WHEN 'online_store_active_2026_08' THEN 1 ELSE 2 END, vc.checked_at DESC, vc.created_at DESC
-      LIMIT 1
-    ) research ON true
     WHERE (m.code=$1 OR m.id::text=$1)
       AND (
         v.status='active'
@@ -233,7 +283,8 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
   if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
   const vendor = (await databaseDirectory(vendorId))[0];
-  if (!vendor || vendor.directoryStatus !== "partner") return undefined;
+  if (!vendor) return undefined;
+  if (vendor.directoryStatus !== "partner") return vendor;
   const image = (await approvedVendorImages([vendor.id]))[0];
   return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
 }
