@@ -13,7 +13,7 @@ export default async function VendorCatalogPage() {
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Κατάλογος</div><h1>Προϊόντα & matching</h1><p className="lead">Δημιούργησε source προϊόντα, έλεγξε την κατάστασή τους και χρησιμοποίησε CSV μόνο όταν χρειάζεται μαζική εισαγωγή.</p></div>
+      <div><div className="eyebrow">Κατάλογος</div><h1>Προϊόντα & απόθεμα</h1><p className="lead">Δες πρώτα τα ενεργά προϊόντα του καταστήματός σου, ενημέρωσε stock και χρησιμοποίησε το matching μόνο για νέα προϊόντα ή μαζικές εισαγωγές.</p></div>
     </section>
     <VendorCatalogClient initial={await vendorCatalogWorkspace(principal)} />
   </main>;
