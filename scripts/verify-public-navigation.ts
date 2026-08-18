@@ -61,7 +61,9 @@ for (const route of INDEXABLE_STATIC_ROUTES) {
   const pagePath = route.href === "/" ? "apps/web/src/app/page.tsx" : `apps/web/src/app${route.href}/page.tsx`;
   if (!existsSync(join(root, pagePath))) continue;
   const source = read(pagePath);
-  if (route.href !== "/" && !source.includes(`canonical: "${route.href}"`)) failures.push(`${route.href} is missing canonical metadata`);
+  const layoutPath = route.href === "/" ? "apps/web/src/app/layout.tsx" : `apps/web/src/app${route.href}/layout.tsx`;
+  const metadataSource = existsSync(join(root, layoutPath)) ? `${source}\n${read(layoutPath)}` : source;
+  if (route.href !== "/" && !metadataSource.includes(`canonical: "${route.href}"`)) failures.push(`${route.href} is missing canonical metadata`);
   if (!source.includes("<SiteFooter />")) failures.push(`${route.href} is missing the shared public footer`);
 }
 
