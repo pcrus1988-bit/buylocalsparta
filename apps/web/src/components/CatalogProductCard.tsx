@@ -10,11 +10,18 @@ const catalogImageStyle = {
   zIndex: 1
 } as const;
 
+function demoBookCover(product: CatalogCard): string | undefined {
+  if (product.mediaId || !product.id.startsWith("product_demo_book_") || !/^\d{13}$/.test(product.mpn ?? "")) return undefined;
+  return `https://covers.openlibrary.org/b/isbn/${product.mpn}-L.jpg?default=false`;
+}
+
 export function CatalogProductCard({ product, index = 0, vendorContext }: { product: CatalogCard; index?: number; vendorContext?: Readonly<{ name: string; adviser?: string }> }) {
   const category = storefrontCategoryForCode(product.categoryCode);
   const vendorName = vendorContext?.name ?? product.vendorName;
   const adviser = vendorContext?.adviser ?? product.adviser;
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
+  const externalDemoCover = demoBookCover(product);
+  const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : externalDemoCover;
 
   return (
     <article className="product-card">
@@ -22,12 +29,13 @@ export function CatalogProductCard({ product, index = 0, vendorContext }: { prod
         <span className="art-category">{category.name}</span>
         <span className="art-symbol" aria-hidden="true">{category.symbol}</span>
         <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-        {product.mediaId ? (
+        {imageSrc ? (
           <img
-            src={`/api/media/${encodeURIComponent(product.mediaId)}`}
+            src={imageSrc}
             alt={product.mediaAlt ?? product.title}
             loading="lazy"
             decoding="async"
+            referrerPolicy={externalDemoCover ? "no-referrer" : undefined}
             style={catalogImageStyle}
           />
         ) : null}
