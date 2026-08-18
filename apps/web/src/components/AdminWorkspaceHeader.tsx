@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { ADMIN_WORKSPACE_NAVIGATION } from "../lib/workspace-navigation";
 
+// Production invariant: activation evidence remains exposed through the canonical /admin/activation workspace route.
 export function AdminWorkspaceHeader({ csrfToken }: { csrfToken: string }) {
   const router = useRouter();
   const pathname = usePathname();
