@@ -39,5 +39,5 @@
   "0038_paid_reservation_consumption.sql": "b53e31e3ae044cccc56734163a949eec8b2a3767b889059d7a5ced4552f2fd82",
   "0039_supabase_security_hardening.sql": "fe761b087d878316c652272ae2208ac4d56fc667bc49c88bc8f6f406f17fbd2a",
   "0041_vendor_final_price_commission_agreements.sql": "63711c1d518bb2a6600082da32331154ae705ed7ac65fa23c0e40592f04de661",
-  "0060_product_funnel_analytics.sql": "8a0b4ddc14b182ccecb68b0d9bb7fd309d4995f462e9f87aa1ce763e3b606d05"
+  "0060_product_funnel_analytics.sql": "086887951f78504f90d914ae9dcfb1e5d250b974ce3b0b22e44029b1a154a79d"
 }
