@@ -11,5 +11,12 @@ export default async function AccountPage() {
   const principal = await getAccountSession();
   if (!principal) redirect("/login?next=/account");
   const dashboard = await accountDashboard(principal);
-  return <main><div className="announcement">Ο λογαριασμός σου συγκεντρώνει αγορές, αποθηκευμένα και τοπικές ειδοποιήσεις.</div><SiteHeader compact /><section className="shell page-hero account-hero"><div><div className="eyebrow">Customer hub</div><h1>Η τοπική σου αγορά, οργανωμένη γύρω από εσένα.</h1><p className="lead">Παραγγελίες, saved προϊόντα και αναζητήσεις, ειδοποιήσεις και privacy controls σε μία authenticated επιφάνεια.</p></div></section><AccountDashboardClient initial={dashboard} /></main>;
+  return <main className="account-app">
+    <div className="announcement">Οι αγορές και οι τοπικές υπηρεσίες σου, σε ένα σημείο.</div>
+    <SiteHeader compact />
+    <section className="shell page-hero account-hero dashboard-hero-refined">
+      <div><div className="eyebrow">Ο λογαριασμός μου</div><h1>Ό,τι χρειάζεσαι, χωρίς περιττά βήματα.</h1><p className="lead">Παραγγελίες, αποθηκευμένα, ειδοποιήσεις και ιδιωτικότητα.</p></div>
+    </section>
+    <AccountDashboardClient initial={dashboard} />
+  </main>;
 }
