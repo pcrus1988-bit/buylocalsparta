@@ -62,6 +62,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.capture_checkout_started_analytics() FROM PUBLIC, anon, authenticated;
+
 DROP TRIGGER IF EXISTS order_lines_capture_checkout_started_analytics ON public.order_lines;
 CREATE TRIGGER order_lines_capture_checkout_started_analytics
 AFTER INSERT ON public.order_lines
@@ -95,6 +97,8 @@ BEGIN
   RETURN new;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.capture_order_purchase_analytics() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS customer_orders_capture_purchase_analytics ON public.customer_orders;
 CREATE TRIGGER customer_orders_capture_purchase_analytics
