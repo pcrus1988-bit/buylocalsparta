@@ -7,14 +7,36 @@
 .login-panel { border-radius: 22px; }
 .login-panel > h2 { margin-bottom: 20px; }
 
+.account-section-nav-content { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.account-section-nav-primary { min-width: 0; display: flex; align-items: center; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+.account-section-nav-primary::-webkit-scrollbar { display: none; }
+.account-section-nav-more { position: relative; flex: 0 0 auto; }
+.account-section-nav-more > summary { min-height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 11px; color: var(--dash-muted); border: 1px solid transparent; border-radius: 9px; font-size: 9px; font-weight: 800; list-style: none; cursor: pointer; user-select: none; }
+.account-section-nav-more > summary::-webkit-details-marker { display: none; }
+.account-section-nav-more > summary::after { content: "⌄"; color: var(--dash-gold); font-size: 11px; transition: transform .18s ease; }
+.account-section-nav-more[open] > summary { color: var(--dash-navy); border-color: rgba(185, 148, 81, .32); background: #f4ead3; }
+.account-section-nav-more[open] > summary::after { transform: rotate(180deg); }
+.account-section-nav-more > div { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; min-width: 180px; display: grid; gap: 3px; padding: 7px; border: 1px solid rgba(23, 40, 59, .12); border-radius: 12px; background: #fffdf9; box-shadow: 0 18px 44px rgba(23, 40, 59, .14); }
+.account-section-nav-more > div a { min-height: 38px; display: flex; align-items: center; padding: 0 11px; }
+.account-section-nav a:focus-visible,
+.account-section-nav summary:focus-visible { outline: 2px solid var(--dash-gold); outline-offset: 2px; }
+
 @media (max-width: 1020px) {
   .workspace-footer-stacked { flex-direction: row; align-items: center; }
   .workspace-footer-actions { display: flex; }
   .workspace-footer-actions .workspace-footer-action { width: auto; }
+  .account-section-nav { gap: 12px; }
+  .account-section-nav > span { display: none; }
+  .account-section-nav-content { width: 100%; justify-content: space-between; }
+  .account-section-nav-primary { flex: 1 1 auto; }
 }
 
 @media (max-width: 620px) {
   .workspace-footer-stacked { align-items: stretch; flex-direction: column; }
   .workspace-footer-actions { display: grid; }
   .workspace-footer-actions .workspace-footer-action { width: 100%; }
+  .account-section-nav { top: 8px; padding: 7px; }
+  .account-section-nav-primary a { padding-inline: 10px; }
+  .account-section-nav-more > summary { padding-inline: 9px; }
+  .account-section-nav-more > div { right: -2px; min-width: 168px; }
 }
