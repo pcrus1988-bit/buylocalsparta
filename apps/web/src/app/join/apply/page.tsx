@@ -3,7 +3,7 @@ import { VendorApplicationForm } from "../../../components/VendorApplicationForm
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getAccountSession } from "../../../lib/account-session";
-import { vendorApplicationReadiness } from "../../../lib/vendor-application-runtime";
+import { vendorApplicationReadiness, type VendorApplicationInput } from "../../../lib/vendor-application-runtime";
 
 export const metadata: Metadata = {
   title: "Αίτηση συνεργασίας εμπόρου",
@@ -11,9 +11,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true }
 };
 
-export default async function VendorApplicationPage() {
+export default async function VendorApplicationPage({ searchParams }: { searchParams: Promise<{ plan?: string }> }) {
   const principal = await getAccountSession();
   const readiness = vendorApplicationReadiness();
+  const params = await searchParams;
+  const initialPlanCode = normalizePlan(params.plan);
+
   return <main>
     <div className="announcement">Vendor onboarding · αίτηση → επαλήθευση → catalog onboarding → test readiness → ενεργοποίηση.</div>
     <SiteHeader compact />
@@ -46,10 +49,15 @@ export default async function VendorApplicationPage() {
           {principal && <div className="account-gate"><strong>Συνδεδεμένος λογαριασμός</strong><p>{principal.email}</p><p>Η αίτηση θα συνδεθεί με αυτή την επαληθευμένη ταυτότητα, ανεξάρτητα από το business contact email.</p></div>}
         </div>
         <div className="login-panel vendor-apply-panel">
-          {!readiness.ready ? <div className="account-gate"><strong>Η αίτηση δεν είναι διαθέσιμη.</strong><p>{readiness.message}</p></div> : <VendorApplicationForm csrfToken={principal?.csrfToken} signedInEmail={principal?.email} />}
+          {!readiness.ready ? <div className="account-gate"><strong>Η αίτηση δεν είναι διαθέσιμη.</strong><p>{readiness.message}</p></div> : <VendorApplicationForm csrfToken={principal?.csrfToken} signedInEmail={principal?.email} initialPlanCode={initialPlanCode} />}
         </div>
       </div>
     </section>
     <SiteFooter />
   </main>;
+}
+
+function normalizePlan(value: string | undefined): VendorApplicationInput["requestedPlanCode"] {
+  if (value === "founding_2026" || value === "monthly") return value;
+  return "annual";
 }
