@@ -5,41 +5,53 @@ import { AdminActionButton } from "../../../components/AdminActionButton";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminTrustWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
+import { adminVendorProfileMediaAssignments } from "../../../lib/vendor-profile-media-service";
 
 export const metadata: Metadata = { title: "Admin · Trust", robots: { index: false, follow: false } };
+
+const ROLE_LABELS = { logo: "Logo", storefront: "Storefront", team: "People / team", gallery: "Gallery" } as const;
 
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
-  const data = await adminTrustWorkspace(principal);
+  const [data, profileAssignments] = await Promise.all([adminTrustWorkspace(principal), adminVendorProfileMediaAssignments(principal)]);
+  const profileByMedia = new Map(profileAssignments.map((assignment) => [assignment.mediaId, assignment]));
   const pendingScan = data.assets.filter((asset) => asset.scanStatus === "pending").length;
   const mediaReview = data.assets.filter((asset) => asset.scanStatus === "clean" && (asset.rightsStatus !== "approved" || asset.moderationStatus !== "approved")).length;
+  const profilePublication = profileAssignments.filter((assignment) => assignment.publicationStatus === "draft" && assignment.scanStatus === "clean" && assignment.rightsStatus === "approved" && assignment.moderationStatus === "approved").length;
   const compliancePending = data.documents.filter((document) => document.status === "pending").length;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Trust & safety</div><h1>Media & compliance</h1><p className="lead">Δούλεψε τις πραγματικές review queues με τη σωστή σειρά: scan → rights/moderation → compliance verification.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Trust & safety</div><h1>Media & compliance</h1><p className="lead">Δούλεψε τις πραγματικές review queues με τη σωστή σειρά: scan → rights/moderation → storefront publication → compliance verification.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Media", value: data.assets.length },
       { label: "Scan pending", value: pendingScan, tone: pendingScan ? "attention" : "default" },
       { label: "Rights / moderation", value: mediaReview, tone: mediaReview ? "attention" : "default" },
+      { label: "Storefront publish", value: profilePublication, tone: profilePublication ? "attention" : "default" },
       { label: "Compliance pending", value: compliancePending, tone: compliancePending ? "attention" : "default" }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Media review" title="Media queue" note={data.automatedMalwareScan ? "Automated malware scanning is enabled; pending scans do not need a manual clean action." : "Manual clean-scan recording is available before rights/moderation approval."} />
-      {data.assets.length === 0 ? <WorkspaceEmptyState title="Δεν έχει υποβληθεί vendor media." /> : <div className="workspace-queue-list">{data.assets.map((asset) => <article className="workspace-queue-card" key={asset.id}>
-        <div className="workspace-queue-head"><div><strong>{asset.originalFilename}</strong><small>{asset.contentType} · {(asset.byteSize / 1024).toFixed(1)} KB</small></div><span className="status-pill">{asset.moderationStatus}</span></div>
-        <div className="workspace-queue-primary"><span>Scan {asset.scanStatus}</span><span>Rights {asset.rightsStatus}</span><span>Moderation {asset.moderationStatus}</span></div>
-        <WorkspaceRecordDetails label="Vendor, product & asset references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Asset ID</strong><span>{asset.id}</span></div><div className="workspace-compact-row"><strong>Vendor</strong><span>{asset.vendorId ?? "platform"}</span></div><div className="workspace-compact-row"><strong>Canonical variant</strong><span>{asset.canonicalVariantId}</span></div></div></WorkspaceRecordDetails>
-        <div className="workspace-action-bar"><span>{asset.scanStatus === "pending" ? "Scan must complete before publication approval." : "Apply only the next valid trust decision."}</span><div className="workspace-action-buttons">
-          {asset.scanStatus === "pending" && data.automatedMalwareScan && <span className="status-pill">Automated scan queued</span>}
-          {asset.scanStatus === "pending" && !data.automatedMalwareScan && <AdminActionButton label="Record clean scan" endpoint="/api/admin/trust/media" csrfToken={data.csrfToken} body={{ assetId: asset.id, action: "scan_clean" }} />}
-          {asset.scanStatus === "clean" && (asset.rightsStatus !== "approved" || asset.moderationStatus !== "approved") && <AdminActionButton label="Approve rights & moderation" endpoint="/api/admin/trust/media" csrfToken={data.csrfToken} body={{ assetId: asset.id, action: "approve" }} />}
-          <AdminActionButton label="Reject" endpoint="/api/admin/trust/media" csrfToken={data.csrfToken} body={{ assetId: asset.id, action: "reject" }} reasonPrompt="Rejection reason" danger />
-        </div></div>
-      </article>)}</div>}
+      <WorkspaceSectionHeading eyebrow="Media review" title="Media queue" note={data.automatedMalwareScan ? "Automated malware scanning is enabled. Storefront assets are published only after scan + rights + moderation approval." : "Manual clean-scan recording is available before rights/moderation approval."} />
+      {data.assets.length === 0 ? <WorkspaceEmptyState title="Δεν έχει υποβληθεί vendor media." /> : <div className="workspace-queue-list">{data.assets.map((asset) => {
+        const profile = profileByMedia.get(asset.id);
+        const approved = asset.scanStatus === "clean" && asset.rightsStatus === "approved" && asset.moderationStatus === "approved";
+        return <article className="workspace-queue-card" key={asset.id}>
+          <div className="workspace-queue-head"><div><strong>{asset.originalFilename}</strong><small>{asset.contentType} · {(asset.byteSize / 1024).toFixed(1)} KB{profile ? ` · ${ROLE_LABELS[profile.role]}` : ""}</small></div><span className="status-pill">{profile?.publicationStatus ?? asset.moderationStatus}</span></div>
+          <div className="workspace-queue-primary"><span>Scan {asset.scanStatus}</span><span>Rights {asset.rightsStatus}</span><span>Moderation {asset.moderationStatus}</span>{profile && <span>Publication {profile.publicationStatus}</span>}</div>
+          <WorkspaceRecordDetails label="Vendor, product & asset references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Asset ID</strong><span>{asset.id}</span></div><div className="workspace-compact-row"><strong>Vendor</strong><span>{asset.vendorId ?? "platform"}</span></div><div className="workspace-compact-row"><strong>{profile ? "Storefront role" : "Canonical variant"}</strong><span>{profile ? ROLE_LABELS[profile.role] : (asset.canonicalVariantId ?? "—")}</span></div></div></WorkspaceRecordDetails>
+          <div className="workspace-action-bar"><span>{asset.scanStatus === "pending" ? "Scan must complete before approval." : profile && approved ? "The file is safe and approved; publication controls whether it is visible on the public vendor page." : "Apply only the next valid trust decision."}</span><div className="workspace-action-buttons">
+            {asset.scanStatus === "pending" && data.automatedMalwareScan && <span className="status-pill">Automated scan queued</span>}
+            {asset.scanStatus === "pending" && !data.automatedMalwareScan && <AdminActionButton label="Record clean scan" endpoint="/api/admin/trust/media" csrfToken={data.csrfToken} body={{ assetId: asset.id, action: "scan_clean" }} />}
+            {asset.scanStatus === "clean" && (asset.rightsStatus !== "approved" || asset.moderationStatus !== "approved") && <AdminActionButton label="Approve rights & moderation" endpoint="/api/admin/trust/media" csrfToken={data.csrfToken} body={{ assetId: asset.id, action: "approve" }} />}
+            {profile && approved && profile.publicationStatus !== "published" && <AdminActionButton label="Publish to storefront" endpoint="/api/admin/trust/vendor-profile-media" csrfToken={data.csrfToken} body={{ assignmentId: profile.id, action: "publish" }} />}
+            {profile && profile.publicationStatus === "published" && <AdminActionButton label="Unpublish" endpoint="/api/admin/trust/vendor-profile-media" csrfToken={data.csrfToken} body={{ assignmentId: profile.id, action: "unpublish" }} />}
+            <AdminActionButton label="Reject" endpoint="/api/admin/trust/media" csrfToken={data.csrfToken} body={{ assetId: asset.id, action: "reject" }} reasonPrompt="Rejection reason" danger />
+          </div></div>
+        </article>;
+      })}</div>}
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
