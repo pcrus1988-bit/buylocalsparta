@@ -4,6 +4,7 @@ import {
   registerCustomer,
   sendCustomerVerificationEmail
 } from "../../../../lib/customer-registration-runtime";
+import { saveRegisteredCustomerName } from "../../../../lib/customer-profile-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,23 +31,28 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json() as {
+      fullName?: unknown;
       email?: unknown;
       password?: unknown;
       passwordConfirmation?: unknown;
       acceptedPrivacy?: unknown;
       next?: unknown;
     };
+    const fullName = typeof body.fullName === "string" ? body.fullName.trim().replace(/\s+/g, " ") : "";
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const passwordConfirmation = typeof body.passwordConfirmation === "string" ? body.passwordConfirmation : "";
     const next = typeof body.next === "string" ? body.next : undefined;
 
+    if (fullName.split(" ").filter(Boolean).length < 2) throw new Error("Συμπλήρωσε το πλήρες ονοματεπώνυμό σου.");
+    if (fullName.length > 160) throw new Error("Το ονοματεπώνυμο είναι πολύ μεγάλο.");
     if (!email || !password) throw new Error("Συμπλήρωσε email και κωδικό.");
     if (password !== password.trim()) throw new Error("Ο κωδικός δεν μπορεί να αρχίζει ή να τελειώνει με κενό.");
     if (password !== passwordConfirmation) throw new Error("Οι δύο κωδικοί δεν ταιριάζουν.");
     if (body.acceptedPrivacy !== true) throw new Error("Χρειάζεται να αποδεχτείς την επεξεργασία δεδομένων για τη δημιουργία λογαριασμού.");
 
     const result = await registerCustomer({ email, password, now });
+    await saveRegisteredCustomerName({ userId: result.account.id, fullName, now });
     try {
       const delivery = await sendCustomerVerificationEmail({
         userId: result.account.id,
