@@ -280,6 +280,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
         AND cv.recalled=false
     ) assortment ON true
     WHERE (m.code=$1 OR m.id::text=$1)
+      AND v.public_directory_visible=true
       AND (
         v.status='active'
         OR (v.status='invited' AND v.public_id LIKE 'vendor_research_%')
