@@ -68,7 +68,7 @@ export async function prepareVendorActivationAccess(input: { vendorId: string; a
         email,
         userId,
         passwordSetupRequired: false,
-        deliveryKey: `vendor-activation-existing-account:${vendorId}:${userId}`
+        deliveryKey: `vendor-activation-existing-account:${vendorId}:${userId}:${input.now}`
       };
     }
 
