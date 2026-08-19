@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { CheckoutPageClient } from "../../components/CheckoutPageClient";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
-import { vivaPaymentsReady } from "../../lib/viva-runtime";
+import { vivaPaymentsProviderReadiness } from "../../lib/viva-runtime";
 
 export const metadata: Metadata = { title: "Checkout", robots: { index: false, follow: false } };
 
-export default function CheckoutPage() {
-  const paymentMode = vivaPaymentsReady() ? "viva" as const : process.env.NODE_ENV === "production" ? "unavailable" as const : "development" as const;
+export default async function CheckoutPage() {
+  const viva = await vivaPaymentsProviderReadiness();
+  const paymentMode = viva.enabled && viva.ready ? "viva" as const : process.env.NODE_ENV === "production" ? "unavailable" as const : "development" as const;
   const boxNowEnabled = process.env.BLS_BOXNOW_ENABLED === "true" && process.env.NEXT_PUBLIC_BOXNOW_WIDGET_ENABLED === "true";
   const checkoutEnabled = paymentMode !== "unavailable";
 
