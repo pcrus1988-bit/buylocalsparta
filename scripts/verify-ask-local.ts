@@ -39,7 +39,7 @@ for (const contract of [
   "returned_to_admin",
   "routingHistory",
   "routingOwner",
-  "status='awaiting_vendor'",
+  "assigned ? \"awaiting_vendor\" : \"submitted\"",
   "SET status='submitted',assigned_vendor_id=NULL,assigned_offer_id=NULL,expires_at=NULL"
 ]) if (!service.includes(contract)) failures.push(`Ask Local service is missing ${contract}`);
 
