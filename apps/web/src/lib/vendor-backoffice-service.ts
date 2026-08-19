@@ -23,6 +23,12 @@ import {
 
 const db = () => getProductionPostgresRuntime().vendorOperations;
 
+function optionalEpoch(value: unknown): number | undefined {
+  if (value == null) return undefined;
+  const parsed = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export async function vendorCatalogWorkspace(principal: SessionPrincipal) {
   const [catalog, controls] = await Promise.all([
     postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : Promise.resolve(memoryCatalogWorkspace(principal)),
@@ -84,7 +90,39 @@ export async function vendorAppointmentAction(principal: SessionPrincipal, appoi
   return postgresVendorRuntimeEnabled() ? db().appointmentAction(principal, appointmentId, action) : memoryAppointmentAction(principal, appointmentId, action);
 }
 export async function vendorFinanceWorkspace(principal: SessionPrincipal) {
-  return postgresVendorRuntimeEnabled() ? db().financeWorkspace(principal) : memoryFinanceWorkspace(principal);
+  if (!postgresVendorRuntimeEnabled()) return memoryFinanceWorkspace(principal);
+  const result = await db().financeWorkspace(principal);
+  if (!principal.vendorId) return result;
+
+  const pool = getProductionPostgresRuntime().nativePool;
+  const agreement = await pool.query(`SELECT agreement_code,status,commission_rate_bps,commission_basis,commission_tax_mode,commission_tax_rate_bps,
+      commission_applies_to_shipping,listing_fee_minor,recurring_fee_minor,recurring_fee_period,starts_at,ends_at,signed_at,activated_at
+    FROM vendor_commercial_agreements
+    WHERE vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1)
+    ORDER BY CASE WHEN status='active' THEN 0 WHEN status IN ('verified','signed_received','sent','generated','data_complete') THEN 1 ELSE 2 END,
+      created_at DESC LIMIT 1`, [principal.vendorId]);
+  const row = agreement.rows[0];
+  if (!row) return result;
+
+  return {
+    ...result,
+    commercialTerms: {
+      agreementCode: String(row.agreement_code),
+      status: String(row.status),
+      commissionRateBps: Number(row.commission_rate_bps ?? 0),
+      commissionBasis: String(row.commission_basis ?? ""),
+      commissionTaxMode: String(row.commission_tax_mode ?? ""),
+      commissionTaxRateBps: Number(row.commission_tax_rate_bps ?? 0),
+      commissionAppliesToShipping: Boolean(row.commission_applies_to_shipping),
+      listingFeeMinor: Number(row.listing_fee_minor ?? 0),
+      recurringFeeMinor: Number(row.recurring_fee_minor ?? 0),
+      recurringFeePeriod: row.recurring_fee_period ? String(row.recurring_fee_period) : undefined,
+      startsAt: optionalEpoch(row.starts_at),
+      endsAt: optionalEpoch(row.ends_at),
+      signedAt: optionalEpoch(row.signed_at),
+      activatedAt: optionalEpoch(row.activated_at)
+    }
+  };
 }
 export async function submitVendorInvoice(principal: SessionPrincipal, input: { procurementId: string; invoiceNumber: string; invoiceGrossMinor: number }) {
   return postgresVendorRuntimeEnabled() ? db().submitInvoice(principal, input) : memorySubmitInvoice(principal, input);
