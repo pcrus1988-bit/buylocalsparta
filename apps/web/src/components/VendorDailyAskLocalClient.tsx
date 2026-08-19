@@ -6,8 +6,8 @@ import { useState } from "react";
 
 type Advice = {
   csrfToken: string;
-  conversations: readonly Array<{ id: string; state: string; canonicalVariantId?: string; messages: readonly Array<{ id: string; senderType: string; body: string; createdAt?: number }> }>;
-  counteroffers: readonly Array<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
+  conversations: ReadonlyArray<{ id: string; state: string; canonicalVariantId?: string; messages: ReadonlyArray<{ id: string; senderType: string; body: string; createdAt?: number }> }>;
+  counteroffers: ReadonlyArray<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
 };
 
 const when = (value?: number) => value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
