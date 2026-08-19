@@ -46,7 +46,7 @@ export function verifyMigrationManifest(migrations: readonly MigrationFile[], ma
   const migrationNames = new Set(migrations.map((migration) => migration.filename));
   for (const migration of migrations) {
     const expected = manifest[migration.filename];
-    if (!expected) throw new Error(`Migration ${migration.filename} is missing from checksum manifest`);
+    if (!expected) throw new Error(`Migration ${migration.filename} is missing from checksum manifest: ${migration.sha256}`);
     if (expected !== migration.sha256) throw new Error(`Migration ${migration.filename} was modified after checksum registration`);
   }
   for (const filename of Object.keys(manifest)) {

@@ -87,7 +87,7 @@ const primitives = "apps/web/src/components/WorkspacePagePrimitives.tsx";
 if (!existsSync(`${root}/${primitives}`)) failures.push("Missing shared operational workspace page primitives");
 else {
   const source = read(primitives);
-  for (const requirement of ["WorkspaceMetricStrip", "WorkspaceSectionHeading", "WorkspaceEmptyState", "WorkspaceRecordDetails", "<details"]) {
+  for (const requirement of ["WorkspaceMetricStrip", "WorkspaceSectionHeading", "WorkspaceEmptyState", "WorkspaceRecordDetails", "WorkspaceFilterBar", "WorkspaceStatusBadge", "<details", 'role="search"']) {
     if (!source.includes(requirement)) failures.push(`Operational workspace primitives are missing ${requirement}`);
   }
 }
@@ -124,6 +124,19 @@ for (const path of operationalPages) {
 }
 
 for (const path of [
+  "apps/web/src/app/admin/vendors/page.tsx",
+  "apps/web/src/app/admin/research-vendors/page.tsx",
+  "apps/web/src/app/admin/matching/page.tsx",
+  "apps/web/src/app/admin/orders/page.tsx",
+  "apps/web/src/app/admin/finance/page.tsx"
+]) {
+  const source = read(path);
+  if (!source.includes("WorkspaceFilterBar")) failures.push(`High-density admin queue must expose shared search/filter controls: ${path}`);
+  if (!source.includes("WorkspaceStatusBadge")) failures.push(`High-density admin queue must use semantic status badges: ${path}`);
+  if (!source.includes("searchParams")) failures.push(`High-density admin queue filters must survive refresh through query parameters: ${path}`);
+}
+
+for (const path of [
   "apps/web/src/components/VendorCatalogClient.tsx",
   "apps/web/src/components/VendorShippingClient.tsx",
   "apps/web/src/components/VendorReturnsClient.tsx",
@@ -136,6 +149,10 @@ for (const path of [
   if (!source.includes("WorkspaceMetricStrip")) failures.push(`Operational client is missing a scannable metric strip: ${path}`);
   if (!source.includes("workspace-queue")) failures.push(`Operational client is missing shared queue hierarchy: ${path}`);
 }
+
+const adviceClient = read("apps/web/src/components/VendorAdviceClient.tsx");
+if (!adviceClient.includes("workspace-view-tabs") || !adviceClient.includes('role="tablist"')) failures.push("Vendor advice must separate messages, appointments and offers into a focused task switcher");
+if (!adviceClient.includes("WorkspaceStatusBadge")) failures.push("Vendor advice appointments and offer workflows must use semantic status badges");
 
 const catalogClient = read("apps/web/src/components/VendorCatalogClient.tsx");
 if (catalogClient.includes("Demo product")) failures.push("Vendor CSV import must never prefill a demo product into a real import surface");
@@ -175,14 +192,20 @@ const pageCss = read("apps/web/src/app/workspace-pages.css");
 for (const requirement of [".workspace-page-metrics", ".workspace-tool-panel", ".workspace-queue-card", ".workspace-record-details", ".workspace-action-bar", ".order-cancel-disclosure", "@media (max-width: 560px)"]) {
   if (!pageCss.includes(requirement)) failures.push(`Operational workspace page layer is missing ${requirement}`);
 }
+const queueCss = read("apps/web/src/app/workspace-queue-polish.css");
+for (const requirement of [".workspace-filter-bar", ".workspace-status-badge", ".workspace-view-tabs", ".workspace-queue-subsection", "@media (max-width: 520px)"]) {
+  if (!queueCss.includes(requirement)) failures.push(`Operational queue polish layer is missing ${requirement}`);
+}
 const layout = read("apps/web/src/app/layout.tsx");
 if (!layout.includes('import "./workspace-polish.css"')) failures.push("Workspace polish stylesheet is not loaded after the shared dashboard styles");
 if (!layout.includes('import "./dashboard-luxury.css"')) failures.push("Premium dashboard layer is not loaded in the shared app layout");
 if (!layout.includes('import "./workspace-pages.css"')) failures.push("Operational workspace page layer is not loaded in the shared app layout");
+if (!layout.includes('import "./workspace-queue-polish.css"')) failures.push("Operational queue polish layer is not loaded in the shared app layout");
 if (layout.indexOf('import "./workspace-pages.css"') < layout.indexOf('import "./dashboard-luxury.css"')) failures.push("Operational workspace page layer must load after the dashboard shell layer");
+if (layout.indexOf('import "./workspace-queue-polish.css"') < layout.indexOf('import "./workspace-pages.css"')) failures.push("Operational queue polish must load after the shared operational page layer");
 
 if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, collapsible navigation, progressive operational queues, safe bulk import, truthful provider gates and customer transaction controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, collapsible navigation, searchable operational queues, semantic statuses, focused vendor care views, safe bulk import and truthful provider gates verified.`);

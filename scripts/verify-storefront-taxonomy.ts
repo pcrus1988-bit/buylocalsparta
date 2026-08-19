@@ -28,7 +28,7 @@ const catalogView = readFileSync(`${root}/apps/web/src/lib/catalog-view.ts`, "ut
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
 
 if (!categoryPage.includes('getCatalogCards(visitorKey, "23100", "", category.slug)')) failures.push("Category landing pages must filter the canonical public catalog through getCatalogCards");
-if (!shopPage.includes('getCatalogCards(visitorKey, "23100", query, category)')) failures.push("Shop category filter must be applied server-side");
+if (!shopPage.includes('getCatalogCards(visitorKey, "23100", query, category, { subcategory, brand, color, size })')) failures.push("Shop category and detailed catalog filters must be applied server-side");
 if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category)')) failures.push("PostgreSQL catalog projection must filter category codes before fairness assignment");
 if (!catalogView.includes('reason: "search_card"')) failures.push("Category browsing must retain search-card fairness assignment semantics");
 if (!productCard.includes("storefrontCategoryForCode(product.categoryCode)")) failures.push("Product cards must derive their visual category from canonical categoryCode");
