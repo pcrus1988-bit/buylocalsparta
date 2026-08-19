@@ -32,7 +32,7 @@ type Advice = {
   csrfToken: string;
   conversations: readonly Array<{ id: string; state: string; canonicalVariantId?: string; messages: readonly Array<{ id: string; senderType: string; body: string; createdAt?: number }> }>;
   appointments: readonly Array<{ id: string; status: string; channel: string; startsAt: number; canonicalVariantId?: string }>;
-  counteroffers: readonly Array<{ id: string; status: string; canonicalVariantId?: string; need?: string }>;
+  counteroffers: readonly Array<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
   privateOffers: readonly Array<{ id: string; status?: string; canonicalVariantId?: string; price?: string }>;
   notifications: readonly Array<{ id: string; title: string; body: string; createdAt?: number }>;
 };
@@ -47,6 +47,18 @@ const actionLabel: Record<string, string> = {
 };
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+function requestNeed(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["description", "query", "need", "title", "message"]) {
+      const candidate = record[key];
+      if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    }
+  }
+  return "Αίτημα πελάτη";
+}
 
 function urgency(item: Fulfilment): number {
   if (item.actions.includes("accept") || item.actions.includes("reject")) return 0;
@@ -136,7 +148,7 @@ export function VendorDailyClient({ dashboard, advice }: { dashboard: Dashboard;
     {tab === "ask" && <section className={styles.content}>
       <div className={styles.sectionHead}><div><span>Ask Local</span><h2>Αιτήματα πελατών</h2></div><small>Μόνο τα αιτήματα που έχουν ανατεθεί στο κατάστημά σου.</small></div>
       {openAsk.length === 0 ? <div className={styles.empty}>Δεν υπάρχουν ανοιχτά Ask Local αιτήματα.</div> : <div className={styles.cards}>{openAsk.map((request) => <article className={styles.card} key={request.id}>
-        <div className={styles.cardTop}><div><strong>{request.canonicalVariantId ?? "Γενικό αίτημα"}</strong><span>{request.need ?? "Αίτημα πελάτη"}</span></div><span className={styles.status}>{request.status}</span></div>
+        <div className={styles.cardTop}><div><strong>{request.canonicalVariantId ?? "Γενικό αίτημα"}</strong><span>{requestNeed(request.need)}</span></div><span className={styles.status}>{request.status}</span></div>
       </article>)}</div>}
       <Link className={styles.fullWidthLink} href="/daily/ask-local">Άνοιγμα Ask Local & μηνυμάτων</Link>
     </section>}
