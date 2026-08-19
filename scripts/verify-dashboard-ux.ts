@@ -35,7 +35,9 @@ for (const [name, path, registry, registryName] of [
   ["Vendor", "apps/web/src/components/VendorWorkspaceHeader.tsx", VENDOR_WORKSPACE_NAVIGATION, "VENDOR_WORKSPACE_NAVIGATION"],
   ["Admin", "apps/web/src/components/AdminWorkspaceHeader.tsx", ADMIN_WORKSPACE_NAVIGATION, "ADMIN_WORKSPACE_NAVIGATION"]
 ] as const) {
-  const source = read(path);
+  const source = name === "Admin"
+    ? `${read(path)}\n${read("apps/web/src/components/AdminWorkspaceHeaderClient.tsx")}\n${read("apps/web/src/lib/admin-navigation.ts")}`
+    : read(path);
   if (!source.includes("aria-expanded={menuOpen}")) failures.push(`${name} workspace navigation is missing an accessible mobile disclosure`);
   if (!source.includes("workspace-menu-toggle")) failures.push(`${name} workspace navigation is missing its mobile menu control`);
   if (!source.includes("WorkspaceNavigation")) failures.push(`${name} workspace header must use the shared collapsible navigation component`);
@@ -153,7 +155,7 @@ for (const [name, source] of [["Vendor", vendorShippingPage], ["Admin", adminShi
 const orderDetail = read("apps/web/src/components/OrderDetailClient.tsx");
 if (!orderDetail.includes("order-cancel-disclosure")) failures.push("Customer cancellation must use progressive disclosure instead of a permanently prominent destructive card");
 if (!orderDetail.includes('href="/delivery-pickup"') || !orderDetail.includes('href="/returns-refunds"')) failures.push("Customer order detail must expose delivery and returns help paths");
-if (!orderDetail.includes("WorkspaceRecordDetails")) failures.push("Customer order detail must keep fulfilment technical identifiers secondary");
+if (!orderDetail.includes('className="order-detail-id"') || orderDetail.includes("<strong>{item.id}</strong>")) failures.push("Customer order detail must keep fulfilment technical identifiers secondary");
 
 const css = read("apps/web/src/app/dashboard-ux.css");
 for (const selector of [".workspace-header", ".workspace-nav a.is-active", ".workspace-quick-grid", ".account-snapshot"]) {
