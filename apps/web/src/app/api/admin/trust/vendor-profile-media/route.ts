@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { adminVendorProfileMediaPublicationAction } from "../../../../../../lib/vendor-profile-media-service";
+import { requireAdminSession } from "../../../../../lib/admin-session";
+import { adminVendorProfileMediaPublicationAction } from "../../../../../lib/vendor-profile-media-service";
 
 export async function POST(request: Request) {
   try {
