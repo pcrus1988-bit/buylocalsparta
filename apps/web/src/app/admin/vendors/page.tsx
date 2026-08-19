@@ -49,7 +49,7 @@ export default async function Page() {
       <div>
         <div className="eyebrow">Vendor lifecycle · application → verification → contract → catalog → test → activation → publication</div>
         <h1>Συνεργάτες & καταστήματα</h1>
-        <p className="lead">Η αίτηση, η επιχειρησιακή ενεργοποίηση, η υπογεγραμμένη σύμβαση και η δημόσια προβολή είναι ξεχωριστές ελεγχόμενες καταστάσεις. Καμία νέα αίτηση δεν μπορεί να ενεργοποιηθεί χωρίς ενεργή υπογεγραμμένη σύμβαση και reference του υπογεγραμμένου εγγράφου.</p>
+        <p className="lead">Η αίτηση, η επιχειρησιακή ενεργοποίηση, η υπογεγραμμένη σύμβαση και η δημόσια προβολή είναι ξεχωριστές ελεγχόμενες καταστάσεις. Καμία νέα αίτηση δεν μπορεί να ενεργοποιηθεί χωρίς συνυπογεγραμμένο PDF, επαληθευμένο reference gov.gr και ολοκλήρωση catalog/test readiness.</p>
         <div className="hero-actions"><Link className="button button-secondary" href="/admin/research-vendors">Research queue</Link><Link className="text-link" href="/shops">Public directory →</Link></div>
       </div>
     </section>
@@ -65,7 +65,7 @@ export default async function Page() {
       <WorkspaceSectionHeading
         eyebrow="Shop operations"
         title="Κατάστημα, σύμβαση & δημόσια προβολή"
-        note="Το shop record δημιουργείται μετά την επιτυχή επαλήθευση ώστε να μπορεί να καταχωρηθεί σύμβαση πριν από την activation. Νέα activation ξεκινά πάντα hidden και απαιτεί ξεχωριστή publication απόφαση."
+        note="Το shop record δημιουργείται μετά την επιτυχή επαλήθευση ώστε να μπορεί να ολοκληρωθεί η σύμβαση πριν από την activation. Νέα activation ξεκινά πάντα hidden και απαιτεί ξεχωριστή publication απόφαση."
       />
       {!managed.databaseConfigured && <div className="workspace-inline-note">Η production βάση δεν είναι διαθέσιμη· τα shop controls είναι απενεργοποιημένα.</div>}
       {managed.shops.length === 0 ? <WorkspaceEmptyState
@@ -114,8 +114,8 @@ export default async function Page() {
           </div>
 
           {applicationRequiresGovernedActivation && <div className="workspace-inline-note">Αυτό το shop συνδέεται με επίσημη αίτηση σε στάδιο {stateLabel(shop.applicationState ?? "")}. Η activation / reactivation γίνεται μόνο από την application queue ώστε να τηρείται το audit trail και τα onboarding gates.</div>}
-          {!shop.operationalActive && !shop.cooperationDocumented && <div className="workspace-inline-note">Activation blocked: καταχώρησε ενεργή υπογεγραμμένη σύμβαση με reference υπογεγραμμένου εγγράφου.</div>}
-          {shop.operationalActive && !shop.cooperationDocumented && <div className="workspace-inline-note">⚠ Legacy inconsistency: το shop είναι operationally active χωρίς πλήρες active/signed cooperation record. Απόκρυψέ το ή κατέγραψε άμεσα τη σύμβαση. Νέα reactivation/publication μπλοκάρεται μέχρι να διορθωθεί.</div>}
+          {!shop.operationalActive && !shop.cooperationDocumented && <div className="workspace-inline-note">Operational toggle blocked: ολοκλήρωσε το governed contract workflow και την τελική activation από την application queue.</div>}
+          {shop.operationalActive && !shop.cooperationDocumented && <div className="workspace-inline-note">⚠ Legacy inconsistency: το shop είναι operationally active χωρίς πλήρες active/signed cooperation record. Απόκρυψέ το ή ολοκλήρωσε άμεσα τη σύμβαση. Νέα reactivation/publication μπλοκάρεται μέχρι να διορθωθεί.</div>}
           {!shop.operationalActive && shop.publicDirectoryVisible && <div className="workspace-inline-note">Το stored visibility toggle είναι ON, αλλά το shop παραμένει αποτελεσματικά κρυφό επειδή δεν είναι operationally active.</div>}
 
           <WorkspaceRecordDetails label="Cooperation documentation & commercial terms">
@@ -126,7 +126,7 @@ export default async function Page() {
               <div className="workspace-compact-row"><strong>Validity</strong><span>{shop.agreement.startsAt ? new Date(shop.agreement.startsAt).toLocaleDateString("el-GR") : "—"} → {shop.agreement.endsAt ? new Date(shop.agreement.endsAt).toLocaleDateString("el-GR") : "open-ended"}</span></div>
             </div> : <p className="workspace-queue-summary">Δεν υπάρχει ακόμη cooperation agreement record για αυτό το shop.</p>}
             <details className="workspace-tool-panel" style={{ marginTop: 12 }}>
-              <summary><span><strong>Record / update cooperation agreement</strong><small>Κάθε υποβολή δημιουργεί νέα versioned εγγραφή και audit trail.</small></span></summary>
+              <summary><span><strong>Contract workflow</strong><small>PDF → gov.gr signatures → signed PDF/reference → admin verification → final onboarding activation.</small></span></summary>
               <VendorAgreementForm vendorId={shop.id} csrfToken={csrfToken} defaults={shop.agreement ? {
                 code: shop.agreement.code,
                 commissionRateBps: shop.agreement.commissionRateBps,
@@ -145,7 +145,7 @@ export default async function Page() {
       <WorkspaceSectionHeading
         eyebrow="Governed onboarding queue"
         title="Επίσημες αιτήσεις συνεργατών"
-        note="Research records δεν θεωρούνται applications. Verification δημιουργεί το non-operational shop record → contract documentation → catalog onboarding → test-ready → operational activation → explicit public publication."
+        note="Research records δεν θεωρούνται applications. Verification δημιουργεί το non-operational shop record → contract PDF/signatures/gov.gr verification → catalog onboarding → test-ready → atomic agreement + operational activation → explicit public publication."
       />
       {applications.applications.length === 0 ? <WorkspaceEmptyState
         eyebrow="Καμία επίσημη αίτηση"
@@ -154,7 +154,10 @@ export default async function Page() {
         action={<Link className="button button-secondary" href="/admin/research-vendors">Άνοιγμα research queue</Link>}
       /> : <div className="workspace-queue-list">{applications.applications.map((application) => {
         const shop = managed.shops.find((candidate) => candidate.applicationId === application.id || (application.vendorId && candidate.id === application.vendorId));
-        const agreementReady = Boolean(shop?.cooperationDocumented);
+        const agreementReady = Boolean(
+          shop?.cooperationDocumented ||
+          ["govgr_verified", "eligible_for_activation"].includes(shop?.agreement?.status ?? "")
+        );
         const shopPrepared = Boolean(shop);
         return <article className="workspace-queue-card" key={application.id}>
           <div className="workspace-queue-head">
@@ -180,23 +183,23 @@ export default async function Page() {
             <div className="workspace-compact-list">
               <div className="workspace-compact-row"><strong>Current stage</strong><span>{stateLabel(application.state)}</span></div>
               <div className="workspace-compact-row"><strong>Shop record</strong><span>{shopPrepared ? `${shop?.id} · ${stateLabel(shop?.status ?? "")}` : "Not created yet"}</span></div>
-              <div className="workspace-compact-row"><strong>Signed agreement</strong><span>{agreementReady ? `Ready · ${shop?.agreement?.code ?? "documented"}` : "Required before activation"}</span></div>
+              <div className="workspace-compact-row"><strong>Contract gate</strong><span>{agreementReady ? `Ready · ${shop?.agreement?.code ?? "documented"} · ${shop?.agreement?.status ?? "active"}` : "Requires signed PDF + verified gov.gr reference"}</span></div>
               <div className="workspace-compact-row"><strong>Public directory</strong><span>{shop?.publicDirectoryVisible ? "Visible" : "Hidden until explicit publication"}</span></div>
             </div>
           </WorkspaceRecordDetails>
-          {application.state === "test_ready" && !agreementReady && <div className="workspace-inline-note">Η αίτηση είναι test-ready, αλλά activation παραμένει μπλοκαρισμένη μέχρι να καταχωρηθεί active signed cooperation agreement με reference του υπογεγραμμένου εγγράφου.</div>}
+          {application.state === "test_ready" && !agreementReady && <div className="workspace-inline-note">Η αίτηση είναι test-ready, αλλά η activation παραμένει μπλοκαρισμένη μέχρι να ολοκληρωθεί το signed PDF + gov.gr reference + admin verification στο Finance → Vendor agreements.</div>}
           <div className="workspace-action-bar">
             <span>Τρέχον στάδιο: <strong>{stateLabel(application.state)}</strong></span>
             <div className="workspace-action-buttons">
               {application.state === "verification_pending" && <AdminActionButton label="Pass verification" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "catalog_onboarding" }} reasonPrompt="Verification reason / evidence" />}
               {application.state === "catalog_onboarding" && <AdminActionButton label="Mark test ready" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "test_ready" }} reasonPrompt="Test-ready evidence" />}
-              {application.state === "test_ready" && agreementReady && <AdminActionButton label="Activate shop (hidden)" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "active" }} reasonPrompt="Activation approval reason" />}
-              {application.state === "test_ready" && !agreementReady && <Link className="button button-secondary" href={shop ? `#shop-${shop.id}` : "/admin/finance/agreements"}>Record signed agreement</Link>}
+              {application.state === "test_ready" && agreementReady && <AdminActionButton label="Activate shop (hidden)" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "active" }} reasonPrompt="Final activation approval reason" />}
+              {application.state === "test_ready" && !agreementReady && <Link className="button button-secondary" href={shop ? `/admin/finance/agreements?vendorId=${encodeURIComponent(shop.id)}` : "/admin/finance/agreements"}>Complete contract workflow</Link>}
               {application.state === "restricted" && <AdminActionButton label="Return to verification" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "verification_pending" }} reasonPrompt="Reason for returning to verification" />}
               {application.state === "restricted" && <AdminActionButton label="Resume catalog" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "catalog_onboarding" }} reasonPrompt="Reason for resuming catalog onboarding" />}
-              {application.state === "restricted" && agreementReady && <AdminActionButton label="Activate (hidden)" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "active" }} reasonPrompt="Activation approval reason" />}
+              {application.state === "restricted" && agreementReady && <AdminActionButton label="Activate (hidden)" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "active" }} reasonPrompt="Final activation approval reason" />}
               {application.state === "suspended" && agreementReady && <AdminActionButton label="Reactivate (hidden)" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "active" }} reasonPrompt="Reactivation reason" />}
-              {application.state === "suspended" && !agreementReady && shop && <Link className="button button-secondary" href={`#shop-${shop.id}`}>Restore agreement first</Link>}
+              {application.state === "suspended" && !agreementReady && shop && <Link className="button button-secondary" href={`/admin/finance/agreements?vendorId=${encodeURIComponent(shop.id)}`}>Restore contract gate</Link>}
               {application.state === "suspended" && <AdminActionButton label="Move to restricted" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
               {["verification_pending", "catalog_onboarding", "test_ready"].includes(application.state) && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
               {application.state === "active" && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
