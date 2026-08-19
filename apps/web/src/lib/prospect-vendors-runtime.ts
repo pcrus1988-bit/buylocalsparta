@@ -112,7 +112,7 @@ export async function verifiedProspectsWorkspace(principal: SessionPrincipal) {
         COALESCE(loc.location_count,0)::int AS location_count,
         COALESCE(loc.active_location_count,0)::int AS active_location_count,
         ag.public_id AS agreement_public_id,
-        ag.code AS agreement_code,
+        ag.agreement_code,
         ag.status::text AS agreement_status,
         ag.signed_at,
         ag.source_document_reference,
@@ -132,7 +132,7 @@ export async function verifiedProspectsWorkspace(principal: SessionPrincipal) {
         WHERE l.vendor_id = vb.id
       ) loc ON true
       LEFT JOIN LATERAL (
-        SELECT ca.public_id,ca.code,ca.status,ca.signed_at,ca.source_document_reference,
+        SELECT ca.public_id,ca.agreement_code,ca.status,ca.signed_at,ca.source_document_reference,
                ca.signed_pdf_object_key,ca.signed_pdf_sha256,ca.signed_document_received_at,
                ca.govgr_reference,ca.govgr_verified_at,ca.govgr_verified_by
         FROM vendor_commercial_agreements ca
