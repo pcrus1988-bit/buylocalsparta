@@ -32,7 +32,8 @@ export function VendorAgreementForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const listingFeeMinor = minorFromEuro(String(form.get("listingFee") ?? ""));
     const recurringFeeMinor = minorFromEuro(String(form.get("recurringFee") ?? ""));
     if (Number.isNaN(listingFeeMinor) || Number.isNaN(recurringFeeMinor)) {
@@ -68,8 +69,8 @@ export function VendorAgreementForm({
       });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Η καταχώριση συμφωνίας απέτυχε");
+      formElement.reset();
       router.refresh();
-      event.currentTarget.reset();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η καταχώριση συμφωνίας απέτυχε");
     } finally {
