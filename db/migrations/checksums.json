@@ -42,5 +42,6 @@
   "0060_product_funnel_analytics.sql": "086887951f78504f90d914ae9dcfb1e5d250b974ce3b0b22e44029b1a154a79d",
   "0061_vendor_catalog_visibility_controls.sql": "9bdcd4be2be8faea3f6947f54166be6543f691b94603324d6723fa397821622e",
   "0062_vendor_subscription_plans.sql": "38e4af3006b6113cabbcddf295a4d2fdd23efd880deb1d8e63ae0ebb11a7e5b7",
-  "0063_customer_password_recovery.sql": "5e661cadc0160a25dc1b0da0ca34468b643d201893049acd7bc16cc54addaccb"
+  "0063_customer_password_recovery.sql": "5e661cadc0160a25dc1b0da0ca34468b643d201893049acd7bc16cc54addaccb",
+  "0064_reporting_engine.sql": "40e2e64c7557ae28c999e7c66b613e27ff8e9e2ed081b27e9662860fbc7428c8"
 }
