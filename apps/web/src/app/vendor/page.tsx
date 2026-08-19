@@ -9,6 +9,7 @@ import { getVendorSession } from "../../lib/vendor-session";
 import { vendorDashboard } from "../../lib/vendor-runtime";
 import { vendorCatalogControlWorkspace } from "../../lib/vendor-catalog-control-service";
 import { vendorProductAnalytics } from "../../lib/vendor-product-analytics";
+import { vendorOrderNotificationWorkspace } from "../../lib/order-sla";
 
 export const metadata: Metadata = { title: "Vendor Backoffice", robots: { index: false, follow: false } };
 
@@ -19,10 +20,11 @@ function euro(minor: number): string {
 export default async function VendorBackofficePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
-  const [dashboard, catalog, analytics] = await Promise.all([
+  const [dashboard, catalog, analytics, orderNotifications] = await Promise.all([
     vendorDashboard(principal),
     vendorCatalogControlWorkspace(principal),
-    vendorProductAnalytics(principal.vendorId ?? "", { periodDays: 30 })
+    vendorProductAnalytics(principal.vendorId ?? "", { periodDays: 30 }),
+    vendorOrderNotificationWorkspace(principal)
   ]);
   const performance = analytics.totals;
 
@@ -41,6 +43,22 @@ export default async function VendorBackofficePage() {
       </aside>
     </section>
     <VendorCatalogDashboardOverview metrics={catalog.catalogMetrics} products={catalog.catalogProducts} categories={catalog.categories} />
+
+    <section className="shell vendor-section" id="order-notifications">
+      <WorkspaceSectionHeading eyebrow="Orders · SLA" title="Ειδοποιήσεις & προθεσμίες" note="Η προθεσμία προκύπτει από την ενεργή συμφωνία συνεργασίας και σταματά μόλις αλλάξει το fulfilment status." />
+      <WorkspaceMetricStrip items={[
+        { label: "Χρειάζονται ενέργεια", value: orderNotifications.metrics.requiringAction, tone: orderNotifications.metrics.requiringAction ? "attention" : "default" },
+        { label: "Breached", value: orderNotifications.metrics.breached, tone: orderNotifications.metrics.breached ? "attention" : "default" },
+        { label: "Escalated", value: orderNotifications.metrics.escalated, tone: orderNotifications.metrics.escalated ? "attention" : "default" },
+        { label: "Νέα alerts", value: orderNotifications.metrics.unread }
+      ]} />
+      <div className="workspace-queue-card" style={{ marginTop: 14 }}>
+        <div className="workspace-queue-head">
+          <div><strong>{orderNotifications.notifications[0]?.title ?? "Δεν υπάρχει νέα ειδοποίηση"}</strong><small>{orderNotifications.notifications[0]?.body ?? "Οι νέες παραγγελίες και οι SLA υπενθυμίσεις θα εμφανίζονται εδώ."}</small></div>
+          <Link className="button" href="/vendor/notifications">Κέντρο ειδοποιήσεων</Link>
+        </div>
+      </div>
+    </section>
 
     <section className="shell vendor-section" id="performance-overview">
       <WorkspaceSectionHeading eyebrow="Performance · 30 days" title="Από ενδιαφέρον σε αγορά" note="Ζωντανά supplier-scoped στοιχεία από Fair Vendor Exposure και το commerce funnel." />

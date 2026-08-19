@@ -8,6 +8,7 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Σήμερα",
     links: [
       { label: "Επισκόπηση", href: "/vendor", icon: "⌂" },
+      { label: "Ειδοποιήσεις", href: "/vendor/notifications", icon: "!" },
       { label: "Συμβουλές", href: "/vendor/advice", icon: "◌" }
     ]
   },
@@ -40,6 +41,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Σήμερα",
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
+      { label: "Ειδοποιήσεις & SLA", href: "/admin/notifications", icon: "!", permission: "fulfilment.read" },
       { label: "Παραγγελίες", href: "/admin/orders", icon: "□", permission: "fulfilment.read" },
       { label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" },
       { label: "Υποστήριξη πελατών", href: "/admin/customers/support", icon: "?", permission: "customer.read" },
@@ -71,6 +73,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Οικονομικά", href: "/admin/finance", icon: "€", permission: "finance.read" },
       { label: "Συμφωνίες vendors", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
+      { label: "SLA συμφωνιών", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
       { label: "Τιμολόγηση vendors", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
       { label: "Φορολογία", href: "/admin/tax", icon: "#", permission: "finance.read" },
       { label: "Fairness", href: "/admin/fairness", icon: "⚖", permission: "fairness.read" },

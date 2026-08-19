@@ -57,5 +57,6 @@
   "0075_customer_fiscal_delivery.sql": "c53e3c154c05e1debdfeb17d47e00cdbec90111c76ece361377eb142f8b95cb2",
   "0076_accounting_mapping_v1.sql": "ec680d9221be33beaa64e2bb7e842c58ff1df61e9efa72b6715e64e033e0dc7a",
   "0077_product_tax_profile_audit.sql": "3254685ce114e88e4cc004ae645e5651c65de46b34ce9c310f6bd99b8b974b2d",
+  "0078_vendor_order_sla_notifications.sql": "76ec3abb340fb03231a09ec8615102d5cc9740304605bcbf5108ceb17c34594c",
   "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01c0948ac787eb8e3666418519221"
 }
