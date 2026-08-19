@@ -5,38 +5,81 @@ import { useEffect, useState } from "react";
 
 type Support = "checking" | "supported" | "unsupported";
 
-export function VendorDailyNotificationSettings({ deliveryReady }: { deliveryReady: boolean }) {
+function applicationServerKey(value: string): Uint8Array {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replaceAll("-", "+").replaceAll("_", "/");
+  const raw = atob(base64);
+  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+}
+
+export function VendorDailyNotificationSettings({ configured, publicKey, devices, csrfToken }: { configured: boolean; publicKey?: string; devices: number; csrfToken: string }) {
   const [support, setSupport] = useState<Support>("checking");
   const [permission, setPermission] = useState<NotificationPermission | "unavailable">("unavailable");
+  const [deviceCount, setDeviceCount] = useState(devices);
+  const [thisDevice, setThisDevice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const deliveryReady = configured && deviceCount > 0 && permission === "granted";
 
   useEffect(() => {
     const supported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     setSupport(supported ? "supported" : "unsupported");
     setPermission(supported ? Notification.permission : "unavailable");
+    if (supported) void navigator.serviceWorker.getRegistration("/daily/").then((registration) => registration?.pushManager.getSubscription()).then((subscription) => setThisDevice(Boolean(subscription))).catch(() => undefined);
   }, []);
+
+  async function persist(subscription: PushSubscription) {
+    const json = subscription.toJSON();
+    const response = await fetch("/api/daily/push/subscriptions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+      body: JSON.stringify({ endpoint: subscription.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth } })
+    });
+    const payload = await response.json() as { error?: string; devices?: number };
+    if (!response.ok) throw new Error(payload.error ?? "Η εγγραφή push απέτυχε");
+    setDeviceCount(Number(payload.devices ?? 1));
+  }
 
   async function prepareDevice() {
     if (support !== "supported") return;
-    setBusy(true);
-    setMessage("");
+    setBusy(true); setMessage("");
     try {
-      await navigator.serviceWorker.register("/daily-sw.js", { scope: "/daily/" });
+      if (!configured || !publicKey) throw new Error("Η υπογραφή Web Push δεν έχει διαμορφωθεί ακόμη στο server.");
+      const registration = await navigator.serviceWorker.register("/daily-sw.js", { scope: "/daily/" });
       const result = await Notification.requestPermission();
       setPermission(result);
-      if (result === "granted") {
-        setMessage(deliveryReady
-          ? "Οι ειδοποιήσεις επιτρέπονται σε αυτή τη συσκευή."
-          : "Η συσκευή είναι έτοιμη για ειδοποιήσεις. Η ασφαλής αποστολή Web Push δεν έχει ενεργοποιηθεί ακόμη σε αυτό το περιβάλλον.");
-      } else if (result === "denied") {
-        setMessage("Οι ειδοποιήσεις έχουν αποκλειστεί από το browser/τη συσκευή. Μπορείς να αλλάξεις την άδεια από τις ρυθμίσεις του browser.");
-      }
+      if (result === "denied") throw new Error("Οι ειδοποιήσεις έχουν αποκλειστεί από το browser/τη συσκευή. Άλλαξε την άδεια από τις ρυθμίσεις του browser.");
+      if (result !== "granted") throw new Error("Δεν δόθηκε άδεια για ειδοποιήσεις.");
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(publicKey) });
+      await persist(subscription);
+      setThisDevice(true);
+      setMessage("Η συσκευή συνδέθηκε με το KONTA MOY Daily. Οι λειτουργικές ειδοποιήσεις μπορούν πλέον να φτάνουν και όταν το Daily δεν είναι ανοιχτό.");
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η προετοιμασία ειδοποιήσεων σε αυτή τη συσκευή.");
-    } finally {
-      setBusy(false);
-    }
+      setMessage(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η ενεργοποίηση ειδοποιήσεων σε αυτή τη συσκευή.");
+    } finally { setBusy(false); }
+  }
+
+  async function disableDevice() {
+    setBusy(true); setMessage("");
+    try {
+      const registration = await navigator.serviceWorker.getRegistration("/daily/");
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        const response = await fetch("/api/daily/push/subscriptions", {
+          method: "DELETE",
+          headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ endpoint: subscription.endpoint })
+        });
+        const payload = await response.json() as { error?: string; devices?: number };
+        if (!response.ok) throw new Error(payload.error ?? "Η απενεργοποίηση απέτυχε");
+        await subscription.unsubscribe();
+        setDeviceCount(Number(payload.devices ?? 0));
+      }
+      setThisDevice(false);
+      setMessage("Οι ειδοποιήσεις Daily απενεργοποιήθηκαν για αυτή τη συσκευή.");
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Η απενεργοποίηση απέτυχε"); }
+    finally { setBusy(false); }
   }
 
   return <main style={{ minHeight: "100dvh", background: "#f6f4ee", padding: "18px 16px 42px" }}>
@@ -50,21 +93,24 @@ export function VendorDailyNotificationSettings({ deliveryReady }: { deliveryRea
         <div>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".13em", textTransform: "uppercase", opacity: .55 }}>Phone notifications</span>
           <h1 style={{ margin: "5px 0 9px", fontSize: 32, letterSpacing: "-.04em" }}>Ειδοποιήσεις για ό,τι χρειάζεται ενέργεια</h1>
-          <p style={{ margin: 0, opacity: .68, lineHeight: 1.55 }}>Το Daily θα χρησιμοποιεί ειδοποιήσεις συσκευής μόνο για σημαντικά λειτουργικά γεγονότα: νέα παραγγελία, νέο Ask Local, προειδοποίηση SLA και κρίσιμη καθυστέρηση.</p>
+          <p style={{ margin: 0, opacity: .68, lineHeight: 1.55 }}>Το Daily χρησιμοποιεί push μόνο για λειτουργικές ενημερώσεις του καταστήματος, όπως παραγγελίες, Ask Local και SLA. Δεν μετατρέπει αυτόματα marketing μηνύματα σε push.</p>
         </div>
 
         <div style={{ display: "grid", gap: 9 }}>
           <Status label="Υποστήριξη browser" value={support === "checking" ? "Έλεγχος…" : support === "supported" ? "Υποστηρίζεται" : "Δεν υποστηρίζεται"} ok={support === "supported"} />
+          <Status label="Server Web Push" value={configured ? "Διαμορφωμένο" : "Λείπει VAPID configuration"} ok={configured} />
           <Status label="Άδεια ειδοποιήσεων" value={permission === "unavailable" ? "Μη διαθέσιμη" : permission === "granted" ? "Επιτρέπεται" : permission === "denied" ? "Αποκλεισμένη" : "Δεν ζητήθηκε"} ok={permission === "granted"} />
-          <Status label="Background Web Push" value={deliveryReady ? "Ενεργό" : "Δεν έχει ενεργοποιηθεί ακόμη"} ok={deliveryReady} />
+          <Status label="Αυτή η συσκευή" value={thisDevice ? "Εγγεγραμμένη" : "Δεν έχει εγγραφεί"} ok={thisDevice} />
+          <Status label="Background Web Push" value={deliveryReady ? `Ενεργό · ${deviceCount} συσκευή${deviceCount === 1 ? "" : "ς"}` : "Δεν είναι ενεργό"} ok={deliveryReady} />
         </div>
 
-        {!deliveryReady && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#f2f0e9", lineHeight: 1.5 }}><strong>Η σελίδα αυτή δεν προσποιείται ότι το push είναι ήδη έτοιμο.</strong><br /><span style={{ opacity: .7 }}>Το backend delivery adapter και η αποθήκευση της ασφαλούς συνδρομής συσκευής πρέπει να ενεργοποιηθούν πριν το Daily θεωρηθεί production-ready για ειδοποιήσεις με κλειστή εφαρμογή.</span></div>}
+        {!configured && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#f2f0e9", lineHeight: 1.5 }}><strong>Απαιτείται VAPID configuration στο deployment.</strong><br /><span style={{ opacity: .7 }}>Μέχρι να υπάρχουν τα server keys, το Daily δεν εμφανίζει ψευδή ένδειξη ότι το background push είναι ενεργό.</span></div>}
 
-        <button type="button" onClick={() => void prepareDevice()} disabled={busy || support !== "supported"} style={{ minHeight: 54, border: 0, borderRadius: 15, background: "#171914", color: "white", font: "inherit", fontWeight: 850, cursor: support === "supported" ? "pointer" : "not-allowed", opacity: support === "supported" ? 1 : .5 }}>{busy ? "Προετοιμασία…" : permission === "granted" ? "Επανέλεγχος συσκευής" : "Προετοιμασία ειδοποιήσεων"}</button>
+        <button type="button" onClick={() => void prepareDevice()} disabled={busy || support !== "supported" || !configured} style={{ minHeight: 54, border: 0, borderRadius: 15, background: "#171914", color: "white", font: "inherit", fontWeight: 850, cursor: support === "supported" && configured ? "pointer" : "not-allowed", opacity: support === "supported" && configured ? 1 : .5 }}>{busy ? "Ενημέρωση…" : thisDevice ? "Επανέλεγχος / επανεγγραφή" : "Ενεργοποίηση ειδοποιήσεων"}</button>
+        {thisDevice && <button type="button" onClick={() => void disableDevice()} disabled={busy} style={{ minHeight: 48, borderRadius: 15, border: "1px solid rgba(23,25,20,.16)", background: "white", font: "inherit", fontWeight: 800 }}>Απενεργοποίηση σε αυτή τη συσκευή</button>}
         {message && <p role="status" style={{ margin: 0, padding: "12px 14px", borderRadius: 13, background: "#f2f0e9", lineHeight: 1.45 }}>{message}</p>}
 
-        <small style={{ opacity: .55, lineHeight: 1.5 }}>Η άδεια ζητείται μόνο μετά από δικό σου πάτημα. Δεν εμφανίζεται αυτόματο browser prompt κατά την είσοδο στο Daily.</small>
+        <small style={{ opacity: .55, lineHeight: 1.5 }}>Η άδεια του browser ζητείται μόνο μετά από δικό σου πάτημα. Η συνδρομή αποθηκεύεται για τον συγκεκριμένο Daily χρήστη και vendor και ανακαλείται μαζί με την πρόσβαση.</small>
       </section>
     </div>
   </main>;
