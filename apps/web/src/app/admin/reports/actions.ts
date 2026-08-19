@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { assertAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { createReport, emailReport, reportSpecFromForm, saveReportDefinition } from "../../../lib/reporting-engine";
 import { resolveReportPrincipal } from "../../../lib/reporting-principal";
@@ -9,6 +10,7 @@ import { runSavedReport } from "../../../lib/reporting-saved";
 async function adminReportPrincipal() {
   const sessionPrincipal = await getAdminSession();
   if (!sessionPrincipal) redirect("/admin/login");
+  assertAdminPermission(sessionPrincipal, "analytics.market.read");
   return resolveReportPrincipal(sessionPrincipal);
 }
 
