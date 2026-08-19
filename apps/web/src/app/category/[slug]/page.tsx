@@ -4,18 +4,18 @@ import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getCatalogCards } from "../../../lib/catalog-view";
-import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
+import { getAvailableStorefrontCategories } from "../../../lib/available-catalog-taxonomy";
 import { getVisitorKey } from "../../../lib/visitor";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
-export function generateStaticParams() {
-  return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
+export async function generateStaticParams() {
+  return (await getAvailableStorefrontCategories("23100")).map((category) => ({ slug: category.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const category = storefrontCategoryBySlug(slug);
+  const category = (await getAvailableStorefrontCategories("23100")).find((item) => item.slug === slug);
   if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
   return {
     title: category.label,
@@ -26,12 +26,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
-  const category = storefrontCategoryBySlug(slug);
+  const availableCategories = await getAvailableStorefrontCategories("23100");
+  const category = availableCategories.find((item) => item.slug === slug);
   if (!category) notFound();
 
   const visitorKey = await getVisitorKey();
   const products = await getCatalogCards(visitorKey, "23100", "", category.slug);
-  const siblings = STOREFRONT_CATEGORIES.filter((item) => item.slug !== category.slug);
+  const siblings = availableCategories.filter((item) => item.slug !== category.slug);
 
   return (
     <main>
@@ -80,7 +81,7 @@ export default async function CategoryPage({ params }: Props) {
         </div>
       </section>
 
-      <section className="shell section category-discovery">
+      {siblings.length > 0 ? <section className="shell section category-discovery">
         <div className="section-heading">
           <div><div className="eyebrow">Συνέχισε την ανακάλυψη</div><h2>Και άλλες πλευρές της τοπικής αγοράς</h2></div>
         </div>
@@ -93,7 +94,7 @@ export default async function CategoryPage({ params }: Props) {
             </a>
           ))}
         </div>
-      </section>
+      </section> : null}
       <SiteFooter />
     </main>
   );
