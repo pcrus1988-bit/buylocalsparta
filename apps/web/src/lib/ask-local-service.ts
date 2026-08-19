@@ -20,7 +20,7 @@ export async function submitAskLocal(principal: SessionPrincipal, raw: AskLocalS
   const runtime = getProductionPostgresRuntime();
   let assignedVendorId = input.preferredVendorId;
   let assignmentReason = input.preferredVendorId ? "customer_preferred_vendor" : "admin_triage";
-  if (input.canonicalVariantId) {
+  if (input.canonicalVariantId && !input.preferredVendorId) {
     const assignment = await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: input.canonicalVariantId, visitorKey: `ask-local:${principal.userId}`, postcode: input.postcode, reason: "product_view" });
     assignedVendorId = assignment?.vendorId;
     assignmentReason = assignment ? "fair_assignment" : "no_eligible_local_vendor";
@@ -41,7 +41,7 @@ export async function submitAskLocal(principal: SessionPrincipal, raw: AskLocalS
         AND EXISTS (SELECT 1 FROM vendor_locations vl WHERE vl.vendor_id=v.id AND vl.active=true)
       LIMIT 1`, [assignedVendorId]) : undefined;
     const assigned = Boolean(vendor?.rowCount);
-    if (assignedVendorId && !assigned) assignmentReason = input.canonicalVariantId ? "fair_assignment_ineligible" : "preferred_vendor_ineligible";
+    if (assignedVendorId && !assigned) assignmentReason = input.preferredVendorId ? "preferred_vendor_ineligible" : "fair_assignment_ineligible";
     const offer = assigned && canonical?.rows[0]?.id ? await tx.query<SqlRow>(`SELECT vo.id::text AS id FROM vendor_offers vo JOIN vendor_locations vl ON vl.id=vo.location_id WHERE vo.vendor_id=$1::uuid AND vo.canonical_variant_id=$2::uuid AND vo.status='approved' AND vl.active=true ORDER BY vo.updated_at DESC,vo.id LIMIT 1`, [vendor!.rows[0].id, canonical.rows[0].id]) : undefined;
     const dueAt = assigned ? new Date(input.now + 24 * 60 * 60 * 1000) : null;
     const sourceUrl = input.sourceUrl ?? `${publicOrigin()}/ask-local`;
@@ -82,12 +82,12 @@ export async function customerAskLocalRequests(principal: SessionPrincipal): Pro
 async function submitMemory(principal: SessionPrincipal, input: ReturnType<typeof validate>): Promise<AskLocalRequestView> {
   let assignedVendorId = input.preferredVendorId;
   let assignmentReason = input.preferredVendorId ? "customer_preferred_vendor" : "admin_triage";
-  if (input.canonicalVariantId) {
+  if (input.canonicalVariantId && !input.preferredVendorId) {
     assignedVendorId = (await getCatalogCard(input.canonicalVariantId, `ask-local:${principal.userId}`, input.postcode))?.vendorId;
     assignmentReason = assignedVendorId ? "fair_assignment" : "no_eligible_local_vendor";
   }
   const vendor = assignedVendorId ? await getPublicVendorDirectoryEntry(assignedVendorId) : undefined;
-  if (assignedVendorId && (!vendor || vendor.directoryStatus !== "partner")) assignmentReason = input.canonicalVariantId ? "fair_assignment_ineligible" : "preferred_vendor_ineligible";
+  if (assignedVendorId && (!vendor || vendor.directoryStatus !== "partner")) assignmentReason = input.preferredVendorId ? "preferred_vendor_ineligible" : "fair_assignment_ineligible";
   const eligibleVendor = vendor?.directoryStatus === "partner" ? vendor : undefined;
   const request: AskLocalRequestView = { id: `cor_${randomUUID()}`, status: eligibleVendor ? "awaiting_vendor" : "submitted", need: input.need, quantity: input.quantity, postcode: input.postcode, canonicalVariantId: input.canonicalVariantId, assignedVendorId: eligibleVendor?.id, assignedVendorName: eligibleVendor?.name, workflowOwnerKind: eligibleVendor ? "vendor" : "admin", assignmentReason, responseDueAt: eligibleVendor ? input.now + 24 * 60 * 60 * 1000 : undefined, createdAt: input.now, privateOffers: [] };
   const items = memoryStore().get(principal.userId) ?? []; items.push(request); memoryStore().set(principal.userId, items); return request;
