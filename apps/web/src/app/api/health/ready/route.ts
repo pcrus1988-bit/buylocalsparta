@@ -1,7 +1,7 @@
 import { ResendEmailProvider, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import { WEB_BUILD_VERSION } from "../../../../lib/build";
 import { productionDatabaseReadiness } from "../../../../lib/postgres-runtime";
-import { vivaPaymentsEnabled, vivaPaymentsReady } from "../../../../lib/viva-runtime";
+import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
 import { mediaPipelineReadiness } from "../../../../lib/media-upload-service";
 import { myDataReadiness } from "../../../../lib/mydata-runtime";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const database = await productionDatabaseReadiness();
-  const viva = { enabled: vivaPaymentsEnabled(), ready: !vivaPaymentsEnabled() || vivaPaymentsReady(), environment: process.env.VIVA_ENVIRONMENT ?? "disabled" };
+  const viva = await vivaPaymentsProviderReadiness();
   const media = await mediaPipelineReadiness();
   const myData = myDataReadiness();
 
