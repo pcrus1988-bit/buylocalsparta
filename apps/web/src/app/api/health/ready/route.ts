@@ -1,4 +1,4 @@
-import { ResendEmailProvider, resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
+import { ResendEmailProvider, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import { WEB_BUILD_VERSION } from "../../../../lib/build";
 import { productionDatabaseReadiness } from "../../../../lib/postgres-runtime";
 import { vivaPaymentsEnabled, vivaPaymentsReady } from "../../../../lib/viva-runtime";
@@ -36,19 +36,24 @@ export async function GET() {
     }
   }
 
-  const emailEnabled = process.env.BLS_EMAIL_DELIVERY_ENABLED === "true";
-  const receivingEnabled = process.env.BLS_EMAIL_RECEIVING_ENABLED === "true";
+  const emailEnabled = resendDeliveryEnabled();
+  const receivingEnabled = process.env.BLS_EMAIL_RECEIVING_ENABLED === "true" || Boolean(process.env.RESEND_INBOUND_FORWARD_TO?.trim() || process.env.BLS_OPERATIONS_EMAIL?.trim());
   const emailConfig = {
     apiKeyConfigured: Boolean(process.env.RESEND_API_KEY?.trim()),
     fromConfigured: Boolean(process.env.RESEND_FROM?.trim()),
+    fromDefaulted: !process.env.RESEND_FROM?.trim(),
     replyToConfigured: Boolean(process.env.RESEND_REPLY_TO?.trim()),
+    replyToDefaulted: !process.env.RESEND_REPLY_TO?.trim(),
     webhookSecretConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()),
+    webhookSecretManagedByProvider: !process.env.RESEND_WEBHOOK_SECRET?.trim(),
     suppressionSecretConfigured: Boolean(process.env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim()),
+    suppressionSecretDerived: !process.env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim() && Boolean(process.env.BLS_AUTH_SECRET?.trim()),
     operationsEmailConfigured: Boolean(process.env.BLS_OPERATIONS_EMAIL?.trim()),
     inboundForwardConfigured: Boolean(process.env.RESEND_INBOUND_FORWARD_TO?.trim()),
     publicBaseUrlConfigured: Boolean(process.env.BLS_PUBLIC_BASE_URL?.trim() || process.env.NEXT_PUBLIC_SITE_URL?.trim())
   };
-  const emailRequiredEnv = emailConfig.apiKeyConfigured && emailConfig.fromConfigured && emailConfig.suppressionSecretConfigured && emailConfig.webhookSecretConfigured;
+  const authSecretReady = Boolean(process.env.BLS_AUTH_SECRET?.trim() && process.env.BLS_AUTH_SECRET!.trim().length >= 32);
+  const emailRequiredEnv = emailConfig.apiKeyConfigured && authSecretReady;
   const receivingReady = !receivingEnabled || emailConfig.inboundForwardConfigured || emailConfig.operationsEmailConfigured;
   let email = {
     enabled: emailEnabled,
@@ -61,9 +66,9 @@ export async function GET() {
   };
   if (emailEnabled) {
     if (!emailRequiredEnv) {
-      email = { ...email, ready: false, message: "Resend API/from, webhook secret and notification suppression secret are required" };
+      email = { ...email, ready: false, message: "Resend API key and production auth secret are required" };
     } else if (!receivingReady) {
-      email = { ...email, ready: false, message: "Inbound email receiving requires RESEND_INBOUND_FORWARD_TO or BLS_OPERATIONS_EMAIL" };
+      email = { ...email, ready: false, message: "Inbound email forwarding requires RESEND_INBOUND_FORWARD_TO or BLS_OPERATIONS_EMAIL" };
     } else {
       try {
         const health = await new ResendEmailProvider(resendConfigFromEnv()).readiness();
