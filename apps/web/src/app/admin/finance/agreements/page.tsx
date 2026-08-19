@@ -7,11 +7,14 @@ import { getAdminSession } from "../../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Vendor Agreements", robots: { index: false, follow: false } };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ vendorId?: string }> }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   let workspace;
   try { workspace = await commercialAgreementWorkspace(); } catch { redirect("/admin/finance"); }
+  const query = await searchParams;
+  const requestedVendorId = typeof query.vendorId === "string" ? query.vendorId : undefined;
+  const initialVendorId = requestedVendorId && workspace.vendors.some((vendor) => vendor.id === requestedVendorId) ? requestedVendorId : undefined;
   const active = workspace.agreements.filter((agreement) => agreement.status === "active").length;
   const drafts = workspace.agreements.filter((agreement) => agreement.status === "draft").length;
   return <main className="vendor-app admin-app">
@@ -25,6 +28,6 @@ export default async function Page() {
       <div className="workspace-metric"><span>Active</span><strong>{active}</strong></div>
       <div className="workspace-metric"><span>Draft</span><strong>{drafts}</strong></div>
     </section>
-    <AdminCommercialAgreementsClient initial={workspace} csrfToken={principal.csrfToken} />
+    <AdminCommercialAgreementsClient initial={workspace} csrfToken={principal.csrfToken} initialVendorId={initialVendorId} />
   </main>;
 }
