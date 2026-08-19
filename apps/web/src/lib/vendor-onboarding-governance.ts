@@ -13,9 +13,10 @@ function optionalText(value: unknown): string | undefined {
 
 /**
  * The operational toggle is intentionally not an alternative onboarding path.
- * Formal applications must reach test-ready and be activated from the governed
- * application queue. The toggle remains useful for later suspend/reactivate
- * operations, but reactivation still requires documented cooperation.
+ * Formal applications must be activated/reactivated from the governed
+ * application queue. The toggle remains useful for later operational shutdowns
+ * and for re-enabling legacy shops that have no formal application record, but
+ * every activation still requires documented cooperation.
  */
 export async function setGovernedAdminVendorOperationalState(principal: SessionPrincipal, input: {
   vendorId: string;
@@ -49,8 +50,8 @@ export async function setGovernedAdminVendorOperationalState(principal: SessionP
       ORDER BY updated_at DESC,created_at DESC
       LIMIT 1`, [vendorUuid]);
     const applicationState = optionalText(application.rows[0]?.status);
-    if (applicationState && !["active", "restricted", "suspended"].includes(applicationState)) {
-      throw new Error(`This shop is still in ${applicationState}. Complete the application queue and use the governed activation action there.`);
+    if (applicationState && applicationState !== "active") {
+      throw new Error(`This shop is linked to an application in ${applicationState}. Use the governed application queue for activation or reactivation.`);
     }
 
     const agreement = await tx.query<SqlRow>(`
