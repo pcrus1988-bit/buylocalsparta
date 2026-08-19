@@ -39,18 +39,20 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     {error ? <section className="shell vendor-section"><article className="workspace-queue-card" style={{ borderColor: "currentColor" }}><strong>Η αναφορά δεν ολοκληρώθηκε</strong><p>{error}</p></article></section> : null}
     {first(query.created) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Η αναφορά δημιουργήθηκε.</strong><p>Το PDF, η περίληψη, τα datasets και το audit trail έχουν αποθηκευτεί.</p></article></section> : null}
     {first(query.emailed) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Το report email στάλθηκε.</strong></article></section> : null}
-    {first(query.saved) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Το report template αποθηκεύτηκε.</strong></article></section> : null}
+    {first(query.saved) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Η τρέχουσα marketplace report configuration αποθηκεύτηκε.</strong></article></section> : null}
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="New report" title="Marketplace Report Builder" note="Χωρίς vendor filter το scope είναι ολόκληρο το marketplace. Με vendor filter το ίδιο engine λειτουργεί ως drill-down στον συγκεκριμένο συνεργάτη." />
       <form action={createAdminReportAction}>
         <ReportBuilderFields admin options={options} />
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="button" type="submit">Generate comprehensive PDF</button></div>
-      </form>
-      <form action={saveAdminReportDefinitionAction} className="workspace-queue-card" style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
-        <input type="hidden" name="preset" value="full" /><input type="hidden" name="includeDetails" value="on" />
-        <label style={{ flex: "1 1 280px" }}><small>Γρήγορο marketplace template</small><input name="templateName" required placeholder="π.χ. Monthly marketplace board report" style={{ width: "100%" }} /></label>
-        <button className="button button-secondary" type="submit">Save full template</button>
+        <article className="workspace-queue-card" style={{ marginTop: 12 }}>
+          <label><small>Όνομα saved configuration — προαιρετικό</small><input name="templateName" placeholder="π.χ. Monthly marketplace board report" style={{ width: "100%" }} /></label>
+          <small style={{ display: "block", marginTop: 7, opacity: .72 }}>Το «Save configuration» αποθηκεύει το πλήρες τρέχον scope: vendor/market, category tree, product, brand, location, domains, dates και comparison settings.</small>
+        </article>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+          <button className="button" type="submit">Generate comprehensive PDF</button>
+          <button className="button button-secondary" type="submit" formAction={saveAdminReportDefinitionAction}>Save configuration</button>
+        </div>
       </form>
     </section>
 
