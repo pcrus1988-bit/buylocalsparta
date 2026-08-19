@@ -29,7 +29,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   const params = await searchParams;
   let data;
   try { data = await adminCustomersWorkspace(principal, { query: params.q, status: params.status }); } catch { redirect("/admin"); }
-  const canManage = hasAdminPermission(principal, "privacy.manage");
+  const canManage = hasAdminPermission(principal, "customer.manage");
   const filtered = Boolean(params.q?.trim() || params.status);
 
   return <main className="vendor-app admin-app">
@@ -52,7 +52,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Directory" title="Customer accounts" note="Αναζήτησε με όνομα, email, τηλέφωνο ή customer ID. Τα αποτελέσματα περιορίζονται στα 150 πιο πρόσφατα ενεργά records." />
+      <WorkspaceSectionHeading eyebrow="Directory" title="Customer accounts" note="Αναζήτησε με όνομα, email, τηλέφωνο ή customer ID. Εμφανίζονται έως 150 από τα πιο πρόσφατα σχετικά records· το search εξετάζει όλη τη βάση." />
       {!data.databaseConfigured && <div className="workspace-inline-note">Η production βάση δεν είναι διαθέσιμη· το customer management είναι read-only/unavailable σε database-less preview.</div>}
       <form method="get" className="workspace-tool-panel" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) minmax(190px, 240px) auto", gap: 12, alignItems: "end", padding: 16, marginBottom: 18 }}>
         <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Name, email, phone, customer ID" /></label>
@@ -84,8 +84,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
           <span>Account: <strong>{statusLabel[customer.status]}</strong></span>
           <div className="workspace-action-buttons">
             <Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(customer.id)}`}>Open profile</Link>
-            {canManage && customer.status === "active" && <AdminActionButton label="Restrict" endpoint="/api/admin/customers/status" csrfToken={data.csrfToken} body={{ customerId: customer.id, status: "restricted" }} reasonPrompt="Reason for restricting this customer account" danger />}
-            {canManage && ["pending_verification", "restricted", "suspended"].includes(customer.status) && <AdminActionButton label="Set active" endpoint="/api/admin/customers/status" csrfToken={data.csrfToken} body={{ customerId: customer.id, status: "active" }} reasonPrompt="Reason for activating this customer account" />}
+            {canManage && customer.status === "active" && <AdminActionButton label="Restrict" endpoint="/api/admin/customers/status" csrfToken={data.csrfToken} body={{ customerId: customer.id, status: "restricted" }} reasonPrompt="Reason for restricting this customer account; existing sessions will be revoked" danger />}
+            {canManage && customer.status === "pending_verification" && !customer.emailVerified && <AdminActionButton label="Resend verification" endpoint="/api/admin/customers/action" csrfToken={data.csrfToken} body={{ customerId: customer.id, action: "resend_verification" }} reasonPrompt="Reason for resending customer email verification" />}
+            {canManage && customer.emailVerified && ["pending_verification", "restricted", "suspended"].includes(customer.status) && <AdminActionButton label="Set active" endpoint="/api/admin/customers/status" csrfToken={data.csrfToken} body={{ customerId: customer.id, status: "active" }} reasonPrompt="Reason for activating this verified customer account" />}
           </div>
         </div>
       </article>)}</div>}
