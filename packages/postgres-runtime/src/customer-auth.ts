@@ -94,7 +94,7 @@ export class PostgresCustomerAuthService {
     if (separator <= 0) return false;
     const raw = token.slice(0, separator);
     const signature = token.slice(separator + 1);
-    const expected = createHmac("sha256", this.#secret).update(rawTokenForSigning(rawToken)).digest("base64url");
+    const expected = createHmac("sha256", this.#secret).update(raw).digest("base64url");
     return safeStringEqual(signature, expected);
   }
 
@@ -120,10 +120,6 @@ function rejectLogin(reason: string, email: string, userId?: string): never {
     ...(userId ? { userId } : {})
   }));
   throw new Error("Invalid email or password");
-}
-
-function rawTokenForSigning(rawToken: string): string {
-  return rawToken;
 }
 
 function safeStringEqual(a: string, b: string): boolean {
