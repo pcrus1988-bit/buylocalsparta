@@ -133,10 +133,10 @@ function sanitizeProbeSnapshot(value: ProbeSnapshot | undefined): ProbeSnapshot 
   if (!value || !["armed", "running", "succeeded", "failed"].includes(value.state)) return undefined;
   return {
     state: value.state,
-    checkedAt: Number.isFinite(value.checkedAt) ? value.checkedAt : undefined,
+    checkedAt: typeof value.checkedAt === "number" && Number.isFinite(value.checkedAt) ? value.checkedAt : undefined,
     environment: typeof value.environment === "string" ? value.environment.slice(0, 24) : undefined,
     specVersion: typeof value.specVersion === "string" ? value.specVersion.slice(0, 24) : undefined,
-    responseBytes: Number.isSafeInteger(value.responseBytes) ? value.responseBytes : undefined,
+    responseBytes: typeof value.responseBytes === "number" && Number.isSafeInteger(value.responseBytes) ? value.responseBytes : undefined,
     error: typeof value.error === "string" ? redactDiagnosticError(value.error) : undefined
   };
 }
