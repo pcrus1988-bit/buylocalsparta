@@ -14,10 +14,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (typeof body.reason !== "string" || body.reason.trim().length < 3) throw new Error("Transition reason is required");
 
     const state = body.to as VendorOnboardingState;
+    const before = await adminVendorsWorkspace(principal);
+    const current = before.applications.find((item) => item.id === id);
+    if (current?.state === state) {
+      return Response.json({ ...before, idempotent: true });
+    }
+
     await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
 
     const workspace = await adminVendorsWorkspace(principal);
-    const application = workspace.applications.find((item) => item.id === id);
+    const application = workspace.applications.find((item) => item.id === id) ?? current;
     let notificationWarning: string | undefined;
     if (application?.contactEmail) {
       try {
