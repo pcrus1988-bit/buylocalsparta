@@ -37,6 +37,8 @@ export default async function AdminPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const dashboard = await adminDashboard(principal);
+  const canSeeAnalytics = hasAdminPermission(principal, "analytics.market.read");
+  const canSeeSecurity = hasAdminPermission(principal, "security.read");
   const metrics = [
     ...(hasAdminPermission(principal, "vendor.manage") ? [["Vendor checks", dashboard.metrics.vendorVerificationQueue] as const] : []),
     ...(hasAdminPermission(principal, "catalog.read") ? [["Catalog review", dashboard.metrics.catalogReviewQueue] as const, ["Trust queue", dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance] as const] : []),
@@ -89,9 +91,9 @@ export default async function AdminPage() {
 
     <WorkspaceQuickLinks density="compact" eyebrow="Admin directory" title="Οι διαθέσιμες λειτουργίες από ένα σημείο." links={allAdminLinks} />
 
-    <section className="shell vendor-section dashboard-insights-section">
+    {(canSeeAnalytics || canSeeSecurity) && <section className="shell vendor-section dashboard-insights-section">
       <div className="dashboard-insight-grid">
-        <article className="dashboard-insight-card">
+        {canSeeAnalytics && <article className="dashboard-insight-card">
           <div className="eyebrow">Marketplace · 30 ημέρες</div>
           <h2>Εμπορική εικόνα</h2>
           <div className="dashboard-stat-grid">
@@ -100,14 +102,14 @@ export default async function AdminPage() {
             <div><span>Orders</span><strong>{dashboard.analytics.orders}</strong></div>
             <div><span>GMV</span><strong>{dashboard.analytics.grossMerchandiseValue}</strong></div>
           </div>
-        </article>
-        <article className="dashboard-insight-card">
+        </article>}
+        {canSeeSecurity && <article className="dashboard-insight-card">
           <div className="eyebrow">Security · 24 ώρες</div>
           <h2>Σήματα ασφάλειας</h2>
           <div className="dashboard-security-number">{dashboard.security.total}</div>
           <p>Privacy-minimised events · χωρίς raw credentials ή στοιχεία επικοινωνίας.</p>
-        </article>
+        </article>}
       </div>
-    </section>
+    </section>}
   </main>;
 }
