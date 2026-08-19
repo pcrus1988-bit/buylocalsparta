@@ -1,5 +1,5 @@
-import { requireVendorSession } from "../../../../../../lib/vendor-session";
-import { collectVendorPickup } from "../../../../../../lib/vendor-pickup-collection";
+import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { collectVendorPickup } from "../../../../../lib/vendor-pickup-collection";
 
 export const runtime = "nodejs";
 
