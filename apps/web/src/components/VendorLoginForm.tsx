@@ -3,12 +3,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-export function VendorLoginForm({ demoEnabled }: { demoEnabled: boolean }) {
+export function VendorLoginForm({ demoEnabled, redirectTo = "/vendor" }: { demoEnabled: boolean; redirectTo?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState(demoEnabled ? "vendor1@demo.local" : "");
   const [password, setPassword] = useState(demoEnabled ? "Vendor!12345" : "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const safeRedirect = redirectTo.startsWith("/vendor") && !redirectTo.startsWith("//") ? redirectTo : "/vendor";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -18,7 +19,7 @@ export function VendorLoginForm({ demoEnabled }: { demoEnabled: boolean }) {
       const response = await fetch("/api/vendor/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Η σύνδεση απέτυχε");
-      router.replace("/vendor");
+      router.replace(safeRedirect);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η σύνδεση απέτυχε");

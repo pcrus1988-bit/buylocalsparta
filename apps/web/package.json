@@ -13,6 +13,7 @@
     "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "react-qr-code": "2.0.18",
     "@buy-local-sparta/postgres-runtime": "0.45.0",
     "pg": "8.22.0",
     "@buy-local-sparta/viva-payments": "0.45.0",
