@@ -120,6 +120,8 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
 
       // A formal shop record is needed before contract preparation can happen.
       // Provision it after verification while keeping it non-operational and hidden.
+      // If acquisition research already created the same market/trading-name record,
+      // promote that invited research record in place so its evidence remains linked.
       if (!vendorUuid && ["catalog_onboarding", "test_ready"].includes(input.to)) {
         vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
         const insertedVendor = await tx.query<SqlRow>(`
@@ -127,7 +129,21 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
             id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,
             verification_completed_at,contract_started_at,public_directory_visible,created_at,updated_at
           ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,NULL,false,$9,$9)
-          RETURNING id::text AS id`, [
+          ON CONFLICT (market_id,trading_name) DO UPDATE SET
+            public_id=EXCLUDED.public_id,
+            legal_name=EXCLUDED.legal_name,
+            tax_number=COALESCE(EXCLUDED.tax_number,vendor_businesses.tax_number),
+            gemi_number=COALESCE(EXCLUDED.gemi_number,vendor_businesses.gemi_number),
+            status=EXCLUDED.status,
+            verification_completed_at=EXCLUDED.verification_completed_at,
+            contract_started_at=NULL,
+            public_directory_visible=false,
+            public_directory_visibility_updated_at=EXCLUDED.updated_at,
+            public_directory_visibility_reason='Research prospect promoted to formal onboarding',
+            updated_at=EXCLUDED.updated_at
+          WHERE vendor_businesses.public_id LIKE 'vendor_research_%'
+            AND vendor_businesses.status='invited'
+          RETURNING id::text AS id,public_id`, [
           randomUUID(),
           vendorPublicId,
           text(row.market_uuid, "market_uuid"),
@@ -138,14 +154,28 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
           input.to,
           new Date(now)
         ]);
+        if (!insertedVendor.rowCount) {
+          throw new Error("A non-research vendor with the same trading name already exists in this market. Link or resolve the duplicate before onboarding.");
+        }
         vendorUuid = text(insertedVendor.rows[0].id, "vendor.id");
+        vendorPublicId = text(insertedVendor.rows[0].public_id, "vendor.public_id");
 
         const locationPublicId = `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
         await tx.query(`
           INSERT INTO vendor_locations(
             id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,
             phone,public_email,active,verified_at,created_at,updated_at
-          ) VALUES($1,$2,$3,$4,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10,$10)`, [
+          ) VALUES($1,$2,$3,$4,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10,$10)
+          ON CONFLICT (vendor_id,name) DO UPDATE SET
+            address_line1=EXCLUDED.address_line1,
+            locality=EXCLUDED.locality,
+            postcode=EXCLUDED.postcode,
+            country_code=EXCLUDED.country_code,
+            phone=EXCLUDED.phone,
+            public_email=EXCLUDED.public_email,
+            active=true,
+            verified_at=EXCLUDED.verified_at,
+            updated_at=EXCLUDED.updated_at`, [
           randomUUID(),
           locationPublicId,
           vendorUuid,
@@ -161,6 +191,8 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
         const membership = await tx.query<SqlRow>(`
           INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at)
           VALUES($1,$2,$3,$4,NULL,true,$5)
+          ON CONFLICT (vendor_id,user_id) WHERE location_id IS NULL
+          DO UPDATE SET active=true
           RETURNING id::text AS id`, [
           randomUUID(),
           `vuser_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
