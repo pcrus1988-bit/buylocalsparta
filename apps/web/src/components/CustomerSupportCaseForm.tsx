@@ -2,7 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CUSTOMER_SUPPORT_CATEGORIES, CUSTOMER_SUPPORT_PRIORITIES } from "../lib/admin-customer-support";
+
+const CUSTOMER_SUPPORT_CATEGORIES = ["account", "order", "payment", "return", "delivery", "privacy", "technical", "other"] as const;
+const CUSTOMER_SUPPORT_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
 const categoryLabel: Record<(typeof CUSTOMER_SUPPORT_CATEGORIES)[number], string> = {
   account: "Account",
