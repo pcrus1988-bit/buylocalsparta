@@ -17,7 +17,7 @@ export type AccountingPolicyWorkspace = Readonly<{
   paymentMappings: readonly Readonly<{ processor:string; processorMethod:string; mydataPaymentType:number; requiresTransactionId:boolean; erpRequiresEcrToken:boolean; providerSignatureRoute:boolean; status:MappingProductionStatus; notes?:string }>[];
   series: readonly Readonly<{ series:string; invoiceType:string; purpose:string; fiscalYear:number; nextAa:number; lastIssuedAa?:number; lastMark?:string; locked:boolean }>[];
   vatCategories: readonly Readonly<{ code:number; rateBps:number; label:string; specialCategory:boolean }>[];
-  taxProfileCoverage: Readonly<{ activeVariants:number; coveredVariants:number; missingVariants:number; approvedProfiles:number; unapprovedProfiles:number }>;
+  taxProfileCoverage: Readonly<{ activeVariants:number; coveredVariants:number; missingVariants:number; approvedProfiles:number; unapprovedProfiles:number; approvedProfileHashes:readonly string[] }>;
   technicalCapabilities: Readonly<{ directErpEcrToken:boolean; vivaFiscalProvider:boolean }>;
   productionReady:boolean;
   blockers:readonly string[];
@@ -35,9 +35,9 @@ export class PostgresAccountingPolicyService {
         FROM accounting_tax_policies
         WHERE market_id=(SELECT id FROM markets WHERE code=$1 LIMIT 1)
         ORDER BY CASE status WHEN 'approved' THEN 0 WHEN 'review' THEN 1 WHEN 'draft' THEN 2 ELSE 3 END, created_at DESC LIMIT 1`,[this.#marketCode()]);
-      if(!p.rowCount)return{checks:[],documentMappings:[],paymentMappings:[],series:[],vatCategories:[],taxProfileCoverage:{activeVariants:0,coveredVariants:0,missingVariants:0,approvedProfiles:0,unapprovedProfiles:0},technicalCapabilities:this.#capabilities(),productionReady:false,blockers:["Accounting policy has not been created"]};
+      if(!p.rowCount)return{checks:[],documentMappings:[],paymentMappings:[],series:[],vatCategories:[],taxProfileCoverage:{activeVariants:0,coveredVariants:0,missingVariants:0,approvedProfiles:0,unapprovedProfiles:0,approvedProfileHashes:[]},technicalCapabilities:this.#capabilities(),productionReady:false,blockers:["Accounting policy has not been created"]};
       const row=p.rows[0], policyId=text(row.public_id);
-      const [checks,docs,payments,series,vat,coverage]=await Promise.all([
+      const [checks,docs,payments,series,vat,coverage,profileHashes]=await Promise.all([
         tx.query<SqlRow>(`SELECT c.check_code,c.label,c.required,c.status,c.evidence,c.decided_at FROM accounting_tax_policy_checks c JOIN accounting_tax_policies p ON p.id=c.policy_id WHERE p.public_id=$1 ORDER BY c.required DESC,c.check_code`,[policyId]),
         tx.query<SqlRow>(`SELECT d.event_code,d.customer_kind,d.item_kind,d.geography,d.direction,d.invoice_type,d.income_category,d.e3_code,d.series_code,d.production_status,d.negative_original_classification,d.correlation_required,d.notes FROM mydata_document_mappings d JOIN accounting_tax_policies p ON p.id=d.policy_id WHERE p.public_id=$1 ORDER BY d.event_code`,[policyId]),
         tx.query<SqlRow>(`SELECT m.processor,m.processor_method,m.mydata_payment_type,m.requires_transaction_id,m.erp_requires_ecr_token,m.provider_signature_route,m.production_status,m.notes FROM mydata_payment_mappings m JOIN accounting_tax_policies p ON p.id=m.policy_id WHERE p.public_id=$1 ORDER BY m.processor,m.processor_method`,[policyId]),
@@ -52,7 +52,8 @@ export class PostgresAccountingPolicyService {
           )
           SELECT (SELECT count(*) FROM active) AS active_variants,(SELECT count(*) FROM covered) AS covered_variants,
             (SELECT count(*) FROM product_tax_profiles p JOIN markets m ON m.id=p.market_id WHERE m.code=$1 AND p.accountant_approved=true) AS approved_profiles,
-            (SELECT count(*) FROM product_tax_profiles p JOIN markets m ON m.id=p.market_id WHERE m.code=$1 AND p.accountant_approved=false) AS unapproved_profiles`,[this.#marketCode(),athensDate(now)])
+            (SELECT count(*) FROM product_tax_profiles p JOIN markets m ON m.id=p.market_id WHERE m.code=$1 AND p.accountant_approved=false) AS unapproved_profiles`,[this.#marketCode(),athensDate(now)]),
+        tx.query<SqlRow>(`SELECT ptp.profile_hash FROM product_tax_profiles ptp JOIN markets m ON m.id=ptp.market_id WHERE m.code=$1 AND ptp.accountant_approved=true AND ptp.profile_hash IS NOT NULL ORDER BY ptp.profile_hash`,[this.#marketCode()])
       ]);
       const policy={id:policyId,version:text(row.version),status:text(row.status),sellerOfRecord:bool(row.seller_of_record),sellerLegalName:text(row.seller_legal_name),sellerTaxNumber:text(row.seller_tax_number),compatibilityTarget:text(row.compatibility_target),productionPublishedSchema:optional(row.production_published_schema),fiscalisationRoute:text(row.fiscalisation_route) as FiscalisationRoute,effectiveFrom:dateValue(row.effective_from),accountantName:optional(row.accountant_name),approvedAt:epochOptional(row.approved_at),approvalNotes:optional(row.approval_notes),policyHash:optional(row.policy_hash)};
       const checkRows=checks.rows.map(r=>({code:text(r.check_code),label:text(r.label),required:bool(r.required),status:text(r.status) as PolicyDecisionStatus,evidence:optional(r.evidence),decidedAt:epochOptional(r.decided_at)}));
@@ -61,7 +62,7 @@ export class PostgresAccountingPolicyService {
       const seriesRows=series.rows.map(r=>({series:text(r.series),invoiceType:text(r.invoice_type),purpose:text(r.purpose),fiscalYear:int(r.fiscal_year),nextAa:int(r.next_aa),lastIssuedAa:intOptional(r.last_issued_aa),lastMark:optional(r.last_mark),locked:bool(r.locked)}));
       const vatRows=vat.rows.map(r=>({code:int(r.code),rateBps:int(r.rate_bps),label:text(r.label),specialCategory:bool(r.special_category)}));
       const c=coverage.rows[0]??{};const active=int(c.active_variants??0),covered=int(c.covered_variants??0);
-      const taxProfileCoverage={activeVariants:active,coveredVariants:covered,missingVariants:Math.max(0,active-covered),approvedProfiles:int(c.approved_profiles??0),unapprovedProfiles:int(c.unapproved_profiles??0)};
+      const taxProfileCoverage={activeVariants:active,coveredVariants:covered,missingVariants:Math.max(0,active-covered),approvedProfiles:int(c.approved_profiles??0),unapprovedProfiles:int(c.unapproved_profiles??0),approvedProfileHashes:profileHashes.rows.map(r=>text(r.profile_hash))};
       const technicalCapabilities=this.#capabilities();
       const blockers=policyBlockers({policy,checks:checkRows,documentMappings:docRows,paymentMappings:payRows,taxProfileCoverage,technicalCapabilities});
       return{policy,checks:checkRows,documentMappings:docRows,paymentMappings:payRows,series:seriesRows,vatCategories:vatRows,taxProfileCoverage,technicalCapabilities,productionReady:policy.status==='approved'&&blockers.length===0,blockers};
@@ -73,7 +74,7 @@ export class PostgresAccountingPolicyService {
       const r=await tx.query<SqlRow>(`UPDATE accounting_tax_policies SET fiscalisation_route=$2,status=CASE WHEN status='draft' THEN 'review' ELSE status END,approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),$3),updated_at=now()
         WHERE public_id=$1 AND status IN ('draft','review') RETURNING version`,[input.policyId,input.route,`Fiscalisation route: ${input.route}. ${input.reason}`]);
       if(!r.rowCount)throw new Error("Accounting policy is not editable");
-      await tx.query(`UPDATE accounting_tax_policy_checks c SET status='approved',evidence=$2,decided_by=$3::uuid,decided_at=now(),updated_at=now() FROM accounting_tax_policies p WHERE c.policy_id=p.id AND p.public_id=$1 AND c.check_code='fiscalisation_channel'`,[input.policyId,`Selected route: ${input.route}. ${input.reason}`,principal.userId]);
+      await tx.query(`UPDATE accounting_tax_policy_checks c SET status='approved',evidence=$2,decided_by=${actorUuidExpression(3)},decided_at=now(),updated_at=now() FROM accounting_tax_policies p WHERE c.policy_id=p.id AND p.public_id=$1 AND c.check_code='fiscalisation_channel'`,[input.policyId,`Selected route: ${input.route}. ${input.reason}`,principal.userId]);
       return{ok:true,version:text(r.rows[0].version)};
     },{isolation:"serializable"});
   }
@@ -81,7 +82,7 @@ export class PostgresAccountingPolicyService {
   async decideCheck(principal:SessionPrincipal,input:{policyId:string;checkCode:string;status:PolicyDecisionStatus;evidence:string}){
     if(input.status==='pending')throw new Error("Use an explicit decision");
     return this.#uow.withTransaction(platformScope(principal.userId),async tx=>{
-      const r=await tx.query(`UPDATE accounting_tax_policy_checks c SET status=$3,evidence=$4,decided_by=$5::uuid,decided_at=now(),updated_at=now()
+      const r=await tx.query(`UPDATE accounting_tax_policy_checks c SET status=$3,evidence=$4,decided_by=${actorUuidExpression(5)},decided_at=now(),updated_at=now()
         FROM accounting_tax_policies p WHERE c.policy_id=p.id AND p.public_id=$1 AND c.check_code=$2 AND p.status IN ('draft','review')`,[input.policyId,input.checkCode,input.status,input.evidence,principal.userId]);
       if(!r.rowCount)throw new Error("Policy check was not found or policy is not editable");return{ok:true};
     },{isolation:"serializable"});
@@ -103,7 +104,7 @@ export class PostgresAccountingPolicyService {
     if(blockers.length)throw new Error(`Accounting policy cannot be approved: ${blockers.join("; ")}`);
     const hash=policyHash(snapshot);
     return this.#uow.withTransaction(platformScope(principal.userId),async tx=>{
-      const r=await tx.query<SqlRow>(`UPDATE accounting_tax_policies SET status='approved',accountant_name=$2,approved_by=$3::uuid,approved_at=$4,effective_from=COALESCE(effective_from,$4::date),approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),$5),policy_hash=$6,updated_at=$4 WHERE public_id=$1 AND status IN ('draft','review') RETURNING version`,[input.policyId,input.accountantName.trim(),principal.userId,new Date(now),input.reason,hash]);
+      const r=await tx.query<SqlRow>(`UPDATE accounting_tax_policies SET status='approved',accountant_name=$2,approved_by=${actorUuidExpression(3)},approved_at=$4,effective_from=COALESCE(effective_from,$4::date),approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),$5),policy_hash=$6,updated_at=$4 WHERE public_id=$1 AND status IN ('draft','review') RETURNING version`,[input.policyId,input.accountantName.trim(),principal.userId,new Date(now),input.reason,hash]);
       if(!r.rowCount)throw new Error("Accounting policy is no longer editable");return{ok:true,version:text(r.rows[0].version),policyHash:hash};
     },{isolation:"serializable"});
   }
@@ -132,6 +133,7 @@ function policyBlockers(input:{policy?:AccountingPolicyWorkspace["policy"];check
   return[...new Set(blockers)];
 }
 
-function policyHash(s:AccountingPolicyWorkspace):string{return createHash('sha256').update(JSON.stringify({version:s.policy?.version,sellerOfRecord:s.policy?.sellerOfRecord,compatibilityTarget:s.policy?.compatibilityTarget,fiscalisationRoute:s.policy?.fiscalisationRoute,checks:s.checks.map(x=>[x.code,x.status,x.evidence]),documents:s.documentMappings.map(x=>[x.eventCode,x.invoiceType,x.incomeCategory,x.e3Code,x.seriesCode,x.status]),payments:s.paymentMappings.map(x=>[x.processor,x.processorMethod,x.mydataPaymentType,x.status]),series:s.series.map(x=>[x.series,x.invoiceType,x.fiscalYear])})).digest('hex');}
+function policyHash(s:AccountingPolicyWorkspace):string{return createHash('sha256').update(JSON.stringify({version:s.policy?.version,sellerOfRecord:s.policy?.sellerOfRecord,compatibilityTarget:s.policy?.compatibilityTarget,fiscalisationRoute:s.policy?.fiscalisationRoute,checks:s.checks.map(x=>[x.code,x.status,x.evidence]),documents:s.documentMappings.map(x=>[x.eventCode,x.invoiceType,x.incomeCategory,x.e3Code,x.seriesCode,x.status]),payments:s.paymentMappings.map(x=>[x.processor,x.processorMethod,x.mydataPaymentType,x.status]),series:s.series.map(x=>[x.series,x.invoiceType,x.fiscalYear]),productTaxProfileHashes:s.taxProfileCoverage.approvedProfileHashes})).digest('hex');}
+function actorUuidExpression(index:number){return `(SELECT u.id FROM users u WHERE u.id::text=$${index} OR u.public_id=$${index} LIMIT 1)`;}
 function athensDate(now:number):string{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Athens',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now));const m=Object.fromEntries(parts.filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`;}
 function text(v:unknown):string{if(typeof v!=='string'||!v)throw new Error('Invalid database text');return v;}function optional(v:unknown):string|undefined{return typeof v==='string'&&v?v:undefined;}function bool(v:unknown):boolean{return v===true;}function int(v:unknown):number{const n=Number(v);if(!Number.isSafeInteger(n))throw new Error('Invalid database integer');return n;}function intOptional(v:unknown):number|undefined{return v==null?undefined:int(v);}function epochOptional(v:unknown):number|undefined{if(v==null)return undefined;const n=v instanceof Date?v.getTime():new Date(String(v)).getTime();return Number.isFinite(n)?n:undefined;}function dateValue(v:unknown):string|undefined{if(v==null)return undefined;return v instanceof Date?v.toISOString().slice(0,10):String(v).slice(0,10);}
