@@ -24,7 +24,7 @@ export default async function Home() {
           </p>
           <div className="hero-actions">
             <a className="button" href="/shop">Ανακάλυψε προϊόντα</a>
-            <a className="button button-secondary" href="/ask-local">Ρώτησε ένα κατάστημα</a>
+            <a className="button button-secondary" href="/ask-local">Ask Local</a>
           </div>
           <div className="hero-proof" aria-label="Marketplace benefits">
             <span><strong>1</strong> checkout</span>
@@ -89,39 +89,34 @@ export default async function Home() {
         </article>
       </section>
 
-      <section className="advice-section" id="advice">
+      <section className="advice-section" id="ask-local">
         <div className="shell advice-grid">
           <div>
-            <div className="eyebrow">Human commerce</div>
-            <h2>Χρειάζεσαι συμβουλή πριν αγοράσεις;</h2>
-            <p className="lead compact">Ξεκίνα chat, ζήτησε εξατομικευμένη πρόταση ή κλείσε σύντομη βιντεοκλήση με κατάστημα που γνωρίζει πραγματικά την κατηγορία.</p>
+            <div className="eyebrow">Ask Local · η ανθρώπινη βοήθεια της πλατφόρμας</div>
+            <h2>Δεν είσαι σίγουρος τι χρειάζεσαι; Ξεκίνα από ένα σημείο.</h2>
+            <p className="lead compact">Περιέγραψε την ανάγκη σου και θα σε συνδέσουμε ιδιωτικά με τον κατάλληλο τοπικό άνθρωπο. Αν προτιμάς, μπορείς πρώτα να γνωρίσεις τους διαθέσιμους τοπικούς συμβούλους.</p>
           </div>
-          <div className="advice-list">
-            <div><span>01</span><p><strong>Ρώτησε για προϊόν</strong><small>Στείλε ερώτηση μέσα από τη σελίδα του προϊόντος.</small></p></div>
-            <div><span>02</span><p><strong>Πάρε πραγματική συμβουλή</strong><small>Ο κατάλληλος τοπικός επαγγελματίας απαντά ιδιωτικά.</small></p></div>
-            <div><span>03</span><p><strong>Αγόρασε όταν είσαι έτοιμος</strong><small>Η προσφορά περνά απευθείας στο καλάθι σου.</small></p></div>
-          </div>
-          <div className="hero-actions">
-            <a className="button" href="/advice">Βρες τοπικό σύμβουλο</a>
-            <a className="button button-secondary" href="/how-it-works">Δες όλη τη διαδρομή</a>
-          </div>
-        </div>
-      </section>
 
-      <section className="ask-local shell section" id="ask-local">
-        <div>
-          <div className="eyebrow">Δεν βρίσκεις ακριβώς αυτό που θέλεις;</div>
-          <h2>Ask Local.</h2>
-          <p>Πες μας τι ψάχνεις. Το αίτημα δρομολογείται ιδιωτικά σε ένα κατάλληλο κατάστημα — όχι σε δημόσιο bidding war.</p>
-        </div>
-        <form className="ask-form" action="/ask-local" method="get">
-          <label htmlFor="ask">Τι ψάχνεις;</label>
-          <div className="ask-row">
-            <input id="ask" name="need" minLength={10} maxLength={2000} required placeholder="π.χ. δώρο για παιδί 8 ετών έως 35€" />
-            <button type="submit" className="button">Ρώτησε τοπικά</button>
+          <div className="advice-list">
+            <div><span>01</span><p><strong>Δεν ξέρω ποιο προϊόν ή κατάστημα χρειάζομαι</strong><small>Στείλε ένα Ask Local αίτημα. Η πλατφόρμα αναλαμβάνει τη σωστή κατεύθυνση.</small></p></div>
+            <div><span>02</span><p><strong>Θέλω βοήθεια να διαλέξω προϊόν</strong><small>Μπορείς προαιρετικά να δεις τοπικούς συμβούλους με γνώση της κατηγορίας.</small></p></div>
+            <div><span>03</span><p><strong>Αγοράζω όταν είμαι έτοιμος</strong><small>Η συμβουλή και κάθε πρόταση παραμένουν ιδιωτικές και η αγορά περνά στο ενιαίο checkout.</small></p></div>
           </div>
-          <small>Θα συνδεθείς με ασφάλεια για να υποβάλεις και να παρακολουθείς το ιδιωτικό αίτημα.</small>
-        </form>
+
+          <form className="ask-form" action="/ask-local" method="get">
+            <label htmlFor="ask">Τι χρειάζεσαι;</label>
+            <div className="ask-row">
+              <input id="ask" name="need" minLength={10} maxLength={2000} required placeholder="π.χ. δώρο για παιδί 8 ετών έως 35€" />
+              <button type="submit" className="button">Ask Local</button>
+            </div>
+            <small>Θα συνδεθείς με ασφάλεια για να υποβάλεις και να παρακολουθείς το ιδιωτικό αίτημα.</small>
+          </form>
+
+          <div className="hero-actions">
+            <a className="button button-secondary" href="/advice">Δες τοπικούς συμβούλους</a>
+            <a className="text-link" href="/how-it-works">Πώς λειτουργεί το Buy Local Sparta →</a>
+          </div>
+        </div>
       </section>
 
       <SiteFooter />
