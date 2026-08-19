@@ -8,6 +8,7 @@ import {
 import { createCustomerNotification, customerStateSnapshot } from "./customer-state-runtime";
 import { customerOrder, customerOrders, cancelCustomerCommerceOrder } from "./customer-commerce-runtime";
 import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
+import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
@@ -81,12 +82,21 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups] = await Promise.all([
+  const [vendorEntries, pickups, invoice] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
-    customerPickupCredentials(principal, orderId)
+    customerPickupCredentials(principal, orderId),
+    customerFiscalDocumentForOrder(orderId)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups);
+  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups, invoice ? {
+    documentNumber: invoice.documentNumber,
+    type: invoice.type,
+    mark: invoice.mark,
+    uid: invoice.uid,
+    qrUrl: invoice.qrUrl,
+    issuedAt: invoice.issuedAt,
+    downloadUrl: `/api/account/orders/${encodeURIComponent(orderId)}/invoice`
+  } : undefined);
 }
 
 export async function cancelCustomerOrder(principal: SessionPrincipal, input: { orderId: string; reason: string; now?: number }) {
@@ -96,7 +106,14 @@ export async function cancelCustomerOrder(principal: SessionPrincipal, input: { 
   return accountOrderDetail(principal, updated.id);
 }
 
-function orderDetailProjection(order: CustomerOrder, csrfToken: string, canCancel: boolean, vendorNames: ReadonlyMap<string, string>, pickups: readonly CustomerPickupCredential[]) {
+function orderDetailProjection(
+  order: CustomerOrder,
+  csrfToken: string,
+  canCancel: boolean,
+  vendorNames: ReadonlyMap<string, string>,
+  pickups: readonly CustomerPickupCredential[],
+  invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
+) {
   return {
     id: order.id,
     status: customerOrderStatusLabel(order),
@@ -112,6 +129,7 @@ function orderDetailProjection(order: CustomerOrder, csrfToken: string, canCance
     cancelledAt: order.cancelledAt,
     canCancel,
     csrfToken,
+    invoice,
     lines: order.lines.map((line) => ({ id: line.id, canonicalVariantId: line.canonicalVariantId, title: line.titleSnapshot, quantity: line.quantity, status: line.status, retailUnitPrice: formatMoney(line.retailUnitPrice), vendorId: line.vendorId, vendorName: vendorNames.get(line.vendorId) ?? line.vendorId })),
     fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds })),
     pickups

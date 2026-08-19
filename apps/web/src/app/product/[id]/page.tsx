@@ -42,9 +42,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const origin = publicOrigin();
   const productUrl = `${origin}/product/${encodeURIComponent(product.id)}`;
   const categoryUrl = `${origin}/category/${category.slug}`;
+  const sellerOfRecord = {
+    "@type": "Organization",
+    "@id": `${origin}/#organization`,
+    name: "KONTA MOY",
+    legalName: "SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ",
+    url: origin
+  } as const;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
+      sellerOfRecord,
       {
         "@type": "Product",
         "@id": `${productUrl}#product`,
@@ -62,7 +70,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           priceCurrency: "EUR",
           price: (product.priceMinor / 100).toFixed(2),
           availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-          seller: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined,
+          seller: { "@id": `${origin}/#organization` },
           availableAtOrFrom: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
         }
       },

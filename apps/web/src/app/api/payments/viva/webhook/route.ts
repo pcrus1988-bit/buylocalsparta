@@ -1,5 +1,6 @@
 import { parseVivaWebhookJson } from "@buy-local-sparta/viva-payments";
 import { requireVivaPayments } from "../../../../../lib/viva-runtime";
+import { capturePaidOrderForFiscalIssuance } from "../../../../../lib/customer-fiscal-runtime";
 import { syncConfirmedOrderLifecycle } from "../../../../../lib/order-lifecycle";
 
 export const runtime = "nodejs";
@@ -65,10 +66,14 @@ export async function POST(request:Request) {
     const reconciliation = result.result;
     if (reconciliation && "orderId" in reconciliation && "orderStatus" in reconciliation && reconciliation.orderStatus === "confirmed") {
       await syncConfirmedOrderLifecycle(reconciliation.orderId, now);
+      if ("paymentStatus" in reconciliation && reconciliation.paymentStatus === "captured") {
+        await capturePaidOrderForFiscalIssuance(reconciliation.orderId, now);
+      }
     }
     return Response.json({ok:true,eventTypeId:result.eventTypeId});
   } catch(error) {
-    // Non-2xx deliberately asks Viva to retry. The provider docs describe hourly retries for failed webhook delivery.
+    // Non-2xx deliberately asks Viva to retry. Payment reconciliation, order lifecycle sync,
+    // and fiscal capture are idempotent, so a provider redelivery cannot duplicate an order document.
     return Response.json({error:error instanceof Error?error.message:"viva_webhook_failed"},{status:503});
   }
 }

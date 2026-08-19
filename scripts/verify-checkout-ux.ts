@@ -11,7 +11,7 @@ const success = read("apps/web/src/app/checkout/success/page.tsx");
 const failure = read("apps/web/src/app/checkout/failure/page.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
 
-if (!page.includes("vivaPaymentsReady()")) failures.push("Checkout page must derive production payment availability from Viva readiness, not optimistic UI copy");
+if (!page.includes("vivaPaymentsProviderReadiness()") || !page.includes("viva.enabled && viva.ready")) failures.push("Checkout page must derive production payment availability from Viva provider readiness, not optimistic UI copy");
 if (!page.includes('paymentMode !== "unavailable"')) failures.push("Checkout page must expose an explicit unavailable payment state");
 if (!page.includes('process.env.BLS_BOXNOW_ENABLED === "true"') || !page.includes('process.env.NEXT_PUBLIC_BOXNOW_WIDGET_ENABLED === "true"')) failures.push("Checkout page must require both BOX NOW backend and widget enablement before offering locker shipping");
 if (!client.includes("checkout-availability-gate") || !client.includes("if (!checkoutEnabled)")) failures.push("Checkout client must fail closed with a clear availability gate");
