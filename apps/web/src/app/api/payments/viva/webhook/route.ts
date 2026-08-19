@@ -1,5 +1,6 @@
 import { parseVivaWebhookJson } from "@buy-local-sparta/viva-payments";
 import { requireVivaPayments } from "../../../../../lib/viva-runtime";
+import { syncConfirmedOrderLifecycle } from "../../../../../lib/order-lifecycle";
 
 export const runtime = "nodejs";
 
@@ -57,9 +58,14 @@ export async function GET() {
 export async function POST(request:Request) {
   if (!vivaWebhookSourceAllowed(request)) return Response.json({ error:"untrusted_viva_webhook_source" }, { status:403 });
   try {
+    const now = Date.now();
     const raw=await request.text();
     const envelope=parseVivaWebhookJson(raw);
-    const result=await requireVivaPayments().handleWebhook(envelope,Date.now());
+    const result=await requireVivaPayments().handleWebhook(envelope,now);
+    const reconciliation = result.result;
+    if (reconciliation && "orderId" in reconciliation && "orderStatus" in reconciliation && reconciliation.orderStatus === "confirmed") {
+      await syncConfirmedOrderLifecycle(reconciliation.orderId, now);
+    }
     return Response.json({ok:true,eventTypeId:result.eventTypeId});
   } catch(error) {
     // Non-2xx deliberately asks Viva to retry. The provider docs describe hourly retries for failed webhook delivery.
