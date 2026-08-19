@@ -34,7 +34,7 @@ export function VendorDailyAskLocalClient({ initial }: { initial: Advice }) {
     setBusy(conversationId);
     setError("");
     try {
-      const response = await fetch("/api/vendor/advice/messages", {
+      const response = await fetch("/api/daily/advice/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
         body: JSON.stringify({ conversationId, body })
