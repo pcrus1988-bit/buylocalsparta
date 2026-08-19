@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { adminCreateVendorInvoiceDraft,adminEmailVendorInvoice,adminPrepareVendorInvoice,adminTransmitVendorInvoice,adminVendorBillingWorkspace,adminVoidVendorInvoiceDraft,vendorPlatformInvoicePdf } from "../../../../../../lib/admin-vendor-billing";
+import { requireAdminSession } from "../../../../../lib/admin-session";
+import { adminCreateVendorInvoiceDraft,adminEmailVendorInvoice,adminPrepareVendorInvoice,adminTransmitVendorInvoice,adminVendorBillingWorkspace,adminVoidVendorInvoiceDraft,vendorPlatformInvoicePdf } from "../../../../../lib/admin-vendor-billing";
 
 export const runtime="nodejs";
 
