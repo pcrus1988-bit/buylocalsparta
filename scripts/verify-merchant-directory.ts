@@ -91,7 +91,7 @@ if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Pu
 if (!vendorPage.includes("getVendorCatalogCards(id)")) failures.push("Public vendor profile products must retain the non-fairness vendor catalog projection");
 if (!vendorPage.includes("vendor.story ?")) failures.push("Public vendor profile must distinguish approved storytelling from the no-story fallback");
 if (!PRIMARY_NAVIGATION.some((link) => link.href === "/shops")) failures.push("Primary navigation registry must link directly to /shops");
-if (!home.includes('href="/shops"')) failures.push("Homepage merchant storytelling must link to /shops");
+if (!/href="\/shops(?:\?[^\"]*)?"/.test(home)) failures.push("Homepage merchant storytelling must link to /shops, optionally with a directory filter");
 
 if (failures.length) {
   console.error("Merchant directory checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
