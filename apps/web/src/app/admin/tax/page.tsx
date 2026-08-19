@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
+import { FiscalDocumentPreparationForm } from "../../../components/FiscalDocumentPreparationForm";
 import { MyDataConnectivityButton } from "../../../components/MyDataConnectivityButton";
 import { TaxConfigurationEditor } from "../../../components/TaxConfigurationEditor";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
@@ -45,7 +46,7 @@ export default async function Page() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
       <div className="eyebrow">Accounting · Tax · AADE ERP bridge · Invoice lifecycle</div>
       <h1>Tax / myDATA Control Center</h1>
-      <p className="lead">Κεντρική admin-only διαχείριση λογιστικής πολιτικής, mappings, ΦΠΑ, AADE credentials, runtime fiscalisation, σειρών/αρίθμησης, invoice capture, MARK transmission και customer fiscal delivery.</p>
+      <p className="lead">Κεντρική admin-only διαχείριση λογιστικής πολιτικής, mappings, ΦΠΑ, AADE credentials, runtime fiscalisation, σειρών/αρίθμησης, invoice capture, preparation, MARK transmission και customer fiscal delivery.</p>
     </div></section>
 
     <WorkspaceMetricStrip items={[
@@ -117,7 +118,7 @@ export default async function Page() {
     </> : <section className="shell vendor-section"><WorkspaceEmptyState title="No accounting policy exists." body="Install/create an Accounting Policy before enabling fiscal issuance." /></section>}
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Invoices & receipts" title="Fiscal document lifecycle / transmission queue" note="Customer invoice/receipt creation, mapping snapshot, MARK, UID and delivery remain tied to a single auditable tax-document lifecycle." />
+      <WorkspaceSectionHeading eyebrow="Invoices & receipts" title="Fiscal document lifecycle / transmission queue" note="Customer invoice/receipt creation, preparation, mapping snapshot, MARK, UID and delivery remain tied to a single auditable tax-document lifecycle." />
       {data.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν tax documents ακόμη." body="A captured payment can create a pending fiscal record automatically when enabled in the Admin configuration, or an Admin can recover one manually by order ID above." /> : <div className="workspace-queue-list">{data.documents.map(document => <article className="workspace-queue-card" key={document.id}>
         <div className="workspace-queue-head"><div><strong>{document.documentNumber ?? document.id}</strong><small>{document.type} · {document.orderId ?? "no order"}</small></div><span className="status-pill">{document.transmissionStatus}</span></div>
         <div className="workspace-queue-primary"><span>{(document.grossMinor/100).toLocaleString("el-GR",{style:"currency",currency:document.currency})}</span>{document.mappingVersion && <span>Mapping {document.mappingVersion}</span>}{document.invoiceTypeCode && <span>Type {document.invoiceTypeCode}</span>}{document.aadeMark && <span>MARK {document.aadeMark}</span>}</div>
@@ -129,6 +130,7 @@ export default async function Page() {
           <div className="workspace-compact-row"><strong>MARK / UID</strong><span>{document.aadeMark ?? "—"} · {document.aadeUid ?? "—"}</span></div>
           {document.qrUrl && <div className="workspace-compact-row"><strong>AADE QR</strong><span>{document.qrUrl}</span></div>}
         </div></WorkspaceRecordDetails>
+        {document.type === "pending_customer_sale" && ["not_ready","manual_review"].includes(document.transmissionStatus) && <WorkspaceRecordDetails label="Prepare invoice / receipt"><FiscalDocumentPreparationForm documentId={document.id} csrfToken={principal.csrfToken} documentMappings={policyData.documentMappings} paymentMappings={policyData.paymentMappings} /></WorkspaceRecordDetails>}
         {document.transmissionStatus === "ready" && runtimeConfig.issuanceEnabled && diagnostics.ready && approvedFiscalRoute === "aade_direct_erp" && <div className="workspace-action-bar"><span>All global fiscal gates pass. Per-document payment/ECRToken checks are revalidated server-side on transmission.</span><div className="workspace-action-buttons"><AdminActionButton label="Transmit to AADE" endpoint="/api/admin/tax/transmit" csrfToken={principal.csrfToken} body={{documentId:document.id}} /></div></div>}
       </article>)}</div>}
     </section>
