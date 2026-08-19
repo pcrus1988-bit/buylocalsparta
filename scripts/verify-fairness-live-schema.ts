@@ -17,7 +17,7 @@ if (!liveAdapter.includes("PostgresUnitOfWork") || !liveAdapter.includes("platfo
 if (!liveAdapter.includes("fairness_rotation_state") || !liveAdapter.includes("fairness_appeals") || !liveAdapter.includes("fairness_anomalies")) {
   failures.push("Live fairness adapter must retain rotation, appeal and anomaly read models");
 }
-if (!liveAdapter.includes("recentAssignments: []")) {
+if (!/recentAssignments\s*:\s*\[\s*\]/.test(liveAdapter)) {
   failures.push("Legacy assignment projection must stay disabled until a JSON-snapshot DTO replaces the removed sticky/offer schema");
 }
 if (!runtimeFactory.includes('import { PostgresAdminOperationsLiveService } from "./admin-operations-live.ts"') || !runtimeFactory.includes("new PostgresAdminOperationsLiveService")) {
