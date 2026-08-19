@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import QRCode from "react-qr-code";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { WorkspaceRecordDetails } from "./WorkspacePagePrimitives";
 
 type Detail = {
   id: string;
   status: string;
+  sourceStatus: string;
   createdAt: number;
   postcode: string;
   fulfilmentMode: string;
@@ -21,10 +22,23 @@ type Detail = {
   csrfToken: string;
   lines: ReadonlyArray<{ id: string; canonicalVariantId: string; title: string; quantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
   fulfilments: ReadonlyArray<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[] }>;
+  pickups: ReadonlyArray<{ id: string; fulfilmentId: string; vendorName: string; status: "ready" | "collected" | "expired"; readyAt: number; expiresAt: number; collectedAt?: number; shortCode: string; qrUrl: string }>;
 };
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-const stateLabel = (value: string) => value.replaceAll("_", " ");
+const fulfilmentLabel: Record<string, string> = {
+  awaiting_acceptance: "Αναμονή αποδοχής",
+  accepted: "Έγινε αποδεκτή",
+  picking: "Ετοιμάζεται",
+  packed: "Συσκευάστηκε",
+  ready_for_handover: "Έτοιμη για παραλαβή",
+  handed_over: "Παραλήφθηκε",
+  shipped: "Σε αποστολή",
+  delivered: "Παραδόθηκε",
+  failed: "Πρόβλημα παράδοσης",
+  cancelled: "Ακυρώθηκε"
+};
+const modeLabel: Record<string, string> = { pickup: "Παραλαβή από κατάστημα", local_delivery: "Τοπική παράδοση", shipping: "Αποστολή" };
 
 export function OrderDetailClient({ initial }: { initial: Detail }) {
   const router = useRouter();
@@ -50,25 +64,46 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   return <section className="shell order-detail-grid is-refined">
     <div className="order-detail-main">
       <div className="order-detail-heading is-refined">
-        <div><div className="eyebrow">Παραγγελία</div><h1>{stateLabel(data.status)}</h1><p>{date(data.createdAt)} · {data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.id}</small></div>
+        <div><div className="eyebrow">Παραγγελία</div><h1>{data.status}</h1><p>{date(data.createdAt)} · {modeLabel[data.fulfilmentMode] ?? data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.id}</small></div>
         <strong>{data.total}</strong>
       </div>
 
       <div className="order-detail-card is-refined">
         <h2>Προϊόντα</h2>
         {data.lines.map((line) => <div className="order-detail-line" key={line.id}>
-          <div><Link href={`/product/${line.canonicalVariantId}`}><strong>{line.quantity}× {line.title}</strong></Link><small>{stateLabel(line.status)} · <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small></div>
+          <div><Link href={`/product/${line.canonicalVariantId}`}><strong>{line.quantity}× {line.title}</strong></Link><small>από <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small></div>
           <span>{line.retailUnitPrice} / τεμ.</span>
         </div>)}
       </div>
 
       <div className="order-detail-card is-refined">
         <h2>Παράδοση</h2>
-        {data.fulfilments.map((item) => <div className="order-detail-line" key={item.id}><div><strong>{item.vendorName}</strong><small>{item.lineIds.length} line(s) · {item.deliveryCharge}</small></div><span className="status-pill">{stateLabel(item.status)}</span></div>)}
-        {data.fulfilments.length > 0 && <WorkspaceRecordDetails label="Τεχνικά στοιχεία εκπλήρωσης">
-          <div className="workspace-compact-list">{data.fulfilments.map((item) => <div className="workspace-compact-row" key={item.id}><strong>{item.vendorName}</strong><span>{item.id}</span><small>{item.vendorId}</small></div>)}</div>
-        </WorkspaceRecordDetails>}
+        {data.fulfilments.map((item) => <div className="order-detail-line" key={item.id}><div><strong>{item.vendorName}</strong><small>{item.lineIds.length} {item.lineIds.length === 1 ? "προϊόν" : "προϊόντα"} · {item.deliveryCharge}</small></div><span className="status-pill">{fulfilmentLabel[item.status] ?? item.status.replaceAll("_", " ")}</span></div>)}
       </div>
+
+      {data.pickups.length > 0 && <div className="order-detail-card is-refined">
+        <h2>Παραλαβή από το κατάστημα</h2>
+        {data.pickups.map((pickup) => <div key={pickup.id} style={{ display: "grid", gap: 16, marginTop: 14 }}>
+          <div>
+            <strong>{pickup.vendorName}</strong>
+            {pickup.status === "ready" && <p style={{ marginBottom: 0 }}>Η παραγγελία είναι έτοιμη. Δείξε αυτό το QR στο κατάστημα. Ο συνεργάτης το σαρώνει για να ολοκληρωθεί με ασφάλεια η παραλαβή.</p>}
+            {pickup.status === "collected" && <p style={{ marginBottom: 0 }}>Η παραλαβή ολοκληρώθηκε{pickup.collectedAt ? ` · ${date(pickup.collectedAt)}` : ""}.</p>}
+            {pickup.status === "expired" && <p style={{ marginBottom: 0 }}>Ο κωδικός παραλαβής έχει λήξει. Επικοινώνησε με το κατάστημα ή την υποστήριξη πριν την παραλαβή.</p>}
+          </div>
+          {pickup.status === "ready" && <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ background: "white", padding: 12, borderRadius: 14, width: 200, height: 200, display: "grid", placeItems: "center" }} aria-label="QR παραλαβής">
+              <QRCode value={pickup.qrUrl} size={176} level="M" />
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <span>Εναλλακτικός κωδικός</span>
+              <strong style={{ fontSize: "2rem", letterSpacing: ".18em" }}>{pickup.shortCode}</strong>
+              <small>Έτοιμη από {date(pickup.readyAt)}</small>
+              <small>Ισχύει έως {date(pickup.expiresAt)}</small>
+              <small>Μην κοινοποιείς το QR ή τον κωδικό σε τρίτους.</small>
+            </div>
+          </div>}
+        </div>)}
+      </div>}
     </div>
 
     <aside className="order-detail-side">
@@ -89,7 +124,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
       {data.canCancel && <details className="order-cancel-disclosure">
         <summary>Ακύρωση πριν το handover</summary>
         <div>
-          <p>Η ακύρωση επιτρέπεται μόνο πριν ξεκινήσει η φυσική παράδοση. Μετά χρησιμοποιείται το return / withdrawal workflow.</p>
+          <p>Η ακύρωση επιτρέπεται μόνο πριν ξεκινήσει η φυσική παράδοση. Μετά χρησιμοποιείται η διαδικασία επιστροφής / υπαναχώρησης.</p>
           <label htmlFor="cancel-reason">Λόγος ακύρωσης</label>
           <textarea id="cancel-reason" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} />
           <button className="button button-secondary" type="button" disabled={busy || !reason.trim()} onClick={() => void cancel()}>{busy ? "Ακύρωση…" : "Ακύρωση παραγγελίας"}</button>
