@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { getCatalogCards, getCatalogFacets } from "../../lib/catalog-view";
+import { getCatalogCards } from "../../lib/catalog-view";
+import { getAvailableCatalogTaxonomy } from "../../lib/available-catalog-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
-import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
+import { storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 
 export const metadata: Metadata = {
@@ -29,11 +30,14 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const color = valueOf(params.color);
   const size = valueOf(params.size);
   const fit = valueOf(params.fit);
-  const categoryView = storefrontCategoryBySlug(category);
+  const filters = { subcategory, brand, color, size };
   const visitorKey = await getVisitorKey();
-  const facets = await getCatalogFacets(category, query);
-  let products = [...await getCatalogCards(visitorKey, "23100", query, category, { subcategory, brand, color, size })];
-  const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
+  const taxonomy = await getAvailableCatalogTaxonomy(category, query, filters, "23100");
+  const facets = taxonomy.facets;
+  const availableCategories = taxonomy.categories;
+  const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
+  let products = [...await getCatalogCards(visitorKey, "23100", query, category, filters)];
+  const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
   if (availability === "available") products = products.filter((product) => product.available);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
@@ -51,7 +55,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <p className="lead">{categoryView ? categoryView.description : "Ένα καθαρό αποτέλεσμα ανά προϊόν. Χωρίς δημόσιο πόλεμο τιμών ανάμεσα στα τοπικά καταστήματα."}</p>
         <div className="category-chip-row" aria-label="Κατηγορίες προϊόντων">
           <a className={!category ? "category-chip active" : "category-chip"} href="/shop">Όλα</a>
-          {STOREFRONT_CATEGORIES.map((item) => <a className={category === item.slug ? "category-chip active" : "category-chip"} href={`/shop?category=${item.slug}`} key={item.slug}>{item.label}</a>)}
+          {availableCategories.map((item) => <a className={category === item.slug ? "category-chip active" : "category-chip"} href={`/shop?category=${item.slug}`} key={item.slug}>{item.label}</a>)}
         </div>
       </section>
 
@@ -61,11 +65,13 @@ export default async function ShopPage({ searchParams }: ShopProps) {
             <label htmlFor="q">Αναζήτηση</label>
             <input id="q" name="q" defaultValue={valueOf(params.q)} placeholder={categoryView?.searchHint ?? "Τι ψάχνεις;"} />
 
-            <label htmlFor="category">Τμήμα</label>
-            <select id="category" name="category" defaultValue={category}>
-              <option value="">Όλα τα τμήματα</option>
-              {STOREFRONT_CATEGORIES.map((item) => <option value={item.slug} key={item.slug}>{item.label}</option>)}
-            </select>
+            {availableCategories.length > 0 ? <>
+              <label htmlFor="category">Τμήμα</label>
+              <select id="category" name="category" defaultValue={categoryView ? category : ""}>
+                <option value="">Όλα τα τμήματα</option>
+                {availableCategories.map((item) => <option value={item.slug} key={item.slug}>{item.label}</option>)}
+              </select>
+            </> : null}
 
             {facets.subcategories.length > 0 ? <>
               <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
