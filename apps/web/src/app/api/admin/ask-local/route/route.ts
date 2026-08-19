@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { adminAskLocalWorkspace, adminRouteAskLocalRequest } from "../../../../../../lib/ask-local-service";
+import { requireAdminSession } from "../../../../../lib/admin-session";
+import { adminAskLocalWorkspace, adminRouteAskLocalRequest } from "../../../../../lib/ask-local-service";
 
 export async function POST(request: Request) {
   try {
