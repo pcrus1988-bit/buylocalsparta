@@ -46,26 +46,28 @@ ALTER TABLE vendor_profile_media ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY vendor_profile_media_vendor_select ON vendor_profile_media
   FOR SELECT USING (
-    vendor_id::text = current_setting('app.vendor_id', true)
+    vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
     OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE POLICY vendor_profile_media_vendor_insert ON vendor_profile_media
   FOR INSERT WITH CHECK (
-    vendor_id::text = current_setting('app.vendor_id', true)
-    AND publication_status='draft'
-    AND published_by IS NULL
-    AND published_at IS NULL
+    (
+      vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
+      AND publication_status='draft'
+      AND published_by IS NULL
+      AND published_at IS NULL
+    )
     OR (SELECT bls_private.is_platform_runtime())
   );
 
 CREATE POLICY vendor_profile_media_vendor_update ON vendor_profile_media
   FOR UPDATE USING (
-    vendor_id::text = current_setting('app.vendor_id', true)
+    vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
     OR (SELECT bls_private.is_platform_runtime())
   ) WITH CHECK (
     (
-      vendor_id::text = current_setting('app.vendor_id', true)
+      vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
       AND publication_status IN ('draft','archived')
     )
     OR (SELECT bls_private.is_platform_runtime())
@@ -74,7 +76,7 @@ CREATE POLICY vendor_profile_media_vendor_update ON vendor_profile_media
 CREATE POLICY vendor_profile_media_vendor_delete ON vendor_profile_media
   FOR DELETE USING (
     (
-      vendor_id::text = current_setting('app.vendor_id', true)
+      vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
       AND publication_status IN ('draft','archived')
     )
     OR (SELECT bls_private.is_platform_runtime())
