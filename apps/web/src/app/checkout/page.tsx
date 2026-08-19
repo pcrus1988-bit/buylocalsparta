@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CheckoutFiscalPreference } from "../../components/CheckoutFiscalPreference";
 import { CheckoutPageClient } from "../../components/CheckoutPageClient";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
@@ -21,7 +22,10 @@ export default async function CheckoutPage() {
       <h1>{checkoutEnabled ? "Μία αγορά. Τοπικά." : "Το καλάθι σου παραμένει ασφαλές."}</h1>
       <div className="checkout-context-links"><a className="text-link" href="/how-it-works">Πώς λειτουργεί η ενιαία αγορά →</a><a className="text-link" href="/delivery-pickup">Παράδοση & παραλαβή →</a><a className="text-link" href="/payments-security">Πώς προστατεύεται η πληρωμή →</a></div>
     </section>
-    <section className="shell page-section"><CheckoutPageClient checkoutEnabled={checkoutEnabled} paymentMode={paymentMode} boxNowEnabled={boxNowEnabled} /></section>
+    <section className="shell page-section">
+      {checkoutEnabled && <CheckoutFiscalPreference />}
+      <CheckoutPageClient checkoutEnabled={checkoutEnabled} paymentMode={paymentMode} boxNowEnabled={boxNowEnabled} />
+    </section>
     <SiteFooter />
   </main>;
 }
