@@ -29,10 +29,28 @@ type Settlement = Readonly<{
   payoutReference?: string;
 }>;
 
+type CommercialTerms = Readonly<{
+  agreementCode: string;
+  status: string;
+  commissionRateBps: number;
+  commissionBasis: string;
+  commissionTaxMode: string;
+  commissionTaxRateBps: number;
+  commissionAppliesToShipping: boolean;
+  listingFeeMinor: number;
+  recurringFeeMinor: number;
+  recurringFeePeriod?: string;
+  startsAt?: number;
+  endsAt?: number;
+  signedAt?: number;
+  activatedAt?: number;
+}>;
+
 type Workspace = Readonly<{
   csrfToken: string;
   procurements: readonly Procurement[];
   settlements: readonly Settlement[];
+  commercialTerms?: CommercialTerms;
 }>;
 
 const PROCUREMENT_STATUS: Record<string, string> = {
@@ -55,6 +73,18 @@ const SETTLEMENT_STATUS: Record<string, string> = {
   failed: "Απέτυχε"
 };
 
+const AGREEMENT_STATUS: Record<string, string> = {
+  draft: "Πρόχειρη",
+  data_complete: "Στοιχεία ολοκληρωμένα",
+  generated: "Έχει δημιουργηθεί",
+  sent: "Έχει σταλεί",
+  signed_received: "Παραλήφθηκε υπογεγραμμένη",
+  verified: "Επαληθευμένη",
+  active: "Ενεργή",
+  suspended: "Σε αναστολή",
+  terminated: "Τερματισμένη"
+};
+
 function statusLabel(status: string, labels: Record<string, string>) {
   return labels[status] ?? status;
 }
@@ -65,6 +95,20 @@ function date(value: number) {
 
 function dateTime(value: number) {
   return new Date(value).toLocaleString("el-GR");
+}
+
+function euroMinor(value: number) {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value / 100);
+}
+
+function bps(value: number) {
+  return `${new Intl.NumberFormat("el-GR", { maximumFractionDigits: 2 }).format(value / 100)}%`;
+}
+
+function recurringPeriod(value?: string) {
+  if (value === "month" || value === "monthly") return "μήνα";
+  if (value === "year" || value === "annual" || value === "yearly") return "έτος";
+  return value ?? "περίοδο";
 }
 
 export function VendorFinanceClient({ initial }: { initial: Workspace }) {
@@ -133,6 +177,30 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
           <div className="workspace-queue-head"><div><strong>3. Έλεγχος και settlement</strong><small>Μετά τον έλεγχο, το ποσό γίνεται payable και εντάσσεται σε settlement. Όταν πληρωθεί, εμφανίζονται ημερομηνία και payout reference.</small></div></div>
         </article>
       </div>
+    </section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Εμπορικοί όροι" title="Η συμφωνία σου με το KONTA MOY" note="Οι όροι εμφανίζονται από την εμπορική συμφωνία που είναι αποθηκευμένη για το δικό σου vendor account. Δεν υπολογίζονται από το UI." />
+      {initial.commercialTerms ? <article className="workspace-queue-card">
+        <div className="workspace-queue-head">
+          <div><strong>{initial.commercialTerms.agreementCode}</strong><small>{initial.commercialTerms.activatedAt ? `Ενεργοποίηση ${date(initial.commercialTerms.activatedAt)}` : initial.commercialTerms.signedAt ? `Υπογραφή ${date(initial.commercialTerms.signedAt)}` : "Η συμφωνία δεν έχει ακόμη ενεργοποιηθεί"}</small></div>
+          <span className="status-pill" title={initial.commercialTerms.status}>{statusLabel(initial.commercialTerms.status, AGREEMENT_STATUS)}</span>
+        </div>
+        <div className="workspace-queue-primary">
+          <span>Commission {bps(initial.commercialTerms.commissionRateBps)}</span>
+          <span>Listing fee {euroMinor(initial.commercialTerms.listingFeeMinor)}</span>
+          <span>Recurring {euroMinor(initial.commercialTerms.recurringFeeMinor)} / {recurringPeriod(initial.commercialTerms.recurringFeePeriod)}</span>
+        </div>
+        <WorkspaceRecordDetails label="Αναλυτικοί εμπορικοί όροι">
+          <div className="workspace-compact-list">
+            <div className="workspace-compact-row"><strong>Βάση commission</strong><span>{initial.commercialTerms.commissionBasis || "Δεν έχει οριστεί"}</span></div>
+            <div className="workspace-compact-row"><strong>Φορολογική μεταχείριση commission</strong><span>{initial.commercialTerms.commissionTaxMode || "Δεν έχει οριστεί"}{initial.commercialTerms.commissionTaxRateBps ? ` · ${bps(initial.commercialTerms.commissionTaxRateBps)}` : ""}</span></div>
+            <div className="workspace-compact-row"><strong>Commission στα μεταφορικά</strong><span>{initial.commercialTerms.commissionAppliesToShipping ? "Ναι" : "Όχι"}</span></div>
+            {initial.commercialTerms.startsAt && <div className="workspace-compact-row"><strong>Έναρξη</strong><span>{date(initial.commercialTerms.startsAt)}</span></div>}
+            {initial.commercialTerms.endsAt && <div className="workspace-compact-row"><strong>Λήξη</strong><span>{date(initial.commercialTerms.endsAt)}</span></div>}
+          </div>
+        </WorkspaceRecordDetails>
+      </article> : <WorkspaceEmptyState title="Δεν υπάρχει εμπορική συμφωνία συνδεδεμένη με αυτό το vendor account." body="Οι οικονομικές χρεώσεις δεν πρέπει να θεωρούνται ενεργές χωρίς καταχωρημένη συμφωνία. Αν το κατάστημά σου βρίσκεται ακόμη σε onboarding, η συμφωνία θα εμφανιστεί εδώ όταν δημιουργηθεί από τη διαχείριση." />}
     </section>
 
     {!hasFinanceActivity && <section className="shell vendor-section">
