@@ -15,22 +15,20 @@ type LeafletNamespace = {
   tileLayer(url: string, options?: Record<string, unknown>): { addTo(map: LeafletMap): unknown };
   marker(latLng: [number, number]): LeafletMarker;
 };
-
-declare global {
-  interface Window {
-    L?: LeafletNamespace;
-    __blsLeafletPromise?: Promise<LeafletNamespace>;
-  }
-}
+type LeafletWindow = Window & typeof globalThis & {
+  L?: LeafletNamespace;
+  __blsLeafletPromise?: Promise<LeafletNamespace>;
+};
 
 const LEAFLET_VERSION = "1.9.4";
 const OSM_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 function loadLeaflet(): Promise<LeafletNamespace> {
-  if (window.L) return Promise.resolve(window.L);
-  if (window.__blsLeafletPromise) return window.__blsLeafletPromise;
+  const browser = window as LeafletWindow;
+  if (browser.L) return Promise.resolve(browser.L);
+  if (browser.__blsLeafletPromise) return browser.__blsLeafletPromise;
 
-  window.__blsLeafletPromise = new Promise<LeafletNamespace>((resolve, reject) => {
+  browser.__blsLeafletPromise = new Promise<LeafletNamespace>((resolve, reject) => {
     const cssHref = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
     if (!document.querySelector(`link[href="${cssHref}"]`)) {
       const link = document.createElement("link");
@@ -40,10 +38,10 @@ function loadLeaflet(): Promise<LeafletNamespace> {
       document.head.appendChild(link);
     }
 
-    const finish = () => window.L ? resolve(window.L) : reject(new Error("Leaflet did not initialise"));
+    const finish = () => browser.L ? resolve(browser.L) : reject(new Error("Leaflet did not initialise"));
     const existing = document.querySelector<HTMLScriptElement>('script[data-bls-leaflet="true"]');
     if (existing) {
-      if (window.L) finish();
+      if (browser.L) finish();
       else {
         existing.addEventListener("load", finish, { once: true });
         existing.addEventListener("error", () => reject(new Error("Leaflet failed to load")), { once: true });
@@ -62,7 +60,7 @@ function loadLeaflet(): Promise<LeafletNamespace> {
     document.head.appendChild(script);
   });
 
-  return window.__blsLeafletPromise;
+  return browser.__blsLeafletPromise;
 }
 
 export function VendorLocationMap({ vendorId, vendorName, address, coordinates }: {
