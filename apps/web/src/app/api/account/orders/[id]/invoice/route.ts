@@ -13,8 +13,9 @@ export async function GET(request: Request, { params }: Context) {
     const document = await customerFiscalDocumentForOrder(id);
     if (!document) return Response.json({ error: "INVOICE_NOT_FOUND" }, { status: 404 });
     const pdf = await renderCustomerTaxPdf(document);
+    const bytes = new Uint8Array(pdf.buffer, pdf.byteOffset, pdf.byteLength);
     const filename = `KONTA-MOY-${document.documentNumber.replace(/[^A-Za-z0-9._-]+/g, "-") || "parastatiko"}.pdf`;
-    return new Response(pdf, {
+    return new Response(bytes, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
