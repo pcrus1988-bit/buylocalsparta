@@ -1,5 +1,7 @@
 import { requireAdminSession } from "../../../../../../lib/admin-session";
 import { adminVendorsWorkspace, transitionVendorApplication } from "../../../../../../lib/admin-runtime";
+import { prepareVendorActivationAccess } from "../../../../../../lib/vendor-activation-access";
+import { sendVendorActivationEmail } from "../../../../../../lib/vendor-activation-email";
 import { sendVendorApplicationStateEmail } from "../../../../../../lib/vendor-email-workflows";
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
 
@@ -20,22 +22,43 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return Response.json({ ...before, idempotent: true });
     }
 
-    await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
+    const now = Date.now();
+    const transition = await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
 
     const workspace = await adminVendorsWorkspace(principal);
     const application = workspace.applications.find((item) => item.id === id) ?? current;
     let notificationWarning: string | undefined;
-    if (application?.contactEmail) {
+    let onboardingEmailSent = false;
+
+    if (state === "active" && transition.vendorId) {
       try {
-        await sendVendorApplicationStateEmail({
+        const access = await prepareVendorActivationAccess({ vendorId: transition.vendorId, actorUserId: principal.userId, now });
+        await sendVendorActivationEmail(access);
+        onboardingEmailSent = true;
+      } catch (emailError) {
+        notificationWarning = emailError instanceof Error ? emailError.message : "Vendor activation email could not be sent";
+        console.error(JSON.stringify({
+          level: "error",
+          event: "vendor.activation_email_failed",
+          applicationId: id,
+          vendorId: transition.vendorId,
+          message: notificationWarning
+        }));
+      }
+    } else if (application?.contactEmail) {
+      try {
+        const delivery = await sendVendorApplicationStateEmail({
           to: application.contactEmail,
           tradingName: application.tradingName,
           applicationId: application.id,
           state,
           reason: body.reason
         });
+        if (!delivery.sent) notificationWarning = "Vendor notification email was not delivered. Check Resend/email configuration.";
       } catch (emailError) {
         notificationWarning = emailError instanceof Error ? emailError.message : "Vendor notification could not be sent";
+      }
+      if (notificationWarning) {
         console.error(JSON.stringify({
           level: "error",
           event: "vendor.application_notification_failed",
@@ -45,7 +68,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         }));
       }
     }
-    return Response.json({ ...workspace, notificationWarning });
+    return Response.json({ ...workspace, onboardingEmailSent, notificationWarning });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "vendor_transition_failed" }, { status: 400 });
   }

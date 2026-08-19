@@ -12,9 +12,17 @@ export async function POST(request: Request) {
     if (!token || !password) throw new Error("Ο σύνδεσμος και ο νέος κωδικός είναι υποχρεωτικά.");
     if (password !== passwordConfirmation) throw new Error("Οι δύο κωδικοί δεν ταιριάζουν.");
 
-    await consumeCustomerPasswordReset({ token, password, now: Date.now() });
+    const result = await consumeCustomerPasswordReset({ token, password, now: Date.now() });
+    const vendorActivation = result.purpose === "vendor_activation";
     return Response.json(
-      { reset: true, message: "Ο κωδικός άλλαξε. Μπορείς τώρα να συνδεθείς με τον νέο κωδικό." },
+      {
+        reset: true,
+        purpose: result.purpose,
+        next: vendorActivation ? "/vendor/login?activated=1" : "/login?reset=1",
+        message: vendorActivation
+          ? "Ο vendor λογαριασμός ενεργοποιήθηκε και ο κωδικός δημιουργήθηκε. Μπορείτε τώρα να συνδεθείτε στο Vendor Workspace."
+          : "Ο κωδικός άλλαξε. Μπορείς τώρα να συνδεθείς με τον νέο κωδικό."
+      },
       { status: 200, headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
