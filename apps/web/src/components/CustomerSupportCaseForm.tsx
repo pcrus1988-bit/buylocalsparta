@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CUSTOMER_SUPPORT_CATEGORIES, CUSTOMER_SUPPORT_PRIORITIES } from "../lib/admin-customer-support";
 
