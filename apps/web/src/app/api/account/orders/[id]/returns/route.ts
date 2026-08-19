@@ -1,6 +1,6 @@
 import { requireAccountSession } from "../../../../../../lib/account-session";
 import { requestCustomerReturn } from "../../../../../../lib/account-view";
-import { CUSTOMER_RETURN_REASONS, CUSTOMER_RETURN_REMEDIES, type CustomerReturnReason, type CustomerReturnRemedy } from "../../../../../../lib/customer-returns-service";
+import { CUSTOMER_RETURN_REASONS, type CustomerReturnReason } from "../../../../../../lib/customer-returns-service";
 
 type Context = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -17,13 +17,15 @@ export async function POST(request: Request, { params }: Context) {
     if (!orderLineId) throw new Error("Order line is required");
     if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error("Return quantity must be a positive integer");
     if (!CUSTOMER_RETURN_REASONS.includes(reason as CustomerReturnReason)) throw new Error("Choose a valid return reason");
-    if (!CUSTOMER_RETURN_REMEDIES.includes(requestedRemedy as CustomerReturnRemedy)) throw new Error("Choose a valid requested remedy");
+    // Customer self-service is intentionally limited to the remedy that is wired end-to-end
+    // through admin approval and Viva. Replacement/repair remain platform-assigned workflows.
+    if (requestedRemedy !== "refund") throw new Error("Customer self-service currently supports refund requests only");
     return Response.json(await requestCustomerReturn(principal, {
       orderId: id,
       orderLineId,
       quantity,
       reason: reason as CustomerReturnReason,
-      requestedRemedy: requestedRemedy as CustomerReturnRemedy,
+      requestedRemedy: "refund",
       note
     }));
   } catch (error) {
