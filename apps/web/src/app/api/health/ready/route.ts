@@ -79,7 +79,10 @@ export async function GET() {
     }
   }
 
-  const ok = database.ok && viva.ready && media.ready && myData.ready && search.ready && email.ready && shipping.ready;
+  // Optional providers are healthy when they are intentionally disabled. For myDATA this
+  // preserves the fail-closed accounting gate without taking the storefront out of service.
+  const myDataHealthy = !myData.enabled || myData.ready;
+  const ok = database.ok && viva.ready && media.ready && myDataHealthy && search.ready && email.ready && shipping.ready;
   return Response.json(
     { ok, service: "buy-local-sparta-web", build: WEB_BUILD_VERSION, dependencies: { database, viva, media, myData, search, email, shipping } },
     { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } }
