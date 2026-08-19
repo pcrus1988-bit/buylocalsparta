@@ -15,8 +15,11 @@ case "$role" in
   media)
     exec node --experimental-strip-types workers/media-worker.ts
     ;;
+  reports)
+    exec node --experimental-strip-types workers/report-worker.ts
+    ;;
   "")
-    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media)" >&2
+    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports)" >&2
     exit 64
     ;;
   *)
