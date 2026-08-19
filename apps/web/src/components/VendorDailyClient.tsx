@@ -95,9 +95,7 @@ function slaRemaining(slaCase: SlaCase, now: number): string {
 function slaTone(slaCase: SlaCase, now: number): "normal" | "warning" | "breach" {
   if (slaCase.state === "breached" || slaCase.state === "escalated") return "breach";
   const remaining = new Date(slaCase.dueAt).getTime() - now;
-  const openedAt = typeof slaCase.policy.openedAt === "string" ? new Date(slaCase.policy.openedAt).getTime() : undefined;
   if (remaining <= 30 * 60_000) return "warning";
-  if (openedAt && remaining <= Math.max(30 * 60_000, (new Date(slaCase.dueAt).getTime() - openedAt) * .2)) return "warning";
   return "normal";
 }
 
@@ -146,7 +144,7 @@ export function VendorDailyClient({ dashboard, advice, sla }: { dashboard: Dashb
     setBusy(key);
     setError("");
     try {
-      const response = await fetch("/api/vendor/fulfilments/action", {
+      const response = await fetch("/api/daily/fulfilments/action", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": dashboard.csrfToken },
         body: JSON.stringify({ fulfilmentId: item.id, action })
