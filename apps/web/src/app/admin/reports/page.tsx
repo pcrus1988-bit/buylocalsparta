@@ -5,7 +5,7 @@ import { ReportBuilderFields } from "../../../components/ReportBuilderFields";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
 import { listReports, listSavedReportDefinitions, reportBuilderOptions } from "../../../lib/reporting-engine";
-import { createAdminReportAction, emailAdminReportAction, saveAdminReportDefinitionAction } from "./actions";
+import { createAdminReportAction, emailAdminReportAction, runSavedAdminReportAction, saveAdminReportDefinitionAction } from "./actions";
 
 export const metadata: Metadata = { title: "Admin Reports", robots: { index: false, follow: false } };
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -65,10 +65,11 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Saved" title="Saved report definitions" note="Ιδιωτικά declarative templates για επαναλαμβανόμενες αναλύσεις." />
+      <WorkspaceSectionHeading eyebrow="Saved" title="Saved report definitions" note="Ιδιωτικά declarative templates για επαναλαμβανόμενες αναλύσεις και one-click rerun." />
       {saved.length ? <div className="workspace-queue-list">{saved.map(item => <article className="workspace-queue-card" key={item.publicId}>
         <div className="workspace-queue-head"><div><strong>{item.name}</strong><small>{item.spec.fromDate} → {item.spec.toDate}</small></div><span className="status-pill">{item.spec.vendorId ? "vendor drill-down" : "market"}</span></div>
         <p>{item.spec.domains.join(" · ")}</p>
+        <form action={runSavedAdminReportAction}><input type="hidden" name="templateId" value={item.publicId} /><button className="button button-secondary" type="submit">Run template</button></form>
       </article>)}</div> : <article className="workspace-queue-card"><strong>Δεν υπάρχουν ακόμη saved definitions.</strong></article>}
     </section>
 
