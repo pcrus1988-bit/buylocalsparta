@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../components/AdminWorkspaceHeader";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
-import { adminDashboard } from "../../lib/admin-runtime";
+import { adminDashboard, hasAdminPermission } from "../../lib/admin-runtime";
 import { getAdminSession } from "../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin Command Centre", robots: { index: false, follow: false } };
@@ -19,6 +19,15 @@ export default async function AdminPage() {
     ["Fairness", dashboard.metrics.fairnessAppeals],
     ["Orders", dashboard.metrics.orders]
   ] as const;
+  const quickLinks = [
+    { kicker: "Acquisition", label: "Έρευνα vendors", description: "Υποψήφιοι πριν το onboarding.", href: "/admin/research-vendors" },
+    { kicker: "Onboarding", label: "Συνεργάτες", description: "Έλεγχος και ενεργοποίηση.", href: "/admin/vendors", value: dashboard.metrics.vendorVerificationQueue },
+    { kicker: "Catalog", label: "Matching", description: "Canonical έλεγχος προϊόντων.", href: "/admin/matching", value: dashboard.metrics.catalogReviewQueue },
+    { kicker: "Commerce", label: "Παραγγελίες", description: "Exceptions, returns και refunds.", href: "/admin/orders", value: dashboard.metrics.orders },
+    ...(hasAdminPermission(principal, "customer.read") ? [{ kicker: "Customer ops", label: "Πελάτες", description: "Accounts, access, recovery και commerce.", href: "/admin/customers" }] : []),
+    { kicker: "Trust", label: "Συμμόρφωση", description: "Media και τεκμήρια ασφάλειας.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance },
+    { kicker: "Finance", label: "Οικονομικά", description: "Payables και settlements.", href: "/admin/finance", value: dashboard.metrics.payableProcurements }
+  ];
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={dashboard.csrfToken} />
@@ -42,20 +51,7 @@ export default async function AdminPage() {
       </div>
     </section>
 
-    <WorkspaceQuickLinks
-      density="compact"
-      eyebrow="Κύριες ουρές"
-      title="Εκεί που χρειάζεται απόφαση τώρα."
-      links={[
-        { kicker: "Acquisition", label: "Έρευνα vendors", description: "Υποψήφιοι πριν το onboarding.", href: "/admin/research-vendors" },
-        { kicker: "Onboarding", label: "Συνεργάτες", description: "Έλεγχος και ενεργοποίηση.", href: "/admin/vendors", value: dashboard.metrics.vendorVerificationQueue },
-        { kicker: "Catalog", label: "Matching", description: "Canonical έλεγχος προϊόντων.", href: "/admin/matching", value: dashboard.metrics.catalogReviewQueue },
-        { kicker: "Commerce", label: "Παραγγελίες", description: "Exceptions, returns και refunds.", href: "/admin/orders", value: dashboard.metrics.orders },
-        { kicker: "Customer ops", label: "Πελάτες", description: "Accounts, activity, commerce και account status.", href: "/admin/customers" },
-        { kicker: "Trust", label: "Συμμόρφωση", description: "Media και τεκμήρια ασφάλειας.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance },
-        { kicker: "Finance", label: "Οικονομικά", description: "Payables και settlements.", href: "/admin/finance", value: dashboard.metrics.payableProcurements }
-      ]}
-    />
+    <WorkspaceQuickLinks density="compact" eyebrow="Κύριες ουρές" title="Εκεί που χρειάζεται απόφαση τώρα." links={quickLinks} />
 
     <section className="shell vendor-section dashboard-insights-section">
       <div className="dashboard-insight-grid">
