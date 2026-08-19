@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "installCommand": "npm install --ignore-scripts",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron/order-sla",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }
