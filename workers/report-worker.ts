@@ -1,7 +1,8 @@
-import { createPostgresRuntimeFromEnv, EXPECTED_SCHEMA_VERSION } from "../packages/postgres-runtime/src/index.ts";
+import { EXPECTED_SCHEMA_VERSION } from "../packages/postgres-runtime/src/index.ts";
+import { getProductionPostgresRuntime } from "../apps/web/src/lib/postgres-runtime.ts";
 import { processQueuedReports } from "../apps/web/src/lib/reporting-engine.ts";
 
-const runtime = createPostgresRuntimeFromEnv({ applicationName: "buy-local-sparta-report-worker" });
+const runtime = getProductionPostgresRuntime();
 const db = await runtime.readiness(EXPECTED_SCHEMA_VERSION);
 if (!db.ok) {
   await runtime.close();
