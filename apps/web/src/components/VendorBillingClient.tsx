@@ -2,16 +2,20 @@
 
 import { useMemo,useState,type FormEvent } from "react";
 import type { VendorBillingWorkspace } from "../lib/admin-vendor-billing";
+import type { VendorFeeTaxSetting } from "../lib/admin-vendor-fee-tax";
 
 const euro=(minor:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(minor/100);
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const monthStart=()=>`${today().slice(0,7)}-01`;
+type BillingResponse=VendorBillingWorkspace&{feeTaxSettings?:readonly VendorFeeTaxSetting[];error?:string};
 
-export function VendorBillingClient({initial,csrfToken}:{initial:VendorBillingWorkspace;csrfToken:string}){
-  const [data,setData]=useState(initial),[busy,setBusy]=useState(false),[error,setError]=useState(""),[vendorId,setVendorId]=useState("");
+export function VendorBillingClient({initial,initialFeeTaxSettings,csrfToken}:{initial:VendorBillingWorkspace;initialFeeTaxSettings:readonly VendorFeeTaxSetting[];csrfToken:string}){
+  const [data,setData]=useState(initial),[feeTaxSettings,setFeeTaxSettings]=useState(initialFeeTaxSettings),[busy,setBusy]=useState(false),[error,setError]=useState(""),[vendorId,setVendorId]=useState("");
   const vendor=useMemo(()=>data.vendors.find(v=>v.id===vendorId),[data.vendors,vendorId]);
-  async function post(payload:Record<string,unknown>){setBusy(true);setError("");try{const r=await fetch("/api/admin/finance/vendor-billing",{method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},body:JSON.stringify(payload)});const body=await r.json() as VendorBillingWorkspace&{error?:string};if(!r.ok)throw new Error(body.error??"Η ενέργεια απέτυχε");setData(body);}catch(e){setError(e instanceof Error?e.message:"Η ενέργεια απέτυχε");}finally{setBusy(false);}}
+  const feeTax=useMemo(()=>feeTaxSettings.find(x=>x.vendorId===vendorId),[feeTaxSettings,vendorId]);
+  async function post(payload:Record<string,unknown>){setBusy(true);setError("");try{const r=await fetch("/api/admin/finance/vendor-billing",{method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},body:JSON.stringify(payload)});const body=await r.json() as BillingResponse;if(!r.ok)throw new Error(body.error??"Η ενέργεια απέτυχε");setData(body);if(body.feeTaxSettings)setFeeTaxSettings(body.feeTaxSettings);}catch(e){setError(e instanceof Error?e.message:"Η ενέργεια απέτυχε");}finally{setBusy(false);}}
   async function create(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);await post({action:"create_draft",vendorId:String(f.get("vendorId")??""),periodStart:String(f.get("periodStart")??""),periodEnd:String(f.get("periodEnd")??""),includeListingFee:f.get("includeListingFee")==="on",recurringFeeOccurrences:Number(f.get("recurringFeeOccurrences")??0),notes:String(f.get("notes")??"")||undefined,reason:String(f.get("reason")??"")});}
+  async function updateFeeTax(e:FormEvent<HTMLFormElement>){e.preventDefault();if(!feeTax)return;const f=new FormData(e.currentTarget),mode=String(f.get("feeTaxMode")??"included"),percent=Number(f.get("feeTaxPercent")??0),reason=String(f.get("feeTaxReason")??"").trim();if(!Number.isFinite(percent)||percent<0||percent>100){setError("Ο συντελεστής ΦΠΑ fee πρέπει να είναι από 0% έως 100%.");return;}await post({action:"update_fee_tax",agreementId:feeTax.agreementId,feeTaxMode:mode,feeTaxRateBps:Math.round(percent*100),reason});}
   async function action(invoiceId:string,actionName:string,extra:Record<string,unknown>={}){const reason=window.prompt("Αιτιολογία / audit note");if(!reason?.trim())return;await post({action:actionName,invoiceId,reason:reason.trim(),...extra});}
   async function download(invoiceId:string){setBusy(true);setError("");try{const r=await fetch(`/api/admin/finance/vendor-billing?invoiceId=${encodeURIComponent(invoiceId)}&document=pdf`,{headers:{accept:"application/pdf"}});if(!r.ok){const b=await r.json().catch(()=>({})) as {error?:string};throw new Error(b.error??"Η λήψη απέτυχε");}const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`vendor-invoice-${invoiceId}.pdf`;a.click();URL.revokeObjectURL(url);}catch(e){setError(e instanceof Error?e.message:"Η λήψη απέτυχε");}finally{setBusy(false);}}
   const approvedPayments=data.paymentMappings.filter(x=>x.status==="approved"&&x.paymentType!==7);
@@ -31,6 +35,18 @@ export function VendorBillingClient({initial,csrfToken}:{initial:VendorBillingWo
         {vendor&&<div className="workspace-inline-note"><strong>{vendor.name}</strong> · ΑΦΜ {vendor.taxNumber??"missing"} · eligible commissions {euro(vendor.eligibleCommissionMinor)} / {vendor.eligibleProcurements} procurements · listing {euro(vendor.listingFeeMinor)} · recurring {euro(vendor.recurringFeeMinor)} {vendor.recurringFeePeriod??""}</div>}
         <button className="button button-primary" disabled={busy||!vendorId}>{busy?"Επεξεργασία…":"Create billing draft"}</button>
       </form>
+
+      {vendor&&feeTax&&<form className="vendor-form-card" onSubmit={updateFeeTax} key={`${feeTax.agreementId}:${feeTax.feeTaxMode}:${feeTax.feeTaxRateBps}`}>
+        <strong>VAT treatment για listing / recurring fees</strong>
+        <p>Αφορά μόνο τα contractual fees της ενεργής συμφωνίας. Η προμήθεια πωλήσεων συνεχίζει να χρησιμοποιεί το δικό της immutable commission tax snapshot.</p>
+        <div className="form-grid">
+          <label>Fee tax mode<select name="feeTaxMode" defaultValue={feeTax.feeTaxMode}><option value="included">VAT included</option><option value="plus_vat">VAT added on top</option><option value="none">No VAT</option></select></label>
+          <label>Fee VAT %<input name="feeTaxPercent" type="number" min="0" max="100" step="0.01" defaultValue={(feeTax.feeTaxRateBps/100).toFixed(2)}/></label>
+          <label className="form-span-2">Audit reason<input name="feeTaxReason" required placeholder="Λογιστική αιτιολόγηση αλλαγής VAT treatment"/></label>
+        </div>
+        <button className="button button-secondary" disabled={busy}>Save fee VAT treatment</button>
+      </form>}
+      {vendor&&!feeTax&&<div className="workspace-callout"><strong>Δεν υπάρχει ενεργή συμφωνία</strong><span>Listing/recurring fees δεν μπορούν να τιμολογηθούν μέχρι να υπάρχει ενεργή εμπορική συμφωνία.</span></div>}
       {error&&<p className="form-error" role="alert">{error}</p>}
     </section>
 
@@ -43,7 +59,7 @@ export function VendorBillingClient({initial,csrfToken}:{initial:VendorBillingWo
         {inv.lastError&&<p className="form-error">{inv.lastError}</p>}
         <div className="workspace-action-bar"><span>Email: {inv.emailStatus} · AADE: {inv.transmissionStatus??"not prepared"}</span><div className="workspace-action-buttons">
           {inv.status==="draft"&&approvedPayments.map(p=><button key={`${p.processor}:${p.method}`} className="button button-secondary" disabled={busy} onClick={()=>void action(inv.id,"prepare",{processor:p.processor,processorMethod:p.method})}>Prepare · {p.processor}/{p.method} · type {p.paymentType}</button>)}
-          {inv.status==="draft"&&<button className="button admin-danger" disabled={busy} onClick={()=>void action(inv.id,"void")}>Void draft</button>}
+          {inv.status==="draft"&&<button className="button admin-danger" disabled={busy} onClick={()=>void action(inv.id,"void")}>Delete & release draft</button>}
           {inv.status==="prepared"&&<button className="button button-primary" disabled={busy} onClick={()=>void action(inv.id,"transmit")}>Transmit to AADE</button>}
           {inv.status==="issued"&&<button className="button button-secondary" disabled={busy} onClick={()=>void download(inv.id)}>Download PDF</button>}
           {inv.status==="issued"&&inv.emailStatus!=="sent"&&<button className="button button-primary" disabled={busy} onClick={()=>void action(inv.id,"email")}>Email vendor</button>}
