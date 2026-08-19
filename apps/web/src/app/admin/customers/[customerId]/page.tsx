@@ -24,7 +24,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
   try { result = await adminCustomerDetail(principal, decodeURIComponent(customerId)); } catch { redirect("/admin/customers"); }
   if (!result) notFound();
   const { customer, addresses, orders, audit } = result.detail;
-  const canManage = hasAdminPermission(principal, "privacy.manage");
+  const canManage = hasAdminPermission(principal, "customer.manage");
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={result.csrfToken} />
@@ -46,7 +46,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Account control" title="Identity & account state" note="Status changes require a reason and are written to the audit trail. Closing is intentionally separated as a destructive operational action; anonymisation/deletion stays in Privacy." />
+      <WorkspaceSectionHeading eyebrow="Account control" title="Identity, access & recovery" note="Account-state changes and support actions require a reason and are written to the audit trail. GDPR anonymisation/deletion remains in Privacy." />
       <article className="workspace-queue-card">
         <div className="workspace-queue-head"><div><strong>{customerName(customer)}</strong><small>{customer.id}</small></div><span className="status-pill">{statusLabel[customer.status]}</span></div>
         <div className="workspace-compact-list">
@@ -56,12 +56,20 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
           <div className="workspace-compact-row"><strong>Consent</strong><span>Marketing {customer.marketingConsent ? "ON" : "OFF"}</span><small>Recommendations {customer.recommendationsEnabled ? "ON" : "OFF"} · Recently viewed {customer.recentlyViewedEnabled ? "ON" : "OFF"}</small></div>
           {customer.closedAt && <div className="workspace-compact-row"><strong>Closed</strong><span>{dateTime(customer.closedAt)}</span><small>{customer.anonymizedAt ? `Anonymized ${dateTime(customer.anonymizedAt)}` : "Not anonymized"}</small></div>}
         </div>
-        {canManage && customer.status !== "closed" && <div className="workspace-action-bar"><span>Change account state</span><div className="workspace-action-buttons">
-          {customer.status !== "active" && <AdminActionButton label="Set active" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "active" }} reasonPrompt="Reason for activating this customer account" />}
-          {customer.status !== "restricted" && <AdminActionButton label="Restrict" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "restricted" }} reasonPrompt="Reason for restricting this customer account" danger />}
-          {customer.status !== "suspended" && <AdminActionButton label="Suspend" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "suspended" }} reasonPrompt="Reason for suspending this customer account; active sessions will be revoked" danger />}
-          <AdminActionButton label="Close account" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "closed" }} reasonPrompt="Reason for closing this account. This cannot be reopened from Customer Management." danger />
-        </div></div>}
+        {canManage && customer.status !== "closed" && <>
+          <div className="workspace-action-bar"><span>Account state</span><div className="workspace-action-buttons">
+            {customer.status !== "active" && customer.emailVerified && <AdminActionButton label="Set active" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "active" }} reasonPrompt="Reason for activating this verified customer account" />}
+            {customer.status !== "restricted" && <AdminActionButton label="Restrict" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "restricted" }} reasonPrompt="Reason for restricting this customer account; existing sessions will be revoked" danger />}
+            {customer.status !== "suspended" && <AdminActionButton label="Suspend" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "suspended" }} reasonPrompt="Reason for suspending this customer account; existing sessions will be revoked" danger />}
+            <AdminActionButton label="Close account" endpoint="/api/admin/customers/status" csrfToken={result.csrfToken} body={{ customerId: customer.id, status: "closed" }} reasonPrompt="Reason for closing this account. This cannot be reopened from Customer Management." danger />
+          </div></div>
+          <div className="workspace-action-bar"><span>Security & recovery</span><div className="workspace-action-buttons">
+            {customer.status === "pending_verification" && !customer.emailVerified && customer.email && <AdminActionButton label="Resend verification email" endpoint="/api/admin/customers/action" csrfToken={result.csrfToken} body={{ customerId: customer.id, action: "resend_verification" }} reasonPrompt="Reason for resending the customer verification email" />}
+            {customer.emailVerified && ["active", "restricted"].includes(customer.status) && customer.email && <AdminActionButton label="Send password reset" endpoint="/api/admin/customers/action" csrfToken={result.csrfToken} body={{ customerId: customer.id, action: "send_password_reset" }} reasonPrompt="Reason for sending a password reset link to this customer" />}
+            {customer.activeSessionCount > 0 && <AdminActionButton label="Revoke all sessions" endpoint="/api/admin/customers/action" csrfToken={result.csrfToken} body={{ customerId: customer.id, action: "revoke_sessions" }} reasonPrompt="Reason for signing this customer out of every active session" danger />}
+          </div></div>
+          {!customer.emailVerified && <div className="workspace-inline-note">Activation is blocked until the customer verifies the email address. Use “Resend verification email” instead of manually bypassing verification.</div>}
+        </>}
       </article>
     </section>
 
@@ -74,7 +82,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     </div></section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Fulfilment profile" title="Saved addresses" note="Contact and delivery data is visible only to authorised admin roles and remains separate from privacy-erasure workflows." />
+      <WorkspaceSectionHeading eyebrow="Fulfilment profile" title="Saved addresses" note="Contact and delivery data is visible only to authorised Customer Management roles and remains separate from privacy-erasure workflows." />
       {addresses.length === 0 ? <WorkspaceEmptyState title="No saved addresses." /> : <div className="workspace-queue-list">{addresses.map((address) => <article className="workspace-queue-card" key={address.id}>
         <div className="workspace-queue-head"><div><strong>{address.label ?? address.recipientName ?? "Address"}</strong><small>{address.id}</small></div><span className="status-pill">{address.countryCode}</span></div>
         <p className="workspace-queue-summary">{address.recipientName ?? ""}{address.companyName ? ` · ${address.companyName}` : ""}<br />{address.line1}{address.line2 ? `, ${address.line2}` : ""}<br />{address.postcode} {address.locality}{address.region ? `, ${address.region}` : ""}</p>
@@ -83,7 +91,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Governance" title="Customer audit history" note="Account-state changes made from this dashboard appear here with actor, reason and before/after state." />
+      <WorkspaceSectionHeading eyebrow="Governance" title="Customer audit history" note="Account-state, session and recovery actions made from this dashboard appear here with actor, reason and before/after state." />
       {audit.length === 0 ? <WorkspaceEmptyState title="No customer-management audit events yet." /> : <div className="workspace-queue-list">{audit.map((event) => <article className="workspace-queue-card" key={event.id}>
         <div className="workspace-queue-head"><div><strong>{event.action}</strong><small>{event.actor} · {dateTime(event.createdAt)}</small></div></div>
         {event.reason && <p className="workspace-queue-summary">{event.reason}</p>}
