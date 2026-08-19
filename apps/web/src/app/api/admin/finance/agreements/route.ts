@@ -4,12 +4,12 @@ import {
   changeCommercialAgreementStatus,
   commercialAgreementWorkspace,
   createCommercialAgreement,
-  emailCommercialAgreementPdf,
-  generateCommercialAgreementPdf,
-  getCommercialAgreementDocument,
-  storeSignedCommercialAgreement,
   verifyCommercialAgreementGovgr
 } from "../../../../../lib/admin-commercial-agreements";
+import { generateCommercialAgreementPdfVault } from "../../../../../lib/agreement-document-vault-generate";
+import { emailCommercialAgreementPdfVault } from "../../../../../lib/agreement-document-vault-email";
+import { storeSignedCommercialAgreementVault } from "../../../../../lib/agreement-document-vault-signed";
+import { getCommercialAgreementDocumentVault } from "../../../../../lib/agreement-document-vault-get";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const document = url.searchParams.get("document");
 
     if (agreementId && document) {
-      const result = await getCommercialAgreementDocument(agreementId, document);
+      const result = await getCommercialAgreementDocumentVault(agreementId, document);
       return new Response(new Uint8Array(result.buffer), {
         headers: {
           "content-type": "application/pdf",
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       if (action !== "signed_upload") throw new Error("Unsupported multipart agreement action");
       const signedPdf = form.get("signedPdf");
       if (!(signedPdf instanceof File)) throw new Error("Signed agreement PDF is required");
-      await storeSignedCommercialAgreement(principal, {
+      await storeSignedCommercialAgreementVault(principal, {
         agreementId: form.get("agreementId"),
         govgrReference: form.get("govgrReference"),
         signedAt: form.get("signedAt") || undefined,
@@ -70,14 +70,14 @@ export async function POST(request: Request) {
     if (action === "create") {
       const created = await createCommercialAgreement(principal, body);
       try {
-        await generateCommercialAgreementPdf(principal, created.agreementId);
+        await generateCommercialAgreementPdfVault(principal, created.agreementId);
       } catch (error) {
         warning = `Η συμφωνία ${created.agreementCode} αποθηκεύτηκε, αλλά το PDF δεν δημιουργήθηκε αυτόματα: ${error instanceof Error ? error.message : "pdf_generation_failed"}`;
       }
     } else if (action === "generate_pdf") {
-      await generateCommercialAgreementPdf(principal, body.agreementId);
+      await generateCommercialAgreementPdfVault(principal, body.agreementId);
     } else if (action === "email_pdf") {
-      await emailCommercialAgreementPdf(principal, body.agreementId);
+      await emailCommercialAgreementPdfVault(principal, body.agreementId);
     } else if (action === "verify_govgr") {
       await verifyCommercialAgreementGovgr(principal, body);
     } else if (action === "activate") {
