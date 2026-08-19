@@ -1,8 +1,9 @@
-import { ResendEmailProvider, resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
+import { ResendEmailProvider, ResendWebhookVerifier, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import type { Notification } from "@buy-local-sparta/core";
 
 const globals = globalThis as typeof globalThis & {
   __blsDirectResendProvider?: ResendEmailProvider;
+  __blsResendWebhookVerifier?: ResendWebhookVerifier;
 };
 
 export type TransactionalEmailInput = Readonly<{
@@ -16,7 +17,7 @@ export type TransactionalEmailInput = Readonly<{
 }>;
 
 export function transactionalEmailConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.BLS_EMAIL_DELIVERY_ENABLED === "true" && Boolean(env.RESEND_API_KEY?.trim()) && Boolean(env.RESEND_FROM?.trim());
+  return resendDeliveryEnabled(env) && Boolean(env.RESEND_API_KEY?.trim());
 }
 
 export async function sendTransactionalEmail(input: TransactionalEmailInput): Promise<{ providerMessageId: string }> {
@@ -56,6 +57,43 @@ export async function sendTransactionalEmailBestEffort(input: TransactionalEmail
       message: error instanceof Error ? error.message : String(error)
     }));
     return { sent: false };
+  }
+}
+
+export async function resolveResendWebhookVerifier(): Promise<ResendWebhookVerifier> {
+  if (globals.__blsResendWebhookVerifier) return globals.__blsResendWebhookVerifier;
+  const configured = process.env.RESEND_WEBHOOK_SECRET?.trim();
+  if (configured) return globals.__blsResendWebhookVerifier = new ResendWebhookVerifier(configured);
+
+  const config = resendConfigFromEnv();
+  const endpoint = resendWebhookEndpoint();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const listResponse = await fetch(`${config.baseUrl.replace(/\/$/, "")}/webhooks`, {
+      headers: { authorization: `Bearer ${config.apiKey}`, "user-agent": "buy-local-sparta-web/1.0" },
+      signal: controller.signal,
+      cache: "no-store"
+    });
+    const listPayload = await listResponse.json().catch(() => ({})) as { data?: unknown; message?: unknown };
+    if (!listResponse.ok) throw new Error(`Resend webhook list failed (${listResponse.status})`);
+    const rows = Array.isArray(listPayload.data) ? listPayload.data : [];
+    const match = rows.find((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      return (entry as { endpoint?: unknown }).endpoint === endpoint;
+    }) as { id?: unknown } | undefined;
+    if (!match || typeof match.id !== "string") throw new Error(`Resend webhook is not registered for ${endpoint}`);
+
+    const detailResponse = await fetch(`${config.baseUrl.replace(/\/$/, "")}/webhooks/${encodeURIComponent(match.id)}`, {
+      headers: { authorization: `Bearer ${config.apiKey}`, "user-agent": "buy-local-sparta-web/1.0" },
+      signal: controller.signal,
+      cache: "no-store"
+    });
+    const detail = await detailResponse.json().catch(() => ({})) as { signing_secret?: unknown };
+    if (!detailResponse.ok || typeof detail.signing_secret !== "string") throw new Error(`Resend webhook secret lookup failed (${detailResponse.status})`);
+    return globals.__blsResendWebhookVerifier = new ResendWebhookVerifier(detail.signing_secret);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -130,6 +168,13 @@ export async function forwardReceivedEmailToOperations(input: { webhookEventId: 
 
 function directProvider(): ResendEmailProvider {
   return globals.__blsDirectResendProvider ??= new ResendEmailProvider(resendConfigFromEnv());
+}
+
+function resendWebhookEndpoint(): string {
+  const explicit = process.env.RESEND_WEBHOOK_ENDPOINT?.trim();
+  if (explicit) return explicit;
+  const base = process.env.BLS_PUBLIC_BASE_URL?.trim() || "https://kontamou.site";
+  return `${base.replace(/\/$/, "")}/api/webhooks/resend`;
 }
 
 function normalizeEmail(value: string): string {
