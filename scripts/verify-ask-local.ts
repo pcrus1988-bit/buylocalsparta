@@ -40,7 +40,8 @@ for (const contract of [
   "routingHistory",
   "routingOwner",
   "assigned ? \"awaiting_vendor\" : \"submitted\"",
-  "SET status='submitted',assigned_vendor_id=NULL,assigned_offer_id=NULL,expires_at=NULL"
+  "SET status='submitted',assigned_vendor_id=NULL,assigned_offer_id=NULL,expires_at=NULL",
+  "re-owned by Admin before that queue is presented"
 ]) if (!service.includes(contract)) failures.push(`Ask Local service is missing ${contract}`);
 
 if (!service.includes("need.length < 10") || !service.includes("/^\\d{5}$/") || !service.includes("input.quantity > 99")) failures.push("Ask Local server validation is incomplete");
