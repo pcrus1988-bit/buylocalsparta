@@ -4,7 +4,7 @@
   "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
   "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
-  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
+  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c08219db496ce63d150",
   "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
   "0008_rls_platform_scope.sql": "ba5afa7a0957d87babbaf0950003424ad151986143d1becdf2b3786e4a48c8d3",
   "0009_media_compliance_jobs.sql": "7a613be9c529567d98296007b38475c244153db1548812f9172f7ff0a961f051",
@@ -15,7 +15,7 @@
   "0014_delivery_fees_disputes.sql": "11daa83fd4d8e75a19ad9250ee588f1b5cee28200e9dd71e783e875d5bf0b291",
   "0015_cms_seo_storytelling.sql": "f885f19300210ccddcf2d561e57ea24b3cbd7ebc6c08e130b69c0bdf16ed81ca",
   "0016_analytics_reporting.sql": "c2debcec61b2beae07b2fd742b9aa81b5dafcc917f3a876424944bcc2189e579",
-  "0017_notification_delivery.sql": "52c110c946c9b92c9eb19b025c08d159a7a1c5f3d089c87a7bb5a9ec36e9561f",
+  "0017_notification_delivery.sql": "52c110c946c9b92c9eb19b025c08d159a7f6c397691f5aaeb5eaafe78fbe3a",
   "0018_security_operational_events.sql": "bccb5a4c4b4f7d92e4d28657d38def22c663d5a369bbc5504e16fce001681941",
   "0019_verified_reviews.sql": "0bb78b2004207a25456b840a5d0cce979dd3b4766b6f7152a76bd69f62b537da",
   "0020_return_guarantee_recall.sql": "1aa6a64f7273355805811502ffe26e214c8a3fdedf738a0d74c932d76adf70f6",
@@ -46,5 +46,6 @@
   "0064_reporting_engine.sql": "40e2e64c7557ae28c999e7c66b613e27ff8e9e2ed081b27e9662860fbc7428c8",
   "0065_reporting_indexes.sql": "650d8b9628afc3082fafcae16c88b317101c0017efb727cfd03e19844e46ac20",
   "0066_vendor_profile_media.sql": "291bcb5656c766c8497d1adaef9d20ae20bbf068ef7c6761f2000dc6e4c99ffc",
-  "0067_vendor_agreement_lifecycle.sql": "4d66f966062383764bc29692f49a2598551c8e5f4ef49ec4058b6b3bde9c8e86"
+  "0067_vendor_agreement_lifecycle.sql": "4d66f966062383764bc29692f49a2598551c8e5f4ef49ec4058b6b3bde9c8e86",
+  "0068_vendor_agreement_document_vault.sql": "7c0afc160f979449e8654934ea85091aac0b4c85edde3d84c501ab5e85433b5d"
 }
