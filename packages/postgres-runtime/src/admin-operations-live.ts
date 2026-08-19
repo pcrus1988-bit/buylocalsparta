@@ -58,8 +58,8 @@ function jsonObject(value: unknown): Record<string, unknown> {
  * historically locked a nullable LEFT JOIN relation, which PostgreSQL rejects,
  * and created the vendor business only at activation time. Production onboarding
  * now locks only the application row, provisions the non-operational shop after
- * verification, and requires a signed active cooperation agreement before the
- * shop can become operational.
+ * verification, and completes contract + shop activation only at the governed
+ * final application transition.
  *
  * fairness_assignment_events moved to JSON evidence snapshots and no longer has
  * the legacy sticky/selected_offer_id/market_id columns. The current Admin
@@ -214,14 +214,60 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
           throw new Error("The shop record is missing. Complete verification/catalog onboarding before activation.");
         }
         const agreement = await tx.query<SqlRow>(`
-          SELECT status::text AS status,signed_at,source_document_reference
+          SELECT
+            id::text AS agreement_uuid,
+            status::text AS status,
+            signed_at,
+            source_document_reference,
+            signed_pdf_object_key,
+            signed_pdf_sha256,
+            signed_document_received_at,
+            govgr_reference,
+            govgr_verified_at,
+            govgr_verified_by
           FROM vendor_commercial_agreements
           WHERE vendor_id=$1::uuid
-          ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END,updated_at DESC,created_at DESC
-          LIMIT 1`, [vendorUuid]);
+          ORDER BY
+            CASE status WHEN 'active' THEN 0 WHEN 'eligible_for_activation' THEN 1 WHEN 'govgr_verified' THEN 2 ELSE 3 END,
+            updated_at DESC,created_at DESC
+          LIMIT 1
+          FOR UPDATE`, [vendorUuid]);
         const documented = agreement.rows[0];
-        if (!documented || text(documented.status, "agreement.status") !== "active" || !documented.signed_at || !optionalText(documented.source_document_reference)) {
-          throw new Error("Activation is blocked until an active signed cooperation agreement with a signed-document reference is recorded.");
+        if (!documented) {
+          throw new Error("Activation is blocked until the governed cooperation agreement workflow is completed.");
+        }
+        const agreementStatus = text(documented.status, "agreement.status");
+        const signedDocumented = Boolean(documented.signed_at && optionalText(documented.source_document_reference));
+        const govgrVerified = Boolean(
+          documented.signed_pdf_object_key &&
+          documented.signed_pdf_sha256 &&
+          documented.signed_document_received_at &&
+          optionalText(documented.govgr_reference) &&
+          documented.govgr_verified_at &&
+          documented.govgr_verified_by
+        );
+        const legacyActive = agreementStatus === "active" && signedDocumented;
+        const verifiedForFinalActivation = ["govgr_verified", "eligible_for_activation"].includes(agreementStatus) && signedDocumented && govgrVerified;
+        if (!legacyActive && !verifiedForFinalActivation) {
+          throw new Error("Activation is blocked until the signed gov.gr PDF is stored, its reference is verified by Admin, and the agreement is ready for final activation.");
+        }
+
+        // For a governed new onboarding, agreement activation and shop activation
+        // happen atomically here. Finance prepares/verifies the contract; the
+        // application queue owns the final operational decision after test-ready.
+        if (verifiedForFinalActivation) {
+          const actor = await tx.query<SqlRow>("SELECT id::text AS actor_uuid FROM users WHERE public_id=$1 OR id::text=$1 LIMIT 1", [principal.userId]);
+          if (!actor.rowCount) throw new Error("Admin user record is required for final activation audit");
+          const actorUuid = text(actor.rows[0].actor_uuid, "actor_uuid");
+          const agreementUuid = text(documented.agreement_uuid, "agreement_uuid");
+          await tx.query(`
+            UPDATE vendor_commercial_agreements
+            SET status='superseded',ends_at=LEAST(COALESCE(ends_at,$3),$3),updated_at=$3
+            WHERE vendor_id=$1::uuid AND id<>$2::uuid AND status='active'`, [vendorUuid, agreementUuid, new Date(now)]);
+          await tx.query(`
+            UPDATE vendor_commercial_agreements
+            SET status='active',activated_at=$3,activated_by=$2::uuid,updated_at=$3
+            WHERE id=$1::uuid`, [agreementUuid, actorUuid, new Date(now)]);
         }
       }
 
