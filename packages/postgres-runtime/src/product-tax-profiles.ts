@@ -37,9 +37,9 @@ export class PostgresProductTaxProfileService{
       if(input.vatCategory===7&&!Number.isSafeInteger(input.vatExemptionCategory))throw new Error("VAT category 7 requires an exemption category");
       if(input.vatCategory!==7&&input.vatExemptionCategory!=null)throw new Error("VAT exemption category is allowed only with VAT category 7");
       const variant=await tx.query<SqlRow>(`SELECT cv.id::text,cv.market_id::text FROM canonical_variants cv JOIN markets m ON m.id=cv.market_id WHERE cv.public_id=$1 AND m.code=$2 AND cv.active=true FOR UPDATE OF cv`,[input.variantId,this.#marketCode]);if(!variant.rowCount)throw new Error("Active product variant was not found");
-      const publicId=`taxprof_${randomUUID().replaceAll("-","")}`;const actor=actorUuidExpression();
+      const publicId=`taxprof_${randomUUID().replaceAll("-","")}`;
       const result=await tx.query<SqlRow>(`INSERT INTO product_tax_profiles(public_id,market_id,canonical_variant_id,vat_category,vat_rate_bps,vat_exemption_category,effective_from,accountant_approved,created_by,approval_notes)
-        VALUES($1,$2::uuid,$3::uuid,$4,$5,$6,$7::date,false,${actor},$9)
+        VALUES($1,$2::uuid,$3::uuid,$4,$5,$6,$7::date,false,${actorUuidExpression(8)},$9)
         RETURNING public_id`,[publicId,text(variant.rows[0].market_id),text(variant.rows[0].id),input.vatCategory,int(vat.rows[0].rate_bps),input.vatExemptionCategory??null,input.effectiveFrom,principal.userId,input.notes]);
       return{ok:true,profileId:text(result.rows[0].public_id),policyVersion:text(policy.rows[0].version)};
     },{isolation:"serializable"});
@@ -61,14 +61,13 @@ export class PostgresProductTaxProfileService{
       if(future.rowCount)throw new Error("An approved profile already starts on or after this effective date; supersession would be ambiguous");
       await tx.query(`UPDATE product_tax_profiles SET effective_until=($2::date-1) WHERE canonical_variant_id=$1::uuid AND accountant_approved=true AND effective_from<$2::date AND (effective_until IS NULL OR effective_until >= $2::date)`,[text(r.canonical_variant_id),effective]);
       const hash=profileHash({variantId:text(r.canonical_variant_id),vatCategory:int(r.vat_category),vatRateBps:int(r.vat_rate_bps),exemption:intOptional(r.vat_exemption_category),effectiveFrom:effective,effectiveUntil:dateOptional(r.effective_until),policyVersion:text(r.version)});
-      const actor=actorUuidExpression();
-      await tx.query(`UPDATE product_tax_profiles SET accountant_approved=true,approval_version=$2,approved_by=${actor},approved_at=$4,approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),$5),profile_hash=$6 WHERE id=$1::uuid`,[text(r.id),text(r.version),principal.userId,new Date(now),input.notes,hash]);
+      await tx.query(`UPDATE product_tax_profiles SET accountant_approved=true,approval_version=$2,approved_by=${actorUuidExpression(3)},approved_at=$4,approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),$5),profile_hash=$6 WHERE id=$1::uuid`,[text(r.id),text(r.version),principal.userId,new Date(now),input.notes,hash]);
       return{ok:true,profileId:input.profileId,policyVersion:text(r.version),profileHash:hash};
     },{isolation:"serializable"});
   }
 }
 
-function actorUuidExpression(){return `(SELECT u.id FROM users u WHERE u.id::text=$8 OR u.public_id=$8 LIMIT 1)`;}
+function actorUuidExpression(index:number){return `(SELECT u.id FROM users u WHERE u.id::text=$${index} OR u.public_id=$${index} LIMIT 1)`;}
 function profileHash(v:Record<string,unknown>){return createHash("sha256").update(JSON.stringify(v)).digest("hex");}
 function productTitle(r:SqlRow){const model=optional(r.model);if(model&&model!=="none")return model;const attrs=obj(r.variant_attributes);for(const key of ["title","name","item_name"]){const x=attrs[key];if(typeof x==="string"&&x.trim())return x.trim();}return text(r.slug);}
 function obj(v:unknown):Record<string,unknown>{return v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{};}function text(v:unknown):string{if(typeof v!=="string"||!v)throw new Error("Invalid database text");return v;}function optional(v:unknown):string|undefined{return typeof v==="string"&&v?v:undefined;}function bool(v:unknown):boolean{return v===true;}function int(v:unknown):number{const n=Number(v);if(!Number.isSafeInteger(n))throw new Error("Invalid database integer");return n;}function intOptional(v:unknown):number|undefined{return v==null?undefined:int(v);}function dateText(v:unknown):string{if(v instanceof Date)return v.toISOString().slice(0,10);const s=String(v);if(!/^\d{4}-\d{2}-\d{2}/.test(s))throw new Error("Invalid database date");return s.slice(0,10);}function dateOptional(v:unknown):string|undefined{return v==null?undefined:dateText(v);}function epochOptional(v:unknown):number|undefined{if(v==null)return undefined;const n=v instanceof Date?v.getTime():new Date(String(v)).getTime();return Number.isFinite(n)?n:undefined;}
