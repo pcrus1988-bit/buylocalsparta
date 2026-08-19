@@ -2,7 +2,7 @@
 -- Customer support records are operational data, separate from immutable audit evidence.
 -- They are platform-only and never exposed to customer/vendor runtimes.
 
-CREATE TABLE customer_support_cases (
+CREATE TABLE IF NOT EXISTS customer_support_cases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_id text NOT NULL UNIQUE,
   customer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -24,7 +24,7 @@ CREATE TABLE customer_support_cases (
   CHECK (assigned_to_public_id IS NULL OR char_length(assigned_to_public_id) BETWEEN 3 AND 160)
 );
 
-CREATE TABLE customer_support_case_events (
+CREATE TABLE IF NOT EXISTS customer_support_case_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_id text NOT NULL UNIQUE,
   case_id uuid NOT NULL REFERENCES customer_support_cases(id) ON DELETE RESTRICT,
@@ -41,13 +41,13 @@ CREATE TABLE customer_support_case_events (
   CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 4000)
 );
 
-CREATE INDEX customer_support_cases_customer_idx
+CREATE INDEX IF NOT EXISTS customer_support_cases_customer_idx
   ON customer_support_cases (customer_user_id, updated_at DESC);
-CREATE INDEX customer_support_cases_queue_idx
+CREATE INDEX IF NOT EXISTS customer_support_cases_queue_idx
   ON customer_support_cases (status, priority, follow_up_at, updated_at DESC);
-CREATE INDEX customer_support_cases_assignee_idx
+CREATE INDEX IF NOT EXISTS customer_support_cases_assignee_idx
   ON customer_support_cases (assigned_to_user_id, status, updated_at DESC);
-CREATE INDEX customer_support_case_events_case_idx
+CREATE INDEX IF NOT EXISTS customer_support_case_events_case_idx
   ON customer_support_case_events (case_id, created_at DESC);
 
 ALTER TABLE customer_support_cases ENABLE ROW LEVEL SECURITY;
@@ -55,27 +55,34 @@ ALTER TABLE customer_support_cases FORCE ROW LEVEL SECURITY;
 ALTER TABLE customer_support_case_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_support_case_events FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS customer_support_cases_platform_read ON customer_support_cases;
+DROP POLICY IF EXISTS customer_support_cases_platform_insert ON customer_support_cases;
+DROP POLICY IF EXISTS customer_support_cases_platform_update ON customer_support_cases;
+DROP POLICY IF EXISTS customer_support_case_events_platform_read ON customer_support_case_events;
+DROP POLICY IF EXISTS customer_support_case_events_platform_insert ON customer_support_case_events;
+
 CREATE POLICY customer_support_cases_platform_read
-  ON customer_support_cases FOR SELECT
+  ON customer_support_cases FOR SELECT TO bls_platform_runtime
   USING ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY customer_support_cases_platform_insert
-  ON customer_support_cases FOR INSERT
+  ON customer_support_cases FOR INSERT TO bls_platform_runtime
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY customer_support_cases_platform_update
-  ON customer_support_cases FOR UPDATE
+  ON customer_support_cases FOR UPDATE TO bls_platform_runtime
   USING ((SELECT bls_private.is_platform_runtime()))
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY customer_support_case_events_platform_read
-  ON customer_support_case_events FOR SELECT
+  ON customer_support_case_events FOR SELECT TO bls_platform_runtime
   USING ((SELECT bls_private.is_platform_runtime()));
 CREATE POLICY customer_support_case_events_platform_insert
-  ON customer_support_case_events FOR INSERT
+  ON customer_support_case_events FOR INSERT TO bls_platform_runtime
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
-GRANT SELECT, INSERT, UPDATE ON customer_support_cases TO bls_platform_runtime;
-GRANT SELECT, INSERT ON customer_support_case_events TO bls_platform_runtime;
-REVOKE ALL ON customer_support_cases, customer_support_case_events FROM anon, authenticated;
+REVOKE ALL ON TABLE customer_support_cases, customer_support_case_events
+  FROM bls_app_runtime, bls_platform_runtime, service_role, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE customer_support_cases TO bls_platform_runtime;
+GRANT SELECT, INSERT ON TABLE customer_support_case_events TO bls_platform_runtime;
 
 COMMENT ON TABLE customer_support_cases IS
   'Platform-only operational customer support cases. PII remains in canonical customer records; notes should contain only support-relevant context.';
