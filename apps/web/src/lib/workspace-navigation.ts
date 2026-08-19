@@ -39,6 +39,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
       { label: "Παραγγελίες", href: "/admin/orders", icon: "□" },
+      { label: "Πελάτες", href: "/admin/customers", icon: "◉" },
       { label: "Αποστολές", href: "/admin/shipping", icon: "↗" }
     ]
   },
