@@ -3,6 +3,7 @@ import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
 import { checkoutCustomer, postgresCommerceEnabled } from "../../../lib/customer-commerce-runtime";
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
+import { attachCheckoutFiscalSnapshot, buildCheckoutFiscalSnapshot, checkoutFiscalPreference } from "../../../lib/fiscal-checkout-runtime";
 import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runtime";
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown }>;
@@ -74,8 +75,10 @@ export async function POST(request: Request) {
     }
 
     const now = Date.now();
+    const fiscalSnapshot = buildCheckoutFiscalSnapshot({ documentType: checkoutFiscalPreference(request), billingAddress, email: principal.email, now });
     const order = await checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now });
     await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId, now });
+    await attachCheckoutFiscalSnapshot(principal, { orderId: order.id, snapshot: fiscalSnapshot, now });
 
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
