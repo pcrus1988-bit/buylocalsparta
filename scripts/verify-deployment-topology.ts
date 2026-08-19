@@ -16,12 +16,12 @@ assert(vercel.installCommand === "npm install --ignore-scripts", "Vercel install
 assert(vercel.buildCommand === "npm --workspace @buy-local-sparta/web run build", "Vercel build must target the web workspace from root");
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
 assert(!("crons" in vercel), "long-running BLS workers must not be disguised as Vercel cron jobs");
-for (const role of ["postgres", "search", "notifications", "media"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
+for (const role of ["postgres", "search", "notifications", "media", "reports"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
 assert(entrypoint.includes("Unsupported BLS_WORKER_ROLE"), "worker entrypoint must fail closed on unknown roles");
 assert(dockerfile.includes("FROM node:24-"), "worker container must run Node 24");
 assert(dockerfile.includes("npm install --omit=dev --ignore-scripts"), "worker image must install production workspace dependencies");
 assert(docs.includes("repository root") && docs.includes("not `apps/web`"), "deployment runbook must document canonical Vercel root");
-assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media"), "deployment runbook must document independent worker roles");
+assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports"), "deployment runbook must document independent worker roles");
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
 
 const mediaWeb = await readFile(new URL("../apps/web/src/lib/media-upload-service.ts", import.meta.url), "utf8");
@@ -30,9 +30,10 @@ assert(!mediaWeb.includes("ClamAvScanner") && !mediaWeb.includes("clamAvConfigFr
 assert(!mediaWeb.includes("BLS_CLAMAV_HOST"), "Vercel media upload admission must not require the worker-only ClamAV host");
 assert(envMatrix.includes("Do not put `BLS_CLAMAV_HOST` on Vercel"), "environment matrix must keep ClamAV credentials worker-only");
 assert(envMatrix.includes("MEILISEARCH_ADMIN_KEY") && envMatrix.includes("search worker"), "environment matrix must isolate Meilisearch index-management credentials");
-for (const path of ["../workers/postgres-worker.ts", "../workers/search-worker.ts", "../workers/notification-worker.ts", "../workers/media-worker.ts"]) {
+assert(envMatrix.includes("BLS_REPORT_ASYNC_ENABLED") && envMatrix.includes("reports` worker"), "environment matrix must document report worker split");
+for (const path of ["../workers/postgres-worker.ts", "../workers/search-worker.ts", "../workers/notification-worker.ts", "../workers/media-worker.ts", "../workers/report-worker.ts"]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: monorepo-root Vercel build + four isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: monorepo-root Vercel build + five isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
