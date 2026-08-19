@@ -14,6 +14,7 @@ import { emailCommercialAgreementPdfVault } from "../../../../../lib/agreement-d
 import { storeSignedCommercialAgreementVault } from "../../../../../lib/agreement-document-vault-signed";
 import { getCommercialAgreementDocumentVault } from "../../../../../lib/agreement-document-vault-get";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
+import { normalizeSpartaLocalDateTime } from "../../../../../lib/sparta-local-datetime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
       await storeSignedCommercialAgreementVault(principal, {
         agreementId: form.get("agreementId"),
         govgrReference: form.get("govgrReference"),
-        signedAt: form.get("signedAt") || undefined,
+        signedAt: normalizeSpartaLocalDateTime(form.get("signedAt")) || undefined,
         file: signedPdf
       });
       return Response.json(await commercialAgreementWorkspace(), {
@@ -116,7 +117,11 @@ export async function POST(request: Request) {
     let warning: string | undefined;
 
     if (action === "create") {
-      const created = await createCommercialAgreement(principal, body);
+      const created = await createCommercialAgreement(principal, {
+        ...body,
+        startsAt: normalizeSpartaLocalDateTime(body.startsAt),
+        endsAt: normalizeSpartaLocalDateTime(body.endsAt)
+      });
       try {
         await generateCommercialAgreementPdfVault(principal, created.agreementId);
       } catch (error) {
