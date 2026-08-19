@@ -80,6 +80,7 @@ CREATE INDEX IF NOT EXISTS admin_customer_email_messages_pending_idx
 CREATE OR REPLACE FUNCTION enforce_admin_customer_email_revision()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
   content_changed boolean;
