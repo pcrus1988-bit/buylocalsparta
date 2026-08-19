@@ -27,7 +27,8 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Επιχείρηση",
     links: [
       { label: "Οικονομικά", href: "/vendor/finance", icon: "€" },
-      { label: "Analytics", href: "/vendor/analytics", icon: "∿" }
+      { label: "Analytics", href: "/vendor/analytics", icon: "∿" },
+      { label: "Reports", href: "/vendor/reports", icon: "▤" }
     ]
   }
 ];
@@ -67,7 +68,8 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Συμφωνίες vendors", href: "/admin/finance/agreements", icon: "%" },
       { label: "Φορολογία", href: "/admin/tax", icon: "#" },
       { label: "Fairness", href: "/admin/fairness", icon: "⚖" },
-      { label: "Analytics", href: "/admin/analytics", icon: "∿" }
+      { label: "Analytics", href: "/admin/analytics", icon: "∿" },
+      { label: "Reports", href: "/admin/reports", icon: "▤" }
     ]
   },
   {
