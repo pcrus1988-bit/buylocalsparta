@@ -83,7 +83,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
         <div className="workspace-action-bar">
           <span>Account: <strong>{statusLabel[customer.status]}</strong></span>
           <div className="workspace-action-buttons">
-            <Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(customer.id)}`}>Open profile</Link>
+            <Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(customer.id)}`}>Customer 360</Link>
+            <Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(customer.id)}/manage`}>Profile & security</Link>
             {canManage && customer.status === "active" && <AdminActionButton label="Restrict" endpoint="/api/admin/customers/status" csrfToken={data.csrfToken} body={{ customerId: customer.id, status: "restricted" }} reasonPrompt="Reason for restricting this customer account; existing sessions will be revoked" danger />}
             {canManage && customer.status === "pending_verification" && !customer.emailVerified && <AdminActionButton label="Resend verification" endpoint="/api/admin/customers/action" csrfToken={data.csrfToken} body={{ customerId: customer.id, action: "resend_verification" }} reasonPrompt="Reason for resending customer email verification" />}
             {canManage && customer.emailVerified && ["pending_verification", "restricted", "suspended"].includes(customer.status) && <AdminActionButton label="Set active" endpoint="/api/admin/customers/status" csrfToken={data.csrfToken} body={{ customerId: customer.id, status: "active" }} reasonPrompt="Reason for activating this verified customer account" />}
