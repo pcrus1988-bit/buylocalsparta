@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { ReportBuilderFields } from "../../../components/ReportBuilderFields";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { assertAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { listReports, listSavedReportDefinitions, reportBuilderOptions } from "../../../lib/reporting-engine";
 import { resolveReportPrincipal } from "../../../lib/reporting-principal";
@@ -16,6 +17,7 @@ function euro(minor: unknown) { const n = Number(minor ?? 0); return new Intl.Nu
 export default async function AdminReportsPage({ searchParams }: { searchParams: SearchParams }) {
   const sessionPrincipal = await getAdminSession();
   if (!sessionPrincipal) redirect("/admin/login");
+  assertAdminPermission(sessionPrincipal, "analytics.market.read");
   const principal = await resolveReportPrincipal(sessionPrincipal);
   const query = await searchParams;
   const [options, reports, saved] = await Promise.all([
