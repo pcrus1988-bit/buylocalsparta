@@ -3,11 +3,17 @@
 import { redirect } from "next/navigation";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { createReport, emailReport, reportSpecFromForm, saveReportDefinition } from "../../../lib/reporting-engine";
+import { resolveReportPrincipal } from "../../../lib/reporting-principal";
 import { runSavedReport } from "../../../lib/reporting-saved";
 
+async function vendorReportPrincipal() {
+  const sessionPrincipal = await getVendorSession();
+  if (!sessionPrincipal) redirect("/vendor/login");
+  return resolveReportPrincipal(sessionPrincipal);
+}
+
 export async function createVendorReportAction(formData: FormData) {
-  const principal = await getVendorSession();
-  if (!principal) redirect("/vendor/login");
+  const principal = await vendorReportPrincipal();
   let destination: string;
   try {
     const spec = reportSpecFromForm("vendor", principal, formData);
@@ -21,8 +27,7 @@ export async function createVendorReportAction(formData: FormData) {
 }
 
 export async function runSavedVendorReportAction(formData: FormData) {
-  const principal = await getVendorSession();
-  if (!principal) redirect("/vendor/login");
+  const principal = await vendorReportPrincipal();
   const templateId = String(formData.get("templateId") ?? "");
   let destination: string;
   try {
@@ -36,8 +41,7 @@ export async function runSavedVendorReportAction(formData: FormData) {
 }
 
 export async function emailVendorReportAction(formData: FormData) {
-  const principal = await getVendorSession();
-  if (!principal) redirect("/vendor/login");
+  const principal = await vendorReportPrincipal();
   const reportId = String(formData.get("reportId") ?? "");
   let destination: string;
   try {
@@ -51,13 +55,12 @@ export async function emailVendorReportAction(formData: FormData) {
 }
 
 export async function saveVendorReportDefinitionAction(formData: FormData) {
-  const principal = await getVendorSession();
-  if (!principal) redirect("/vendor/login");
+  const principal = await vendorReportPrincipal();
   let destination: string;
   try {
     const spec = reportSpecFromForm("vendor", principal, formData);
-    const name = String(formData.get("templateName") ?? spec.title);
-    await saveReportDefinition("vendor", principal, name, spec);
+    const templateName = String(formData.get("templateName") ?? "").trim();
+    await saveReportDefinition("vendor", principal, templateName || spec.title, spec);
     destination = "/vendor/reports?saved=1";
   } catch (error) {
     const message = error instanceof Error ? error.message : "Αποτυχία αποθήκευσης προτύπου.";

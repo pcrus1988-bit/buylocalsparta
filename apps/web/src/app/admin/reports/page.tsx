@@ -5,6 +5,7 @@ import { ReportBuilderFields } from "../../../components/ReportBuilderFields";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
 import { listReports, listSavedReportDefinitions, reportBuilderOptions } from "../../../lib/reporting-engine";
+import { resolveReportPrincipal } from "../../../lib/reporting-principal";
 import { createAdminReportAction, emailAdminReportAction, runSavedAdminReportAction, saveAdminReportDefinitionAction } from "./actions";
 
 export const metadata: Metadata = { title: "Admin Reports", robots: { index: false, follow: false } };
@@ -13,8 +14,9 @@ function first(v: string | string[] | undefined) { return Array.isArray(v) ? v[0
 function euro(minor: unknown) { const n = Number(minor ?? 0); return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format((Number.isFinite(n) ? n : 0) / 100); }
 
 export default async function AdminReportsPage({ searchParams }: { searchParams: SearchParams }) {
-  const principal = await getAdminSession();
-  if (!principal) redirect("/admin/login");
+  const sessionPrincipal = await getAdminSession();
+  if (!sessionPrincipal) redirect("/admin/login");
+  const principal = await resolveReportPrincipal(sessionPrincipal);
   const query = await searchParams;
   const [options, reports, saved] = await Promise.all([
     reportBuilderOptions("admin", principal), listReports("admin", principal), listSavedReportDefinitions("admin", principal)
@@ -39,18 +41,20 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     {error ? <section className="shell vendor-section"><article className="workspace-queue-card" style={{ borderColor: "currentColor" }}><strong>Η αναφορά δεν ολοκληρώθηκε</strong><p>{error}</p></article></section> : null}
     {first(query.created) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Η αναφορά δημιουργήθηκε.</strong><p>Το PDF, η περίληψη, τα datasets και το audit trail έχουν αποθηκευτεί.</p></article></section> : null}
     {first(query.emailed) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Το report email στάλθηκε.</strong></article></section> : null}
-    {first(query.saved) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Το report template αποθηκεύτηκε.</strong></article></section> : null}
+    {first(query.saved) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Η τρέχουσα marketplace report configuration αποθηκεύτηκε.</strong></article></section> : null}
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="New report" title="Marketplace Report Builder" note="Χωρίς vendor filter το scope είναι ολόκληρο το marketplace. Με vendor filter το ίδιο engine λειτουργεί ως drill-down στον συγκεκριμένο συνεργάτη." />
       <form action={createAdminReportAction}>
         <ReportBuilderFields admin options={options} />
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="button" type="submit">Generate comprehensive PDF</button></div>
-      </form>
-      <form action={saveAdminReportDefinitionAction} className="workspace-queue-card" style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
-        <input type="hidden" name="preset" value="full" /><input type="hidden" name="includeDetails" value="on" />
-        <label style={{ flex: "1 1 280px" }}><small>Γρήγορο marketplace template</small><input name="templateName" required placeholder="π.χ. Monthly marketplace board report" style={{ width: "100%" }} /></label>
-        <button className="button button-secondary" type="submit">Save full template</button>
+        <article className="workspace-queue-card" style={{ marginTop: 12 }}>
+          <label><small>Όνομα saved configuration — προαιρετικό</small><input name="templateName" placeholder="π.χ. Monthly marketplace board report" style={{ width: "100%" }} /></label>
+          <small style={{ display: "block", marginTop: 7, opacity: .72 }}>Το «Save configuration» αποθηκεύει το πλήρες τρέχον scope: vendor/market, category tree, product, brand, location, domains, dates και comparison settings.</small>
+        </article>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+          <button className="button" type="submit">Generate comprehensive PDF</button>
+          <button className="button button-secondary" type="submit" formAction={saveAdminReportDefinitionAction}>Save configuration</button>
+        </div>
       </form>
     </section>
 
