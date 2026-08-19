@@ -4,6 +4,8 @@ import { VendorDailyClient } from "../../components/VendorDailyClient";
 import { getVendorSession } from "../../lib/vendor-session";
 import { vendorDashboard } from "../../lib/vendor-runtime";
 import { synchronizeOperationalEvents, vendorAdviceWorkspace } from "../../lib/vendor-backoffice-service";
+import { vendorOrderNotificationWorkspace } from "../../lib/order-sla";
+import { productionDatabaseConfigured } from "../../lib/postgres-runtime";
 
 export const metadata: Metadata = {
   title: "KONTA MOY Daily",
@@ -11,15 +13,22 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }
 };
 
+const emptySlaWorkspace = {
+  metrics: { requiringAction: 0, breached: 0, escalated: 0, unread: 0 },
+  cases: [],
+  notifications: []
+};
+
 export default async function VendorDailyPage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/daily/login");
 
   synchronizeOperationalEvents();
-  const [dashboard, advice] = await Promise.all([
+  const [dashboard, advice, sla] = await Promise.all([
     vendorDashboard(principal),
-    vendorAdviceWorkspace(principal)
+    vendorAdviceWorkspace(principal),
+    productionDatabaseConfigured() ? vendorOrderNotificationWorkspace(principal) : Promise.resolve(emptySlaWorkspace)
   ]);
 
-  return <VendorDailyClient dashboard={dashboard} advice={advice} />;
+  return <VendorDailyClient dashboard={dashboard} advice={advice} sla={sla} />;
 }
