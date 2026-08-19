@@ -5,7 +5,7 @@
   "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
   "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
-  "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
+  "0007_settlement_controls.sql": "11daa83fd4d8e75a19ad9250ee588f1b5cee28200e9dd71e783e875d5bf0b291",
   "0008_rls_platform_scope.sql": "ba5afa7a0957d87babbaf0950003424ad151986143d1becdf2b3786e4a48c8d3",
   "0009_media_compliance_jobs.sql": "7a613be9c529567d98296007b38475c244153db1548812f9172f7ff0a961f051",
   "0010_shipping_provider_events.sql": "2ce4e6fad329d1b0b8e3126f4fba293d5d6ca4d3229b6080117ffa9384bcf0f3",
@@ -53,5 +53,6 @@
   "0071_password_reset_token_acl_hardening.sql": "b500d3620b0f5fe33a29445477dd46bc5d8f15a6c578f1bdfcae1587f21f6228",
   "0072_customer_addresses_checkout.sql": "1171cff82370b0b96c1dd057efee29077ff48d1cdd4f0e4021bee1b426ed646f",
   "0073_password_reset_runtime_rls.sql": "7c4ff66e5be030b93c606eea1910707b03456bfa873027325af73b331e35dc5e",
-  "0074_server_private_reporting_rls.sql": "9a0b09cbd534811c9203bf9e50d11063194614365f698071e56eb06ee90b63b1"
+  "0074_server_private_reporting_rls.sql": "9a0b09cbd534811c9203bf9e50d11063194614365f698071e56eb06ee90b63b1",
+  "0075_customer_fiscal_delivery.sql": "c53e3c154c05e1debdfeb17d47e00cdbec90111c76ece361377eb142f8b95cb2"
 }
