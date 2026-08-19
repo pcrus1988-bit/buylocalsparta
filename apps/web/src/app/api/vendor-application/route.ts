@@ -6,6 +6,7 @@ import {
   vendorApplicationReadiness,
   type VendorApplicationInput
 } from "../../../lib/vendor-application-runtime";
+import { notifyOperationsOfVendorApplication, sendVendorApplicationReceiptEmail } from "../../../lib/vendor-email-workflows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,22 @@ export async function POST(request: Request) {
       requestedPlanCode: vendorPlanField(body.requestedPlanCode)
     };
     const receipt = await submitVendorApplication({ application, principal, now });
+
+    await Promise.allSettled([
+      sendVendorApplicationReceiptEmail({
+        to: application.contactEmail,
+        tradingName: application.tradingName,
+        applicationId: receipt.applicationId
+      }),
+      notifyOperationsOfVendorApplication({
+        applicationId: receipt.applicationId,
+        tradingName: application.tradingName,
+        legalName: application.legalName,
+        contactEmail: application.contactEmail,
+        requestedPlanCode: application.requestedPlanCode
+      })
+    ]);
+
     return Response.json(
       {
         status: "verification_pending",
