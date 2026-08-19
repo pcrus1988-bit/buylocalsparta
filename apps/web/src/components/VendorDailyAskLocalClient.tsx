@@ -7,10 +7,22 @@ import { useState } from "react";
 type Advice = {
   csrfToken: string;
   conversations: readonly Array<{ id: string; state: string; canonicalVariantId?: string; messages: readonly Array<{ id: string; senderType: string; body: string; createdAt?: number }> }>;
-  counteroffers: readonly Array<{ id: string; status: string; canonicalVariantId?: string; need?: string }>;
+  counteroffers: readonly Array<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
 };
 
 const when = (value?: number) => value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
+
+function needSummary(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["description", "query", "need", "title", "message"]) {
+      const candidate = record[key];
+      if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    }
+  }
+  return "Αίτημα πελάτη";
+}
 
 export function VendorDailyAskLocalClient({ initial }: { initial: Advice }) {
   const router = useRouter();
@@ -46,7 +58,7 @@ export function VendorDailyAskLocalClient({ initial }: { initial: Advice }) {
     <div style={{ width: "min(100% - 32px, 820px)", margin: "0 auto", paddingTop: 24, display: "grid", gap: 24 }}>
       <section>
         <div style={{ marginBottom: 12 }}><span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".13em", textTransform: "uppercase", opacity: .55 }}>Assigned requests</span><h1 style={{ margin: "4px 0", fontSize: 30, letterSpacing: "-.04em" }}>Ask Local</h1><p style={{ margin: 0, opacity: .62 }}>Αιτήματα και σχετικές συνομιλίες που έχουν ανατεθεί στο κατάστημά σου.</p></div>
-        {openRequests.length ? <div style={{ display: "grid", gap: 10 }}>{openRequests.map((request) => <article key={request.id} style={{ background: "white", border: "1px solid rgba(23,25,20,.09)", borderRadius: 18, padding: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 14 }}><strong>{request.canonicalVariantId ?? "Γενικό αίτημα"}</strong><span style={{ fontSize: 12, fontWeight: 800, background: "#f0eee6", borderRadius: 999, padding: "5px 9px" }}>{request.status}</span></div><p style={{ margin: "10px 0 0", opacity: .72 }}>{request.need ?? "Αίτημα πελάτη"}</p></article>)}</div> : <div style={{ padding: 18, borderRadius: 18, background: "white", border: "1px solid rgba(23,25,20,.09)", opacity: .65 }}>Δεν υπάρχουν ανοιχτά Ask Local αιτήματα.</div>}
+        {openRequests.length ? <div style={{ display: "grid", gap: 10 }}>{openRequests.map((request) => <article key={request.id} style={{ background: "white", border: "1px solid rgba(23,25,20,.09)", borderRadius: 18, padding: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 14 }}><strong>{request.canonicalVariantId ?? "Γενικό αίτημα"}</strong><span style={{ fontSize: 12, fontWeight: 800, background: "#f0eee6", borderRadius: 999, padding: "5px 9px" }}>{request.status}</span></div><p style={{ margin: "10px 0 0", opacity: .72 }}>{needSummary(request.need)}</p></article>)}</div> : <div style={{ padding: 18, borderRadius: 18, background: "white", border: "1px solid rgba(23,25,20,.09)", opacity: .65 }}>Δεν υπάρχουν ανοιχτά Ask Local αιτήματα.</div>}
       </section>
 
       <section>
