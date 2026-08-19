@@ -1,4 +1,4 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { requireAdminSession } from "../../../../../lib/admin-session";
 import {
   adminCreateCustomerSupportCase,
   adminCustomerSupportCaseAction,
@@ -9,7 +9,7 @@ import {
   type CustomerSupportCategory,
   type CustomerSupportPriority,
   type CustomerSupportStatus
-} from "../../../../../../lib/admin-customer-support";
+} from "../../../../../lib/admin-customer-support";
 
 export async function POST(request: Request) {
   try {
