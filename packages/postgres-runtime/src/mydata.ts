@@ -3,6 +3,8 @@ import { PostgresUnitOfWork, type SessionPrincipal, type SqlPool, type SqlRow } 
 import { AadeMyDataClient, type MyDataTransmissionResult } from "@buy-local-sparta/aade-mydata";
 import { platformScope } from "./admin-auth.ts";
 
+export type FiscalIssuanceChannel = "timologio" | "erp";
+
 export type MyDataDocumentProjection = Readonly<{
   id:string; orderId?:string; type:string; status:string; transmissionStatus:string; grossMinor:number; currency:string;
   mappingVersion?:string; invoiceTypeCode?:string; documentNumber?:string; aadeMark?:string; aadeUid?:string; qrUrl?:string; lastError?:string; createdAt:number;
@@ -12,17 +14,25 @@ export class PostgresMyDataService {
   readonly #uow:PostgresUnitOfWork;
   readonly #client:AadeMyDataClient;
   readonly #issuanceEnabled:boolean;
+  readonly #issuanceChannel:FiscalIssuanceChannel;
   readonly #approvedMappingVersion?:string;
-  constructor(pool:SqlPool,input:{client:AadeMyDataClient;issuanceEnabled:boolean;approvedMappingVersion?:string}){this.#uow=new PostgresUnitOfWork(pool);this.#client=input.client;this.#issuanceEnabled=input.issuanceEnabled;this.#approvedMappingVersion=input.approvedMappingVersion?.trim()||undefined;}
+  constructor(pool:SqlPool,input:{client:AadeMyDataClient;issuanceEnabled:boolean;issuanceChannel?:FiscalIssuanceChannel;approvedMappingVersion?:string}){this.#uow=new PostgresUnitOfWork(pool);this.#client=input.client;this.#issuanceEnabled=input.issuanceEnabled;this.#issuanceChannel=input.issuanceChannel??"timologio";this.#approvedMappingVersion=input.approvedMappingVersion?.trim()||undefined;}
 
-  async workspace(principal:SessionPrincipal):Promise<{environment:string;specVersion:string;issuanceEnabled:boolean;approvedMappingVersion?:string;documents:readonly MyDataDocumentProjection[]}>{
+  async workspace(principal:SessionPrincipal):Promise<{environment:string;specVersion:string;issuanceEnabled:boolean;issuanceChannel:FiscalIssuanceChannel;approvedMappingVersion?:string;documents:readonly MyDataDocumentProjection[]}>{
     const documents=await this.#uow.withTransaction(platformScope(principal.userId),async tx=>{const r=await tx.query<SqlRow>(`SELECT td.public_id,o.public_id AS order_public_id,td.type,td.status,td.transmission_status,td.gross_minor,td.currency,td.mapping_version,td.invoice_type_code,td.document_number,td.aade_mark,td.aade_uid,td.aade_qr_url,td.last_error,td.created_at FROM tax_documents td LEFT JOIN customer_orders o ON o.id=td.order_id ORDER BY td.created_at DESC LIMIT 250`);return r.rows.map(row=>({id:text(row.public_id),orderId:optional(row.order_public_id),type:text(row.type),status:text(row.status),transmissionStatus:text(row.transmission_status),grossMinor:int(row.gross_minor),currency:text(row.currency),mappingVersion:optional(row.mapping_version),invoiceTypeCode:optional(row.invoice_type_code),documentNumber:optional(row.document_number),aadeMark:optional(row.aade_mark),aadeUid:optional(row.aade_uid),qrUrl:optional(row.aade_qr_url),lastError:optional(row.last_error),createdAt:epoch(row.created_at)}))},{readOnly:true});
-    return{environment:this.#client.environment,specVersion:this.#client.specVersion,issuanceEnabled:this.#issuanceEnabled,approvedMappingVersion:this.#approvedMappingVersion,documents};
+    return{environment:this.#client.environment,specVersion:this.#client.specVersion,issuanceEnabled:this.#issuanceEnabled,issuanceChannel:this.#issuanceChannel,approvedMappingVersion:this.#approvedMappingVersion,documents};
+  }
+
+  async connectivityCheck(now=Date.now()):Promise<{ok:true;readOnly:true;operation:"RequestMyIncome";environment:string;specVersion:string;checkedAt:number;responseBytes:number}>{
+    const date=aadeDate(now);
+    const xml=await this.#client.requestMyIncome({dateFrom:date,dateTo:date});
+    return{ok:true,readOnly:true,operation:"RequestMyIncome",environment:this.#client.environment,specVersion:this.#client.specVersion,checkedAt:now,responseBytes:Buffer.byteLength(xml,"utf8")};
   }
 
   async transmitPreparedDocument(principal:SessionPrincipal,input:{documentId:string;now?:number}):Promise<MyDataTransmissionResult>{
-    if(!this.#issuanceEnabled)throw new Error("AADE myDATA issuance is disabled until the accounting mapping is approved");
-    if(!this.#approvedMappingVersion)throw new Error("BLS_MYDATA_MAPPING_VERSION is required before issuance");
+    if(this.#issuanceChannel!=="erp")throw new Error("Direct ERP SendInvoices is disabled because the configured fiscal issuance channel is timologio");
+    if(!this.#issuanceEnabled)throw new Error("AADE myDATA ERP issuance is disabled until the accounting mapping is approved");
+    if(!this.#approvedMappingVersion)throw new Error("BLS_MYDATA_MAPPING_VERSION is required before ERP issuance");
     const now=input.now??Date.now();
     const prepared=await this.#uow.withTransaction(platformScope(principal.userId),async tx=>{const r=await tx.query<SqlRow>(`SELECT id::text AS document_uuid,public_id,status,transmission_status,mapping_version,payload_snapshot,aade_mark FROM tax_documents WHERE public_id=$1 FOR UPDATE`,[input.documentId]);if(!r.rowCount)throw new Error("Tax document not found");const row=r.rows[0];if(optional(row.aade_mark))return{alreadyAccepted:true as const};if(text(row.mapping_version)!==this.#approvedMappingVersion)throw new Error("Tax document mapping version is not the approved production mapping");if(text(row.transmission_status)!=="ready")throw new Error(`Tax document is ${text(row.transmission_status)}, not ready for transmission`);const payload=json(row.payload_snapshot);const xml=typeof payload.mydataXml==="string"?payload.mydataXml.trim():"";if(!xml)throw new Error("Prepared tax document is missing accountant-approved myDATA XML");const hash=createHash("sha256").update(xml).digest("hex");const attemptKey=`send:${input.documentId}:${hash}`;const existing=await tx.query<SqlRow>(`SELECT status FROM mydata_transmission_attempts WHERE tax_document_id=$1 AND operation='send_invoice' AND attempt_key=$2`,[text(row.document_uuid),attemptKey]);if(existing.rowCount){const status=text(existing.rows[0].status);if(status==="accepted")return{alreadyAccepted:true as const};throw new Error(`Existing AADE transmission attempt is ${status}; reconcile it instead of retrying blindly`);}await tx.query(`INSERT INTO mydata_transmission_attempts(public_id,tax_document_id,operation,attempt_key,environment,spec_version,request_hash,status,started_at) VALUES($1,$2,'send_invoice',$3,$4,$5,$6,'started',$7)`,[`mda_${randomUUID().replaceAll("-","")}`,text(row.document_uuid),attemptKey,this.#client.environment,this.#client.specVersion,hash,new Date(now)]);await tx.query("UPDATE tax_documents SET transmission_status='transmitting',last_transmission_at=$2,last_error=NULL WHERE id=$1",[text(row.document_uuid),new Date(now)]);return{alreadyAccepted:false as const,documentUuid:text(row.document_uuid),attemptKey,xml};},{isolation:"serializable"});
     if(prepared.alreadyAccepted)return{ok:true,items:[],rawXml:""};
@@ -32,4 +42,6 @@ export class PostgresMyDataService {
     return result;
   }
 }
+
+function aadeDate(epochMs:number):string{const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(epochMs));const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));return`${values.day}/${values.month}/${values.year}`;}
 function text(v:unknown):string{if(typeof v!=="string"||!v)throw new Error("Invalid database text");return v}function optional(v:unknown):string|undefined{return typeof v==="string"&&v? v:undefined}function int(v:unknown):number{const n=Number(v);if(!Number.isSafeInteger(n))throw new Error("Invalid database integer");return n}function epoch(v:unknown):number{const n=v instanceof Date?v.getTime():new Date(String(v)).getTime();if(!Number.isFinite(n))throw new Error("Invalid database timestamp");return n}function json(v:unknown):Record<string,unknown>{if(v&&typeof v==="object"&&!Array.isArray(v))return v as Record<string,unknown>;if(typeof v==="string")try{const p=JSON.parse(v);return p&&typeof p==="object"&&!Array.isArray(p)?p:{};}catch{return{}}return{}}
