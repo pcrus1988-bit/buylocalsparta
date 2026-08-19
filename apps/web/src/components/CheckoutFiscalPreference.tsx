@@ -14,7 +14,8 @@ export function CheckoutFiscalPreference() {
 
   function select(next: FiscalChoice) {
     setChoice(next);
-    document.cookie = `km_checkout_fiscal=${next}; Path=/; Max-Age=86400; SameSite=Lax; Secure`;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `km_checkout_fiscal=${next}; Path=/; Max-Age=86400; SameSite=Lax${secure}`;
   }
 
   return <section className="checkout-form" aria-labelledby="fiscal-document-title">
