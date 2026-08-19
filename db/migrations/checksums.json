@@ -1,7 +1,7 @@
 {
   "0001_core.sql": "efd71870ec8ac483f4dbc136b4d9251fea56b56a02e874a9dba913d0a333d853",
   "0002_runtime_hardening.sql": "195d6847d888f1eabff65e4c94a43d021ec4f45deb8d7c6015e5f9d330fcd47e",
-  "0003_identity_private_offers_notifications.sql": "45a5fbc836a4a47d1c3d1579e4f5258d3e49af39462c7c7054fb3ae49ee43c421",
+  "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
   "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
   "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
@@ -27,7 +27,7 @@
   "0026_customer_personalization_privacy.sql": "98f2be393ce4658bec2e23a65fc000e1025de29a802cd4e6a6689a29487e3902",
   "0027_saved_product_alerts_recommendations.sql": "192298e8cfcd7e8bcb2687491fb2e08474194abc3f76691d675148883f19f20d",
   "0028_saved_search_notification_center.sql": "51a3289c93e015df80cbbb74916d56aef923f98a12b1b7344a0ab5965e73ab99",
-  "0029_customer_account_runtime.sql": "487e018ec00df1ce23817c53fd0b4f6627f231c7a90a28e9c47d95044cb57",
+  "0029_customer_account_runtime.sql": "487e018ec00df1ce23817c53fd0b4f662afcfa52cc05aa4d38cfdbb279aa1b32",
   "0030_customer_commerce_runtime.sql": "23091f5433ff818dd1cb4814ae46a51eb6627f231c7a90a28e9c47d95044cb57",
   "0031_viva_payments.sql": "39374fa723f1f18f01e9429db8fdd0df5854071b450b886faa77034eff111095",
   "0032_vendor_rescue_paid_reservation_hardening.sql": "48d6c2819f625b457205b1c97cace6add74e2dd5781dffe928f2a13053104989",
