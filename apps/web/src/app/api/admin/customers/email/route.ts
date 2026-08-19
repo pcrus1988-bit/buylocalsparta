@@ -1,10 +1,10 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { requireAdminSession } from "../../../../../lib/admin-session";
 import {
   adminApproveCustomerEmail,
   adminCancelCustomerEmail,
   adminSaveCustomerEmailDraft,
   adminSendApprovedCustomerEmail
-} from "../../../../../../lib/admin-customer-email";
+} from "../../../../../lib/admin-customer-email";
 
 const ACTIONS = ["save", "approve", "send", "cancel"] as const;
 type Action = (typeof ACTIONS)[number];
