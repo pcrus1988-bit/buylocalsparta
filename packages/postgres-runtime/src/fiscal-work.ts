@@ -42,6 +42,48 @@ export class PostgresFiscalWorkService {
     this.#uow = new PostgresUnitOfWork(pool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
   }
 
+  async lockCheckoutSnapshot(input: {
+    customerId: string;
+    orderId: string;
+    snapshot: Readonly<Record<string, unknown>>;
+    now: number;
+  }): Promise<void> {
+    const customerId = bounded(input.customerId, 128, "Customer ID");
+    const orderId = bounded(input.orderId, 128, "Order ID");
+    const documentType = optionalText(input.snapshot.documentType);
+    if (documentType !== "receipt" && documentType !== "invoice") throw new FiscalWorkError("Fiscal checkout snapshot must select receipt or invoice");
+    if (input.snapshot.source !== "checkout_address_lock") throw new FiscalWorkError("Fiscal checkout snapshot must be derived from the locked billing address");
+
+    await this.#uow.withTransaction({ actorUserId: customerId, marketId: "sparta", platformAccess: true }, async (tx) => {
+      const result = await tx.query<SqlRow>(`
+        SELECT o.id::text AS order_uuid,o.checkout_address_locked_at,o.billing_address_snapshot
+          FROM customer_orders o
+          JOIN users u ON u.id=o.user_id
+         WHERE (o.public_id=$1 OR o.id::text=$1)
+           AND (u.public_id=$2 OR u.id::text=$2)
+         FOR UPDATE OF o
+      `, [orderId, customerId]);
+      if (result.rowCount !== 1) throw new FiscalWorkError("Order not found for fiscal checkout lock");
+      const row = result.rows[0];
+      if (!row.checkout_address_locked_at) throw new FiscalWorkError("Billing address must be locked before the fiscal document choice");
+      const billing = object(row.billing_address_snapshot);
+      const existing = billing.fiscal;
+      if (existing !== undefined) {
+        if (!sameFiscalIdentity(existing, input.snapshot)) throw new FiscalWorkError("The order fiscal document choice is already locked and cannot be changed");
+        return;
+      }
+      const updated = await tx.query<SqlRow>(`
+        UPDATE customer_orders
+           SET billing_address_snapshot=jsonb_set(billing_address_snapshot,'{fiscal}',$2::jsonb,true),updated_at=$3
+         WHERE id=$1
+           AND checkout_address_locked_at IS NOT NULL
+           AND NOT (billing_address_snapshot ? 'fiscal')
+         RETURNING id
+      `, [text(row.order_uuid, "order_uuid"), JSON.stringify(input.snapshot), new Date(input.now)]);
+      if (updated.rowCount !== 1) throw new FiscalWorkError("Failed to lock fiscal checkout snapshot", true);
+    }, { isolation: "serializable" });
+  }
+
   async workspace(limit = 250): Promise<readonly FiscalDocumentProjection[]> {
     if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 1000) throw new FiscalWorkError("Invalid fiscal workspace limit");
     return this.#uow.withTransaction({ marketId: "sparta", platformAccess: true }, async (tx) => {
@@ -312,6 +354,18 @@ function validIsoDate(value: string): boolean {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function sameFiscalIdentity(existing: unknown, next: Readonly<Record<string, unknown>>): boolean {
+  const current = object(existing);
+  if (current.documentType !== next.documentType || current.source !== next.source) return false;
+  if (next.documentType === "receipt") return true;
+  const currentBusiness = object(current.business);
+  const nextBusiness = object(next.business);
+  return optionalText(currentBusiness.legalName) === optionalText(nextBusiness.legalName)
+    && optionalText(currentBusiness.vatNumber) === optionalText(nextBusiness.vatNumber)
+    && optionalText(currentBusiness.email) === optionalText(nextBusiness.email)
+    && JSON.stringify(object(currentBusiness.address)) === JSON.stringify(object(nextBusiness.address));
 }
 
 function object(value: unknown): Record<string, unknown> {
