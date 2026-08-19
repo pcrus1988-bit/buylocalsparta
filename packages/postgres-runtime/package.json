@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./customer-addresses": "./src/customer-addresses.ts",
-    "./accounting-policy": "./src/accounting-policy.ts"
+    "./accounting-policy": "./src/accounting-policy.ts",
+    "./product-tax-profiles": "./src/product-tax-profiles.ts"
   },
   "dependencies": {
     "@buy-local-sparta/core": "0.24.0",
