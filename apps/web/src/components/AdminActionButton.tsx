@@ -11,7 +11,16 @@ export function AdminActionButton({ label, endpoint, csrfToken, body = {}, reaso
   const [error, setError] = useState("");
   async function run() {
     const payload: Record<string, unknown> = { ...body };
-    if (reasonPrompt) { const reason = window.prompt(reasonPrompt); if (reason === null) return; payload.reason = reason; }
+    if (reasonPrompt) {
+      const reason = window.prompt(reasonPrompt);
+      if (reason === null) return;
+      const normalizedReason = reason.trim();
+      if (normalizedReason.length < 3) {
+        setError("Απαιτείται αιτιολογία τουλάχιστον 3 χαρακτήρων.");
+        return;
+      }
+      payload.reason = normalizedReason;
+    }
     if (extraPrompt) { const value = window.prompt(extraPrompt.message); if (value === null) return; payload[extraPrompt.field] = value; }
     setBusy(true); setError("");
     try {
