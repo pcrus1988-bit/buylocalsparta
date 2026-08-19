@@ -1,0 +1,280 @@
+.planSection {
+  padding-top: 28px;
+}
+
+.planIntro {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 32px;
+  margin-bottom: 28px;
+}
+
+.planIntroText {
+  max-width: 720px;
+}
+
+.planIntroText h2 {
+  margin-bottom: 12px;
+}
+
+.planIntroText p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.planCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 430px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--white);
+  box-shadow: 0 16px 45px rgba(24, 48, 39, 0.06);
+}
+
+.planCardFeatured {
+  border-color: var(--olive);
+  box-shadow: 0 22px 60px rgba(24, 48, 39, 0.13);
+}
+
+.planBadge {
+  align-self: flex-start;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #e8e3d4;
+  color: var(--olive-dark);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+
+.planCardFeatured .planBadge {
+  background: var(--ink);
+  color: white;
+}
+
+.planName {
+  margin: 18px 0 8px;
+  font-size: 34px;
+}
+
+.planBestFor {
+  min-height: 48px;
+  margin: 0 0 22px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.planMetrics {
+  display: grid;
+  margin: 0 0 22px;
+  border-top: 1px solid var(--line);
+}
+
+.planMetric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.planMetric span {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.planMetric strong {
+  text-align: right;
+  font-size: 16px;
+}
+
+.planNote {
+  margin: 0 0 24px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.planAction {
+  width: 100%;
+  margin-top: auto;
+}
+
+.planFootnote {
+  margin: 18px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.compareStrip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.compareStrip > div {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, .62);
+}
+
+.compareStrip strong,
+.compareStrip span {
+  display: block;
+}
+
+.compareStrip strong {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.compareStrip span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.applyPlanSelector {
+  margin: 34px 0 44px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #e9e5da;
+}
+
+.applyPlanSelectorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.applyPlanSelectorHeader h2 {
+  margin: 6px 0 0;
+  font-size: clamp(28px, 3vw, 42px);
+}
+
+.applyPlanSelectorHeader p {
+  max-width: 430px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.applyPlanGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.applyPlanCard {
+  display: block;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 253, 248, .76);
+  transition: transform .2s ease, border-color .2s ease, background .2s ease;
+}
+
+.applyPlanCard:hover {
+  transform: translateY(-2px);
+  background: var(--white);
+}
+
+.applyPlanCardSelected {
+  border-color: var(--ink);
+  background: var(--white);
+  box-shadow: 0 12px 30px rgba(24, 48, 39, .09);
+}
+
+.applyPlanCard strong,
+.applyPlanCard span,
+.applyPlanCard small {
+  display: block;
+}
+
+.applyPlanCard strong {
+  margin-bottom: 10px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 23px;
+  font-weight: 500;
+}
+
+.applyPlanCard span {
+  margin: 4px 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.applyPlanCard small {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.selectedLabel {
+  margin-top: 12px !important;
+  color: var(--olive-dark);
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+@media (max-width: 960px) {
+  .planIntro,
+  .applyPlanSelectorHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .planGrid,
+  .applyPlanGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .planCard {
+    min-height: 0;
+  }
+
+  .compareStrip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .planSection {
+    padding-top: 12px;
+  }
+
+  .planCard,
+  .applyPlanSelector {
+    padding: 20px;
+  }
+
+  .compareStrip {
+    grid-template-columns: 1fr;
+  }
+}
