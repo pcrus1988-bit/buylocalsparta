@@ -10,9 +10,32 @@ import { generateCommercialAgreementPdfVault } from "../../../../../lib/agreemen
 import { emailCommercialAgreementPdfVault } from "../../../../../lib/agreement-document-vault-email";
 import { storeSignedCommercialAgreementVault } from "../../../../../lib/agreement-document-vault-signed";
 import { getCommercialAgreementDocumentVault } from "../../../../../lib/agreement-document-vault-get";
+import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+async function assertFinanceActivationDoesNotBypassOnboarding(agreementId: unknown) {
+  if (typeof agreementId !== "string" || !agreementId.trim()) throw new Error("agreementId is required");
+  const db = getProductionPostgresRuntime().nativePool;
+  const result = await db.query(`
+    SELECT app.public_id AS application_public_id,app.status::text AS application_status
+    FROM vendor_commercial_agreements agreement
+    LEFT JOIN LATERAL (
+      SELECT public_id,status
+      FROM vendor_applications
+      WHERE vendor_id=agreement.vendor_id
+      ORDER BY updated_at DESC,created_at DESC
+      LIMIT 1
+    ) app ON true
+    WHERE agreement.public_id=$1 OR agreement.id::text=$1
+  `, [agreementId.trim()]);
+  if (!result.rowCount) throw new Error("Agreement not found");
+  const applicationStatus = result.rows[0].application_status ? String(result.rows[0].application_status) : undefined;
+  if (applicationStatus && applicationStatus !== "active") {
+    throw new Error(`Η σύμβαση είναι έτοιμη, αλλά η αίτηση βρίσκεται στο στάδιο ${applicationStatus}. Η τελική ενεργοποίηση vendor γίνεται από Admin → Vendors όταν ολοκληρωθούν catalog/test readiness.`);
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -81,6 +104,7 @@ export async function POST(request: Request) {
     } else if (action === "verify_govgr") {
       await verifyCommercialAgreementGovgr(principal, body);
     } else if (action === "activate") {
+      await assertFinanceActivationDoesNotBypassOnboarding(body.agreementId);
       await activateCommercialAgreement(principal, body);
     } else if (action === "status") {
       await changeCommercialAgreementStatus(principal, body);
