@@ -18,12 +18,12 @@ export type VendorActivationAccess = Readonly<{
   deliveryKey: string;
 }>;
 
-export async function prepareVendorActivationAccess(input: { vendorId: string; now: number }): Promise<VendorActivationAccess> {
+export async function prepareVendorActivationAccess(input: { vendorId: string; actorUserId: string; now: number }): Promise<VendorActivationAccess> {
   if (!productionDatabaseConfigured()) throw new Error("Vendor activation access requires the production database");
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
 
-  return uow.withTransaction(platformScope("vendor-activation-access"), async (tx) => {
+  return uow.withTransaction(platformScope(input.actorUserId), async (tx) => {
     const result = await tx.query<SqlRow>(`
       SELECT
         v.public_id AS vendor_public_id,
