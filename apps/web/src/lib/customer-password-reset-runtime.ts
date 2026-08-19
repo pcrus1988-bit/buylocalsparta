@@ -101,7 +101,7 @@ export async function requestCustomerPasswordReset(input: { email: string; now: 
   return { accepted: true, delivered: true };
 }
 
-export async function consumeCustomerPasswordReset(input: { token: string; password: string; now: number }): Promise<{ userId: string }> {
+export async function consumeCustomerPasswordReset(input: { token: string; password: string; now: number }): Promise<{ userId: string; purpose: "password_reset" | "vendor_activation" }> {
   const token = input.token.trim();
   if (!token || !verifyPasswordResetTokenSignature(token)) throw new Error("Ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή έχει λήξει.");
   if (input.password !== input.password.trim()) throw new Error("Ο κωδικός δεν μπορεί να αρχίζει ή να τελειώνει με κενό.");
@@ -118,20 +118,34 @@ export async function consumeCustomerPasswordReset(input: { token: string; passw
         WHERE token_hash=$1
           AND consumed_at IS NULL
           AND expires_at>$2
-      RETURNING user_id::text AS user_id`,
+      RETURNING user_id::text AS user_id,public_id`,
       [tokenHash(token), new Date(input.now)]
     );
     if (consumed.rowCount !== 1) throw new Error("Ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή έχει λήξει.");
     const userUuid = String(consumed.rows[0]?.user_id ?? "");
+    const tokenPublicId = String(consumed.rows[0]?.public_id ?? "");
+    const purpose = tokenPublicId.startsWith("vendor-activation-") ? "vendor_activation" as const : "password_reset" as const;
 
-    const updated = await client.query(
-      `UPDATE users
-          SET password_hash=$2, updated_at=$3
-        WHERE id=$1
-          AND status <> 'closed'
-      RETURNING public_id`,
-      [userUuid, passwordHash, new Date(input.now)]
-    );
+    const updated = purpose === "vendor_activation"
+      ? await client.query(
+          `UPDATE users
+              SET password_hash=$2,
+                  status='active',
+                  email_verified_at=COALESCE(email_verified_at,$3),
+                  updated_at=$3
+            WHERE id=$1
+              AND status <> 'closed'
+          RETURNING public_id`,
+          [userUuid, passwordHash, new Date(input.now)]
+        )
+      : await client.query(
+          `UPDATE users
+              SET password_hash=$2, updated_at=$3
+            WHERE id=$1
+              AND status <> 'closed'
+          RETURNING public_id`,
+          [userUuid, passwordHash, new Date(input.now)]
+        );
     if (updated.rowCount !== 1) throw new Error("Ο λογαριασμός δεν είναι διαθέσιμος για επαναφορά κωδικού.");
 
     // Password changes invalidate every existing browser/session immediately.
@@ -144,7 +158,7 @@ export async function consumeCustomerPasswordReset(input: { token: string; passw
       [userUuid, new Date(input.now)]
     );
     await client.query("COMMIT");
-    return { userId: String(updated.rows[0]?.public_id ?? "") };
+    return { userId: String(updated.rows[0]?.public_id ?? ""), purpose };
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch {}
     throw error;
