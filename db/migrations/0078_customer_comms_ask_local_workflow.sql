@@ -116,4 +116,22 @@ BEFORE UPDATE ON admin_customer_email_messages
 FOR EACH ROW
 EXECUTE FUNCTION enforce_admin_customer_email_revision();
 
+ALTER TABLE public.admin_customer_email_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS bls_admin_customer_email_platform_runtime_all ON public.admin_customer_email_messages;
+CREATE POLICY bls_admin_customer_email_platform_runtime_all ON public.admin_customer_email_messages
+  FOR ALL
+  TO bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
+
+REVOKE ALL ON TABLE public.admin_customer_email_messages
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.admin_customer_email_messages
+  TO bls_platform_runtime;
+
+COMMENT ON TABLE public.admin_customer_email_messages
+  IS 'Admin-only customer communication approval and delivery ledger. Public/Data API roles have no access.';
+
 COMMIT;
