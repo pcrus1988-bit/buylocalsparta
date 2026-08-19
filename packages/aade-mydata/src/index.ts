@@ -28,6 +28,16 @@ export type MyDataTransmissionResult = Readonly<{
   rawXml: string;
 }>;
 
+export type MyDataIncomeQuery = Readonly<{
+  dateFrom: string;
+  dateTo: string;
+  counterVatNumber?: string;
+  entityVatNumber?: string;
+  invType?: string;
+  nextPartitionKey?: string;
+  nextRowKey?: string;
+}>;
+
 export function myDataConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(env.AADE_MYDATA_USER_ID?.trim() && env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim());
 }
@@ -77,9 +87,20 @@ export class AadeMyDataClient {
     return parseTransmissionResponse(await this.#request(`CancelInvoice?${q}`, { method: "POST" }));
   }
 
-  async requestTransmittedDocs(input: { mark?: string; dateFrom?: string; dateTo?: string; entityVatNumber?: string; nextPartitionKey?: string; nextRowKey?: string } = {}): Promise<string> {
+  async requestTransmittedDocs(input: { mark: string; dateFrom?: string; dateTo?: string; entityVatNumber?: string; counterVatNumber?: string; invType?: string; maxMark?: string; nextPartitionKey?: string; nextRowKey?: string }): Promise<string> {
+    assertNumericId(input.mark, "AADE MARK");
+    if (input.maxMark?.trim()) assertNumericId(input.maxMark.trim(), "AADE maxMark");
+    if (input.dateFrom?.trim()) assertMyDataDate(input.dateFrom, "dateFrom");
+    if (input.dateTo?.trim()) assertMyDataDate(input.dateTo, "dateTo");
     const q = query(input);
-    return this.#request(`RequestTransmittedDocs${q ? `?${q}` : ""}`, { method: "GET" });
+    return this.#request(`RequestTransmittedDocs?${q}`, { method: "GET" });
+  }
+
+  async requestMyIncome(input: MyDataIncomeQuery): Promise<string> {
+    assertMyDataDate(input.dateFrom, "dateFrom");
+    assertMyDataDate(input.dateTo, "dateTo");
+    const q = query(input);
+    return this.#request(`RequestMyIncome?${q}`, { method: "GET" });
   }
 
   async requestDocs(input: { mark?: string; dateFrom?: string; dateTo?: string; entityVatNumber?: string; nextPartitionKey?: string; nextRowKey?: string } = {}): Promise<string> {
@@ -103,7 +124,10 @@ export class AadeMyDataClient {
         signal: controller.signal
       });
       const body = await response.text();
-      if (!response.ok) throw new Error(`AADE myDATA HTTP ${response.status}: ${compactXml(body).slice(0, 500) || response.statusText}`);
+      if (!response.ok) {
+        const summary = redactSecret(compactXml(body), this.#config.subscriptionKey).slice(0, 500);
+        throw new Error(`AADE myDATA HTTP ${response.status}: ${summary || response.statusText}`);
+      }
       if (!body.trim()) throw new Error("AADE myDATA returned an empty response");
       return body;
     } catch (error) {
@@ -144,8 +168,16 @@ function required(env: NodeJS.ProcessEnv, name: string): string { const value = 
 function positiveInt(raw: string | undefined, fallback: number, name: string): number { if (!raw?.trim()) return fallback; const n = Number(raw); if (!Number.isSafeInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer`); return n; }
 function assertXml(xml: string, expectedHint: string): void { if (!xml.trim().startsWith("<")) throw new Error(`myDATA ${expectedHint} payload must be XML`); if (/<!DOCTYPE/i.test(xml)) throw new Error("DOCTYPE is not allowed in myDATA XML payloads"); }
 function assertNumericId(value: string, label: string): void { if (!/^\d{1,40}$/.test(value)) throw new Error(`${label} must be numeric`); }
+function assertMyDataDate(value: string, label: string): void {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) throw new Error(`AADE ${label} must use dd/MM/yyyy`);
+  const day = Number(match[1]), month = Number(match[2]), year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) throw new Error(`AADE ${label} is not a valid calendar date`);
+}
 function tag(xml: string, name: string): string | undefined { const m = xml.match(new RegExp(`<(?:\\w+:)?${name}\\b[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${name}>`, "i")); return m ? decodeXml(m[1].trim()) : undefined; }
 function decodeXml(value: string): string { return value.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&"); }
 function compactXml(value: string): string { return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
+function redactSecret(value: string, secret: string): string { return secret ? value.split(secret).join("[REDACTED]") : value; }
 function numberOrUndefined(value: string | undefined): number | undefined { if (value == null || value === "") return undefined; const n = Number(value); return Number.isSafeInteger(n) ? n : undefined; }
 function query(input: Record<string, string | undefined>): string { const q = new URLSearchParams(); for (const [k,v] of Object.entries(input)) if (v?.trim()) q.set(k,v.trim()); return q.toString(); }
