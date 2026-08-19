@@ -9,7 +9,6 @@ import { PostgresVivaPaymentsService } from "./viva-payments.ts";
 import { PostgresMediaPipelineService } from "./media-pipeline.ts";
 import { AadeMyDataClient, myDataConfigFromEnv, myDataIssuanceEnabled, type MyDataConfig } from "@buy-local-sparta/aade-mydata";
 import { PostgresMyDataService } from "./mydata.ts";
-import { PostgresFiscalWorkService } from "./fiscal-work.ts";
 import { meilisearchConfigFromEnv, type MeilisearchConfig } from "@buy-local-sparta/meilisearch-search";
 import { resendConfigFromEnv, type ResendConfig } from "@buy-local-sparta/resend-notifications";
 import { PostgresProductionSearchService } from "./search.ts";
@@ -18,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 75;
+export const EXPECTED_SCHEMA_VERSION = 74;
 
 export type PostgresRuntimeConfig = Readonly<{
   connectionString: string;
@@ -88,7 +87,6 @@ export class ProductionPostgresRuntime {
   readonly vivaPayments?: PostgresVivaPaymentsService;
   readonly mediaPipeline: PostgresMediaPipelineService;
   readonly myData?: PostgresMyDataService;
-  readonly fiscalWork: PostgresFiscalWorkService;
   readonly search?: PostgresProductionSearchService;
   readonly notifications?: PostgresResendNotificationService;
   readonly boxNowShipping?: PostgresBoxNowShippingService;
@@ -115,7 +113,6 @@ export class ProductionPostgresRuntime {
     this.vivaPayments = config.viva ? new PostgresVivaPaymentsService(this.sqlPool, new VivaPaymentsClient(config.viva), { emailNotificationsEnabled: Boolean(config.resend) }) : undefined;
     this.mediaPipeline = new PostgresMediaPipelineService(this.sqlPool, { maxBytes: config.mediaMaxBytes });
     this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
-    this.fiscalWork = new PostgresFiscalWorkService(this.sqlPool);
     this.search = config.search ? new PostgresProductionSearchService(this.sqlPool, config.search) : undefined;
     this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
     this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
@@ -243,7 +240,6 @@ export * from "./viva-payments.ts";
 export * from "./media-pipeline.ts";
 
 export * from "./mydata.ts";
-export * from "./fiscal-work.ts";
 
 export * from "./search.ts";
 export * from "./notifications.ts";
