@@ -9,6 +9,7 @@ import { createCustomerNotification, customerStateSnapshot } from "./customer-st
 import { customerOrder, customerOrders, cancelCustomerCommerceOrder } from "./customer-commerce-runtime";
 import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
+import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -46,7 +47,7 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
   });
   const orders = ordersRaw.map((order) => ({
     id: order.id,
-    status: order.status,
+    status: customerOrderStatusLabel(order),
     total: formatMoney(order.total),
     createdAt: order.createdAt,
     fulfilmentMode: order.fulfilmentMode,
@@ -69,18 +70,25 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
 }
 
 export async function accountOrderDetail(principal: SessionPrincipal, orderId: string) {
-  const order = await customerOrder(principal, orderId);
+  let order = await customerOrder(principal, orderId);
   if (!order) throw new Error("ORDER_NOT_FOUND");
-  const physicalHandoverStarted = order.fulfilments.some((fulfilment) => ["ready_for_handover", "shipped", "delivered"].includes(fulfilment.status));
+
+  // Self-heal lifecycle side effects for older production orders created before the
+  // notification / pickup bridge was enabled. All operations are idempotent.
+  await repairCustomerOrderLifecycle(principal, orderId);
+  order = await customerOrder(principal, orderId) ?? order;
+
+  const physicalHandoverStarted = order.fulfilments.some((fulfilment) => ["ready_for_handover", "handed_over", "shipped", "delivered"].includes(fulfilment.status));
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, invoice] = await Promise.all([
+  const [vendorEntries, pickups, invoice] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
+    customerPickupCredentials(principal, orderId),
     customerFiscalDocumentForOrder(orderId)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, invoice ? {
+  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
@@ -98,10 +106,18 @@ export async function cancelCustomerOrder(principal: SessionPrincipal, input: { 
   return accountOrderDetail(principal, updated.id);
 }
 
-function orderDetailProjection(order: CustomerOrder, csrfToken: string, canCancel: boolean, vendorNames: ReadonlyMap<string, string>, invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }) {
+function orderDetailProjection(
+  order: CustomerOrder,
+  csrfToken: string,
+  canCancel: boolean,
+  vendorNames: ReadonlyMap<string, string>,
+  pickups: readonly CustomerPickupCredential[],
+  invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
+) {
   return {
     id: order.id,
-    status: order.status,
+    status: customerOrderStatusLabel(order),
+    sourceStatus: order.status,
     createdAt: order.createdAt,
     postcode: order.postcode,
     fulfilmentMode: order.fulfilmentMode,
@@ -115,6 +131,30 @@ function orderDetailProjection(order: CustomerOrder, csrfToken: string, canCance
     csrfToken,
     invoice,
     lines: order.lines.map((line) => ({ id: line.id, canonicalVariantId: line.canonicalVariantId, title: line.titleSnapshot, quantity: line.quantity, status: line.status, retailUnitPrice: formatMoney(line.retailUnitPrice), vendorId: line.vendorId, vendorName: vendorNames.get(line.vendorId) ?? line.vendorId })),
-    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds }))
+    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds })),
+    pickups
   };
+}
+
+function customerOrderStatusLabel(order: CustomerOrder): string {
+  if (order.status === "cancelled") return "Ακυρωμένη";
+  if (order.status === "refunded") return "Επιστράφηκαν τα χρήματα";
+  if (order.status === "partially_refunded") return "Μερική επιστροφή χρημάτων";
+  if (order.status === "pending_payment") return "Αναμονή πληρωμής";
+
+  const fulfilments = order.fulfilments.filter((item) => item.status !== "rejected" && item.status !== "cancelled");
+  if (fulfilments.length) {
+    const statuses = fulfilments.map((item) => item.status);
+    if (statuses.every((status) => ["handed_over", "delivered"].includes(status))) return order.fulfilmentMode === "pickup" ? "Παραλήφθηκε" : "Ολοκληρώθηκε";
+    if (statuses.some((status) => status === "ready_for_handover")) return order.fulfilmentMode === "pickup" ? "Έτοιμη για παραλαβή" : "Έτοιμη για παράδοση";
+    if (statuses.some((status) => ["accepted", "picking", "packed"].includes(status))) return "Ετοιμάζεται από το κατάστημα";
+    if (statuses.some((status) => status === "shipped")) return "Σε αποστολή";
+    if (statuses.some((status) => status === "awaiting_acceptance")) return "Αναμονή αποδοχής από το κατάστημα";
+  }
+
+  if (["fulfilled", "completed"].includes(order.status)) return "Ολοκληρώθηκε";
+  if (order.status === "confirmed") return "Επιβεβαιωμένη";
+  if (order.status === "requires_customer_action") return "Χρειάζεται ενέργεια";
+  if (order.status === "partially_fulfilled") return "Μερικώς ολοκληρωμένη";
+  return order.status.replaceAll("_", " ");
 }
