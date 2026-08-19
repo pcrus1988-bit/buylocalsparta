@@ -17,24 +17,24 @@ type Fulfilment = {
   merchandiseSubtotal: string;
   deliveryCharge: string;
   lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>;
-  actions: readonly string[];
+  actions: ReadonlyArray<string>;
 };
 
 type Dashboard = {
   vendor: { id: string; name: string; adviser: string };
-  account: { email: string; roles: readonly string[] };
+  account: { email: string; roles: ReadonlyArray<string> };
   csrfToken: string;
   metrics: { ordersRequiringAction: number; activeProducts: number; availableUnits: number; openFulfilments: number };
-  fulfilments: readonly Fulfilment[];
+  fulfilments: ReadonlyArray<Fulfilment>;
 };
 
 type Advice = {
   csrfToken: string;
-  conversations: readonly Array<{ id: string; state: string; canonicalVariantId?: string; messages: readonly Array<{ id: string; senderType: string; body: string; createdAt?: number }> }>;
-  appointments: readonly Array<{ id: string; status: string; channel: string; startsAt: number; canonicalVariantId?: string }>;
-  counteroffers: readonly Array<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
-  privateOffers: readonly Array<{ id: string; status?: string; canonicalVariantId?: string; price?: string }>;
-  notifications: readonly Array<{ id: string; title: string; body: string; createdAt?: number }>;
+  conversations: ReadonlyArray<{ id: string; state: string; canonicalVariantId?: string; messages: ReadonlyArray<{ id: string; senderType: string; body: string; createdAt?: number }> }>;
+  appointments: ReadonlyArray<{ id: string; status: string; channel: string; startsAt: number; canonicalVariantId?: string }>;
+  counteroffers: ReadonlyArray<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
+  privateOffers: ReadonlyArray<{ id: string; status?: string; canonicalVariantId?: string; price?: string }>;
+  notifications: ReadonlyArray<{ id: string; title: string; body: string; createdAt?: number }>;
 };
 
 type Tab = "orders" | "ask" | "alerts";
