@@ -7,24 +7,10 @@ export const CUSTOMER_STATUSES = ["pending_verification", "active", "restricted"
 export type CustomerStatus = (typeof CUSTOMER_STATUSES)[number];
 
 export type AdminCustomerSummary = Readonly<{
-  id: string;
-  email?: string;
-  phone?: string;
-  firstName?: string;
-  lastName?: string;
-  status: CustomerStatus;
-  emailVerified: boolean;
-  marketingConsent: boolean;
-  recommendationsEnabled: boolean;
-  recentlyViewedEnabled: boolean;
-  createdAt: number;
-  updatedAt: number;
-  orderCount: number;
-  grossOrderValueMinor: number;
-  lastOrderAt?: number;
-  addressCount: number;
-  activeSessionCount: number;
-  lastSeenAt?: number;
+  id: string; email?: string; phone?: string; firstName?: string; lastName?: string; status: CustomerStatus;
+  emailVerified: boolean; marketingConsent: boolean; recommendationsEnabled: boolean; recentlyViewedEnabled: boolean;
+  createdAt: number; updatedAt: number; orderCount: number; grossOrderValueMinor: number; lastOrderAt?: number;
+  addressCount: number; activeSessionCount: number; lastSeenAt?: number;
 }>;
 
 export type AdminCustomerDetail = Readonly<{
@@ -33,6 +19,10 @@ export type AdminCustomerDetail = Readonly<{
   orders: ReadonlyArray<{ id: string; orderNumber: string; status: string; fulfilmentPreference: string; totalMinor: number; currency: string; createdAt: number; confirmedAt?: number }>;
   audit: ReadonlyArray<{ id: string; action: string; reason?: string; actor: string; createdAt: number; beforeState: Record<string, unknown>; afterState: Record<string, unknown> }>;
 }>;
+
+const CUSTOMER_IDENTITY_PREDICATE = `
+  NOT EXISTS (SELECT 1 FROM platform_user_roles pur WHERE pur.user_id=u.id)
+  AND NOT EXISTS (SELECT 1 FROM vendor_users vu WHERE vu.user_id=u.id)`;
 
 function stringValue(value: unknown): string { return typeof value === "string" ? value : String(value ?? ""); }
 function optionalString(value: unknown): string | undefined { const valueText = typeof value === "string" ? value.trim() : ""; return valueText || undefined; }
@@ -52,17 +42,18 @@ export async function adminCustomersWorkspace(principal: SessionPrincipal, input
   return uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const metricsResult = await tx.query<SqlRow>(`
       SELECT count(*)::int AS total,
-        count(*) FILTER (WHERE status='active')::int AS active,
-        count(*) FILTER (WHERE status='pending_verification')::int AS pending,
-        count(*) FILTER (WHERE status='restricted')::int AS restricted,
-        count(*) FILTER (WHERE status='suspended')::int AS suspended,
-        count(*) FILTER (WHERE status='closed')::int AS closed,
-        count(*) FILTER (WHERE created_at >= now() - interval '30 days')::int AS new_30d
-      FROM users`);
+        count(*) FILTER (WHERE u.status='active')::int AS active,
+        count(*) FILTER (WHERE u.status='pending_verification')::int AS pending,
+        count(*) FILTER (WHERE u.status='restricted')::int AS restricted,
+        count(*) FILTER (WHERE u.status='suspended')::int AS suspended,
+        count(*) FILTER (WHERE u.status='closed')::int AS closed,
+        count(*) FILTER (WHERE u.created_at >= now() - interval '30 days')::int AS new_30d
+      FROM users u WHERE ${CUSTOMER_IDENTITY_PREDICATE}`);
     const commerceResult = await tx.query<SqlRow>(`
-      SELECT count(DISTINCT user_id)::int AS customers_with_orders,
-        COALESCE(sum(total_minor) FILTER (WHERE currency='EUR' AND status <> 'cancelled'),0)::bigint AS gross_order_value_minor
-      FROM customer_orders WHERE user_id IS NOT NULL`);
+      SELECT count(DISTINCT o.user_id)::int AS customers_with_orders,
+        COALESCE(sum(o.total_minor) FILTER (WHERE o.currency='EUR' AND o.status <> 'cancelled'),0)::bigint AS gross_order_value_minor
+      FROM customer_orders o JOIN users u ON u.id=o.user_id
+      WHERE o.user_id IS NOT NULL AND ${CUSTOMER_IDENTITY_PREDICATE}`);
     const rows = await tx.query<SqlRow>(`
       SELECT u.public_id,u.email::text AS email,u.phone,u.status,u.email_verified_at,u.preferred_locale,u.created_at,u.updated_at,
         cp.first_name,cp.last_name,COALESCE(cp.marketing_consent,false) AS marketing_consent,
@@ -82,8 +73,9 @@ export async function adminCustomersWorkspace(principal: SessionPrincipal, input
         SELECT count(*) FILTER (WHERE expires_at > now())::int AS active_session_count,max(last_seen_at) AS last_seen_at
         FROM user_sessions s WHERE s.user_id=u.id
       ) sess ON true
-      WHERE ($1='' OR u.email::text ILIKE '%'||$1||'%' OR COALESCE(u.phone,'') ILIKE '%'||$1||'%' OR u.public_id ILIKE '%'||$1||'%'
-        OR COALESCE(cp.first_name,'') ILIKE '%'||$1||'%' OR COALESCE(cp.last_name,'') ILIKE '%'||$1||'%')
+      WHERE ${CUSTOMER_IDENTITY_PREDICATE}
+        AND ($1='' OR u.email::text ILIKE '%'||$1||'%' OR COALESCE(u.phone,'') ILIKE '%'||$1||'%' OR u.public_id ILIKE '%'||$1||'%'
+          OR COALESCE(cp.first_name,'') ILIKE '%'||$1||'%' OR COALESCE(cp.last_name,'') ILIKE '%'||$1||'%')
         AND ($2::text IS NULL OR u.status::text=$2)
       ORDER BY COALESCE(sess.last_seen_at,ord.last_order_at,u.created_at) DESC
       LIMIT 150`, [query, status ?? null]);
@@ -114,7 +106,7 @@ export async function adminCustomerDetail(principal: SessionPrincipal, customerI
       LEFT JOIN LATERAL (SELECT count(*)::int AS order_count,COALESCE(sum(total_minor) FILTER (WHERE currency='EUR' AND status <> 'cancelled'),0)::bigint AS gross_order_value_minor,max(created_at) AS last_order_at FROM customer_orders o WHERE o.user_id=u.id) ord ON true
       LEFT JOIN LATERAL (SELECT count(*)::int AS address_count FROM addresses a WHERE a.user_id=u.id) addr ON true
       LEFT JOIN LATERAL (SELECT count(*) FILTER (WHERE expires_at > now())::int AS active_session_count,max(last_seen_at) AS last_seen_at FROM user_sessions s WHERE s.user_id=u.id) sess ON true
-      WHERE u.public_id=$1 OR u.id::text=$1 LIMIT 1`, [customerId]);
+      WHERE (u.public_id=$1 OR u.id::text=$1) AND ${CUSTOMER_IDENTITY_PREDICATE} LIMIT 1`, [customerId]);
     if (!user.rowCount) return undefined;
     const row = user.rows[0];
     const userUuid = stringValue(row.user_uuid);
@@ -143,8 +135,8 @@ export async function adminUpdateCustomerStatus(principal: SessionPrincipal, inp
   if (reason.length < 5) throw new Error("A meaningful reason is required");
   if (!productionDatabaseConfigured()) throw new Error("Customer management requires the production database");
   return uow().withTransaction(platformScope(principal.userId), async (tx) => {
-    const found = await tx.query<SqlRow>(`SELECT id::text AS user_uuid,public_id,status,closed_at,anonymized_at FROM users WHERE public_id=$1 OR id::text=$1 FOR UPDATE`, [input.customerId]);
-    if (!found.rowCount) throw new Error("Customer not found");
+    const found = await tx.query<SqlRow>(`SELECT u.id::text AS user_uuid,u.public_id,u.status,u.closed_at,u.anonymized_at FROM users u WHERE (u.public_id=$1 OR u.id::text=$1) AND ${CUSTOMER_IDENTITY_PREDICATE} FOR UPDATE`, [input.customerId]);
+    if (!found.rowCount) throw new Error("Customer not found or identity is not customer-manageable");
     const row = found.rows[0];
     const current = customerStatus(row.status);
     if (current === input.status) throw new Error(`Customer is already ${input.status}`);
