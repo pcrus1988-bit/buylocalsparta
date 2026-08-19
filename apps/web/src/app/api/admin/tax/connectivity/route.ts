@@ -1,5 +1,5 @@
-import { getProductionPostgresRuntime } from "../../../../../../lib/postgres-runtime";
-import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
+import { requireAdminSession } from "../../../../../lib/admin-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
