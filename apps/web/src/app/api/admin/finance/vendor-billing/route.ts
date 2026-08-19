@@ -1,6 +1,6 @@
 import { requireAdminSession } from "../../../../../lib/admin-session";
 import { adminCreateVendorInvoiceDraft,adminEmailVendorInvoice,adminPrepareVendorInvoice,adminTransmitVendorInvoice,adminVendorBillingWorkspace,vendorPlatformInvoicePdf } from "../../../../../lib/admin-vendor-billing";
-import { adminDeleteVendorInvoiceDraft,adminUpdateVendorFeeTaxSetting,adminVendorFeeTaxSettings } from "../../../../../lib/admin-vendor-fee-tax";
+import { adminAssertVendorInvoicePaymentMapping,adminDeleteVendorInvoiceDraft,adminUpdateVendorFeeTaxSetting,adminVendorFeeTaxSettings } from "../../../../../lib/admin-vendor-fee-tax";
 
 export const runtime="nodejs";
 
@@ -24,7 +24,11 @@ export async function POST(request:Request){
     const action=String(body.action??"");
     const reason=required(body.reason,"reason");
     if(action==="create_draft")await adminCreateVendorInvoiceDraft(principal,{vendorId:required(body.vendorId,"vendorId"),periodStart:required(body.periodStart,"periodStart"),periodEnd:required(body.periodEnd,"periodEnd"),includeListingFee:body.includeListingFee===true,recurringFeeOccurrences:integer(body.recurringFeeOccurrences??0,"recurringFeeOccurrences"),notes:optional(body.notes),reason});
-    else if(action==="prepare")await adminPrepareVendorInvoice(principal,{invoiceId:required(body.invoiceId,"invoiceId"),processor:required(body.processor,"processor"),processorMethod:required(body.processorMethod,"processorMethod"),reason});
+    else if(action==="prepare"){
+      const processor=required(body.processor,"processor"),processorMethod=required(body.processorMethod,"processorMethod");
+      await adminAssertVendorInvoicePaymentMapping(principal,{processor,processorMethod});
+      await adminPrepareVendorInvoice(principal,{invoiceId:required(body.invoiceId,"invoiceId"),processor,processorMethod,reason});
+    }
     else if(action==="transmit")await adminTransmitVendorInvoice(principal,{invoiceId:required(body.invoiceId,"invoiceId"),reason});
     else if(action==="email")await adminEmailVendorInvoice(principal,{invoiceId:required(body.invoiceId,"invoiceId"),reason});
     else if(action==="void")await adminDeleteVendorInvoiceDraft(principal,{invoiceId:required(body.invoiceId,"invoiceId"),reason});
