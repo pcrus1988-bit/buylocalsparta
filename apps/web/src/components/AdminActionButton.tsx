@@ -25,8 +25,9 @@ export function AdminActionButton({ label, endpoint, csrfToken, body = {}, reaso
     setBusy(true); setError("");
     try {
       const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify(payload) });
-      const data = await response.json() as { error?: string };
+      const data = await response.json() as { error?: string; notificationWarning?: string };
       if (!response.ok) throw new Error(data.error ?? "Admin action failed");
+      if (data.notificationWarning) setError(`Η ενέργεια ολοκληρώθηκε, αλλά το email δεν στάλθηκε: ${data.notificationWarning}`);
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Admin action failed"); }
     finally { setBusy(false); }
