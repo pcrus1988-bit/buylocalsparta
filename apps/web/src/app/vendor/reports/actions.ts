@@ -56,8 +56,8 @@ export async function saveVendorReportDefinitionAction(formData: FormData) {
   let destination: string;
   try {
     const spec = reportSpecFromForm("vendor", principal, formData);
-    const name = String(formData.get("templateName") ?? spec.title);
-    await saveReportDefinition("vendor", principal, name, spec);
+    const templateName = String(formData.get("templateName") ?? "").trim();
+    await saveReportDefinition("vendor", principal, templateName || spec.title, spec);
     destination = "/vendor/reports?saved=1";
   } catch (error) {
     const message = error instanceof Error ? error.message : "Αποτυχία αποθήκευσης προτύπου.";
