@@ -7,6 +7,7 @@ import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runt
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
+const VIVA_MINIMUM_AMOUNT_MINOR = 30;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
 
 export async function POST(request: Request) {
@@ -80,6 +81,9 @@ export async function POST(request: Request) {
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
     if (postgresCommerceEnabled() && vivaPaymentsEnabled()) {
+      if (order.total.minor < VIVA_MINIMUM_AMOUNT_MINOR) {
+        return Response.json({ error: "Η ελάχιστη αξία παραγγελίας για online πληρωμή μέσω Viva είναι 0,30 €. Αύξησε την ποσότητα ή την αξία του καλαθιού και δοκίμασε ξανά." }, { status: 422 });
+      }
       const payment = await requireVivaPayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
       return Response.json({ ...order, payment: { provider:"viva", orderCode:payment.orderCode, redirectUrl:payment.checkoutUrl, amountMinor:payment.amountMinor } }, { status: 201 });
     }
