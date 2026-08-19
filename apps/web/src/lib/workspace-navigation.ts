@@ -9,7 +9,8 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Επισκόπηση", href: "/vendor", icon: "⌂" },
       { label: "Ειδοποιήσεις", href: "/vendor/notifications", icon: "!" },
-      { label: "Συμβουλές", href: "/vendor/advice", icon: "◌" }
+      { label: "Συμβουλές", href: "/vendor/advice", icon: "◌" },
+      { label: "KONTA MOY Daily", href: "/vendor/daily-access", icon: "◈" }
     ]
   },
   {
