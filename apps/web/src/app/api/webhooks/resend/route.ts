@@ -1,5 +1,5 @@
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
-import { forwardReceivedEmailToOperations } from "../../../../lib/transactional-email";
+import { forwardReceivedEmailToOperations, resolveResendWebhookVerifier } from "../../../../lib/transactional-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +10,8 @@ export async function POST(request: Request) {
     if (!service) return Response.json({ error: "Resend delivery is not enabled" }, { status: 503 });
 
     const payload = await request.text();
-    const event = service.verifyWebhook({
+    const verifier = await resolveResendWebhookVerifier();
+    const event = verifier.verify({
       payload,
       id: request.headers.get("svix-id") ?? undefined,
       timestamp: request.headers.get("svix-timestamp") ?? undefined,
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
 
     let inbound: { forwarded: boolean; providerMessageId?: string } | undefined;
     if (event.type === "email.received" && event.emailId) {
-      const receivingEnabled = process.env.BLS_EMAIL_RECEIVING_ENABLED === "true" || Boolean(process.env.RESEND_INBOUND_FORWARD_TO?.trim());
+      const receivingEnabled = process.env.BLS_EMAIL_RECEIVING_ENABLED === "true" || Boolean(process.env.RESEND_INBOUND_FORWARD_TO?.trim() || process.env.BLS_OPERATIONS_EMAIL?.trim());
       if (receivingEnabled) {
         inbound = await forwardReceivedEmailToOperations({ webhookEventId: event.id, emailId: event.emailId });
         if (!inbound.forwarded) {
