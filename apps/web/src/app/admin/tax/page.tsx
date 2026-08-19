@@ -6,6 +6,7 @@ import { MyDataConnectivityButton } from "../../../components/MyDataConnectivity
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminTaxWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
+import { myDataReadiness } from "../../../lib/mydata-runtime";
 
 export const metadata: Metadata = { title: "Admin · Tax / myDATA", robots: { index: false, follow: false } };
 
@@ -14,24 +15,30 @@ export default async function Page() {
   if (!principal) redirect("/admin/login");
   let data;
   try { data = await adminTaxWorkspace(principal); } catch { redirect("/admin"); }
+  const diagnostics = await myDataReadiness();
   const ready = data.documents.filter((document) => document.transmissionStatus === "ready").length;
   const failed = data.documents.filter((document) => Boolean(document.lastError)).length;
-  const configured = data.environment !== "not_configured";
+  const configured = diagnostics.configured;
+  const diagnosticEnvironment = "environment" in diagnostics && typeof diagnostics.environment === "string" ? diagnostics.environment : data.environment;
+  const diagnosticSpecVersion = "specVersion" in diagnostics && typeof diagnostics.specVersion === "string" ? diagnostics.specVersion : data.specVersion;
+  const credentialSource = "credentialSource" in diagnostics && typeof diagnostics.credentialSource === "string" ? diagnostics.credentialSource : undefined;
+  const probe = "probe" in diagnostics && diagnostics.probe && typeof diagnostics.probe === "object" ? diagnostics.probe : undefined;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">AADE ERP bridge</div><h1>Tax / myDATA</h1><p className="lead">Η σύνδεση με AADE μπορεί να ελεγχθεί με read-only αίτημα ανεξάρτητα από την έκδοση. Η πραγματική διαβίβαση παραμένει κλειδωμένη μέχρι να εγκριθεί το accounting mapping.</p></div></section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Environment", value: data.environment },
-      { label: "Credentials", value: configured ? "configured" : "missing", tone: configured ? "positive" : "attention" },
+      { label: "Environment", value: diagnosticEnvironment },
+      { label: "Credentials", value: configured ? "configured" : "missing", tone: configured ? "positive" : "attention", hint: credentialSource === "supabase_vault" ? "encrypted Vault" : undefined },
       { label: "Issuance", value: data.issuanceEnabled ? "enabled" : "gated", tone: data.issuanceEnabled ? "positive" : "default" },
       { label: "Ready documents", value: ready, tone: ready && data.issuanceEnabled ? "attention" : "default" },
       { label: "Transmission errors", value: failed, tone: failed ? "attention" : "positive", hint: data.approvedMappingVersion ? `mapping ${data.approvedMappingVersion}` : "mapping not approved" }
     ]} />
 
     <section className="shell vendor-section">
-      <div className="workspace-inline-note">AADE spec: {data.specVersion || "not configured"} · Approved mapping: {data.approvedMappingVersion ?? "not approved"}. Configuration alone is not treated as transmitted tax evidence.</div>
+      <div className="workspace-inline-note">AADE spec: {diagnosticSpecVersion || "not configured"} · Approved mapping: {data.approvedMappingVersion ?? "not approved"}. Configuration alone is not treated as transmitted tax evidence.</div>
+      {probe && "state" in probe && <div className="workspace-inline-note">Production connectivity probe: <strong>{String(probe.state)}</strong>{"checkedAt" in probe && typeof probe.checkedAt === "number" ? ` · ${new Date(probe.checkedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })}` : ""}. Η δοκιμή είναι read-only και δεν αποτελεί φορολογική διαβίβαση.</div>}
       <div className="workspace-action-bar"><span>Read-only connectivity check: verifies endpoint and AADE API credentials without transmitting an invoice.</span><div className="workspace-action-buttons"><MyDataConnectivityButton csrfToken={principal.csrfToken} /></div></div>
     </section>
 
