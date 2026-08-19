@@ -10,7 +10,13 @@ type AvailableCanonical = Readonly<{
   categoryCode: string;
 }>;
 
+export type AvailableCatalogTaxonomy = Readonly<{
+  categories: readonly StorefrontCategory[];
+  facets: CatalogFacets;
+}>;
+
 const AVAILABILITY_CONCURRENCY = 6;
+const EMPTY_FACETS: CatalogFacets = { subcategories: [], brands: [], colors: [], sizes: [] };
 
 function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
   if (!right) return true;
@@ -40,6 +46,50 @@ function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
   return [...new Set(values)]
     .sort((a, b) => a.localeCompare(b, "el"))
     .map((value) => ({ value, label: value }));
+}
+
+function availableCategories(products: readonly AvailableCanonical[]): readonly StorefrontCategory[] {
+  return STOREFRONT_CATEGORIES.filter((category) =>
+    products.some((product) => categoryCodeMatches(product.categoryCode, category.slug))
+  );
+}
+
+async function buildFacets(
+  products: readonly AvailableCanonical[],
+  category: string,
+  query: string,
+  filters: CatalogFilters
+): Promise<CatalogFacets> {
+  const scoped = products.filter((product) => categoryCodeMatches(product.categoryCode, category));
+  if (scoped.length === 0) return EMPTY_FACETS;
+
+  const metadata = await loadCatalogMetadata(scoped.map((product) => product.id));
+  const normalizedQuery = normalizeSearchText(query);
+  const visible = scoped.filter((product) => matchesQuery(product, metadata.get(product.id), normalizedQuery));
+
+  const subcategoryMap = new Map<string, string>();
+  const brands: string[] = [];
+  const colors: string[] = [];
+  const sizes: string[] = [];
+
+  for (const product of visible) {
+    const details = metadata.get(product.id);
+    if (matchesFiltersExcept(product, details, filters, "subcategory")) {
+      subcategoryMap.set(product.categoryCode, details?.categoryLabel ?? product.categoryCode);
+    }
+    if (details?.brand && matchesFiltersExcept(product, details, filters, "brand")) brands.push(details.brand);
+    if (details?.color && matchesFiltersExcept(product, details, filters, "color")) colors.push(details.color);
+    if (matchesFiltersExcept(product, details, filters, "size")) sizes.push(...(details?.sizes ?? []));
+  }
+
+  return {
+    subcategories: [...subcategoryMap.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "el")),
+    brands: facetOptions(brands),
+    colors: facetOptions(colors),
+    sizes: facetOptions(sizes)
+  };
 }
 
 /**
@@ -78,52 +128,32 @@ export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise
 }
 
 export async function getAvailableStorefrontCategories(postcode = "23100"): Promise<readonly StorefrontCategory[]> {
-  const products = await getAvailableCatalogCanonicals(postcode);
-  return STOREFRONT_CATEGORIES.filter((category) =>
-    products.some((product) => categoryCodeMatches(product.categoryCode, category.slug))
-  );
+  return availableCategories(await getAvailableCatalogCanonicals(postcode));
 }
 
 /**
- * Facets are derived only from sellable products. Each facet also respects the other
- * selected filters, so changing one filter cannot expose a subcategory/brand/color/
- * size that would produce zero available products in the current result context.
+ * Builds all taxonomy exposed by the shop in one availability pass. Facets respect
+ * the other selected filters, so no subcategory/brand/color/size option can lead to
+ * zero currently sellable products in the active result context.
  */
+export async function getAvailableCatalogTaxonomy(
+  category = "",
+  query = "",
+  filters: CatalogFilters = {},
+  postcode = "23100"
+): Promise<AvailableCatalogTaxonomy> {
+  const products = await getAvailableCatalogCanonicals(postcode);
+  return {
+    categories: availableCategories(products),
+    facets: await buildFacets(products, category, query, filters)
+  };
+}
+
 export async function getAvailableCatalogFacets(
   category = "",
   query = "",
   filters: CatalogFilters = {},
   postcode = "23100"
 ): Promise<CatalogFacets> {
-  const products = (await getAvailableCatalogCanonicals(postcode))
-    .filter((product) => categoryCodeMatches(product.categoryCode, category));
-  if (products.length === 0) return { subcategories: [], brands: [], colors: [], sizes: [] };
-
-  const metadata = await loadCatalogMetadata(products.map((product) => product.id));
-  const normalizedQuery = normalizeSearchText(query);
-  const visible = products.filter((product) => matchesQuery(product, metadata.get(product.id), normalizedQuery));
-
-  const subcategoryMap = new Map<string, string>();
-  const brands: string[] = [];
-  const colors: string[] = [];
-  const sizes: string[] = [];
-
-  for (const product of visible) {
-    const details = metadata.get(product.id);
-    if (matchesFiltersExcept(product, details, filters, "subcategory")) {
-      subcategoryMap.set(product.categoryCode, details?.categoryLabel ?? product.categoryCode);
-    }
-    if (details?.brand && matchesFiltersExcept(product, details, filters, "brand")) brands.push(details.brand);
-    if (details?.color && matchesFiltersExcept(product, details, filters, "color")) colors.push(details.color);
-    if (matchesFiltersExcept(product, details, filters, "size")) sizes.push(...(details?.sizes ?? []));
-  }
-
-  return {
-    subcategories: [...subcategoryMap.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "el")),
-    brands: facetOptions(brands),
-    colors: facetOptions(colors),
-    sizes: facetOptions(sizes)
-  };
+  return buildFacets(await getAvailableCatalogCanonicals(postcode), category, query, filters);
 }
