@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-import type { CatalogCard } from "../lib/catalog-view";
-import { getCatalogCards } from "../lib/catalog-view";
+import { getHomepageCatalogCards } from "../lib/home-catalog";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
@@ -10,76 +8,12 @@ import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
 
 const FEATURED_PRODUCT_LIMIT = 4;
-const ROTATION_WINDOW_MS = 30 * 60 * 1000;
-
-function score(seed: string, value: string): string {
-  return createHash("sha256").update(`${seed}:${value}`).digest("hex");
-}
-
-/**
- * Homepage discovery keeps the canonical fairness engine authoritative, then
- * reduces the already-assigned result set to four cards. Distinct assigned
- * vendors are preferred before a vendor can repeat, so catalogue depth alone
- * cannot dominate the homepage. The time bucket keeps the set feeling fresh
- * without reshuffling during every render for the same visitor.
- */
-function selectHomepageProducts(cards: readonly CatalogCard[], visitorKey: string): readonly CatalogCard[] {
-  const rotationSlot = Math.floor(Date.now() / ROTATION_WINDOW_MS);
-  const seed = `${visitorKey}:${rotationSlot}`;
-  const eligible = cards.filter((card) => card.available && card.vendorId);
-  const byVendor = new Map<string, CatalogCard[]>();
-
-  for (const card of eligible) {
-    const vendorId = card.vendorId!;
-    const pool = byVendor.get(vendorId) ?? [];
-    pool.push(card);
-    byVendor.set(vendorId, pool);
-  }
-
-  const selected: CatalogCard[] = [];
-  const selectedIds = new Set<string>();
-  const vendorIds = [...byVendor.keys()].sort((left, right) => score(seed, left).localeCompare(score(seed, right)));
-
-  for (const vendorId of vendorIds) {
-    if (selected.length >= FEATURED_PRODUCT_LIMIT) break;
-    const pool = [...(byVendor.get(vendorId) ?? [])].sort((left, right) => score(`${seed}:${vendorId}`, left.id).localeCompare(score(`${seed}:${vendorId}`, right.id)));
-    const chosen = pool[0];
-    if (!chosen) continue;
-    selected.push(chosen);
-    selectedIds.add(chosen.id);
-  }
-
-  if (selected.length < FEATURED_PRODUCT_LIMIT) {
-    const remainingAvailable = eligible
-      .filter((card) => !selectedIds.has(card.id))
-      .sort((left, right) => score(seed, left.id).localeCompare(score(seed, right.id)));
-    for (const card of remainingAvailable) {
-      if (selected.length >= FEATURED_PRODUCT_LIMIT) break;
-      selected.push(card);
-      selectedIds.add(card.id);
-    }
-  }
-
-  if (selected.length < FEATURED_PRODUCT_LIMIT) {
-    const fallback = cards
-      .filter((card) => !selectedIds.has(card.id))
-      .sort((left, right) => score(seed, left.id).localeCompare(score(seed, right.id)));
-    for (const card of fallback) {
-      if (selected.length >= FEATURED_PRODUCT_LIMIT) break;
-      selected.push(card);
-    }
-  }
-
-  return selected.slice(0, FEATURED_PRODUCT_LIMIT);
-}
 
 export default async function Home() {
   const visitorKey = await getVisitorKey();
-  const cards = await getCatalogCards(visitorKey);
-  const featuredProducts = selectHomepageProducts(cards, visitorKey);
-  const availableProductCount = cards.filter((card) => card.available).length;
+  const featuredProducts = await getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT);
   const visibleCategories = STOREFRONT_CATEGORIES.filter((category) =>
-    cards.some((card) => card.available && categoryCodeMatches(card.categoryCode, category.slug))
+    featuredProducts.some((card) => categoryCodeMatches(card.categoryCode, category.slug))
   );
 
   return (
@@ -99,8 +33,8 @@ export default async function Home() {
             <a className="button button-secondary" href="/shops?status=partner">Ενεργά καταστήματα</a>
           </div>
           <div className={styles.heroProof} aria-label="Buy Local Sparta benefits">
-            <span><strong>{availableProductCount}</strong> διαθέσιμα προϊόντα</span>
-            <span><strong>4</strong> δίκαιες επιλογές στην αρχική</span>
+            <span><strong>4</strong> επιλογές που ανανεώνονται</span>
+            <span><strong>Fair</strong> ανάθεση καταστήματος</span>
             <span><strong>1</strong> ενιαίο checkout</span>
           </div>
         </div>
@@ -139,7 +73,7 @@ export default async function Home() {
         <div className={styles.sectionTop}>
           <div>
             <div className="eyebrow">Ανακάλυψε κάτι τώρα</div>
-            <h2 id="featured-title">4 επιλογές. 4 ευκαιρίες για τοπικά καταστήματα.</h2>
+            <h2 id="featured-title">4 επιλογές. Δίκαιη εναλλαγή στην τοπική αγορά.</h2>
           </div>
           <a className={styles.inlineLink} href="/shop">Δες όλα τα προϊόντα <span>→</span></a>
         </div>
@@ -158,13 +92,13 @@ export default async function Home() {
 
         <div className={styles.rotationNote}>
           <span className={styles.rotationDot} />
-          Η επιλογή ανανεώνεται περιοδικά και προτιμά διαφορετικό ενεργό κατάστημα ανά θέση, ενώ η υπάρχουσα Fair Vendor Assignment παραμένει η πηγή αλήθειας.
+          Η τετράδα αλλάζει περιοδικά. Μόνο τα προϊόντα που φτάνουν πραγματικά στην αρχική περνούν από Fair Vendor Assignment, ώστε η προβολή να μην επιβαρύνει τεχνητά τα στατιστικά δικαιοσύνης.
         </div>
 
         {visibleCategories.length ? (
           <div className={styles.categoryArea}>
             <div className={styles.categoryHeader}>
-              <div><div className="eyebrow">Μόνο όπου υπάρχει διαθέσιμο προϊόν</div><h3>Περιηγήσου ανά κατηγορία</h3></div>
+              <div><div className="eyebrow">Από τις διαθέσιμες επιλογές τώρα</div><h3>Περιηγήσου ανά κατηγορία</h3></div>
               <a className={styles.inlineLink} href="/shop">Όλες οι επιλογές <span>→</span></a>
             </div>
             <div className={styles.categoryRail} aria-label="Available product categories">
