@@ -11,13 +11,21 @@ export async function GET() {
   ]);
   const domainsPayload = await domainsResponse.json().catch(() => ({})) as Record<string, unknown>;
   const webhooksPayload = await webhooksResponse.json().catch(() => ({})) as Record<string, unknown>;
-  const domains = Array.isArray(domainsPayload.data) ? domainsPayload.data.map(safeDomain) : [];
+  const domainRows = Array.isArray(domainsPayload.data) ? domainsPayload.data : [];
+  const domainDetails = await Promise.all(domainRows.map(async (value) => {
+    const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const id = typeof row.id === "string" ? row.id : undefined;
+    if (!id) return safeDomain(row);
+    const response = await fetch(`https://api.resend.com/domains/${encodeURIComponent(id)}`, { headers, cache: "no-store" });
+    const detail = await response.json().catch(() => row) as Record<string, unknown>;
+    return safeDomain(detail);
+  }));
   const webhooks = Array.isArray(webhooksPayload.data) ? webhooksPayload.data.map(safeWebhook) : [];
   return Response.json({
     configured: true,
     domainsStatus: domainsResponse.status,
     webhooksStatus: webhooksResponse.status,
-    domains,
+    domains: domainDetails,
     webhooks
   }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -31,7 +39,19 @@ function safeDomain(value: unknown) {
     status: typeof row.status === "string" ? row.status : undefined,
     region: typeof row.region === "string" ? row.region : undefined,
     sending: typeof capabilities.sending === "string" ? capabilities.sending : undefined,
-    receiving: typeof capabilities.receiving === "string" ? capabilities.receiving : undefined
+    receiving: typeof capabilities.receiving === "string" ? capabilities.receiving : undefined,
+    records: Array.isArray(row.records) ? row.records.map(safeRecord) : []
+  };
+}
+
+function safeRecord(value: unknown) {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    record: typeof row.record === "string" ? row.record : undefined,
+    name: typeof row.name === "string" ? row.name : undefined,
+    type: typeof row.type === "string" ? row.type : undefined,
+    status: typeof row.status === "string" ? row.status : undefined,
+    priority: typeof row.priority === "number" ? row.priority : undefined
   };
 }
 
