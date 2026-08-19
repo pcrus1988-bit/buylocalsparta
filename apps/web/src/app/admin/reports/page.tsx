@@ -5,6 +5,7 @@ import { ReportBuilderFields } from "../../../components/ReportBuilderFields";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
 import { listReports, listSavedReportDefinitions, reportBuilderOptions } from "../../../lib/reporting-engine";
+import { resolveReportPrincipal } from "../../../lib/reporting-principal";
 import { createAdminReportAction, emailAdminReportAction, runSavedAdminReportAction, saveAdminReportDefinitionAction } from "./actions";
 
 export const metadata: Metadata = { title: "Admin Reports", robots: { index: false, follow: false } };
@@ -13,8 +14,9 @@ function first(v: string | string[] | undefined) { return Array.isArray(v) ? v[0
 function euro(minor: unknown) { const n = Number(minor ?? 0); return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format((Number.isFinite(n) ? n : 0) / 100); }
 
 export default async function AdminReportsPage({ searchParams }: { searchParams: SearchParams }) {
-  const principal = await getAdminSession();
-  if (!principal) redirect("/admin/login");
+  const sessionPrincipal = await getAdminSession();
+  if (!sessionPrincipal) redirect("/admin/login");
+  const principal = await resolveReportPrincipal(sessionPrincipal);
   const query = await searchParams;
   const [options, reports, saved] = await Promise.all([
     reportBuilderOptions("admin", principal), listReports("admin", principal), listSavedReportDefinitions("admin", principal)
