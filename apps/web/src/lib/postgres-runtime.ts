@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
-import { createPostgresRuntimeFromEnv, type ProductionPostgresRuntime } from "@buy-local-sparta/postgres-runtime";
+import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionPostgresRuntime } from "@buy-local-sparta/postgres-runtime";
 
-const WEB_EXPECTED_SCHEMA_VERSION = 77;
+const WEB_EXPECTED_SCHEMA_VERSION = EXPECTED_SCHEMA_VERSION;
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
 const globals = globalThis as typeof globalThis & { [globalKey]?: ProductionPostgresRuntime };
 
