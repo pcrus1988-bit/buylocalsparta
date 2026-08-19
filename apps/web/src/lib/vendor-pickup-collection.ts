@@ -143,8 +143,8 @@ async function insertNotification(client: PoolClient, input: { userUuid: string;
   }
   await client.query(`
     INSERT INTO notifications(id,public_id,user_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,sent_at,created_at)
-    VALUES($1,$2,$3,$4,'transactional',$5,'pickup-v1','el',$6,$7,$8::jsonb,$9,$10,$11,$11)
-  `, [randomUUID(), `notification_${randomUUID().replaceAll("-", "")}`, input.userUuid, input.channel, input.eventType, input.title, input.body, input.payload, input.channel === "in_app" ? "sent" : "queued", input.dedupeKey, input.channel === "in_app" ? new Date(input.now) : null]);
+    VALUES($1,$2,$3,$4,'transactional',$5,'pickup-v1','el',$6,$7,$8::jsonb,$9,$10,$11,$12)
+  `, [randomUUID(), `notification_${randomUUID().replaceAll("-", "")}`, input.userUuid, input.channel, input.eventType, input.title, input.body, input.payload, input.channel === "in_app" ? "sent" : "queued", input.dedupeKey, input.channel === "in_app" ? new Date(input.now) : null, new Date(input.now)]);
 }
 
 function assertPickupProof(pickupId: string, fulfilmentId: string, storedHashText: string, token: string) {
