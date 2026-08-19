@@ -59,5 +59,13 @@ export class ResendWebhookVerifier {
 
 function extractFromDomain(from:string):string{const match=from.match(/<([^<>]+)>\s*$/);const address=(match?.[1]??from).trim().toLowerCase();const at=address.lastIndexOf("@");if(at<=0||at===address.length-1)throw new Error("RESEND_FROM must contain a valid email address");return address.slice(at+1);}
 
-export function resendConfigFromEnv(env:NodeJS.ProcessEnv=process.env):ResendConfig{const apiKey=required(env.RESEND_API_KEY,"RESEND_API_KEY"),from=required(env.RESEND_FROM,"RESEND_FROM");return{apiKey,from,replyTo:env.RESEND_REPLY_TO?.trim()||undefined,baseUrl:env.RESEND_BASE_URL?.trim()||"https://api.resend.com",timeoutMs:positive(env.RESEND_TIMEOUT_MS,8_000,"RESEND_TIMEOUT_MS"),webhookSecret:env.RESEND_WEBHOOK_SECRET?.trim()||undefined};}
+export function resendDeliveryEnabled(env:NodeJS.ProcessEnv=process.env):boolean{const flag=env.BLS_EMAIL_DELIVERY_ENABLED?.trim().toLowerCase();if(flag==="false")return false;if(flag==="true")return true;return Boolean(env.RESEND_API_KEY?.trim());}
+
+export function resendConfigFromEnv(env:NodeJS.ProcessEnv=process.env):ResendConfig{
+  const apiKey=required(env.RESEND_API_KEY,"RESEND_API_KEY");
+  const domain=env.BLS_EMAIL_DOMAIN?.trim()||"kontamou.site";
+  const from=env.RESEND_FROM?.trim()||`Buy Local Sparta <notifications@${domain}>`;
+  const replyTo=env.RESEND_REPLY_TO?.trim()||`reply@${domain}`;
+  return{apiKey,from,replyTo,baseUrl:env.RESEND_BASE_URL?.trim()||"https://api.resend.com",timeoutMs:positive(env.RESEND_TIMEOUT_MS,8_000,"RESEND_TIMEOUT_MS"),webhookSecret:env.RESEND_WEBHOOK_SECRET?.trim()||undefined};
+}
 function required(v:string|undefined,n:string){const x=v?.trim();if(!x)throw new Error(`${n} is required`);return x;}function positive(raw:string|undefined,fallback:number,name:string){if(!raw?.trim())return fallback;const n=Number(raw);if(!Number.isSafeInteger(n)||n<=0)throw new Error(`${name} must be a positive integer`);return n;}

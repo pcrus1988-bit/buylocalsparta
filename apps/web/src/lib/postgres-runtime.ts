@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionPostgresRuntime } from "@buy-local-sparta/postgres-runtime";
 
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
@@ -32,9 +33,27 @@ export function productionDatabaseConfigured(env: NodeJS.ProcessEnv = process.en
 const bootstrapDatabaseUrl = resolveDatabaseUrlFromEnv();
 if (!process.env.DATABASE_URL?.trim() && bootstrapDatabaseUrl) process.env.DATABASE_URL = bootstrapDatabaseUrl;
 
+// Marketplace Resend provides RESEND_API_KEY. Unless the operator explicitly disables
+// email, expose that as the existing application feature flag so registration and other
+// legacy gates turn on without duplicating the key configuration in Vercel.
+if (process.env.RESEND_API_KEY?.trim() && !process.env.BLS_EMAIL_DELIVERY_ENABLED?.trim()) {
+  process.env.BLS_EMAIL_DELIVERY_ENABLED = "true";
+}
+
 function postgresRuntimeEnv(): NodeJS.ProcessEnv {
   const connectionString = resolveDatabaseUrlFromEnv();
-  return connectionString ? { ...process.env, DATABASE_URL: connectionString } : process.env;
+  const env: NodeJS.ProcessEnv = connectionString ? { ...process.env, DATABASE_URL: connectionString } : { ...process.env };
+
+  if (env.RESEND_API_KEY?.trim() && !env.BLS_EMAIL_DELIVERY_ENABLED?.trim()) env.BLS_EMAIL_DELIVERY_ENABLED = "true";
+  if (env.BLS_EMAIL_DELIVERY_ENABLED === "true" && !env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim()) {
+    const authSecret = env.BLS_AUTH_SECRET?.trim();
+    if (authSecret && authSecret.length >= 32) {
+      env.BLS_NOTIFICATION_SUPPRESSION_SECRET = createHmac("sha256", authSecret)
+        .update("buy-local-sparta:notification-suppression:v1")
+        .digest("hex");
+    }
+  }
+  return env;
 }
 
 export function databaseRuntimeRequired(): boolean {
