@@ -5,21 +5,33 @@ ALTER TABLE addresses
   ADD COLUMN IF NOT EXISTS is_default_billing boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS is_default_delivery boolean NOT NULL DEFAULT false;
 
--- Existing customers with saved addresses receive a deterministic first default so the
--- new checkout can preselect an address without changing any historical order snapshot.
+-- Existing customers with saved addresses receive deterministic defaults where one is
+-- missing, without changing any historical order snapshot.
 WITH ranked AS (
   SELECT id,user_id,row_number() OVER (PARTITION BY user_id ORDER BY created_at,id) AS rn
   FROM addresses
   WHERE user_id IS NOT NULL
 ), chosen AS (
-  SELECT id FROM ranked WHERE rn=1
+  SELECT id,user_id FROM ranked WHERE rn=1
 )
 UPDATE addresses a
-SET is_default_billing=true,is_default_delivery=true
+SET is_default_billing=true
 FROM chosen c
 WHERE a.id=c.id
-  AND NOT EXISTS (SELECT 1 FROM addresses x WHERE x.user_id=a.user_id AND x.is_default_billing=true)
-  AND NOT EXISTS (SELECT 1 FROM addresses x WHERE x.user_id=a.user_id AND x.is_default_delivery=true);
+  AND NOT EXISTS (SELECT 1 FROM addresses x WHERE x.user_id=c.user_id AND x.is_default_billing=true);
+
+WITH ranked AS (
+  SELECT id,user_id,row_number() OVER (PARTITION BY user_id ORDER BY created_at,id) AS rn
+  FROM addresses
+  WHERE user_id IS NOT NULL
+), chosen AS (
+  SELECT id,user_id FROM ranked WHERE rn=1
+)
+UPDATE addresses a
+SET is_default_delivery=true
+FROM chosen c
+WHERE a.id=c.id
+  AND NOT EXISTS (SELECT 1 FROM addresses x WHERE x.user_id=c.user_id AND x.is_default_delivery=true);
 
 CREATE UNIQUE INDEX IF NOT EXISTS addresses_one_default_billing_per_user_uidx
   ON addresses(user_id) WHERE user_id IS NOT NULL AND is_default_billing=true;
