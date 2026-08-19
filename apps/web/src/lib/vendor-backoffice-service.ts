@@ -3,6 +3,7 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 import { vendorCatalogControlWorkspace } from "./vendor-catalog-control-service";
 import { mediaUploadMode } from "./media-upload-service";
+import { rescueStaleAskLocalAssignments, vendorReturnAskLocalToAdmin } from "./ask-local-service";
 import {
   createVendorProductDraft as memoryCreateDraft,
   submitVendorProduct as memorySubmitProduct,
@@ -75,6 +76,7 @@ export async function submitVendorCompliance(principal: SessionPrincipal, input:
 }
 
 export async function vendorAdviceWorkspace(principal: SessionPrincipal) {
+  if (postgresVendorRuntimeEnabled()) await rescueStaleAskLocalAssignments();
   return postgresVendorRuntimeEnabled() ? db().adviceWorkspace(principal) : memoryAdviceWorkspace(principal);
 }
 export async function vendorSendAdviceMessage(principal: SessionPrincipal, conversationId: string, body: string) {
@@ -82,6 +84,9 @@ export async function vendorSendAdviceMessage(principal: SessionPrincipal, conve
 }
 export async function vendorAppointmentAction(principal: SessionPrincipal, appointmentId: string, action: "complete" | "cancel") {
   return postgresVendorRuntimeEnabled() ? db().appointmentAction(principal, appointmentId, action) : memoryAppointmentAction(principal, appointmentId, action);
+}
+export async function vendorReturnAskLocalRequest(principal: SessionPrincipal, requestId: string, reason: string) {
+  return vendorReturnAskLocalToAdmin(principal, { requestId, reason });
 }
 export async function vendorFinanceWorkspace(principal: SessionPrincipal) {
   return postgresVendorRuntimeEnabled() ? db().financeWorkspace(principal) : memoryFinanceWorkspace(principal);
