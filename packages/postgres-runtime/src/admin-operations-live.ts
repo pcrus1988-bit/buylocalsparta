@@ -119,8 +119,7 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
       let vendorPublicId = optionalText(row.vendor_public_id);
 
       // A formal shop record is needed before contract preparation can happen.
-      // Provision it once verification has passed, while keeping it non-operational
-      // and hidden until the remaining onboarding gates are satisfied.
+      // Provision it after verification while keeping it non-operational and hidden.
       if (!vendorUuid && ["catalog_onboarding", "test_ready"].includes(input.to)) {
         vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
         const insertedVendor = await tx.query<SqlRow>(`
@@ -162,7 +161,6 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
         const membership = await tx.query<SqlRow>(`
           INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at)
           VALUES($1,$2,$3,$4,NULL,true,$5)
-          ON CONFLICT (vendor_id,user_id) DO UPDATE SET active=true
           RETURNING id::text AS id`, [
           randomUUID(),
           `vuser_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
@@ -207,7 +205,7 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
                 public_directory_visibility_reason='New activation awaiting explicit public publication',
                 updated_at=$2
             WHERE id=$1::uuid`, [vendorUuid, new Date(now)]);
-        } else if (["catalog_onboarding", "test_ready", "restricted", "suspended", "closed"].includes(input.to)) {
+        } else if (["verification_pending", "catalog_onboarding", "test_ready", "restricted", "suspended", "closed"].includes(input.to)) {
           await tx.query(`
             UPDATE vendor_businesses
             SET status=$2,
