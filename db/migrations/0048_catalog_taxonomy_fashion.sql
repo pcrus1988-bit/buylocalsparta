@@ -24,7 +24,11 @@ INSERT INTO _taxonomy_seed
  require_compatibility_confirmation,regulated_checkout_allowed,counteroffer_allowed,
  advice_allowed,checkout_fulfilment_modes)
 VALUES
+  ('womens-clothing', 'adult-clothing', 'Γυναικεία ρούχα', 'Women’s clothing', 'navigation_group', false, 10, NULL, NULL, NULL, NULL, NULL, NULL),
   ('mens-clothing', 'adult-clothing', 'Ανδρικά ρούχα', 'Men’s clothing', 'navigation_group', false, 20, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('fashion-womens-dresses', 'womens-clothing', 'Γυναικεία φορέματα', 'Women’s dresses', 'product_class', true, 10, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('fashion-womens-shirts', 'womens-clothing', 'Γυναικεία πουκάμισα', 'Women’s shirts', 'product_class', true, 20, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('fashion-womens-tops', 'womens-clothing', 'Γυναικεία τοπ', 'Women’s tops', 'product_class', true, 30, NULL, NULL, NULL, NULL, NULL, NULL),
   ('fashion-womens-knitwear', 'womens-clothing', 'Γυναικεία πλεκτά', 'Women’s knitwear', 'product_class', true, 40, NULL, NULL, NULL, NULL, NULL, NULL),
   ('fashion-womens-trousers-jeans', 'womens-clothing', 'Γυναικεία παντελόνια & jeans', 'Women’s trousers & jeans', 'product_class', true, 50, NULL, NULL, NULL, NULL, NULL, NULL),
   ('fashion-womens-skirts', 'womens-clothing', 'Γυναικείες φούστες', 'Women’s skirts', 'product_class', true, 60, NULL, NULL, NULL, NULL, NULL, NULL),
