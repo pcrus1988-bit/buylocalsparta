@@ -39,18 +39,20 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
     {error ? <section className="shell vendor-section"><article className="workspace-queue-card" style={{ borderColor: "currentColor" }}><strong>Η αναφορά δεν ολοκληρώθηκε</strong><p>{error}</p></article></section> : null}
     {first(query.created) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Η αναφορά δημιουργήθηκε.</strong><p>Το PDF και το audit record είναι διαθέσιμα στην ενότητα «Πρόσφατες αναφορές».</p></article></section> : null}
     {first(query.emailed) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Το email στάλθηκε.</strong><p>Ο σύνδεσμος παραμένει προστατευμένος και απαιτεί vendor login.</p></article></section> : null}
-    {first(query.saved) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Το report template αποθηκεύτηκε.</strong></article></section> : null}
+    {first(query.saved) === "1" ? <section className="shell vendor-section"><article className="workspace-queue-card"><strong>Η τρέχουσα report configuration αποθηκεύτηκε.</strong></article></section> : null}
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="New report" title="Report Builder" note="Το scope είναι πάντα κλειδωμένο στο δικό σου vendor account. Τα raw customer/competitor events δεν είναι διαθέσιμα." />
       <form action={createVendorReportAction}>
         <ReportBuilderFields admin={false} options={options} />
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="button" type="submit">Δημιουργία PDF report</button></div>
-      </form>
-      <form action={saveVendorReportDefinitionAction} className="workspace-queue-card" style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
-        <input type="hidden" name="preset" value="full" /><input type="hidden" name="includeDetails" value="on" />
-        <label style={{ flex: "1 1 260px" }}><small>Γρήγορο αποθηκευμένο template</small><input name="templateName" required placeholder="π.χ. Μηνιαία πλήρης αναφορά" style={{ width: "100%" }} /></label>
-        <button className="button button-secondary" type="submit">Αποθήκευση full template</button>
+        <article className="workspace-queue-card" style={{ marginTop: 12 }}>
+          <label><small>Όνομα template — προαιρετικό</small><input name="templateName" placeholder="π.χ. Μηνιαία απόδοση & stock" style={{ width: "100%" }} /></label>
+          <small style={{ display: "block", marginTop: 7, opacity: .72 }}>Το «Αποθήκευση configuration» αποθηκεύει ακριβώς τα φίλτρα, domains, ημερομηνίες και επιλογές που έχεις συμπληρώσει παραπάνω.</small>
+        </article>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+          <button className="button" type="submit">Δημιουργία PDF report</button>
+          <button className="button button-secondary" type="submit" formAction={saveVendorReportDefinitionAction}>Αποθήκευση configuration</button>
+        </div>
       </form>
     </section>
 
