@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
+import { MyDataConnectivityButton } from "../../../components/MyDataConnectivityButton";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminTaxWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
@@ -15,13 +16,15 @@ export default async function Page() {
   try { data = await adminTaxWorkspace(principal); } catch { redirect("/admin"); }
   const ready = data.documents.filter((document) => document.transmissionStatus === "ready").length;
   const failed = data.documents.filter((document) => Boolean(document.lastError)).length;
+  const configured = data.environment !== "not_configured";
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">AADE ERP bridge</div><h1>Tax / myDATA</h1><p className="lead">Η έκδοση παραμένει κλειδωμένη μέχρι accountant-approved mapping· όταν ενεργοποιηθεί, μόνο prepared documents μπορούν να μεταδοθούν.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">AADE ERP bridge</div><h1>Tax / myDATA</h1><p className="lead">Η σύνδεση με AADE μπορεί να ελεγχθεί με read-only αίτημα ανεξάρτητα από την έκδοση. Η πραγματική διαβίβαση παραμένει κλειδωμένη μέχρι να εγκριθεί το accounting mapping.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Environment", value: data.environment },
+      { label: "Credentials", value: configured ? "configured" : "missing", tone: configured ? "positive" : "attention" },
       { label: "Issuance", value: data.issuanceEnabled ? "enabled" : "gated", tone: data.issuanceEnabled ? "positive" : "default" },
       { label: "Ready documents", value: ready, tone: ready && data.issuanceEnabled ? "attention" : "default" },
       { label: "Transmission errors", value: failed, tone: failed ? "attention" : "positive", hint: data.approvedMappingVersion ? `mapping ${data.approvedMappingVersion}` : "mapping not approved" }
@@ -29,6 +32,7 @@ export default async function Page() {
 
     <section className="shell vendor-section">
       <div className="workspace-inline-note">AADE spec: {data.specVersion || "not configured"} · Approved mapping: {data.approvedMappingVersion ?? "not approved"}. Configuration alone is not treated as transmitted tax evidence.</div>
+      <div className="workspace-action-bar"><span>Read-only connectivity check: verifies endpoint and AADE API credentials without transmitting an invoice.</span><div className="workspace-action-buttons"><MyDataConnectivityButton csrfToken={principal.csrfToken} /></div></div>
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
