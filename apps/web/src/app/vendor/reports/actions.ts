@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { createReport, emailReport, reportSpecFromForm, saveReportDefinition } from "../../../lib/reporting-engine";
+import { runSavedReport } from "../../../lib/reporting-saved";
 
 export async function createVendorReportAction(formData: FormData) {
   const principal = await getVendorSession();
@@ -14,6 +15,21 @@ export async function createVendorReportAction(formData: FormData) {
     destination = `/vendor/reports?report=${encodeURIComponent(job.publicId)}&created=1`;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Αποτυχία δημιουργίας αναφοράς.";
+    destination = `/vendor/reports?error=${encodeURIComponent(message.slice(0, 500))}`;
+  }
+  redirect(destination);
+}
+
+export async function runSavedVendorReportAction(formData: FormData) {
+  const principal = await getVendorSession();
+  if (!principal) redirect("/vendor/login");
+  const templateId = String(formData.get("templateId") ?? "");
+  let destination: string;
+  try {
+    const job = await runSavedReport("vendor", principal, templateId);
+    destination = `/vendor/reports?report=${encodeURIComponent(job.publicId)}&created=1`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Αποτυχία εκτέλεσης report template.";
     destination = `/vendor/reports?error=${encodeURIComponent(message.slice(0, 500))}`;
   }
   redirect(destination);
