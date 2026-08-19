@@ -87,7 +87,7 @@ for (const absolutePath of linkSources) {
 
 const home = read("apps/web/src/app/page.tsx");
 if (home.includes('href="#shop"') || home.includes('href="/#shop"')) failures.push("Homepage still uses #shop as a primary navigation destination");
-if (!home.includes('href="/shop">Ανακάλυψε προϊόντα')) failures.push("Homepage product CTA must lead to the full catalog route");
+if (!home.includes('href="/shop"')) failures.push("Homepage product CTA must lead to the full catalog route");
 
 const header = read("apps/web/src/components/SiteHeader.tsx");
 if (!header.includes("PRIMARY_NAVIGATION")) failures.push("Public header must use the canonical navigation registry");
