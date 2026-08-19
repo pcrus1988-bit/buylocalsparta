@@ -1,6 +1,7 @@
 import { parseVivaWebhookJson } from "@buy-local-sparta/viva-payments";
 import { requireVivaPayments } from "../../../../../lib/viva-runtime";
 import { capturePaidOrderForFiscalIssuance } from "../../../../../lib/customer-fiscal-runtime";
+import { myDataAdminRuntimeConfig } from "../../../../../lib/mydata-runtime";
 import { syncConfirmedOrderLifecycle } from "../../../../../lib/order-lifecycle";
 
 export const runtime = "nodejs";
@@ -38,8 +39,6 @@ function matchesIpv4Cidr(ip: string, cidr: string): boolean {
 }
 
 function requestIp(request: Request): string | undefined {
-  // Vercel overwrites x-forwarded-for for normal deployments, so the first value is the
-  // public source IP rather than a client-supplied spoofed header.
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   if (!forwarded) return undefined;
   return forwarded.startsWith("::ffff:") ? forwarded.slice(7) : forwarded;
@@ -67,13 +66,12 @@ export async function POST(request:Request) {
     if (reconciliation && "orderId" in reconciliation && "orderStatus" in reconciliation && reconciliation.orderStatus === "confirmed") {
       await syncConfirmedOrderLifecycle(reconciliation.orderId, now);
       if ("paymentStatus" in reconciliation && reconciliation.paymentStatus === "captured") {
-        await capturePaidOrderForFiscalIssuance(reconciliation.orderId, now);
+        const fiscalConfig=await myDataAdminRuntimeConfig();
+        if(fiscalConfig.capturePaidOrders)await capturePaidOrderForFiscalIssuance(reconciliation.orderId, now);
       }
     }
     return Response.json({ok:true,eventTypeId:result.eventTypeId});
   } catch(error) {
-    // Non-2xx deliberately asks Viva to retry. Payment reconciliation, order lifecycle sync,
-    // and fiscal capture are idempotent, so a provider redelivery cannot duplicate an order document.
     return Response.json({error:error instanceof Error?error.message:"viva_webhook_failed"},{status:503});
   }
 }
