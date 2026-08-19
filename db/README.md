@@ -32,8 +32,6 @@ Current migrations:
 - `0024_category_governance_attributes.sql` — category commerce modes, governed attribute translations/bindings and progressive-checkout policy persistence.
 - `0025_promotions_price_history.sql` — append-only platform price history, non-overlapping/non-retroactive public price reductions, versioned coupons, redemption/reversal accounting and order-line promotion/discount snapshots.
 - `0026_customer_personalization_privacy.sql` — customer saved products/shops, bounded recently viewed, personalization preferences, privacy-request lifecycle, consumer-closure fields and customer/platform RLS.
-
-
 - `0027_saved_product_alerts_recommendations.sql` — saved-product alert preferences/events and recommendation projection support.
 - `0028_saved_search_notification_center.sql` — saved-search alerts and the customer notification centre.
 - `0029_customer_account_runtime.sql` — durable customer account/session/address runtime persistence.
@@ -47,6 +45,7 @@ Current migrations:
 - `0037_activation_evidence.sql` — provider activation evidence lifecycle.
 - `0038_paid_reservation_consumption.sql` — paid-reservation consumption invariants.
 - `0039_supabase_security_hardening.sql` — Supabase deny-by-default RLS, limited runtime roles and credential-bound platform access.
+- `0069_customer_support_cases.sql` — platform-only customer support cases, ownership/follow-up state and append-only case-event history for Customer 360 operations.
 
 Migration files are registered in `migrations/checksums.json`. Run `npm run db:verify` in CI before tests/deployments. Run `npm run db:migrate` when `DATABASE_URL` and the `pg` package are available; the runner uses a PostgreSQL advisory lock, validates applied checksums and applies each pending migration transactionally.
 
