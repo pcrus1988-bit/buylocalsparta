@@ -29,7 +29,7 @@ if (!category.includes('alternates: { canonical: `/category/${category.slug}` }'
 if (category.includes('title: `${category.label} · Buy Local Sparta`')) failures.push("Category title must not duplicate the root Buy Local Sparta title template");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
 if (!vendor.includes('replaceAll("<", "\\\\u003c")')) failures.push("Structured data must escape HTML-opening characters");
-for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', 'availableAtOrFrom:', '"@type": "BreadcrumbList"']) {
+for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "LocalBusiness"', 'availableAtOrFrom:', '"@type": "BreadcrumbList"']) {
   if (!product.includes(contract)) failures.push(`Product SEO contract is missing ${contract}`);
 }
 const vendorPublishesCanonical = vendor.includes('alternates: vendor ? { canonical:') || vendor.includes('alternates: { canonical: `/vendor/${encodeURIComponent(vendor.id)}` }');
