@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getAdminSession } from "../../../lib/admin-session";
 import { createReport, emailReport, reportSpecFromForm, saveReportDefinition } from "../../../lib/reporting-engine";
+import { runSavedReport } from "../../../lib/reporting-saved";
 
 export async function createAdminReportAction(formData: FormData) {
   const principal = await getAdminSession();
@@ -14,6 +15,21 @@ export async function createAdminReportAction(formData: FormData) {
     destination = `/admin/reports?report=${encodeURIComponent(job.publicId)}&created=1`;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Αποτυχία δημιουργίας αναφοράς.";
+    destination = `/admin/reports?error=${encodeURIComponent(message.slice(0, 500))}`;
+  }
+  redirect(destination);
+}
+
+export async function runSavedAdminReportAction(formData: FormData) {
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  const templateId = String(formData.get("templateId") ?? "");
+  let destination: string;
+  try {
+    const job = await runSavedReport("admin", principal, templateId);
+    destination = `/admin/reports?report=${encodeURIComponent(job.publicId)}&created=1`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Αποτυχία εκτέλεσης report template.";
     destination = `/admin/reports?error=${encodeURIComponent(message.slice(0, 500))}`;
   }
   redirect(destination);
