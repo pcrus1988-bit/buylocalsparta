@@ -3,6 +3,7 @@ import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
 import { checkoutCustomer, postgresCommerceEnabled } from "../../../lib/customer-commerce-runtime";
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
+import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
 import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runtime";
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown }>;
@@ -74,6 +75,23 @@ export async function POST(request: Request) {
       shipping = { provider: provider === "boxnow" ? "boxnow" : undefined, providerDestinationId: providerDestinationId || undefined, providerDestinationLabel: providerDestinationLabel || undefined, recipientName: recipientName || undefined, recipientEmail: recipientEmail || undefined, recipientPhone: recipientPhone || undefined };
     }
 
+    // Pickup has no delivery charge, so the authoritative merchandise total is also
+    // the final Viva amount. Reject sub-minimum test carts before checkout creates an
+    // order or reserves stock. Delivery/shipping modes are checked after their server
+    // delivery quote is included in the final order total.
+    if (vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
+      const runtime = getProductionPostgresRuntime();
+      let pickupTotalMinor = 0;
+      for (const item of items) {
+        const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
+        if (!availability) throw new Error(`Product ${item.canonicalVariantId} is unavailable`);
+        pickupTotalMinor += availability.product.priceMinor * item.quantity;
+      }
+      if (pickupTotalMinor < VIVA_MINIMUM_AMOUNT_MINOR) {
+        return Response.json({ error: "Η ελάχιστη αξία παραγγελίας για online πληρωμή μέσω Viva είναι 0,30 €. Αύξησε την ποσότητα ή την αξία του καλαθιού και δοκίμασε ξανά." }, { status: 422 });
+      }
+    }
+
     const now = Date.now();
     const order = await checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now });
     await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId, now });
@@ -81,9 +99,6 @@ export async function POST(request: Request) {
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
     if (postgresCommerceEnabled() && vivaPaymentsEnabled()) {
-      if (order.total.minor < VIVA_MINIMUM_AMOUNT_MINOR) {
-        return Response.json({ error: "Η ελάχιστη αξία παραγγελίας για online πληρωμή μέσω Viva είναι 0,30 €. Αύξησε την ποσότητα ή την αξία του καλαθιού και δοκίμασε ξανά." }, { status: 422 });
-      }
       const payment = await requireVivaPayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
       return Response.json({ ...order, payment: { provider:"viva", orderCode:payment.orderCode, redirectUrl:payment.checkoutUrl, amountMinor:payment.amountMinor } }, { status: 201 });
     }
