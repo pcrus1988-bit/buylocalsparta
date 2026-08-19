@@ -76,7 +76,7 @@ async function requestRows(tx: SqlExecutor, limit: number): Promise<readonly Adm
     LEFT JOIN customer_profiles cp ON cp.user_id=customer.id
     LEFT JOIN users admin_user ON admin_user.id=cr.assigned_admin_user_id
     LEFT JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
-    WHERE cr.status = ANY($1::text[])
+    WHERE cr.status::text = ANY($1::text[])
     ORDER BY CASE WHEN cr.expires_at IS NOT NULL AND cr.expires_at < now() THEN 0 ELSE 1 END,cr.created_at ASC
     LIMIT $2`, [OPEN_STATUSES, limit]);
   return result.rows.map(mapRequest);
@@ -90,7 +90,7 @@ export async function adminAskLocalDashboard(principal: SessionPrincipal): Promi
       count(*) FILTER (WHERE workflow_owner_kind='admin')::int AS admin_owned_count,
       count(*) FILTER (WHERE workflow_owner_kind='vendor')::int AS vendor_owned_count,
       count(*) FILTER (WHERE expires_at IS NOT NULL AND expires_at < now())::int AS overdue_count
-      FROM counteroffer_requests WHERE status = ANY($1::text[])`, [OPEN_STATUSES]);
+      FROM counteroffer_requests WHERE status::text = ANY($1::text[])`, [OPEN_STATUSES]);
     const row = counts.rows[0] ?? {};
     return {
       openCount: integer(row.open_count),
