@@ -3,7 +3,7 @@ import { adminUpdateCustomerStatus, CUSTOMER_STATUSES, type CustomerStatus } fro
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "privacy.manage" });
+    const principal = await requireAdminSession(request, { csrf: true, permission: "customer.manage" });
     const body = await request.json() as Record<string, unknown>;
     const status = String(body.status ?? "") as CustomerStatus;
     if (!CUSTOMER_STATUSES.includes(status)) throw new Error("Unsupported customer status");
