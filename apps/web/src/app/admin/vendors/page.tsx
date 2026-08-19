@@ -199,8 +199,10 @@ export default async function Page() {
               {["verification_pending", "catalog_onboarding", "test_ready"].includes(application.state) && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
               {application.state === "active" && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
               {application.state !== "closed" && <AdminActionButton label="Close" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "closed" }} reasonPrompt="Permanent closure reason" danger />}
+              {application.state !== "active" && <AdminActionButton label="Delete application" endpoint={`/api/admin/vendors/${application.id}/delete`} csrfToken={csrfToken} reasonPrompt="Reason for permanently deleting this application" extraPrompt={{ field: "confirmation", message: `Type ${application.id} to permanently delete the application and its application history from the database.` }} danger />}
             </div>
           </div>
+          {application.state !== "active" && <div className="workspace-inline-note">Permanent delete removes the application row and its application-event history from PostgreSQL. {shop ? `The linked shop ${shop.id} is retained and remains managed separately.` : "No shop record is linked, so no vendor/shop data is affected."}</div>}
         </article>;
       })}</div>}
     </div></section>
