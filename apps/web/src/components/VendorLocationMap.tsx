@@ -18,7 +18,7 @@ type LeafletNamespace = {
 };
 type LeafletWindow = Window & typeof globalThis & {
   L?: LeafletNamespace;
-  __blsLeafletPromise?: Promise<LeafletNamespace>;
+  __blsVendorLeafletPromise?: Promise<LeafletNamespace>;
 };
 
 const LEAFLET_VERSION = "1.9.4";
@@ -28,9 +28,9 @@ const MARKER_HTML = '<span style="display:block;width:24px;height:24px;border-ra
 function loadLeaflet(): Promise<LeafletNamespace> {
   const browser = window as LeafletWindow;
   if (browser.L) return Promise.resolve(browser.L);
-  if (browser.__blsLeafletPromise) return browser.__blsLeafletPromise;
+  if (browser.__blsVendorLeafletPromise) return browser.__blsVendorLeafletPromise;
 
-  browser.__blsLeafletPromise = new Promise<LeafletNamespace>((resolve, reject) => {
+  browser.__blsVendorLeafletPromise = new Promise<LeafletNamespace>((resolve, reject) => {
     const cssHref = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
     if (!document.querySelector(`link[href="${cssHref}"]`)) {
       const link = document.createElement("link");
@@ -62,7 +62,7 @@ function loadLeaflet(): Promise<LeafletNamespace> {
     document.head.appendChild(script);
   });
 
-  return browser.__blsLeafletPromise;
+  return browser.__blsVendorLeafletPromise;
 }
 
 export function VendorLocationMap({ vendorId, vendorName, address, coordinates }: {
