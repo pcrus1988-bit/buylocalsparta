@@ -2,9 +2,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (process.env.VERCEL_ENV === "production") {
-    return Response.json({ error: "not_available_in_production" }, { status: 404 });
-  }
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) return Response.json({ configured: false }, { status: 200, headers: { "Cache-Control": "no-store" } });
   const headers = { authorization: `Bearer ${apiKey}`, "user-agent": "buy-local-sparta-resend-discovery/1.0" };
