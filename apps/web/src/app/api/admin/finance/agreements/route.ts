@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { requireAdminSession } from "../../../../../lib/admin-session";
+import { transitionVendorApplication } from "../../../../../lib/admin-runtime";
 import {
   activateCommercialAgreement,
   changeCommercialAgreementStatus,
@@ -17,13 +18,16 @@ import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtim
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function assertFinanceActivationDoesNotBypassOnboarding(principal: SessionPrincipal, agreementId: unknown) {
+async function activateFinanceAgreementThroughOnboarding(principal: SessionPrincipal, agreementId: unknown) {
   if (typeof agreementId !== "string" || !agreementId.trim()) throw new Error("agreementId is required");
+  const normalizedAgreementId = agreementId.trim();
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
-  await uow.withTransaction(platformScope(principal.userId), async (tx) => {
+  const activation = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const result = await tx.query<SqlRow>(`
-      SELECT app.public_id AS application_public_id,app.status::text AS application_status
+      SELECT agreement.agreement_code,
+             app.public_id AS application_public_id,
+             app.status::text AS application_status
       FROM vendor_commercial_agreements agreement
       LEFT JOIN LATERAL (
         SELECT public_id,status
@@ -33,13 +37,29 @@ async function assertFinanceActivationDoesNotBypassOnboarding(principal: Session
         LIMIT 1
       ) app ON true
       WHERE agreement.public_id=$1 OR agreement.id::text=$1
-    `, [agreementId.trim()]);
+    `, [normalizedAgreementId]);
     if (!result.rowCount) throw new Error("Agreement not found");
-    const applicationStatus = result.rows[0].application_status ? String(result.rows[0].application_status) : undefined;
-    if (applicationStatus && applicationStatus !== "active") {
-      throw new Error(`Η σύμβαση είναι έτοιμη, αλλά η αίτηση βρίσκεται στο στάδιο ${applicationStatus}. Η τελική ενεργοποίηση vendor γίνεται από Admin → Vendors όταν ολοκληρωθούν catalog/test readiness.`);
-    }
+    return {
+      agreementCode: String(result.rows[0].agreement_code),
+      applicationId: result.rows[0].application_public_id ? String(result.rows[0].application_public_id) : undefined,
+      applicationStatus: result.rows[0].application_status ? String(result.rows[0].application_status) : undefined
+    };
   }, { readOnly: true });
+
+  if (!activation.applicationId || !activation.applicationStatus || activation.applicationStatus === "active") {
+    await activateCommercialAgreement(principal, { agreementId: normalizedAgreementId });
+    return;
+  }
+
+  if (activation.applicationStatus !== "test_ready") {
+    throw new Error(`Η συμφωνία ${activation.agreementCode} έχει επαληθευτεί, αλλά η αίτηση βρίσκεται στο στάδιο ${activation.applicationStatus}. Ολοκληρώστε πρώτα το onboarding μέχρι το στάδιο test_ready.`);
+  }
+
+  await transitionVendorApplication(principal, {
+    applicationId: activation.applicationId,
+    to: "active",
+    reason: `Final activation after verified commercial agreement ${activation.agreementCode}`
+  });
 }
 
 export async function GET(request: Request) {
@@ -109,8 +129,7 @@ export async function POST(request: Request) {
     } else if (action === "verify_govgr") {
       await verifyCommercialAgreementGovgr(principal, body);
     } else if (action === "activate") {
-      await assertFinanceActivationDoesNotBypassOnboarding(principal, body.agreementId);
-      await activateCommercialAgreement(principal, body);
+      await activateFinanceAgreementThroughOnboarding(principal, body.agreementId);
     } else if (action === "status") {
       await changeCommercialAgreementStatus(principal, body);
     } else {
@@ -122,6 +141,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "agreement_action_failed";
+    console.error(JSON.stringify({ level: "error", event: "admin.finance.agreement_action_failed", message }));
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
   }
 }
