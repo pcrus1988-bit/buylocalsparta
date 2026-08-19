@@ -3,7 +3,7 @@ import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../..
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const principal = await requireVendorSession(request,true);
     const body = await request.json() as Record<string, unknown>;
     const text = (key: string) => typeof body[key] === "string" ? String(body[key]).trim() : "";
     const rawCustomerPrice = body.customerPriceMinor ?? body.supplierUnitPriceMinor;
