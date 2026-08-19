@@ -28,6 +28,19 @@ export async function adminUpdateVendorFeeTaxSetting(principal:SessionPrincipal,
   return{ok:true};
 }
 
+export async function adminAssertVendorInvoicePaymentMapping(principal:SessionPrincipal,input:{processor:string;processorMethod:string}){
+  assertAdminPermission(principal,"finance.write");
+  if(!productionDatabaseConfigured())throw new Error("Vendor billing requires PostgreSQL");
+  const result=await getProductionPostgresRuntime().nativePool.query(`SELECT pm.mydata_payment_type,pm.production_status
+    FROM accounting_tax_policies p JOIN markets m ON m.id=p.market_id AND m.code='sparta'
+    JOIN mydata_payment_mappings pm ON pm.policy_id=p.id
+    WHERE p.status='approved' AND pm.processor=$1 AND pm.processor_method=$2
+    ORDER BY p.approved_at DESC LIMIT 1`,[input.processor.trim().toUpperCase(),input.processorMethod.trim().toUpperCase()]);
+  if(!result.rowCount||String(result.rows[0].production_status)!=="approved")throw new Error("Selected vendor invoice payment mapping is not approved");
+  if(integer(result.rows[0].mydata_payment_type)!==5)throw new Error("Vendor commission/fee invoices must use an approved myDATA payment type 5 (Επί Πιστώσει / settlement-offset accounting) at issuance");
+  return{ok:true,paymentType:5};
+}
+
 export async function adminDeleteVendorInvoiceDraft(principal:SessionPrincipal,input:{invoiceId:string;reason:string}){
   assertAdminPermission(principal,"finance.write");
   if(!productionDatabaseConfigured())throw new Error("Vendor billing requires PostgreSQL");
