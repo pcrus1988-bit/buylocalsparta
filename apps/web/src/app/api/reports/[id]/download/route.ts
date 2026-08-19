@@ -1,6 +1,7 @@
 import { getVendorSession } from "../../../../../lib/vendor-session";
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { getReportDownload } from "../../../../../lib/reporting-engine";
+import { resolveReportPrincipal } from "../../../../../lib/reporting-principal";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const admin = vendor ? undefined : await getAdminSession();
   if (!vendor && !admin) return new Response("Authentication required", { status: 401 });
   try {
-    const report = vendor ? await getReportDownload("vendor", vendor, id) : await getReportDownload("admin", admin!, id);
+    const report = vendor
+      ? await getReportDownload("vendor", await resolveReportPrincipal(vendor), id)
+      : await getReportDownload("admin", await resolveReportPrincipal(admin!), id);
     return new Response(new Uint8Array(report.bytes), {
       status: 200,
       headers: {
