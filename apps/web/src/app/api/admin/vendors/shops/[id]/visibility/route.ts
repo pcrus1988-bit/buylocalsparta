@@ -3,7 +3,7 @@ import { setVendorDirectoryVisibility, vendorOnboardingWorkspace } from "../../.
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "vendor.manage" });
+    const principal = await requireAdminSession(request, {csrf:true,permission:"vendor.manage"});
     const { id } = await context.params;
     const body = await request.json() as { visible?: unknown; reason?: unknown };
     if (typeof body.visible !== "boolean") throw new Error("Visibility value is required");
