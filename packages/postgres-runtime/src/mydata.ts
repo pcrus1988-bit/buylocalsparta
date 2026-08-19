@@ -8,6 +8,10 @@ export type MyDataDocumentProjection = Readonly<{
   mappingVersion?:string; invoiceTypeCode?:string; documentNumber?:string; aadeMark?:string; aadeUid?:string; qrUrl?:string; lastError?:string; createdAt:number;
 }>;
 
+export type MyDataConnectivityResult = Readonly<{
+  ok:true; readOnly:true; operation:"RequestTransmittedDocs"; environment:string; specVersion:string; checkedAt:number; responseBytes:number;
+}>;
+
 export class PostgresMyDataService {
   readonly #uow:PostgresUnitOfWork;
   readonly #client:AadeMyDataClient;
@@ -18,6 +22,13 @@ export class PostgresMyDataService {
   async workspace(principal:SessionPrincipal):Promise<{environment:string;specVersion:string;issuanceEnabled:boolean;approvedMappingVersion?:string;documents:readonly MyDataDocumentProjection[]}>{
     const documents=await this.#uow.withTransaction(platformScope(principal.userId),async tx=>{const r=await tx.query<SqlRow>(`SELECT td.public_id,o.public_id AS order_public_id,td.type,td.status,td.transmission_status,td.gross_minor,td.currency,td.mapping_version,td.invoice_type_code,td.document_number,td.aade_mark,td.aade_uid,td.aade_qr_url,td.last_error,td.created_at FROM tax_documents td LEFT JOIN customer_orders o ON o.id=td.order_id ORDER BY td.created_at DESC LIMIT 250`);return r.rows.map(row=>({id:text(row.public_id),orderId:optional(row.order_public_id),type:text(row.type),status:text(row.status),transmissionStatus:text(row.transmission_status),grossMinor:int(row.gross_minor),currency:text(row.currency),mappingVersion:optional(row.mapping_version),invoiceTypeCode:optional(row.invoice_type_code),documentNumber:optional(row.document_number),aadeMark:optional(row.aade_mark),aadeUid:optional(row.aade_uid),qrUrl:optional(row.aade_qr_url),lastError:optional(row.last_error),createdAt:epoch(row.created_at)}))},{readOnly:true});
     return{environment:this.#client.environment,specVersion:this.#client.specVersion,issuanceEnabled:this.#issuanceEnabled,approvedMappingVersion:this.#approvedMappingVersion,documents};
+  }
+
+  async connectivityCheck():Promise<MyDataConnectivityResult>{
+    const checkedAt=Date.now();
+    const today=aadeDate(new Date(checkedAt));
+    const xml=await this.#client.requestTransmittedDocs({mark:"0",dateFrom:today,dateTo:today});
+    return{ok:true,readOnly:true,operation:"RequestTransmittedDocs",environment:this.#client.environment,specVersion:this.#client.specVersion,checkedAt,responseBytes:Buffer.byteLength(xml,"utf8")};
   }
 
   async transmitPreparedDocument(principal:SessionPrincipal,input:{documentId:string;now?:number}):Promise<MyDataTransmissionResult>{
@@ -32,4 +43,6 @@ export class PostgresMyDataService {
     return result;
   }
 }
+
+function aadeDate(date:Date):string{const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(date);const value=Object.fromEntries(parts.filter(part=>part.type!=="literal").map(part=>[part.type,part.value]));return `${value.day}/${value.month}/${value.year}`;}
 function text(v:unknown):string{if(typeof v!=="string"||!v)throw new Error("Invalid database text");return v}function optional(v:unknown):string|undefined{return typeof v==="string"&&v? v:undefined}function int(v:unknown):number{const n=Number(v);if(!Number.isSafeInteger(n))throw new Error("Invalid database integer");return n}function epoch(v:unknown):number{const n=v instanceof Date?v.getTime():new Date(String(v)).getTime();if(!Number.isFinite(n))throw new Error("Invalid database timestamp");return n}function json(v:unknown):Record<string,unknown>{if(v&&typeof v==="object"&&!Array.isArray(v))return v as Record<string,unknown>;if(typeof v==="string")try{const p=JSON.parse(v);return p&&typeof p==="object"&&!Array.isArray(p)?p:{};}catch{return{}}return{}}
