@@ -48,5 +48,6 @@
   "0066_vendor_profile_media.sql": "291bcb5656c766c8497d1adaef9d20ae20bbf068ef7c6761f2000dc6e4c99ffc",
   "0067_vendor_agreement_lifecycle.sql": "4d66f966062383764bc29692f49a2598551c8e5f4ef49ec4058b6b3bde9c8e86",
   "0068_vendor_agreement_document_vault.sql": "7c0afc160f979449e8654934ea85091aac0b4c85edde3d84c501ab5e85433b5d",
-  "0069_customer_support_cases.sql": "eacf3c6270304db66d10a0978d7fca7d39e73c0854efed348a0e26e832207918"
+  "0069_customer_support_cases.sql": "eacf3c6270304db66d10a0978d7fca7d39e73c0854efed348a0e26e832207918",
+  "0072_customer_addresses_checkout.sql": "1171cff82370b0b96c1dd057efee29077ff48d1cdd4f0e4021bee1b426ed646f"
 }
