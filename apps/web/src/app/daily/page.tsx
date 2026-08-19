@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { VendorDailyClient } from "../../components/VendorDailyClient";
-import { getVendorSession } from "../../lib/vendor-session";
+import { getDailySession } from "../../lib/daily-session";
 import { vendorDashboard } from "../../lib/vendor-runtime";
 import { synchronizeOperationalEvents, vendorAdviceWorkspace } from "../../lib/vendor-backoffice-service";
 import { vendorOrderNotificationWorkspace } from "../../lib/order-sla";
@@ -20,7 +20,7 @@ const emptySlaWorkspace = {
 };
 
 export default async function VendorDailyPage() {
-  const principal = await getVendorSession();
+  const principal = await getDailySession();
   if (!principal) redirect("/daily/login");
 
   synchronizeOperationalEvents();
