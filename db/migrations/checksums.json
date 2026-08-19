@@ -4,7 +4,7 @@
   "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
   "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
-  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
+  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c08219db496ce63d150",
   "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
   "0008_rls_platform_scope.sql": "ba5afa7a0957d87babbaf0950003424ad151986143d1becdf2b3786e4a48c8d3",
   "0009_media_compliance_jobs.sql": "7a613be9c529567d98296007b38475c244153db1548812f9172f7ff0a961f051",
@@ -27,7 +27,7 @@
   "0026_customer_personalization_privacy.sql": "98f2be393ce4658bec2e23a65fc000e1025de29a802cd4e6a6689a29487e3902",
   "0027_saved_product_alerts_recommendations.sql": "192298e8cfcd7e8bcb2687491fb2e08474194abc3f76691d675148883f19f20d",
   "0028_saved_search_notification_center.sql": "51a3289c93e015df80cbbb74916d56aef923f98a12b1b7344a0ab5965e73ab99",
-  "0029_customer_account_runtime.sql": "487e018ec00df1ce23817c53fd0b4f662afcfa52cc05aa4d38cfdbb279aa1b32",
+  "0029_customer_account_runtime.sql": "487e018ec00df1ce23817c53fd0b4f6627f231c7a90a28e9c47d95044cb57",
   "0030_customer_commerce_runtime.sql": "23091f5433ff818dd1cb4814ae46a51eb6627f231c7a90a28e9c47d95044cb57",
   "0031_viva_payments.sql": "39374fa723f1f18f01e9429db8fdd0df5854071b450b886faa77034eff111095",
   "0032_vendor_rescue_paid_reservation_hardening.sql": "48d6c2819f625b457205b1c97cace6add74e2dd5781dffe928f2a13053104989",
@@ -57,5 +57,6 @@
   "0075_customer_fiscal_delivery.sql": "c53e3c154c05e1debdfeb17d47e00cdbec90111c76ece361377eb142f8b95cb2",
   "0076_accounting_mapping_v1.sql": "ec680d9221be33beaa64e2bb7e842c58ff1df61e9efa72b6715e64e033e0dc7a",
   "0077_product_tax_profile_audit.sql": "3254685ce114e88e4cc004ae645e5651c65de46b34ce9c310f6bd99b8b974b2d",
+  "0078_vendor_order_sla_notifications.sql": "715b7402ed7ce94a40bde7da92d231023a3a9e07e503a641fc708571170d8e04",
   "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01c0948ac787eb8e3666418519221"
 }
