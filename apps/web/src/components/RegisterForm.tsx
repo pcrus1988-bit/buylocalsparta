@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 export function RegisterForm() {
   const searchParams = useSearchParams();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -26,7 +27,7 @@ export function RegisterForm() {
       const response = await fetch("/api/account/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, passwordConfirmation, acceptedPrivacy, next })
+        body: JSON.stringify({ fullName, email, password, passwordConfirmation, acceptedPrivacy, next })
       });
       const data = await response.json() as { error?: string; email?: string; resent?: boolean; verificationUrl?: string };
       if (!response.ok) throw new Error(data.error ?? "Η εγγραφή απέτυχε.");
@@ -42,6 +43,9 @@ export function RegisterForm() {
   }
 
   return <form className="login-form" onSubmit={submit}>
+    <label htmlFor="register-name">Ονοματεπώνυμο</label>
+    <input id="register-name" type="text" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={3} maxLength={160} placeholder="Όνομα και επώνυμο" />
+
     <label htmlFor="register-email">Email</label>
     <input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
 
