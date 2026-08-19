@@ -1,6 +1,5 @@
 import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { adminVendorsWorkspace, postgresAdminRuntimeEnabled, transitionVendorApplication } from "../../../../../../lib/admin-runtime";
-import { setAdminVendorDirectoryVisibility } from "../../../../../../lib/vendor-admin-controls";
+import { adminVendorsWorkspace, transitionVendorApplication } from "../../../../../../lib/admin-runtime";
 import { sendVendorApplicationStateEmail } from "../../../../../../lib/vendor-email-workflows";
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
 
@@ -15,30 +14,32 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (typeof body.reason !== "string" || body.reason.trim().length < 3) throw new Error("Transition reason is required");
 
     const state = body.to as VendorOnboardingState;
-    const transitioned = await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
-    const vendorId = typeof transitioned === "object" && transitioned !== null && "vendorId" in transitioned && typeof transitioned.vendorId === "string"
-      ? transitioned.vendorId
-      : undefined;
-    if (state === "active" && vendorId && postgresAdminRuntimeEnabled()) {
-      await setAdminVendorDirectoryVisibility(principal, {
-        vendorId,
-        visible: false,
-        reason: "Newly activated shop awaits cooperation-document and publication review"
-      });
-    }
+    await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
 
     const workspace = await adminVendorsWorkspace(principal);
     const application = workspace.applications.find((item) => item.id === id);
+    let notificationWarning: string | undefined;
     if (application?.contactEmail) {
-      await sendVendorApplicationStateEmail({
-        to: application.contactEmail,
-        tradingName: application.tradingName,
-        applicationId: application.id,
-        state,
-        reason: body.reason
-      });
+      try {
+        await sendVendorApplicationStateEmail({
+          to: application.contactEmail,
+          tradingName: application.tradingName,
+          applicationId: application.id,
+          state,
+          reason: body.reason
+        });
+      } catch (emailError) {
+        notificationWarning = emailError instanceof Error ? emailError.message : "Vendor notification could not be sent";
+        console.error(JSON.stringify({
+          level: "error",
+          event: "vendor.application_notification_failed",
+          applicationId: id,
+          state,
+          message: notificationWarning
+        }));
+      }
     }
-    return Response.json(workspace);
+    return Response.json({ ...workspace, notificationWarning });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "vendor_transition_failed" }, { status: 400 });
   }
