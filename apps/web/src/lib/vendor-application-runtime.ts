@@ -11,6 +11,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 
 const ALLOWED_CATEGORIES = new Set(["home-living", "fashion", "beauty", "kids", "technology", "gifts"]);
+const APPROVED_PAID_PLANS = new Set(["founding_2026", "annual", "monthly"] as const);
 const globals = globalThis as typeof globalThis & {
   __blsVendorApplicationRateLimiter?: PostgresFixedWindowRateLimiter;
 };
@@ -26,7 +27,7 @@ export type VendorApplicationInput = Readonly<{
   postcode: string;
   primaryCategory: string;
   shopStory?: string;
-  requestedPlanCode: "free_listing" | "founding_2026";
+  requestedPlanCode: "founding_2026" | "annual" | "monthly";
 }>;
 
 export type VendorApplicationReceipt = Readonly<{
@@ -146,7 +147,6 @@ async function provisionalOwner(tx: SqlExecutor, email: string, now: number): Pr
     // Never let an anonymous request attach an application to an already registered identity.
     throw new Error("EXISTING_ACCOUNT_LOGIN_REQUIRED");
   }
-
   const uuid = randomUUID();
   const publicId = id("usr");
   const at = new Date(now);
@@ -190,7 +190,7 @@ function normalizeApplication(input: VendorApplicationInput): VendorApplicationI
   const primaryCategory = requiredLimited(input.primaryCategory, "Κατηγορία", 80).toLowerCase();
   if (!ALLOWED_CATEGORIES.has(primaryCategory)) throw new Error("Επίλεξε έγκυρη κατηγορία καταστήματος.");
   const shopStory = limitedOptional(input.shopStory, 1500);
-  if (!(["free_listing", "founding_2026"] as const).includes(input.requestedPlanCode)) throw new Error("Μη έγκυρη επιλογή προγράμματος.");
+  if (!APPROVED_PAID_PLANS.has(input.requestedPlanCode)) throw new Error("Μη έγκυρη επιλογή προγράμματος.");
   return { legalName, tradingName, taxNumber, gemiNumber, contactEmail, phone, address, postcode, primaryCategory, shopStory, requestedPlanCode: input.requestedPlanCode };
 }
 
