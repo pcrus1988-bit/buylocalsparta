@@ -8,7 +8,7 @@ const allowed = new Set<VendorOnboardingState>(["verification_pending", "catalog
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "vendor.manage" });
+    const principal = await requireAdminSession(request, { csrf:true, permission: "vendor.manage" });
     const { id } = await context.params;
     const body = await request.json() as { to?: unknown; reason?: unknown };
     if (typeof body.to !== "string" || !allowed.has(body.to as VendorOnboardingState)) throw new Error("Invalid vendor transition");
