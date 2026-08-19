@@ -1,5 +1,6 @@
 import { requireAdminSession } from "../../../../../../lib/admin-session";
 import { adminVendorsWorkspace, transitionVendorApplication } from "../../../../../../lib/admin-runtime";
+import { setAdminVendorDirectoryVisibility } from "../../../../../../lib/vendor-admin-controls";
 import { sendVendorApplicationStateEmail } from "../../../../../../lib/vendor-email-workflows";
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
 
@@ -14,7 +15,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (typeof body.reason !== "string" || body.reason.trim().length < 3) throw new Error("Transition reason is required");
 
     const state = body.to as VendorOnboardingState;
-    await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
+    const transitioned = await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
+    if (state === "active" && transitioned.vendorId) {
+      await setAdminVendorDirectoryVisibility(principal, {
+        vendorId: transitioned.vendorId,
+        visible: false,
+        reason: "Newly activated shop awaits cooperation-document and publication review"
+      });
+    }
+
     const workspace = await adminVendorsWorkspace(principal);
     const application = workspace.applications.find((item) => item.id === id);
     if (application?.contactEmail) {
