@@ -1,13 +1,16 @@
 import { SiteHeader } from "../components/SiteHeader";
 import { getCatalogCards } from "../lib/catalog-view";
+import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
-import { STOREFRONT_CATEGORIES } from "../lib/storefront-taxonomy";
 import { SiteFooter } from "../components/SiteFooter";
 
 export default async function Home() {
   const visitorKey = await getVisitorKey();
-  const cards = await getCatalogCards(visitorKey);
+  const [cards, categories] = await Promise.all([
+    getCatalogCards(visitorKey),
+    getAvailableStorefrontCategories("23100")
+  ]);
 
   return (
     <main>
@@ -47,13 +50,13 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="section shell" aria-labelledby="categories-title">
+      {categories.length > 0 ? <section className="section shell" aria-labelledby="categories-title">
         <div className="section-heading">
           <div><div className="eyebrow">Ξεκίνα από εδώ</div><h2 id="categories-title">Κατηγορίες</h2></div>
           <a className="text-link" href="/shop">Όλα τα προϊόντα →</a>
         </div>
         <div className="category-grid">
-          {STOREFRONT_CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <a className={`category-card category-card-${category.slug}`} href={`/category/${category.slug}`} key={category.slug}>
               <span className="category-mark">{category.mark}</span>
               <span><strong>{category.label}</strong><small>{category.name}</small></span>
@@ -62,7 +65,7 @@ export default async function Home() {
             </a>
           ))}
         </div>
-      </section>
+      </section> : null}
 
       <section className="section section-tint" id="shop">
         <div className="shell">
