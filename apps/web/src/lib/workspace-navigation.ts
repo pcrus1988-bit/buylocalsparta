@@ -50,6 +50,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Αγορά",
     links: [
       { label: "Έρευνα vendors", href: "/admin/research-vendors", icon: "⌕", permission: "vendor.manage" },
+      { label: "Prospects", href: "/admin/prospects", icon: "◌", permission: "vendor.manage" },
       { label: "Συνεργάτες", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
       { label: "Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
       { label: "Κατηγορίες", href: "/admin/categories", icon: "▦", permission: "catalog.read" },
