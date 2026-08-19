@@ -15,7 +15,7 @@ type Preview = {
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-export function VendorPickupCollectClient({ initial, token, csrfToken, returnHref = "/vendor#orders" }: { initial: Preview; token: string; csrfToken: string; returnHref?: string }) {
+export function VendorPickupCollectClient({ initial, token, csrfToken, returnHref = "/vendor#orders", collectEndpoint = "/api/vendor/pickup/collect" }: { initial: Preview; token: string; csrfToken: string; returnHref?: string; collectEndpoint?: string }) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +24,7 @@ export function VendorPickupCollectClient({ initial, token, csrfToken, returnHre
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/vendor/pickup/collect", {
+      const response = await fetch(collectEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ token })
