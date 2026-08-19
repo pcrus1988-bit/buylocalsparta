@@ -60,7 +60,7 @@ export async function previewOrCommitVendorCsv(principal: SessionPrincipal, csv:
 export async function vendorTrustWorkspace(principal: SessionPrincipal) {
   if (!postgresVendorRuntimeEnabled()) return { ...memoryTrustWorkspace(principal), mediaUploadMode: mediaUploadMode() };
   const result = await db().trustWorkspace(principal);
-  return { csrfToken: result.csrfToken, products: result.canonicalProducts, assets: result.assets, documents: result.documents, mediaUploadMode: mediaUploadMode() };
+  return { csrfToken: result.csrfToken, products: result.canonicalProducts, assets: result.assets.filter((asset) => Boolean(asset.canonicalVariantId)), documents: result.documents, mediaUploadMode: mediaUploadMode() };
 }
 
 export async function uploadVendorMedia(principal: SessionPrincipal, input: {

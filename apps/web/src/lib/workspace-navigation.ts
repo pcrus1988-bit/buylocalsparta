@@ -13,6 +13,7 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Κατάλογος",
     links: [
       { label: "Προϊόντα & stock", href: "/vendor/catalog", icon: "▦" },
+      { label: "Storefront", href: "/vendor/storefront", icon: "◫" },
       { label: "Φωτογραφίες & έγγραφα", href: "/vendor/trust", icon: "✓" }
     ]
   },
