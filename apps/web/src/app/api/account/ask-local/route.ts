@@ -1,5 +1,36 @@
 import { requireAccountSession } from "../../../../lib/account-session";
-import { customerAskLocalRequests, submitAskLocal } from "../../../../lib/ask-local-service";
+import { customerAskLocalRequests, submitAskLocal, type AskLocalEntryMode } from "../../../../lib/ask-local-service";
 
-export async function GET() { try { const principal = await requireAccountSession(); return Response.json({ requests: await customerAskLocalRequests(principal), csrfToken: principal.csrfToken }); } catch (error) { const message = error instanceof Error ? error.message : "ask_local_failed"; return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 }); } }
-export async function POST(request: Request) { try { const principal = await requireAccountSession(request, true); const body = await request.json() as Record<string, unknown>; const created = await submitAskLocal(principal, { need: typeof body.need === "string" ? body.need : "", postcode: typeof body.postcode === "string" ? body.postcode : "", quantity: typeof body.quantity === "number" ? body.quantity : Number(body.quantity), sourceUrl: typeof body.sourceUrl === "string" ? body.sourceUrl : undefined, canonicalVariantId: typeof body.canonicalVariantId === "string" ? body.canonicalVariantId : undefined, preferredVendorId: typeof body.preferredVendorId === "string" ? body.preferredVendorId : undefined, category: typeof body.category === "string" ? body.category : undefined }); return Response.json({ request: created }, { status: 201 }); } catch (error) { const message = error instanceof Error ? error.message : "ask_local_failed"; return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 }); } }
+export async function GET() {
+  try {
+    const principal = await requireAccountSession();
+    return Response.json({ requests: await customerAskLocalRequests(principal), csrfToken: principal.csrfToken });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ask_local_failed";
+    return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const principal = await requireAccountSession(request, true);
+    const body = await request.json() as Record<string, unknown>;
+    const entryMode = typeof body.entryMode === "string" && ["search", "category", "product", "vendor"].includes(body.entryMode)
+      ? body.entryMode as AskLocalEntryMode
+      : undefined;
+    const created = await submitAskLocal(principal, {
+      need: typeof body.need === "string" ? body.need : "",
+      postcode: typeof body.postcode === "string" ? body.postcode : "",
+      quantity: typeof body.quantity === "number" ? body.quantity : Number(body.quantity),
+      sourceUrl: typeof body.sourceUrl === "string" ? body.sourceUrl : undefined,
+      canonicalVariantId: typeof body.canonicalVariantId === "string" ? body.canonicalVariantId : undefined,
+      preferredVendorId: typeof body.preferredVendorId === "string" ? body.preferredVendorId : undefined,
+      category: typeof body.category === "string" ? body.category : undefined,
+      entryMode
+    });
+    return Response.json({ request: created }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ask_local_failed";
+    return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
+  }
+}
