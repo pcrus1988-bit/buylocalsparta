@@ -1,4 +1,6 @@
-export type WorkspaceNavLink = Readonly<{ label: string; href: string; icon: string }>;
+import type { Permission } from "@buy-local-sparta/core";
+
+export type WorkspaceNavLink = Readonly<{ label: string; href: string; icon: string; permission?: Permission }>;
 export type WorkspaceNavGroup = Readonly<{ label: string; links: ReadonlyArray<WorkspaceNavLink> }>;
 
 export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
@@ -38,48 +40,48 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Σήμερα",
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
-      { label: "Παραγγελίες", href: "/admin/orders", icon: "□" },
-      { label: "Πελάτες", href: "/admin/customers", icon: "◉" },
-      { label: "Υποστήριξη πελατών", href: "/admin/customers/support", icon: "?" },
-      { label: "Αποστολές", href: "/admin/shipping", icon: "↗" }
+      { label: "Παραγγελίες", href: "/admin/orders", icon: "□", permission: "fulfilment.read" },
+      { label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" },
+      { label: "Υποστήριξη πελατών", href: "/admin/customers/support", icon: "?", permission: "customer.read" },
+      { label: "Αποστολές", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write" }
     ]
   },
   {
     label: "Αγορά",
     links: [
-      { label: "Έρευνα vendors", href: "/admin/research-vendors", icon: "⌕" },
-      { label: "Συνεργάτες", href: "/admin/vendors", icon: "◎" },
-      { label: "Matching", href: "/admin/matching", icon: "◇" },
-      { label: "Κατηγορίες", href: "/admin/categories", icon: "▦" },
-      { label: "Περιεχόμενο", href: "/admin/content", icon: "✎" }
+      { label: "Έρευνα vendors", href: "/admin/research-vendors", icon: "⌕", permission: "vendor.manage" },
+      { label: "Συνεργάτες", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
+      { label: "Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
+      { label: "Κατηγορίες", href: "/admin/categories", icon: "▦", permission: "catalog.read" },
+      { label: "Περιεχόμενο", href: "/admin/content", icon: "✎", permission: "content.read" }
     ]
   },
   {
     label: "Εμπιστοσύνη",
     links: [
-      { label: "Συμμόρφωση", href: "/admin/trust", icon: "✓" },
-      { label: "Αξιολογήσεις", href: "/admin/reviews", icon: "☆" },
-      { label: "Ανακλήσεις", href: "/admin/recalls", icon: "!" },
-      { label: "Ιδιωτικότητα", href: "/admin/privacy", icon: "◐" }
+      { label: "Συμμόρφωση", href: "/admin/trust", icon: "✓", permission: "catalog.read" },
+      { label: "Αξιολογήσεις", href: "/admin/reviews", icon: "☆", permission: "reviews.read" },
+      { label: "Ανακλήσεις", href: "/admin/recalls", icon: "!", permission: "returns.read" },
+      { label: "Ιδιωτικότητα", href: "/admin/privacy", icon: "◐", permission: "privacy.read" }
     ]
   },
   {
     label: "Διοίκηση",
     links: [
-      { label: "Οικονομικά", href: "/admin/finance", icon: "€" },
-      { label: "Συμφωνίες vendors", href: "/admin/finance/agreements", icon: "%" },
-      { label: "Φορολογία", href: "/admin/tax", icon: "#" },
-      { label: "Fairness", href: "/admin/fairness", icon: "⚖" },
-      { label: "Analytics", href: "/admin/analytics", icon: "∿" },
-      { label: "Reports", href: "/admin/reports", icon: "▤" }
+      { label: "Οικονομικά", href: "/admin/finance", icon: "€", permission: "finance.read" },
+      { label: "Συμφωνίες vendors", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
+      { label: "Φορολογία", href: "/admin/tax", icon: "#", permission: "finance.read" },
+      { label: "Fairness", href: "/admin/fairness", icon: "⚖", permission: "fairness.read" },
+      { label: "Analytics", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
+      { label: "Reports", href: "/admin/reports", icon: "▤", permission: "analytics.market.read" }
     ]
   },
   {
     label: "Σύστημα",
     links: [
-      { label: "Εργασίες", href: "/admin/maintenance", icon: "⋯" },
-      { label: "Ενεργοποίηση", href: "/admin/activation", icon: "◈" },
-      { label: "Λειτουργία", href: "/admin/operations", icon: "⚙" }
+      { label: "Εργασίες", href: "/admin/maintenance", icon: "⋯", permission: "admin.audit.read" },
+      { label: "Ενεργοποίηση", href: "/admin/activation", icon: "◈", permission: "admin.audit.read" },
+      { label: "Λειτουργία", href: "/admin/operations", icon: "⚙", permission: "admin.audit.read" }
     ]
   }
 ];

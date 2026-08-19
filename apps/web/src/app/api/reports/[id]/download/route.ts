@@ -1,5 +1,6 @@
 import { getVendorSession } from "../../../../../lib/vendor-session";
 import { getAdminSession } from "../../../../../lib/admin-session";
+import { assertAdminPermission } from "../../../../../lib/admin-runtime";
 import { getReportDownload } from "../../../../../lib/reporting-engine";
 import { resolveReportPrincipal } from "../../../../../lib/reporting-principal";
 
@@ -11,6 +12,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const admin = vendor ? undefined : await getAdminSession();
   if (!vendor && !admin) return new Response("Authentication required", { status: 401 });
   try {
+    if (admin) assertAdminPermission(admin, "analytics.market.read");
     const report = vendor
       ? await getReportDownload("vendor", await resolveReportPrincipal(vendor), id)
       : await getReportDownload("admin", await resolveReportPrincipal(admin!), id);
@@ -25,7 +27,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Report unavailable";
-    const status = message.includes("SCOPE") ? 403 : message.includes("NOT_READY") ? 409 : 404;
+    const status = message.includes("permission") || message.includes("SCOPE") ? 403 : message.includes("NOT_READY") ? 409 : 404;
     return new Response(message, { status, headers: { "cache-control": "private, no-store" } });
   }
 }
