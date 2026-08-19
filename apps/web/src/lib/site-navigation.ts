@@ -112,6 +112,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/login",
   "/admin/activation",
   "/admin/analytics",
+  "/admin/ask-local",
   "/admin/categories",
   "/admin/content",
   "/admin/fairness",
