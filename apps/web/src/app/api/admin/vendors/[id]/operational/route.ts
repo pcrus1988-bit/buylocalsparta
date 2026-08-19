@@ -13,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (typeof body.reason !== "string" || body.reason.trim().length < 3) throw new Error("Operational-state reason is required");
 
     const now = Date.now();
-    const access = body.active ? await prepareVendorActivationAccess({ vendorId: id, now }) : undefined;
+    const access = body.active ? await prepareVendorActivationAccess({ vendorId: id, actorUserId: principal.userId, now }) : undefined;
     const result = await setGovernedAdminVendorOperationalState(principal, { vendorId: id, active: body.active, reason: body.reason, now });
     if (body.active) {
       await setAdminVendorDirectoryVisibility(principal, {
