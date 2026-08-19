@@ -5,7 +5,7 @@ import { ReportBuilderFields } from "../../../components/ReportBuilderFields";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { listReports, listSavedReportDefinitions, reportBuilderOptions } from "../../../lib/reporting-engine";
-import { createVendorReportAction, emailVendorReportAction, saveVendorReportDefinitionAction } from "./actions";
+import { createVendorReportAction, emailVendorReportAction, runSavedVendorReportAction, saveVendorReportDefinitionAction } from "./actions";
 
 export const metadata: Metadata = { title: "Vendor Reports", robots: { index: false, follow: false } };
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -55,10 +55,11 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Saved" title="Αποθηκευμένα report templates" note="Τα templates αποθηκεύουν declarative ReportSpec — ποτέ SQL." />
+      <WorkspaceSectionHeading eyebrow="Saved" title="Αποθηκευμένα report templates" note="Τα templates αποθηκεύουν declarative ReportSpec — ποτέ SQL — και μπορούν να εκτελεστούν ξανά με ένα click." />
       {saved.length ? <div className="workspace-queue-list">{saved.map(item => <article className="workspace-queue-card" key={item.publicId}>
         <div className="workspace-queue-head"><div><strong>{item.name}</strong><small>{item.spec.fromDate} → {item.spec.toDate}</small></div><span className="status-pill">{item.spec.preset}</span></div>
         <p>{item.spec.domains.join(" · ")}</p>
+        <form action={runSavedVendorReportAction}><input type="hidden" name="templateId" value={item.publicId} /><button className="button button-secondary" type="submit">Run template</button></form>
       </article>)}</div> : <article className="workspace-queue-card"><strong>Δεν υπάρχουν ακόμη αποθηκευμένα templates.</strong></article>}
     </section>
 
