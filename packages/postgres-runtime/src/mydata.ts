@@ -16,6 +16,7 @@ export class PostgresMyDataService {
   readonly #uow:PostgresUnitOfWork;
   readonly #client:AadeMyDataClient;
   readonly #issuanceEnabled:boolean;
+  // The web runtime resolves BLS_MYDATA_MAPPING_VERSION and injects it here so this package stays environment-agnostic.
   readonly #deploymentMappingPin?:string;
   constructor(pool:SqlPool,input:{client:AadeMyDataClient;issuanceEnabled:boolean;approvedMappingVersion?:string}){
     this.#uow=new PostgresUnitOfWork(pool);
