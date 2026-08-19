@@ -1,4 +1,4 @@
-import { previewVendorProductCsv, type SessionPrincipal } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, previewVendorProductCsv, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 import { vendorCatalogControlWorkspace } from "./vendor-catalog-control-service";
@@ -84,7 +84,12 @@ export async function vendorAppointmentAction(principal: SessionPrincipal, appoi
   return postgresVendorRuntimeEnabled() ? db().appointmentAction(principal, appointmentId, action) : memoryAppointmentAction(principal, appointmentId, action);
 }
 export async function vendorFinanceWorkspace(principal: SessionPrincipal) {
-  return postgresVendorRuntimeEnabled() ? db().financeWorkspace(principal) : memoryFinanceWorkspace(principal);
+  if (!postgresVendorRuntimeEnabled()) return memoryFinanceWorkspace(principal);
+  const [workspace, commercialTerms] = await Promise.all([
+    db().financeWorkspace(principal),
+    vendorCommercialTerms(principal)
+  ]);
+  return { ...workspace, commercialTerms };
 }
 export async function submitVendorInvoice(principal: SessionPrincipal, input: { procurementId: string; invoiceNumber: string; invoiceGrossMinor: number }) {
   return postgresVendorRuntimeEnabled() ? db().submitInvoice(principal, input) : memorySubmitInvoice(principal, input);
@@ -103,4 +108,49 @@ export function synchronizeOperationalEvents(): void {
   if (!postgresVendorRuntimeEnabled()) {
     void import("./vendor-operations-runtime").then((module) => module.synchronizeOperationalEvents());
   }
+}
+
+async function vendorCommercialTerms(principal: SessionPrincipal) {
+  if (!principal.vendorId) return undefined;
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.nativePool);
+  return uow.withTransaction({ actorUserId: principal.userId, vendorId: principal.vendorId, marketId: "sparta" }, async (tx) => {
+    const result = await tx.query<SqlRow>(`
+      SELECT agreement_code,status,commission_rate_bps,commission_basis,commission_tax_mode,commission_tax_rate_bps,
+             commission_applies_to_shipping,listing_fee_minor,recurring_fee_minor,recurring_fee_period,
+             starts_at,ends_at,signed_at,activated_at,updated_at
+      FROM vendor_commercial_agreements
+      WHERE vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1)
+      ORDER BY (status='active') DESC, updated_at DESC
+      LIMIT 1`, [principal.vendorId]);
+    if (!result.rowCount) return undefined;
+    const row = result.rows[0];
+    return {
+      agreementCode: String(row.agreement_code),
+      status: String(row.status),
+      commissionRateBps: safeInteger(row.commission_rate_bps),
+      commissionBasis: String(row.commission_basis ?? ""),
+      commissionTaxMode: String(row.commission_tax_mode ?? ""),
+      commissionTaxRateBps: safeInteger(row.commission_tax_rate_bps),
+      commissionAppliesToShipping: Boolean(row.commission_applies_to_shipping),
+      listingFeeMinor: safeInteger(row.listing_fee_minor),
+      recurringFeeMinor: safeInteger(row.recurring_fee_minor),
+      recurringFeePeriod: row.recurring_fee_period ? String(row.recurring_fee_period) : undefined,
+      startsAt: optionalEpoch(row.starts_at),
+      endsAt: optionalEpoch(row.ends_at),
+      signedAt: optionalEpoch(row.signed_at),
+      activatedAt: optionalEpoch(row.activated_at)
+    };
+  }, { readOnly: true });
+}
+
+function safeInteger(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isSafeInteger(parsed) ? parsed : 0;
+}
+
+function optionalEpoch(value: unknown): number | undefined {
+  if (!value) return undefined;
+  const parsed = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
