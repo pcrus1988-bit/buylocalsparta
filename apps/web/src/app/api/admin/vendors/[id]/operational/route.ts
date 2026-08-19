@@ -1,5 +1,6 @@
 import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { setAdminVendorDirectoryVisibility, setAdminVendorOperationalState } from "../../../../../../lib/vendor-admin-controls";
+import { setAdminVendorDirectoryVisibility } from "../../../../../../lib/vendor-admin-controls";
+import { setGovernedAdminVendorOperationalState } from "../../../../../../lib/vendor-onboarding-governance";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -8,7 +9,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = await request.json() as { active?: unknown; reason?: unknown };
     if (typeof body.active !== "boolean") throw new Error("Invalid operational state");
     if (typeof body.reason !== "string" || body.reason.trim().length < 3) throw new Error("Operational-state reason is required");
-    const result = await setAdminVendorOperationalState(principal, { vendorId: id, active: body.active, reason: body.reason });
+    const result = await setGovernedAdminVendorOperationalState(principal, { vendorId: id, active: body.active, reason: body.reason });
     if (body.active) {
       await setAdminVendorDirectoryVisibility(principal, {
         vendorId: id,
