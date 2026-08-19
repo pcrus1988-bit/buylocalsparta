@@ -62,8 +62,6 @@ export async function submitVendorApplication(input: {
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-vendor-application:${randomUUID()}` },
     async (tx) => {
-      // markets has no status/active column. Market availability is represented by the
-      // presence of the configured market row; plan availability is governed separately.
       const market = await tx.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code='sparta' LIMIT 1");
       if (!market.rowCount) throw new Error("MARKET_UNAVAILABLE");
       const marketUuid = requiredText(market.rows[0].id, "market.id");
@@ -71,15 +69,38 @@ export async function submitVendorApplication(input: {
       const plan = await tx.query<SqlRow>("SELECT 1 AS present FROM vendor_plans WHERE market_id=$1 AND code=$2 AND status='active' LIMIT 1", [marketUuid, application.requestedPlanCode]);
       if (!plan.rowCount) throw new Error("PLAN_UNAVAILABLE");
 
-      // One legal business must not be able to create parallel applicant/vendor identities.
-      // Keep the public error generic so the endpoint does not disclose who owns an AFM.
-      const duplicateBusiness = await tx.query<SqlRow>(`
-        SELECT 1 AS present FROM vendor_applications WHERE tax_number=$1
-        UNION ALL
-        SELECT 1 AS present FROM vendor_businesses WHERE tax_number=$1
-        LIMIT 1
-      `, [application.taxNumber]);
-      if (duplicateBusiness.rowCount) throw new Error("BUSINESS_ALREADY_REGISTERED");
+      // An AFM may already exist in our research universe. A merchant-owned application must
+      // claim that invited research record rather than creating a duplicate or being rejected.
+      const duplicateApplication = await tx.query<SqlRow>("SELECT 1 AS present FROM vendor_applications WHERE tax_number=$1 LIMIT 1", [application.taxNumber]);
+      if (duplicateApplication.rowCount) throw new Error("BUSINESS_ALREADY_REGISTERED");
+
+      const vendorMatches = await tx.query<SqlRow>(`
+        SELECT v.id::text AS id,v.public_id,v.status::text AS status
+        FROM vendor_businesses v
+        LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id=v.id
+        WHERE v.market_id=$2
+          AND (v.tax_number=$1 OR regexp_replace(COALESCE(vrp.candidate_vat,''),'[^0-9]','','g')=$1)
+        ORDER BY CASE WHEN v.public_id LIKE 'vendor_research_%' THEN 0 ELSE 1 END,v.created_at
+        FOR UPDATE OF v
+      `, [application.taxNumber, marketUuid]);
+      if (vendorMatches.rowCount > 1) throw new Error("BUSINESS_ALREADY_REGISTERED");
+
+      let researchVendorUuid: string | undefined;
+      if (vendorMatches.rowCount === 1) {
+        const candidate = vendorMatches.rows[0];
+        const candidateId = requiredText(candidate.id,"vendor.id");
+        const candidatePublicId = requiredText(candidate.public_id,"vendor.public_id");
+        const candidateStatus = requiredText(candidate.status,"vendor.status");
+        if (candidateStatus !== "invited" || !candidatePublicId.startsWith("vendor_research_")) throw new Error("BUSINESS_ALREADY_REGISTERED");
+        const claimed = await tx.query<SqlRow>(`
+          SELECT 1 AS present FROM vendor_applications WHERE vendor_id=$1
+          UNION ALL
+          SELECT 1 AS present FROM vendor_users WHERE vendor_id=$1 AND active=true
+          LIMIT 1
+        `, [candidateId]);
+        if (claimed.rowCount) throw new Error("BUSINESS_ALREADY_REGISTERED");
+        researchVendorUuid = candidateId;
+      }
 
       const owner = input.principal
         ? await authenticatedOwner(tx, input.principal)
@@ -93,16 +114,28 @@ export async function submitVendorApplication(input: {
       const createdAt = new Date(input.now);
       await tx.query(`
         INSERT INTO vendor_applications (
-          id,public_id,owner_user_id,market_id,legal_name,trading_name,tax_number,gemi_number,
+          id,public_id,owner_user_id,market_id,vendor_id,legal_name,trading_name,tax_number,gemi_number,
           contact_email,phone,address_line1,postcode,primary_category,shop_story,requested_plan_code,
           status,created_at,updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'verification_pending',$16,$16)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'verification_pending',$17,$17)
       `, [
-        applicationUuid, applicationId, owner.uuid, marketUuid, application.legalName, application.tradingName,
-        application.taxNumber, application.gemiNumber ?? null, application.contactEmail, application.phone,
-        application.address, application.postcode, application.primaryCategory, application.shopStory ?? null,
-        application.requestedPlanCode, createdAt
+        applicationUuid, applicationId, owner.uuid, marketUuid, researchVendorUuid ?? null,
+        application.legalName, application.tradingName, application.taxNumber, application.gemiNumber ?? null,
+        application.contactEmail, application.phone, application.address, application.postcode,
+        application.primaryCategory, application.shopStory ?? null, application.requestedPlanCode, createdAt
       ]);
+
+      if (researchVendorUuid) {
+        await tx.query(`
+          UPDATE vendor_businesses
+          SET legal_name=$2,trading_name=$3,tax_number=$4,gemi_number=COALESCE($5,gemi_number),
+              status='verification_pending',public_directory_visible=false,
+              public_directory_visibility_updated_at=$6,
+              public_directory_visibility_reason='Research record claimed by merchant application; verification in progress',
+              updated_at=$6
+          WHERE id=$1
+        `, [researchVendorUuid,application.legalName,application.tradingName,application.taxNumber,application.gemiNumber ?? null,createdAt]);
+      }
 
       await insertApplicationEvent(tx, {
         applicationUuid,
@@ -110,7 +143,7 @@ export async function submitVendorApplication(input: {
         to: "application_started",
         actorUuid: owner.uuid,
         actorPublicId: owner.publicId,
-        reason: "merchant started public application",
+        reason: researchVendorUuid ? "merchant claimed invited research record and started public application" : "merchant started public application",
         at: input.now
       });
       await insertApplicationEvent(tx, {
@@ -143,10 +176,7 @@ async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal):
 
 async function provisionalOwner(tx: SqlExecutor, email: string, now: number): Promise<{ uuid: string; publicId: string; provisional: true }> {
   const existing = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE lower(email::text)=lower($1) LIMIT 1 FOR UPDATE", [email]);
-  if (existing.rowCount) {
-    // Never let an anonymous request attach an application to an already registered identity.
-    throw new Error("EXISTING_ACCOUNT_LOGIN_REQUIRED");
-  }
+  if (existing.rowCount) throw new Error("EXISTING_ACCOUNT_LOGIN_REQUIRED");
   const uuid = randomUUID();
   const publicId = id("usr");
   const at = new Date(now);
