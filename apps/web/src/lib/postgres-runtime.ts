@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionPostgresRuntime } from "@buy-local-sparta/postgres-runtime";
 
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
@@ -34,7 +35,21 @@ if (!process.env.DATABASE_URL?.trim() && bootstrapDatabaseUrl) process.env.DATAB
 
 function postgresRuntimeEnv(): NodeJS.ProcessEnv {
   const connectionString = resolveDatabaseUrlFromEnv();
-  return connectionString ? { ...process.env, DATABASE_URL: connectionString } : process.env;
+  const env: NodeJS.ProcessEnv = connectionString ? { ...process.env, DATABASE_URL: connectionString } : { ...process.env };
+
+  // The Vercel Resend Marketplace integration provisions RESEND_API_KEY. Treat that as
+  // an opt-in unless email has been explicitly disabled, and derive the separate
+  // suppression HMAC key from the already-required production auth secret.
+  if (env.RESEND_API_KEY?.trim() && !env.BLS_EMAIL_DELIVERY_ENABLED?.trim()) env.BLS_EMAIL_DELIVERY_ENABLED = "true";
+  if (env.BLS_EMAIL_DELIVERY_ENABLED === "true" && !env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim()) {
+    const authSecret = env.BLS_AUTH_SECRET?.trim();
+    if (authSecret && authSecret.length >= 32) {
+      env.BLS_NOTIFICATION_SUPPRESSION_SECRET = createHmac("sha256", authSecret)
+        .update("buy-local-sparta:notification-suppression:v1")
+        .digest("hex");
+    }
+  }
+  return env;
 }
 
 export function databaseRuntimeRequired(): boolean {
