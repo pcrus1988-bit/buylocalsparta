@@ -60,5 +60,6 @@
   "0078_customer_comms_ask_local_workflow.sql": "c09ab0fc446ce9454bd8637bf5a8ae1a59410a999207ee327ce93fe768124d6b",
   "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01c0948ac787eb8e3666418519221",
   "0080_vendor_order_sla_notifications.sql": "76ec3abb340fb03231a09ec8615102d5cc9740304605bcbf5108ceb17c34594c",
-  "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723"
+  "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
+  "0082_order_sla_trigger_search_path.sql": "c915907a6ad7229cff9de2f750f7b9fd0761d4854dc562f2af0672d6bb8fc5d4"
 }
