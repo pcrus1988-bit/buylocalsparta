@@ -13,7 +13,8 @@ type LeafletMarker = { addTo(map: LeafletMap): LeafletMarker; bindTooltip(label:
 type LeafletNamespace = {
   map(element: HTMLElement, options?: Record<string, unknown>): LeafletMap;
   tileLayer(url: string, options?: Record<string, unknown>): { addTo(map: LeafletMap): unknown };
-  marker(latLng: [number, number]): LeafletMarker;
+  marker(latLng: [number, number], options?: Record<string, unknown>): LeafletMarker;
+  divIcon(options: Record<string, unknown>): unknown;
 };
 type LeafletWindow = Window & typeof globalThis & {
   L?: LeafletNamespace;
@@ -22,6 +23,7 @@ type LeafletWindow = Window & typeof globalThis & {
 
 const LEAFLET_VERSION = "1.9.4";
 const OSM_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const MARKER_HTML = '<span style="display:block;width:24px;height:24px;border-radius:50% 50% 50% 0;background:#183027;border:3px solid #fff;box-shadow:0 5px 16px rgba(24,48,39,.28);transform:rotate(-45deg)"></span>';
 
 function loadLeaflet(): Promise<LeafletNamespace> {
   const browser = window as LeafletWindow;
@@ -84,7 +86,8 @@ export function VendorLocationMap({ vendorId, vendorName, address, coordinates }
         const point: [number, number] = [coordinates.latitude, coordinates.longitude];
         const map = leaflet.map(elementRef.current, { scrollWheelZoom: false, zoomControl: true }).setView(point, 16);
         leaflet.tileLayer(OSM_TILE_URL, { attribution: "&copy; OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
-        leaflet.marker(point).addTo(map).bindTooltip(vendorName, { permanent: false, direction: "top" });
+        const icon = leaflet.divIcon({ className: "", html: MARKER_HTML, iconSize: [30, 30], iconAnchor: [15, 24] });
+        leaflet.marker(point, { icon }).addTo(map).bindTooltip(vendorName, { permanent: false, direction: "top" });
         mapRef.current = map;
         window.setTimeout(() => map.invalidateSize(), 0);
       })
