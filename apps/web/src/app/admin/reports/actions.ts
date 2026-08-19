@@ -56,8 +56,8 @@ export async function saveAdminReportDefinitionAction(formData: FormData) {
   let destination: string;
   try {
     const spec = reportSpecFromForm("admin", principal, formData);
-    const name = String(formData.get("templateName") ?? spec.title);
-    await saveReportDefinition("admin", principal, name, spec);
+    const templateName = String(formData.get("templateName") ?? "").trim();
+    await saveReportDefinition("admin", principal, templateName || spec.title, spec);
     destination = "/admin/reports?saved=1";
   } catch (error) {
     const message = error instanceof Error ? error.message : "Αποτυχία αποθήκευσης προτύπου.";
