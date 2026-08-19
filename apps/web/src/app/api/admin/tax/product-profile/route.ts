@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { adminApproveProductTaxProfile, adminProposeProductTaxProfile } from "../../../../../../lib/admin-product-tax-runtime";
+import { requireAdminSession } from "../../../../../lib/admin-session";
+import { adminApproveProductTaxProfile, adminProposeProductTaxProfile } from "../../../../../lib/admin-product-tax-runtime";
 
 export const runtime="nodejs";
 const text=(body:Record<string,unknown>,key:string)=>{const v=body[key];if(typeof v!=="string"||!v.trim())throw new Error(`${key} is required`);return v.trim();};
