@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Admin Command Centre", robots: { ind
 const adminWorkspaceDescriptions: Readonly<Record<string, string>> = {
   "/admin/orders": "Παραγγελίες, exceptions, returns και refunds.",
   "/admin/customers": "Customer directory, Customer 360, support cases, profile & security.",
+  "/admin/customers/support": "Ενιαία ουρά customer support με priority, ownership και follow-up.",
   "/admin/shipping": "Αποστολές, fulfilment και operational exceptions.",
   "/admin/research-vendors": "Έρευνα υποψήφιων συνεργατών πριν το onboarding.",
   "/admin/vendors": "Vendor onboarding, ενεργοποίηση, visibility και συνεργασία.",
@@ -44,18 +45,22 @@ export default async function AdminPage() {
     ["Fairness", dashboard.metrics.fairnessAppeals],
     ["Orders", dashboard.metrics.orders]
   ] as const;
+  const customerAccess = hasAdminPermission(principal, "customer.read");
   const quickLinks = [
     { kicker: "Acquisition", label: "Έρευνα vendors", description: "Υποψήφιοι πριν το onboarding.", href: "/admin/research-vendors" },
     { kicker: "Onboarding", label: "Συνεργάτες", description: "Έλεγχος και ενεργοποίηση.", href: "/admin/vendors", value: dashboard.metrics.vendorVerificationQueue },
     { kicker: "Catalog", label: "Matching", description: "Canonical έλεγχος προϊόντων.", href: "/admin/matching", value: dashboard.metrics.catalogReviewQueue },
     { kicker: "Commerce", label: "Παραγγελίες", description: "Exceptions, returns και refunds.", href: "/admin/orders", value: dashboard.metrics.orders },
-    ...(hasAdminPermission(principal, "customer.read") ? [{ kicker: "Customer ops", label: "Πελάτες", description: "Directory → Customer 360 → support → profile & security.", href: "/admin/customers" }] : []),
+    ...(customerAccess ? [
+      { kicker: "Customer ops", label: "Πελάτες", description: "Directory → Customer 360 → profile & security.", href: "/admin/customers" },
+      { kicker: "Customer support", label: "Υποστήριξη πελατών", description: "Open, urgent, unassigned και overdue cases.", href: "/admin/customers/support" }
+    ] : []),
     { kicker: "Trust", label: "Συμμόρφωση", description: "Media και τεκμήρια ασφάλειας.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance },
     { kicker: "Finance", label: "Οικονομικά", description: "Payables και settlements.", href: "/admin/finance", value: dashboard.metrics.payableProcurements }
   ];
   const allAdminLinks = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links
     .filter((link) => link.href !== "/admin")
-    .filter((link) => link.href !== "/admin/customers" || hasAdminPermission(principal, "customer.read"))
+    .filter((link) => !link.href.startsWith("/admin/customers") || customerAccess)
     .map((link) => ({
       kicker: group.label,
       label: link.label,
