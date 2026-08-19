@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { VendorPickupCollectClient } from "../../../components/VendorPickupCollectClient";
-import { getVendorSession } from "../../../lib/vendor-session";
+import { getDailySession } from "../../../lib/daily-session";
 import { getVendorPickupScanPreview } from "../../../lib/order-lifecycle";
 
 export const metadata: Metadata = { title: "KONTA MOY Daily · Παραλαβή", robots: { index: false, follow: false } };
@@ -10,14 +10,14 @@ export const metadata: Metadata = { title: "KONTA MOY Daily · Παραλαβή"
 export default async function DailyPickupPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token.trim() : "";
-  const principal = await getVendorSession();
+  const principal = await getDailySession();
   if (!principal) redirect("/daily/login");
   if (!token) redirect("/daily/scan");
 
   try {
     const preview = await getVendorPickupScanPreview(principal, token);
     return <main className="vendor-app" style={{ minHeight: "100dvh", paddingTop: 24 }}>
-      <VendorPickupCollectClient initial={preview} token={token} csrfToken={principal.csrfToken} returnHref="/daily" />
+      <VendorPickupCollectClient initial={preview} token={token} csrfToken={principal.csrfToken} returnHref="/daily" collectEndpoint="/api/daily/pickup/collect" />
     </main>;
   } catch (error) {
     return <main style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 20, background: "#f6f4ee" }}>
