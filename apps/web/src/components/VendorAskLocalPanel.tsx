@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import styles from "./VendorStorefront.module.css";
 
 type AskLocalResponse = Readonly<{
@@ -31,7 +31,9 @@ export function VendorAskLocalPanel({ vendorId, vendorName, csrfToken }: {
     );
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  const requestCsrfToken = csrfToken;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
@@ -44,7 +46,7 @@ export function VendorAskLocalPanel({ vendorId, vendorName, csrfToken }: {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-csrf-token": csrfToken
+          "x-csrf-token": requestCsrfToken
         },
         body: JSON.stringify({
           need: form.get("need"),
