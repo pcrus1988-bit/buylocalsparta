@@ -32,7 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     if (state === "active" && transition.vendorId) {
       try {
-        const access = await prepareVendorActivationAccess({ vendorId: transition.vendorId, now });
+        const access = await prepareVendorActivationAccess({ vendorId: transition.vendorId, actorUserId: principal.userId, now });
         await sendVendorActivationEmail(access);
         onboardingEmailSent = true;
       } catch (emailError) {
