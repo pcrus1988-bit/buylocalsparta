@@ -35,6 +35,53 @@ CREATE INDEX IF NOT EXISTS fulfilment_sla_agreement_idx
   ON fulfilment_sla_cases(agreement_id, state, due_at)
   WHERE agreement_id IS NOT NULL;
 
+CREATE OR REPLACE FUNCTION suppress_duplicate_admin_order_received() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.channel = 'in_app' AND NEW.event_type = 'admin.order_received'
+     AND EXISTS (
+       SELECT 1 FROM notifications n
+       WHERE n.channel = 'in_app'
+         AND n.event_type = 'admin.order_received'
+         AND n.payload->>'orderId' IS NOT DISTINCT FROM NEW.payload->>'orderId'
+         AND n.payload->>'fulfilmentId' IS NOT DISTINCT FROM NEW.payload->>'fulfilmentId'
+     ) THEN
+    RETURN NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER notifications_admin_order_received_dedupe
+BEFORE INSERT ON notifications
+FOR EACH ROW EXECUTE FUNCTION suppress_duplicate_admin_order_received();
+
+CREATE OR REPLACE FUNCTION mirror_vendor_order_received_to_admin() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  admin_key text;
+  order_ref text;
+  fulfilment_ref text;
+BEGIN
+  IF NEW.channel = 'in_app' AND NEW.event_type = 'vendor.order_received' THEN
+    order_ref := COALESCE(NEW.payload->>'orderId', 'unknown');
+    fulfilment_ref := COALESCE(NEW.payload->>'fulfilmentId', 'unknown');
+    admin_key := 'order:' || order_ref || ':fulfilment:' || fulfilment_ref || ':admin:received';
+    INSERT INTO notifications(
+      id,public_id,user_id,vendor_id,channel,purpose,event_type,template_version,locale,
+      title,body,payload,status,dedupe_key,sent_at,created_at
+    ) VALUES(
+      gen_random_uuid(),'notification_' || replace(gen_random_uuid()::text,'-',''),NULL,NULL,'in_app','transactional',
+      'admin.order_received','order-sla-v1',COALESCE(NEW.locale,'el'),
+      'Νέα παραγγελία σε vendor','Η παραγγελία ' || order_ref || ' ανατέθηκε σε vendor και περιμένει αποδοχή.',
+      NEW.payload || jsonb_build_object('sourceVendorUuid',NEW.vendor_id::text),'sent',admin_key,NEW.created_at,NEW.created_at
+    )
+    ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER notifications_vendor_order_admin_mirror
+AFTER INSERT ON notifications
+FOR EACH ROW EXECUTE FUNCTION mirror_vendor_order_received_to_admin();
+
 ALTER TABLE vendor_order_sla_policies ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY vendor_order_sla_vendor_read
