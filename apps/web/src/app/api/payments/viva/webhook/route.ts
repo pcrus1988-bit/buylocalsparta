@@ -1,5 +1,6 @@
 import { parseVivaWebhookJson } from "@buy-local-sparta/viva-payments";
 import { requireVivaPayments } from "../../../../../lib/viva-runtime";
+import { capturePaidOrderForFiscalIssuance } from "../../../../../lib/customer-fiscal-runtime";
 
 export const runtime = "nodejs";
 
@@ -36,8 +37,6 @@ function matchesIpv4Cidr(ip: string, cidr: string): boolean {
 }
 
 function requestIp(request: Request): string | undefined {
-  // Vercel overwrites x-forwarded-for for normal deployments, so the first value is the
-  // public source IP rather than a client-supplied spoofed header.
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   if (!forwarded) return undefined;
   return forwarded.startsWith("::ffff:") ? forwarded.slice(7) : forwarded;
@@ -60,9 +59,13 @@ export async function POST(request:Request) {
     const raw=await request.text();
     const envelope=parseVivaWebhookJson(raw);
     const result=await requireVivaPayments().handleWebhook(envelope,Date.now());
+    const paymentResult = result.result && "orderId" in result.result ? result.result : undefined;
+    if (paymentResult?.paymentStatus === "captured" && paymentResult.orderStatus === "confirmed") {
+      await capturePaidOrderForFiscalIssuance(paymentResult.orderId, Date.now());
+    }
     return Response.json({ok:true,eventTypeId:result.eventTypeId});
   } catch(error) {
-    // Non-2xx deliberately asks Viva to retry. The provider docs describe hourly retries for failed webhook delivery.
+    // Non-2xx deliberately asks Viva to retry. Payment reconciliation and fiscal capture are idempotent.
     return Response.json({error:error instanceof Error?error.message:"viva_webhook_failed"},{status:503});
   }
 }
