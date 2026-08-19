@@ -19,6 +19,7 @@ type Detail = {
   cancelledAt?: number;
   canCancel: boolean;
   csrfToken: string;
+  invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string };
   lines: ReadonlyArray<{ id: string; canonicalVariantId: string; title: string; quantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
   fulfilments: ReadonlyArray<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[] }>;
 };
@@ -80,6 +81,15 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <div className="summary-row"><span>Σύνολο</span><strong>{data.total}</strong></div>
         {data.cancellationReason && <div className="workspace-inline-note">Ακύρωση: {data.cancellationReason}{data.cancelledAt ? ` · ${date(data.cancelledAt)}` : ""}</div>}
       </div>
+
+      {data.invoice && <div className="order-summary">
+        <h2>Φορολογικό παραστατικό</h2>
+        <div className="summary-row"><span>Αριθμός</span><strong>{data.invoice.documentNumber}</strong></div>
+        <div className="summary-row"><span>MARK</span><strong>{data.invoice.mark}</strong></div>
+        <p>{date(data.invoice.issuedAt)}</p>
+        <a className="button button-primary" href={data.invoice.downloadUrl}>Λήψη PDF</a>
+        {data.invoice.qrUrl && <a className="button button-secondary" href={data.invoice.qrUrl} target="_blank" rel="noreferrer">Επαλήθευση AADE</a>}
+      </div>}
 
       <div className="order-help-links" aria-label="Βοήθεια παραγγελίας">
         <Link href="/delivery-pickup"><span>Παράδοση & παραλαβή</span><span aria-hidden="true">→</span></Link>
