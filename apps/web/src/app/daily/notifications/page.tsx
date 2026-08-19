@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { VendorDailyNotificationSettings } from "../../../components/VendorDailyNotificationSettings";
-import { getVendorSession } from "../../../lib/vendor-session";
+import { getDailySession } from "../../../lib/daily-session";
+import { dailyPushStatus } from "../../../lib/daily-push";
 
 export const metadata: Metadata = {
   title: "KONTA MOY Daily · Ειδοποιήσεις",
@@ -9,7 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default async function DailyNotificationsPage() {
-  if (!await getVendorSession()) redirect("/daily/login");
-
-  return <VendorDailyNotificationSettings deliveryReady={false} />;
+  const principal = await getDailySession();
+  if (!principal) redirect("/daily/login");
+  const status = await dailyPushStatus(principal);
+  return <VendorDailyNotificationSettings configured={status.configured} publicKey={status.publicKey} devices={status.devices} csrfToken={principal.csrfToken} />;
 }
