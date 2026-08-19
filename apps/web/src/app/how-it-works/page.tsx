@@ -4,13 +4,13 @@ import { SiteHeader } from "../../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Πώς λειτουργεί",
-  description: "Από την αναζήτηση και την τοπική συμβουλή μέχρι την πληρωμή, την εκπλήρωση και την παρακολούθηση της παραγγελίας.",
+  description: "Από την αναζήτηση και το Ask Local μέχρι την πληρωμή, την εκπλήρωση και την παρακολούθηση της παραγγελίας.",
   alternates: { canonical: "/how-it-works" }
 };
 
 const journey = [
   ["01", "Βρίσκεις αυτό που χρειάζεσαι", "Αναζήτησε προϊόν, κατηγορία ή κατάστημα. Τα ίδια προϊόντα ενοποιούνται ώστε να βλέπεις ένα καθαρό αποτέλεσμα."],
-  ["02", "Παίρνεις τοπική συμβουλή", "Ρώτησε από τη σελίδα προϊόντος ή χρησιμοποίησε το Ask Local. Η συζήτηση και κάθε πρόταση παραμένουν ιδιωτικές."],
+  ["02", "Αν χρειάζεσαι βοήθεια, χρησιμοποιείς Ask Local", "Περιέγραψε τι ψάχνεις και η πλατφόρμα σε κατευθύνει ιδιωτικά στον κατάλληλο τοπικό άνθρωπο. Αν θέλεις πρώτα να δεις ποιος γνωρίζει την κατηγορία, οι Τοπικοί σύμβουλοι είναι μια προαιρετική διαδρομή μέσα στο Ask Local."],
   ["03", "Αγοράζεις μία φορά", "Το Buy Local Sparta είναι το ενιαίο σημείο checkout. Προϊόντα από περισσότερα καταστήματα παραμένουν σε μία παραγγελία πελάτη."],
   ["04", "Η παραγγελία εκτελείται τοπικά", "Στο παρασκήνιο δημιουργούνται ιδιωτές ροές εκπλήρωσης ανά κατάστημα, χωρίς να φορτώνεται ο πελάτης με ξεχωριστές αγορές."],
   ["05", "Παραλαμβάνεις και παρακολουθείς", "Επίλεξε διαθέσιμο τρόπο παραλαβής ή αποστολής και δες την εξέλιξη από τον λογαριασμό σου."]
@@ -22,12 +22,12 @@ export default function HowItWorksPage() {
     <SiteHeader />
     <section className="content-hero content-hero-process">
       <div className="shell content-hero-grid">
-        <div><div className="eyebrow light">Από την ανάγκη μέχρι την παραλαβή</div><h1>Μία αγορά. Πραγματική τοπική υποστήριξη.</h1><p>Το Buy Local Sparta συνδέει τον καθαρό online κατάλογο με τα φυσικά καταστήματα, τους ανθρώπους και τη γνώση της πόλης.</p><div className="hero-actions"><a className="button button-light" href="/shop">Ξεκίνα από τα προϊόντα</a><a className="button content-outline" href="/ask-local">Περιέγραψε τι ψάχνεις</a></div></div>
+        <div><div className="eyebrow light">Από την ανάγκη μέχρι την παραλαβή</div><h1>Μία αγορά. Πραγματική τοπική υποστήριξη.</h1><p>Το Buy Local Sparta συνδέει τον καθαρό online κατάλογο με τα φυσικά καταστήματα, τους ανθρώπους και τη γνώση της πόλης.</p><div className="hero-actions"><a className="button button-light" href="/shop">Ξεκίνα από τα προϊόντα</a><a className="button content-outline" href="/ask-local">Ask Local</a></div></div>
         <div className="content-hero-map" aria-hidden="true"><span>FIND</span><span>ASK</span><span>BUY</span><span>LOCAL</span></div>
       </div>
     </section>
     <section className="shell content-section" aria-labelledby="journey-title">
-      <div className="content-heading"><div><div className="eyebrow">Η διαδρομή σου</div><h2 id="journey-title">Πέντε καθαρά βήματα</h2></div><p>Κάθε σύνδεσμος οδηγεί σε πραγματική λειτουργία ή σελίδα· δεν χρειάζεται να επιστρέψεις στην αρχική για να συνεχίσεις.</p></div>
+      <div className="content-heading"><div><div className="eyebrow">Η διαδρομή σου</div><h2 id="journey-title">Πέντε καθαρά βήματα</h2></div><p>Δεν χρειάζεται να αποφασίσεις ανάμεσα σε διαφορετικές υπηρεσίες συμβουλής. Όταν χρειάζεσαι άνθρωπο, ξεκινάς από το Ask Local.</p></div>
       <div className="process-list">{journey.map(([number, title, body]) => <article key={number}><span>{number}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div>
     </section>
     <section className="content-band">
@@ -38,7 +38,7 @@ export default function HowItWorksPage() {
     </section>
     <section className="shell content-section">
       <div className="content-heading"><div><div className="eyebrow">Διάλεξε το επόμενο βήμα</div><h2>Πήγαινε κατευθείαν εκεί που χρειάζεσαι.</h2></div></div>
-      <div className="destination-grid"><a href="/fairness"><span>01</span><strong>Πώς επιλέγεται το κατάστημα</strong><small>Δες τους κανόνες δίκαιης ανάθεσης.</small></a><a href="/delivery-pickup"><span>02</span><strong>Παράδοση και παραλαβή</strong><small>Κατανόησε τις διαθέσιμες ροές εκπλήρωσης.</small></a><a href="/advice"><span>03</span><strong>Βρες τοπικό σύμβουλο</strong><small>Γνώρισε ανθρώπους που ξέρουν την κατηγορία.</small></a><a href="/help"><span>04</span><strong>Χρειάζεσαι βοήθεια;</strong><small>Βρες γρήγορα τη σωστή διαδρομή.</small></a></div>
+      <div className="destination-grid"><a href="/ask-local"><span>01</span><strong>Ask Local</strong><small>Περιέγραψε τι χρειάζεσαι και βρες τη σωστή ανθρώπινη βοήθεια.</small></a><a href="/fairness"><span>02</span><strong>Πώς επιλέγεται το κατάστημα</strong><small>Δες τους κανόνες δίκαιης ανάθεσης.</small></a><a href="/delivery-pickup"><span>03</span><strong>Παράδοση και παραλαβή</strong><small>Κατανόησε τις διαθέσιμες ροές εκπλήρωσης.</small></a><a href="/help"><span>04</span><strong>Χρειάζεσαι υποστήριξη;</strong><small>Βρες βοήθεια για λογαριασμό, αγορά ή υπάρχον αίτημα.</small></a></div>
     </section>
     <SiteFooter />
   </main>;
