@@ -16,7 +16,6 @@ export class PostgresMyDataService {
   readonly #uow:PostgresUnitOfWork;
   readonly #client:AadeMyDataClient;
   readonly #issuanceEnabled:boolean;
-  // The web runtime resolves BLS_MYDATA_MAPPING_VERSION and injects it here so this package stays environment-agnostic.
   readonly #deploymentMappingPin?:string;
   constructor(pool:SqlPool,input:{client:AadeMyDataClient;issuanceEnabled:boolean;approvedMappingVersion?:string}){
     this.#uow=new PostgresUnitOfWork(pool);
@@ -53,6 +52,7 @@ export class PostgresMyDataService {
     const prepared=await this.#uow.withTransaction(platformScope(principal.userId),async tx=>{
       const r=await tx.query<SqlRow>(`SELECT td.id::text AS document_uuid,td.public_id,td.status,td.transmission_status,td.mapping_version,td.payload_snapshot,td.aade_mark,
           td.accounting_policy_id::text,td.fiscalisation_route,td.mydata_payment_type,td.payment_transaction_id,td.ecr_token,td.provider_payment_signature,
+          td.document_series,td.document_aa,td.market_id::text,
           p.version AS policy_version,p.status AS policy_status,p.fiscalisation_route AS policy_route
         FROM tax_documents td
         LEFT JOIN accounting_tax_policies p ON p.id=td.accounting_policy_id
@@ -81,7 +81,7 @@ export class PostgresMyDataService {
       if(existing.rowCount){const status=text(existing.rows[0].status);if(status==="accepted")return{alreadyAccepted:true as const};throw new Error(`Existing AADE transmission attempt is ${status}; reconcile it instead of retrying blindly`);}
       await tx.query(`INSERT INTO mydata_transmission_attempts(public_id,tax_document_id,operation,attempt_key,environment,spec_version,request_hash,status,started_at) VALUES($1,$2,'send_invoice',$3,$4,$5,$6,'started',$7)`,[`mda_${randomUUID().replaceAll("-","")}`,text(row.document_uuid),attemptKey,this.#client.environment,this.#client.specVersion,hash,new Date(now)]);
       await tx.query("UPDATE tax_documents SET transmission_status='transmitting',last_transmission_at=$2,last_error=NULL WHERE id=$1",[text(row.document_uuid),new Date(now)]);
-      return{alreadyAccepted:false as const,documentUuid:text(row.document_uuid),attemptKey,xml};
+      return{alreadyAccepted:false as const,documentUuid:text(row.document_uuid),attemptKey,xml,series:optional(row.document_series),aa:intOptional(row.document_aa),marketId:text(row.market_id)};
     },{isolation:"serializable"});
     if(prepared.alreadyAccepted)return{ok:true,items:[],rawXml:""};
     let result:MyDataTransmissionResult;
@@ -99,6 +99,9 @@ export class PostgresMyDataService {
       const errors=result.items.flatMap(i=>i.errors.map(e=>e.code?`${e.code}: ${e.message}`:e.message)).join(" | ");
       await tx.query(`UPDATE mydata_transmission_attempts SET status=$3,response_snapshot=$4::jsonb,completed_at=$5 WHERE tax_document_id=$1 AND attempt_key=$2`,[prepared.documentUuid,prepared.attemptKey,accepted?"accepted":"rejected",JSON.stringify({ok:result.ok,items:result.items}),new Date(now)]);
       await tx.query(`UPDATE tax_documents SET transmission_status=$2,status=$3,aade_mark=$4,aade_uid=$5,aade_qr_url=$6,provider='aade_mydata_erp',provider_document_id=COALESCE($4,provider_document_id),last_error=$7,last_transmission_at=$8,issued_at=CASE WHEN $2='accepted' THEN COALESCE(issued_at,$8) ELSE issued_at END WHERE id=$1`,[prepared.documentUuid,accepted?"accepted":"rejected",accepted?"issued":"rejected",first?.invoiceMark??null,first?.invoiceUid??null,first?.qrUrl??null,errors||null,new Date(now)]);
+      if(accepted&&prepared.series&&prepared.aa!==undefined&&first?.invoiceMark){
+        await tx.query(`UPDATE mydata_fiscal_series SET last_issued_aa=GREATEST(COALESCE(last_issued_aa,0),$3),last_mark=$4,updated_at=$5 WHERE market_id=$1::uuid AND series=$2`,[prepared.marketId,prepared.series,prepared.aa,first.invoiceMark,new Date(now)]);
+      }
     },{isolation:"serializable"});
     return result;
   }
