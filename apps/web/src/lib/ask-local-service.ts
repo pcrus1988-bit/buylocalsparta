@@ -237,6 +237,9 @@ export async function submitAskLocal(principal: SessionPrincipal, raw: AskLocalS
   return (await customerAskLocalRequests(principal)).find((request) => request.id === publicId)!;
 }
 
+// Safety-net rescue is deliberately idempotent. It runs whenever an Ask Local
+// customer/admin/vendor workspace is read, so an overdue vendor assignment is
+// re-owned by Admin before that queue is presented to an operator.
 export async function rescueStaleAskLocalAssignments(now = Date.now()): Promise<number> {
   if (!postgresEnabled()) return 0;
   const runtime = getProductionPostgresRuntime();
