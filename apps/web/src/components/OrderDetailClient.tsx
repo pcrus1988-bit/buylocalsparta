@@ -6,39 +6,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ReturnCase = {
-  id: string;
-  returnNumber: string;
-  orderId: string;
-  status: string;
-  reason: string;
-  requestedRemedy?: string;
-  approvedRemedy?: string;
-  eligibilityState: string;
-  eligibilityReason?: string;
-  requestedAt: number;
-  rmaCode?: string;
-  returnByAt?: number;
-  instructions?: string;
-  carrier?: string;
-  trackingNumber?: string;
+  id: string; returnNumber: string; orderId: string; status: string; reason: string;
+  requestedRemedy?: string; approvedRemedy?: string; eligibilityState: string; eligibilityReason?: string;
+  requestedAt: number; rmaCode?: string; returnByAt?: number; instructions?: string; carrier?: string; trackingNumber?: string;
   lines: ReadonlyArray<{ orderLineId: string; quantity: number }>;
 };
 
 type Detail = {
-  id: string;
-  status: string;
-  sourceStatus: string;
-  createdAt: number;
-  postcode: string;
-  fulfilmentMode: string;
-  merchandiseSubtotal: string;
-  deliveryCharge: string;
-  discount: string;
-  total: string;
-  cancellationReason?: string;
-  cancelledAt?: number;
-  canCancel: boolean;
-  csrfToken: string;
+  id: string; status: string; sourceStatus: string; createdAt: number; postcode: string; fulfilmentMode: string;
+  merchandiseSubtotal: string; deliveryCharge: string; discount: string; total: string; cancellationReason?: string; cancelledAt?: number;
+  canCancel: boolean; csrfToken: string;
   lines: ReadonlyArray<{ id: string; canonicalVariantId: string; title: string; quantity: number; fulfilledQuantity: number; refundedQuantity: number; returnableQuantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
   fulfilments: ReadonlyArray<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[] }>;
   pickups: ReadonlyArray<{ id: string; fulfilmentId: string; vendorName: string; status: "ready" | "collected" | "expired"; readyAt: number; expiresAt: number; collectedAt?: number; shortCode: string; qrUrl: string }>;
@@ -46,14 +23,8 @@ type Detail = {
 };
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-const fulfilmentLabel: Record<string, string> = {
-  awaiting_acceptance: "Αναμονή αποδοχής", accepted: "Έγινε αποδεκτή", picking: "Ετοιμάζεται", packed: "Συσκευάστηκε",
-  ready_for_handover: "Έτοιμη για παραλαβή", handed_over: "Παραλήφθηκε", shipped: "Σε αποστολή", delivered: "Παραδόθηκε", failed: "Πρόβλημα παράδοσης", cancelled: "Ακυρώθηκε"
-};
-const returnStatusLabel: Record<string, string> = {
-  requested: "Υποβλήθηκε", approved: "Εγκρίθηκε", inspection_required: "Αναμονή οδηγιών επιστροφής", in_transit: "Σε επιστροφή", received: "Παραλήφθηκε για έλεγχο",
-  inspected: "Ο έλεγχος ολοκληρώθηκε", remedy_approved: "Εγκρίθηκε λύση", refunded: "Η επιστροφή χρημάτων ολοκληρώθηκε", replaced: "Η αντικατάσταση ολοκληρώθηκε", closed: "Ολοκληρώθηκε", rejected: "Απορρίφθηκε"
-};
+const fulfilmentLabel: Record<string, string> = { awaiting_acceptance: "Αναμονή αποδοχής", accepted: "Έγινε αποδεκτή", picking: "Ετοιμάζεται", packed: "Συσκευάστηκε", ready_for_handover: "Έτοιμη για παραλαβή", handed_over: "Παραλήφθηκε", shipped: "Σε αποστολή", delivered: "Παραδόθηκε", failed: "Πρόβλημα παράδοσης", cancelled: "Ακυρώθηκε" };
+const returnStatusLabel: Record<string, string> = { requested: "Υποβλήθηκε", approved: "Εγκρίθηκε", inspection_required: "Αναμονή οδηγιών επιστροφής", in_transit: "Σε επιστροφή", received: "Παραλήφθηκε για έλεγχο", inspected: "Ο έλεγχος ολοκληρώθηκε", remedy_approved: "Εγκρίθηκε refund", refunded: "Η επιστροφή χρημάτων ολοκληρώθηκε", replaced: "Η αντικατάσταση ολοκληρώθηκε", closed: "Ολοκληρώθηκε", rejected: "Απορρίφθηκε" };
 const reasonLabel: Record<string, string> = { withdrawal: "Υπαναχώρηση / άλλαξα γνώμη", defect: "Ελαττωματικό προϊόν", nonconformity: "Δεν ανταποκρίνεται στην περιγραφή", transit_damage: "Ζημιά κατά τη μεταφορά", wrong_item: "Λάθος προϊόν", missing_part: "Λείπει εξάρτημα", other: "Άλλος λόγος" };
 const remedyLabel: Record<string, string> = { refund: "Επιστροφή χρημάτων", replacement: "Αντικατάσταση", repair: "Επισκευή", price_reduction: "Μείωση τιμής" };
 const modeLabel: Record<string, string> = { pickup: "Παραλαβή από κατάστημα", local_delivery: "Τοπική παράδοση", shipping: "Αποστολή" };
@@ -66,7 +37,6 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   const [returnBusy, setReturnBusy] = useState("");
   const [error, setError] = useState("");
   const [returnReason, setReturnReason] = useState("withdrawal");
-  const [returnRemedy, setReturnRemedy] = useState("refund");
   const [returnQuantity, setReturnQuantity] = useState(1);
   const [returnNote, setReturnNote] = useState("");
 
@@ -81,17 +51,18 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
     finally { setBusy(false); }
   }
 
-  async function submitReturn(lineId: string) {
+  async function submitReturn(lineId: string, maxQuantity: number) {
     setReturnBusy(lineId); setError("");
     try {
+      const quantity = Math.min(Math.max(1, returnQuantity), maxQuantity);
       const response = await fetch(`/api/account/orders/${encodeURIComponent(data.id)}/returns`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": data.csrfToken },
-        body: JSON.stringify({ orderLineId: lineId, quantity: returnQuantity, reason: returnReason, requestedRemedy: returnRemedy, note: returnNote })
+        body: JSON.stringify({ orderLineId: lineId, quantity, reason: returnReason, requestedRemedy: "refund", note: returnNote })
       });
       const payload = await response.json() as Detail & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Το αίτημα επιστροφής απέτυχε");
-      setData(payload); setReturnQuantity(1); setReturnReason("withdrawal"); setReturnRemedy("refund"); setReturnNote(""); router.refresh();
+      setData(payload); setReturnQuantity(1); setReturnReason("withdrawal"); setReturnNote(""); router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Το αίτημα επιστροφής απέτυχε"); }
     finally { setReturnBusy(""); }
   }
@@ -107,18 +78,18 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <h2>Προϊόντα</h2>
         {data.lines.map((line) => <div key={line.id} style={{ display: "grid", gap: 10 }}>
           <div className="order-detail-line">
-            <div><Link href={`/product/${line.canonicalVariantId}`}><strong>{line.quantity}× {line.title}</strong></Link><small>από <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small>{line.refundedQuantity > 0 && <small>{line.refundedQuantity} τεμ. έχουν ήδη επιστραφεί/refunded</small>}</div>
+            <div><Link href={`/product/${line.canonicalVariantId}`}><strong>{line.quantity}× {line.title}</strong></Link><small>από <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small>{line.refundedQuantity > 0 && <small>{line.refundedQuantity} τεμ. έχουν ήδη γίνει refund</small>}</div>
             <span>{line.retailUnitPrice} / τεμ.</span>
           </div>
           {line.returnableQuantity > 0 && <details className="order-cancel-disclosure" style={{ marginBottom: 12 }}>
-            <summary>Επιστροφή / refund για αυτό το προϊόν</summary>
+            <summary>Αίτημα επιστροφής & refund</summary>
             <div style={{ display: "grid", gap: 10 }}>
-              <p>Διαθέσιμη ποσότητα για αίτημα: <strong>{line.returnableQuantity}</strong>. Το αίτημα ελέγχεται από την πλατφόρμα πριν δοθούν οδηγίες επιστροφής ή εκτελεστεί refund.</p>
+              <p>Διαθέσιμη ποσότητα για επιστροφή: <strong>{line.returnableQuantity}</strong>. Μετά την υποβολή, η πλατφόρμα ελέγχει το αίτημα και εκδίδει RMA/οδηγίες. Refund εκτελείται μόνο αφού ολοκληρωθεί ο απαιτούμενος έλεγχος.</p>
               <label>Ποσότητα<input type="number" min={1} max={line.returnableQuantity} value={Math.min(returnQuantity, line.returnableQuantity)} onChange={(event) => setReturnQuantity(Math.max(1, Number(event.target.value) || 1))} /></label>
               <label>Λόγος<select value={returnReason} onChange={(event) => setReturnReason(event.target.value)}><option value="withdrawal">Υπαναχώρηση / άλλαξα γνώμη</option><option value="defect">Ελαττωματικό προϊόν</option><option value="nonconformity">Δεν ανταποκρίνεται στην περιγραφή</option><option value="transit_damage">Ζημιά κατά τη μεταφορά</option><option value="wrong_item">Λάθος προϊόν</option><option value="missing_part">Λείπει εξάρτημα</option><option value="other">Άλλος λόγος</option></select></label>
-              <label>Ζητούμενη λύση<select value={returnRemedy} onChange={(event) => setReturnRemedy(event.target.value)}><option value="refund">Επιστροφή χρημάτων</option><option value="replacement">Αντικατάσταση</option><option value="repair">Επισκευή</option></select></label>
+              <div className="workspace-inline-note"><strong>Ζητούμενη λύση:</strong> επιστροφή χρημάτων στην αρχική πληρωμή μέσω Viva.</div>
               <label>Σημείωση<textarea rows={3} maxLength={1000} value={returnNote} onChange={(event) => setReturnNote(event.target.value)} placeholder="Προαιρετικές λεπτομέρειες για το αίτημα" /></label>
-              <button className="button" type="button" disabled={Boolean(returnBusy)} onClick={() => void submitReturn(line.id)}>{returnBusy === line.id ? "Υποβολή…" : "Υποβολή αιτήματος επιστροφής"}</button>
+              <button className="button" type="button" disabled={Boolean(returnBusy)} onClick={() => void submitReturn(line.id, line.returnableQuantity)}>{returnBusy === line.id ? "Υποβολή…" : "Υποβολή αιτήματος επιστροφής"}</button>
             </div>
           </details>}
         </div>)}
