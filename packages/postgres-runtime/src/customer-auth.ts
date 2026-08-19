@@ -23,10 +23,11 @@ export class PostgresCustomerAuthService {
 
   async authenticate(input: { email: string; password: string; now: number }): Promise<{ token: string; principal: SessionPrincipal; expiresAt: number }> {
     const account = await this.#identity.findAccountForAuthentication(input.email);
-    if (!account || !verifyPassword(input.password, account.passwordHash)) throw new Error("Invalid email or password");
-    if (account.status !== "active") throw new Error(`Account is ${account.status}`);
-    if (!account.emailVerified) throw new Error("Email address is not verified");
-    if (!account.roles.includes("customer")) throw new Error("Customer account access is required");
+    if (!account) rejectLogin("account_not_found", input.email);
+    if (!verifyPassword(input.password, account.passwordHash)) rejectLogin("password_mismatch", input.email, account.id);
+    if (account.status !== "active") rejectLogin(`account_status_${account.status}`, input.email, account.id);
+    if (!account.emailVerified) rejectLogin("email_not_verified", input.email, account.id);
+    if (!account.roles.includes("customer")) rejectLogin("customer_role_missing", input.email, account.id);
 
     const rawToken = randomBytes(32).toString("base64url");
     const token = this.#signToken(rawToken);
@@ -110,12 +111,22 @@ export function customerScope(userId: string, requestId?: string): DatabaseScope
   return { actorUserId: userId, marketId: "sparta", requestId };
 }
 
+function rejectLogin(reason: string, email: string, userId?: string): never {
+  console.warn(JSON.stringify({
+    level: "warning",
+    event: "auth.customer.login_rejected",
+    reason,
+    emailHash: createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 16),
+    ...(userId ? { userId } : {})
+  }));
+  throw new Error("Invalid email or password");
+}
+
 function safeStringEqual(a: string, b: string): boolean {
   const aa = Buffer.from(a, "utf8");
   const bb = Buffer.from(b, "utf8");
   return aa.length === bb.length && timingSafeEqual(aa, bb);
 }
-
 
 export type RateLimitDecision = Readonly<{ allowed: boolean; remaining: number; retryAfterMs: number }>;
 

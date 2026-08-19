@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const next = typeof body.next === "string" ? body.next : undefined;
 
     if (!email || !password) throw new Error("Συμπλήρωσε email και κωδικό.");
+    if (password !== password.trim()) throw new Error("Ο κωδικός δεν μπορεί να αρχίζει ή να τελειώνει με κενό.");
     if (password !== passwordConfirmation) throw new Error("Οι δύο κωδικοί δεν ταιριάζουν.");
     if (body.acceptedPrivacy !== true) throw new Error("Χρειάζεται να αποδεχτείς την επεξεργασία δεδομένων για τη δημιουργία λογαριασμού.");
 

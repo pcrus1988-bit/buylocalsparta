@@ -11,6 +11,7 @@ export function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const verified = searchParams.get("verified") === "1";
+  const reset = searchParams.get("reset") === "1";
   const requestedNext = searchParams.get("next");
   const safeNext = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : undefined;
   const registerHref = safeNext ? `/register?next=${encodeURIComponent(safeNext)}` : "/register";
@@ -35,10 +36,12 @@ export function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
 
   return <form className="login-form" onSubmit={submit}>
     {verified && <div className="account-gate" role="status"><strong>Το email επιβεβαιώθηκε.</strong><p>Συνδέσου για να συνεχίσεις.</p></div>}
+    {reset && <div className="account-gate" role="status"><strong>Ο κωδικός άλλαξε.</strong><p>Συνδέσου τώρα με τον νέο κωδικό σου.</p></div>}
     <label htmlFor="login-email">Email</label>
     <input id="login-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
     <label htmlFor="login-password">Κωδικός</label>
     <input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={10} />
+    <div><a className="text-link" href="/forgot-password">Ξέχασες τον κωδικό; →</a></div>
     {error && <p className="form-error" role="alert">{error}</p>}
     <button className="button" type="submit" disabled={busy}>{busy ? "Σύνδεση…" : "Σύνδεση"}</button>
     <p className="login-demo-note">Δεν έχεις λογαριασμό; <a className="text-link" href={registerHref}>Δημιούργησε λογαριασμό →</a></p>
