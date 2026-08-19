@@ -74,8 +74,8 @@ export default async function Page() {
         body="Τα research prospects μένουν στο Research queue μέχρι να ολοκληρωθεί formal onboarding."
         action={<Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>}
       /> : <div className="workspace-queue-list">{managed.shops.map((shop) => {
-        const applicationStillOnboarding = Boolean(shop.applicationState && !["active", "restricted", "suspended", "closed"].includes(shop.applicationState));
-        const activationBlocked = !shop.operationalActive && (!shop.cooperationDocumented || applicationStillOnboarding);
+        const applicationRequiresGovernedActivation = Boolean(shop.applicationState && shop.applicationState !== "active");
+        const activationBlocked = !shop.operationalActive && (!shop.cooperationDocumented || applicationRequiresGovernedActivation);
         return <article className="workspace-queue-card" key={shop.id} id={`shop-${shop.id}`}>
           <div className="workspace-queue-head">
             <div><strong>{shop.tradingName}</strong><small>{shop.legalName} · {shop.id}</small></div>
@@ -113,7 +113,7 @@ export default async function Page() {
             </div>
           </div>
 
-          {applicationStillOnboarding && <div className="workspace-inline-note">Η πρώτη activation αυτού του shop γίνεται μόνο από την επίσημη application queue όταν η αίτηση φτάσει σε test-ready.</div>}
+          {applicationRequiresGovernedActivation && <div className="workspace-inline-note">Αυτό το shop συνδέεται με επίσημη αίτηση σε στάδιο {stateLabel(shop.applicationState ?? "")}. Η activation / reactivation γίνεται μόνο από την application queue ώστε να τηρείται το audit trail και τα onboarding gates.</div>}
           {!shop.operationalActive && !shop.cooperationDocumented && <div className="workspace-inline-note">Activation blocked: καταχώρησε ενεργή υπογεγραμμένη σύμβαση με reference υπογεγραμμένου εγγράφου.</div>}
           {shop.operationalActive && !shop.cooperationDocumented && <div className="workspace-inline-note">⚠ Legacy inconsistency: το shop είναι operationally active χωρίς πλήρες active/signed cooperation record. Απόκρυψέ το ή κατέγραψε άμεσα τη σύμβαση. Νέα reactivation/publication μπλοκάρεται μέχρι να διορθωθεί.</div>}
           {!shop.operationalActive && shop.publicDirectoryVisible && <div className="workspace-inline-note">Το stored visibility toggle είναι ON, αλλά το shop παραμένει αποτελεσματικά κρυφό επειδή δεν είναι operationally active.</div>}
@@ -198,7 +198,7 @@ export default async function Page() {
               {application.state === "suspended" && agreementReady && <AdminActionButton label="Reactivate (hidden)" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "active" }} reasonPrompt="Reactivation reason" />}
               {application.state === "suspended" && !agreementReady && shop && <Link className="button button-secondary" href={`#shop-${shop.id}`}>Restore agreement first</Link>}
               {application.state === "suspended" && <AdminActionButton label="Move to restricted" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
-              {!['closed', 'active', 'restricted', 'suspended'].includes(application.state) && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
+              {["verification_pending", "catalog_onboarding", "test_ready"].includes(application.state) && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
               {application.state === "active" && <AdminActionButton label="Restrict" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "restricted" }} reasonPrompt="Restriction reason" danger />}
               {application.state !== "closed" && <AdminActionButton label="Close" endpoint={`/api/admin/vendors/${application.id}/transition`} csrfToken={csrfToken} body={{ to: "closed" }} reasonPrompt="Permanent closure reason" danger />}
             </div>
