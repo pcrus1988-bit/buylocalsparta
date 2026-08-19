@@ -5,12 +5,13 @@ import { VendorBillingClient } from "../../../../components/VendorBillingClient"
 import { WorkspaceMetricStrip } from "../../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { adminVendorBillingWorkspace } from "../../../../lib/admin-vendor-billing";
+import { adminVendorFeeTaxSettings } from "../../../../lib/admin-vendor-fee-tax";
 
 export const metadata:Metadata={title:"Admin · Vendor invoicing",robots:{index:false,follow:false}};
 
 export default async function VendorBillingPage(){
   const principal=await getAdminSession();if(!principal)redirect("/admin/login");
-  const data=await adminVendorBillingWorkspace(principal).catch(()=>undefined);if(!data)redirect("/admin");
+  const [data,feeTaxSettings]=await Promise.all([adminVendorBillingWorkspace(principal).catch(()=>undefined),adminVendorFeeTaxSettings(principal).catch(()=>[])]);if(!data)redirect("/admin");
   const eligible=data.vendors.reduce((n,v)=>n+v.eligibleCommissionMinor,0),issued=data.invoices.filter(x=>x.status==="issued").length,ready=data.invoices.filter(x=>x.status==="prepared").length,outstanding=data.invoices.reduce((n,x)=>n+Math.max(0,x.grossMinor-x.offsetMinor),0);
   return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={principal.csrfToken}/>
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Finance · platform services · commissions</div><h1>Vendor invoicing</h1><p className="lead">Έκδοση τιμολογίων από KONTA MOY προς vendors για commissions, listing και recurring fees. Κάθε invoice συνδέεται με immutable settlement sources και με το ίδιο ελεγχόμενο AADE/myDATA lifecycle.</p></div></section>
@@ -23,6 +24,6 @@ export default async function VendorBillingPage(){
       {label:"Vendor service mapping",value:data.policy?.mappingStatus??"missing",tone:data.policy?.mappingStatus==="approved"?"positive":"attention"}
     ]}/>
     <section className="shell vendor-section"><div className="workspace-callout"><strong>Accounting boundary</strong><span>Η δημιουργία draft δεν αποτελεί έκδοση φορολογικού στοιχείου. Preparation/AADE transmission παραμένει blocked μέχρι να υπάρχει approved Accounting Policy, approved platform_vendor_service mapping, approved payment mapping και έγκυρη φορολογική ταυτότητα vendor.</span></div></section>
-    <VendorBillingClient initial={data} csrfToken={principal.csrfToken}/>
+    <VendorBillingClient initial={data} initialFeeTaxSettings={feeTaxSettings} csrfToken={principal.csrfToken}/>
   </main>;
 }
