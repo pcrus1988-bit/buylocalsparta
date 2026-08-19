@@ -108,28 +108,28 @@ export async function adminCustomer360(principal: SessionPrincipal, customerId: 
   if (!productionDatabaseConfigured()) throw new Error("Customer 360 requires the production database");
   return uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const target = await customerTarget(tx, customerId);
-    const [engagementResult, privacyResult, casesResult, eventsResult] = await Promise.all([
-      tx.query<SqlRow>(`SELECT
-        (SELECT count(*)::int FROM carts c WHERE c.user_id=$1::uuid AND c.expires_at>now()) AS active_carts,
-        (SELECT COALESCE(sum(ci.quantity),0)::int FROM cart_items ci JOIN carts c ON c.id=ci.cart_id WHERE c.user_id=$1::uuid AND c.expires_at>now()) AS cart_items,
-        (SELECT count(*)::int FROM saved_products sp WHERE sp.user_id=$1::uuid) AS saved_products,
-        (SELECT count(*)::int FROM saved_searches ss WHERE ss.user_id=$1::uuid) AS saved_searches,
-        (SELECT count(*)::int FROM saved_vendors sv WHERE sv.user_id=$1::uuid) AS saved_vendors,
-        (SELECT count(*)::int FROM reviews r WHERE r.user_id=$1::uuid) AS reviews,
-        (SELECT count(*)::int FROM conversations c WHERE c.customer_user_id=$1::uuid) AS conversations,
-        (SELECT count(*)::int FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.customer_user_id=$1::uuid) AS messages,
-        (SELECT count(*)::int FROM notifications n WHERE n.user_id=$1::uuid) AS notifications,
-        (SELECT count(*)::int FROM notifications n WHERE n.user_id=$1::uuid AND (n.status='failed' OR n.failed_at IS NOT NULL)) AS notification_failures,
-        (SELECT count(*)::int FROM privacy_requests pr WHERE pr.user_id=$1::uuid) AS privacy_requests,
-        (SELECT count(*)::int FROM privacy_requests pr WHERE pr.user_id=$1::uuid AND pr.status IN ('submitted','processing')) AS open_privacy_requests,
-        (SELECT count(*)::int FROM customer_support_cases sc WHERE sc.customer_user_id=$1::uuid) AS support_cases,
-        (SELECT count(*)::int FROM customer_support_cases sc WHERE sc.customer_user_id=$1::uuid AND sc.status NOT IN ('resolved','closed')) AS open_support_cases,
-        (SELECT max(c.updated_at) FROM conversations c WHERE c.customer_user_id=$1::uuid) AS last_conversation_at,
-        (SELECT max(n.created_at) FROM notifications n WHERE n.user_id=$1::uuid) AS last_notification_at`, [target.userUuid]),
-      tx.query<SqlRow>(`SELECT public_id,request_type,status,due_at,created_at,completed_at FROM privacy_requests WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT 20`, [target.userUuid]),
-      tx.query<SqlRow>(`SELECT id::text AS case_uuid,public_id,subject,category,priority,status,assigned_to_public_id,follow_up_at,resolved_at,created_at,updated_at FROM customer_support_cases WHERE customer_user_id=$1::uuid ORDER BY CASE WHEN status IN ('resolved','closed') THEN 1 ELSE 0 END, COALESCE(follow_up_at,updated_at) ASC, updated_at DESC LIMIT 50`, [target.userUuid]),
-      tx.query<SqlRow>(`SELECT sc.public_id AS case_public_id,e.public_id,e.event_type,e.note,e.actor_public_id,e.before_state,e.after_state,e.created_at FROM customer_support_case_events e JOIN customer_support_cases sc ON sc.id=e.case_id WHERE sc.customer_user_id=$1::uuid ORDER BY e.created_at DESC LIMIT 250`, [target.userUuid])
-    ]);
+    // A transaction is backed by one pg client. Keep queries sequential on that client;
+    // concurrent pg-client queries are deprecated and will fail under pg@9.
+    const engagementResult = await tx.query<SqlRow>(`SELECT
+      (SELECT count(*)::int FROM carts c WHERE c.user_id=$1::uuid AND c.expires_at>now()) AS active_carts,
+      (SELECT COALESCE(sum(ci.quantity),0)::int FROM cart_items ci JOIN carts c ON c.id=ci.cart_id WHERE c.user_id=$1::uuid AND c.expires_at>now()) AS cart_items,
+      (SELECT count(*)::int FROM saved_products sp WHERE sp.user_id=$1::uuid) AS saved_products,
+      (SELECT count(*)::int FROM saved_searches ss WHERE ss.user_id=$1::uuid) AS saved_searches,
+      (SELECT count(*)::int FROM saved_vendors sv WHERE sv.user_id=$1::uuid) AS saved_vendors,
+      (SELECT count(*)::int FROM reviews r WHERE r.user_id=$1::uuid) AS reviews,
+      (SELECT count(*)::int FROM conversations c WHERE c.customer_user_id=$1::uuid) AS conversations,
+      (SELECT count(*)::int FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.customer_user_id=$1::uuid) AS messages,
+      (SELECT count(*)::int FROM notifications n WHERE n.user_id=$1::uuid) AS notifications,
+      (SELECT count(*)::int FROM notifications n WHERE n.user_id=$1::uuid AND (n.status='failed' OR n.failed_at IS NOT NULL)) AS notification_failures,
+      (SELECT count(*)::int FROM privacy_requests pr WHERE pr.user_id=$1::uuid) AS privacy_requests,
+      (SELECT count(*)::int FROM privacy_requests pr WHERE pr.user_id=$1::uuid AND pr.status IN ('submitted','processing')) AS open_privacy_requests,
+      (SELECT count(*)::int FROM customer_support_cases sc WHERE sc.customer_user_id=$1::uuid) AS support_cases,
+      (SELECT count(*)::int FROM customer_support_cases sc WHERE sc.customer_user_id=$1::uuid AND sc.status NOT IN ('resolved','closed')) AS open_support_cases,
+      (SELECT max(c.updated_at) FROM conversations c WHERE c.customer_user_id=$1::uuid) AS last_conversation_at,
+      (SELECT max(n.created_at) FROM notifications n WHERE n.user_id=$1::uuid) AS last_notification_at`, [target.userUuid]);
+    const privacyResult = await tx.query<SqlRow>(`SELECT public_id,request_type,status,due_at,created_at,completed_at FROM privacy_requests WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT 20`, [target.userUuid]);
+    const casesResult = await tx.query<SqlRow>(`SELECT id::text AS case_uuid,public_id,subject,category,priority,status,assigned_to_public_id,follow_up_at,resolved_at,created_at,updated_at FROM customer_support_cases WHERE customer_user_id=$1::uuid ORDER BY CASE WHEN status IN ('resolved','closed') THEN 1 ELSE 0 END, COALESCE(follow_up_at,updated_at) ASC, updated_at DESC LIMIT 50`, [target.userUuid]);
+    const eventsResult = await tx.query<SqlRow>(`SELECT sc.public_id AS case_public_id,e.public_id,e.event_type,e.note,e.actor_public_id,e.before_state,e.after_state,e.created_at FROM customer_support_case_events e JOIN customer_support_cases sc ON sc.id=e.case_id WHERE sc.customer_user_id=$1::uuid ORDER BY e.created_at DESC LIMIT 250`, [target.userUuid]);
     const e = engagementResult.rows[0] ?? {};
     const eventsByCase = new Map<string, CustomerSupportCaseEvent[]>();
     for (const item of eventsResult.rows) {
