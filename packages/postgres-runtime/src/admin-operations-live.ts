@@ -53,9 +53,15 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
           RETURNING id::text AS id,public_id`,[randomUUID(),vendorPublicId,text(row.market_uuid,"market_uuid"),text(row.legal_name,"legal_name"),text(row.trading_name,"trading_name"),optionalText(row.tax_number)??null,optionalText(row.gemi_number)??null,input.to,new Date(now)]);
         if(!inserted.rowCount) throw new Error("A non-research vendor with the same trading name already exists in this market. Resolve the duplicate before onboarding.");
         vendorUuid=text(inserted.rows[0].id,"vendor.id"); vendorPublicId=text(inserted.rows[0].public_id,"vendor.public_id");
-        await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,verified_at,created_at,updated_at)
-          VALUES($1,$2,$3,$4,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10,$10)
-          ON CONFLICT (vendor_id,name) DO UPDATE SET address_line1=EXCLUDED.address_line1,locality=EXCLUDED.locality,postcode=EXCLUDED.postcode,country_code=EXCLUDED.country_code,phone=EXCLUDED.phone,public_email=EXCLUDED.public_email,active=true,verified_at=EXCLUDED.verified_at,updated_at=EXCLUDED.updated_at`,[randomUUID(),`location_${randomUUID().replaceAll("-","").slice(0,20)}`,vendorUuid,text(row.market_uuid,"market_uuid"),text(row.trading_name,"trading_name"),text(row.address_line1,"address_line1"),text(row.postcode,"postcode"),optionalText(row.phone)??null,text(row.contact_email,"contact_email"),new Date(now)]);
+
+        const existingLocation=await tx.query<SqlRow>(`SELECT id::text AS location_uuid FROM vendor_locations WHERE vendor_id=$1::uuid ORDER BY is_primary DESC NULLS LAST,active DESC,created_at ASC LIMIT 1 FOR UPDATE`,[vendorUuid]);
+        if(existingLocation.rowCount){
+          await tx.query(`UPDATE vendor_locations SET market_id=$2,name=$3,address_line1=$4,locality='Sparta',postcode=$5,country_code='GR',phone=$6,public_email=$7,active=true,verified_at=$8,updated_at=$8 WHERE id=$1::uuid`,[text(existingLocation.rows[0].location_uuid,"location_uuid"),text(row.market_uuid,"market_uuid"),text(row.trading_name,"trading_name"),text(row.address_line1,"address_line1"),text(row.postcode,"postcode"),optionalText(row.phone)??null,text(row.contact_email,"contact_email"),new Date(now)]);
+        }else{
+          await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,verified_at,created_at,updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10,$10)`,[randomUUID(),`location_${randomUUID().replaceAll("-","").slice(0,20)}`,vendorUuid,text(row.market_uuid,"market_uuid"),text(row.trading_name,"trading_name"),text(row.address_line1,"address_line1"),text(row.postcode,"postcode"),optionalText(row.phone)??null,text(row.contact_email,"contact_email"),new Date(now)]);
+        }
+
         const membership=await tx.query<SqlRow>(`INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at) VALUES($1,$2,$3,$4,NULL,true,$5)
           ON CONFLICT (vendor_id,user_id) WHERE location_id IS NULL DO UPDATE SET active=true RETURNING id::text AS id`,[randomUUID(),`vuser_${randomUUID().replaceAll("-","").slice(0,20)}`,vendorUuid,text(row.owner_uuid,"owner_uuid"),new Date(now)]);
         await tx.query("INSERT INTO vendor_user_roles(vendor_user_id,role) VALUES($1,'vendor_owner') ON CONFLICT DO NOTHING",[text(membership.rows[0].id,"vendor_user.id")]);
