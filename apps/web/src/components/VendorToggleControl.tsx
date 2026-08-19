@@ -46,8 +46,9 @@ export function VendorToggleControl({
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ [field]: next, reason })
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; notificationWarning?: string };
       if (!response.ok) throw new Error(payload.error ?? "Η αλλαγή απέτυχε");
+      if (payload.notificationWarning) setError(`Η αλλαγή ολοκληρώθηκε, αλλά το email δεν στάλθηκε: ${payload.notificationWarning}`);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η αλλαγή απέτυχε");
