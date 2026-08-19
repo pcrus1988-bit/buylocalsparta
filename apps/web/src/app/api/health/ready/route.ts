@@ -38,20 +38,26 @@ export async function GET() {
 
   const emailEnabled = process.env.BLS_EMAIL_DELIVERY_ENABLED === "true";
   const receivingEnabled = process.env.BLS_EMAIL_RECEIVING_ENABLED === "true";
-  const emailRequiredEnv = Boolean(
-    process.env.RESEND_API_KEY?.trim()
-    && process.env.RESEND_FROM?.trim()
-    && process.env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim()
-    && process.env.RESEND_WEBHOOK_SECRET?.trim()
-  );
-  const receivingReady = !receivingEnabled || Boolean(process.env.RESEND_INBOUND_FORWARD_TO?.trim() || process.env.BLS_OPERATIONS_EMAIL?.trim());
+  const emailConfig = {
+    apiKeyConfigured: Boolean(process.env.RESEND_API_KEY?.trim()),
+    fromConfigured: Boolean(process.env.RESEND_FROM?.trim()),
+    replyToConfigured: Boolean(process.env.RESEND_REPLY_TO?.trim()),
+    webhookSecretConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()),
+    suppressionSecretConfigured: Boolean(process.env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim()),
+    operationsEmailConfigured: Boolean(process.env.BLS_OPERATIONS_EMAIL?.trim()),
+    inboundForwardConfigured: Boolean(process.env.RESEND_INBOUND_FORWARD_TO?.trim()),
+    publicBaseUrlConfigured: Boolean(process.env.BLS_PUBLIC_BASE_URL?.trim() || process.env.NEXT_PUBLIC_SITE_URL?.trim())
+  };
+  const emailRequiredEnv = emailConfig.apiKeyConfigured && emailConfig.fromConfigured && emailConfig.suppressionSecretConfigured && emailConfig.webhookSecretConfigured;
+  const receivingReady = !receivingEnabled || emailConfig.inboundForwardConfigured || emailConfig.operationsEmailConfigured;
   let email = {
     enabled: emailEnabled,
     receivingEnabled,
     ready: !emailEnabled,
     provider: emailEnabled ? "resend" : "disabled",
     message: emailEnabled ? "unavailable" : "disabled",
-    fromDomain: undefined as string | undefined
+    fromDomain: undefined as string | undefined,
+    config: emailConfig
   };
   if (emailEnabled) {
     if (!emailRequiredEnv) {
