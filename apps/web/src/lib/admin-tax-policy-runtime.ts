@@ -57,9 +57,11 @@ export async function adminUpdateVatCategory(principal:SessionPrincipal,input:{c
 }
 
 export async function adminUpdateMyDataRuntimeConfig(principal:SessionPrincipal,input:Omit<MyDataAdminRuntimeConfig,"baseUrl"|"updatedAt">&{confirmation?:string;reason:string}){
-  assertAdminPermission(principal,"finance.write");const current=await myDataAdminRuntimeConfig();if(input.issuanceEnabled&&!current.issuanceEnabled&&input.confirmation!=="ENABLE LIVE FISCAL")throw new Error("Enabling live fiscal issuance requires confirmation: ENABLE LIVE FISCAL");
-  const result=await updateMyDataAdminRuntimeConfig({environment:input.environment,specVersion:input.specVersion,requestTimeoutMs:input.requestTimeoutMs,issuanceEnabled:input.issuanceEnabled,ecrTokenEnabled:input.ecrTokenEnabled,vivaFiscalEnabled:input.vivaFiscalEnabled,mappingVersionPin:input.mappingVersionPin,capturePaidOrders:input.capturePaidOrders,emailAcceptedDocuments:input.emailAcceptedDocuments});
-  await recordAdminAudit(principal,"mydata.runtime_config_updated","system_setting","mydata.admin_runtime_config",input.reason,{environment:result.environment,specVersion:result.specVersion,requestTimeoutMs:result.requestTimeoutMs,issuanceEnabled:result.issuanceEnabled,ecrTokenEnabled:result.ecrTokenEnabled,vivaFiscalEnabled:result.vivaFiscalEnabled,mappingVersionPin:result.mappingVersionPin,capturePaidOrders:result.capturePaidOrders,emailAcceptedDocuments:result.emailAcceptedDocuments});return result;
+  assertAdminPermission(principal,"finance.write");
+  if(input.vivaFiscalEnabled)throw new Error("Viva Fiscal provider integration is not implemented in this build; the provider capability cannot be marked ready from Admin");
+  const current=await myDataAdminRuntimeConfig();if(input.issuanceEnabled&&!current.issuanceEnabled&&input.confirmation!=="ENABLE LIVE FISCAL")throw new Error("Enabling live fiscal issuance requires confirmation: ENABLE LIVE FISCAL");
+  const result=await updateMyDataAdminRuntimeConfig({environment:input.environment,specVersion:input.specVersion,requestTimeoutMs:input.requestTimeoutMs,issuanceEnabled:input.issuanceEnabled,ecrTokenEnabled:input.ecrTokenEnabled,vivaFiscalEnabled:false,mappingVersionPin:input.mappingVersionPin,capturePaidOrders:input.capturePaidOrders,emailAcceptedDocuments:input.emailAcceptedDocuments});
+  await recordAdminAudit(principal,"mydata.runtime_config_updated","system_setting","mydata.admin_runtime_config",input.reason,{environment:result.environment,specVersion:result.specVersion,requestTimeoutMs:result.requestTimeoutMs,issuanceEnabled:result.issuanceEnabled,ecrTokenEnabled:result.ecrTokenEnabled,vivaFiscalEnabled:false,mappingVersionPin:result.mappingVersionPin,capturePaidOrders:result.capturePaidOrders,emailAcceptedDocuments:result.emailAcceptedDocuments});return result;
 }
 
 export async function adminUpdateMyDataCredentials(principal:SessionPrincipal,input:{userId?:string;subscriptionKey?:string;reason:string}){
