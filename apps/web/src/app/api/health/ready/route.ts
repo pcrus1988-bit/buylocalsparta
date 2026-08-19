@@ -12,7 +12,7 @@ export async function GET() {
   const database = await productionDatabaseReadiness();
   const viva = await vivaPaymentsProviderReadiness();
   const media = await mediaPipelineReadiness();
-  const myData = myDataReadiness();
+  const myData = await myDataReadiness();
 
   const searchEnabled = process.env.BLS_SEARCH_ENABLED === "true";
   let search = { enabled: searchEnabled, ready: !searchEnabled, status: searchEnabled ? "unavailable" : "disabled" };
