@@ -5,6 +5,7 @@ import { SiteFooter } from "../../components/SiteFooter";
 import { vivaPaymentsProviderReadiness } from "../../lib/viva-runtime";
 
 export const metadata: Metadata = { title: "Checkout", robots: { index: false, follow: false } };
+export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {
   const viva = await vivaPaymentsProviderReadiness();
