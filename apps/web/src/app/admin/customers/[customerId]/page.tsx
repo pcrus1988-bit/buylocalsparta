@@ -141,7 +141,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
         <div className="workspace-queue-primary"><span>Due {dateTime(request.dueAt)}</span><span>{request.completedAt ? `Completed ${dateTime(request.completedAt)}` : "Not completed"}</span></div>
       </article>)}</div>}
       <div className="workspace-action-bar"><span>GDPR operations remain separated from customer support.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/privacy?customer=${encodeURIComponent(customer.id)}`}>Open Privacy queue</Link></div></div>
-    </section>
+    </div></section>
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Fulfilment profile" title="Saved addresses" note="Contact and delivery data is visible only to authorised Customer Management roles and remains separate from privacy-erasure workflows." />
