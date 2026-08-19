@@ -1,5 +1,5 @@
 import { requireAdminSession } from "../../../../../../lib/admin-session";
-import { adminVendorsWorkspace, transitionVendorApplication } from "../../../../../../lib/admin-runtime";
+import { adminVendorsWorkspace, postgresAdminRuntimeEnabled, transitionVendorApplication } from "../../../../../../lib/admin-runtime";
 import { setAdminVendorDirectoryVisibility } from "../../../../../../lib/vendor-admin-controls";
 import { sendVendorApplicationStateEmail } from "../../../../../../lib/vendor-email-workflows";
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
@@ -16,9 +16,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const state = body.to as VendorOnboardingState;
     const transitioned = await transitionVendorApplication(principal, { applicationId: id, to: state, reason: body.reason });
-    if (state === "active" && transitioned.vendorId) {
+    const vendorId = typeof transitioned === "object" && transitioned !== null && "vendorId" in transitioned && typeof transitioned.vendorId === "string"
+      ? transitioned.vendorId
+      : undefined;
+    if (state === "active" && vendorId && postgresAdminRuntimeEnabled()) {
       await setAdminVendorDirectoryVisibility(principal, {
-        vendorId: transitioned.vendorId,
+        vendorId,
         visible: false,
         reason: "Newly activated shop awaits cooperation-document and publication review"
       });
