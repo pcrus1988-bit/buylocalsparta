@@ -7,7 +7,7 @@ This document prevents provider credentials from being copied into every process
 Required core values:
 
 - `NODE_ENV=production`
-- `DATABASE_URL`
+- `DATABASE_URL` (or the connected `POSTGRES_URL` alias normalized by the web runtime)
 - `BLS_AUTH_SECRET`
 - `APP_URL` / public deployment origin
 
@@ -19,6 +19,7 @@ Provider values required **only when the matching web feature is enabled**:
 - Resend webhook + notification configuration: `RESEND_API_KEY`, `RESEND_FROM`, `RESEND_WEBHOOK_SECRET`, `BLS_NOTIFICATION_SUPPRESSION_SECRET`
 - media upload signing/completion: object-storage bucket/region/credentials + `BLS_MEDIA_UPLOAD_ORIGIN`
 - BOX NOW checkout/shipping/webhook: `BOXNOW_*` plus public widget variables
+- reporting: no new third-party credential is required. Keep `BLS_REPORT_ASYNC_ENABLED=false` unless a healthy `reports` worker is deployed.
 
 **Do not put `BLS_CLAMAV_HOST` on Vercel merely to satisfy web readiness.** ClamAV is a private media-worker dependency. The web readiness endpoint checks that private object storage is usable; the staging preflight checks ClamAV independently from a runner that can reach the scanner.
 
@@ -70,6 +71,23 @@ Required:
 - `BLS_CLAMAV_PORT`
 
 This worker should run on a network that can reach private `clamd`. Do not make the scanner publicly reachable for Vercel.
+
+## `reports` worker
+
+Required:
+
+- `DATABASE_URL`
+- `BLS_WORKER_ROLE=reports`
+
+Recommended runtime controls:
+
+- `BLS_REPORT_POLL_MS=5000`
+- `BLS_REPORT_BATCH_SIZE=2`
+- `BLS_REPORT_WORKER_ID=<stable worker identity>`
+
+Enable queue delegation on the Vercel web process with `BLS_REPORT_ASYNC_ENABLED=true` only after this worker is healthy. The report worker does not need Resend credentials: report email delivery is initiated by an authenticated web action using the existing transactional email integration. It also does not need Meilisearch admin credentials or ClamAV access.
+
+Generated report PDFs and datasets are persisted in private PostgreSQL report-job records with retention controls; they are not public object-storage assets and are not exposed through the Supabase Data API.
 
 ## Secret-sharing rule
 
