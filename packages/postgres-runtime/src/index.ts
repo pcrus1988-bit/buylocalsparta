@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 64;
+export const EXPECTED_SCHEMA_VERSION = 65;
 
 export type PostgresRuntimeConfig = Readonly<{
   connectionString: string;
