@@ -46,6 +46,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Παραγγελίες", href: "/admin/orders", icon: "□", permission: "fulfilment.read" },
       { label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" },
       { label: "Υποστήριξη πελατών", href: "/admin/customers/support", icon: "?", permission: "customer.read" },
+      { label: "Ask Local", href: "/admin/ask-local", icon: "◎", permission: "customer.read" },
       { label: "Αποστολές", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write" }
     ]
   },
