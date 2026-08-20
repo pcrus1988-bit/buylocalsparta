@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/public.ts",
     "./catalog": "./src/catalog.ts",
-    "./preflight": "./src/preflight.ts"
+    "./preflight": "./src/preflight.ts",
+    "./classification-preflight": "./src/classification-preflight.ts"
   }
 }
