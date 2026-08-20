@@ -45,7 +45,7 @@ export function AskLocalWorkflowPanel({ requests, vendors, csrfToken, canManage 
     const overdue = Boolean(request.responseDueAt && request.responseDueAt < Date.now());
     return <article className="workspace-queue-card" key={request.id}>
       <div className="workspace-queue-head">
-        <div><strong>{request.need}</strong><small>{request.id} · {request.postcode} · qty {request.quantity} · created {dateTime(request.createdAt)}</small></div>
+        <div><strong>{request.need}</strong><small>{request.referenceNumber} · {request.postcode} · qty {request.quantity} · created {dateTime(request.createdAt)}</small></div>
         <span className="status-pill">{request.workflowOwnerKind === "vendor" ? "Vendor-owned" : "Admin-owned"}</span>
       </div>
       <div className="workspace-queue-primary">
@@ -62,7 +62,7 @@ export function AskLocalWorkflowPanel({ requests, vendors, csrfToken, canManage 
         <Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(request.customerId)}`}>Customer 360</Link>
         {canManage && request.workflowOwnerKind !== "admin" && <AdminActionButton label="Return to Admin" endpoint="/api/admin/ask-local" csrfToken={csrfToken} body={{ requestId: request.id, owner: "admin" }} reasonPrompt="Reason for returning this Ask Local request to Admin triage" />}
         {canManage && <>
-          <select aria-label={`Vendor for ${request.id}`} value={selected[request.id] ?? request.assignedVendorId ?? ""} onChange={(event) => setSelected((current) => ({ ...current, [request.id]: event.target.value }))}>
+          <select aria-label={`Vendor for ${request.referenceNumber}`} value={selected[request.id] ?? request.assignedVendorId ?? ""} onChange={(event) => setSelected((current) => ({ ...current, [request.id]: event.target.value }))}>
             <option value="">Choose eligible vendor…</option>
             {vendors.map((vendor) => <option value={vendor.id} key={vendor.id}>{vendor.name}</option>)}
           </select>
