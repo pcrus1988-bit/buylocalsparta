@@ -11,6 +11,7 @@
     "./payment-method-preflight": "./src/payment-method-preflight.ts",
     "./order-preflight": "./src/order-preflight.ts",
     "./reporting": "./src/reporting.ts",
-    "./mapping-reference": "./src/mapping-reference.ts"
+    "./mapping-reference": "./src/mapping-reference.ts",
+    "./digital-movement": "./src/digital-movement.ts"
   }
 }
