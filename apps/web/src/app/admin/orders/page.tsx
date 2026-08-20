@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
+import { AdminStatusStack, type AdminRecordStateTone, type AdminAttentionSeverity } from "../../../components/AdminRecordStatus";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminOrdersReturnsWorkspace } from "../../../lib/admin-governance-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
@@ -13,6 +14,14 @@ type OrderView = (typeof ORDER_VIEWS)[number];
 
 function orderView(value?: string): OrderView {
   return ORDER_VIEWS.includes(value as OrderView) ? value as OrderView : "all";
+}
+function orderStateTone(status: string): AdminRecordStateTone {
+  if (["fulfilled", "completed"].includes(status)) return "positive";
+  if (["partially_fulfilled", "partially_refunded"].includes(status)) return "caution";
+  return "neutral";
+}
+function orderAttention(order: { returns: ReadonlyArray<unknown> }): { label: string; severity: AdminAttentionSeverity } | undefined {
+  return order.returns.length ? { label: `${order.returns.length} return ${order.returns.length === 1 ? "case" : "cases"}`, severity: "attention" } : undefined;
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ customer?: string; order?: string; q?: string; status?: string; view?: string }> }) {
@@ -59,7 +68,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Directory" title="Order directory" note="Αναζήτηση με public order number, customer, vendor, item ή status. Το order record συγκεντρώνει το operational context· staged return/refund decisions μένουν στην exception queue." />
+      <WorkspaceSectionHeading eyebrow="Directory" title="Order directory" note="State δείχνει πού βρίσκεται η παραγγελία στον lifecycle. Attention εμφανίζεται ξεχωριστά μόνο όταν υπάρχει operator exception, όπως ενεργό return case." />
       <nav className="admin-local-tabs" aria-label="Order saved views">
         <Link href="/admin/orders" aria-current={view === "all" ? "page" : undefined}>All</Link>
         <Link href="/admin/orders?view=open" aria-current={view === "open" ? "page" : undefined}>Open</Link>
@@ -73,14 +82,15 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
         <div><button className="button button-secondary" type="submit">Filter</button>{hasAdHocFilters && <Link className="text-link" href={clearHref}>Clear filters</Link>}</div>
       </form>
       {orders.length === 0 ? <WorkspaceEmptyState title={filtered ? "Δεν βρέθηκαν παραγγελίες σε αυτό το view / φίλτρο." : "Δεν υπάρχουν ακόμη παραγγελίες."} /> : <div className="admin-directory-table admin-orders-directory" role="table" aria-label="Orders">
-        <div className="admin-directory-head" role="row"><span>Order</span><span>Customer</span><span>Status</span><span>Items</span><span>Total</span><span>Returns</span><span aria-label="Actions" /></div>
+        <div className="admin-directory-head" role="row"><span>Order</span><span>Customer</span><span>State / attention</span><span>Items</span><span>Total</span><span>Returns</span><span aria-label="Actions" /></div>
         {orders.map((order) => {
           const reference = orderReferences.get(order.id) ?? order.id;
           const recordHref = `/admin/orders/${encodeURIComponent(reference)}`;
+          const attention = orderAttention(order);
           return <div className="admin-directory-row" role="row" key={order.id}>
             <Link className="admin-directory-identity" href={recordHref}><strong>{reference}</strong><small>{order.fulfilmentMode} · internal {order.id}</small></Link>
             <span>{order.customerId ? <Link className="text-link" href={`/admin/customers/${encodeURIComponent(order.customerId)}`}>{order.customerId}</Link> : "guest"}</span>
-            <span><span className="status-pill">{order.status}</span></span>
+            <span><AdminStatusStack state={order.status} stateTone={orderStateTone(order.status)} attention={attention?.label} attentionSeverity={attention?.severity} /></span>
             <span><strong>{order.lines.length}</strong><small>{order.lines.slice(0, 2).map((line) => line.title).join(" · ")}{order.lines.length > 2 ? "…" : ""}</small></span>
             <span><strong>{order.total}</strong></span>
             <span><strong>{order.returns.length}</strong></span>

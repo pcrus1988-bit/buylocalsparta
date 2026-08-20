@@ -20,6 +20,7 @@ import "./admin-domain-workspaces.css";
 import "./admin-directory-search.css";
 import "./admin-orders-directory.css";
 import "./admin-order-record.css";
+import "./admin-status-semantics.css";
 import "./admin-local-tabs.css";
 import "./admin-partner-record.css";
 import "./admin-matching-split.css";
