@@ -3,7 +3,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VivaPaymentResultClient } from "../../../components/VivaPaymentResultClient";
 import { finalizeCapturedCustomerPayment } from "../../../lib/customer-payment-finalization";
-import { requireVivaPayments } from "../../../lib/viva-runtime";
+import { reconcileVivaTransactionSafely } from "../../../lib/viva-runtime";
 
 export const metadata: Metadata = { title: "Επιβεβαίωση πληρωμής", robots: { index: false, follow: false } };
 
@@ -20,8 +20,8 @@ export default async function Page({ searchParams }: Props) {
   let message = "Η πληρωμή ελέγχεται με τον πάροχο πληρωμών.";
   try {
     if (!transactionId || !orderCode) throw new Error("Missing Viva return identifiers");
-    const result = await requireVivaPayments().reconcileTransaction({ transactionId, expectedOrderCode: orderCode, source: "redirect", now: Date.now() });
-    confirmed = result.paymentStatus === "captured";
+    const result = await reconcileVivaTransactionSafely({ transactionId, expectedOrderCode: orderCode, source: "redirect", now: Date.now() });
+    confirmed = ["captured", "partially_refunded", "refunded"].includes(result.paymentStatus);
     orderId = result.orderId;
     message = confirmed ? "Η πληρωμή επιβεβαιώθηκε και η παραγγελία σου καταχωρήθηκε." : "Η πληρωμή δεν έχει ακόμη επιβεβαιωθεί οριστικά. Η παραγγελία παραμένει σε αναμονή μέχρι την επιβεβαίωση του παρόχου.";
   } catch {
