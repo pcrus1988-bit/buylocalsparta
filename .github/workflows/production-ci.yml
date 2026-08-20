@@ -209,20 +209,12 @@ jobs:
           SQL
       - name: Run live database integration smoke
         run: npm run db:smoke
-      - name: Remove DB smoke agreement fixture
+      - name: Disable DB smoke agreement fixture
         if: always()
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DROP TRIGGER IF EXISTS ci_seed_db_smoke_vendor_agreement ON public.vendor_businesses;
           DROP FUNCTION IF EXISTS bls_private.ci_seed_db_smoke_vendor_agreement();
-          DELETE FROM public.vendor_commercial_agreements
-          WHERE agreement_code LIKE 'CI-SMOKE-vendor\_%' ESCAPE '\';
-          DELETE FROM public.users
-          WHERE email='ci-agreement-signer@example.test'
-            AND NOT EXISTS (
-              SELECT 1 FROM public.vendor_commercial_agreements
-              WHERE govgr_verified_by=users.id OR activated_by=users.id
-            );
           SQL
       - name: Typecheck all long-running workers
         run: npm run typecheck:workers
