@@ -26,6 +26,7 @@ type ReturnCase = {
 
 type Detail = {
   id: string;
+  referenceNumber: string;
   status: string;
   sourceStatus: string;
   createdAt: number;
@@ -100,7 +101,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   return <section className="shell order-detail-grid is-refined">
     <div className="order-detail-main">
       <div className="order-detail-heading is-refined">
-        <div><div className="eyebrow">Παραγγελία</div><h1>{data.status}</h1><p>{date(data.createdAt)} · {modeLabel[data.fulfilmentMode] ?? data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.id}</small></div>
+        <div><div className="eyebrow">Παραγγελία</div><h1>{data.status}</h1><p>{date(data.createdAt)} · {modeLabel[data.fulfilmentMode] ?? data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.referenceNumber}</small></div>
         <strong>{data.total}</strong>
       </div>
 
