@@ -1,6 +1,6 @@
 import { parseVivaWebhookJson } from "@buy-local-sparta/viva-payments";
 import { finalizeCapturedCustomerPayment } from "../../../../../lib/customer-payment-finalization";
-import { requireVivaPayments } from "../../../../../lib/viva-runtime";
+import { reconcileVivaTransactionSafely, requireVivaPayments } from "../../../../../lib/viva-runtime";
 
 export const runtime = "nodejs";
 
@@ -59,14 +59,37 @@ export async function POST(request:Request) {
     const now = Date.now();
     const raw=await request.text();
     const envelope=parseVivaWebhookJson(raw);
-    const result=await requireVivaPayments().handleWebhook(envelope,now);
-    const reconciliation = result.result;
-    if (reconciliation && "orderId" in reconciliation && "orderStatus" in reconciliation && "paymentStatus" in reconciliation
-      && reconciliation.orderStatus === "confirmed" && reconciliation.paymentStatus === "captured") {
-      await finalizeCapturedCustomerPayment(reconciliation.orderId, now);
+    const eventTypeId=webhookInteger(envelope.EventTypeId,"Viva webhook EventTypeId");
+
+    if (eventTypeId === 1796 || eventTypeId === 1798) {
+      const data=envelope.EventData??{};
+      const transactionId=webhookText(data.TransactionId??data.transactionId,"Viva webhook TransactionId");
+      const orderCode=webhookOrderCode(data.OrderCode??data.orderCode);
+      const reconciliation=await reconcileVivaTransactionSafely({transactionId,expectedOrderCode:orderCode,source:"webhook",now});
+      if (["captured","partially_refunded","refunded"].includes(reconciliation.paymentStatus) && reconciliation.orderStatus !== "cancelled") {
+        await finalizeCapturedCustomerPayment(reconciliation.orderId,now);
+      }
+      return Response.json({ok:true,eventTypeId});
     }
+
+    const result=await requireVivaPayments().handleWebhook(envelope,now);
     return Response.json({ok:true,eventTypeId:result.eventTypeId});
   } catch(error) {
     return Response.json({error:error instanceof Error?error.message:"viva_webhook_failed"},{status:503});
   }
+}
+
+function webhookText(value:unknown,label:string):string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} missing`);
+  return value.trim();
+}
+function webhookInteger(value:unknown,label:string):number {
+  const parsed=typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${label} invalid`);
+  return parsed;
+}
+function webhookOrderCode(value:unknown):string {
+  const code=typeof value === "string" ? value : typeof value === "number" && Number.isSafeInteger(value) ? String(value) : "";
+  if (!/^\d{16}$/.test(code)) throw new Error("Viva webhook OrderCode invalid");
+  return code;
 }
