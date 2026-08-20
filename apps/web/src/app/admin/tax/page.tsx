@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
-import { FiscalDocumentPreparationForm } from "../../../components/FiscalDocumentPreparationForm";
 import { MyDataConnectivityButton } from "../../../components/MyDataConnectivityButton";
 import { TaxConfigurationEditor } from "../../../components/TaxConfigurationEditor";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
@@ -35,7 +34,6 @@ export default async function Page() {
   const diagnosticSpecVersion = "specVersion" in diagnostics && typeof diagnostics.specVersion === "string" ? diagnostics.specVersion : runtimeConfig.specVersion;
   const credentialSource = "credentialSource" in diagnostics && typeof diagnostics.credentialSource === "string" ? diagnostics.credentialSource : undefined;
   const probe = "probe" in diagnostics && diagnostics.probe && typeof diagnostics.probe === "object" ? diagnostics.probe : undefined;
-  const approvedFiscalRoute = "fiscalisationRoute" in diagnostics && typeof diagnostics.fiscalisationRoute === "string" ? diagnostics.fiscalisationRoute : undefined;
   const readyDocuments = data.documents.filter(document => document.transmissionStatus === "ready").length;
   const acceptedDocuments = data.documents.filter(document => document.transmissionStatus === "accepted").length;
   const failedDocuments = data.documents.filter(document => Boolean(document.lastError)).length;
@@ -44,9 +42,9 @@ export default async function Page() {
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
-      <div className="eyebrow">Accounting · Tax · AADE ERP bridge · Invoice lifecycle</div>
+      <div className="eyebrow">Accounting · Tax · AADE ERP bridge</div>
       <h1>Tax / myDATA Control Center</h1>
-      <p className="lead">Κεντρική admin-only διαχείριση λογιστικής πολιτικής, mappings, ΦΠΑ, AADE credentials, runtime fiscalisation, σειρών/αρίθμησης, invoice capture, preparation, MARK transmission και customer fiscal delivery.</p>
+      <p className="lead">Κεντρική admin-only διαχείριση λογιστικής πολιτικής, mappings, ΦΠΑ, AADE credentials, runtime fiscalisation και σειρών/αρίθμησης. Τα παραστατικά εμφανίζονται πλέον στο αντίστοιχο κατάστημα μέσα στους Συνεργάτες.</p>
     </div></section>
 
     <WorkspaceMetricStrip items={[
@@ -65,6 +63,7 @@ export default async function Page() {
       <div className="workspace-inline-note">Runtime spec: <strong>{diagnosticSpecVersion}</strong> · Admin configuration source: database · AADE secret source: <strong>{credentialSource ?? "not configured"}</strong>.</div>
       {probe && "state" in probe && <div className="workspace-inline-note">Production connectivity probe: <strong>{String(probe.state)}</strong>{"checkedAt" in probe && typeof probe.checkedAt === "number" ? ` · ${new Date(probe.checkedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })}` : ""}.</div>}
       <div className="workspace-action-bar"><span>{diagnostics.message}</span><div className="workspace-action-buttons"><MyDataConnectivityButton csrfToken={principal.csrfToken} /></div></div>
+      <div className="workspace-action-bar"><span>Invoice / receipt records are grouped under the vendor that fulfilled the order.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/vendors">Open vendor invoices</Link></div></div>
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
@@ -116,23 +115,5 @@ export default async function Page() {
         <div className="workspace-action-bar"><span>Assign and approve the exact AADE VAT category for every active canonical variant.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/finance/mydata/products">Manage product VAT profiles</Link></div></div>
       </div></section>
     </> : <section className="shell vendor-section"><WorkspaceEmptyState title="No accounting policy exists." body="Install/create an Accounting Policy before enabling fiscal issuance." /></section>}
-
-    <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Invoices & receipts" title="Fiscal document lifecycle / transmission queue" note="Customer invoice/receipt creation, preparation, mapping snapshot, MARK, UID and delivery remain tied to a single auditable tax-document lifecycle." />
-      {data.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν tax documents ακόμη." body="A captured payment can create a pending fiscal record automatically when enabled in the Admin configuration, or an Admin can recover one manually by order ID above." /> : <div className="workspace-queue-list">{data.documents.map(document => <article className="workspace-queue-card" key={document.id}>
-        <div className="workspace-queue-head"><div><strong>{document.documentNumber ?? document.id}</strong><small>{document.type} · {document.orderId ?? "no order"}</small></div><span className="status-pill">{document.transmissionStatus}</span></div>
-        <div className="workspace-queue-primary"><span>{(document.grossMinor/100).toLocaleString("el-GR",{style:"currency",currency:document.currency})}</span>{document.mappingVersion && <span>Mapping {document.mappingVersion}</span>}{document.invoiceTypeCode && <span>Type {document.invoiceTypeCode}</span>}{document.aadeMark && <span>MARK {document.aadeMark}</span>}</div>
-        {document.lastError && <p className="workspace-queue-summary">{document.lastError}</p>}
-        <WorkspaceRecordDetails label="Fiscal identifiers"><div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Document ID</strong><span>{document.id}</span></div>
-          <div className="workspace-compact-row"><strong>Order ID</strong><span>{document.orderId ?? "—"}</span></div>
-          <div className="workspace-compact-row"><strong>Mapping / invoice type</strong><span>{document.mappingVersion ?? "—"} · {document.invoiceTypeCode ?? "—"}</span></div>
-          <div className="workspace-compact-row"><strong>MARK / UID</strong><span>{document.aadeMark ?? "—"} · {document.aadeUid ?? "—"}</span></div>
-          {document.qrUrl && <div className="workspace-compact-row"><strong>AADE QR</strong><span>{document.qrUrl}</span></div>}
-        </div></WorkspaceRecordDetails>
-        {document.type === "pending_customer_sale" && ["not_ready","manual_review"].includes(document.transmissionStatus) && <WorkspaceRecordDetails label="Prepare invoice / receipt"><FiscalDocumentPreparationForm documentId={document.id} csrfToken={principal.csrfToken} documentMappings={policyData.documentMappings} paymentMappings={policyData.paymentMappings} /></WorkspaceRecordDetails>}
-        {document.transmissionStatus === "ready" && runtimeConfig.issuanceEnabled && diagnostics.ready && approvedFiscalRoute === "aade_direct_erp" && <div className="workspace-action-bar"><span>All global fiscal gates pass. Per-document payment/ECRToken checks are revalidated server-side on transmission.</span><div className="workspace-action-buttons"><AdminActionButton label="Transmit to AADE" endpoint="/api/admin/tax/transmit" csrfToken={principal.csrfToken} body={{documentId:document.id}} /></div></div>}
-      </article>)}</div>}
-    </section>
   </main>;
 }
