@@ -1,4 +1,4 @@
-import { resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
+import { renderKontaMoyEmail, resendConfigFromEnv, resendDeliveryEnabled, signedKontaMoyText } from "@buy-local-sparta/resend-notifications";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { renderCustomerTaxPdf } from "./customer-tax-pdf";
@@ -24,14 +24,34 @@ export async function deliverAcceptedCustomerTaxDocumentById(documentId: string)
     if (!document || document.id !== documentId) throw new Error("Accepted fiscal document is not available");
     const pdf = await renderCustomerTaxPdf(document);
     const config = resendConfigFromEnv(process.env);
+    const publicBaseUrl = publicBaseUrlFromEnv();
+    const emailInput = {
+      subject: `Το παραστατικό σας ${document.documentNumber} · KONTA MOY`,
+      text: [
+        `Η πληρωμή της παραγγελίας ${document.orderId} ολοκληρώθηκε.`,
+        "",
+        `Επισυνάπτεται το φορολογικό παραστατικό ${document.documentNumber} με MARK ${document.mark}.`,
+        "Μπορείτε επίσης να το κατεβάσετε οποιαδήποτε στιγμή από τη συγκεκριμένη παραγγελία στον λογαριασμό σας."
+      ].join("\n"),
+      eventType: "tax.document_issued",
+      locale: "el",
+      payload: {
+        orderId: document.orderId,
+        documentId: document.id,
+        documentNumber: document.documentNumber,
+        ctaPath: `/account/orders/${encodeURIComponent(document.orderId)}`,
+        ctaLabel: "Προβολή παραγγελίας"
+      }
+    } as const;
     const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/emails`, {
       method: "POST",
       headers: { authorization: `Bearer ${config.apiKey}`, "content-type": "application/json", "idempotency-key": `customer-tax:${document.id}:${document.mark}` },
       body: JSON.stringify({
         from: config.from,
         to: [row.email.trim().toLowerCase()],
-        subject: `Το παραστατικό σας ${document.documentNumber} · KONTA MOY`,
-        text: `Η πληρωμή της παραγγελίας ${document.orderId} ολοκληρώθηκε. Επισυνάπτεται το φορολογικό παραστατικό ${document.documentNumber} με MARK ${document.mark}. Μπορείτε επίσης να το κατεβάσετε οποιαδήποτε στιγμή από τη συγκεκριμένη παραγγελία στον λογαριασμό σας.`,
+        subject: emailInput.subject,
+        text: signedKontaMoyText(emailInput, { publicBaseUrl }),
+        html: renderKontaMoyEmail(emailInput, { publicBaseUrl }),
         ...(config.replyTo ? { reply_to: config.replyTo } : {}),
         attachments: [{ filename: `KONTA-MOY-${safeFilename(document.documentNumber)}.pdf`, content: pdf.toString("base64") }]
       })
@@ -48,6 +68,13 @@ export async function deliverAcceptedCustomerTaxDocumentById(documentId: string)
 
 async function markFailed(documentId: string, message: string) {
   await getProductionPostgresRuntime().nativePool.query(`UPDATE tax_documents SET customer_email_status='failed',customer_email_error=$2 WHERE public_id=$1`, [documentId, message.slice(0, 500)]);
+}
+
+function publicBaseUrlFromEnv(): string {
+  const explicit = process.env.BLS_PUBLIC_BASE_URL?.trim() || process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
+  return production ? `https://${production.replace(/^https?:\/\//, "").replace(/\/$/, "")}` : "https://kontamou.site";
 }
 
 function safeFilename(value: string): string { return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "parastatiko"; }

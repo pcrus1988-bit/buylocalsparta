@@ -1,4 +1,5 @@
 import { adminAssignAskLocal } from "../../../../lib/admin-ask-local";
+import { sendAskLocalVendorAssignmentEmails } from "../../../../lib/ask-local-email";
 import { requireAdminSession } from "../../../../lib/admin-session";
 
 export async function POST(request: Request) {
@@ -13,6 +14,9 @@ export async function POST(request: Request) {
       vendorId: typeof body.vendorId === "string" ? body.vendorId : undefined,
       reason: String(body.reason ?? "")
     });
+    if (result.workflowOwnerKind === "vendor" && result.vendorId) {
+      await sendAskLocalVendorAssignmentEmails({ requestId: result.id, vendorId: result.vendorId });
+    }
     return Response.json(result);
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "ask_local_assignment_failed" }, { status: 400 });
