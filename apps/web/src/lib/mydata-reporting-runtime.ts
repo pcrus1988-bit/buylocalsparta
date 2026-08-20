@@ -1,8 +1,8 @@
 import {
   AadeMyDataClient,
   reconcileMyDataReporting,
-  type LocalFiscalMarkRecord,
-  type MyDataReportingReconciliation
+  type E3ClassificationMismatch,
+  type LocalFiscalMarkRecord
 } from "@buy-local-sparta/aade-mydata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { resolveMyDataDiagnosticConfig } from "./mydata-runtime";
@@ -22,12 +22,21 @@ export type MyDataReportingDiagnostic = Readonly<{
   localDocuments:number;
   acceptedWithoutIssueDate:number;
   vat:{pages:number;complete:boolean;marks:number;matched:number};
-  e3:{pages:number;complete:boolean;marks:number;matched:number};
+  e3:{pages:number;complete:boolean;marks:number;matched:number;classificationChecked:number};
   localMissingInVat:readonly LocalFiscalMarkRecord[];
   localMissingInE3:readonly LocalFiscalMarkRecord[];
+  localWithoutE3Expectation:readonly LocalFiscalMarkRecord[];
+  e3ClassificationMismatches:readonly E3ClassificationMismatch[];
   unmatchedVatMarks:readonly string[];
   unmatchedE3Marks:readonly string[];
-  truncated:{localMissingInVat:boolean;localMissingInE3:boolean;unmatchedVatMarks:boolean;unmatchedE3Marks:boolean};
+  truncated:{
+    localMissingInVat:boolean;
+    localMissingInE3:boolean;
+    localWithoutE3Expectation:boolean;
+    e3ClassificationMismatches:boolean;
+    unmatchedVatMarks:boolean;
+    unmatchedE3Marks:boolean;
+  };
 }>;
 
 export async function myDataReportingDiagnostic(input:{dateFrom:string;dateTo:string;maxPages?:number}):Promise<MyDataReportingDiagnostic>{
@@ -39,9 +48,14 @@ export async function myDataReportingDiagnostic(input:{dateFrom:string;dateTo:st
   const [localResult,undatedResult,policyResult]=await Promise.all([
     db.query<{
       id:string;aade_mark:string;issue_date:string|Date;invoice_type_code:string|null;document_number:string|null;
-    }>(`SELECT td.public_id AS id,td.aade_mark,td.issue_date,td.invoice_type_code,td.document_number
+      net_minor:string|number;income_category:string|null;e3_code:string|null;
+    }>(`SELECT td.public_id AS id,td.aade_mark,td.issue_date,td.invoice_type_code,td.document_number,td.net_minor,
+               dm.income_category,dm.e3_code
         FROM tax_documents td
         JOIN markets m ON m.id=td.market_id
+        LEFT JOIN mydata_document_mappings dm
+          ON dm.policy_id=td.accounting_policy_id
+         AND dm.event_code=(td.payload_snapshot #>> '{preparation,eventCode}')
         WHERE m.code=$1
           AND td.transmission_status='accepted'
           AND td.aade_mark IS NOT NULL
@@ -66,7 +80,10 @@ export async function myDataReportingDiagnostic(input:{dateFrom:string;dateTo:st
     mark:row.aade_mark,
     issueDate:isoDate(row.issue_date),
     invoiceTypeCode:row.invoice_type_code??undefined,
-    documentNumber:row.document_number??undefined
+    documentNumber:row.document_number??undefined,
+    incomeCategory:row.income_category?.trim()||undefined,
+    e3Code:row.e3_code?.trim()||undefined,
+    classificationValueMinor:safeMinor(row.net_minor,"net_minor")
   }));
   const acceptedWithoutIssueDate=Number(undatedResult.rows[0]?.count??0);
   if(!Number.isSafeInteger(acceptedWithoutIssueDate)||acceptedWithoutIssueDate<0)throw new Error("Invalid local tax-document diagnostic count");
@@ -98,14 +115,18 @@ export async function myDataReportingDiagnostic(input:{dateFrom:string;dateTo:st
     localDocuments:reconciliation.localDocuments,
     acceptedWithoutIssueDate,
     vat:{pages:vat.pages,complete:vat.complete,marks:reconciliation.vatMarks,matched:reconciliation.matchedVat},
-    e3:{pages:e3.pages,complete:e3.complete,marks:reconciliation.e3Marks,matched:reconciliation.matchedE3},
+    e3:{pages:e3.pages,complete:e3.complete,marks:reconciliation.e3Marks,matched:reconciliation.matchedE3,classificationChecked:reconciliation.e3ClassificationChecked},
     localMissingInVat:reconciliation.localMissingInVat.slice(0,MAX_DIAGNOSTIC_ROWS),
     localMissingInE3:reconciliation.localMissingInE3.slice(0,MAX_DIAGNOSTIC_ROWS),
+    localWithoutE3Expectation:reconciliation.localWithoutE3Expectation.slice(0,MAX_DIAGNOSTIC_ROWS),
+    e3ClassificationMismatches:reconciliation.e3ClassificationMismatches.slice(0,MAX_DIAGNOSTIC_ROWS),
     unmatchedVatMarks:reconciliation.unmatchedVatMarks.slice(0,MAX_DIAGNOSTIC_ROWS),
     unmatchedE3Marks:reconciliation.unmatchedE3Marks.slice(0,MAX_DIAGNOSTIC_ROWS),
     truncated:{
       localMissingInVat:reconciliation.localMissingInVat.length>MAX_DIAGNOSTIC_ROWS,
       localMissingInE3:reconciliation.localMissingInE3.length>MAX_DIAGNOSTIC_ROWS,
+      localWithoutE3Expectation:reconciliation.localWithoutE3Expectation.length>MAX_DIAGNOSTIC_ROWS,
+      e3ClassificationMismatches:reconciliation.e3ClassificationMismatches.length>MAX_DIAGNOSTIC_ROWS,
       unmatchedVatMarks:reconciliation.unmatchedVatMarks.length>MAX_DIAGNOSTIC_ROWS,
       unmatchedE3Marks:reconciliation.unmatchedE3Marks.length>MAX_DIAGNOSTIC_ROWS
     }
@@ -134,4 +155,9 @@ function toAadeDate(value:string):string{const [year,month,day]=value.split("-")
 function isoDate(value:string|Date):string{
   if(value instanceof Date){if(!Number.isFinite(value.getTime()))throw new Error("Invalid fiscal issue date");return value.toISOString().slice(0,10);}
   return parseIsoDate(String(value).slice(0,10),"issue_date").value;
+}
+function safeMinor(value:string|number,label:string):number{
+  const parsed=typeof value==="number"?value:Number(value);
+  if(!Number.isSafeInteger(parsed)||parsed<0)throw new Error(`Invalid local fiscal ${label}`);
+  return parsed;
 }
