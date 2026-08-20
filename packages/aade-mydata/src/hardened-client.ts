@@ -19,6 +19,7 @@ import {
   type DeliveryNoteStatusQuery,
   type DeliveryNoteStatusResponse
 } from "./digital-movement.ts";
+import { groupQrDetailsQuery, parseGroupQrDetailsResponse, type GroupQrDetailsResponse } from "./group-qr.ts";
 import { assertInvoiceElementOrder } from "./order-preflight.ts";
 import { assertPaymentMethodsXmlPreflight } from "./payment-method-preflight.ts";
 import { assertInvoiceXmlPreflight } from "./preflight.ts";
@@ -58,6 +59,12 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
   async sendPaymentsMethod(xml: string): Promise<MyDataTransmissionResult> {
     assertPaymentMethodsXmlPreflight(xml);
     return parseTransmissionResponse(await this.#extendedRequest("SendPaymentsMethod", { method: "POST", body: xml }));
+  }
+
+  async requestGroupQrDetails(groupId: string): Promise<GroupQrDetailsResponse> {
+    const query = groupQrDetailsQuery(groupId);
+    const responseXml = await this.#extendedRequest(`RequestGroupQRDetails?${query}`, { method: "GET" });
+    return parseGroupQrDetailsResponse(responseXml);
   }
 
   async getDeliveryNoteStatus(input: DeliveryNoteStatusQuery): Promise<DeliveryNoteStatusResponse> {
