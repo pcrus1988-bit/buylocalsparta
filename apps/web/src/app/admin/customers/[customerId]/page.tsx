@@ -11,6 +11,7 @@ import { adminCustomerDetail, type CustomerStatus } from "../../../../lib/admin-
 import { adminCustomer360, type CustomerSupportPriority, type CustomerSupportStatus } from "../../../../lib/admin-customer-support";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
+import { marketplaceReferenceMap } from "../../../../lib/public-reference-service";
 
 export const metadata: Metadata = { title: "Admin · Customer profile", robots: { index: false, follow: false } };
 
@@ -19,7 +20,7 @@ const caseStatusLabel: Record<CustomerSupportStatus, string> = { open: "Open", w
 const priorityLabel: Record<CustomerSupportPriority, string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };
 function money(minor: number, currency = "EUR") { try { return new Intl.NumberFormat("el-GR", { style: "currency", currency }).format(minor / 100); } catch { return `${(minor / 100).toFixed(2)} ${currency}`; } }
 function dateTime(value?: number) { return value ? new Date(value).toLocaleString("el-GR") : "—"; }
-function customerName(customer: { firstName?: string; lastName?: string; email?: string; id: string }) { return [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email || customer.id; }
+function customerName(customer: { firstName?: string; lastName?: string; email?: string; id: string }) { return [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email || "Customer"; }
 function stateJson(value: Record<string, unknown>) { const entries = Object.entries(value); return entries.length ? entries.map(([key, item]) => `${key}: ${String(item)}`).join(" · ") : "—"; }
 
 export default async function Page({ params }: { params: Promise<{ customerId: string }> }) {
@@ -35,12 +36,16 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
   const { engagement, privacyRequests, supportCases } = customer360;
   const canManage = hasAdminPermission(principal, "customer.manage");
   const customerEmailMessages = canManage && customer.email ? await adminCustomerEmailMessages(principal, customer.id) : [];
+  const [supportReferences, privacyReferences] = await Promise.all([
+    marketplaceReferenceMap("support", supportCases.map((item) => item.id)),
+    marketplaceReferenceMap("privacy", privacyRequests.map((item) => item.id))
+  ]);
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={result.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Customer 360 · {customer.id}</div>
+        <div className="eyebrow">Customer 360</div>
         <h1>{customerName(customer)}</h1>
         <p className="lead">{customer.email ?? "No email"}{customer.phone ? ` · ${customer.phone}` : ""} · {statusLabel[customer.status]}</p>
         <div className="hero-actions"><Link className="button button-secondary" href="/admin/customers">← Customers</Link><Link className="text-link" href={`/admin/orders?customer=${encodeURIComponent(customer.id)}`}>Customer orders →</Link><Link className="text-link" href={`/admin/privacy?customer=${encodeURIComponent(customer.id)}`}>Privacy workflows →</Link></div>
@@ -58,7 +63,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Account control" title="Identity, access & recovery" note="Account-state changes and support actions require a reason and are written to the audit trail. GDPR anonymisation/deletion remains in Privacy." />
       <article className="workspace-queue-card">
-        <div className="workspace-queue-head"><div><strong>{customerName(customer)}</strong><small>{customer.id}</small></div><span className="status-pill">{statusLabel[customer.status]}</span></div>
+        <div className="workspace-queue-head"><div><strong>{customerName(customer)}</strong><small>Customer account</small></div><span className="status-pill">{statusLabel[customer.status]}</span></div>
         <div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Email</strong><span>{customer.email ?? "—"}</span><small>{customer.emailVerified ? "Verified" : "Not verified"}</small></div>
           <div className="workspace-compact-row"><strong>Phone</strong><span>{customer.phone ?? "—"}</span><small>Locale {customer.preferredLocale}</small></div>
@@ -104,7 +109,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
       <WorkspaceSectionHeading eyebrow="Customer support" title="Cases, notes & ownership" note="Support notes are operational records with their own immutable event history; material administrative actions continue to be written to audit_events." />
       {canManage && <CustomerSupportCaseForm customerId={customer.id} csrfToken={result.csrfToken} />}
       {supportCases.length === 0 ? <WorkspaceEmptyState title="No support cases for this customer." body="Create a case when the customer contacts support or an issue needs follow-up." /> : <div className="workspace-queue-list" style={{ marginTop: 18 }}>{supportCases.map((item) => <article className="workspace-queue-card" key={item.id}>
-        <div className="workspace-queue-head"><div><strong>{item.subject}</strong><small>{item.id} · {item.category} · opened {dateTime(item.createdAt)}</small></div><span className="status-pill">{caseStatusLabel[item.status]}</span></div>
+        <div className="workspace-queue-head"><div><strong>{item.subject}</strong><small>{supportReferences.get(item.id) ?? item.id} · {item.category} · opened {dateTime(item.createdAt)}</small></div><span className="status-pill">{caseStatusLabel[item.status]}</span></div>
         <div className="workspace-queue-primary"><span>Priority: {priorityLabel[item.priority]}</span><span>Owner: {item.assignedTo ?? "Unassigned"}</span><span>Follow-up: {dateTime(item.followUpAt)}</span></div>
         <WorkspaceRecordDetails label={`Case history · ${item.events.length} event(s)`}><div className="workspace-compact-list">{item.events.length === 0 ? <div className="workspace-compact-row"><strong>No events</strong><span>—</span></div> : item.events.map((event) => <div className="workspace-compact-row" key={event.id}><strong>{event.type}</strong><span>{event.note ?? "—"}</span><small>{event.actor} · {dateTime(event.createdAt)}</small></div>)}</div></WorkspaceRecordDetails>
         {canManage && <div className="workspace-action-bar"><span>Manage case</span><div className="workspace-action-buttons">
@@ -128,7 +133,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Commerce" title="Recent orders" note="The latest 50 customer orders. Open the order workspace with this customer and order pre-filtered." />
       {orders.length === 0 ? <WorkspaceEmptyState title="No orders for this customer." /> : <div className="workspace-queue-list">{orders.map((order) => <article className="workspace-queue-card" key={order.id}>
-        <div className="workspace-queue-head"><div><strong>{order.orderNumber}</strong><small>{order.id} · {dateTime(order.createdAt)}</small></div><span className="status-pill">{order.status}</span></div>
+        <div className="workspace-queue-head"><div><strong>{order.orderNumber}</strong><small>{dateTime(order.createdAt)}</small></div><span className="status-pill">{order.status}</span></div>
         <div className="workspace-queue-primary"><span>{money(order.totalMinor, order.currency)}</span><span>{order.fulfilmentPreference}</span><span>{order.confirmedAt ? `Confirmed ${dateTime(order.confirmedAt)}` : "Not confirmed"}</span></div>
         <div className="workspace-action-bar"><span>Order context</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/orders?customer=${encodeURIComponent(customer.id)}&order=${encodeURIComponent(order.id)}`}>Open in Orders</Link></div></div>
       </article>)}</div>}
@@ -137,7 +142,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Privacy" title="Customer privacy requests" note="The Customer profile shows status and deadlines only. Processing, retention decisions and completion stay in the dedicated Privacy workspace." />
       {privacyRequests.length === 0 ? <WorkspaceEmptyState title="No privacy requests for this customer." /> : <div className="workspace-queue-list">{privacyRequests.map((request) => <article className="workspace-queue-card" key={request.id}>
-        <div className="workspace-queue-head"><div><strong>{request.type}</strong><small>{request.id} · created {dateTime(request.createdAt)}</small></div><span className="status-pill">{request.status}</span></div>
+        <div className="workspace-queue-head"><div><strong>{request.type}</strong><small>{privacyReferences.get(request.id) ?? request.id} · created {dateTime(request.createdAt)}</small></div><span className="status-pill">{request.status}</span></div>
         <div className="workspace-queue-primary"><span>Due {dateTime(request.dueAt)}</span><span>{request.completedAt ? `Completed ${dateTime(request.completedAt)}` : "Not completed"}</span></div>
       </article>)}</div>}
       <div className="workspace-action-bar"><span>GDPR operations remain separated from customer support.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/privacy?customer=${encodeURIComponent(customer.id)}`}>Open Privacy queue</Link></div></div>
@@ -146,7 +151,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Fulfilment profile" title="Saved addresses" note="Contact and delivery data is visible only to authorised Customer Management roles and remains separate from privacy-erasure workflows." />
       {addresses.length === 0 ? <WorkspaceEmptyState title="No saved addresses." /> : <div className="workspace-queue-list">{addresses.map((address) => <article className="workspace-queue-card" key={address.id}>
-        <div className="workspace-queue-head"><div><strong>{address.label ?? address.recipientName ?? "Address"}</strong><small>{address.id}</small></div><span className="status-pill">{address.countryCode}</span></div>
+        <div className="workspace-queue-head"><div><strong>{address.label ?? address.recipientName ?? "Address"}</strong><small>{address.locality} · {address.postcode}</small></div><span className="status-pill">{address.countryCode}</span></div>
         <p className="workspace-queue-summary">{address.recipientName ?? ""}{address.companyName ? ` · ${address.companyName}` : ""}<br />{address.line1}{address.line2 ? `, ${address.line2}` : ""}<br />{address.postcode} {address.locality}{address.region ? `, ${address.region}` : ""}</p>
         {address.phone && <small>{address.phone}</small>}
       </article>)}</div>}
