@@ -18,36 +18,64 @@ export type WorkspaceNavGroup = Readonly<{
 
 export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
-    label: "Σήμερα",
-    links: [
-      { label: "Επισκόπηση", href: "/vendor", icon: "⌂" },
-      { label: "Ειδοποιήσεις", href: "/vendor/notifications", icon: "!" },
-      { label: "Συμβουλές", href: "/vendor/advice", icon: "◌" },
-      { label: "KONTA MOY Daily", href: "/vendor/daily-access", icon: "◈" }
-    ]
+    label: "Αρχική",
+    href: "/vendor",
+    icon: "⌂",
+    links: [{ label: "Αρχική", href: "/vendor", icon: "⌂" }]
   },
   {
-    label: "Κατάλογος",
+    label: "Παραγγελίες",
+    href: "/vendor/orders",
+    icon: "□",
     links: [
-      { label: "Προϊόντα & stock", href: "/vendor/catalog", icon: "▦" },
-      { label: "Storefront", href: "/vendor/storefront", icon: "◫" },
-      { label: "Φωτογραφίες & έγγραφα", href: "/vendor/trust", icon: "✓" }
-    ]
-  },
-  {
-    label: "Εκπλήρωση",
-    links: [
+      { label: "Παραγγελίες", href: "/vendor/orders", icon: "□" },
+      { label: "Προθεσμίες", href: "/vendor/notifications", icon: "!" },
       { label: "Αποστολές", href: "/vendor/shipping", icon: "↗" },
+      { label: "Παραλαβές", href: "/vendor/pickup/scan", icon: "⌁" },
       { label: "Επιστροφές", href: "/vendor/returns", icon: "↩" }
     ]
   },
   {
-    label: "Επιχείρηση",
+    label: "Προϊόντα",
+    href: "/vendor/catalog",
+    icon: "▦",
     links: [
-      { label: "Οικονομικά", href: "/vendor/finance", icon: "€" },
-      { label: "Analytics", href: "/vendor/analytics", icon: "∿" },
-      { label: "Reports", href: "/vendor/reports", icon: "▤" }
+      { label: "Κατάλογος & απόθεμα", href: "/vendor/catalog", icon: "▦" },
+      { label: "Media & έγγραφα", href: "/vendor/trust", icon: "✓" }
     ]
+  },
+  {
+    label: "Πελάτες",
+    href: "/vendor/advice",
+    icon: "◌",
+    links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌" }]
+  },
+  {
+    label: "Κατάστημα",
+    href: "/vendor/storefront",
+    icon: "◫",
+    links: [{ label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫" }]
+  },
+  {
+    label: "Οικονομικά",
+    href: "/vendor/finance",
+    icon: "€",
+    links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€" }]
+  },
+  {
+    label: "Στατιστικά",
+    href: "/vendor/analytics",
+    icon: "∿",
+    links: [
+      { label: "Απόδοση", href: "/vendor/analytics", icon: "∿" },
+      { label: "Αναφορές", href: "/vendor/reports", icon: "▤" }
+    ]
+  },
+  {
+    label: "Ρυθμίσεις",
+    href: "/vendor/daily-access",
+    icon: "⚙",
+    links: [{ label: "Πρόσβαση στο Daily", href: "/vendor/daily-access", icon: "◈" }]
   }
 ];
 
@@ -105,9 +133,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Πελάτες",
     href: "/admin/customers",
     icon: "◉",
-    links: [
-      { label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" }
-    ]
+    links: [{ label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" }]
   },
   {
     label: "Εμπιστοσύνη & Ασφάλεια",
