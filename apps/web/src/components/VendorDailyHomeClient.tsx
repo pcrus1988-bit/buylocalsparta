@@ -9,6 +9,7 @@ import styles from "./VendorDailyHomeClient.module.css";
 type Fulfilment = {
   id: string;
   orderId: string;
+  orderReference: string;
   orderStatus: string;
   status: string;
   mode: string;
@@ -198,7 +199,7 @@ export function VendorDailyHomeClient({
         <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Χρειάζεται επιβεβαίωση</span><h2>Νέες παραγγελίες</h2></div><b>{unacknowledged.length}</b></div>
         <div className={styles.inboxList}>
           {unacknowledged.map((notification) => <article key={notification.id} className={styles.newOrderCard}>
-            <div><span className={styles.liveDot}>ΝΕΑ</span><strong>{payloadString(notification.payload, "orderId") ?? notification.title}</strong><p>{notification.body}</p><small>{formatWhen(notification.createdAt)}</small></div>
+            <div><span className={styles.liveDot}>ΝΕΑ</span><strong>{payloadString(notification.payload, "orderReference") ?? payloadString(notification.payload, "orderId") ?? notification.title}</strong><p>{notification.body}</p><small>{formatWhen(notification.createdAt)}</small></div>
             <button type="button" disabled={Boolean(ackBusy)} onClick={() => void acknowledge(notification)}>
               {ackBusy === notification.id ? "Επιβεβαίωση…" : "Έλαβα γνώση"}
             </button>
