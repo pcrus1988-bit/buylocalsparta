@@ -65,7 +65,20 @@ export default async function Home() {
         <div className={styles.sectionTop}>
           <div>
             <div className="eyebrow">Ανακάλυψε κάτι τώρα</div>
-            <h2 id="featured-title">4 επιλογές. Δίκαιη εναλλαγή στην τοπική αγορά.</h2>
+            <h2
+              id="featured-title"
+              style={{
+                maxWidth: "none",
+                margin: "9px 0 0",
+                whiteSpace: "nowrap",
+                fontSize: "clamp(20px, 2.9vw, 44px)",
+                lineHeight: 1.05,
+                letterSpacing: "-0.045em"
+              }}
+            >
+              <strong style={{ fontWeight: 800 }}>4 επιλογές.</strong>{" "}
+              <span style={{ fontWeight: 400 }}>Δίκαιη εναλλαγή στην τοπική αγορά.</span>
+            </h2>
           </div>
           <a className={styles.inlineLink} href="/shop">Δες όλα τα προϊόντα <span>→</span></a>
         </div>
