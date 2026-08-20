@@ -5,6 +5,13 @@ export type MyDataContinuationToken = Readonly<{
   nextRowKey?: string;
 }>;
 
+export type MyDataReportingCollection<T> = Readonly<{
+  records: readonly T[];
+  pages: number;
+  complete: boolean;
+  continuation?: MyDataContinuationToken;
+}>;
+
 export type MyDataVatInfoRecord = Readonly<{
   mark?: string;
   cancelled: boolean;
