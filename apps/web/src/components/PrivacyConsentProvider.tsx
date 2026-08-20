@@ -1,0 +1,136 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  PRIVACY_CONSENT_VERSION,
+  readPrivacyConsent,
+  type PrivacyConsentPreferences
+} from "../lib/privacy-consent";
+
+const OPEN_EVENT = "bls:open-cookie-settings";
+
+type DraftConsent = Readonly<{
+  personalisation: boolean;
+  analytics: boolean;
+  marketing: boolean;
+}>;
+
+const OPTIONAL_OFF: DraftConsent = { personalisation: false, analytics: false, marketing: false };
+const OPTIONAL_ON: DraftConsent = { personalisation: true, analytics: true, marketing: true };
+
+export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
+  const [hydrated, setHydrated] = useState(false);
+  const [consent, setConsent] = useState<PrivacyConsentPreferences | undefined>();
+  const [draft, setDraft] = useState<DraftConsent>(OPTIONAL_OFF);
+  const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const current = readPrivacyConsent(document.cookie);
+    setConsent(current);
+    setDraft(current ? {
+      personalisation: current.personalisation,
+      analytics: current.analytics,
+      marketing: current.marketing
+    } : OPTIONAL_OFF);
+    setHydrated(true);
+  }, []);
+
+  const openSettings = useCallback(() => {
+    const current = readPrivacyConsent(document.cookie);
+    setDraft(current ? {
+      personalisation: current.personalisation,
+      analytics: current.analytics,
+      marketing: current.marketing
+    } : OPTIONAL_OFF);
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  useEffect(() => {
+    const listener = () => openSettings();
+    window.addEventListener(OPEN_EVENT, listener);
+    return () => window.removeEventListener(OPEN_EVENT, listener);
+  }, [openSettings]);
+
+  async function persist(next: DraftConsent) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/privacy/consent", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(next)
+      });
+      if (!response.ok) throw new Error("Consent update failed");
+      const updated = readPrivacyConsent(document.cookie) ?? {
+        version: PRIVACY_CONSENT_VERSION,
+        ...next,
+        decidedAt: new Date().toISOString()
+      };
+      setConsent(updated);
+      setDraft(next);
+      dialogRef.current?.close();
+      window.dispatchEvent(new CustomEvent("bls:privacy-consent-changed", { detail: updated }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <>
+    {children}
+    {hydrated && !consent && <aside className="privacy-consent-banner" aria-label="Ρυθμίσεις απορρήτου και cookies">
+      <div className="privacy-consent-copy">
+        <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
+        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Προσωποποίηση, analytics και marketing ενεργοποιούνται μόνο αν τα επιλέξεις.</p>
+        <Link href="/privacy-controls">Privacy controls</Link>
+      </div>
+      <div className="privacy-consent-actions" aria-label="Επιλογές cookies">
+        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON)}>Αποδοχή όλων</button>
+        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF)}>Απόρριψη προαιρετικών</button>
+        <button type="button" disabled={busy} onClick={openSettings}>Ρυθμίσεις</button>
+      </div>
+    </aside>}
+
+    <dialog className="privacy-consent-dialog" ref={dialogRef} aria-labelledby="privacy-consent-title">
+      <form method="dialog" onSubmit={(event) => event.preventDefault()}>
+        <div className="privacy-consent-dialog-head">
+          <div>
+            <div className="eyebrow">Privacy choices</div>
+            <h2 id="privacy-consent-title">Ρυθμίσεις cookies και δεδομένων</h2>
+          </div>
+          <button type="button" className="privacy-consent-close" onClick={() => dialogRef.current?.close()} aria-label="Κλείσιμο ρυθμίσεων">×</button>
+        </div>
+
+        <div className="privacy-consent-option">
+          <div><strong>Απαραίτητα</strong><p>Ασφάλεια, σύνδεση, checkout και βασική συνέχεια της υπηρεσίας.</p></div>
+          <input type="checkbox" checked disabled aria-label="Απαραίτητα cookies, πάντα ενεργά" />
+        </div>
+        <label className="privacy-consent-option">
+          <div><strong>Προσωποποίηση</strong><p>Προαιρετικές προτιμήσεις, πρόσφατα προϊόντα και εξατομικευμένη εμπειρία.</p></div>
+          <input type="checkbox" checked={draft.personalisation} onChange={(event) => setDraft({ ...draft, personalisation: event.target.checked })} />
+        </label>
+        <label className="privacy-consent-option">
+          <div><strong>Analytics</strong><p>Μέτρηση χρήσης και απόδοσης προϊόντων. Δεν ενεργοποιείται πριν από τη συγκατάθεσή σου.</p></div>
+          <input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ ...draft, analytics: event.target.checked })} />
+        </label>
+        <label className="privacy-consent-option">
+          <div><strong>Marketing</strong><p>Μελλοντική διαφήμιση ή remarketing. Παραμένει ανενεργό αν δεν το επιλέξεις.</p></div>
+          <input type="checkbox" checked={draft.marketing} onChange={(event) => setDraft({ ...draft, marketing: event.target.checked })} />
+        </label>
+
+        <div className="privacy-consent-dialog-actions">
+          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF)}>Απόρριψη προαιρετικών</button>
+          <button type="button" disabled={busy} onClick={() => void persist(draft)}>Αποθήκευση επιλογών</button>
+          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON)}>Αποδοχή όλων</button>
+        </div>
+      </form>
+    </dialog>
+  </>;
+}
+
+export function requestCookieSettings(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(OPEN_EVENT));
+}
