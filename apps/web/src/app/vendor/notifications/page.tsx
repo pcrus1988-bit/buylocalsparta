@@ -18,13 +18,13 @@ export default async function Page() {
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Order operations</div><h1>Ειδοποιήσεις & SLA</h1><p className="lead">Ό,τι χρειάζεται ενέργεια για τις παραγγελίες του καταστήματός σου, μαζί με τις συμφωνημένες προθεσμίες.</p><div className="hero-actions"><Link className="button" href="/vendor#orders">Παραγγελίες</Link></div></div>
+      <div><div className="eyebrow">Παραγγελίες · προθεσμίες</div><h1>Προθεσμίες & SLA</h1><p className="lead">Ό,τι χρειάζεται ενέργεια για τις παραγγελίες του καταστήματός σου, μαζί με τις συμφωνημένες προθεσμίες.</p><div className="hero-actions"><Link className="button" href="/vendor/orders">Παραγγελίες</Link></div></div>
     </section>
 
     <WorkspaceMetricStrip items={[
       { label: "Χρειάζονται ενέργεια", value: data.metrics.requiringAction, tone: data.metrics.requiringAction ? "attention" : "default" },
-      { label: "Breached", value: data.metrics.breached, tone: data.metrics.breached ? "attention" : "default" },
-      { label: "Escalated", value: data.metrics.escalated, tone: data.metrics.escalated ? "attention" : "default" },
+      { label: "Εκπρόθεσμα", value: data.metrics.breached, tone: data.metrics.breached ? "attention" : "default" },
+      { label: "Κλιμακωμένα", value: data.metrics.escalated, tone: data.metrics.escalated ? "attention" : "default" },
       { label: "Μη αναγνωσμένες", value: data.metrics.unread }
     ]} />
 
@@ -42,12 +42,12 @@ export default async function Page() {
       {active.length === 0 ? <div className="workspace-empty-state"><strong>Δεν υπάρχει ενεργή εκκρεμότητα.</strong></div> : <div className="workspace-queue-list">{active.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.orderId}</strong><small>{item.fulfilmentId}</small></div><span className="status-pill">{item.state}</span></div>
         <div className="workspace-queue-primary"><span>{stage(item.stage)}</span><span>Status: {item.fulfilmentStatus}</span><span>Due {when(item.dueAt)}</span></div>
-        <div className="workspace-action-bar"><span>Escalation: <strong>{when(item.escalationAt)}</strong></span><Link className="button" href="/vendor#orders">Ενημέρωση order</Link></div>
+        <div className="workspace-action-bar"><span>Escalation: <strong>{when(item.escalationAt)}</strong></span><Link className="button" href="/vendor/orders">Ενημέρωση παραγγελίας</Link></div>
       </article>)}</div>}
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Notification feed" title="Ειδοποιήσεις παραγγελιών" note="Νέα orders και SLA reminders του δικού σου καταστήματος." />
+      <WorkspaceSectionHeading eyebrow="Notification feed" title="Ειδοποιήσεις παραγγελιών" note="Νέες παραγγελίες και SLA reminders του δικού σου καταστήματος." />
       {data.notifications.length === 0 ? <div className="workspace-empty-state"><strong>Δεν υπάρχουν ειδοποιήσεις.</strong></div> : <div className="workspace-queue-list">{data.notifications.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>{when(item.createdAt)}</small></div><span className="status-pill">{item.readAt ? "read" : "new"}</span></div>
         <p>{item.body}</p>
