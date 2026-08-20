@@ -16,7 +16,7 @@ case "$role" in
     exec node --experimental-strip-types workers/media-worker.ts
     ;;
   reports)
-    exec node --experimental-strip-types workers/report-worker.ts
+    exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/report-worker.ts
     ;;
   "")
     echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports)" >&2
