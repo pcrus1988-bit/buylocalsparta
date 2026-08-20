@@ -4,6 +4,8 @@ import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionP
 const WEB_EXPECTED_SCHEMA_VERSION = EXPECTED_SCHEMA_VERSION;
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
 const globals = globalThis as typeof globalThis & { [globalKey]?: ProductionPostgresRuntime };
+const WEB_DB_POOL_MAX = "2";
+const WEB_DB_IDLE_TIMEOUT_MS = "10000";
 
 export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const explicit = env.DATABASE_URL?.trim();
@@ -25,9 +27,20 @@ const bootstrapDatabaseUrl = resolveDatabaseUrlFromEnv();
 if (!process.env.DATABASE_URL?.trim() && bootstrapDatabaseUrl) process.env.DATABASE_URL = bootstrapDatabaseUrl;
 if (process.env.RESEND_API_KEY?.trim() && !process.env.BLS_EMAIL_DELIVERY_ENABLED?.trim()) process.env.BLS_EMAIL_DELIVERY_ENABLED = "true";
 
-function postgresRuntimeEnv(): NodeJS.ProcessEnv {
-  const connectionString = resolveDatabaseUrlFromEnv();
-  const env: NodeJS.ProcessEnv = connectionString ? { ...process.env, DATABASE_URL: connectionString } : { ...process.env };
+/**
+ * Vercel can create multiple warm Node.js instances under concurrent traffic. The shared
+ * PostgreSQL runtime is a singleton only inside one instance, so using the package default
+ * of ten connections per instance can multiply into a much larger database connection
+ * footprint. Keep the web runtime deliberately small and release idle clients quickly;
+ * operators can still override either setting explicitly for a dedicated/pooler-backed DB.
+ */
+export function buildWebPostgresRuntimeEnv(sourceEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const connectionString = resolveDatabaseUrlFromEnv(sourceEnv);
+  const env: NodeJS.ProcessEnv = connectionString ? { ...sourceEnv, DATABASE_URL: connectionString } : { ...sourceEnv };
+  if (connectionString) {
+    if (!env.BLS_DB_POOL_MAX?.trim()) env.BLS_DB_POOL_MAX = WEB_DB_POOL_MAX;
+    if (!env.BLS_DB_IDLE_TIMEOUT_MS?.trim()) env.BLS_DB_IDLE_TIMEOUT_MS = WEB_DB_IDLE_TIMEOUT_MS;
+  }
   if (env.RESEND_API_KEY?.trim() && !env.BLS_EMAIL_DELIVERY_ENABLED?.trim()) env.BLS_EMAIL_DELIVERY_ENABLED = "true";
   if (env.BLS_EMAIL_DELIVERY_ENABLED === "true" && !env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim()) {
     const authSecret = env.BLS_AUTH_SECRET?.trim();
@@ -39,7 +52,7 @@ function postgresRuntimeEnv(): NodeJS.ProcessEnv {
 export function databaseRuntimeRequired(): boolean { return process.env.NODE_ENV === "production" && process.env.BLS_ALLOW_DATABASELESS_PREVIEW !== "true"; }
 export function getProductionPostgresRuntime(): ProductionPostgresRuntime {
   if (!productionDatabaseConfigured()) throw new Error("DATABASE_URL or POSTGRES_URL is required for production shared state");
-  return globals[globalKey] ?? (globals[globalKey] = createPostgresRuntimeFromEnv({ env: postgresRuntimeEnv(), applicationName: "buy-local-sparta-web" }));
+  return globals[globalKey] ?? (globals[globalKey] = createPostgresRuntimeFromEnv({ env: buildWebPostgresRuntimeEnv(), applicationName: "buy-local-sparta-web" }));
 }
 
 export async function productionDatabaseReadiness() {
