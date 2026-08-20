@@ -55,7 +55,6 @@
   "0055_catalog_schema_quality_gates.sql": "6acf46870cdb3fa83cfab47a3a1b0a4178fc98a071b0c9020c4a09fbf76c286a",
   "0056_identifiers_brand_manufacturer_governance.sql": "3e64123d5914d92579431670924ad27440c75bef1ebf556d69266d63cfd6d392",
   "0057_identifier_scope_and_matching_semantics.sql": "dca81cc1d1d0ce313883ddaf1baf6bdb9edce5b743c2eb05c570936b06540e27",
-  "0058_variant_matrix_materialization.sql": "0e50bd87c0ab96c317ab07d960984c0a6b64cf8cba9433bde4f405b52123df0f",
   "0059_taxonomy_deterministic_attribute_backfill.sql": "7c05c8d3f563deafb9c3f7ea8ac6380c3efea8b3453782aa8ec4863e0116664c",
   "0060_product_funnel_analytics.sql": "086887951f78504f90d914ae9dcfb1e5d250b974ce3b0b22e44029b1a154a79d",
   "0061_vendor_catalog_visibility_controls.sql": "9bdcd4be2be8faea3f6947f54166be6543f691b94603324d6723fa397821622e",
