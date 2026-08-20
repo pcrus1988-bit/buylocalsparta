@@ -1,5 +1,6 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { prepareCustomerFiscalDocument } from "./admin-fiscal-preparation";
+import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { capturePaidOrderForFiscalIssuance } from "./customer-fiscal-runtime";
 import { configuredMyDataService, myDataAdminRuntimeConfig } from "./mydata-runtime";
 import { syncConfirmedOrderLifecycle } from "./order-lifecycle";
@@ -37,6 +38,22 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
 
   if (!config.issuanceEnabled) return { orderId, orderNumber, documentId, fiscalStatus: "captured" };
 
+  const existing = await fiscalSnapshot(orderId, orderNumber, documentId);
+  if (existing.fiscalStatus === "accepted") return existing;
+
+  // A numbered document with a prior uncertain/rejected transmission must be reconciled
+  // against AADE before any attempt to prepare or send it again.
+  if (existing.documentNumber && ["rejected", "manual_review"].includes(existing.fiscalStatus)) {
+    try {
+      await reconcileCustomerFiscalDocument(documentId, now);
+      return await fiscalSnapshot(orderId, orderNumber, documentId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AADE reconciliation failed";
+      await recordFiscalFailure(documentId, message).catch(() => undefined);
+      return await fiscalSnapshot(orderId, orderNumber, documentId).catch(() => ({ orderId, orderNumber, documentId, fiscalStatus: "manual_review", error: message }));
+    }
+  }
+
   try {
     const transactionId = await capturedVivaTransactionId(orderId);
     const processorMethod = await verifiedVivaProcessorMethod(transactionId);
@@ -49,7 +66,14 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
     });
     const service = await configuredMyDataService();
     if (!service) throw new Error("AADE myDATA service is not configured");
-    await service.transmitPreparedDocument(SYSTEM_FISCAL_PRINCIPAL, { documentId: prepared.documentId, now });
+    const transmission = await service.transmitPreparedDocument(SYSTEM_FISCAL_PRINCIPAL, { documentId: prepared.documentId, now });
+
+    // AADE can return statusCode=Success while the immediate ResponseDoc omits MARK.
+    // Never interpret that as a rejection or resend blindly: verify the issued document
+    // through RequestTransmittedDocs and recover its authoritative MARK/UID/QR.
+    if (transmission.ok && transmission.items.length > 0 && !transmission.items.some((item) => item.invoiceMark)) {
+      await reconcileCustomerFiscalDocument(documentId, now);
+    }
     return await fiscalSnapshot(orderId, orderNumber, documentId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Automatic fiscalization failed";
