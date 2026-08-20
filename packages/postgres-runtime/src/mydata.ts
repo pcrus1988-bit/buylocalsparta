@@ -100,9 +100,19 @@ export class PostgresMyDataService {
     await this.#uow.withTransaction(platformScope(principal.userId),async tx=>{
       const first=result.items[0];
       const accepted=result.ok&&Boolean(first?.invoiceMark);
+      const successWithoutMark=result.ok&&!accepted&&result.items.length>0;
+      const attemptStatus=accepted?"accepted":successWithoutMark?"manual_review":"rejected";
+      const documentTransmissionStatus=accepted?"accepted":successWithoutMark?"manual_review":"rejected";
+      const documentStatus=accepted?"issued":successWithoutMark?"pending":"rejected";
       const errors=result.items.flatMap(i=>i.errors.map(e=>e.code?`${e.code}: ${e.message}`:e.message)).join(" | ");
-      await tx.query(`UPDATE mydata_transmission_attempts SET status=$3,response_snapshot=$4::jsonb,completed_at=$5 WHERE tax_document_id=$1 AND attempt_key=$2`,[prepared.documentUuid,prepared.attemptKey,accepted?"accepted":"rejected",JSON.stringify({ok:result.ok,items:result.items}),new Date(now)]);
-      await tx.query(`UPDATE tax_documents SET transmission_status=$2,status=$3,aade_mark=$4,aade_uid=$5,aade_qr_url=$6,provider='aade_mydata_erp',provider_document_id=COALESCE($4,provider_document_id),last_error=$7,last_transmission_at=$8,issued_at=CASE WHEN $2='accepted' THEN COALESCE(issued_at,$8) ELSE issued_at END WHERE id=$1`,[prepared.documentUuid,accepted?"accepted":"rejected",accepted?"issued":"rejected",first?.invoiceMark??null,first?.invoiceUid??null,first?.qrUrl??null,errors||null,new Date(now)]);
+      const responseEvidence={
+        rawXml:result.rawXml,
+        sha256:createHash("sha256").update(result.rawXml).digest("hex"),
+        capturedAt:new Date(now).toISOString()
+      };
+      const lastError=errors||(successWithoutMark?"AADE returned Success without MARK; read-only reconciliation required":null);
+      await tx.query(`UPDATE mydata_transmission_attempts SET status=$3,response_snapshot=$4::jsonb,completed_at=$5 WHERE tax_document_id=$1 AND attempt_key=$2`,[prepared.documentUuid,prepared.attemptKey,attemptStatus,JSON.stringify({ok:result.ok,items:result.items,responseEvidence}),new Date(now)]);
+      await tx.query(`UPDATE tax_documents SET transmission_status=$2,status=$3,aade_mark=$4,aade_uid=$5,aade_qr_url=$6,provider='aade_mydata_erp',provider_document_id=COALESCE($4,provider_document_id),last_error=$7,last_transmission_at=$8,issued_at=CASE WHEN $2='accepted' THEN COALESCE(issued_at,$8) ELSE issued_at END WHERE id=$1`,[prepared.documentUuid,documentTransmissionStatus,documentStatus,first?.invoiceMark??null,first?.invoiceUid??null,first?.qrUrl??null,lastError,new Date(now)]);
       if(accepted&&prepared.series&&prepared.aa!==undefined&&first?.invoiceMark){
         await tx.query(`UPDATE mydata_fiscal_series SET last_issued_aa=GREATEST(COALESCE(last_issued_aa,0),$3),last_mark=$4,updated_at=$5 WHERE market_id=$1::uuid AND series=$2`,[prepared.marketId,prepared.series,prepared.aa,first.invoiceMark,new Date(now)]);
       }
