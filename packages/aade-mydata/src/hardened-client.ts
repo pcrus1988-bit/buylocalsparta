@@ -1,5 +1,6 @@
 import {
   AadeMyDataClient as BaseAadeMyDataClient,
+  decodeAadeXmlEnvelope,
   MyDataTransportError,
   parseTransmissionResponse,
   type MyDataConfig,
@@ -74,14 +75,14 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
 
   async requestGroupQrDetails(groupId: string): Promise<GroupQrDetailsResponse> {
     const query = groupQrDetailsQuery(groupId);
-    const responseXml = await this.#extendedRequest(`RequestGroupQRDetails?${query}`, { method: "GET" });
+    const responseXml = decodeAadeXmlEnvelope(await this.#extendedRequest(`RequestGroupQRDetails?${query}`, { method: "GET" })).xml;
     return parseGroupQrDetailsResponse(responseXml);
   }
 
   async getDeliveryNoteStatus(input: DeliveryNoteStatusQuery): Promise<DeliveryNoteStatusResponse> {
     if (typeof input.qrUrl === "string") assertMyDataSpecSupportsQrDeliveryStatus(this.#extendedConfig.specVersion);
     const query = deliveryNoteStatusQuery(input);
-    const responseXml = await this.#extendedRequest(`GetDeliveryNoteStatus?${query}`, { method: "GET" });
+    const responseXml = decodeAadeXmlEnvelope(await this.#extendedRequest(`GetDeliveryNoteStatus?${query}`, { method: "GET" })).xml;
     return parseDeliveryNoteStatusResponse(responseXml);
   }
 
@@ -93,12 +94,12 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
   async confirmDeliveryReturn(input: ConfirmDeliveryReturnInput): Promise<ConfirmDeliveryReturnResult> {
     assertMyDataSpecSupportsDeliveryReturn(this.#extendedConfig.specVersion);
     const requestXml = buildConfirmDeliveryReturnXml(input);
-    const responseXml = await this.#extendedRequest("ConfirmDeliveryReturn", { method: "POST", body: requestXml });
+    const responseXml = decodeAadeXmlEnvelope(await this.#extendedRequest("ConfirmDeliveryReturn", { method: "POST", body: requestXml })).xml;
     return parseConfirmDeliveryReturnResponse(responseXml);
   }
 
   async requestVatInfo(input: MyDataReportingQuery): Promise<string> {
-    return this.#extendedRequest(`RequestVatInfo?${reportingQuery(input)}`, { method: "GET" });
+    return decodeAadeXmlEnvelope(await this.#extendedRequest(`RequestVatInfo?${reportingQuery(input)}`, { method: "GET" })).xml;
   }
 
   async requestVatInfoParsed(input: MyDataReportingQuery): Promise<MyDataVatInfoResponse> {
@@ -128,7 +129,7 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
   }
 
   async requestE3Info(input: MyDataReportingQuery): Promise<string> {
-    return this.#extendedRequest(`RequestE3Info?${reportingQuery(input)}`, { method: "GET" });
+    return decodeAadeXmlEnvelope(await this.#extendedRequest(`RequestE3Info?${reportingQuery(input)}`, { method: "GET" })).xml;
   }
 
   async requestE3InfoParsed(input: MyDataReportingQuery): Promise<MyDataE3InfoResponse> {
