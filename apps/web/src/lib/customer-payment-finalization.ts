@@ -4,6 +4,7 @@ import { capturePaidOrderForFiscalIssuance } from "./customer-fiscal-runtime";
 import { configuredMyDataService, myDataAdminRuntimeConfig } from "./mydata-runtime";
 import { syncConfirmedOrderLifecycle } from "./order-lifecycle";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { verifiedVivaProcessorMethod } from "./viva-runtime";
 
 export type CapturedPaymentFinalization = Readonly<{
   orderId: string;
@@ -37,12 +38,14 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
   if (!config.issuanceEnabled) return { orderId, orderNumber, documentId, fiscalStatus: "captured" };
 
   try {
+    const transactionId = await capturedVivaTransactionId(orderId);
+    const processorMethod = await verifiedVivaProcessorMethod(transactionId);
     const prepared = await prepareCustomerFiscalDocument({
       documentId,
       eventCode: "b2c_goods_gr",
       processor: "VIVA",
-      processorMethod: "CARD",
-      reason: "automatic fiscalization after verified Viva Smart Checkout capture"
+      processorMethod,
+      reason: `automatic fiscalization after verified Viva Smart Checkout ${processorMethod} capture`
     });
     const service = await configuredMyDataService();
     if (!service) throw new Error("AADE myDATA service is not configured");
@@ -63,6 +66,20 @@ async function publicOrderNumber(orderId: string): Promise<string | undefined> {
     [orderId]
   );
   return result.rows[0]?.order_number;
+}
+
+async function capturedVivaTransactionId(orderId: string): Promise<string> {
+  if (!productionDatabaseConfigured()) throw new Error("Verified Viva transaction lookup requires PostgreSQL");
+  const result = await getProductionPostgresRuntime().nativePool.query<{ provider_transaction_id: string | null }>(
+    `SELECT p.provider_transaction_id
+       FROM payments p JOIN customer_orders o ON o.id=p.order_id
+      WHERE o.public_id=$1 AND p.provider='viva' AND p.status IN ('captured','partially_refunded','refunded')
+      ORDER BY p.updated_at DESC LIMIT 1`,
+    [orderId]
+  );
+  const transactionId = result.rows[0]?.provider_transaction_id?.trim();
+  if (!transactionId) throw new Error("Captured Viva payment is missing its verified transaction id");
+  return transactionId;
 }
 
 async function fiscalSnapshot(orderId: string, orderNumber: string | undefined, documentId: string): Promise<CapturedPaymentFinalization> {
