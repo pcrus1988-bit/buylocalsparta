@@ -11,6 +11,7 @@ import { customerReturnsSnapshot, requestCustomerReturn as createCustomerReturnC
 import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
+import { marketplaceReference, marketplaceReferenceMap } from "./public-reference-service";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -46,8 +47,10 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
     const product = catalogMap.get(item.canonicalVariantId)!;
     return { ...item, title: product.title, price: product.price };
   });
+  const orderReferences = await marketplaceReferenceMap("order", ordersRaw.map((order) => order.id));
   const orders = ordersRaw.map((order) => ({
     id: order.id,
+    referenceNumber: orderReferences.get(order.id) ?? order.id,
     status: customerOrderStatusLabel(order),
     total: formatMoney(order.total),
     createdAt: order.createdAt,
@@ -83,14 +86,15 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups, invoice, returns] = await Promise.all([
+  const [vendorEntries, pickups, invoice, returns, orderReference] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
     customerPickupCredentials(principal, orderId),
     customerFiscalDocumentForOrder(orderId),
-    customerReturnsSnapshot(principal, orderId)
+    customerReturnsSnapshot(principal, orderId),
+    marketplaceReference("order", order.id)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
+  return orderDetailProjection(order, orderReference, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
@@ -104,7 +108,8 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
 export async function cancelCustomerOrder(principal: SessionPrincipal, input: { orderId: string; reason: string; now?: number }) {
   const now = input.now ?? Date.now();
   const updated = await cancelCustomerCommerceOrder(principal, { orderId: input.orderId, reason: input.reason, now });
-  await createCustomerNotification({ userId: principal.userId, eventType: "order.cancelled", title: "Η παραγγελία ακυρώθηκε", body: `Παραγγελία ${updated.id}`, payload: { orderId: updated.id }, dedupeKey: `web-order:${updated.id}:cancelled`, now });
+  const referenceNumber = await marketplaceReference("order", updated.id);
+  await createCustomerNotification({ userId: principal.userId, eventType: "order.cancelled", title: "Η παραγγελία ακυρώθηκε", body: `Παραγγελία ${referenceNumber}`, payload: { orderId: updated.id, orderReference: referenceNumber }, dedupeKey: `web-order:${updated.id}:cancelled`, now });
   return accountOrderDetail(principal, updated.id);
 }
 
@@ -124,7 +129,7 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
     eventType: "return.requested",
     title: "Λάβαμε το αίτημα επιστροφής",
     body: `Αίτημα ${created.returnNumber} · θα ενημερωθείτε μόλις ολοκληρωθεί ο έλεγχος.`,
-    payload: { orderId: input.orderId, returnId: created.returnId, returnNumber: created.returnNumber },
+    payload: { orderId: input.orderId, returnId: created.returnId, returnNumber: created.returnNumber, returnReference: created.returnNumber },
     dedupeKey: `return:${created.returnId}:requested`,
     now
   });
@@ -133,6 +138,7 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
 
 function orderDetailProjection(
   order: CustomerOrder,
+  referenceNumber: string,
   csrfToken: string,
   canCancel: boolean,
   vendorNames: ReadonlyMap<string, string>,
@@ -142,6 +148,7 @@ function orderDetailProjection(
 ) {
   return {
     id: order.id,
+    referenceNumber,
     status: customerOrderStatusLabel(order),
     sourceStatus: order.status,
     createdAt: order.createdAt,
