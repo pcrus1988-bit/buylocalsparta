@@ -153,15 +153,16 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
 
     const returnUuid = randomUUID();
     const returnId = publicReturnId();
-    const number = returnNumber(now);
-    await tx.query(`
+    const legacyNumber = returnNumber(now);
+    const inserted = await tx.query<SqlRow>(`
       INSERT INTO returns(id,public_id,return_number,order_id,customer_user_id,reason_type,status,requested_remedy,source,
         eligibility_state,eligibility_basis,eligibility_reason,evidence,created_at,updated_at)
-      VALUES($1,$2,$3,$4,$5,$6,'requested',$7,'customer','manual_review','manual_review',$8,$9::jsonb,$10,$10)`, [
-      returnUuid, returnId, number, text(row.order_uuid, "order_uuid"), text(row.customer_uuid, "customer_uuid"), input.reason,
+      VALUES($1,$2,$3,$4,$5,$6,'requested',$7,'customer','manual_review','manual_review',$8,$9::jsonb,$10,$10)
+      RETURNING return_number`, [
+      returnUuid, returnId, legacyNumber, text(row.order_uuid, "order_uuid"), text(row.customer_uuid, "customer_uuid"), input.reason,
       input.requestedRemedy, "Το αίτημα παραλήφθηκε και αναμένει έλεγχο επιλεξιμότητας από την πλατφόρμα.", JSON.stringify(note ? { customerNote: note } : {}), new Date(now)
     ]);
     await tx.query(`INSERT INTO return_lines(return_id,order_line_id,quantity,requested_remedy) VALUES($1,$2,$3,$4)`, [returnUuid, text(row.line_uuid, "line_uuid"), input.quantity, input.requestedRemedy]);
-    return { returnId, returnNumber: number };
+    return { returnId, returnNumber: text(inserted.rows[0]?.return_number, "return.return_number") };
   }, { isolation: "serializable" });
 }
