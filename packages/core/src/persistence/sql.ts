@@ -32,6 +32,28 @@ export type TransactionOptions = Readonly<{
   readOnly?: boolean;
 }>;
 
+/**
+ * node-postgres clients execute one statement at a time. Calling client.query() again
+ * before the previous statement settles is deprecated and becomes unsupported in pg 9.
+ * Domain repositories sometimes compose independent reads with Promise.all, so serialize
+ * those calls at the transaction boundary instead of relying on the driver's old implicit
+ * queueing behaviour.
+ */
+export class SerializedSqlExecutor implements SqlExecutor {
+  readonly #executor: SqlExecutor;
+  #tail: Promise<void> = Promise.resolve();
+
+  constructor(executor: SqlExecutor) {
+    this.#executor = executor;
+  }
+
+  query<Row extends SqlRow = SqlRow>(text: string, params?: readonly unknown[]): Promise<SqlQueryResult<Row>> {
+    const run = this.#tail.then(() => this.#executor.query<Row>(text, params));
+    this.#tail = run.then(() => undefined, () => undefined);
+    return run;
+  }
+}
+
 export class PostgresUnitOfWork {
   readonly #pool: SqlPool;
   readonly #defaults: Required<Pick<TransactionOptions, "statementTimeoutMs" | "lockTimeoutMs" | "isolation">>;
@@ -57,7 +79,7 @@ export class PostgresUnitOfWork {
       await client.query("SELECT set_config('statement_timeout', $1, true)", [`${statementTimeoutMs}ms`]);
       await client.query("SELECT set_config('lock_timeout', $1, true)", [`${lockTimeoutMs}ms`]);
       await this.#applyScope(client, scope);
-      const result = await work(client);
+      const result = await work(new SerializedSqlExecutor(client));
       await client.query("COMMIT");
       return result;
     } catch (error) {
