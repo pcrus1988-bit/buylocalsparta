@@ -18,7 +18,7 @@ type Dashboard = {
   recommendations: ReadonlyArray<{ canonicalVariantId: string; title: string; price: string; explanation: string }>;
   privacyRequests: ReadonlyArray<{ id: string; type: string; status: string; submittedAt: number }>;
   retention: ReadonlyArray<{ category: string; retained: boolean; reason: string }>;
-  orders: ReadonlyArray<{ id: string; status: string; total: string; createdAt: number; fulfilmentMode: string; lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }> }>;
+  orders: ReadonlyArray<{ id: string; referenceNumber: string; status: string; total: string; createdAt: number; fulfilmentMode: string; lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }> }>;
 };
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -104,7 +104,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
       <article className="account-live-card account-wide" id="orders">
         <div className="account-card-head"><div><div className="eyebrow">Αγορές</div><h2>Παραγγελίες</h2></div><span className="count-pill">{data.orders.length}</span></div>
-        {data.orders.length ? <div className="account-list">{data.orders.map((order) => <div className="order-row" key={order.id}><div><Link href={`/account/orders/${order.id}`}><strong>{order.id}</strong></Link><small>{date(order.createdAt)} · {order.fulfilmentMode}</small></div><div className="order-lines">{order.lines.map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div><div className="order-total"><strong>{order.total}</strong><span>{order.status}</span></div></div>)}</div> : <div className="account-empty"><p>Δεν υπάρχουν ακόμη παραγγελίες.</p><Link href="/shop" className="text-link">Ανακάλυψε προϊόντα →</Link></div>}
+        {data.orders.length ? <div className="account-list">{data.orders.map((order) => <div className="order-row" key={order.id}><div><Link href={`/account/orders/${order.id}`}><strong>{order.referenceNumber}</strong></Link><small>{date(order.createdAt)} · {order.fulfilmentMode}</small></div><div className="order-lines">{order.lines.map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div><div className="order-total"><strong>{order.total}</strong><span>{order.status}</span></div></div>)}</div> : <div className="account-empty"><p>Δεν υπάρχουν ακόμη παραγγελίες.</p><Link href="/shop" className="text-link">Ανακάλυψε προϊόντα →</Link></div>}
       </article>
 
       <article className="account-live-card" id="saved">
