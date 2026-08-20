@@ -13,6 +13,14 @@ import { configuredMyDataService, myDataAdminRuntimeConfig, myDataReadiness } fr
 
 export const metadata: Metadata = { title: "Admin · Accounting, Tax, AADE / myDATA", robots: { index: false, follow: false } };
 
+function money(minor: number, currency: string) {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: currency || "EUR" }).format(minor / 100);
+}
+
+function dateTime(value: number) {
+  return new Date(value).toLocaleString("el-GR", { timeZone: "Europe/Athens" });
+}
+
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -34,12 +42,13 @@ export default async function Page() {
   const readyDocuments = data.documents.filter(document => document.transmissionStatus === "ready").length;
   const acceptedDocuments = data.documents.filter(document => document.transmissionStatus === "accepted").length;
   const failedDocuments = data.documents.filter(document => Boolean(document.lastError)).length;
+  const reconciliationDocuments = data.documents.filter(document => document.transmissionStatus === "manual_review" && document.documentNumber && !document.aadeMark).length;
   const editablePolicy = Boolean(policy && ["draft", "review"].includes(policy.status));
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
-    <section id="tax-overview" className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Finance & Tax · AADE ERP bridge</div><h1>Tax & myDATA</h1><p className="lead">Λογιστική πολιτική, mappings, ΦΠΑ, AADE credentials, reconciliation και runtime fiscalisation σε ένα workspace με σαφείς τοπικές ενότητες.</p></div></section>
-    <section className="shell admin-local-tabs-shell"><nav className="admin-local-tabs" aria-label="Tax workspace sections"><a href="#tax-overview">Overview</a><a href="#tax-connection">AADE Connection</a><a href="#tax-reconciliation">Reconciliation</a><a href="#tax-configuration">Configuration</a><a href="#tax-policy">Accounting Policy</a><a href="#tax-vat">VAT</a></nav></section>
+    <section id="tax-overview" className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Finance & Tax · AADE ERP bridge</div><h1>Tax & myDATA</h1><p className="lead">Παραστατικά, λογιστική πολιτική, mappings, ΦΠΑ, AADE credentials και reconciliation σε ένα workspace. Η έκδοση παραμένει governed από το υφιστάμενο fiscal route· η οθόνη Documents δεν προσθέτει direct transmit action.</p></div></section>
+    <section className="shell admin-local-tabs-shell"><nav className="admin-local-tabs" aria-label="Tax workspace sections"><a href="#tax-overview">Overview</a><a href="#tax-documents">Documents</a><a href="#tax-reconciliation">Reconciliation</a><a href="#tax-configuration">Configuration</a><a href="#tax-policy">Accounting Policy</a><a href="#tax-vat">VAT</a><a href="#tax-connection">AADE Connection</a></nav></section>
     <WorkspaceMetricStrip items={[
       { label: "AADE environment", value: diagnosticEnvironment },
       { label: "Credentials", value: configured ? "configured" : "missing", tone: configured ? "positive" : "attention", hint: credentialSource === "supabase_vault" ? "encrypted Vault" : credentialSource },
@@ -51,12 +60,24 @@ export default async function Page() {
       { label: "Transmission errors", value: failedDocuments, tone: failedDocuments ? "attention" : "positive" }
     ]} />
 
-    <section id="tax-connection" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="AADE Connection" title="AADE / myDATA diagnostics" note="Credentials και operational settings διαχειρίζονται από εδώ. Read-only connectivity probe δεν αποτελεί φορολογική διαβίβαση." />
-      <div className="workspace-inline-note">Runtime spec: <strong>{diagnosticSpecVersion}</strong> · Admin configuration source: database · AADE secret source: <strong>{credentialSource ?? "not configured"}</strong>.</div>
-      {probe && "state" in probe && <div className="workspace-inline-note">Production connectivity probe: <strong>{String(probe.state)}</strong>{"checkedAt" in probe && typeof probe.checkedAt === "number" ? ` · ${new Date(probe.checkedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })}` : ""}.</div>}
-      <div className="workspace-action-bar"><span>{diagnostics.message}</span><div className="workspace-action-buttons"><MyDataConnectivityButton csrfToken={principal.csrfToken} /></div></div>
-      <div className="workspace-action-bar"><span>Invoice / receipt records are grouped under the vendor that fulfilled the order.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/vendors">Open vendor invoices</Link></div></div>
+    <section id="tax-documents" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="Documents" title="Fiscal document register" note="Up to the latest 250 local tax documents, newest first. This register is operationally read-only except for the existing safe AADE reconciliation action when a numbered document has an uncertain outcome." />
+      {reconciliationDocuments > 0 && <div className="workspace-inline-note"><strong>{reconciliationDocuments}</strong> document(s) require read-only AADE reconciliation. Automatic resend remains blocked.</div>}
+      {data.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη fiscal documents." body="Τα νέα παραστατικά θα εμφανίζονται εδώ όταν δημιουργείται το local tax-document record από το governed fiscal workflow." /> : <div className="admin-directory-table admin-tax-documents" role="table" aria-label="Fiscal documents">
+        <div className="admin-directory-head" role="row"><span>Document</span><span>Order</span><span>Status</span><span>Gross</span><span>MARK / UID</span><span>Created</span><span aria-label="Actions" /></div>
+        {data.documents.map((document) => {
+          const canReconcile = document.transmissionStatus === "manual_review" && Boolean(document.documentNumber) && !document.aadeMark;
+          return <div className={`admin-directory-row${document.lastError || canReconcile ? " needs-attention" : ""}`} role="row" key={document.id}>
+            <span className="admin-directory-identity"><strong>{document.documentNumber ?? document.id}</strong><small>{document.type} · {document.invoiceTypeCode ?? "type unmapped"} · {document.mappingVersion ?? "mapping —"}</small></span>
+            <span><strong>{document.orderId ?? "—"}</strong></span>
+            <span><span className={`status-pill${document.lastError || canReconcile ? " needs-attention" : ""}`}>{document.status} · {document.transmissionStatus}</span></span>
+            <span><strong>{money(document.grossMinor, document.currency)}</strong></span>
+            <span><strong>{document.aadeMark ?? "—"}</strong><small>{document.aadeUid ?? "No UID"}</small></span>
+            <span><strong>{dateTime(document.createdAt)}</strong>{document.lastError && <small className="admin-tax-document-error">{document.lastError}</small>}</span>
+            <span>{canReconcile ? <AdminActionButton label="Reconcile" endpoint="/api/admin/tax/reconcile" csrfToken={principal.csrfToken} body={{ documentId: document.id }} reasonPrompt="Αιτιολογία read-only AADE reconciliation" /> : document.qrUrl ? <a className="admin-record-open" href={document.qrUrl} target="_blank" rel="noreferrer" aria-label={`Open AADE QR for ${document.documentNumber ?? document.id}`}>↗</a> : <span className="admin-tax-no-action">—</span>}</span>
+          </div>;
+        })}
+      </div>}
     </section>
 
     <section id="tax-reconciliation" className="vendor-section section-tint admin-anchor-section"><div className="shell"><WorkspaceSectionHeading eyebrow="Reconciliation" title="Compare local fiscal MARKs with AADE VAT / E3 reporting" note="Checks the selected fiscal period without changing, resending or correcting any document. An incomplete AADE result can never be shown as clean." /><MyDataReportingReconciliation /></div></section>
@@ -74,5 +95,13 @@ export default async function Page() {
       </section>
       <section id="tax-vat" className="vendor-section section-tint admin-anchor-section"><div className="shell"><WorkspaceSectionHeading eyebrow="VAT" title="VAT profiles per sellable product" note="Product VAT mapping is separate from the catalogue's commerce tax hint and must be explicitly proposed/approved." /><WorkspaceMetricStrip items={[{label:"Active variants",value:coverage.activeVariants},{label:"Approved coverage",value:coverage.coveredVariants,tone:coverage.missingVariants?"attention":"positive"},{label:"Missing",value:coverage.missingVariants,tone:coverage.missingVariants?"attention":"positive"},{label:"Unapproved profiles",value:coverage.unapprovedProfiles,tone:coverage.unapprovedProfiles?"attention":"default"}]} /><div className="workspace-action-bar"><span>Assign and approve the exact AADE VAT category for every active canonical variant.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/finance/mydata/products">Manage product VAT profiles</Link></div></div></div></section>
     </> : <section id="tax-policy" className="shell vendor-section admin-anchor-section"><WorkspaceEmptyState title="No accounting policy exists." body="Install/create an Accounting Policy before enabling fiscal issuance." /></section>}
+
+    <section id="tax-connection" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="AADE Connection" title="AADE / myDATA diagnostics" note="Credentials και operational settings διαχειρίζονται από εδώ. Read-only connectivity probe δεν αποτελεί φορολογική διαβίβαση." />
+      <div className="workspace-inline-note">Runtime spec: <strong>{diagnosticSpecVersion}</strong> · Admin configuration source: database · AADE secret source: <strong>{credentialSource ?? "not configured"}</strong>.</div>
+      {probe && "state" in probe && <div className="workspace-inline-note">Production connectivity probe: <strong>{String(probe.state)}</strong>{"checkedAt" in probe && typeof probe.checkedAt === "number" ? ` · ${new Date(probe.checkedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })}` : ""}.</div>}
+      <div className="workspace-action-bar"><span>{diagnostics.message}</span><div className="workspace-action-buttons"><MyDataConnectivityButton csrfToken={principal.csrfToken} /></div></div>
+      <div className="workspace-action-bar"><span>Partner-grouped fiscal documents remain available from each Partner record.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/vendors">Partner directory</Link></div></div>
+    </section>
   </main>;
 }

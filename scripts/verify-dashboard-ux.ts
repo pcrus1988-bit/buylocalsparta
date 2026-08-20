@@ -73,7 +73,7 @@ requireText("apps/web/src/app/admin/search/page.tsx", ["marketplaceReferenceMap"
 requireText("apps/web/src/app/admin/matching/page.tsx", ["admin-split-workspace", "admin-triage-list", "admin-decision-panel", "Approve match", "Create canonical"]);
 requireText("apps/web/src/components/AskLocalWorkflowPanel.tsx", ["admin-work-queue-split", "admin-work-list", "admin-work-detail", "Assign vendor", "Return to Admin"]);
 requireText("apps/web/src/app/admin/customers/support/page.tsx", ["admin-work-queue-split", "Assign to me", "Resolve", "Urgent"]);
-requireText("apps/web/src/app/admin/tax/page.tsx", ["admin-local-tabs", "#tax-connection", "#tax-reconciliation", "#tax-configuration", "#tax-policy", "#tax-vat"]);
+requireText("apps/web/src/app/admin/tax/page.tsx", ["admin-local-tabs", "#tax-documents", "admin-tax-documents", "Automatic resend remains blocked", "/api/admin/tax/reconcile", "#tax-reconciliation", "#tax-configuration", "#tax-policy", "#tax-vat", "#tax-connection"]);
 requireText("apps/web/src/app/admin/reports/page.tsx", ["admin-local-tabs", "#reports-saved", "#reports-history", "admin-report-history"]);
 requireText("apps/web/src/app/admin/analytics/page.tsx", ["admin-insight-table", "progress", "/admin/reports"]);
 
@@ -110,10 +110,10 @@ if (!orderDetail.includes('href="/delivery-pickup"') || !orderDetail.includes('h
 if (!orderDetail.includes('className="order-detail-id"') || orderDetail.includes("<strong>{item.id}</strong>")) failures.push("Technical fulfilment IDs must remain secondary");
 
 const adminStyles = [
-  "admin-information-architecture.css", "admin-domain-workspaces.css", "admin-directory-search.css", "admin-orders-directory.css", "admin-local-tabs.css", "admin-partner-record.css", "admin-matching-split.css", "admin-queue-split.css", "admin-insights.css"
+  "admin-information-architecture.css", "admin-domain-workspaces.css", "admin-directory-search.css", "admin-orders-directory.css", "admin-local-tabs.css", "admin-partner-record.css", "admin-matching-split.css", "admin-queue-split.css", "admin-insights.css", "admin-tax-documents.css"
 ] as const;
 const adminCss = adminStyles.map((name) => read(`apps/web/src/app/${name}`)).join("\n");
-for (const requirement of [".admin-domain-nav", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
+for (const requirement of [".admin-domain-nav", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", ".admin-tax-documents", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
 const layout = read("apps/web/src/app/layout.tsx");
 for (const stylesheet of ["workspace-polish.css", "dashboard-luxury.css", "workspace-pages.css", ...adminStyles]) if (!layout.includes(`import "./${stylesheet}"`)) failures.push(`Shared layout is missing ${stylesheet}`);
 if (layout.indexOf('import "./admin-information-architecture.css"') < layout.indexOf('import "./typography-readability.css"')) failures.push("Admin IA overrides must load after shared readability styles");
@@ -122,4 +122,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, Action Centre, partner records, global search, dense directories, focused queues, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, Action Centre, partner records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
