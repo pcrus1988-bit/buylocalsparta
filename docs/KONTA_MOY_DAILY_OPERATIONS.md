@@ -49,6 +49,8 @@ BLS_WEB_PUSH_VAULT_AUTOPROVISION=false   # only when automatic Vault provisionin
 
 The private key is never returned by Daily APIs and is never stored in ordinary application tables. Vault-backed secrets use the names `bls_web_push_public_key`, `bls_web_push_private_key` and `bls_web_push_subject`. Environment values take precedence so operators may rotate/move the key material without changing application code.
 
+Application runtime roles do not receive general Supabase Vault access. Migration 84 exposes only two `bls_private` SECURITY DEFINER functions with a fixed search path: one can read only those three Daily VAPID secrets, and one can create only those three exact secret names. Anonymous/authenticated Supabase roles cannot execute the functions, while direct Vault usage/read/create remains denied to the application runtime groups.
+
 A device is not considered push-enabled merely because browser notification permission is granted. Daily reports background push as active only when a VAPID configuration is available and the current Daily user has a persisted PushSubscription.
 
 ## Delivery lifecycle
@@ -72,6 +74,7 @@ The integrated schema sequence is:
 - `0081_vendor_daily_access_push.sql`
 - `0082_order_sla_trigger_search_path.sql`
 - `0083_daily_sla_fk_indexes.sql`
+- `0084_daily_vapid_vault_bridge.sql`
 
 Do not reuse migration number 78 for the SLA migration; the live database already used 78 for Customer 360 / Ask Local workflow work.
 
@@ -79,9 +82,9 @@ Do not reuse migration number 78 for the SLA migration; the live database alread
 
 Before promoting Daily to production:
 
-- database readiness reports schema 83;
+- database readiness reports schema 84;
 - every vendor that has agreed explicit SLA timings has a policy attached to its active agreement;
-- VAPID configuration resolves successfully from environment or Supabase Vault;
+- VAPID configuration resolves successfully from environment or the scoped Supabase Vault bridge;
 - a real Daily employee credential is created from the vendor owner page;
 - verify that the same credential is rejected by `/vendor/login`;
 - register at least one physical phone from `/daily/notifications`;
