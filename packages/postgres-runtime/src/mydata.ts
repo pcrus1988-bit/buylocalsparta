@@ -66,14 +66,17 @@ export class PostgresMyDataService {
       if(text(row.mapping_version)!==policyVersion)throw new Error("Tax document mapping version does not match its approved accounting policy");
       if(this.#deploymentMappingPin&&this.#deploymentMappingPin!==policyVersion)throw new Error(`Deployment mapping pin ${this.#deploymentMappingPin} does not match approved policy ${policyVersion}`);
       if(text(row.policy_route)!=="aade_direct_erp"||text(row.fiscalisation_route)!=="aade_direct_erp")throw new Error("Direct SendInvoices is allowed only for documents assigned to the approved AADE Direct ERP route");
+      const payload=json(row.payload_snapshot);
+      const preparation=json(payload.preparation);
+      const preparationPayment=json(preparation.payment);
+      const remoteEcommerceExempt=preparationPayment.posInterconnectionExempt===true&&preparationPayment.remoteEcommerce===true;
       const paymentType=intOptional(row.mydata_payment_type);
       if(paymentType===7){
         if(!optional(row.payment_transaction_id))throw new Error("POS/e-POS payment type 7 requires the payment transactionId");
-        if(!nonEmptyJson(row.ecr_token))throw new Error("Direct ERP POS/e-POS payment type 7 requires an ECRToken");
+        if(!remoteEcommerceExempt&&!nonEmptyJson(row.ecr_token))throw new Error("Direct ERP POS/e-POS payment type 7 requires an ECRToken outside the remote e-commerce exemption");
         if(nonEmptyJson(row.provider_payment_signature))throw new Error("Provider payment signature must not be mixed into the direct ERP ECRToken route");
       }
       if(text(row.transmission_status)!=="ready")throw new Error(`Tax document is ${text(row.transmission_status)}, not ready for transmission`);
-      const payload=json(row.payload_snapshot);
       const xml=typeof payload.mydataXml==="string"?payload.mydataXml.trim():"";
       if(!xml)throw new Error("Prepared tax document is missing accountant-approved myDATA XML");
       const hash=createHash("sha256").update(xml).digest("hex");
