@@ -1,5 +1,6 @@
 "use client";
 
+import { checkAadeSaleMappingReference } from "@buy-local-sparta/aade-mydata/mapping-reference";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
@@ -52,6 +53,7 @@ export function TaxConfigurationEditor(props:Props){
   const [docKey,setDocKey]=useState(props.documentMappings[0]?.eventCode??"");
   const selectedDoc=useMemo(()=>props.documentMappings.find(x=>x.eventCode===docKey),[props.documentMappings,docKey]);
   const [docForm,setDocForm]=useState(()=>docState(props.documentMappings[0]));
+  const docReference=useMemo(()=>checkAadeSaleMappingReference(docForm),[docForm]);
 
   const [payKey,setPayKey]=useState(props.paymentMappings[0]?`${props.paymentMappings[0].processor}\u0000${props.paymentMappings[0].processorMethod}`:"");
   const selectedPay=useMemo(()=>props.paymentMappings.find(x=>`${x.processor}\u0000${x.processorMethod}`===payKey),[props.paymentMappings,payKey]);
@@ -162,6 +164,7 @@ export function TaxConfigurationEditor(props:Props){
         <label>Status<select disabled={!editable} value={docForm.status} onChange={e=>setDocForm(v=>({...v,status:e.target.value as typeof v.status}))}>{mappingStatuses.map(s=><option value={s} key={s}>{s}</option>)}</select></label>
         <label className="checkbox-label"><input type="checkbox" disabled={!editable} checked={docForm.negativeOriginalClassification} onChange={e=>setDocForm(v=>({...v,negativeOriginalClassification:e.target.checked}))} />Negative original classification</label>
         <label className="checkbox-label"><input type="checkbox" disabled={!editable} checked={docForm.correlationRequired} onChange={e=>setDocForm(v=>({...v,correlationRequired:e.target.checked}))} />Original-document correlation required</label>
+        <div className="workspace-inline-note">AADE reference check: <strong>{docReference.status}</strong> · {docReference.message}</div>
         <label>Notes<textarea disabled={!editable} value={docForm.notes} onChange={e=>setDocForm(v=>({...v,notes:e.target.value}))} /></label>
         {editable&&<div className="workspace-action-buttons"><button className="button button-secondary" type="submit" disabled={busy}>{busy?"…":"Save document mapping"}</button></div>}
       </form>
