@@ -92,5 +92,6 @@
   "0093_catalog_taxonomy_guard_family_field_fix.sql": "135716e90965206b031608263f85a6cf385f177533aa370f6b5ed9eb3779d241",
   "0094_checkout_pickup_delivery_rule_fix.sql": "ac02054c0558661be4565860dfc0be50c81d4acf6509848e9ff9914d580783c9",
   "0095_marketplace_public_references.sql": "6b90458bc8e321cc58125ce35251edad6281f28f94654c5f63413168841ad36c",
-  "0096_public_reference_counters_rls.sql": "7b1a8cf93c6973388357cb8d4fc2886d43d30e864cfab65bfc10f3639fe2b8c5"
+  "0096_public_reference_counters_rls.sql": "7b1a8cf93c6973388357cb8d4fc2886d43d30e864cfab65bfc10f3639fe2b8c5",
+  "0097_homepage_hero_database_storage.sql": "b82e3b5498e0f4dbe47b915aeaf2c82add0457fab0b3aa79fd3385be4adf031d"
 }
