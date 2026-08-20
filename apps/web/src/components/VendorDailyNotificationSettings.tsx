@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 
 type Support = "checking" | "supported" | "unsupported";
 
+const BRIDGE_FLAG = "kontamou-daily-push-bridge-active";
+
 function applicationServerKey(value: string): ArrayBuffer {
   const padding = "=".repeat((4 - value.length % 4) % 4);
   const base64 = (value + padding).replaceAll("-", "+").replaceAll("_", "/");
@@ -15,16 +17,37 @@ function applicationServerKey(value: string): ArrayBuffer {
   return buffer;
 }
 
-export function VendorDailyNotificationSettings({ configured, publicKey, devices, csrfToken }: { configured: boolean; publicKey?: string; devices: number; csrfToken: string }) {
+export function VendorDailyNotificationSettings({
+  configured, publicKey, devices, csrfToken, bridgeUrl
+}: {
+  configured: boolean;
+  publicKey?: string;
+  devices: number;
+  csrfToken: string;
+  bridgeUrl: string;
+}) {
   const [support, setSupport] = useState<Support>("checking");
   const [permission, setPermission] = useState<NotificationPermission | "unavailable">("unavailable");
   const [deviceCount, setDeviceCount] = useState(devices);
   const [thisDevice, setThisDevice] = useState(false);
+  const [bridgeActive, setBridgeActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const deliveryReady = configured && thisDevice && permission === "granted";
+  const deliveryReady = configured && ((thisDevice && permission === "granted") || bridgeActive);
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const returnedFromBridge = query.get("push_bridge") === "active";
+    const storedBridge = window.localStorage.getItem(BRIDGE_FLAG) === "1";
+    if (returnedFromBridge) {
+      window.localStorage.setItem(BRIDGE_FLAG, "1");
+      setBridgeActive(true);
+      setDeviceCount((current) => Math.max(1, current));
+      window.history.replaceState({}, "", window.location.pathname);
+    } else {
+      setBridgeActive(storedBridge);
+    }
+
     const supported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     setSupport(supported ? "supported" : "unsupported");
     if (!supported) {
@@ -75,17 +98,19 @@ export function VendorDailyNotificationSettings({ configured, publicKey, devices
       if (!configured || !publicKey) throw new Error("Η υπογραφή Web Push δεν έχει διαμορφωθεί ακόμη στο server.");
       if (Notification.permission === "denied") {
         setPermission("denied");
-        throw new Error("Το kontamou.site είναι αποκλεισμένο από τον browser. Στο Android άνοιξε τις ρυθμίσεις του browser → Ρυθμίσεις ιστοτόπου → Ειδοποιήσεις → kontamou.site → Επιτρέπεται. Μετά γύρισε εδώ και πάτησε ξανά ενεργοποίηση.");
+        throw new Error("Ο browser έχει μπλοκάρει το kontamou.site. Χρησιμοποίησε την εναλλακτική ενεργοποίηση που εμφανίζεται παρακάτω.");
       }
       const registration = await navigator.serviceWorker.register("/daily-sw.js", { scope: "/daily/" });
       const result = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
       setPermission(result);
-      if (result === "denied") throw new Error("Οι ειδοποιήσεις έχουν αποκλειστεί από το browser/τη συσκευή. Άλλαξε την άδεια από τις ρυθμίσεις του browser και επέστρεψε σε αυτή τη σελίδα.");
+      if (result === "denied") throw new Error("Ο browser μπλόκαρε την άδεια. Χρησιμοποίησε την εναλλακτική ενεργοποίηση που εμφανίζεται παρακάτω.");
       if (result !== "granted") throw new Error("Δεν δόθηκε άδεια για ειδοποιήσεις.");
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(publicKey) });
       await persist(subscription);
       setThisDevice(true);
+      setBridgeActive(false);
+      window.localStorage.removeItem(BRIDGE_FLAG);
       setMessage("Η συσκευή συνδέθηκε με το KONTA MOY Daily. Οι λειτουργικές ειδοποιήσεις μπορούν πλέον να φτάνουν και όταν το Daily δεν είναι ανοιχτό.");
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η ενεργοποίηση ειδοποιήσεων σε αυτή τη συσκευή.");
@@ -109,7 +134,7 @@ export function VendorDailyNotificationSettings({ configured, publicKey, devices
         setDeviceCount(Number(payload.devices ?? 0));
       }
       setThisDevice(false);
-      setMessage("Οι ειδοποιήσεις Daily απενεργοποιήθηκαν για αυτή τη συσκευή.");
+      setMessage("Οι άμεσες ειδοποιήσεις Daily απενεργοποιήθηκαν για αυτή τη συσκευή.");
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Η απενεργοποίηση απέτυχε"); }
     finally { setBusy(false); }
   }
@@ -131,19 +156,25 @@ export function VendorDailyNotificationSettings({ configured, publicKey, devices
         <div style={{ display: "grid", gap: 9 }}>
           <Status label="Υποστήριξη browser" value={support === "checking" ? "Έλεγχος…" : support === "supported" ? "Υποστηρίζεται" : "Δεν υποστηρίζεται"} ok={support === "supported"} />
           <Status label="Server Web Push" value={configured ? "Διαμορφωμένο" : "Λείπει VAPID configuration"} ok={configured} />
-          <Status label="Άδεια ειδοποιήσεων" value={permission === "unavailable" ? "Μη διαθέσιμη" : permission === "granted" ? "Επιτρέπεται" : permission === "denied" ? "Αποκλεισμένη" : "Δεν ζητήθηκε"} ok={permission === "granted"} />
-          <Status label="Αυτή η συσκευή" value={thisDevice ? "Εγγεγραμμένη" : "Δεν έχει εγγραφεί"} ok={thisDevice} />
+          <Status label="Άδεια kontamou.site" value={permission === "unavailable" ? "Μη διαθέσιμη" : permission === "granted" ? "Επιτρέπεται" : permission === "denied" ? "Αποκλεισμένη" : "Δεν ζητήθηκε"} ok={permission === "granted" || bridgeActive} />
+          <Status label="Αυτή η συσκευή" value={thisDevice ? "Εγγεγραμμένη" : bridgeActive ? "Εγγεγραμμένη μέσω εναλλακτικής σύνδεσης" : "Δεν έχει εγγραφεί"} ok={thisDevice || bridgeActive} />
           <Status label="Background Web Push" value={deliveryReady ? `Ενεργό σε αυτή τη συσκευή${deviceCount > 1 ? ` · ${deviceCount} συνολικά` : ""}` : "Δεν είναι ενεργό"} ok={deliveryReady} />
         </div>
 
         {!configured && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#f2f0e9", lineHeight: 1.5 }}><strong>Απαιτείται VAPID configuration στο deployment.</strong><br /><span style={{ opacity: .7 }}>Μέχρι να υπάρχουν τα server keys, το Daily δεν εμφανίζει ψευδή ένδειξη ότι το background push είναι ενεργό.</span></div>}
-        {permission === "denied" && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#f2f0e9", lineHeight: 1.5 }}><strong>Η άδεια είναι μπλοκαρισμένη από τον browser.</strong><br /><span style={{ opacity: .7 }}>Δεν επιτρέπεται σε ιστοσελίδα να παρακάμψει αυτή την επιλογή. Στο Android άλλαξε την άδεια του kontamou.site σε «Επιτρέπεται» από τις Ρυθμίσεις ιστοτόπου / Ειδοποιήσεις. Όταν επιστρέψεις στο Daily, η κατάσταση επανελέγχεται αυτόματα.</span></div>}
 
-        <button type="button" onClick={() => void prepareDevice()} disabled={busy || support !== "supported" || !configured} style={{ minHeight: 54, border: 0, borderRadius: 15, background: "#171914", color: "white", font: "inherit", fontWeight: 850, cursor: support === "supported" && configured ? "pointer" : "not-allowed", opacity: support === "supported" && configured ? 1 : .5 }}>{busy ? "Ενημέρωση…" : thisDevice ? "Επανέλεγχος / επανεγγραφή" : permission === "denied" ? "Έλεγχος άδειας / οδηγίες" : "Ενεργοποίηση ειδοποιήσεων"}</button>
+        {permission === "denied" && !bridgeActive && <div style={{ padding: "15px", borderRadius: 16, background: "#f2f0e9", lineHeight: 1.5, display: "grid", gap: 12 }}>
+          <div><strong>Ο Chrome έχει επιβάλει αυτόματο μπλοκάρισμα στο kontamou.site.</strong><br /><span style={{ opacity: .72 }}>Αφού η χειροκίνητη αλλαγή δεν αποκατέστησε την άδεια, το Daily μπορεί να εγγράψει το ίδιο κινητό μέσω ασφαλούς εναλλακτικής προέλευσης. Η ειδοποίηση εξακολουθεί να είναι KONTA MOY Daily και όταν την πατήσεις επιστρέφεις στο kontamou.site.</span></div>
+          <a href={bridgeUrl} style={{ display: "grid", placeItems: "center", minHeight: 54, borderRadius: 15, background: "#171914", color: "white", textDecoration: "none", fontWeight: 900 }}>Ενεργοποίηση Background Push</a>
+        </div>}
+
+        {bridgeActive && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#edf3ea", lineHeight: 1.5 }}><strong>Το Background Web Push είναι ενεργό μέσω της εναλλακτικής σύνδεσης.</strong><br /><span style={{ opacity: .72 }}>Δεν χρειάζεται πλέον να αλλάξεις την μπλοκαρισμένη άδεια του kontamou.site σε αυτό το κινητό.</span></div>}
+
+        {permission !== "denied" && !bridgeActive && <button type="button" onClick={() => void prepareDevice()} disabled={busy || support !== "supported" || !configured} style={{ minHeight: 54, border: 0, borderRadius: 15, background: "#171914", color: "white", font: "inherit", fontWeight: 850, cursor: support === "supported" && configured ? "pointer" : "not-allowed", opacity: support === "supported" && configured ? 1 : .5 }}>{busy ? "Ενημέρωση…" : thisDevice ? "Επανέλεγχος / επανεγγραφή" : "Ενεργοποίηση ειδοποιήσεων"}</button>}
         {thisDevice && <button type="button" onClick={() => void disableDevice()} disabled={busy} style={{ minHeight: 48, borderRadius: 15, border: "1px solid rgba(23,25,20,.16)", background: "white", font: "inherit", fontWeight: 800 }}>Απενεργοποίηση σε αυτή τη συσκευή</button>}
         {message && <p role="status" style={{ margin: 0, padding: "12px 14px", borderRadius: 13, background: "#f2f0e9", lineHeight: 1.45 }}>{message}</p>}
 
-        <small style={{ opacity: .55, lineHeight: 1.5 }}>Η άδεια του browser ζητείται μόνο μετά από δικό σου πάτημα. Η συνδρομή αποθηκεύεται για τον συγκεκριμένο Daily χρήστη και vendor και ανακαλείται μαζί με την πρόσβαση.</small>
+        <small style={{ opacity: .55, lineHeight: 1.5 }}>Η άδεια ζητείται μόνο μετά από δικό σου πάτημα. Η συνδρομή αποθηκεύεται για τον συγκεκριμένο Daily χρήστη και vendor και ανακαλείται μαζί με την πρόσβαση.</small>
       </section>
     </div>
   </main>;
