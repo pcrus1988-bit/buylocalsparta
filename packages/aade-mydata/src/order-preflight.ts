@@ -40,7 +40,7 @@ export function assertInvoiceElementOrder(xml:string):MyDataOrderReport{const re
 
 function validateKnownOrder(element:XmlElement,expected:readonly string[],path:string,issues:MyDataOrderIssue[]):void{
   const rank=new Map(expected.map((name,index)=>[name,index]));let last=-1;let lastName="";
-  for(const child of childElements(element)){
+  for(const child of element.children){
     const current=rank.get(child.localName);if(current===undefined)continue;
     if(current<last){issues.push(issue("ELEMENT_ORDER_INVALID",`${path}.${child.localName}`,`${child.localName} appears after ${lastName}, contrary to the myDATA schema order`));continue;}
     last=current;lastName=child.localName;
