@@ -70,7 +70,7 @@ for (const path of [
 
 requireText("apps/web/src/app/admin/partners/page.tsx", ["Commercial readiness", "commercialAgreementWorkspace", "adminSlaPolicyWorkspace", "adminVendorBillingWorkspace", "admin-insight-table", "Agreement → SLA → billing", "/admin/finance/vendor-billing"]);
 requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "adminVendorFiscalWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "partner-documents"]);
-requireText("apps/web/src/app/admin/vendors/page.tsx", ["admin-partner-directory", "/admin/partners/${encodeURIComponent(shop.id)}"]);
+requireText("apps/web/src/app/admin/vendors/page.tsx", ["admin-partner-directory", "/admin/partners/${encodeURIComponent(shop.id)}", "Partner saved views", "view=active", "view=attention", "view=public", "view=hidden"]);
 requireText("apps/web/src/app/admin/customers/page.tsx", ["admin-directory-table", "Customer 360", "Customer saved views", "view=attention", "view=new", "view=orders", "view=unverified"]);
 requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds", "Order saved views", "view=open", "view=returns", "view=completed"]);
 requireText("apps/web/src/app/admin/search/page.tsx", ["marketplaceReferenceMap", "/admin/partners/${encodeURIComponent(shop.id)}"]);
