@@ -30,6 +30,8 @@ export type VivaTransaction = Readonly<{
   statusId: string;
   amountMinor: number;
   currencyCode: number;
+  bankId?: string;
+  transactionTypeId?: number;
   email?: string;
   fullName?: string;
   merchantTrns?: string;
@@ -160,6 +162,8 @@ export class VivaPaymentsClient {
       statusId,
       amountMinor,
       currencyCode,
+      bankId: optionalText(payload.bankId ?? payload.BankId),
+      transactionTypeId: numberOrUndefined(payload.transactionTypeId ?? payload.TransactionTypeId),
       email: optionalText(payload.email ?? payload.Email),
       fullName: optionalText(payload.fullName ?? payload.FullName),
       merchantTrns: optionalText(payload.merchantTrns ?? payload.MerchantTrns),
