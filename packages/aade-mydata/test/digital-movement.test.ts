@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AadeMyDataClient, buildConfirmDeliveryReturnXml, parseConfirmDeliveryReturnResponse } from "../src/public.ts";
+import {
+  AadeMyDataClient,
+  buildConfirmDeliveryReturnXml,
+  deliveryNoteStatusQuery,
+  parseConfirmDeliveryReturnResponse,
+  parseDeliveryNoteStatusResponse
+} from "../src/public.ts";
 
 const cfg = {
   environment: "production" as const,
@@ -67,4 +73,40 @@ test("ConfirmDeliveryReturn XML builder uses the exact documented root", () => {
     buildConfirmDeliveryReturnXml({ qrUrl: "https://example.test/qr/1" }),
     `<?xml version="1.0" encoding="UTF-8"?><ConfirmDeliveryReturnRequest><qrUrl>https://example.test/qr/1</qrUrl></ConfirmDeliveryReturnRequest>`
   );
+});
+
+test("GetDeliveryNoteStatus supports mark or the 2.0.2 qrUrl alternative", async () => {
+  const urls: string[] = [];
+  const response = `<DeliveryNoteStatusResponse><invoiceMark>400000000000001</invoiceMark><status>DELIVERED_BY_CARRIER</status><dispatchTimestamp>2026-08-20T12:00:00</dispatchTimestamp><lifecycleHistory><eventType>ConfirmOutcome</eventType><eventTimestamp>2026-08-20T13:00:00</eventTimestamp><actorVat>123456789</actorVat><mark>800000000000001</mark><outcomeDetails><outcome>PARTIAL</outcome><deliveredWithoutRecipient>false</deliveredWithoutRecipient></outcomeDetails></lifecycleHistory></DeliveryNoteStatusResponse>`;
+  const client = new AadeMyDataClient(cfg, async input => {
+    urls.push(String(input));
+    return new Response(response, { status: 200 });
+  });
+
+  const byMark = await client.getDeliveryNoteStatus({ mark: "400000000000001", issuerVatNumber: "123456789" });
+  const byQr = await client.getDeliveryNoteStatus({ qrUrl: "https://mydata.aade.gr/qr?id=delivery-1" });
+  assert.match(urls[0] ?? "", /GetDeliveryNoteStatus\?mark=400000000000001&issuerVatNumber=123456789$/);
+  assert.match(urls[1] ?? "", /GetDeliveryNoteStatus\?qrUrl=https%3A%2F%2Fmydata\.aade\.gr%2Fqr%3Fid%3Ddelivery-1$/);
+  assert.equal(byMark.status, "DELIVERED_BY_CARRIER");
+  assert.equal(byQr.invoiceMark, "400000000000001");
+  assert.equal(byQr.lifecycleHistory[0]?.outcome, "PARTIAL");
+  assert.equal(byQr.lifecycleHistory[0]?.deliveredWithoutRecipient, false);
+});
+
+test("delivery status query enforces AADE parameter exclusivity and qrUrl version gate", async () => {
+  assert.equal(deliveryNoteStatusQuery({ mark: "123" }), "mark=123");
+  assert.throws(() => deliveryNoteStatusQuery({ mark: "abc" }), /MARK must be numeric/);
+  assert.throws(() => deliveryNoteStatusQuery({ mark: "123", issuerVatNumber: "123" }), /9 digits/);
+  const parsed = parseDeliveryNoteStatusResponse(`<DeliveryNoteStatusResponse><invoiceMark>123</invoiceMark><status>REJECTED</status></DeliveryNoteStatusResponse>`);
+  assert.equal(parsed.status, "REJECTED");
+
+  let called = false;
+  const oldClient = new AadeMyDataClient({ ...cfg, specVersion: "2.0.1" }, async () => {
+    called = true;
+    return new Response(`<DeliveryNoteStatusResponse/>`, { status: 200 });
+  });
+  await assert.rejects(oldClient.getDeliveryNoteStatus({ qrUrl: "https://example.test/qr" }), /2\.0\.2 or newer/);
+  assert.equal(called, false);
+  await oldClient.getDeliveryNoteStatus({ mark: "123" });
+  assert.equal(called, true);
 });
