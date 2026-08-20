@@ -214,9 +214,9 @@ export async function sendCustomerVerificationEmail(input: { userId: string; ema
     eventType: "account.email_verification",
     templateVersion: "v1",
     locale: "el",
-    title: "Επιβεβαίωσε το email σου · Buy Local Sparta",
+    title: "Επιβεβαίωσε το email σου · ΚΟΝΤΑ ΜΟΥ Sparta",
     body: [
-      "Καλώς ήρθες στο Buy Local Sparta.",
+      "Καλώς ήρθες στο ΚΟΝΤΑ ΜΟΥ Sparta.",
       "",
       "Για να ενεργοποιήσεις τον λογαριασμό σου, άνοιξε τον παρακάτω ασφαλή σύνδεσμο μέσα στις επόμενες 24 ώρες:",
       verificationUrl.toString(),
