@@ -7,6 +7,13 @@ import {
   type MyDataTransmissionResult
 } from "./index.ts";
 import { assertClassificationXmlPreflight } from "./classification-preflight.ts";
+import {
+  assertMyDataSpecSupportsDeliveryReturn,
+  buildConfirmDeliveryReturnXml,
+  parseConfirmDeliveryReturnResponse,
+  type ConfirmDeliveryReturnInput,
+  type ConfirmDeliveryReturnResult
+} from "./digital-movement.ts";
 import { assertInvoiceElementOrder } from "./order-preflight.ts";
 import { assertPaymentMethodsXmlPreflight } from "./payment-method-preflight.ts";
 import { assertInvoiceXmlPreflight } from "./preflight.ts";
@@ -46,6 +53,13 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
   async sendPaymentsMethod(xml: string): Promise<MyDataTransmissionResult> {
     assertPaymentMethodsXmlPreflight(xml);
     return parseTransmissionResponse(await this.#extendedRequest("SendPaymentsMethod", { method: "POST", body: xml }));
+  }
+
+  async confirmDeliveryReturn(input: ConfirmDeliveryReturnInput): Promise<ConfirmDeliveryReturnResult> {
+    assertMyDataSpecSupportsDeliveryReturn(this.#extendedConfig.specVersion);
+    const requestXml = buildConfirmDeliveryReturnXml(input);
+    const responseXml = await this.#extendedRequest("ConfirmDeliveryReturn", { method: "POST", body: requestXml });
+    return parseConfirmDeliveryReturnResponse(responseXml);
   }
 
   async requestVatInfo(input: MyDataReportingQuery): Promise<string> {
