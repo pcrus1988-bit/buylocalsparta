@@ -8,6 +8,7 @@
     "./catalog": "./src/catalog.ts",
     "./preflight": "./src/preflight.ts",
     "./classification-preflight": "./src/classification-preflight.ts",
-    "./payment-method-preflight": "./src/payment-method-preflight.ts"
+    "./payment-method-preflight": "./src/payment-method-preflight.ts",
+    "./order-preflight": "./src/order-preflight.ts"
   }
 }
