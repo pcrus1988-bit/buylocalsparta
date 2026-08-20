@@ -2,39 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../components/AdminWorkspaceHeader";
-import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
+import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
 import { adminAskLocalDashboard } from "../../lib/admin-ask-local";
 import { adminDashboard, hasAdminPermission } from "../../lib/admin-runtime";
 import { getAdminSession } from "../../lib/admin-session";
-import { adminNavigationForPrincipal, canAccessAdminRoute } from "../../lib/admin-navigation";
 
 export const metadata: Metadata = { title: "Admin Command Centre", robots: { index: false, follow: false } };
 
-const adminWorkspaceDescriptions: Readonly<Record<string, string>> = {
-  "/admin/orders": "Παραγγελίες, exceptions, returns και refunds.",
-  "/admin/customers": "Customer directory, Customer 360, support cases, profile & security.",
-  "/admin/customers/support": "Ενιαία ουρά customer support με priority, ownership και follow-up.",
-  "/admin/ask-local": "Ask Local triage, ownership, vendor assignment και response deadlines.",
-  "/admin/shipping": "Αποστολές, fulfilment και operational exceptions.",
-  "/admin/research-vendors": "Έρευνα υποψήφιων συνεργατών πριν το onboarding.",
-  "/admin/vendors": "Vendor onboarding, ενεργοποίηση, visibility και συνεργασία.",
-  "/admin/matching": "Canonical product matching και έλεγχος offers.",
-  "/admin/categories": "Κατηγορίες, υποκατηγορίες και taxonomy governance.",
-  "/admin/content": "Περιεχόμενο, SEO και marketplace publishing.",
-  "/admin/trust": "Compliance, media evidence και safety review.",
-  "/admin/reviews": "Αξιολογήσεις πελατών και moderation.",
-  "/admin/recalls": "Product safety, holds και ανακλήσεις.",
-  "/admin/privacy": "Privacy requests, export, anonymisation και deletion workflows.",
-  "/admin/finance": "Οικονομικά, payables, settlements και platform finance.",
-  "/admin/finance/agreements": "Συμφωνίες vendors, commercial terms και συμβάσεις.",
-  "/admin/tax": "AADE / myDATA και φορολογικές λειτουργίες.",
-  "/admin/fairness": "Fairness engine, exposure και appeals.",
-  "/admin/analytics": "Marketplace analytics και performance signals.",
-  "/admin/reports": "Admin reporting engine και εξαγωγές PDF.",
-  "/admin/maintenance": "Background jobs, maintenance και operational tasks.",
-  "/admin/activation": "Activation evidence και production readiness.",
-  "/admin/operations": "Audit, system operations και governance evidence."
-};
+type AttentionItem = Readonly<{ label: string; detail: string; href: string; value: number; severity: "critical" | "attention" | "normal" }>;
 
 export default async function AdminPage() {
   const principal = await getAdminSession();
@@ -44,87 +19,30 @@ export default async function AdminPage() {
   const canSeeSecurity = hasAdminPermission(principal, "security.read");
   const canSeeAskLocal = hasAdminPermission(principal, "customer.read");
   const askLocal = canSeeAskLocal ? await adminAskLocalDashboard(principal) : undefined;
+
+  const attention: AttentionItem[] = [
+    ...(hasAdminPermission(principal, "vendor.manage") && dashboard.metrics.vendorVerificationQueue > 0 ? [{ label: "Έλεγχοι συνεργατών", detail: "Αιτήσεις ή verification που χρειάζονται απόφαση.", href: "/admin/partners/pipeline", value: dashboard.metrics.vendorVerificationQueue, severity: "attention" as const }] : []),
+    ...(hasAdminPermission(principal, "catalog.read") && dashboard.metrics.catalogReviewQueue > 0 ? [{ label: "Product Matching", detail: "Canonical matches / offers που περιμένουν έλεγχο.", href: "/admin/matching", value: dashboard.metrics.catalogReviewQueue, severity: "attention" as const }] : []),
+    ...(hasAdminPermission(principal, "catalog.read") && dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance > 0 ? [{ label: "Trust review", detail: "Media ή compliance evidence που περιμένουν review.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance, severity: "attention" as const }] : []),
+    ...(askLocal && askLocal.openCount > 0 ? [{ label: "Ask Local", detail: askLocal.overdueCount > 0 ? `${askLocal.overdueCount} overdue · ${askLocal.adminOwnedCount} Admin-owned` : `${askLocal.adminOwnedCount} Admin-owned · ${askLocal.vendorOwnedCount} vendor-owned`, href: "/admin/ask-local", value: askLocal.openCount, severity: askLocal.overdueCount > 0 ? "critical" as const : "attention" as const }] : []),
+    ...(hasAdminPermission(principal, "finance.read") && dashboard.metrics.payableProcurements > 0 ? [{ label: "Payables / settlements", detail: "Supplier procurements έτοιμα για οικονομική ενέργεια.", href: "/admin/finance", value: dashboard.metrics.payableProcurements, severity: "attention" as const }] : []),
+    ...(hasAdminPermission(principal, "fairness.read") && dashboard.metrics.fairnessAppeals > 0 ? [{ label: "Fairness appeals", detail: "Appeals που περιμένουν governance review.", href: "/admin/fairness", value: dashboard.metrics.fairnessAppeals, severity: "attention" as const }] : []),
+    ...(!dashboard.health.ok && hasAdminPermission(principal, "admin.audit.read") ? [{ label: "Platform health", detail: "Υπάρχει dependency/readiness issue που χρειάζεται τεχνικό έλεγχο.", href: "/admin/operations", value: 1, severity: "critical" as const }] : [])
+  ].sort((a, b) => ({ critical: 0, attention: 1, normal: 2 }[a.severity] - { critical: 0, attention: 1, normal: 2 }[b.severity]));
+
+  const totalAttention = attention.reduce((sum, item) => sum + item.value, 0);
   const metrics = [
-    ...(hasAdminPermission(principal, "vendor.manage") ? [["Vendor checks", dashboard.metrics.vendorVerificationQueue] as const] : []),
-    ...(hasAdminPermission(principal, "catalog.read") ? [["Catalog review", dashboard.metrics.catalogReviewQueue] as const, ["Trust queue", dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance] as const] : []),
-    ...(canSeeAskLocal && askLocal ? [["Ask Local", askLocal.openCount] as const] : []),
-    ...(hasAdminPermission(principal, "finance.read") ? [["Payables", dashboard.metrics.payableProcurements] as const] : []),
-    ...(hasAdminPermission(principal, "fairness.read") ? [["Fairness", dashboard.metrics.fairnessAppeals] as const] : []),
-    ...(hasAdminPermission(principal, "fulfilment.read") ? [["Orders", dashboard.metrics.orders] as const] : [])
+    { label: "Χρειάζονται ενέργεια", value: totalAttention, tone: totalAttention ? "attention" as const : "positive" as const, hint: totalAttention ? `${attention.length} ουρές με εκκρεμότητα` : "καμία ενεργή εκκρεμότητα" },
+    ...(hasAdminPermission(principal, "fulfilment.read") ? [{ label: "Παραγγελίες", value: dashboard.metrics.orders }] : []),
+    ...(hasAdminPermission(principal, "vendor.manage") ? [{ label: "Partner checks", value: dashboard.metrics.vendorVerificationQueue }] : []),
+    ...(hasAdminPermission(principal, "catalog.read") ? [{ label: "Catalog decisions", value: dashboard.metrics.catalogReviewQueue }] : [])
   ];
-  const quickLinks = [
-    { kicker: "Acquisition", label: "Έρευνα vendors", description: "Υποψήφιοι πριν το onboarding.", href: "/admin/research-vendors" },
-    { kicker: "Onboarding", label: "Συνεργάτες", description: "Έλεγχος και ενεργοποίηση.", href: "/admin/vendors", value: dashboard.metrics.vendorVerificationQueue },
-    { kicker: "Catalog", label: "Matching", description: "Canonical έλεγχος προϊόντων.", href: "/admin/matching", value: dashboard.metrics.catalogReviewQueue },
-    { kicker: "Commerce", label: "Παραγγελίες", description: "Exceptions, returns και refunds.", href: "/admin/orders", value: dashboard.metrics.orders },
-    { kicker: "Customer ops", label: "Πελάτες", description: "Directory → Customer 360 → profile & security.", href: "/admin/customers" },
-    { kicker: "Customer support", label: "Υποστήριξη πελατών", description: "Open, urgent, unassigned και overdue cases.", href: "/admin/customers/support" },
-    ...(askLocal ? [{ kicker: "Customer demand", label: "Ask Local", description: "Admin/vendor ownership, assignment και deadlines.", href: "/admin/ask-local", value: askLocal.openCount }] : []),
-    { kicker: "Trust", label: "Συμμόρφωση", description: "Media και τεκμήρια ασφάλειας.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance },
-    { kicker: "Finance", label: "Οικονομικά", description: "Payables και settlements.", href: "/admin/finance", value: dashboard.metrics.payableProcurements }
-  ].filter((link) => canAccessAdminRoute(principal, link.href));
-  const allAdminLinks = adminNavigationForPrincipal(principal).flatMap((group) => group.links
-    .filter((link) => link.href !== "/admin")
-    .map((link) => ({
-      kicker: group.label,
-      label: link.label,
-      href: link.href,
-      description: adminWorkspaceDescriptions[link.href] ?? "Άνοιγμα της αντίστοιχης λειτουργίας Admin."
-    })));
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={dashboard.csrfToken} />
-
-    <section className="shell vendor-hero dashboard-hero-refined">
-      <div>
-        <div className="eyebrow">Admin · Platform operations</div>
-        <h1>Κέντρο λειτουργίας</h1>
-        <p className="lead">Οι ουρές που χρειάζονται απόφαση, σε μία καθαρή εικόνα. Εμφανίζονται μόνο οι λειτουργίες που επιτρέπονται στον τρέχοντα Admin ρόλο.</p>
-      </div>
-      <aside className={dashboard.health.ok ? "dashboard-health-card" : "dashboard-health-card needs-attention"}>
-        <span>Readiness</span>
-        <strong>{dashboard.health.state}</strong>
-        <p>{dashboard.health.ok ? "Οι κρίσιμες εξαρτήσεις είναι έτοιμες." : "Απαιτείται έλεγχος υποδομής."}</p>
-      </aside>
-    </section>
-
-    {metrics.length > 0 && <section className="shell">
-      <div className="vendor-kpis admin-kpis dashboard-kpis-refined">
-        {metrics.map(([label, value]) => <div className={Number(value) > 0 ? "has-work" : undefined} key={label}><span>{label}</span><strong>{value}</strong></div>)}
-      </div>
-    </section>}
-
-    {askLocal && askLocal.openCount > 0 && <section className="shell vendor-section">
-      <article className={askLocal.overdueCount > 0 || askLocal.adminOwnedCount > 0 ? "workspace-queue-card needs-attention" : "workspace-queue-card"}>
-        <div className="workspace-queue-head"><div><strong>Ask Local requires operational attention</strong><small>Every request is tracked with explicit Admin or vendor ownership.</small></div><span className="status-pill">{askLocal.openCount} open</span></div>
-        <div className="workspace-queue-primary"><span>{askLocal.adminOwnedCount} Admin-owned</span><span>{askLocal.vendorOwnedCount} vendor-owned</span><span>{askLocal.overdueCount} overdue</span></div>
-        <div className="workspace-action-bar"><span>New Ask Local submissions also create an Admin in-app notification.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/ask-local">Open Ask Local workflow</Link></div></div>
-      </article>
-    </section>}
-
-    {quickLinks.length > 0 && <WorkspaceQuickLinks density="compact" eyebrow="Κύριες ουρές" title="Εκεί που χρειάζεται απόφαση τώρα." links={quickLinks} />}
-
-    <WorkspaceQuickLinks density="compact" eyebrow="Admin directory" title="Οι διαθέσιμες λειτουργίες από ένα σημείο." links={allAdminLinks} />
-
-    {(canSeeAnalytics || canSeeSecurity) && <section className="shell vendor-section dashboard-insights-section">
-      <div className="dashboard-insight-grid">
-        {canSeeAnalytics && <article className="dashboard-insight-card">
-          <div className="eyebrow">Marketplace · 30 ημέρες</div>
-          <h2>Εμπορική εικόνα</h2>
-          <div className="dashboard-stat-grid">
-            <div><span>Searches</span><strong>{dashboard.analytics.searches}</strong></div>
-            <div><span>Success</span><strong>{Math.round(dashboard.analytics.searchSuccessRate * 100)}%</strong></div>
-            <div><span>Orders</span><strong>{dashboard.analytics.orders}</strong></div>
-            <div><span>GMV</span><strong>{dashboard.analytics.grossMerchandiseValue}</strong></div>
-          </div>
-        </article>}
-        {canSeeSecurity && <article className="dashboard-insight-card">
-          <div className="eyebrow">Security · 24 ώρες</div>
-          <h2>Σήματα ασφάλειας</h2>
-          <div className="dashboard-security-number">{dashboard.security.total}</div>
-          <p>Privacy-minimised events · χωρίς raw credentials ή στοιχεία επικοινωνίας.</p>
-        </article>}
-      </div>
-    </section>}
+    <section className="shell vendor-hero dashboard-hero-refined admin-page-intro"><div><div className="eyebrow">Admin · Command Centre</div><h1>Επισκόπηση</h1><p className="lead">Πρώτα οι αποφάσεις που χρειάζονται χειρισμό. Η πλοήγηση οργανώνεται πλέον ανά λειτουργικό domain, όχι ανά τεχνικό module.</p></div><aside className={dashboard.health.ok ? "dashboard-health-card" : "dashboard-health-card needs-attention"}><span>Platform</span><strong>{dashboard.health.state}</strong><p>{dashboard.health.ok ? "Οι κρίσιμες εξαρτήσεις είναι έτοιμες." : "Υπάρχει τεχνικό θέμα που χρειάζεται έλεγχο."}</p></aside></section>
+    <WorkspaceMetricStrip items={metrics} />
+    <section className="shell vendor-section admin-attention-section"><WorkspaceSectionHeading eyebrow="Action Centre" title="Τι χρειάζεται προσοχή τώρα" note="Οι ουρές εμφανίζονται μόνο όταν υπάρχει πραγματική εκκρεμότητα. Τα τεχνικά IDs παραμένουν δεύτερο επίπεδο πληροφορίας." />{attention.length === 0 ? <div className="workspace-empty-state"><strong>Δεν υπάρχει ενεργή εκκρεμότητα.</strong><span>Οι βασικές operational queues είναι καθαρές.</span></div> : <div className="admin-attention-list">{attention.map((item) => <Link className={`admin-attention-row is-${item.severity}`} href={item.href} key={`${item.href}-${item.label}`}><span className="admin-attention-indicator" aria-hidden="true" /><span className="admin-attention-copy"><strong>{item.label}</strong><small>{item.detail}</small></span><b>{item.value}</b><i aria-hidden="true">→</i></Link>)}</div>}</section>
+    {(canSeeAnalytics || canSeeSecurity) && <section className="shell vendor-section dashboard-insights-section"><WorkspaceSectionHeading eyebrow="Snapshot" title="Επιχείρηση & πλατφόρμα" note="Σύντομη εικόνα· τα αναλυτικά εργαλεία βρίσκονται στα domains Αναλύσεις και Πλατφόρμα." /><div className="dashboard-insight-grid">{canSeeAnalytics && <article className="dashboard-insight-card"><div className="eyebrow">Marketplace · 30 ημέρες</div><h2>Εμπορική εικόνα</h2><div className="dashboard-stat-grid"><div><span>Searches</span><strong>{dashboard.analytics.searches}</strong></div><div><span>Success</span><strong>{Math.round(dashboard.analytics.searchSuccessRate * 100)}%</strong></div><div><span>Orders</span><strong>{dashboard.analytics.orders}</strong></div><div><span>GMV</span><strong>{dashboard.analytics.grossMerchandiseValue}</strong></div></div><Link className="text-link" href="/admin/analytics">Άνοιγμα Analytics →</Link></article>}{canSeeSecurity && <article className="dashboard-insight-card"><div className="eyebrow">Security · 24 ώρες</div><h2>Σήματα ασφάλειας</h2><div className="dashboard-security-number">{dashboard.security.total}</div><p>Privacy-minimised events · χωρίς credentials ή raw session data.</p>{hasAdminPermission(principal, "admin.audit.read") && <Link className="text-link" href="/admin/platform">Άνοιγμα Platform →</Link>}</article>}</div></section>}
   </main>;
 }
