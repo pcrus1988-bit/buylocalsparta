@@ -67,7 +67,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = vendor.story?.excerpt ?? (isResearch
     ? `Δημόσια καταχώριση για το ${vendor.name}${category?.subcategoryLabel ? ` · ${category.subcategoryLabel}` : ""} στη χαρτογραφημένη αγορά της Σπάρτης.`
     : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το Buy Local Sparta.`);
-  const ogMedia = mediaPath(firstRole(profileMedia, "storefront") ?? firstRole(profileMedia, "logo")) ?? vendor.story?.mediaUrl;
+  const ogMedia = vendor.story?.mediaUrl ?? mediaPath(firstRole(profileMedia, "storefront") ?? firstRole(profileMedia, "logo"));
   return {
     title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
     description,
@@ -100,7 +100,6 @@ export default async function VendorPage({ params }: Props) {
   const logoUrl = mediaPath(logoMedia);
   const storefrontUrl = mediaPath(storefrontMedia);
   const teamUrl = mediaPath(teamMedia);
-  const heroMedia = storefrontUrl ?? storyMedia;
   const website = safeHttpUrl(vendor.research?.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.research?.directoryProfileUrl);
   const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
@@ -110,7 +109,7 @@ export default async function VendorPage({ params }: Props) {
   const intro = isResearch
     ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το Buy Local Sparta δεν έχει ακόμη ενεργοποιηθεί.`
     : (vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
-  const structuredImages = [storefrontUrl, logoUrl, storyMedia].filter((value): value is string => Boolean(value)).map(absolutePublicMedia);
+  const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map(absolutePublicMedia);
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -191,12 +190,20 @@ export default async function VendorPage({ params }: Props) {
             </div>
 
             <div className={styles.mediaPanel} aria-label={`Φωτογραφία καταστήματος ${vendor.name}`}>
-              {heroMedia ? (
+              {storyMedia ? (
                 <>
-                  <Image src={heroMedia} alt={storefrontMedia?.altText ?? `Εγκεκριμένη εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
+                  <Image src={storyMedia} alt={`Εγκεκριμένη merchant-story εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
                   <div className={styles.mediaOverlay}>
                     <strong>{vendor.name}</strong>
-                    <span>{storefrontUrl ? "Εγκεκριμένη φωτογραφία φυσικού καταστήματος." : "Εγκεκριμένο merchant-story visual. Η σελίδα δεν χρησιμοποιεί φωτογραφίες προϊόντων ως υποκατάστατο βιτρίνας."}</span>
+                    <span>Εγκεκριμένο merchant-story visual. Η σελίδα δεν χρησιμοποιεί φωτογραφίες προϊόντων ως υποκατάστατο βιτρίνας.</span>
+                  </div>
+                </>
+              ) : storefrontUrl ? (
+                <>
+                  <Image src={storefrontUrl} alt={storefrontMedia?.altText ?? `Εγκεκριμένη εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
+                  <div className={styles.mediaOverlay}>
+                    <strong>{vendor.name}</strong>
+                    <span>Εγκεκριμένη φωτογραφία φυσικού καταστήματος.</span>
                   </div>
                 </>
               ) : (
@@ -204,7 +211,7 @@ export default async function VendorPage({ params }: Props) {
                   <div className={styles.mediaPlaceholderInner}>
                     <span className={styles.mediaPlaceholderIcon}>⌂</span>
                     <strong>Φωτογραφία φυσικού καταστήματος</strong>
-                    <span>Η θέση είναι έτοιμη και θα εμφανίσει τη φωτογραφία βιτρίνας μόλις υπάρχει εγκεκριμένο storefront media.</span>
+                    <span>Η θέση είναι έτοιμη και θα εμφανίσει φωτογραφία μόλις υπάρχει εγκεκριμένο merchant ή storefront media.</span>
                   </div>
                 </div>
               )}
