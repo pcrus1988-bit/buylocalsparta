@@ -9,10 +9,15 @@ import {
 import { assertClassificationXmlPreflight } from "./classification-preflight.ts";
 import {
   assertMyDataSpecSupportsDeliveryReturn,
+  assertMyDataSpecSupportsQrDeliveryStatus,
   buildConfirmDeliveryReturnXml,
+  deliveryNoteStatusQuery,
   parseConfirmDeliveryReturnResponse,
+  parseDeliveryNoteStatusResponse,
   type ConfirmDeliveryReturnInput,
-  type ConfirmDeliveryReturnResult
+  type ConfirmDeliveryReturnResult,
+  type DeliveryNoteStatusQuery,
+  type DeliveryNoteStatusResponse
 } from "./digital-movement.ts";
 import { assertInvoiceElementOrder } from "./order-preflight.ts";
 import { assertPaymentMethodsXmlPreflight } from "./payment-method-preflight.ts";
@@ -53,6 +58,13 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
   async sendPaymentsMethod(xml: string): Promise<MyDataTransmissionResult> {
     assertPaymentMethodsXmlPreflight(xml);
     return parseTransmissionResponse(await this.#extendedRequest("SendPaymentsMethod", { method: "POST", body: xml }));
+  }
+
+  async getDeliveryNoteStatus(input: DeliveryNoteStatusQuery): Promise<DeliveryNoteStatusResponse> {
+    if (typeof input.qrUrl === "string") assertMyDataSpecSupportsQrDeliveryStatus(this.#extendedConfig.specVersion);
+    const query = deliveryNoteStatusQuery(input);
+    const responseXml = await this.#extendedRequest(`GetDeliveryNoteStatus?${query}`, { method: "GET" });
+    return parseDeliveryNoteStatusResponse(responseXml);
   }
 
   async confirmDeliveryReturn(input: ConfirmDeliveryReturnInput): Promise<ConfirmDeliveryReturnResult> {
