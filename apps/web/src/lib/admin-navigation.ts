@@ -8,8 +8,16 @@ export function canAccessAdminNavLink(principal: SessionPrincipal, link: Workspa
 
 export function adminNavigationForPrincipal(principal: SessionPrincipal): ReadonlyArray<WorkspaceNavGroup> {
   return ADMIN_WORKSPACE_NAVIGATION
-    .map((group) => ({ ...group, links: group.links.filter((link) => canAccessAdminNavLink(principal, link)) }))
-    .filter((group) => group.links.length > 0);
+    .map((group) => {
+      const links = group.links.filter((link) => canAccessAdminNavLink(principal, link));
+      if (links.length === 0) return undefined;
+      const requestedLanding = group.href;
+      const landing = requestedLanding && links.some((link) => link.href === requestedLanding)
+        ? requestedLanding
+        : links.find((link) => !link.contextHidden)?.href ?? links[0]?.href;
+      return { ...group, href: landing, links };
+    })
+    .filter((group): group is WorkspaceNavGroup => Boolean(group));
 }
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
