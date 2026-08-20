@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
+import { createHash, randomUUID } from "node:crypto";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type HomepageHeroSlide = Readonly<{
   id: string;
@@ -13,8 +13,23 @@ export type HomepageHeroSlide = Readonly<{
   isSeed: boolean;
 }>;
 
-const MANIFEST_KEY = "homepage-hero/manifest.json";
-const ASSET_PREFIX = "homepage-hero/assets/";
+type HeroSlideRow = Readonly<{
+  id: string;
+  title: string;
+  alt_text: string;
+  link_url: string | null;
+  sort_order: number;
+  is_visible: boolean;
+  is_seed: boolean;
+  static_image_url: string | null;
+}>;
+
+type HeroImageRow = Readonly<{
+  image_bytes: Buffer | Uint8Array | null;
+  image_content_type: string | null;
+  image_etag: string | null;
+}>;
+
 const SEED_ID = "konta-mou-white-night-2026";
 
 export const DEFAULT_HOMEPAGE_HERO_SLIDE: HomepageHeroSlide = {
@@ -29,14 +44,8 @@ export const DEFAULT_HOMEPAGE_HERO_SLIDE: HomepageHeroSlide = {
   isSeed: true
 };
 
-function storage() {
-  return new S3ObjectStorage(objectStorageConfigFromEnv());
-}
-
-async function bodyToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  return Buffer.concat(chunks);
+function pool() {
+  return getProductionPostgresRuntime().nativePool;
 }
 
 function normalizeLinkUrl(value: unknown): string | null {
@@ -48,70 +57,59 @@ function normalizeLinkUrl(value: unknown): string | null {
   return url.toString();
 }
 
-function normalizeSlide(value: unknown): HomepageHeroSlide | null {
-  if (!value || typeof value !== "object") return null;
-  const raw = value as Record<string, unknown>;
-  const id = String(raw.id ?? "").trim();
-  const title = String(raw.title ?? "").trim();
-  const imageUrl = String(raw.imageUrl ?? "").trim();
-  if (!id || !title || !imageUrl) return null;
-  const sortOrder = Number(raw.sortOrder ?? 0);
+function normalizeTitle(value: unknown): string {
+  const title = String(value ?? "").trim();
+  if (!title) throw new Error("Title is required.");
+  if (title.length > 240) throw new Error("Title must be at most 240 characters.");
+  return title;
+}
+
+function normalizeAltText(value: unknown): string {
+  const altText = String(value ?? "").trim();
+  if (altText.length > 500) throw new Error("Alt text must be at most 500 characters.");
+  return altText;
+}
+
+function normalizeSortOrder(value: unknown, fallback: number): number {
+  if (value === undefined || value === null || value === "") return fallback;
+  const sortOrder = Number(value);
+  if (!Number.isSafeInteger(sortOrder)) throw new Error("Sort order must be a whole number.");
+  return sortOrder;
+}
+
+function slideFromRow(row: HeroSlideRow): HomepageHeroSlide {
   return {
-    id,
-    title,
-    altText: String(raw.altText ?? "").trim().slice(0, 500),
-    linkUrl: (() => { try { return normalizeLinkUrl(raw.linkUrl); } catch { return null; } })(),
-    sortOrder: Number.isSafeInteger(sortOrder) ? sortOrder : 0,
-    isVisible: raw.isVisible !== false,
-    imageUrl,
-    objectKey: raw.objectKey ? String(raw.objectKey) : null,
-    isSeed: raw.isSeed === true || id === SEED_ID
+    id: row.id,
+    title: row.title,
+    altText: row.alt_text,
+    linkUrl: row.link_url,
+    sortOrder: Number(row.sort_order),
+    isVisible: row.is_visible,
+    imageUrl: row.static_image_url || `/api/hero-image/${encodeURIComponent(row.id)}`,
+    objectKey: null,
+    isSeed: row.is_seed
   };
 }
 
-function ordered(slides: readonly HomepageHeroSlide[]) {
-  return [...slides].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "el"));
-}
-
-async function readManifest(): Promise<HomepageHeroSlide[]> {
+async function readSlides(): Promise<HomepageHeroSlide[]> {
   try {
-    const object = await storage().read(MANIFEST_KEY);
-    const json = JSON.parse((await bodyToBuffer(object.stream)).toString("utf8")) as unknown;
-    if (!Array.isArray(json)) return [DEFAULT_HOMEPAGE_HERO_SLIDE];
-    const slides = json.map(normalizeSlide).filter((slide): slide is HomepageHeroSlide => Boolean(slide));
-    if (!slides.some((slide) => slide.id === SEED_ID)) slides.push(DEFAULT_HOMEPAGE_HERO_SLIDE);
-    return ordered(slides);
+    const result = await pool().query(`
+      SELECT id, title, alt_text, link_url, sort_order, is_visible, is_seed, static_image_url
+      FROM bls_private.homepage_hero_slides
+      ORDER BY sort_order ASC, created_at ASC, id ASC
+    `);
+    const rows = result.rows as HeroSlideRow[];
+    if (!rows.length) return [DEFAULT_HOMEPAGE_HERO_SLIDE];
+    return rows.map(slideFromRow);
   } catch {
+    // The homepage must remain usable during a temporary database outage or during rollout.
     return [DEFAULT_HOMEPAGE_HERO_SLIDE];
   }
 }
 
-async function writeObject(objectKey: string, contentType: string, body: BodyInit) {
-  const store = storage();
-  const intent = await store.createUploadUrl({ objectKey, contentType, expiresInSeconds: 300 });
-  const response = await fetch(intent.url, { method: "PUT", headers: intent.headers, body });
-  if (!response.ok) throw new Error(`Object storage upload failed (${response.status}).`);
-}
-
-async function writeManifest(slides: readonly HomepageHeroSlide[]) {
-  await writeObject(
-    MANIFEST_KEY,
-    "application/json",
-    JSON.stringify(ordered(slides), null, 2)
-  );
-}
-
 export async function listHomepageHeroSlides(input: { visibleOnly?: boolean } = {}): Promise<HomepageHeroSlide[]> {
-  const slides = await readManifest();
+  const slides = await readSlides();
   return input.visibleOnly ? slides.filter((slide) => slide.isVisible) : slides;
-}
-
-function extensionForType(contentType: string) {
-  if (contentType === "image/png") return "png";
-  if (contentType === "image/webp") return "webp";
-  if (contentType === "image/gif") return "gif";
-  if (contentType === "image/avif") return "avif";
-  return "jpg";
 }
 
 function validateImage(file: File) {
@@ -129,73 +127,84 @@ export async function createHomepageHeroSlide(input: {
   isVisible?: boolean;
 }): Promise<HomepageHeroSlide> {
   validateImage(input.file);
-  const title = input.title.trim();
-  if (!title) throw new Error("Title is required.");
+  const title = normalizeTitle(input.title);
+  const altText = normalizeAltText(input.altText);
+  const linkUrl = normalizeLinkUrl(input.linkUrl);
+  const sortOrder = normalizeSortOrder(input.sortOrder, 100);
   const id = randomUUID();
-  const objectKey = `${ASSET_PREFIX}${id}.${extensionForType(input.file.type)}`;
-  await writeObject(objectKey, input.file.type, new Uint8Array(await input.file.arrayBuffer()));
+  const bytes = Buffer.from(await input.file.arrayBuffer());
+  const etag = createHash("sha256").update(bytes).digest("hex");
 
-  const slide: HomepageHeroSlide = {
-    id,
-    title,
-    altText: String(input.altText ?? "").trim().slice(0, 500),
-    linkUrl: normalizeLinkUrl(input.linkUrl),
-    sortOrder: Number.isSafeInteger(input.sortOrder) ? Number(input.sortOrder) : 100,
-    isVisible: input.isVisible !== false,
-    imageUrl: `/api/hero-image/${id}`,
-    objectKey,
-    isSeed: false
-  };
+  const result = await pool().query(
+    `INSERT INTO bls_private.homepage_hero_slides
+       (id, title, alt_text, link_url, sort_order, is_visible, is_seed, static_image_url,
+        image_bytes, image_content_type, image_etag)
+     VALUES ($1, $2, $3, $4, $5, $6, false, NULL, $7, $8, $9)
+     RETURNING id, title, alt_text, link_url, sort_order, is_visible, is_seed, static_image_url`,
+    [id, title, altText, linkUrl, sortOrder, input.isVisible !== false, bytes, input.file.type, etag]
+  );
 
-  const slides = await readManifest();
-  slides.push(slide);
-  await writeManifest(slides);
-  return slide;
+  return slideFromRow(result.rows[0] as HeroSlideRow);
 }
 
 export async function updateHomepageHeroSlide(
   id: string,
   input: { title?: string; altText?: string; linkUrl?: string | null; sortOrder?: number; isVisible?: boolean }
 ): Promise<HomepageHeroSlide> {
-  const slides = await readManifest();
-  const index = slides.findIndex((slide) => slide.id === id);
-  if (index < 0) throw new Error("Hero slide not found.");
-  const current = slides[index];
-  const title = input.title === undefined ? current.title : input.title.trim();
-  if (!title) throw new Error("Title is required.");
-  const next: HomepageHeroSlide = {
-    ...current,
-    title,
-    altText: input.altText === undefined ? current.altText : input.altText.trim().slice(0, 500),
-    linkUrl: input.linkUrl === undefined ? current.linkUrl : normalizeLinkUrl(input.linkUrl),
-    sortOrder: input.sortOrder === undefined ? current.sortOrder : Number(input.sortOrder),
-    isVisible: input.isVisible === undefined ? current.isVisible : Boolean(input.isVisible)
-  };
-  if (!Number.isSafeInteger(next.sortOrder)) throw new Error("Sort order must be a whole number.");
-  slides[index] = next;
-  await writeManifest(slides);
-  return next;
+  const currentResult = await pool().query(
+    `SELECT id, title, alt_text, link_url, sort_order, is_visible, is_seed, static_image_url
+     FROM bls_private.homepage_hero_slides
+     WHERE id = $1`,
+    [id]
+  );
+  const current = currentResult.rows[0] as HeroSlideRow | undefined;
+  if (!current) throw new Error("Hero slide not found.");
+
+  const title = input.title === undefined ? current.title : normalizeTitle(input.title);
+  const altText = input.altText === undefined ? current.alt_text : normalizeAltText(input.altText);
+  const linkUrl = input.linkUrl === undefined ? current.link_url : normalizeLinkUrl(input.linkUrl);
+  const sortOrder = input.sortOrder === undefined ? Number(current.sort_order) : normalizeSortOrder(input.sortOrder, Number(current.sort_order));
+  const isVisible = input.isVisible === undefined ? current.is_visible : Boolean(input.isVisible);
+
+  const result = await pool().query(
+    `UPDATE bls_private.homepage_hero_slides
+     SET title = $2,
+         alt_text = $3,
+         link_url = $4,
+         sort_order = $5,
+         is_visible = $6,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING id, title, alt_text, link_url, sort_order, is_visible, is_seed, static_image_url`,
+    [id, title, altText, linkUrl, sortOrder, isVisible]
+  );
+
+  return slideFromRow(result.rows[0] as HeroSlideRow);
 }
 
 export async function deleteHomepageHeroSlide(id: string): Promise<void> {
-  if (id === SEED_ID) throw new Error("The launch banner is protected. Hide it instead of deleting it.");
-  const slides = await readManifest();
-  const current = slides.find((slide) => slide.id === id);
+  const result = await pool().query(
+    `SELECT is_seed FROM bls_private.homepage_hero_slides WHERE id = $1`,
+    [id]
+  );
+  const current = result.rows[0] as { is_seed: boolean } | undefined;
   if (!current) throw new Error("Hero slide not found.");
-  await writeManifest(slides.filter((slide) => slide.id !== id));
-  if (current.objectKey) {
-    try { await storage().delete(current.objectKey); } catch { /* manifest is authoritative; orphan cleanup can be retried later */ }
-  }
+  if (current.is_seed || id === SEED_ID) throw new Error("The launch banner is protected. Hide it instead of deleting it.");
+  await pool().query(`DELETE FROM bls_private.homepage_hero_slides WHERE id = $1`, [id]);
 }
 
 export async function readHomepageHeroImage(id: string) {
-  const slides = await readManifest();
-  const slide = slides.find((candidate) => candidate.id === id);
-  if (!slide?.objectKey) return null;
-  const object = await storage().read(slide.objectKey);
+  const result = await pool().query(
+    `SELECT image_bytes, image_content_type, image_etag
+     FROM bls_private.homepage_hero_slides
+     WHERE id = $1 AND is_seed = false`,
+    [id]
+  );
+  const row = result.rows[0] as HeroImageRow | undefined;
+  if (!row?.image_bytes || !row.image_content_type || !row.image_etag) return null;
   return {
-    bytes: await bodyToBuffer(object.stream),
-    contentType: object.contentType || "application/octet-stream",
-    etag: object.etag
+    bytes: Buffer.from(row.image_bytes),
+    contentType: row.image_content_type,
+    etag: `"${row.image_etag}"`
   };
 }
