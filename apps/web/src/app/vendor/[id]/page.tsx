@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = vendor.taxonomies[0];
   const description = vendor.story?.excerpt ?? (isResearch
     ? `Δημόσια καταχώριση για το ${vendor.name}${category?.subcategoryLabel ? ` · ${category.subcategoryLabel}` : ""} στη χαρτογραφημένη αγορά της Σπάρτης.`
-    : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το Buy Local Sparta.`);
+    : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το ΚΟΝΤΑ ΜΟΥ Sparta.`);
   const ogMedia = vendor.story?.mediaUrl ?? mediaPath(firstRole(profileMedia, "storefront") ?? firstRole(profileMedia, "logo"));
   return {
     title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
@@ -107,7 +107,7 @@ export default async function VendorPage({ params }: Props) {
   const mapHref = `/shops/map?vendor=${encodeURIComponent(vendor.id)}`;
   const adviserName = vendor.adviser ?? "Η ομάδα του καταστήματος";
   const intro = isResearch
-    ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το Buy Local Sparta δεν έχει ακόμη ενεργοποιηθεί.`
+    ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το ΚΟΝΤΑ ΜΟΥ Sparta δεν έχει ακόμη ενεργοποιηθεί.`
     : (vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
   const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map(absolutePublicMedia);
 
@@ -157,7 +157,7 @@ export default async function VendorPage({ params }: Props) {
                   {logoUrl ? <Image src={logoUrl} alt={logoMedia?.altText ?? `Λογότυπο ${vendor.name}`} width={82} height={82} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }} /> : initials(vendor.name)}
                 </div>
                 <div className={styles.brandMeta}>
-                  <strong>{isResearch ? "Τοπική επιχείρηση" : "Ενεργός συνεργάτης Buy Local Sparta"}</strong>
+                  <strong>{isResearch ? "Τοπική επιχείρηση" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Sparta"}</strong>
                   <span>{location?.locality ? `${location.locality}${location.postcode ? ` · ${location.postcode}` : ""}` : "Σπάρτη & τοπική αγορά"}</span>
                   <span>{logoUrl ? "Εγκεκριμένο λογότυπο του vendor." : "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένο λογότυπο· εμφανίζεται ουδέτερο μονόγραμμα."}</span>
                 </div>
@@ -253,8 +253,8 @@ export default async function VendorPage({ params }: Props) {
             <h2>{isResearch ? "Τι γνωρίζουμε δημόσια." : (vendor.story?.title ?? `Λίγα λόγια για το ${vendor.name}.`)}</h2>
             <p>
               {isResearch
-                ? "Η σελίδα συγκεντρώνει μόνο δημόσια επιχειρηματικά στοιχεία. Η παρουσία εδώ δεν σημαίνει συνεργασία, έγκριση προϊόντων ή εμπορική σχέση με το Buy Local Sparta."
-                : (vendor.story?.excerpt ?? "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένη ιστορία από το κατάστημα. Το Buy Local Sparta δεν εφευρίσκει storytelling ή προσωπικές πληροφορίες όταν ο vendor δεν τις έχει εγκρίνει.")}
+                ? "Η σελίδα συγκεντρώνει μόνο δημόσια επιχειρηματικά στοιχεία. Η παρουσία εδώ δεν σημαίνει συνεργασία, έγκριση προϊόντων ή εμπορική σχέση με το ΚΟΝΤΑ ΜΟΥ Sparta."
+                : (vendor.story?.excerpt ?? "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένη ιστορία από το κατάστημα. Το ΚΟΝΤΑ ΜΟΥ Sparta δεν εφευρίσκει storytelling ή προσωπικές πληροφορίες όταν ο vendor δεν τις έχει εγκρίνει.")}
             </p>
             {!isResearch && vendor.story && <small className={styles.storyNote}>Merchant story δημοσιευμένο με καταγεγραμμένη έγκριση του vendor.</small>}
             {isResearch && checkedDate(vendor.research?.checkedAt) && <small className={styles.storyNote}>Τελευταίος δημόσιος έλεγχος: {checkedDate(vendor.research?.checkedAt)}</small>}
@@ -350,7 +350,7 @@ export default async function VendorPage({ params }: Props) {
                 </div>
                 <div className={styles.infoRow}>
                   <dt>Κατάσταση</dt>
-                  <dd>{isResearch ? "Χαρτογραφημένη / προσκεκλημένη · όχι ακόμη ενεργός συνεργάτης" : "Ενεργός συνεργάτης Buy Local Sparta"}</dd>
+                  <dd>{isResearch ? "Χαρτογραφημένη / προσκεκλημένη · όχι ακόμη ενεργός συνεργάτης" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Sparta"}</dd>
                 </div>
                 {location && (
                   <div className={styles.infoRow}>
