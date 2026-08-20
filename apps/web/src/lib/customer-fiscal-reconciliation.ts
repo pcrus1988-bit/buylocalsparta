@@ -15,6 +15,7 @@ type TargetDocument = Readonly<{
   documentUuid: string;
   documentId: string;
   marketId: string;
+  entityVatNumber: string;
   series: string;
   aa: number;
   issueDate: string;
@@ -35,6 +36,13 @@ type TransmittedInvoice = Readonly<{
   grossMinor?: number;
 }>;
 
+type SearchDiagnostic = Readonly<{
+  strategy: "issue_date" | "broad_invoice_type";
+  pagesChecked: number;
+  invoicesParsed: number;
+  identities: readonly string[];
+}>;
+
 export async function reconcileCustomerFiscalDocument(documentId: string, now = Date.now()): Promise<CustomerFiscalReconciliation> {
   if (!productionDatabaseConfigured()) return { accepted: false, found: false, pagesChecked: 0 };
   const db = getProductionPostgresRuntime().nativePool;
@@ -53,26 +61,69 @@ export async function reconcileCustomerFiscalDocument(documentId: string, now = 
   if (!resolved) throw new Error("AADE myDATA credentials are not configured for reconciliation");
   const client = new AadeMyDataClient(resolved.config);
   const queryDate = toAadeDate(target.issueDate);
+  const diagnostics: SearchDiagnostic[] = [];
+
+  const dated = await searchTransmittedDocs(client, target, {
+    strategy: "issue_date",
+    dateFrom: queryDate,
+    dateTo: queryDate,
+    maxPages: 20
+  });
+  diagnostics.push(dated.diagnostic);
+  if (dated.match) {
+    const pagesChecked = diagnostics.reduce((sum, item) => sum + item.pagesChecked, 0);
+    await acceptReconciledDocument(target, dated.match, pagesChecked, diagnostics, now);
+    return { accepted: true, found: true, mark: dated.match.mark, uid: dated.match.uid, qrUrl: dated.match.qrUrl, pagesChecked };
+  }
+
+  // If AADE's date index is not yet consistent, retry read-only without a date filter.
+  // Keep invoice type and entity VAT filters so this remains a narrowly scoped lookup.
+  const broad = await searchTransmittedDocs(client, target, {
+    strategy: "broad_invoice_type",
+    maxPages: 50
+  });
+  diagnostics.push(broad.diagnostic);
+  const pagesChecked = diagnostics.reduce((sum, item) => sum + item.pagesChecked, 0);
+  if (broad.match) {
+    await acceptReconciledDocument(target, broad.match, pagesChecked, diagnostics, now);
+    return { accepted: true, found: true, mark: broad.match.mark, uid: broad.match.uid, qrUrl: broad.match.qrUrl, pagesChecked };
+  }
+
+  await markReconciliationPending(target, pagesChecked, diagnostics, now);
+  return { accepted: false, found: false, pagesChecked };
+}
+
+async function searchTransmittedDocs(
+  client: AadeMyDataClient,
+  target: TargetDocument,
+  input: Readonly<{ strategy: SearchDiagnostic["strategy"]; dateFrom?: string; dateTo?: string; maxPages: number }>
+): Promise<{ match?: TransmittedInvoice; diagnostic: SearchDiagnostic }> {
   let nextPartitionKey: string | undefined;
   let nextRowKey: string | undefined;
   let pagesChecked = 0;
+  let invoicesParsed = 0;
+  const identities: string[] = [];
   const seenCursors = new Set<string>();
 
-  for (let page = 0; page < 20; page += 1) {
+  for (let page = 0; page < input.maxPages; page += 1) {
     const xml = await client.requestTransmittedDocs({
       mark: "0",
-      dateFrom: queryDate,
-      dateTo: queryDate,
+      entityVatNumber: target.entityVatNumber,
+      invType: target.invoiceType,
+      dateFrom: input.dateFrom,
+      dateTo: input.dateTo,
       nextPartitionKey,
       nextRowKey
     });
     pagesChecked += 1;
     const parsed = parseRequestedDocs(xml);
-    const match = parsed.invoices.find((invoice) => matches(invoice, target));
-    if (match) {
-      await acceptReconciledDocument(target, match, pagesChecked, now);
-      return { accepted: true, found: true, mark: match.mark, uid: match.uid, qrUrl: match.qrUrl, pagesChecked };
+    invoicesParsed += parsed.invoices.length;
+    for (const invoice of parsed.invoices.slice(0, 10)) {
+      if (identities.length >= 25) break;
+      identities.push(invoiceIdentity(invoice));
     }
+    const match = parsed.invoices.find((invoice) => matches(invoice, target));
+    if (match) return { match, diagnostic: { strategy: input.strategy, pagesChecked, invoicesParsed, identities } };
     if (!parsed.nextPartitionKey || !parsed.nextRowKey) break;
     const cursor = `${parsed.nextPartitionKey}\u0000${parsed.nextRowKey}`;
     if (seenCursors.has(cursor)) break;
@@ -81,8 +132,7 @@ export async function reconcileCustomerFiscalDocument(documentId: string, now = 
     nextRowKey = parsed.nextRowKey;
   }
 
-  await markReconciliationPending(target, pagesChecked, now);
-  return { accepted: false, found: false, pagesChecked };
+  return { diagnostic: { strategy: input.strategy, pagesChecked, invoicesParsed, identities } };
 }
 
 async function loadTarget(documentId: string): Promise<TargetDocument | undefined> {
@@ -91,6 +141,7 @@ async function loadTarget(documentId: string): Promise<TargetDocument | undefine
     document_uuid: string;
     public_id: string;
     market_id: string;
+    seller_tax_number: string | null;
     document_series: string | null;
     document_aa: string | number | null;
     issue_date: Date | string | null;
@@ -99,9 +150,10 @@ async function loadTarget(documentId: string): Promise<TargetDocument | undefine
     aade_mark: string | null;
     attempt_uuid: string | null;
     attempt_key: string | null;
-  }>(`SELECT td.id::text AS document_uuid,td.public_id,td.market_id::text,td.document_series,td.document_aa,td.issue_date,td.invoice_type_code,td.gross_minor,td.aade_mark,
+  }>(`SELECT td.id::text AS document_uuid,td.public_id,td.market_id::text,p.seller_tax_number,td.document_series,td.document_aa,td.issue_date,td.invoice_type_code,td.gross_minor,td.aade_mark,
              a.id::text AS attempt_uuid,a.attempt_key
         FROM tax_documents td
+        LEFT JOIN accounting_tax_policies p ON p.id=td.accounting_policy_id
         LEFT JOIN LATERAL (
           SELECT x.id,x.attempt_key FROM mydata_transmission_attempts x
           WHERE x.tax_document_id=td.id AND x.operation='send_invoice'
@@ -111,6 +163,7 @@ async function loadTarget(documentId: string): Promise<TargetDocument | undefine
   const row = result.rows[0];
   if (!row || row.aade_mark) return undefined;
   if (!row.attempt_uuid || !row.attempt_key) return undefined;
+  if (!row.seller_tax_number || !/^\d{9}$/.test(row.seller_tax_number)) throw new Error("Tax document is missing its approved seller VAT number");
   if (!row.document_series || row.document_aa == null || !row.issue_date || !row.invoice_type_code) return undefined;
   const aa = Number(row.document_aa);
   const grossMinor = Number(row.gross_minor);
@@ -120,6 +173,7 @@ async function loadTarget(documentId: string): Promise<TargetDocument | undefine
     documentUuid: row.document_uuid,
     documentId: row.public_id,
     marketId: row.market_id,
+    entityVatNumber: row.seller_tax_number,
     series: row.document_series,
     aa,
     issueDate,
@@ -130,7 +184,7 @@ async function loadTarget(documentId: string): Promise<TargetDocument | undefine
   };
 }
 
-async function acceptReconciledDocument(target: TargetDocument, invoice: TransmittedInvoice, pagesChecked: number, now: number): Promise<void> {
+async function acceptReconciledDocument(target: TargetDocument, invoice: TransmittedInvoice, pagesChecked: number, diagnostics: readonly SearchDiagnostic[], now: number): Promise<void> {
   const db = getProductionPostgresRuntime().nativePool;
   const client = await db.connect();
   try {
@@ -148,7 +202,7 @@ async function acceptReconciledDocument(target: TargetDocument, invoice: Transmi
         `UPDATE mydata_transmission_attempts
             SET status='accepted',response_snapshot=COALESCE(response_snapshot,'{}'::jsonb)||$2::jsonb,completed_at=COALESCE(completed_at,$3)
           WHERE id=$1::uuid`,
-        [target.attemptUuid, JSON.stringify({ reconciliation: { found: true, pagesChecked, mark: invoice.mark, uid: invoice.uid ?? null, qrUrl: invoice.qrUrl ?? null, reconciledAt: new Date(now).toISOString() } }), new Date(now)]
+        [target.attemptUuid, JSON.stringify({ reconciliation: { found: true, pagesChecked, diagnostics, mark: invoice.mark, uid: invoice.uid ?? null, qrUrl: invoice.qrUrl ?? null, reconciledAt: new Date(now).toISOString() } }), new Date(now)]
       );
       await client.query(
         `UPDATE mydata_fiscal_series
@@ -166,9 +220,9 @@ async function acceptReconciledDocument(target: TargetDocument, invoice: Transmi
   }
 }
 
-async function markReconciliationPending(target: TargetDocument, pagesChecked: number, now: number): Promise<void> {
+async function markReconciliationPending(target: TargetDocument, pagesChecked: number, diagnostics: readonly SearchDiagnostic[], now: number): Promise<void> {
   const db = getProductionPostgresRuntime().nativePool;
-  const message = `AADE transmission outcome requires reconciliation: the transmitted document was not found after ${pagesChecked} RequestTransmittedDocs page(s). Automatic resend is blocked.`;
+  const message = `AADE transmission outcome requires reconciliation: the transmitted document was not found after ${pagesChecked} read-only RequestTransmittedDocs page(s). Automatic resend is blocked.`;
   await db.query(
     `UPDATE tax_documents
         SET transmission_status='manual_review',status=CASE WHEN status='rejected' THEN 'pending' ELSE status END,last_error=$2,last_transmission_at=$3
@@ -180,13 +234,13 @@ async function markReconciliationPending(target: TargetDocument, pagesChecked: n
         SET status=CASE WHEN status='accepted' THEN status ELSE 'manual_review' END,
             response_snapshot=COALESCE(response_snapshot,'{}'::jsonb)||$2::jsonb,completed_at=COALESCE(completed_at,$3)
       WHERE id=$1::uuid`,
-    [target.attemptUuid, JSON.stringify({ reconciliation: { found: false, pagesChecked, reconciledAt: new Date(now).toISOString() } }), new Date(now)]
+    [target.attemptUuid, JSON.stringify({ reconciliation: { found: false, pagesChecked, diagnostics, reconciledAt: new Date(now).toISOString() } }), new Date(now)]
   );
 }
 
 function parseRequestedDocs(xml: string): { invoices: TransmittedInvoice[]; nextPartitionKey?: string; nextRowKey?: string } {
   const invoices: TransmittedInvoice[] = [];
-  for (const match of xml.matchAll(/<(?:\w+:)?invoice\b[^>]*>([\s\S]*?)<\/(?:\w+:)?invoice>/gi)) {
+  for (const match of xml.matchAll(/<(?:[A-Za-z_][\w.-]*:)?invoice\b[^>]*>([\s\S]*?)<\/(?:[A-Za-z_][\w.-]*:)?invoice>/gi)) {
     const block = match[1] ?? "";
     const header = innerTag(block, "invoiceHeader");
     if (!header) continue;
@@ -221,8 +275,13 @@ function matches(invoice: TransmittedInvoice, target: TargetDocument): boolean {
   return invoice.grossMinor == null || invoice.grossMinor === target.grossMinor;
 }
 
+function invoiceIdentity(invoice: TransmittedInvoice): string {
+  return `${invoice.series}/${invoice.aa}/${invoice.issueDate}/${invoice.invoiceType}/${invoice.grossMinor ?? "?"}/${invoice.mark}`;
+}
+
 function innerTag(xml: string, name: string): string | undefined {
-  const match = xml.match(new RegExp(`<(?:\\w+:)?${name}\\b[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${name}>`, "i"));
+  const prefix = "(?:[A-Za-z_][\\w.-]*:)?";
+  const match = xml.match(new RegExp(`<${prefix}${name}\\b[^>]*>([\\s\\S]*?)<\\/${prefix}${name}>`, "i"));
   return match?.[1];
 }
 
