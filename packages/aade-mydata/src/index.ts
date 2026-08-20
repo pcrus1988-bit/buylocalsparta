@@ -1,5 +1,6 @@
 import {
   childText,
+  decodeAadeXmlEnvelope,
   descendants,
   escapeXml,
   parseXmlDocument,
@@ -9,6 +10,7 @@ import {
 export {
   childElements,
   childText,
+  decodeAadeXmlEnvelope,
   decodeXml,
   descendantText,
   descendants,
@@ -16,6 +18,7 @@ export {
   parseXmlDocument,
   serializeXmlElement,
   textContent,
+  type DecodedAadeXmlEnvelope,
   type XmlElement,
   type XmlElementSpec
 } from "./xml.ts";
@@ -166,22 +169,22 @@ export class AadeMyDataClient {
 
   async requestTransmittedDocs(input: MyDataDocumentQuery): Promise<string> {
     validateDocumentQuery(input);
-    return this.#request(`RequestTransmittedDocs?${query(input)}`, { method: "GET" });
+    return decodeAadeXmlEnvelope(await this.#request(`RequestTransmittedDocs?${query(input)}`, { method: "GET" })).xml;
   }
 
   async requestDocs(input: MyDataDocumentQuery): Promise<string> {
     validateDocumentQuery(input);
-    return this.#request(`RequestDocs?${query(input)}`, { method: "GET" });
+    return decodeAadeXmlEnvelope(await this.#request(`RequestDocs?${query(input)}`, { method: "GET" })).xml;
   }
 
   async requestMyIncome(input: MyDataBookQuery): Promise<string> {
     validateBookQuery(input);
-    return this.#request(`RequestMyIncome?${query(input)}`, { method: "GET" });
+    return decodeAadeXmlEnvelope(await this.#request(`RequestMyIncome?${query(input)}`, { method: "GET" })).xml;
   }
 
   async requestMyExpenses(input: MyDataBookQuery): Promise<string> {
     validateBookQuery(input);
-    return this.#request(`RequestMyExpenses?${query(input)}`, { method: "GET" });
+    return decodeAadeXmlEnvelope(await this.#request(`RequestMyExpenses?${query(input)}`, { method: "GET" })).xml;
   }
 
   async #request(path: string, init: RequestInit): Promise<string> {
@@ -226,15 +229,19 @@ export class AadeMyDataClient {
 }
 
 export function parseTransmissionResponse(xml: string): MyDataTransmissionResult {
-  const document = parseXmlDocument(xml);
+  const decoded = decodeAadeXmlEnvelope(xml);
+  const document = parseXmlDocument(decoded.xml);
   const responseNodes = document.localName === "response" ? [document] : [...descendants(document, "response")];
-  const candidates = responseNodes.length ? responseNodes : [document];
-  const items = candidates.map((response): MyDataResponseItem => {
+  if (!responseNodes.length) {
+    throw new Error(`AADE myDATA response root ${document.localName} did not contain a response element`);
+  }
+  const items = responseNodes.map((response, position): MyDataResponseItem => {
     const errors = descendants(response, "error").map(error => ({
       code: childText(error, "code"),
       message: childText(error, "message") ?? (textContent(error).trim() || "Unknown AADE error")
     }));
-    const statusCode = childText(response, "statusCode") ?? (errors.length ? "Error" : "Success");
+    const statusCode = childText(response, "statusCode");
+    if (!statusCode) throw new Error(`AADE myDATA response item ${position + 1} is missing mandatory statusCode`);
     return {
       index: numberOrUndefined(childText(response, "index")),
       statusCode,
