@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
@@ -5,6 +6,7 @@ import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../componen
 import { getAdminSession } from "../../../lib/admin-session";
 import { adminOrderSlaWorkspace } from "../../../lib/order-sla";
 
+export const metadata: Metadata = { title: "Admin · SLA & Escalations", robots: { index: false, follow: false } };
 const when = (value: string) => new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
 const stage = (value: string) => value === "acceptance" ? "Αποδοχή" : "Προετοιμασία";
 
@@ -18,7 +20,7 @@ export default async function Page() {
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Order operations</div><h1>Notification Centre & SLA</h1><p className="lead">Νέες παραγγελίες, προθεσμίες vendor και κλιμακώσεις σε ένα operational queue.</p><div className="hero-actions"><Link className="button" href="/admin/orders">Orders</Link><Link className="button button-secondary" href="/admin/finance/agreements/sla">SLA ανά συμφωνία</Link></div></div>
+      <div><div className="eyebrow">Operations · order SLA</div><h1>SLA & Escalations</h1><p className="lead">Προθεσμίες vendor, breaches και κλιμακώσεις σε ένα operational queue. Η σελίδα αφορά order SLA, όχι γενικές ειδοποιήσεις της πλατφόρμας.</p><div className="hero-actions"><Link className="button" href="/admin/orders">Orders</Link><Link className="button button-secondary" href="/admin/finance/agreements/sla">SLA ανά συμφωνία</Link></div></div>
     </section>
 
     <WorkspaceMetricStrip items={[
@@ -43,8 +45,8 @@ export default async function Page() {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Notification feed" title="Admin alerts" note="Νέα order assignments, SLA breaches και επείγουσες κλιμακώσεις." />
-      {data.notifications.length === 0 ? <div className="workspace-empty-state"><strong>Δεν υπάρχουν admin order alerts.</strong></div> : <div className="workspace-queue-list">{data.notifications.map((item) => <article className="workspace-queue-card" key={item.id}>
+      <WorkspaceSectionHeading eyebrow="Order SLA feed" title="Escalation events" note="Νέα order assignments, SLA breaches και επείγουσες κλιμακώσεις." />
+      {data.notifications.length === 0 ? <div className="workspace-empty-state"><strong>Δεν υπάρχουν order SLA alerts.</strong></div> : <div className="workspace-queue-list">{data.notifications.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>{when(item.createdAt)}</small></div><span className="status-pill">{item.eventType}</span></div>
         <p>{item.body}</p>
       </article>)}</div>}

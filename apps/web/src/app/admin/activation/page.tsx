@@ -6,7 +6,7 @@ import { adminActivationWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { WEB_BUILD_VERSION } from "../../../lib/build";
 
-export const metadata: Metadata = { title: "Admin · Activation Evidence", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · Launch Readiness", robots: { index: false, follow: false } };
 
 export default async function Page() {
   const principal = await getAdminSession();
@@ -20,7 +20,7 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Launch gates</div><h1>Activation evidence</h1><p className="lead">Δες αν το τρέχον build έχει φρέσκο, πραγματικά εκτελεσμένο provider evidence — όχι απλώς configuration.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · release gates</div><h1>Launch Readiness</h1><p className="lead">Δες αν το τρέχον build έχει φρέσκο, πραγματικά εκτελεσμένο provider evidence — όχι απλώς configuration. Δεν σχετίζεται με vendor activation.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Current build", value: WEB_BUILD_VERSION },
@@ -31,7 +31,7 @@ export default async function Page() {
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Durable evidence" title="Provider checks" note="Technical digest και timestamps είναι διαθέσιμα χωρίς να βαραίνουν το primary launch signal." />
-      {data.evidence.length === 0 ? <WorkspaceEmptyState title="Δεν έχει καταγραφεί activation evidence." body="Μετά τη ρύθμιση credentials/services, εκτέλεσε το staging preflight με record mode ώστε το αποτέλεσμα να γίνει durable evidence." /> : <div className="workspace-queue-list">{data.evidence.map((row) => {
+      {data.evidence.length === 0 ? <WorkspaceEmptyState title="Δεν έχει καταγραφεί launch readiness evidence." body="Μετά τη ρύθμιση credentials/services, εκτέλεσε το staging preflight με record mode ώστε το αποτέλεσμα να γίνει durable evidence." /> : <div className="workspace-queue-list">{data.evidence.map((row) => {
         const isExpired = Boolean(row.expiresAt && row.expiresAt <= now);
         const isCurrent = row.buildVersion === WEB_BUILD_VERSION;
         return <article className="workspace-queue-card" key={row.id}>
