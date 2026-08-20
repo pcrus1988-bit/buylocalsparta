@@ -42,7 +42,7 @@ await run("viva",process.env.VIVA_PAYMENTS_ENABLED==="true",process.env.VIVA_ENV
 const myDataConfigured=Boolean(process.env.AADE_MYDATA_USER_ID?.trim()&&process.env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim());
 await run("mydata",myDataConfigured,process.env.AADE_MYDATA_ENVIRONMENT||"disabled","mydata-readonly-connectivity",async()=>{
   if(deploymentEnvironment==="staging"&&process.env.AADE_MYDATA_ENVIRONMENT==="production")throw new Error("Staging preflight refuses AADE production credentials");
-  const client=new AadeMyDataClient(myDataConfigFromEnv(process.env));const date=athensDate();const xml=await client.requestTransmittedDocs({dateFrom:date,dateTo:date});
+  const client=new AadeMyDataClient(myDataConfigFromEnv(process.env));const date=athensDate();const xml=await client.requestTransmittedDocs({mark:"0",dateFrom:date,dateTo:date});
   return{ok:Boolean(xml.trim()),message:"AADE myDATA read-only transmitted-documents request succeeded",details:{environment:client.environment,specVersion:client.specVersion,responseBytes:Buffer.byteLength(xml,"utf8")}};
 });
 
@@ -89,5 +89,5 @@ console.log(JSON.stringify(output,null,2));
 await runtime?.close();
 if(requiredFailures.length)process.exitCode=2;
 
-function positive(raw:string|undefined,fallback:number):number{if(!raw?.trim())return fallback;const n=Number(raw);if(!Number.isFinite(n)||n<=0)throw new Error("BLS_ACTIVATION_EVIDENCE_TTL_HOURS must be positive");return n;}
-function athensDate():string{const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());const get=(type:string)=>parts.find((part)=>part.type===type)?.value??"";return`${get("year")}-${get("month")}-${get("day")}`;}
+function positive(raw:string|undefined,fallback:number):number{const value=Number(raw);return Number.isFinite(value)&&value>0?value:fallback;}
+function athensDate():string{const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Athens",day:"2-digit",month:"2-digit",year:"numeric"}).formatToParts(new Date());const day=parts.find((part)=>part.type==="day")?.value??"01";const month=parts.find((part)=>part.type==="month")?.value??"01";const year=parts.find((part)=>part.type==="year")?.value??"1970";return `${day}/${month}/${year}`;}
