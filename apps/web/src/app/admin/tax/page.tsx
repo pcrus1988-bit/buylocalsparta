@@ -10,6 +10,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 import { adminAccountingPolicyWorkspace } from "../../../lib/admin-tax-policy-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { configuredMyDataService, myDataAdminRuntimeConfig, myDataReadiness } from "../../../lib/mydata-runtime";
+import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
 
 export const metadata: Metadata = { title: "Admin · Accounting, Tax, AADE / myDATA", robots: { index: false, follow: false } };
 
@@ -32,6 +33,7 @@ export default async function Page() {
   ]);
   if (!policyData) redirect("/admin");
   const data = myDataService ? await myDataService.workspace(principal) : { environment: runtimeConfig.environment, specVersion: runtimeConfig.specVersion, issuanceEnabled: runtimeConfig.issuanceEnabled, approvedMappingVersion: undefined, deploymentMappingPin: runtimeConfig.mappingVersionPin, documents: [] as const };
+  const orderReferences = await marketplaceReferenceMap("order", data.documents.flatMap((document) => document.orderId ? [document.orderId] : []));
   const policy = policyData.policy;
   const coverage = policyData.taxProfileCoverage;
   const configured = diagnostics.configured;
@@ -67,9 +69,10 @@ export default async function Page() {
         <div className="admin-directory-head" role="row"><span>Document</span><span>Order</span><span>Status</span><span>Gross</span><span>MARK / UID</span><span>Created</span><span aria-label="Actions" /></div>
         {data.documents.map((document) => {
           const canReconcile = document.transmissionStatus === "manual_review" && Boolean(document.documentNumber) && !document.aadeMark;
+          const orderReference = document.orderId ? orderReferences.get(document.orderId) ?? document.orderId : "—";
           return <div className={`admin-directory-row${document.lastError || canReconcile ? " needs-attention" : ""}`} role="row" key={document.id}>
             <span className="admin-directory-identity"><strong>{document.documentNumber ?? document.id}</strong><small>{document.type} · {document.invoiceTypeCode ?? "type unmapped"} · {document.mappingVersion ?? "mapping —"}</small></span>
-            <span><strong>{document.orderId ?? "—"}</strong></span>
+            <span><strong>{orderReference}</strong>{document.orderId && orderReference !== document.orderId && <small>{document.orderId}</small>}</span>
             <span><span className={`status-pill${document.lastError || canReconcile ? " needs-attention" : ""}`}>{document.status} · {document.transmissionStatus}</span></span>
             <span><strong>{money(document.grossMinor, document.currency)}</strong></span>
             <span><strong>{document.aadeMark ?? "—"}</strong><small>{document.aadeUid ?? "No UID"}</small></span>
