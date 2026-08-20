@@ -30,7 +30,10 @@ export default async function Home() {
         <section className={`${styles.hero} shell`} id="top">
           <div className={styles.heroCopy}>
             <div className="eyebrow">Η τοπική αγορά · πιο απλά, πιο ανθρώπινα</div>
-            <h1 className={styles.heroTitle}>Βρες το στη Σπάρτη. Αγόρασέ το από ανθρώπους που το γνωρίζουν.</h1>
+            <h1 className={styles.heroTitle}>
+              <span className={styles.heroTitlePrimary}>Βρες το στη Σπάρτη.</span>
+              <span className={styles.heroTitleSecondary}>Αγόρασέ το από ανθρώπους που το γνωρίζουν.</span>
+            </h1>
             <p className={styles.heroLead}>
               Προϊόντα από τοπικά καταστήματα, πραγματική συμβουλή όταν τη χρειάζεσαι και μία καθαρή εμπειρία αγοράς — χωρίς να ψάχνεις σε δεκάδες διαφορετικά e-shops.
             </p>
@@ -45,36 +48,18 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className={styles.heroVisual} aria-hidden="true">
-            <div className={styles.marketCard}>
-              <div className={styles.marketCardTop}><span>ΚΟΝΤΑ ΜΟΥ</span><span>SPARTA · 23100</span></div>
-              <div className={styles.marketPulse}>
-                <span className={styles.pulseCore}>LOCAL</span>
-                <span className={styles.pulseRingOne} />
-                <span className={styles.pulseRingTwo} />
-                <span className={`${styles.pulseDot} ${styles.pulseDotOne}`} />
-                <span className={`${styles.pulseDot} ${styles.pulseDotTwo}`} />
-                <span className={`${styles.pulseDot} ${styles.pulseDotThree}`} />
+          <div className={styles.heroVisual}>
+            <section className={styles.heroSearchCard} aria-labelledby="home-search-title">
+              <div className={styles.searchIntro}>
+                <div className="eyebrow">Ξεκίνα εδώ</div>
+                <h2 id="home-search-title">Τι ψάχνεις σήμερα;</h2>
+                <p>Μία απλή αναζήτηση, χωρίς φίλτρα. Αν δεν υπάρχει αποτέλεσμα, θα σου προτείνουμε αμέσως Ask Local.</p>
               </div>
-              <div className={styles.marketCardBottom}>
-                <strong>Discover locally.</strong>
-                <span>Fair exposure · real advice · local pickup</span>
-              </div>
-            </div>
-            <div className={`${styles.floatingMetric} ${styles.metricTop}`}>✓ Δίκαιη εναλλαγή καταστημάτων</div>
-            <div className={`${styles.floatingMetric} ${styles.metricBottom}`}>Ρώτησε άνθρωπο, όχι αλγόριθμο</div>
+              <HomeQuickSearch />
+            </section>
           </div>
         </section>
       </HomeHeroCarousel>
-
-      <section className={`${styles.searchDock} shell`} aria-labelledby="home-search-title">
-        <div className={styles.searchIntro}>
-          <div className="eyebrow">Ξεκίνα εδώ</div>
-          <h2 id="home-search-title">Τι ψάχνεις σήμερα;</h2>
-          <p>Μία απλή αναζήτηση, χωρίς φίλτρα. Αν δεν υπάρχει αποτέλεσμα, θα σου προτείνουμε αμέσως Ask Local.</p>
-        </div>
-        <HomeQuickSearch />
-      </section>
 
       <section className={`${styles.discoverySection} shell`} aria-labelledby="featured-title">
         <div className={styles.sectionTop}>
