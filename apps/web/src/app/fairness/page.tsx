@@ -4,7 +4,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Δίκαιη ανάθεση καταστημάτων",
-  description: "Πώς το Buy Local Sparta εμφανίζει ένα προϊόν μία φορά και αναθέτει δίκαια την εκπλήρωση σε επιλέξιμο τοπικό κατάστημα.",
+  description: "Πώς το ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζει ένα προϊόν μία φορά και αναθέτει δίκαια την εκπλήρωση σε επιλέξιμο τοπικό κατάστημα.",
   alternates: { canonical: "/fairness" }
 };
 
