@@ -82,9 +82,9 @@ export function buildCustomerTaxPdfDefinition(doc: CustomerFiscalDocument): Reco
             detailTable([
               ["Πάροχος", providerLabel(doc.payment.provider)],
               ["Μέθοδος", paymentMethod],
-              ...(doc.payment.transactionId ? [["UID / Transaction ID", doc.payment.transactionId]] : []),
-              ...(doc.payment.providerOrderCode ? [["Κωδικός παρόχου", doc.payment.providerOrderCode]] : []),
-              ...(doc.payment.tid ? [["TID", doc.payment.tid]] : [])
+              ...(doc.payment.transactionId ? [["UID / Transaction ID", doc.payment.transactionId] as const] : []),
+              ...(doc.payment.providerOrderCode ? [["Κωδικός παρόχου", doc.payment.providerOrderCode] as const] : []),
+              ...(doc.payment.tid ? [["TID", doc.payment.tid] as const] : [])
             ])
           ]
         },
@@ -291,7 +291,7 @@ function detailTable(rows: readonly (readonly [string, string])[]): Record<strin
   };
 }
 
-function metaCell(label: string, value: string, accent = COLORS.brass): Record<string, unknown> {
+function metaCell(label: string, value: string, accent: string = COLORS.brass): Record<string, unknown> {
   return {
     fillColor: COLORS.paper2,
     margin: [12, 10, 12, 10],
