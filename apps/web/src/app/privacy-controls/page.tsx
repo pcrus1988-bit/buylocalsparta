@@ -5,7 +5,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Έλεγχοι ιδιωτικότητας λογαριασμού",
-  description: "Τι κάνουν οι ρυθμίσεις προτάσεων, πρόσφατων προϊόντων και εξαγωγής δεδομένων στον λογαριασμό Buy Local Sparta.",
+  description: "Τι κάνουν οι ρυθμίσεις προτάσεων, πρόσφατων προϊόντων και εξαγωγής δεδομένων στον λογαριασμό ΚΟΝΤΑ ΜΟΥ Sparta.",
   alternates: { canonical: "/privacy-controls" }
 };
 
