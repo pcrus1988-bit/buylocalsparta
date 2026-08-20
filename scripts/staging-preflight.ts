@@ -89,5 +89,5 @@ console.log(JSON.stringify(output,null,2));
 await runtime?.close();
 if(requiredFailures.length)process.exitCode=2;
 
-function positive(raw:string|undefined,fallback:number):number{const value=Number(raw);return Number.isFinite(value)&&value>0?value:fallback;}
+function positive(raw:string|undefined,fallback:number):number{if(!raw?.trim())return fallback;const n=Number(raw);if(!Number.isFinite(n)||n<=0)throw new Error("BLS_ACTIVATION_EVIDENCE_TTL_HOURS must be positive");return n;}
 function athensDate():string{const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Athens",day:"2-digit",month:"2-digit",year:"numeric"}).formatToParts(new Date());const day=parts.find((part)=>part.type==="day")?.value??"01";const month=parts.find((part)=>part.type==="month")?.value??"01";const year=parts.find((part)=>part.type==="year")?.value??"1970";return `${day}/${month}/${year}`;}
