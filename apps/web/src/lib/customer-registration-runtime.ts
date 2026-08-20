@@ -9,11 +9,11 @@ import {
 } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { ResendEmailProvider, resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
-import { accountAuthSecret, getAccountRuntime } from "./account-runtime.js";
-import { customerStateBackend } from "./customer-state-runtime.js";
-import { isProvisionalVendorApplicantPasswordHash } from "./provisional-account.js";
-import { getProductionPostgresRuntime } from "./postgres-runtime.js";
-import { publicOrigin } from "./public-origin.js";
+import { accountAuthSecret, getAccountRuntime } from "./account-runtime";
+import { customerStateBackend } from "./customer-state-runtime";
+import { isProvisionalVendorApplicantPasswordHash } from "./provisional-account";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { publicOrigin } from "./public-origin";
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const postgresGlobals = globalThis as typeof globalThis & {
