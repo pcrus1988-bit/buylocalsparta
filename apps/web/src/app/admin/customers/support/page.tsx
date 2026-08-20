@@ -41,17 +41,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Support queue" title="Cases που χρειάζονται χειρισμό" note="Search σε subject, case ID, customer ID, email ή όνομα. Τα ενεργά/urgent/overdue cases εμφανίζονται πρώτα." />
+      <WorkspaceSectionHeading eyebrow="Support queue" title="Cases που χρειάζονται χειρισμό" note="Search σε subject, public ticket reference, customer ID, email ή όνομα. Τα ενεργά/urgent/overdue cases εμφανίζονται πρώτα." />
       {!data.databaseConfigured && <div className="workspace-inline-note">Η production βάση δεν είναι διαθέσιμη σε αυτό το preview.</div>}
       <form method="get" className="workspace-tool-panel" style={{ display:"grid", gridTemplateColumns:"minmax(220px,1fr) minmax(170px,220px) minmax(150px,200px) auto", gap:12, alignItems:"end", padding:16, marginBottom:18 }}>
-        <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Customer, email, case ID, subject" /></label>
+        <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Customer, email, TKT-10001, subject" /></label>
         <label><span>Status</span><select name="status" defaultValue={params.status ?? ""}><option value="">All statuses</option>{CUSTOMER_SUPPORT_STATUSES.map((item) => <option key={item} value={item}>{statusLabel[item]}</option>)}</select></label>
         <label><span>Priority</span><select name="priority" defaultValue={params.priority ?? ""}><option value="">All priorities</option>{CUSTOMER_SUPPORT_PRIORITIES.map((item) => <option key={item} value={item}>{priorityLabel[item]}</option>)}</select></label>
         <div style={{ display:"flex", gap:8 }}><button className="button button-secondary" type="submit">Filter</button>{filtered && <Link className="text-link" href="/admin/customers/support">Clear</Link>}</div>
       </form>
 
       {data.cases.length === 0 ? <WorkspaceEmptyState title={filtered ? "No support cases match these filters." : "No customer support cases."} body={filtered ? "Try another status, priority or search term." : "New cases created from Customer 360 will appear here automatically."} /> : <div className="workspace-queue-list">{data.cases.map((item) => <article className="workspace-queue-card" key={item.id}>
-        <div className="workspace-queue-head"><div><strong>{item.subject}</strong><small>{item.id} · {item.category} · updated {dateTime(item.updatedAt)}</small></div><span className="status-pill">{statusLabel[item.status]}</span></div>
+        <div className="workspace-queue-head"><div><strong>{item.subject}</strong><small>{item.referenceNumber} · {item.category} · updated {dateTime(item.updatedAt)}</small></div><span className="status-pill">{statusLabel[item.status]}</span></div>
         <div className="workspace-queue-primary"><span>{priorityLabel[item.priority]} priority</span><span>{item.customerName}</span><span>{item.assignedTo ? `Owner ${item.assignedTo}` : "Unassigned"}</span><span>Follow-up {dateTime(item.followUpAt)}</span></div>
         <div className="workspace-action-bar"><span>{item.customerEmail ?? item.customerId}</span><div className="workspace-action-buttons">
           <Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(item.customerId)}`}>Customer 360</Link>
