@@ -151,6 +151,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/notifications",
   "/admin/operations",
   "/admin/orders",
+  "/admin/orders/[id]",
   "/admin/partners",
   "/admin/partners/[id]",
   "/admin/partners/pipeline",
