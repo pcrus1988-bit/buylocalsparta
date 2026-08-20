@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const journey = [
   ["01", "Βρίσκεις αυτό που χρειάζεσαι", "Αναζήτησε προϊόν, κατηγορία ή κατάστημα. Τα ίδια προϊόντα ενοποιούνται ώστε να βλέπεις ένα καθαρό αποτέλεσμα."],
   ["02", "Παίρνεις τοπική συμβουλή", "Ρώτησε από τη σελίδα προϊόντος ή χρησιμοποίησε το Ask Local. Η συζήτηση και κάθε πρόταση παραμένουν ιδιωτικές."],
-  ["03", "Αγοράζεις μία φορά", "Το Buy Local Sparta είναι το ενιαίο σημείο checkout. Προϊόντα από περισσότερα καταστήματα παραμένουν σε μία παραγγελία πελάτη."],
+  ["03", "Αγοράζεις μία φορά", "Το ΚΟΝΤΑ ΜΟΥ Sparta είναι το ενιαίο σημείο checkout. Προϊόντα από περισσότερα καταστήματα παραμένουν σε μία παραγγελία πελάτη."],
   ["04", "Η παραγγελία εκτελείται τοπικά", "Στο παρασκήνιο δημιουργούνται ιδιωτές ροές εκπλήρωσης ανά κατάστημα, χωρίς να φορτώνεται ο πελάτης με ξεχωριστές αγορές."],
   ["05", "Παραλαμβάνεις και παρακολουθείς", "Επίλεξε διαθέσιμο τρόπο παραλαβής ή αποστολής και δες την εξέλιξη από τον λογαριασμό σου."]
 ] as const;
@@ -22,7 +22,7 @@ export default function HowItWorksPage() {
     <SiteHeader />
     <section className="content-hero content-hero-process">
       <div className="shell content-hero-grid">
-        <div><div className="eyebrow light">Από την ανάγκη μέχρι την παραλαβή</div><h1>Μία αγορά. Πραγματική τοπική υποστήριξη.</h1><p>Το Buy Local Sparta συνδέει τον καθαρό online κατάλογο με τα φυσικά καταστήματα, τους ανθρώπους και τη γνώση της πόλης.</p><div className="hero-actions"><a className="button button-light" href="/shop">Ξεκίνα από τα προϊόντα</a><a className="button content-outline" href="/ask-local">Περιέγραψε τι ψάχνεις</a></div></div>
+        <div><div className="eyebrow light">Από την ανάγκη μέχρι την παραλαβή</div><h1>Μία αγορά. Πραγματική τοπική υποστήριξη.</h1><p>Το ΚΟΝΤΑ ΜΟΥ Sparta συνδέει τον καθαρό online κατάλογο με τα φυσικά καταστήματα, τους ανθρώπους και τη γνώση της πόλης.</p><div className="hero-actions"><a className="button button-light" href="/shop">Ξεκίνα από τα προϊόντα</a><a className="button content-outline" href="/ask-local">Περιέγραψε τι ψάχνεις</a></div></div>
         <div className="content-hero-map" aria-hidden="true"><span>FIND</span><span>ASK</span><span>BUY</span><span>LOCAL</span></div>
       </div>
     </section>
@@ -32,7 +32,7 @@ export default function HowItWorksPage() {
     </section>
     <section className="content-band">
       <div className="shell content-split">
-        <div><div className="eyebrow light">Ο ρόλος της πλατφόρμας</div><h2>Ένα checkout προς το Buy Local Sparta.</h2><p>Ο πελάτης βλέπει μία παραγγελία και μία συνολική πληρωμή. Η πλατφόρμα οργανώνει ιδιωτικά την προμήθεια και την εκπλήρωση από τους επιλέξιμους τοπικούς συνεργάτες.</p></div>
+        <div><div className="eyebrow light">Ο ρόλος της πλατφόρμας</div><h2>Ένα checkout προς το ΚΟΝΤΑ ΜΟΥ Sparta.</h2><p>Ο πελάτης βλέπει μία παραγγελία και μία συνολική πληρωμή. Η πλατφόρμα οργανώνει ιδιωτικά την προμήθεια και την εκπλήρωση από τους επιλέξιμους τοπικούς συνεργάτες.</p></div>
         <div className="content-fact-list"><div><strong>Δημόσια</strong><span>Προϊόν, τελική τιμή, διαθεσιμότητα και εγκεκριμένο προφίλ καταστήματος.</span></div><div><strong>Ιδιωτικά</strong><span>Supplier offers, τιμές προμήθειας, ανάθεση και εσωτερικές ροές εκπλήρωσης.</span></div><div><strong>Σταθερά</strong><span>Η ανάθεση παραμένει συνεπής μέσα στο σχετικό ταξίδι αγοράς.</span></div></div>
       </div>
     </section>
