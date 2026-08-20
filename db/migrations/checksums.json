@@ -62,5 +62,6 @@
   "0080_vendor_order_sla_notifications.sql": "76ec3abb340fb03231a09ec8615102d5cc9740304605bcbf5108ceb17c34594c",
   "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
   "0082_order_sla_trigger_search_path.sql": "c915907a6ad7229cff9de2f750f7b9fd0761d4854dc562f2af0672d6bb8fc5d4",
-  "0083_daily_sla_fk_indexes.sql": "31172b1950e1e7e4eda15ec8400070474dd8aa943b9bd5a182ffa8e8d9fb2c28"
+  "0083_daily_sla_fk_indexes.sql": "31172b1950e1e7e4eda15ec8400070474dd8aa943b9bd5a182ffa8e8d9fb2c28",
+  "0084_daily_vapid_vault_bridge.sql": "5cf2df167bdc45e75db005d04b841ba692c7c0d9161d4dfe5204048e886603af"
 }
