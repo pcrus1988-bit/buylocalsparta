@@ -4,7 +4,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Παράδοση & παραλαβή",
-  description: "Πώς λειτουργούν η τοπική παραλαβή, η αποστολή και η παρακολούθηση παραγγελιών στο Buy Local Sparta.",
+  description: "Πώς λειτουργούν η τοπική παραλαβή, η αποστολή και η παρακολούθηση παραγγελιών στο ΚΟΝΤΑ ΜΟΥ Sparta.",
   alternates: { canonical: "/delivery-pickup" }
 };
 

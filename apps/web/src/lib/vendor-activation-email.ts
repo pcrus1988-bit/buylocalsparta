@@ -22,9 +22,9 @@ export async function sendVendorActivationEmail(access: VendorActivationAccess) 
 
   return sendTransactionalEmail({
     to: access.email,
-    subject: "Το κατάστημά σας ενεργοποιήθηκε · Ολοκληρώστε την πρόσβαση στο KONTA MOY",
+    subject: "Το κατάστημά σας ενεργοποιήθηκε · Ολοκληρώστε την πρόσβαση στο ΚΟΝΤΑ ΜΟΥ",
     text: [
-      `Καλησπέρα από το KONTA MOY,`,
+      `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,`,
       "",
       `Η συνεργασία για το κατάστημα «${access.tradingName}» ενεργοποιήθηκε επιτυχώς.`,
       "",
@@ -36,7 +36,7 @@ export async function sendVendorActivationEmail(access: VendorActivationAccess) 
       "",
       "Αν δεν αναγνωρίζετε αυτή την ενεργοποίηση, απαντήστε σε αυτό το email.",
       "",
-      "KONTA MOY · Buy Local Sparta"
+      "ΚΟΝΤΑ ΜΟΥ Sparta · Η Σπάρτη δίπλα σου"
     ].join("\n"),
     eventType: "vendor.activation_access",
     idempotencyKey: access.deliveryKey,

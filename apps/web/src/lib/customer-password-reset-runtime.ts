@@ -78,7 +78,7 @@ export async function requestCustomerPasswordReset(input: { email: string; now: 
     eventType: "account.password_reset",
     templateVersion: "v1",
     locale: "el",
-    title: "Επαναφορά κωδικού · Buy Local Sparta",
+    title: "Επαναφορά κωδικού · ΚΟΝΤΑ ΜΟΥ Sparta",
     body: [
       "Λάβαμε αίτημα για αλλαγή του κωδικού του λογαριασμού σου.",
       "",

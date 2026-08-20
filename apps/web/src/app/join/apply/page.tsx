@@ -8,7 +8,7 @@ import styles from "../page.module.css";
 
 export const metadata: Metadata = {
   title: "Αίτηση συνεργασίας εμπόρου",
-  description: "Σύγκρινε πρόγραμμα και υπόβαλε ελεγχόμενη αίτηση συνεργασίας για το Buy Local Sparta. Η αίτηση περνά από verification, catalog onboarding και test readiness πριν από οποιαδήποτε ενεργοποίηση.",
+  description: "Σύγκρινε πρόγραμμα και υπόβαλε ελεγχόμενη αίτηση συνεργασίας για το ΚΟΝΤΑ ΜΟΥ Sparta. Η αίτηση περνά από verification, catalog onboarding και test readiness πριν από οποιαδήποτε ενεργοποίηση.",
   robots: { index: false, follow: true }
 };
 

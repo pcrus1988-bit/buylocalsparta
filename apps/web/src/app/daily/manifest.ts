@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "KONTA MOY Daily",
+    name: "ΚΟΝΤΑ ΜΟΥ Daily",
     short_name: "Daily",
-    description: "Καθημερινή διαχείριση παραγγελιών, Ask Local και παραλαβών για συνεργάτες KONTA MOY.",
+    description: "Καθημερινή διαχείριση παραγγελιών, Ask Local και παραλαβών για συνεργάτες ΚΟΝΤΑ ΜΟΥ.",
     start_url: "/daily",
     scope: "/daily/",
     display: "standalone",

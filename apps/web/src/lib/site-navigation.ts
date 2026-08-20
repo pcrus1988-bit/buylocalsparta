@@ -24,7 +24,7 @@ export const SITE_LINKS = {
   payments: { label: "Πληρωμές & ασφάλεια", href: "/payments-security", description: "Πώς προστατεύεται η ενιαία συναλλαγή του marketplace." },
   returns: { label: "Επιστροφές & refunds", href: "/returns-refunds", description: "Επιστροφές, επισκευές, αντικαταστάσεις και επιστροφές χρημάτων." },
   privacy: { label: "Privacy controls", href: "/privacy-controls", description: "Διαχείριση ιδιωτικότητας, προσωποποίησης και δικαιωμάτων δεδομένων." },
-  about: { label: "Η ιδέα και η αποστολή", href: "/about", description: "Γιατί δημιουργήθηκε το Buy Local Sparta και ποιο πρόβλημα λύνει." },
+  about: { label: "Η ιδέα και η αποστολή", href: "/about", description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ Sparta και ποιο πρόβλημα λύνει." },
   help: { label: "Κέντρο βοήθειας", href: "/help", description: "Καθοδήγηση για αγορές, αιτήματα και υποστήριξη." },
   join: { label: "Γίνε συνεργάτης", href: "/join", description: "Η πρόταση συνεργασίας για τοπικές επιχειρήσεις." },
   joinRequirements: { label: "Προϋποθέσεις συνεργασίας", href: "/join/requirements", description: "Readiness checklist πριν από την αίτηση εμπόρου." },
@@ -72,7 +72,7 @@ export const FOOTER_NAVIGATION = [
     links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns]
   },
   {
-    title: "Buy Local Sparta",
+    title: "ΚΟΝΤΑ ΜΟΥ Sparta",
     links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.privacy, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap]
   }
 ] as const;

@@ -18,14 +18,14 @@ import { publicOrigin } from "../lib/public-origin";
 export const metadata: Metadata = {
   metadataBase: new URL(publicOrigin()),
   title: {
-    default: "Buy Local Sparta | Η τοπική αγορά της Σπάρτης online",
-    template: "%s | Buy Local Sparta"
+    default: "ΚΟΝΤΑ ΜΟΥ Sparta | Η τοπική αγορά της Σπάρτης online",
+    template: "%s | ΚΟΝΤΑ ΜΟΥ Sparta"
   },
   description: "Ανακάλυψε προϊόντα από καταστήματα της Σπάρτης, πάρε πραγματική συμβουλή από τοπικούς επαγγελματίες και αγόρασε με μία ενιαία εμπειρία checkout.",
-  keywords: ["Σπάρτη", "τοπικά καταστήματα", "buy local", "marketplace", "Λακωνία", "online αγορές"],
+  keywords: ["Σπάρτη", "τοπικά καταστήματα", "ΚΟΝΤΑ ΜΟΥ", "marketplace", "Λακωνία", "online αγορές"],
   openGraph: {
-    title: "Buy Local Sparta",
-    description: "Buy Local. Know Your Vendor. Get Real Advice.",
+    title: "ΚΟΝΤΑ ΜΟΥ Sparta",
+    description: "ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου",
     locale: "el_GR",
     type: "website",
     url: "/"

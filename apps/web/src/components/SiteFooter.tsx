@@ -6,10 +6,16 @@ export function SiteFooter() {
     <footer className="footer site-footer">
       <div className="shell footer-grid footer-grid-expanded">
         <div className="footer-intro">
-          <Link className="brand footer-brand" href="/" aria-label="Buy Local Sparta · αρχική">
-            <span className="brand-mark">BLS</span><span>Buy Local Sparta</span>
+          <Link className="brand footer-brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Sparta · αρχική">
+            <img
+              src="/brand/kontamou-sparta-logo.webp"
+              alt="ΚΟΝΤΑ ΜΟΥ Sparta"
+              width={108}
+              height={72}
+              style={{ display: "block", width: "108px", height: "72px", objectFit: "contain" }}
+            />
           </Link>
-          <p>Buy Local. Know Your Vendor. Get Real Advice.</p>
+          <p>ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</p>
           <small>Μία ανθρώπινη ψηφιακή αγορά για τη Σπάρτη και τη γύρω περιοχή.</small>
         </div>
         {FOOTER_NAVIGATION.map((group) => (
@@ -20,7 +26,7 @@ export function SiteFooter() {
         ))}
       </div>
       <div className="shell footer-bottom">
-        <span>© {new Date().getFullYear()} Buy Local Sparta</span>
+        <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Sparta</span>
         <span>Τοπικά προϊόντα · πραγματικοί άνθρωποι · καθαροί κανόνες</span>
       </div>
     </footer>

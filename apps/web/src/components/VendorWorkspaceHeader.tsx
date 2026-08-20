@@ -32,7 +32,7 @@ export function VendorWorkspaceHeader() {
 
   return <header className={`workspace-header${menuOpen ? " is-menu-open" : ""}`}>
     <div className="workspace-brand-row">
-      <Link className="brand workspace-identity" href="/vendor" onClick={() => setMenuOpen(false)}><span className="brand-mark">BLS</span><span><strong>Χώρος συνεργάτη</strong><small>Buy Local Sparta</small></span></Link>
+      <Link className="brand workspace-identity" href="/vendor" onClick={() => setMenuOpen(false)}><img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Sparta" width={78} height={52} style={{ display: "block", width: "78px", height: "52px", objectFit: "contain" }} /><span><strong>Χώρος συνεργάτη</strong><small>ΚΟΝΤΑ ΜΟΥ Sparta</small></span></Link>
       <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" onClick={() => setMenuOpen((current) => !current)}><span>{menuOpen ? "Κλείσιμο" : "Μενού"}</span><i aria-hidden="true" /></button>
     </div>
     <div className="workspace-context"><span>Vendor</span><strong>Καθημερινή λειτουργία</strong><small><i aria-hidden="true" /> Ιδιωτικό scope καταστήματος</small></div>

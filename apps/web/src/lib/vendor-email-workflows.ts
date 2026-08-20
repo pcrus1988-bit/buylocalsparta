@@ -13,9 +13,9 @@ export async function sendVendorApplicationReceiptEmail(input: {
   tradingName: string;
   applicationId: string;
 }) {
-  const subject = "Λάβαμε την αίτηση συνεργασίας σας · Buy Local Sparta";
+  const subject = "Λάβαμε την αίτηση συνεργασίας σας · ΚΟΝΤΑ ΜΟΥ Sparta";
   const text = [
-    `Καλησπέρα από το Buy Local Sparta,`,
+    `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ Sparta,`,
     "",
     `Λάβαμε την αίτηση συνεργασίας για το κατάστημα «${input.tradingName}».`,
     `Κωδικός αίτησης: ${input.applicationId}`,
@@ -25,7 +25,7 @@ export async function sendVendorApplicationReceiptEmail(input: {
     "",
     `Πληροφορίες συνεργασίας: ${publicBaseUrl()}/join`,
     "",
-    "Buy Local Sparta"
+    "ΚΟΝΤΑ ΜΟΥ Sparta"
   ].join("\n");
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -45,9 +45,9 @@ export async function sendVendorApplicationStateEmail(input: {
   reason?: string;
 }) {
   const message = stateMessage(input.state);
-  const subject = `${message.subject} · Buy Local Sparta`;
+  const subject = `${message.subject} · ΚΟΝΤΑ ΜΟΥ Sparta`;
   const text = [
-    `Καλησπέρα από το Buy Local Sparta,`,
+    `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ Sparta,`,
     "",
     `Υπάρχει ενημέρωση για την αίτηση του καταστήματος «${input.tradingName}».`,
     `Κωδικός αίτησης: ${input.applicationId}`,
@@ -58,7 +58,7 @@ export async function sendVendorApplicationStateEmail(input: {
     "",
     message.link ? `${message.linkLabel}: ${publicBaseUrl()}${message.link}` : undefined,
     "",
-    "Buy Local Sparta"
+    "ΚΟΝΤΑ ΜΟΥ Sparta"
   ].filter((line): line is string => typeof line === "string").join("\n");
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -78,11 +78,11 @@ export async function sendResearchVendorInvitationEmail(input: {
   const applyUrl = `${publicBaseUrl()}/join`;
   return sendTransactionalEmailBestEffort({
     to: input.to,
-    subject: "Πρόσκληση συνεργασίας · Buy Local Sparta",
+    subject: "Πρόσκληση συνεργασίας · ΚΟΝΤΑ ΜΟΥ Sparta",
     text: [
       `Καλησπέρα στην ομάδα του «${input.tradingName}»,`,
       "",
-      "Το Buy Local Sparta δημιουργεί μια οργανωμένη τοπική αγορά για καταστήματα της Σπάρτης και της ευρύτερης περιοχής, με κοινή ψηφιακή βιτρίνα, vendor workspace και δίκαιη συμμετοχή στην προβολή προϊόντων.",
+      "Το ΚΟΝΤΑ ΜΟΥ Sparta δημιουργεί μια οργανωμένη τοπική αγορά για καταστήματα της Σπάρτης και της ευρύτερης περιοχής, με κοινή ψηφιακή βιτρίνα, vendor workspace και δίκαιη συμμετοχή στην προβολή προϊόντων.",
       "",
       "Θα χαρούμε να εξετάσουμε μαζί τη συμμετοχή του καταστήματός σας. Η πρόσκληση δεν ενεργοποιεί λογαριασμό ούτε δημιουργεί οποιαδήποτε χρέωση· η επίσημη διαδικασία ξεκινά μόνο όταν ο ιδιοκτήτης ή εξουσιοδοτημένος εκπρόσωπος υποβάλει την αίτηση.",
       "",
@@ -90,7 +90,7 @@ export async function sendResearchVendorInvitationEmail(input: {
       "",
       "Μπορείτε επίσης να απαντήσετε απευθείας σε αυτό το email για οποιαδήποτε ερώτηση.",
       "",
-      "Buy Local Sparta"
+      "ΚΟΝΤΑ ΜΟΥ Sparta"
     ].join("\n"),
     eventType: "vendor.research_invitation",
     idempotencyKey: `research-vendor-invite:v1:${input.researchId}`,
@@ -111,7 +111,7 @@ export async function notifyOperationsOfVendorApplication(input: {
     to,
     subject: `Νέα αίτηση vendor · ${input.tradingName}`,
     text: [
-      "Νέα αίτηση συνεργασίας καταχωρίστηκε στο Buy Local Sparta.",
+      "Νέα αίτηση συνεργασίας καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ Sparta.",
       "",
       `Κατάστημα: ${input.tradingName}`,
       `Νομική ονομασία: ${input.legalName}`,
