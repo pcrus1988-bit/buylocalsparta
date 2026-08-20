@@ -2,7 +2,9 @@ import { getHomepageCatalogCards } from "../lib/home-catalog";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
+import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
 import { STOREFRONT_CATEGORIES, categoryCodeMatches } from "../lib/storefront-taxonomy";
+import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
@@ -11,7 +13,10 @@ const FEATURED_PRODUCT_LIMIT = 4;
 
 export default async function Home() {
   const visitorKey = await getVisitorKey();
-  const featuredProducts = await getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT);
+  const [featuredProducts, heroSlides] = await Promise.all([
+    getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
+    listHomepageHeroSlides({ visibleOnly: true })
+  ]);
   const visibleCategories = STOREFRONT_CATEGORIES.filter((category) =>
     featuredProducts.some((card) => categoryCodeMatches(card.categoryCode, category.slug))
   );
@@ -21,44 +26,46 @@ export default async function Home() {
       <div className="announcement">Δωρεάν παραλαβή από συνεργαζόμενα καταστήματα στη Σπάρτη</div>
       <SiteHeader />
 
-      <section className={`${styles.hero} shell`} id="top">
-        <div className={styles.heroCopy}>
-          <div className="eyebrow">Η τοπική αγορά · πιο απλά, πιο ανθρώπινα</div>
-          <h1 className={styles.heroTitle}>Βρες το στη Σπάρτη. Αγόρασέ το από ανθρώπους που το γνωρίζουν.</h1>
-          <p className={styles.heroLead}>
-            Προϊόντα από τοπικά καταστήματα, πραγματική συμβουλή όταν τη χρειάζεσαι και μία καθαρή εμπειρία αγοράς — χωρίς να ψάχνεις σε δεκάδες διαφορετικά e-shops.
-          </p>
-          <div className={styles.heroActions}>
-            <a className="button" href="/shop">Όλα τα προϊόντα</a>
-            <a className="button button-secondary" href="/shops?status=partner">Ενεργά καταστήματα</a>
+      <HomeHeroCarousel slides={heroSlides}>
+        <section className={`${styles.hero} shell`} id="top">
+          <div className={styles.heroCopy}>
+            <div className="eyebrow">Η τοπική αγορά · πιο απλά, πιο ανθρώπινα</div>
+            <h1 className={styles.heroTitle}>Βρες το στη Σπάρτη. Αγόρασέ το από ανθρώπους που το γνωρίζουν.</h1>
+            <p className={styles.heroLead}>
+              Προϊόντα από τοπικά καταστήματα, πραγματική συμβουλή όταν τη χρειάζεσαι και μία καθαρή εμπειρία αγοράς — χωρίς να ψάχνεις σε δεκάδες διαφορετικά e-shops.
+            </p>
+            <div className={styles.heroActions}>
+              <a className="button" href="/shop">Όλα τα προϊόντα</a>
+              <a className="button button-secondary" href="/shops?status=partner">Ενεργά καταστήματα</a>
+            </div>
+            <div className={styles.heroProof} aria-label="ΚΟΝΤΑ ΜΟΥ Sparta benefits">
+              <span><strong>4</strong> επιλογές που ανανεώνονται</span>
+              <span><strong>Fair</strong> ανάθεση καταστήματος</span>
+              <span><strong>1</strong> ενιαίο checkout</span>
+            </div>
           </div>
-          <div className={styles.heroProof} aria-label="ΚΟΝΤΑ ΜΟΥ Sparta benefits">
-            <span><strong>4</strong> επιλογές που ανανεώνονται</span>
-            <span><strong>Fair</strong> ανάθεση καταστήματος</span>
-            <span><strong>1</strong> ενιαίο checkout</span>
-          </div>
-        </div>
 
-        <div className={styles.heroVisual} aria-hidden="true">
-          <div className={styles.marketCard}>
-            <div className={styles.marketCardTop}><span>ΚΟΝΤΑ ΜΟΥ</span><span>SPARTA · 23100</span></div>
-            <div className={styles.marketPulse}>
-              <span className={styles.pulseCore}>LOCAL</span>
-              <span className={styles.pulseRingOne} />
-              <span className={styles.pulseRingTwo} />
-              <span className={`${styles.pulseDot} ${styles.pulseDotOne}`} />
-              <span className={`${styles.pulseDot} ${styles.pulseDotTwo}`} />
-              <span className={`${styles.pulseDot} ${styles.pulseDotThree}`} />
+          <div className={styles.heroVisual} aria-hidden="true">
+            <div className={styles.marketCard}>
+              <div className={styles.marketCardTop}><span>ΚΟΝΤΑ ΜΟΥ</span><span>SPARTA · 23100</span></div>
+              <div className={styles.marketPulse}>
+                <span className={styles.pulseCore}>LOCAL</span>
+                <span className={styles.pulseRingOne} />
+                <span className={styles.pulseRingTwo} />
+                <span className={`${styles.pulseDot} ${styles.pulseDotOne}`} />
+                <span className={`${styles.pulseDot} ${styles.pulseDotTwo}`} />
+                <span className={`${styles.pulseDot} ${styles.pulseDotThree}`} />
+              </div>
+              <div className={styles.marketCardBottom}>
+                <strong>Discover locally.</strong>
+                <span>Fair exposure · real advice · local pickup</span>
+              </div>
             </div>
-            <div className={styles.marketCardBottom}>
-              <strong>Discover locally.</strong>
-              <span>Fair exposure · real advice · local pickup</span>
-            </div>
+            <div className={`${styles.floatingMetric} ${styles.metricTop}`}>✓ Δίκαιη εναλλαγή καταστημάτων</div>
+            <div className={`${styles.floatingMetric} ${styles.metricBottom}`}>Ρώτησε άνθρωπο, όχι αλγόριθμο</div>
           </div>
-          <div className={`${styles.floatingMetric} ${styles.metricTop}`}>✓ Δίκαιη εναλλαγή καταστημάτων</div>
-          <div className={`${styles.floatingMetric} ${styles.metricBottom}`}>Ρώτησε άνθρωπο, όχι αλγόριθμο</div>
-        </div>
-      </section>
+        </section>
+      </HomeHeroCarousel>
 
       <section className={`${styles.searchDock} shell`} aria-labelledby="home-search-title">
         <div className={styles.searchIntro}>
