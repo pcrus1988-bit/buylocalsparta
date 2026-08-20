@@ -22,6 +22,7 @@ export class PostgresMyDataService {
     this.#client=input.client;
     this.#issuanceEnabled=input.issuanceEnabled;
     this.#deploymentMappingPin=input.approvedMappingVersion?.trim()||undefined;
+    if(this.#issuanceEnabled&&!this.#deploymentMappingPin)throw new Error("AADE myDATA issuance requires BLS_MYDATA_MAPPING_VERSION");
   }
 
   async workspace(principal:SessionPrincipal):Promise<{environment:string;specVersion:string;issuanceEnabled:boolean;approvedMappingVersion?:string;deploymentMappingPin?:string;documents:readonly MyDataDocumentProjection[]}>
