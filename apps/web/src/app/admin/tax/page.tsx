@@ -5,6 +5,7 @@ import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
 import { FiscalDocumentPreparationForm } from "../../../components/FiscalDocumentPreparationForm";
 import { MyDataConnectivityButton } from "../../../components/MyDataConnectivityButton";
+import { MyDataReportingReconciliation } from "../../../components/MyDataReportingReconciliation";
 import { TaxConfigurationEditor } from "../../../components/TaxConfigurationEditor";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminAccountingPolicyWorkspace } from "../../../lib/admin-tax-policy-runtime";
@@ -68,6 +69,11 @@ export default async function Page() {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Read-only reconciliation" title="Compare local fiscal MARKs with AADE VAT / E3 reporting" note="Checks the selected fiscal period without changing, resending or correcting any document. An incomplete AADE result can never be shown as clean." />
+      <MyDataReportingReconciliation />
+    </div></section>
+
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Configuration editor" title="Everything fiscal, managed from Admin" note="Approved Accounting Policies remain immutable. Any policy change after approval is made through a new auditable revision; secrets are never returned to the browser." />
       <TaxConfigurationEditor
         csrfToken={principal.csrfToken}
@@ -80,7 +86,7 @@ export default async function Page() {
         credentialsConfigured={configured}
         credentialSource={credentialSource}
       />
-    </div></section>
+    </section>
 
     {policy ? <>
       <section className="shell vendor-section">
