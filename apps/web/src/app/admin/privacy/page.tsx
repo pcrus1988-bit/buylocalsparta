@@ -5,6 +5,7 @@ import { AdminActionButton } from "../../../components/AdminActionButton";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminPrivacyWorkspace } from "../../../lib/admin-governance-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
+import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ customer?: string }> }) {
   const principal = await getAdminSession();
@@ -14,6 +15,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
   const params = await searchParams;
   const customerFilter = params.customer?.trim();
   const requests = customerFilter ? data.requests.filter((request) => request.userId === customerFilter) : data.requests;
+  const requestReferences = await marketplaceReferenceMap("privacy", requests.map((request) => request.id));
   const submitted = requests.filter((request) => request.status === "submitted").length;
   const processing = requests.filter((request) => request.status === "processing").length;
   const completed = requests.filter((request) => ["completed", "partial", "partially_completed"].includes(request.status)).length;
@@ -21,7 +23,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">GDPR operations</div><h1>Privacy requests</h1><p className="lead">Προτεραιότητα στα overdue και submitted requests, με retention-aware completion και καθαρό processing state.</p>{customerFilter && <div className="hero-actions"><span className="status-pill">Customer {customerFilter}</span><Link className="text-link" href={`/admin/customers/${encodeURIComponent(customerFilter)}`}>Customer 360 →</Link><Link className="text-link" href="/admin/privacy">Clear filter →</Link></div>}</div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">GDPR operations</div><h1>Privacy requests</h1><p className="lead">Προτεραιότητα στα overdue και submitted requests, με retention-aware completion και καθαρό processing state.</p>{customerFilter && <div className="hero-actions"><span className="status-pill">Customer filter</span><Link className="text-link" href={`/admin/customers/${encodeURIComponent(customerFilter)}`}>Customer 360 →</Link><Link className="text-link" href="/admin/privacy">Clear filter →</Link></div>}</div></section>
 
     <WorkspaceMetricStrip items={[
       { label: customerFilter ? "Matching requests" : "Requests", value: requests.length },
@@ -36,8 +38,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
         const targetAt = new Date(request.targetAt);
         const isOverdue = targetAt.getTime() < Date.now() && !["completed", "partial", "partially_completed", "rejected"].includes(request.status);
         return <article className="workspace-queue-card" key={request.id}>
-          <div className="workspace-queue-head"><div><strong>{request.type}</strong><small>Target {targetAt.toLocaleDateString("el-GR")}{isOverdue ? " · overdue" : ""}</small></div><span className="status-pill">{request.status}</span></div>
-          <WorkspaceRecordDetails label="Request & user references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Request ID</strong><span>{request.id}</span></div><div className="workspace-compact-row"><strong>User ID</strong><span>{request.userId}</span><small><Link className="text-link" href={`/admin/customers/${encodeURIComponent(request.userId)}`}>Customer 360 →</Link></small></div></div></WorkspaceRecordDetails>
+          <div className="workspace-queue-head"><div><strong>{requestReferences.get(request.id) ?? request.id}</strong><small>{request.type} · Target {targetAt.toLocaleDateString("el-GR")}{isOverdue ? " · overdue" : ""}</small></div><span className="status-pill">{request.status}</span></div>
+          <WorkspaceRecordDetails label="Request context"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Type</strong><span>{request.type}</span></div><div className="workspace-compact-row"><strong>Customer</strong><span>Customer account</span><small><Link className="text-link" href={`/admin/customers/${encodeURIComponent(request.userId)}`}>Customer 360 →</Link></small></div></div></WorkspaceRecordDetails>
           {!['completed', 'partial', 'partially_completed', 'rejected'].includes(request.status) && <div className="workspace-action-bar"><span>{isOverdue ? "Target date has passed — prioritise this request." : `Current state: ${request.status}`}</span><div className="workspace-action-buttons">{request.status === "submitted" && <AdminActionButton label="Start processing" endpoint="/api/admin/privacy/action" csrfToken={data.csrfToken} body={{ requestId: request.id, action: "start" }} />}{["submitted", "processing"].includes(request.status) && <><AdminActionButton label="Complete" endpoint="/api/admin/privacy/action" csrfToken={data.csrfToken} body={{ requestId: request.id, action: "complete" }} /><AdminActionButton label="Partial + retention" endpoint="/api/admin/privacy/action" csrfToken={data.csrfToken} body={{ requestId: request.id, action: "partial" }} /></>}</div></div>}
         </article>;
       })}</div>}
