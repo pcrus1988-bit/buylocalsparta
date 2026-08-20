@@ -146,7 +146,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS payment_disputes_reference_number_uidx ON paym
 
 ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS reference_number text;
 WITH ranked AS (
-  SELECT id, 10000 + row_number() OVER (ORDER BY submitted_at, id) AS n
+  SELECT id, 10000 + row_number() OVER (ORDER BY created_at, id) AS n
   FROM privacy_requests
 )
 UPDATE privacy_requests p
