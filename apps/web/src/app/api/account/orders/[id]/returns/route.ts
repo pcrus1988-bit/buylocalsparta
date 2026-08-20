@@ -1,6 +1,7 @@
 import { requireAccountSession } from "../../../../../../lib/account-session";
 import { requestCustomerReturn } from "../../../../../../lib/account-view";
 import { CUSTOMER_RETURN_REASONS, type CustomerReturnReason } from "../../../../../../lib/customer-returns-service";
+import { sendTransactionalEmailBestEffort } from "../../../../../../lib/transactional-email";
 
 type Context = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -18,14 +19,38 @@ export async function POST(request: Request, { params }: Context) {
     if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error("Return quantity must be a positive integer");
     if (!CUSTOMER_RETURN_REASONS.includes(reason as CustomerReturnReason)) throw new Error("Choose a valid return reason");
     if (requestedRemedy !== "refund") throw new Error("Customer self-service currently supports refund requests only");
-    return Response.json(await requestCustomerReturn(principal, {
+    const result = await requestCustomerReturn(principal, {
       orderId: id,
       orderLineId,
       quantity,
       reason: reason as CustomerReturnReason,
       requestedRemedy: "refund",
       note
-    }));
+    });
+    const latestReturn = result.returns[0];
+    const reference = latestReturn?.returnNumber ?? latestReturn?.id ?? id;
+    await sendTransactionalEmailBestEffort({
+      to: principal.email,
+      subject: `Λάβαμε το αίτημα επιστροφής · ${reference}`,
+      text: [
+        `Λάβαμε το αίτημα επιστροφής για την παραγγελία ${result.referenceNumber}.`,
+        "",
+        `Αριθμός αιτήματος: ${reference}`,
+        `Ποσότητα: ${quantity}`,
+        "",
+        "Η ομάδα KONTA MOY θα ελέγξει την επιλεξιμότητα και θα σε ενημερώσει για τα επόμενα βήματα. Μην αποστείλεις το προϊόν πριν λάβεις οδηγίες επιστροφής."
+      ].join("\n"),
+      eventType: "return.requested",
+      idempotencyKey: `customer-return-requested:${latestReturn?.id ?? `${id}:${orderLineId}:${reference}`}`,
+      payload: {
+        orderId: id,
+        returnId: latestReturn?.id,
+        returnReference: reference,
+        ctaPath: `/account/orders/${encodeURIComponent(id)}`,
+        ctaLabel: "Προβολή αιτήματος"
+      }
+    });
+    return Response.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "return_request_failed";
     const status = ["ORDER_NOT_FOUND", "ORDER_OR_LINE_NOT_FOUND"].includes(message) ? 404 : 400;

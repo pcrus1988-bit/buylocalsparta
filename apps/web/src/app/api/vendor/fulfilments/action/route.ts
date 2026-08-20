@@ -1,6 +1,7 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { actOnVendorFulfilment, vendorDashboard } from "../../../../../lib/vendor-runtime";
 import { syncVendorFulfilmentLifecycle } from "../../../../../lib/order-lifecycle";
+import { sendVendorRejectionOutcomeEmails } from "../../../../../lib/vendor-rejection-email";
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     const now = Date.now();
     await actOnVendorFulfilment(principal, { fulfilmentId, action, now });
     await syncVendorFulfilmentLifecycle(principal, { fulfilmentId, action, now });
+    if (action === "reject") await sendVendorRejectionOutcomeEmails({ fulfilmentId });
     return Response.json(await vendorDashboard(principal));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "fulfilment_action_failed" }, { status: 400 });

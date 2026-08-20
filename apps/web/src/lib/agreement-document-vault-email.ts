@@ -1,5 +1,5 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
-import { resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
+import { renderKontaMoyEmail, resendConfigFromEnv, signedKontaMoyText } from "@buy-local-sparta/resend-notifications";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { KONTA_MOY_LEGAL_DETAILS } from "./vendor-agreement-pdf";
 import {
@@ -20,6 +20,26 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
   if (!destination) throw new Error("Vendor contract email is missing");
   const attachment = await readAgreementVaultPdf(String(row.unsigned_pdf_object_key));
   const config = resendConfigFromEnv();
+  const publicBaseUrl = publicBaseUrlFromEnv();
+  const emailInput = {
+    subject: `KONTA MOY – Συμφωνία συνεργασίας ${row.agreement_code}`,
+    text: [
+      `Σας αποστέλλουμε τη συμφωνία συνεργασίας ${row.agreement_code} (έκδοση v${row.agreement_version}).`,
+      "",
+      "Παρακαλούμε ελέγξτε προσεκτικά τα στοιχεία και τους εμπορικούς όρους του συνημμένου εγγράφου.",
+      "Μετά τον έλεγχο, ολοκληρώστε τη συνυπογραφή μέσω gov.gr και αποστείλετε στην ομάδα KONTA MOY το reference του υπογεγραμμένου εγγράφου.",
+      "",
+      `Για οποιαδήποτε διευκρίνιση μπορείτε να απαντήσετε σε αυτό το email ή να επικοινωνήσετε στο ${KONTA_MOY_LEGAL_DETAILS.phone}.`
+    ].join("\n"),
+    eventType: "vendor.agreement_signature_requested",
+    locale: "el",
+    payload: {
+      agreementId: row.public_id,
+      agreementCode: row.agreement_code,
+      ctaUrl: `mailto:${KONTA_MOY_LEGAL_DETAILS.email}`,
+      ctaLabel: "Επικοινωνία για τη συμφωνία"
+    }
+  } as const;
   const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/emails`, {
     method: "POST",
     headers: {
@@ -31,8 +51,9 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
       from: config.from,
       to: [destination],
       reply_to: KONTA_MOY_LEGAL_DETAILS.email,
-      subject: `KONTA MOY – Συμφωνία συνεργασίας ${row.agreement_code}`,
-      text: `Σας αποστέλλουμε τη συμφωνία συνεργασίας ${row.agreement_code} (έκδοση v${row.agreement_version}). Παρακαλούμε ελέγξτε τα στοιχεία και ολοκληρώστε τη συνυπογραφή μέσω gov.gr. Για οποιαδήποτε διευκρίνιση: ${KONTA_MOY_LEGAL_DETAILS.email}.`,
+      subject: emailInput.subject,
+      text: signedKontaMoyText(emailInput, { publicBaseUrl }),
+      html: renderKontaMoyEmail(emailInput, { publicBaseUrl }),
       attachments: [{ filename: `${row.agreement_code}-v${row.agreement_version}-unsigned.pdf`, content: attachment.toString("base64") }]
     })
   });
@@ -64,4 +85,11 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
   } finally {
     client.release();
   }
+}
+
+function publicBaseUrlFromEnv(): string {
+  const explicit = process.env.BLS_PUBLIC_BASE_URL?.trim() || process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
+  return production ? `https://${production.replace(/^https?:\/\//, "").replace(/\/$/, "")}` : "https://kontamou.site";
 }

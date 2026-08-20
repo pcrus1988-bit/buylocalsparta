@@ -1,5 +1,6 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { prepareCustomerFiscalDocument } from "./admin-fiscal-preparation";
+import { deliverAcceptedCustomerTaxDocumentById } from "./customer-tax-delivery";
 import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { capturePaidOrderForFiscalIssuance } from "./customer-fiscal-runtime";
 import { configuredMyDataService, myDataAdminRuntimeConfig } from "./mydata-runtime";
@@ -39,14 +40,19 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
   if (!config.issuanceEnabled) return { orderId, orderNumber, documentId, fiscalStatus: "captured" };
 
   const existing = await fiscalSnapshot(orderId, orderNumber, documentId);
-  if (existing.fiscalStatus === "accepted") return existing;
+  if (existing.fiscalStatus === "accepted") {
+    await emailAcceptedDocumentBestEffort(documentId, config.emailAcceptedDocuments);
+    return existing;
+  }
 
   // A numbered document with a prior uncertain/rejected transmission must be reconciled
   // against AADE before any attempt to prepare or send it again.
   if (existing.documentNumber && ["rejected", "manual_review"].includes(existing.fiscalStatus)) {
     try {
       await reconcileCustomerFiscalDocument(documentId, now);
-      return await fiscalSnapshot(orderId, orderNumber, documentId);
+      const reconciled = await fiscalSnapshot(orderId, orderNumber, documentId);
+      if (reconciled.fiscalStatus === "accepted") await emailAcceptedDocumentBestEffort(documentId, config.emailAcceptedDocuments);
+      return reconciled;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AADE reconciliation failed";
       await recordFiscalFailure(documentId, message).catch(() => undefined);
@@ -74,12 +80,28 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
     if (transmission.ok && transmission.items.length > 0 && !transmission.items.some((item) => item.invoiceMark)) {
       await reconcileCustomerFiscalDocument(documentId, now);
     }
-    return await fiscalSnapshot(orderId, orderNumber, documentId);
+    const finalized = await fiscalSnapshot(orderId, orderNumber, documentId);
+    if (finalized.fiscalStatus === "accepted") await emailAcceptedDocumentBestEffort(documentId, config.emailAcceptedDocuments);
+    return finalized;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Automatic fiscalization failed";
     await recordFiscalFailure(documentId, message).catch(() => undefined);
     const snapshot = await fiscalSnapshot(orderId, orderNumber, documentId).catch(() => undefined);
     return snapshot ?? { orderId, orderNumber, documentId, fiscalStatus: "manual_review", error: message };
+  }
+}
+
+async function emailAcceptedDocumentBestEffort(documentId: string, enabled: boolean): Promise<void> {
+  if (!enabled) return;
+  try {
+    await deliverAcceptedCustomerTaxDocumentById(documentId);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "customer_tax.email_delivery_failed",
+      documentId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
   }
 }
 

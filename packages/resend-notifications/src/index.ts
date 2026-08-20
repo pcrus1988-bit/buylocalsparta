@@ -10,6 +10,31 @@ export type ResendConfig = Readonly<{
   webhookSecret?: string;
 }>;
 
+export type KontaMoyEmailInput = Readonly<{
+  subject: string;
+  text: string;
+  eventType: string;
+  locale?: string;
+  payload?: Readonly<Record<string, unknown>>;
+}>;
+
+export const KONTA_MOY_EMAIL_COMPANY = Object.freeze({
+  brand: "KONTA MOY",
+  descriptor: "Buy Local Sparta",
+  legalName: "SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ",
+  taxNumber: "182294894",
+  gemiNumber: "193836403000",
+  gemiStatus: "Ενεργή",
+  gemiAuthority: "ΕΠΑΓΓΕΛΜΑΤΙΚΟ ΕΠΙΜΕΛΗΤΗΡΙΟ ΑΘΗΝΑΣ",
+  address: "Αστυπαλαίας 32, 11256 Αθήνα",
+  email: "info@kontamou.site",
+  phone: "6936999686",
+  website: "https://kontamou.site",
+  representative: "Πολιάκοφ Στανισλάβ"
+});
+
+const CUSTOMER_LOCAL_SUPPORT_LINE = "Σε ευχαριστούμε που, χρησιμοποιώντας το KONTA MOY, στηρίζεις τις τοπικές επιχειρήσεις. ❤️";
+
 export class ResendEmailProvider implements NotificationProvider {
   readonly channel = "email" as const;
   readonly name = "resend";
@@ -38,12 +63,106 @@ export class ResendEmailProvider implements NotificationProvider {
   async send(input: { notification: Notification; destination: string; idempotencyKey: string }): Promise<{ providerMessageId: string }> {
     const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),this.#config.timeoutMs);
     try{
-      const response=await this.#fetch(`${this.#config.baseUrl.replace(/\/$/,"")}/emails`,{method:"POST",headers:{authorization:`Bearer ${this.#config.apiKey}`,"content-type":"application/json","idempotency-key":input.idempotencyKey},body:JSON.stringify({from:this.#config.from,to:[input.destination],subject:input.notification.title,text:input.notification.body,...(this.#config.replyTo?{reply_to:this.#config.replyTo}:{})}),signal:controller.signal});
+      const emailInput: KontaMoyEmailInput = {
+        subject: input.notification.title,
+        text: input.notification.body,
+        eventType: input.notification.eventType,
+        locale: input.notification.locale,
+        payload: input.notification.payload
+      };
+      const publicBaseUrl=publicBaseUrlFromEnv();
+      const response=await this.#fetch(`${this.#config.baseUrl.replace(/\/$/,"")}/emails`,{method:"POST",headers:{authorization:`Bearer ${this.#config.apiKey}`,"content-type":"application/json","idempotency-key":input.idempotencyKey},body:JSON.stringify({from:this.#config.from,to:[input.destination],subject:input.notification.title,text:signedKontaMoyText(emailInput,{publicBaseUrl}),html:renderKontaMoyEmail(emailInput,{publicBaseUrl}),...(this.#config.replyTo?{reply_to:this.#config.replyTo}:{})}),signal:controller.signal});
       const body=await response.json().catch(()=>({})) as {id?:unknown;message?:unknown};
       if(!response.ok||typeof body.id!=="string")throw new Error(`Resend send failed (${response.status}): ${typeof body.message==="string"?body.message:"unexpected response"}`);
       return{providerMessageId:body.id};
     }finally{clearTimeout(timer);}
   }
+}
+
+export function renderKontaMoyEmail(input: KontaMoyEmailInput, config: { publicBaseUrl?: string } = {}): string {
+  const publicBaseUrl=(config.publicBaseUrl?.trim()||"https://kontamou.site").replace(/\/$/,"");
+  const body=stripShortSignature(input.text);
+  const recipient=recipientKind(input.eventType);
+  const tone=emailTone(input.eventType);
+  const cta=resolveCta(input,publicBaseUrl);
+  const paragraphs=body.split(/\n{2,}/).filter(Boolean).map((paragraph)=>`<p style="font-size:16px;line-height:1.65;margin:0 0 18px;white-space:pre-line;">${escapeHtml(paragraph)}</p>`).join("");
+  const preheader=escapeHtml(stringPayload(input.payload,"preheader")||body.split("\n").find(Boolean)||input.subject);
+  const customerThanks=recipient==="customer"?`<div style="margin-top:26px;padding-top:22px;border-top:1px solid #d6cfbf;font-size:15px;line-height:1.6;font-weight:700;color:#405149;">${escapeHtml(CUSTOMER_LOCAL_SUPPORT_LINE)}</div>`:"";
+  return `<!doctype html><html lang="${escapeHtml(input.locale||"el")}"><body style="margin:0;background:#f4f0e8;font-family:Arial,Helvetica,sans-serif;color:#183027"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${preheader}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f0e8;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:24px;overflow:hidden"><tr><td style="background:#183027;padding:30px 34px;color:#fffdf8"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td><div style="width:46px;height:46px;border:1px solid #f4f0e8;border-radius:50%;line-height:46px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.12em">KM</div></td><td style="text-align:right;font-size:11px;letter-spacing:.14em;font-weight:700;color:#d8d8c7">KONTA MOY · BUY LOCAL SPARTA</td></tr></table><div style="margin-top:26px;font-size:11px;letter-spacing:.14em;color:${tone.accent};font-weight:800">${escapeHtml(tone.label)}</div><h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:34px;line-height:1.08;margin:10px 0 0;color:#fffdf8">${escapeHtml(input.subject)}</h1></td></tr><tr><td style="padding:34px">${paragraphs}<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:8px"><tr><td style="border-radius:999px;background:#183027"><a href="${escapeHtml(cta.url)}" style="display:inline-block;padding:14px 22px;color:#fffdf8;text-decoration:none;font-size:14px;font-weight:800">${escapeHtml(cta.label)} →</a></td></tr></table>${customerThanks}</td></tr><tr><td style="background:#101f18;padding:26px 34px;color:#d9e1dc;font-size:11px;line-height:1.7"><div style="font-size:12px;font-weight:800;color:#fffdf8;letter-spacing:.07em;margin-bottom:7px">KONTA MOY · BUY LOCAL SPARTA</div><strong style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.legalName)}</strong><br>ΑΦΜ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.taxNumber)} · ΓΕΜΗ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiNumber)} (${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiStatus)})<br>Αρμόδιο Επιμελητήριο: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiAuthority)}<br>Έδρα: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.address)} · Νόμιμος εκπρόσωπος: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.representative)}<br><a href="tel:+306936999686" style="color:#fffdf8">693 699 9686</a> · <a href="mailto:${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}" style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}</a> · <a href="${escapeHtml(KONTA_MOY_EMAIL_COMPANY.website)}" style="color:#fffdf8">www.kontamou.site</a></td></tr></table></td></tr></table></body></html>`;
+}
+
+export function signedKontaMoyText(input: KontaMoyEmailInput, config: { publicBaseUrl?: string } = {}): string {
+  const publicBaseUrl=(config.publicBaseUrl?.trim()||"https://kontamou.site").replace(/\/$/,"");
+  const body=stripShortSignature(input.text);
+  const cta=resolveCta(input,publicBaseUrl);
+  const customerThanks=recipientKind(input.eventType)==="customer"?`\n\n${CUSTOMER_LOCAL_SUPPORT_LINE}`:"";
+  const ctaLine=body.includes(cta.url)?"":`\n\n${cta.label}: ${cta.url}`;
+  return `${body}${ctaLine}${customerThanks}\n\n—\n${KONTA_MOY_EMAIL_COMPANY.brand} · ${KONTA_MOY_EMAIL_COMPANY.descriptor}\n${KONTA_MOY_EMAIL_COMPANY.legalName}\nΑΦΜ ${KONTA_MOY_EMAIL_COMPANY.taxNumber} · ΓΕΜΗ ${KONTA_MOY_EMAIL_COMPANY.gemiNumber} (${KONTA_MOY_EMAIL_COMPANY.gemiStatus})\nΑρμόδιο Επιμελητήριο: ${KONTA_MOY_EMAIL_COMPANY.gemiAuthority}\nΈδρα: ${KONTA_MOY_EMAIL_COMPANY.address}\nΝόμιμος εκπρόσωπος: ${KONTA_MOY_EMAIL_COMPANY.representative}\nΤηλ.: ${KONTA_MOY_EMAIL_COMPANY.phone}\nEmail: ${KONTA_MOY_EMAIL_COMPANY.email}\nWebsite: ${KONTA_MOY_EMAIL_COMPANY.website}`;
+}
+
+function recipientKind(eventType:string):"customer"|"vendor"|"internal"{
+  if(/^vendor\./.test(eventType)||/agreement/.test(eventType))return"vendor";
+  if(/^(admin\.|ops\.|email\.inbound)/.test(eventType))return"internal";
+  return"customer";
+}
+
+function emailTone(eventType:string):{label:string;accent:string}{
+  if(/^(admin\.|ops\.)/.test(eventType))return{label:"OPERATIONS",accent:"#b29661"};
+  if(/(tax|fiscal|refund|agreement)/.test(eventType))return{label:"ΕΠΙΣΗΜΗ ΕΝΗΜΕΡΩΣΗ",accent:"#b29661"};
+  if(/^vendor\./.test(eventType))return{label:"VENDOR WORKSPACE",accent:"#c7c9a8"};
+  if(/(password|verification|security)/.test(eventType))return{label:"ΑΣΦΑΛΕΙΑ ΛΟΓΑΡΙΑΣΜΟΥ",accent:"#c7c9a8"};
+  return{label:"KONTA MOY",accent:"#e0a58f"};
+}
+
+function resolveCta(input:KontaMoyEmailInput,publicBaseUrl:string):{label:string;url:string}{
+  const explicitUrl=stringPayload(input.payload,"ctaUrl");
+  const explicitPath=stringPayload(input.payload,"ctaPath");
+  const explicitLabel=stringPayload(input.payload,"ctaLabel");
+  if(explicitUrl||explicitPath)return{label:explicitLabel||"Άνοιγμα",url:absoluteUrl(publicBaseUrl,explicitUrl||explicitPath!)};
+  const bodyUrl=firstUrl(input.text);
+  if(bodyUrl&&/activation|verification|password|setup/.test(input.eventType))return{label:activationCtaLabel(input.eventType),url:bodyUrl};
+  const orderId=stringPayload(input.payload,"orderId");
+  if(orderId&&recipientKind(input.eventType)==="customer")return{label:"Προβολή παραγγελίας",url:`${publicBaseUrl}/account/orders/${encodeURIComponent(orderId)}`};
+  if(/^vendor\.(sla|order)/.test(input.eventType))return{label:"Άνοιγμα Vendor Daily",url:`${publicBaseUrl}/daily`};
+  if(/^vendor\./.test(input.eventType))return{label:"Άνοιγμα Vendor Workspace",url:`${publicBaseUrl}/vendor`};
+  if(/^admin\./.test(input.eventType))return{label:"Άνοιγμα Admin",url:`${publicBaseUrl}/admin`};
+  if(/ask[_-]local/.test(input.eventType))return{label:"Προβολή Ask Local",url:`${publicBaseUrl}/account`};
+  if(/return\.|refund\.|shipping\.|tax|order\./.test(input.eventType))return{label:"Άνοιγμα λογαριασμού",url:`${publicBaseUrl}/account`};
+  return{label:"Άνοιγμα KONTA MOY",url:publicBaseUrl};
+}
+
+function activationCtaLabel(eventType:string):string{
+  if(/password|setup|activation/.test(eventType))return"Ολοκλήρωση πρόσβασης";
+  if(/verification/.test(eventType))return"Επιβεβαίωση email";
+  return"Άνοιγμα KONTA MOY";
+}
+
+function stripShortSignature(value:string):string{
+  return String(value??"").replace(/\n*\s*KONTA MOY\s*[·|—-]\s*Buy Local Sparta\s*$/iu,"").trim();
+}
+
+function stringPayload(payload:Readonly<Record<string,unknown>>|undefined,key:string):string|undefined{
+  const value=payload?.[key];return typeof value==="string"&&value.trim()?value.trim():undefined;
+}
+
+function firstUrl(value:string):string|undefined{
+  const match=value.match(/https?:\/\/[^\s<>]+/i);return match?.[0]?.replace(/[),.;]+$/,"");
+}
+
+function absoluteUrl(base:string,value:string):string{
+  if(/^(https?:\/\/|mailto:|tel:)/i.test(value))return value;
+  return `${base.replace(/\/$/,"")}/${value.replace(/^\//,"")}`;
+}
+
+function escapeHtml(value:unknown):string{
+  return String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]??char));
+}
+
+function publicBaseUrlFromEnv(env:NodeJS.ProcessEnv=process.env):string{
+  const explicit=env.BLS_PUBLIC_BASE_URL?.trim()||env.NEXT_PUBLIC_SITE_URL?.trim();
+  if(explicit)return explicit.replace(/\/$/,"");
+  const production=env.VERCEL_PROJECT_PRODUCTION_URL?.trim()||env.VERCEL_URL?.trim();
+  return production?`https://${production.replace(/^https?:\/\//,"").replace(/\/$/,"")}`:"https://kontamou.site";
 }
 
 export type ResendWebhookEvent = Readonly<{ id:string; type:string; createdAt:number; emailId?:string; data:Readonly<Record<string,unknown>> }>;
