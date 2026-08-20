@@ -1,0 +1,255 @@
+/* KONTA MOU typography: Comfortaa is loaded through next/font in app/layout.tsx.
+   Keep this file last in the global CSS import order so legacy Arial/Georgia
+   declarations cannot fragment the visual language. */
+html,
+body,
+body *,
+body *::before,
+body *::after {
+  font-family: var(--font-comfortaa), Arial, Helvetica, sans-serif !important;
+}
+
+:root {
+  --km-text-base: 16px;
+  --km-text-ui: 14px;
+  --km-text-meta: 12px;
+  --km-line-base: 1.5;
+  --km-line-copy: 1.6;
+}
+
+/* Dashboard/app baselines */
+.vendor-app,
+.account-app,
+.account-order-page {
+  font-size: var(--km-text-base);
+  line-height: var(--km-line-base);
+}
+
+/* Workspace identity + navigation */
+.workspace-identity strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.workspace-identity small,
+.workspace-context small,
+.workspace-session {
+  font-size: var(--km-text-meta);
+  line-height: 1.4;
+}
+
+.workspace-context > span,
+.workspace-nav-label,
+.workspace-nav-group > summary > span,
+.workspace-nav-group > summary > small {
+  font-size: var(--km-text-meta);
+}
+
+.workspace-context strong {
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.workspace-nav a {
+  min-height: 44px;
+  font-size: var(--km-text-ui);
+  line-height: 1.3;
+}
+
+.workspace-link-index,
+.workspace-footer-action,
+.workspace-public-link,
+.workspace-menu-toggle span {
+  font-size: var(--km-text-meta);
+}
+
+/* Dashboard hero, toolbar and actions */
+.vendor-app .vendor-hero .lead,
+.vendor-app .dashboard-hero-refined .lead,
+.account-app .dashboard-hero-refined .lead {
+  font-size: var(--km-text-base);
+  line-height: var(--km-line-copy);
+}
+
+.vendor-app .vendor-hero aside span,
+.vendor-app .vendor-hero aside p,
+.vendor-toolbar > div:first-child > small,
+.dashboard-section-heading .section-note,
+.account-section-intro.dashboard-section-heading p,
+.workspace-quick-heading p {
+  font-size: var(--km-text-ui);
+  line-height: var(--km-line-copy);
+}
+
+.vendor-app .button,
+.account-app .button,
+.workspace-action-buttons .button {
+  min-height: 44px;
+  font-size: var(--km-text-ui);
+  line-height: 1.2;
+}
+
+/* Quick actions */
+.workspace-quick-kicker,
+.workspace-quick-card > span {
+  font-size: var(--km-text-meta);
+}
+
+.workspace-quick-card > small,
+.workspace-quick-section.is-compact .workspace-quick-card > small {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspace-quick-card > i {
+  font-size: var(--km-text-meta);
+}
+
+/* KPI / metric cards */
+.vendor-kpis > div > span,
+.admin-summary-grid > article > span,
+.account-snapshot span,
+.account-snapshot.dashboard-kpis-refined > div > span,
+.workspace-page-metric > span,
+.workspace-page-metric > small,
+.dashboard-stat-grid span {
+  font-size: var(--km-text-meta);
+  line-height: 1.4;
+}
+
+/* Admin insights */
+.dashboard-insight-card > p {
+  font-size: var(--km-text-ui);
+  line-height: var(--km-line-copy);
+}
+
+/* Customer account navigation */
+.account-identity small {
+  font-size: var(--km-text-meta);
+}
+
+.account-identity strong {
+  font-size: var(--km-text-ui);
+}
+
+.account-section-nav a,
+.account-section-nav-primary a,
+.account-section-nav-more > summary {
+  min-height: 42px;
+  font-size: var(--km-text-ui);
+}
+
+.account-snapshot small {
+  font-size: var(--km-text-meta);
+}
+
+.account-section-intro p,
+.account-muted {
+  font-size: var(--km-text-ui);
+  line-height: var(--km-line-copy);
+}
+
+/* Customer order/list content */
+.order-row > div:first-child strong,
+.mini-list strong,
+.preference-row strong,
+.order-detail-line strong {
+  font-size: var(--km-text-ui);
+  line-height: 1.45;
+}
+
+.order-row small,
+.mini-list small,
+.preference-row small,
+.recent-grid small,
+.order-detail-line small,
+.order-detail-heading p,
+.order-cancel-card p,
+.order-detail-heading.is-refined .order-detail-id {
+  font-size: var(--km-text-meta);
+  line-height: 1.5;
+}
+
+.order-lines,
+.mini-list span,
+.recent-grid strong,
+.order-detail-line > span:not(.status-pill) {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.order-total span,
+.mini-list button,
+.order-cancel-card label,
+.order-cancel-disclosure > summary,
+.order-help-links a {
+  font-size: var(--km-text-meta);
+}
+
+/* Operational workspace pages */
+.workspace-page-section-side p,
+.workspace-page-empty p,
+.workspace-record-details > summary,
+.workspace-tool-panel > summary small,
+.workspace-queue-head small,
+.workspace-queue-primary > span,
+.workspace-queue-summary,
+.workspace-action-bar > span,
+.workspace-inline-note,
+.workspace-form-field label,
+.workspace-compact-row span,
+.workspace-compact-row small {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspace-queue-head strong,
+.workspace-compact-row strong {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.workspace-message {
+  font-size: var(--km-text-ui);
+  line-height: 1.55;
+}
+
+/* Forms: readable on desktop and prevents tiny mobile fields/zoom surprises */
+.vendor-app input,
+.vendor-app select,
+.vendor-app textarea,
+.account-app input,
+.account-app select,
+.account-app textarea,
+.account-order-page input,
+.account-order-page select,
+.account-order-page textarea {
+  font-size: var(--km-text-base);
+  line-height: 1.4;
+}
+
+/* Status / utility text should remain compact, but never microscopic. */
+.vendor-app .status-pill,
+.account-app .status-pill,
+.account-order-page .status-pill {
+  font-size: var(--km-text-meta);
+  line-height: 1.2;
+}
+
+/* Mobile keeps the same readable text floor. */
+@media (max-width: 620px) {
+  .workspace-nav a,
+  .account-section-nav a,
+  .account-section-nav-more > summary,
+  .vendor-app .button,
+  .account-app .button {
+    font-size: var(--km-text-ui);
+  }
+
+  .workspace-page-section-side p,
+  .workspace-queue-summary,
+  .workspace-action-bar > span,
+  .account-muted {
+    font-size: var(--km-text-ui);
+  }
+}
