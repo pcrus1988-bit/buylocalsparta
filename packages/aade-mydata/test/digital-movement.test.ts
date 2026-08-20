@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   AadeMyDataClient,
+  assessConfirmDeliveryReturnState,
   buildConfirmDeliveryReturnXml,
   deliveryNoteStatusQuery,
+  normalizeDeliveryNoteStatus,
   parseConfirmDeliveryReturnResponse,
   parseDeliveryNoteStatusResponse
 } from "../src/public.ts";
@@ -88,6 +90,8 @@ test("GetDeliveryNoteStatus supports mark or the 2.0.2 qrUrl alternative", async
   assert.match(urls[0] ?? "", /GetDeliveryNoteStatus\?mark=400000000000001&issuerVatNumber=123456789$/);
   assert.match(urls[1] ?? "", /GetDeliveryNoteStatus\?qrUrl=https%3A%2F%2Fmydata\.aade\.gr%2Fqr%3Fid%3Ddelivery-1$/);
   assert.equal(byMark.status, "DELIVERED_BY_CARRIER");
+  assert.equal(byMark.statusCode, 5);
+  assert.equal(byMark.statusName, "DeliveredByCarrier");
   assert.equal(byQr.invoiceMark, "400000000000001");
   assert.equal(byQr.lifecycleHistory[0]?.outcome, "PARTIAL");
   assert.equal(byQr.lifecycleHistory[0]?.deliveredWithoutRecipient, false);
@@ -97,8 +101,9 @@ test("delivery status query enforces AADE parameter exclusivity and qrUrl versio
   assert.equal(deliveryNoteStatusQuery({ mark: "123" }), "mark=123");
   assert.throws(() => deliveryNoteStatusQuery({ mark: "abc" }), /MARK must be numeric/);
   assert.throws(() => deliveryNoteStatusQuery({ mark: "123", issuerVatNumber: "123" }), /9 digits/);
-  const parsed = parseDeliveryNoteStatusResponse(`<DeliveryNoteStatusResponse><invoiceMark>123</invoiceMark><status>REJECTED</status></DeliveryNoteStatusResponse>`);
-  assert.equal(parsed.status, "REJECTED");
+  const parsed = parseDeliveryNoteStatusResponse(`<DeliveryNoteStatusResponse><invoiceMark>123</invoiceMark><status>4</status></DeliveryNoteStatusResponse>`);
+  assert.equal(parsed.statusCode, 4);
+  assert.equal(parsed.statusName, "Rejected");
 
   let called = false;
   const oldClient = new AadeMyDataClient({ ...cfg, specVersion: "2.0.1" }, async () => {
@@ -109,4 +114,22 @@ test("delivery status query enforces AADE parameter exclusivity and qrUrl versio
   assert.equal(called, false);
   await oldClient.getDeliveryNoteStatus({ mark: "123" });
   assert.equal(called, true);
+});
+
+test("AADE delivery return state assessment distinguishes safe states from context-dependent InTransit", () => {
+  assert.deepEqual(normalizeDeliveryNoteStatus("InTransit (Return)"), { code: 9, name: "InTransitReturn" });
+  assert.equal(assessConfirmDeliveryReturnState({ status: "4", statusCode: 4, statusName: "Rejected", lifecycleHistory: [], rawXml: "" }).state, "state_eligible");
+  assert.equal(assessConfirmDeliveryReturnState({ status: "9", statusCode: 9, statusName: "InTransitReturn", lifecycleHistory: [], rawXml: "" }).state, "state_eligible");
+
+  const partial = parseDeliveryNoteStatusResponse(`<DeliveryNoteStatusResponse><status>5</status><lifecycleHistory><eventType>ConfirmOutcome</eventType><outcomeDetails><outcome>PARTIAL</outcome></outcomeDetails></lifecycleHistory></DeliveryNoteStatusResponse>`);
+  assert.equal(assessConfirmDeliveryReturnState(partial).state, "state_eligible");
+  const full = parseDeliveryNoteStatusResponse(`<DeliveryNoteStatusResponse><status>5</status><lifecycleHistory><eventType>ConfirmOutcome</eventType><outcomeDetails><outcome>FULL</outcome></outcomeDetails></lifecycleHistory></DeliveryNoteStatusResponse>`);
+  assert.equal(assessConfirmDeliveryReturnState(full).state, "not_state_eligible");
+
+  const inTransit = parseDeliveryNoteStatusResponse(`<DeliveryNoteStatusResponse><status>3</status></DeliveryNoteStatusResponse>`);
+  assert.equal(assessConfirmDeliveryReturnState(inTransit).state, "requires_invoice_context");
+  assert.equal(assessConfirmDeliveryReturnState(inTransit, { invoiceType: "9.2" }).state, "state_eligible");
+  assert.equal(assessConfirmDeliveryReturnState(inTransit, { invoiceType: "9.3", reverseDeliveryNote: true }).state, "state_eligible");
+  assert.equal(assessConfirmDeliveryReturnState(inTransit, { invoiceType: "9.3", reverseDeliveryNote: false }).state, "not_state_eligible");
+  assert.equal(assessConfirmDeliveryReturnState(inTransit, { invoiceType: "1.1" }).issuerMustMatch, true);
 });
