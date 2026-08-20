@@ -150,6 +150,10 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/notifications",
   "/admin/operations",
   "/admin/orders",
+  "/admin/partners",
+  "/admin/partners/[id]",
+  "/admin/partners/pipeline",
+  "/admin/platform",
   "/admin/privacy",
   "/admin/prospects",
   "/admin/recalls",
@@ -157,10 +161,12 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/research-vendors",
   "/admin/research-vendors/[id]",
   "/admin/reviews",
+  "/admin/search",
   "/admin/shipping",
   "/admin/tax",
   "/admin/trust",
-  "/admin/vendors"
+  "/admin/vendors",
+  "/admin/work"
 ] as const;
 
 // Keep /vendor itself out of robots.txt because /vendor/[id] is the public merchant-profile namespace.

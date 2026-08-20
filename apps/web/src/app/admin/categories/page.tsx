@@ -16,7 +16,7 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Commerce policy</div><h1>Categories</h1><p className="lead">Δες πρώτα τον ενεργό commerce mode ανά κατηγορία και άνοιξε το policy editor μόνο όταν χρειάζεται αλλαγή.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Catalog · taxonomy governance</div><h1>Categories & Policies</h1><p className="lead">Κατηγορίες και commerce policies σε μία επιφάνεια. Ο ενεργός commerce mode είναι primary signal και το policy editor ανοίγει μόνο όταν χρειάζεται αλλαγή.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Categories", value: data.categories.length },

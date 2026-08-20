@@ -16,10 +16,10 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Product safety</div><h1>Recalls</h1><p className="lead">Open safety notices stay visually urgent; creation and technical product references remain deliberate secondary actions.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Trust & Safety</div><h1>Product Safety</h1><p className="lead">Open safety notices και recalls παραμένουν visually urgent· creation και technical product references είναι deliberate secondary actions.</p></div></section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Notices", value: data.notices.length },
+      { label: "Safety notices", value: data.notices.length },
       { label: "Open", value: open, tone: open ? "attention" : "positive" },
       { label: "Resolved", value: resolved },
       { label: "Affected customers", value: data.affected.length, tone: data.affected.length ? "attention" : "default" }
@@ -27,13 +27,13 @@ export default async function Page() {
 
     <section className="shell vendor-section">
       <details className="workspace-tool-panel">
-        <summary><span><strong>Open new recall</strong><small>Safety action · choose canonical product, severity and details.</small></span></summary>
-        <div className="workspace-tool-body"><AdminJsonForm endpoint="/api/admin/recalls" csrfToken={data.csrfToken} label="Open recall" fields={[{ name: "canonicalVariantId", label: "Canonical product", type: "select", options: data.products.map((product) => product.id) }, { name: "severity", label: "Severity", type: "select", options: ["low", "medium", "high", "critical"] }, { name: "details", label: "Recall details" }]} /></div>
+        <summary><span><strong>Open new safety notice</strong><small>Safety action · choose canonical product, severity and details.</small></span></summary>
+        <div className="workspace-tool-body"><AdminJsonForm endpoint="/api/admin/recalls" csrfToken={data.csrfToken} label="Open notice" fields={[{ name: "canonicalVariantId", label: "Canonical product", type: "select", options: data.products.map((product) => product.id) }, { name: "severity", label: "Severity", type: "select", options: ["low", "medium", "high", "critical"] }, { name: "details", label: "Safety / recall details" }]} /></div>
       </details>
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Safety notices" title="Recall queue" note="Resolve + restore remains explicit; an open recall never disappears behind a passive content card." />
+      <WorkspaceSectionHeading eyebrow="Safety notices" title="Product safety queue" note="Resolve + restore remains explicit; an open safety notice never disappears behind passive content." />
       {data.notices.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν product safety notices." /> : <div className="workspace-queue-list">{data.notices.map((notice) => <article className="workspace-queue-card" key={notice.id}>
         <div className="workspace-queue-head"><div><strong>{notice.type}</strong><small>{notice.details}</small></div><span className="status-pill">{notice.status}</span></div>
         <WorkspaceRecordDetails label="Product & notice references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Canonical variant</strong><span>{notice.canonicalVariantId}</span></div><div className="workspace-compact-row"><strong>Notice ID</strong><span>{notice.id}</span></div></div></WorkspaceRecordDetails>

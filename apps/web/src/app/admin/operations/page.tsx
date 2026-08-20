@@ -5,7 +5,7 @@ import { WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading }
 import { adminOperationsWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
-export const metadata: Metadata = { title: "Admin · Operations", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · System Health & Audit", robots: { index: false, follow: false } };
 
 export default async function Page() {
   const principal = await getAdminSession();
@@ -16,7 +16,7 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Operational health</div><h1>Operations</h1><p className="lead">Readiness, security telemetry και audit trail σε μία επιφάνεια με τα προβλήματα πρώτα και τις τεχνικές λεπτομέρειες δεύτερες.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · health & governance</div><h1>System Health & Audit</h1><p className="lead">Dependency readiness, security telemetry και audit trail σε μία τεχνική επιφάνεια, ξεχωριστά από τις καθημερινές marketplace operations.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Readiness checks", value: data.health.checks.length },
