@@ -30,7 +30,10 @@ import { assertInvoiceXmlPreflight } from "./preflight.ts";
 import {
   parseE3InfoResponse,
   parseVatInfoResponse,
+  type MyDataE3InfoRecord,
   type MyDataE3InfoResponse,
+  type MyDataReportingCollection,
+  type MyDataVatInfoRecord,
   type MyDataVatInfoResponse
 } from "./reporting.ts";
 
@@ -41,6 +44,10 @@ export type MyDataReportingQuery = Readonly<{
   groupedPerDay?: boolean;
   nextPartitionKey?: string;
   nextRowKey?: string;
+}>;
+
+export type MyDataReportingCollectionOptions = Readonly<{
+  maxPages?: number;
 }>;
 
 export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
@@ -98,12 +105,56 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
     return parseVatInfoResponse(await this.requestVatInfo(input));
   }
 
+  async requestVatInfoAll(input: MyDataReportingQuery, options: MyDataReportingCollectionOptions = {}): Promise<MyDataReportingCollection<MyDataVatInfoRecord>> {
+    const maxPages = reportingPageLimit(options.maxPages);
+    const records: MyDataVatInfoRecord[] = [];
+    const seen = new Set<string>();
+    let queryInput: MyDataReportingQuery = { ...input };
+    let continuation: MyDataVatInfoResponse["continuation"];
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const response = await this.requestVatInfoParsed(queryInput);
+      records.push(...response.records);
+      continuation = response.continuation;
+      if (!continuation) return { records, pages: page, complete: true };
+      const token = continuationKey(continuation);
+      if (seen.has(token)) throw new Error("AADE RequestVatInfo repeated a continuation token; reporting collection stopped to prevent an infinite loop");
+      seen.add(token);
+      if (page === maxPages) return { records, pages: page, complete: false, continuation };
+      queryInput = { ...input, nextPartitionKey: continuation.nextPartitionKey, nextRowKey: continuation.nextRowKey };
+    }
+
+    return { records, pages: 0, complete: true };
+  }
+
   async requestE3Info(input: MyDataReportingQuery): Promise<string> {
     return this.#extendedRequest(`RequestE3Info?${reportingQuery(input)}`, { method: "GET" });
   }
 
   async requestE3InfoParsed(input: MyDataReportingQuery): Promise<MyDataE3InfoResponse> {
     return parseE3InfoResponse(await this.requestE3Info(input));
+  }
+
+  async requestE3InfoAll(input: MyDataReportingQuery, options: MyDataReportingCollectionOptions = {}): Promise<MyDataReportingCollection<MyDataE3InfoRecord>> {
+    const maxPages = reportingPageLimit(options.maxPages);
+    const records: MyDataE3InfoRecord[] = [];
+    const seen = new Set<string>();
+    let queryInput: MyDataReportingQuery = { ...input };
+    let continuation: MyDataE3InfoResponse["continuation"];
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const response = await this.requestE3InfoParsed(queryInput);
+      records.push(...response.records);
+      continuation = response.continuation;
+      if (!continuation) return { records, pages: page, complete: true };
+      const token = continuationKey(continuation);
+      if (seen.has(token)) throw new Error("AADE RequestE3Info repeated a continuation token; reporting collection stopped to prevent an infinite loop");
+      seen.add(token);
+      if (page === maxPages) return { records, pages: page, complete: false, continuation };
+      queryInput = { ...input, nextPartitionKey: continuation.nextPartitionKey, nextRowKey: continuation.nextRowKey };
+    }
+
+    return { records, pages: 0, complete: true };
   }
 
   async #extendedRequest(path: string, init: RequestInit): Promise<string> {
@@ -153,6 +204,19 @@ function reportingQuery(input: MyDataReportingQuery): string {
   if (input.nextPartitionKey?.trim()) q.set("nextPartitionKey", input.nextPartitionKey.trim());
   if (input.nextRowKey?.trim()) q.set("nextRowKey", input.nextRowKey.trim());
   return q.toString();
+}
+
+function reportingPageLimit(value: number | undefined): number {
+  if (value === undefined) return 25;
+  if (!Number.isSafeInteger(value) || value < 1 || value > 100) throw new Error("myDATA reporting maxPages must be an integer between 1 and 100");
+  return value;
+}
+
+function continuationKey(value: Readonly<{ nextPartitionKey?: string; nextRowKey?: string }>): string {
+  const partition = value.nextPartitionKey?.trim() ?? "";
+  const row = value.nextRowKey?.trim() ?? "";
+  if (!partition && !row) throw new Error("AADE reporting continuation token is empty");
+  return `${partition}\u0000${row}`;
 }
 
 function assertAadeDate(value: string, label: string): void {
