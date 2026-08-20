@@ -20,6 +20,7 @@ import "./admin-directory-search.css";
 import "./admin-orders-directory.css";
 import "./admin-local-tabs.css";
 import "./admin-partner-record.css";
+import "./admin-matching-split.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
