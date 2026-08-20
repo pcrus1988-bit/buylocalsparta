@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Comfortaa } from "next/font/google";
 import "./globals.css";
 import "./storefront-merchants.css";
 import "./storefront-advice.css";
@@ -12,8 +13,15 @@ import "./checkout-polish.css";
 import "./dashboard-luxury.css";
 import "./workspace-pages.css";
 import "./workspace-metrics-polish.css";
+import "./typography-readability.css";
 import { CartProvider } from "../components/CartProvider";
 import { publicOrigin } from "../lib/public-origin";
+
+const comfortaa = Comfortaa({
+  subsets: ["greek", "latin"],
+  display: "swap",
+  variable: "--font-comfortaa"
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicOrigin()),
@@ -34,7 +42,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="el">
+    <html lang="el" className={comfortaa.variable}>
       <body><CartProvider>{children}</CartProvider></body>
     </html>
   );
