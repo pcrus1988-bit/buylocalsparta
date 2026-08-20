@@ -10,6 +10,7 @@
     "./classification-preflight": "./src/classification-preflight.ts",
     "./payment-method-preflight": "./src/payment-method-preflight.ts",
     "./order-preflight": "./src/order-preflight.ts",
-    "./reporting": "./src/reporting.ts"
+    "./reporting": "./src/reporting.ts",
+    "./mapping-reference": "./src/mapping-reference.ts"
   }
 }
