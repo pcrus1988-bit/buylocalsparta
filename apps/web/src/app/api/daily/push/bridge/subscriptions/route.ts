@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { verifyDailyPushBridgeToken } from "../../../../../../../lib/daily-push-bridge";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../../../lib/postgres-runtime";
+import { verifyDailyPushBridgeToken } from "../../../../../../lib/daily-push-bridge";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../../lib/postgres-runtime";
 
 export const runtime = "nodejs";
 
