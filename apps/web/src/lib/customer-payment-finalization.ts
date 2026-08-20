@@ -26,6 +26,8 @@ const SYSTEM_FISCAL_PRINCIPAL: SessionPrincipal = {
   sessionId: "system-fiscalization"
 };
 
+const SUCCESS_WITHOUT_MARK_RECONCILIATION_DELAYS_MS = [2_000, 4_000] as const;
+
 export async function finalizeCapturedCustomerPayment(orderId: string, now = Date.now()): Promise<CapturedPaymentFinalization> {
   const orderNumber = await publicOrderNumber(orderId);
   await syncConfirmedOrderLifecycle(orderId, now);
@@ -74,11 +76,11 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
     if (!service) throw new Error("AADE myDATA service is not configured");
     const transmission = await service.transmitPreparedDocument(SYSTEM_FISCAL_PRINCIPAL, { documentId: prepared.documentId, now });
 
-    // AADE can return statusCode=Success while the immediate ResponseDoc omits MARK.
-    // Never interpret that as a rejection or resend blindly: verify the issued document
-    // through RequestTransmittedDocs and recover its authoritative MARK/UID/QR.
+    // AADE can acknowledge SendInvoices with Success before the transmitted-document index
+    // is immediately queryable. Never resend the numbered invoice. Give the read-only index
+    // a short bounded consistency window and only mark manual review after the final miss.
     if (transmission.ok && transmission.items.length > 0 && !transmission.items.some((item) => item.invoiceMark)) {
-      await reconcileCustomerFiscalDocument(documentId, now);
+      await reconcileSuccessWithoutMark(documentId);
     }
     const finalized = await fiscalSnapshot(orderId, orderNumber, documentId);
     if (finalized.fiscalStatus === "accepted") await emailAcceptedDocumentBestEffort(documentId, config.emailAcceptedDocuments);
@@ -89,6 +91,19 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
     const snapshot = await fiscalSnapshot(orderId, orderNumber, documentId).catch(() => undefined);
     return snapshot ?? { orderId, orderNumber, documentId, fiscalStatus: "manual_review", error: message };
   }
+}
+
+async function reconcileSuccessWithoutMark(documentId: string): Promise<void> {
+  for (let index = 0; index < SUCCESS_WITHOUT_MARK_RECONCILIATION_DELAYS_MS.length; index += 1) {
+    await sleep(SUCCESS_WITHOUT_MARK_RECONCILIATION_DELAYS_MS[index]!);
+    const finalAttempt = index === SUCCESS_WITHOUT_MARK_RECONCILIATION_DELAYS_MS.length - 1;
+    const result = await reconcileCustomerFiscalDocument(documentId, Date.now(), { markPendingOnMiss: finalAttempt });
+    if (result.accepted) return;
+  }
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 async function emailAcceptedDocumentBestEffort(documentId: string, enabled: boolean): Promise<void> {
