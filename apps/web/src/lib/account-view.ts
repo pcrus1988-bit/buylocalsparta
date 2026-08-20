@@ -11,6 +11,7 @@ import { customerReturnsSnapshot, requestCustomerReturn as createCustomerReturnC
 import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
+import { customerOrderReference, resolveCustomerOrderReference } from "./public-reference";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -46,14 +47,14 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
     const product = catalogMap.get(item.canonicalVariantId)!;
     return { ...item, title: product.title, price: product.price };
   });
-  const orders = ordersRaw.map((order) => ({
-    id: order.id,
+  const orders = await Promise.all(ordersRaw.map(async (order) => ({
+    id: await customerOrderReference(principal, order.id),
     status: customerOrderStatusLabel(order),
     total: formatMoney(order.total),
     createdAt: order.createdAt,
     fulfilmentMode: order.fulfilmentMode,
     lines: order.lines.map((line) => ({ id: line.id, title: line.titleSnapshot, quantity: line.quantity, status: line.status }))
-  }));
+  })));
   return {
     account: { userId: principal.userId, email: principal.email },
     csrfToken: principal.csrfToken,
@@ -71,13 +72,14 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
 }
 
 export async function accountOrderDetail(principal: SessionPrincipal, orderId: string) {
-  let order = await customerOrder(principal, orderId);
+  const reference = await resolveCustomerOrderReference(principal, orderId);
+  let order = await customerOrder(principal, reference.internalId);
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
   // Self-heal lifecycle side effects for older production orders created before the
   // notification / pickup bridge was enabled. All operations are idempotent.
-  await repairCustomerOrderLifecycle(principal, orderId);
-  order = await customerOrder(principal, orderId) ?? order;
+  await repairCustomerOrderLifecycle(principal, reference.internalId);
+  order = await customerOrder(principal, reference.internalId) ?? order;
 
   const physicalHandoverStarted = order.fulfilments.some((fulfilment) => ["ready_for_handover", "handed_over", "shipped", "delivered"].includes(fulfilment.status));
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
@@ -85,27 +87,28 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
   const [vendorEntries, pickups, invoice, returns] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
-    customerPickupCredentials(principal, orderId),
-    customerFiscalDocumentForOrder(orderId),
-    customerReturnsSnapshot(principal, orderId)
+    customerPickupCredentials(principal, reference.internalId),
+    customerFiscalDocumentForOrder(reference.internalId),
+    customerReturnsSnapshot(principal, reference.internalId)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
+  return orderDetailProjection(order, reference.referenceNumber, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
     uid: invoice.uid,
     qrUrl: invoice.qrUrl,
     issuedAt: invoice.issuedAt,
-    downloadUrl: `/api/account/orders/${encodeURIComponent(orderId)}/invoice`
+    downloadUrl: `/api/account/orders/${encodeURIComponent(reference.internalId)}/invoice`
   } : undefined);
 }
 
 export async function cancelCustomerOrder(principal: SessionPrincipal, input: { orderId: string; reason: string; now?: number }) {
   const now = input.now ?? Date.now();
-  const updated = await cancelCustomerCommerceOrder(principal, { orderId: input.orderId, reason: input.reason, now });
-  await createCustomerNotification({ userId: principal.userId, eventType: "order.cancelled", title: "Η παραγγελία ακυρώθηκε", body: `Παραγγελία ${updated.id}`, payload: { orderId: updated.id }, dedupeKey: `web-order:${updated.id}:cancelled`, now });
-  return accountOrderDetail(principal, updated.id);
+  const reference = await resolveCustomerOrderReference(principal, input.orderId);
+  await cancelCustomerCommerceOrder(principal, { orderId: reference.internalId, reason: input.reason, now });
+  await createCustomerNotification({ userId: principal.userId, eventType: "order.cancelled", title: "Η παραγγελία ακυρώθηκε", body: `Παραγγελία ${reference.referenceNumber}`, payload: { orderId: reference.referenceNumber }, dedupeKey: `web-order:${reference.internalId}:cancelled`, now });
+  return accountOrderDetail(principal, reference.referenceNumber);
 }
 
 export async function requestCustomerReturn(principal: SessionPrincipal, input: {
@@ -118,21 +121,23 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
   now?: number;
 }) {
   const now = input.now ?? Date.now();
-  const created = await createCustomerReturnCase(principal, { ...input, now });
+  const reference = await resolveCustomerOrderReference(principal, input.orderId);
+  const created = await createCustomerReturnCase(principal, { ...input, orderId: reference.internalId, now });
   await createCustomerNotification({
     userId: principal.userId,
     eventType: "return.requested",
     title: "Λάβαμε το αίτημα επιστροφής",
     body: `Αίτημα ${created.returnNumber} · θα ενημερωθείτε μόλις ολοκληρωθεί ο έλεγχος.`,
-    payload: { orderId: input.orderId, returnId: created.returnId, returnNumber: created.returnNumber },
+    payload: { orderId: reference.referenceNumber, returnId: created.returnId, returnNumber: created.returnNumber },
     dedupeKey: `return:${created.returnId}:requested`,
     now
   });
-  return accountOrderDetail(principal, input.orderId);
+  return accountOrderDetail(principal, reference.referenceNumber);
 }
 
 function orderDetailProjection(
   order: CustomerOrder,
+  referenceNumber: string,
   csrfToken: string,
   canCancel: boolean,
   vendorNames: ReadonlyMap<string, string>,
@@ -141,7 +146,7 @@ function orderDetailProjection(
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
 ) {
   return {
-    id: order.id,
+    id: referenceNumber,
     status: customerOrderStatusLabel(order),
     sourceStatus: order.status,
     createdAt: order.createdAt,
