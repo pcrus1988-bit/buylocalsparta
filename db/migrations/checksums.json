@@ -45,7 +45,7 @@
   "0045_catalog_taxonomy_books_stationery_toys.sql": "15bc3b781465fe7a1073c01e938dc6931f73565a4a6c6a5dd1fcad28c2b422c6",
   "0046_reclassify_demo_books_taxonomy.sql": "90a1c30fc5dd12c2abc765b8afc1f1474e68d954f9b83319b9f986fa77d5ff72",
   "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2f5eedf51bd3d26c25b48855a704cfb02084f03215437f6",
-  "0048_catalog_taxonomy_fashion.sql": "d1477429846e939ce6bb482934dd36f5c506651170a7f724fba4fabffe23da07",
+  "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
   "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
   "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcebebfd7c3d562414dce1a92a6349eedf81b34e5547d08c416",
