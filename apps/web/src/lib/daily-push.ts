@@ -16,6 +16,7 @@ type WebPushModule = {
   sendNotification(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }, payload: string, options?: { TTL?: number; urgency?: string }): Promise<unknown>;
 };
 type VapidConfig = Readonly<{ publicKey?: string; privateKey?: string; subject?: string; ready: boolean; source: "environment" | "vault" | "none" }>;
+type DailyVapidSecretRow = Readonly<{ secret_name: string; secret_value: string }>;
 
 export type DailyPushSubscriptionInput = Readonly<{
   endpoint: string;
@@ -34,18 +35,21 @@ function environmentConfig(): VapidConfig {
   return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject), source: publicKey && privateKey ? "environment" : "none" };
 }
 
-async function readVaultConfig(): Promise<VapidConfig> {
-  if (!productionDatabaseConfigured()) return { ready: false, source: "none" };
-  const rows = await getProductionPostgresRuntime().nativePool.query<{ name: string; decrypted_secret: string }>(`
-    SELECT name,decrypted_secret
-    FROM vault.decrypted_secrets
-    WHERE name = ANY($1::text[])
-  `, [[VAULT_PUBLIC_NAME, VAULT_PRIVATE_NAME, VAULT_SUBJECT_NAME]]);
-  const values = new Map(rows.rows.map((row) => [String(row.name), String(row.decrypted_secret)]));
+function vapidConfigFromRows(rows: ReadonlyArray<DailyVapidSecretRow>): VapidConfig {
+  const values = new Map(rows.map((row) => [String(row.secret_name), String(row.secret_value)]));
   const publicKey = values.get(VAULT_PUBLIC_NAME)?.trim();
   const privateKey = values.get(VAULT_PRIVATE_NAME)?.trim();
   const subject = values.get(VAULT_SUBJECT_NAME)?.trim() || process.env.BLS_WEB_PUSH_SUBJECT?.trim() || DEFAULT_VAPID_SUBJECT;
   return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject), source: publicKey && privateKey ? "vault" : "none" };
+}
+
+async function readVaultConfig(): Promise<VapidConfig> {
+  if (!productionDatabaseConfigured()) return { ready: false, source: "none" };
+  const rows = await getProductionPostgresRuntime().nativePool.query<DailyVapidSecretRow>(`
+    SELECT secret_name,secret_value
+    FROM bls_private.get_daily_vapid_config()
+  `);
+  return vapidConfigFromRows(rows.rows);
 }
 
 async function provisionVaultConfig(): Promise<VapidConfig> {
@@ -55,15 +59,14 @@ async function provisionVaultConfig(): Promise<VapidConfig> {
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtext('bls:web-push:vapid'))");
-    const rows = await client.query<{ name: string; decrypted_secret: string }>(`
-      SELECT name,decrypted_secret
-      FROM vault.decrypted_secrets
-      WHERE name = ANY($1::text[])
-    `, [[VAULT_PUBLIC_NAME, VAULT_PRIVATE_NAME, VAULT_SUBJECT_NAME]]);
-    const values = new Map(rows.rows.map((row) => [String(row.name), String(row.decrypted_secret)]));
-    let publicKey = values.get(VAULT_PUBLIC_NAME)?.trim();
-    let privateKey = values.get(VAULT_PRIVATE_NAME)?.trim();
-    let subject = values.get(VAULT_SUBJECT_NAME)?.trim();
+    const rows = await client.query<DailyVapidSecretRow>(`
+      SELECT secret_name,secret_value
+      FROM bls_private.get_daily_vapid_config()
+    `);
+    const existing = vapidConfigFromRows(rows.rows);
+    let publicKey = existing.publicKey;
+    let privateKey = existing.privateKey;
+    let subject = rows.rows.find((row) => row.secret_name === VAULT_SUBJECT_NAME)?.secret_value?.trim();
 
     if (Boolean(publicKey) !== Boolean(privateKey)) {
       throw new Error("Supabase Vault contains an incomplete VAPID key pair; repair the pair before enabling Daily push");
@@ -72,12 +75,12 @@ async function provisionVaultConfig(): Promise<VapidConfig> {
       const generated = webPushModule().generateVAPIDKeys();
       publicKey = generated.publicKey;
       privateKey = generated.privateKey;
-      await client.query("SELECT vault.create_secret($1,$2,$3,NULL)", [publicKey, VAULT_PUBLIC_NAME, "KONTA MOY Daily Web Push VAPID public key"]);
-      await client.query("SELECT vault.create_secret($1,$2,$3,NULL)", [privateKey, VAULT_PRIVATE_NAME, "KONTA MOY Daily Web Push VAPID private key"]);
+      await client.query("SELECT bls_private.create_daily_vapid_secret($1,$2,$3)", [publicKey, VAULT_PUBLIC_NAME, "KONTA MOY Daily Web Push VAPID public key"]);
+      await client.query("SELECT bls_private.create_daily_vapid_secret($1,$2,$3)", [privateKey, VAULT_PRIVATE_NAME, "KONTA MOY Daily Web Push VAPID private key"]);
     }
     if (!subject) {
       subject = process.env.BLS_WEB_PUSH_SUBJECT?.trim() || DEFAULT_VAPID_SUBJECT;
-      await client.query("SELECT vault.create_secret($1,$2,$3,NULL)", [subject, VAULT_SUBJECT_NAME, "KONTA MOY Daily Web Push VAPID contact subject"]);
+      await client.query("SELECT bls_private.create_daily_vapid_secret($1,$2,$3)", [subject, VAULT_SUBJECT_NAME, "KONTA MOY Daily Web Push VAPID contact subject"]);
     }
     await client.query("COMMIT");
     return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject), source: "vault" };
