@@ -7,6 +7,7 @@ import {
 } from "@buy-local-sparta/core";
 import { createCustomerNotification, customerStateSnapshot } from "./customer-state-runtime";
 import { customerOrder, customerOrders, cancelCustomerCommerceOrder } from "./customer-commerce-runtime";
+import { customerReturnsSnapshot, requestCustomerReturn as createCustomerReturnCase, type CustomerReturnReason, type CustomerReturnRemedy, type CustomerReturnsSnapshot } from "./customer-returns-service";
 import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
@@ -82,13 +83,14 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups, invoice] = await Promise.all([
+  const [vendorEntries, pickups, invoice, returns] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
     customerPickupCredentials(principal, orderId),
-    customerFiscalDocumentForOrder(orderId)
+    customerFiscalDocumentForOrder(orderId),
+    customerReturnsSnapshot(principal, orderId)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups, invoice ? {
+  return orderDetailProjection(order, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
@@ -106,12 +108,36 @@ export async function cancelCustomerOrder(principal: SessionPrincipal, input: { 
   return accountOrderDetail(principal, updated.id);
 }
 
+export async function requestCustomerReturn(principal: SessionPrincipal, input: {
+  orderId: string;
+  orderLineId: string;
+  quantity: number;
+  reason: CustomerReturnReason;
+  requestedRemedy: CustomerReturnRemedy;
+  note?: string;
+  now?: number;
+}) {
+  const now = input.now ?? Date.now();
+  const created = await createCustomerReturnCase(principal, { ...input, now });
+  await createCustomerNotification({
+    userId: principal.userId,
+    eventType: "return.requested",
+    title: "Λάβαμε το αίτημα επιστροφής",
+    body: `Αίτημα ${created.returnNumber} · θα ενημερωθείτε μόλις ολοκληρωθεί ο έλεγχος.`,
+    payload: { orderId: input.orderId, returnId: created.returnId, returnNumber: created.returnNumber },
+    dedupeKey: `return:${created.returnId}:requested`,
+    now
+  });
+  return accountOrderDetail(principal, input.orderId);
+}
+
 function orderDetailProjection(
   order: CustomerOrder,
   csrfToken: string,
   canCancel: boolean,
   vendorNames: ReadonlyMap<string, string>,
   pickups: readonly CustomerPickupCredential[],
+  returns: CustomerReturnsSnapshot,
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
 ) {
   return {
@@ -130,9 +156,22 @@ function orderDetailProjection(
     canCancel,
     csrfToken,
     invoice,
-    lines: order.lines.map((line) => ({ id: line.id, canonicalVariantId: line.canonicalVariantId, title: line.titleSnapshot, quantity: line.quantity, status: line.status, retailUnitPrice: formatMoney(line.retailUnitPrice), vendorId: line.vendorId, vendorName: vendorNames.get(line.vendorId) ?? line.vendorId })),
+    lines: order.lines.map((line) => ({
+      id: line.id,
+      canonicalVariantId: line.canonicalVariantId,
+      title: line.titleSnapshot,
+      quantity: line.quantity,
+      fulfilledQuantity: line.fulfilledQuantity,
+      refundedQuantity: line.refundedQuantity,
+      returnableQuantity: returns.returnableByLine[line.id] ?? Math.max(0, line.fulfilledQuantity - line.refundedQuantity),
+      status: line.status,
+      retailUnitPrice: formatMoney(line.retailUnitPrice),
+      vendorId: line.vendorId,
+      vendorName: vendorNames.get(line.vendorId) ?? line.vendorId
+    })),
     fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds })),
-    pickups
+    pickups,
+    returns: returns.cases
   };
 }
 

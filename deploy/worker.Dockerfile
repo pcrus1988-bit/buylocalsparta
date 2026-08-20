@@ -22,7 +22,9 @@ COPY packages/viva-payments/package.json packages/viva-payments/package.json
 RUN npm install --omit=dev --ignore-scripts
 
 COPY --chown=node:node packages ./packages
+COPY --chown=node:node apps/web/src/lib ./apps/web/src/lib
 COPY --chown=node:node workers ./workers
+COPY --chown=node:node scripts/resolve-typescript-extension.mjs ./scripts/resolve-typescript-extension.mjs
 COPY --chown=node:node deploy/worker-entrypoint.sh ./deploy/worker-entrypoint.sh
 
 USER node

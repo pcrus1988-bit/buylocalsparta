@@ -23,7 +23,8 @@
     "@buy-local-sparta/meilisearch-search": "0.45.0",
     "@buy-local-sparta/resend-notifications": "0.45.0",
     "@buy-local-sparta/boxnow-shipping": "0.45.0",
-    "pdfmake": "0.2.20"
+    "pdfmake": "0.2.20",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

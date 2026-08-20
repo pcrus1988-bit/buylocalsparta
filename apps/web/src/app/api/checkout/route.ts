@@ -3,10 +3,12 @@ import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
 import { checkoutCustomer, postgresCommerceEnabled } from "../../../lib/customer-commerce-runtime";
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
+import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
 import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runtime";
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
+const VIVA_MINIMUM_AMOUNT_MINOR = 30;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
 
 export async function POST(request: Request) {
@@ -71,6 +73,19 @@ export async function POST(request: Request) {
         if (!/^\+?[0-9 ()-]{8,24}$/.test(recipientPhone)) throw new Error("A valid recipient phone is required");
       }
       shipping = { provider: provider === "boxnow" ? "boxnow" : undefined, providerDestinationId: providerDestinationId || undefined, providerDestinationLabel: providerDestinationLabel || undefined, recipientName: recipientName || undefined, recipientEmail: recipientEmail || undefined, recipientPhone: recipientPhone || undefined };
+    }
+
+    if (vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
+      const runtime = getProductionPostgresRuntime();
+      let pickupTotalMinor = 0;
+      for (const item of items) {
+        const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
+        if (!availability) throw new Error(`Product ${item.canonicalVariantId} is unavailable`);
+        pickupTotalMinor += availability.product.priceMinor * item.quantity;
+      }
+      if (pickupTotalMinor < VIVA_MINIMUM_AMOUNT_MINOR) {
+        return Response.json({ error: "Η ελάχιστη αξία παραγγελίας για online πληρωμή μέσω Viva είναι 0,30 €. Αύξησε την ποσότητα ή την αξία του καλαθιού και δοκίμασε ξανά." }, { status: 422 });
+      }
     }
 
     const now = Date.now();

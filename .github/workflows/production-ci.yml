@@ -59,7 +59,7 @@ jobs:
         run: npm run typecheck:db-smoke
       - name: Typecheck staging activation tooling
         run: npm run typecheck:activation
-      - name: Bootstrap Supabase role topology
+      - name: Bootstrap Supabase role and Vault topology
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
@@ -75,6 +75,42 @@ jobs:
             END IF;
           END
           $$;
+
+          -- Supabase provides the Vault schema in hosted projects. The plain PostGIS
+          -- service used by CI does not, so reproduce only the narrow SQL contract
+          -- required to compile/test migration 0084. Production continues to use
+          -- Supabase Vault itself; this compatibility surface exists only in CI.
+          CREATE SCHEMA IF NOT EXISTS vault;
+          CREATE TABLE IF NOT EXISTS vault.secrets (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            name text UNIQUE,
+            description text,
+            secret text NOT NULL,
+            key_id uuid,
+            nonce bytea,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE OR REPLACE VIEW vault.decrypted_secrets AS
+            SELECT id, name, description, secret, secret AS decrypted_secret,
+                   key_id, nonce, created_at, updated_at
+            FROM vault.secrets;
+          CREATE OR REPLACE FUNCTION vault.create_secret(
+            new_secret text,
+            new_name text,
+            new_description text,
+            new_key_id uuid
+          ) RETURNS uuid
+          LANGUAGE plpgsql
+          AS $$
+          DECLARE
+            created_id uuid := gen_random_uuid();
+          BEGIN
+            INSERT INTO vault.secrets(id, secret, name, description, key_id)
+            VALUES(created_id, new_secret, new_name, new_description, new_key_id);
+            RETURN created_id;
+          END;
+          $$;
           SQL
       - name: Apply PostgreSQL/PostGIS migrations
         run: npm run db:migrate
@@ -82,8 +118,104 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
         run: npm run db:ready
+      - name: Bootstrap governed DB smoke vendor agreements
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users(email,password_hash,status,email_verified_at)
+          VALUES('ci-agreement-signer@example.test','ci-only-not-a-runtime-password','active',now())
+          ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
+
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_db_smoke_vendor_agreement()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          SET search_path = pg_catalog, public, bls_private
+          AS $$
+          DECLARE
+            signer_id uuid;
+          BEGIN
+            IF NEW.public_id NOT LIKE 'vendor_db_smoke_%'
+               AND NEW.public_id NOT LIKE 'vendor_rescue_db_smoke_%' THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT id INTO signer_id
+            FROM public.users
+            WHERE email='ci-agreement-signer@example.test'
+            LIMIT 1;
+
+            INSERT INTO public.vendor_commercial_agreements(
+              market_id,
+              vendor_id,
+              agreement_code,
+              agreement_version,
+              status,
+              starts_at,
+              signed_at,
+              commission_rate_bps,
+              commission_basis,
+              commission_tax_mode,
+              commission_tax_rate_bps,
+              source_document_reference,
+              terms_snapshot,
+              vendor_snapshot,
+              commercial_terms_snapshot,
+              signed_pdf_object_key,
+              signed_pdf_sha256,
+              signed_document_received_at,
+              govgr_reference,
+              govgr_verified_at,
+              govgr_verified_by,
+              activated_at,
+              activated_by
+            ) VALUES (
+              NEW.market_id,
+              NEW.id,
+              'CI-SMOKE-' || NEW.public_id,
+              1,
+              'active',
+              now() - interval '1 day',
+              now(),
+              500,
+              'merchandise_gross',
+              'included',
+              2400,
+              'ci://synthetic-governed-agreement/' || NEW.public_id,
+              jsonb_build_object('fixture','db-integration-smoke'),
+              jsonb_build_object('vendorPublicId',NEW.public_id),
+              jsonb_build_object('commissionRateBps',500),
+              'ci-smoke/' || NEW.public_id || '/signed.pdf',
+              repeat('a',64),
+              now(),
+              'CI-SMOKE-GOVGR-' || NEW.public_id,
+              now(),
+              signer_id,
+              now(),
+              signer_id
+            );
+            RETURN NEW;
+          END;
+          $$;
+
+          DROP TRIGGER IF EXISTS ci_seed_db_smoke_vendor_agreement ON public.vendor_businesses;
+          CREATE TRIGGER ci_seed_db_smoke_vendor_agreement
+          AFTER INSERT ON public.vendor_businesses
+          FOR EACH ROW
+          WHEN (
+            NEW.public_id LIKE 'vendor_db_smoke_%'
+            OR NEW.public_id LIKE 'vendor_rescue_db_smoke_%'
+          )
+          EXECUTE FUNCTION bls_private.ci_seed_db_smoke_vendor_agreement();
+          SQL
       - name: Run live database integration smoke
         run: npm run db:smoke
+      - name: Disable DB smoke agreement fixture
+        if: always()
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER IF EXISTS ci_seed_db_smoke_vendor_agreement ON public.vendor_businesses;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_db_smoke_vendor_agreement();
+          SQL
       - name: Typecheck all long-running workers
         run: npm run typecheck:workers
       - name: Build production worker container

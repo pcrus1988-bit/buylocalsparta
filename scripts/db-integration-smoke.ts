@@ -130,21 +130,25 @@ try {
     }
   });
 
-  // Seed one canonical solely for live personalization persistence proof.
+  // Seed one canonical solely for live personalization persistence proof. The
+  // taxonomy guard now requires product assignment to an explicit product-class leaf,
+  // so the synthetic smoke category must satisfy the same contract as production data.
   await runtime.sqlPool.query(`
     WITH market AS (SELECT id FROM markets WHERE code='sparta'),
     category AS (
-      INSERT INTO categories (market_id,code,slug,commerce_mode,active)
-      SELECT id,$1,$1,'standard',true FROM market
-      ON CONFLICT (market_id,slug) DO UPDATE SET active=true
+      INSERT INTO categories (market_id,code,slug,commerce_mode,active,taxonomy_role,assignable,discoverable)
+      SELECT id,$1,$1,'standard',true,'product_class',true,true FROM market
+      ON CONFLICT (market_id,slug) DO UPDATE SET
+        active=true,
+        taxonomy_role='product_class',
+        assignable=true,
+        discoverable=true
       RETURNING id
     )
     INSERT INTO canonical_variants (public_id,market_id,category_id,slug,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled)
     SELECT $2, market.id, category.id, $2, 1299, 'EUR', 2400, true, false, false FROM market,category
     ON CONFLICT (public_id) DO NOTHING
   `, [`db-smoke-${suffix}`, canonicalId]);
-
-
 
   // Seed an approved local supplier and fresh stock so public catalog, cart and checkout
   // can be proven across two independent application runtimes.
@@ -235,8 +239,6 @@ try {
   if (!searchesFromB.some((item) => item.id === savedSearch.id)) throw new Error("Saved search did not persist across instances");
   if (!notificationsFromB.some((item) => item.id === notification.id)) throw new Error("Notification centre state did not persist across instances");
   if (!privacyFromB.some((item) => item.id === privacyRequest.id)) throw new Error("Privacy request did not persist across instances");
-
-
 
   const publicFromA = await runtime.customerCommerce.publicCanonicals();
   const publicFromB = await runtimeB.customerCommerce.publicCanonicalAvailability(canonicalId, { postcode: "23100", now: now + 2_100 });
@@ -382,7 +384,6 @@ try {
   const vivaConfirmed = await vivaB.reconcileTransaction({ transactionId:vivaTransactionId, expectedOrderCode:vivaInitiatedA.orderCode, source:"webhook", now:now+3_180 });
   if (vivaConfirmed.paymentStatus !== "captured" || vivaConfirmed.orderStatus !== "confirmed") throw new Error("Verified Viva payment did not confirm the customer order");
 
-
   // Payment confirmation emits a durable transactional email. A second runtime
   // can deliver and reconcile its provider webhook against the same PostgreSQL state.
   const resendRequests:Array<{url:string;body:Record<string,unknown>;idempotency?:string}>=[];
@@ -427,13 +428,10 @@ try {
   await vivaB.handleWebhook({EventTypeId:1797,EventData:{TransactionId:refundTx,ParentId:vivaTransactionId,OrderCode:vivaInitiatedA.orderCode,Amount:-(vivaOrder.total.minor/100)}},now+3_230);
   const paymentAfterDuplicateReversal = await runtime.sqlPool.query<{refunded_minor:number} & Record<string,unknown>>("SELECT refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[vivaOrder.id]);
   if (Number(paymentAfterDuplicateReversal.rows[0]?.refunded_minor)!==vivaOrder.total.minor) throw new Error("Viva reversal webhook double-counted a synchronously recorded refund");
-  // Re-delivering the original successful payment event after the refund must not regress the payment back to captured.
   await vivaA.reconcileTransaction({transactionId:vivaTransactionId,expectedOrderCode:vivaInitiatedA.orderCode,source:"webhook",now:now+3_240});
   const paymentAfterOldSuccess = await runtime.sqlPool.query<{status:string;refunded_minor:number} & Record<string,unknown>>("SELECT status::text AS status,refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[vivaOrder.id]);
   if (paymentAfterOldSuccess.rows[0]?.status!=="refunded" || Number(paymentAfterOldSuccess.rows[0]?.refunded_minor)!==vivaOrder.total.minor) throw new Error("Out-of-order Viva success event regressed an already-refunded payment");
 
-  // Prove the cancellation/capture race is self-healing. A payment that is captured after
-  // the order has already been cancelled is refunded exactly once under a stable BLS key.
   const lateCaptureKey = `checkout-${suffix}-viva-late-capture`;
   const lateCaptureVisitor = `visitor_${suffix}_viva_late_capture`;
   const lateCaptureOrder = await runtime.customerCommerce.checkout({ checkoutKey:lateCaptureKey, visitorKey:lateCaptureVisitor, customerId:userId, postcode:"23100", fulfilmentMode:"pickup", items:[{canonicalVariantId:canonicalId,quantity:1}], now:now+3_250 });
@@ -464,7 +462,6 @@ try {
   await vendorAuthB.logout(vendorLogin.token, now + 3_300);
   if (await vendorAuthA.session(vendorLogin.token, now + 3_400)) throw new Error("Vendor session revocation was not visible across runtime instances");
 
-  // Prove platform/Admin identity and governance state are shared across instances.
   const adminAuthA = new PostgresAdminAuthService({ identity: runtime.persistence.identity, secret });
   const adminAuthB = new PostgresAdminAuthService({ identity: runtimeB.persistence.identity, secret });
   const adminLogin = await adminAuthA.authenticate({ email: adminEmail, password: "AdminStrong!123", now: now + 3_500 });

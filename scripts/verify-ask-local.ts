@@ -6,7 +6,7 @@ const failures: string[] = [];
 for (const contract of ["requireAccountSession(request, true)", "submitAskLocal", "customerAskLocalRequests"]) if (!route.includes(contract)) failures.push(`Ask Local API is missing ${contract}`);
 for (const contract of ["publicAssignedCanonical", "reason: \"product_view\"", "counteroffer_allowed", "status='active'", "vo.status='approved'", "platformAccess: true", "isolation: \"serializable\"", "cr.customer_user_id", "counteroffer.requested", "ask-local-vendor:"]) if (!service.includes(contract)) failures.push(`Ask Local service is missing ${contract}`);
 if (!service.includes("need.length < 10") || !service.includes("/^\\d{5}$/") || !service.includes("input.quantity > 99")) failures.push("Ask Local server validation is incomplete");
-if (!service.includes("['http:','https:'].includes(parsed.protocol)")) failures.push("Ask Local source links must be limited to HTTP(S)");
+if (!/\[\s*["']http:["']\s*,\s*["']https:["']\s*\]\.includes\(parsed\.protocol\)/.test(service)) failures.push("Ask Local source links must be limited to HTTP(S)");
 if (!client.includes('x-csrf-token') || !client.includes('role="alert"') || !client.includes("privateOffers")) failures.push("Ask Local client must preserve CSRF, errors and private-offer status");
 if (!page.includes("getAccountSession()") || !page.includes("login?next=") || !page.includes("customerAskLocalRequests")) failures.push("Ask Local page must gate and restore authenticated customer state");
 if (!vendorOps.includes("cr.assigned_vendor_id") || !vendorOps.includes("counteroffers:")) failures.push("Vendor workspace must consume only privately assigned Ask Local requests");

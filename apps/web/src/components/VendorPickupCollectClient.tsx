@@ -15,7 +15,7 @@ type Preview = {
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-export function VendorPickupCollectClient({ initial, token, csrfToken }: { initial: Preview; token: string; csrfToken: string }) {
+export function VendorPickupCollectClient({ initial, token, csrfToken, returnHref = "/vendor#orders", collectEndpoint = "/api/vendor/pickup/collect" }: { initial: Preview; token: string; csrfToken: string; returnHref?: string; collectEndpoint?: string }) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +24,7 @@ export function VendorPickupCollectClient({ initial, token, csrfToken }: { initi
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/vendor/pickup/collect", {
+      const response = await fetch(collectEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ token })
@@ -62,7 +62,7 @@ export function VendorPickupCollectClient({ initial, token, csrfToken }: { initi
       {data.status === "collected" && <div className="workspace-inline-note"><strong>Επιβεβαιωμένη παραλαβή.</strong>{data.collectedAt ? ` ${date(data.collectedAt)}.` : ""} Δεν απαιτείται άλλη ενέργεια.</div>}
       {data.status === "expired" && <div className="form-error">Το συγκεκριμένο credential έχει λήξει και δεν μπορεί να χρησιμοποιηθεί για handover. Επικοινώνησε με την υποστήριξη.</div>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <Link className="button button-secondary" href="/vendor#orders">Επιστροφή στις παραγγελίες</Link>
+      <Link className="button button-secondary" href={returnHref}>Επιστροφή</Link>
     </div>
   </section>;
 }

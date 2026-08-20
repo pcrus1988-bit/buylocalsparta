@@ -9,7 +9,8 @@ export function VendorLoginForm({ demoEnabled, redirectTo = "/vendor" }: { demoE
   const [password, setPassword] = useState(demoEnabled ? "Vendor!12345" : "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const safeRedirect = redirectTo.startsWith("/vendor") && !redirectTo.startsWith("//") ? redirectTo : "/vendor";
+  const isAllowedRedirect = (redirectTo.startsWith("/vendor") || redirectTo.startsWith("/daily")) && !redirectTo.startsWith("//");
+  const safeRedirect = isAllowedRedirect ? redirectTo : "/vendor";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
