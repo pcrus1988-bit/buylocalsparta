@@ -5,7 +5,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Επιστροφές & επιστροφές χρημάτων",
-  description: "Η πραγματική διαδρομή ακύρωσης, επιστροφής, ελέγχου και αποκατάστασης μιας παραγγελίας στο Buy Local Sparta.",
+  description: "Η πραγματική διαδρομή ακύρωσης, επιστροφής, ελέγχου και αποκατάστασης μιας παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Sparta.",
   alternates: { canonical: "/returns-refunds" }
 };
 
