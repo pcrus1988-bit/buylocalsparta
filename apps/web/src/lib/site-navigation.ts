@@ -106,6 +106,8 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/daily/ask-local",
   "/daily/login",
   "/daily/notifications",
+  "/daily/notifications/settings",
+  "/daily/orders",
   "/daily/pickup",
   "/daily/scan",
   "/vendor",
