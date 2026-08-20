@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./src/public.ts",
     "./catalog": "./src/catalog.ts",
     "./preflight": "./src/preflight.ts"
   }
