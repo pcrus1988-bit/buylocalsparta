@@ -71,8 +71,8 @@ for (const path of [
 requireText("apps/web/src/app/admin/partners/page.tsx", ["Commercial readiness", "commercialAgreementWorkspace", "adminSlaPolicyWorkspace", "adminVendorBillingWorkspace", "admin-insight-table", "Agreement → SLA → billing", "/admin/finance/vendor-billing"]);
 requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "adminVendorFiscalWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "partner-documents"]);
 requireText("apps/web/src/app/admin/vendors/page.tsx", ["admin-partner-directory", "/admin/partners/${encodeURIComponent(shop.id)}"]);
-requireText("apps/web/src/app/admin/customers/page.tsx", ["admin-directory-table", "Customer 360"]);
-requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds"]);
+requireText("apps/web/src/app/admin/customers/page.tsx", ["admin-directory-table", "Customer 360", "Customer saved views", "view=attention", "view=new", "view=orders", "view=unverified"]);
+requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds", "Order saved views", "view=open", "view=returns", "view=completed"]);
 requireText("apps/web/src/app/admin/search/page.tsx", ["marketplaceReferenceMap", "/admin/partners/${encodeURIComponent(shop.id)}"]);
 requireText("apps/web/src/app/admin/matching/page.tsx", ["admin-split-workspace", "admin-triage-list", "admin-decision-panel", "Approve match", "Create canonical"]);
 requireText("apps/web/src/components/AskLocalWorkflowPanel.tsx", ["admin-work-queue-split", "admin-work-list", "admin-work-detail", "Assign vendor", "Return to Admin"]);
@@ -129,4 +129,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, Action Centre, commercial readiness, content operations, partner records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, Action Centre, commercial readiness, content operations, saved directory views, partner records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
