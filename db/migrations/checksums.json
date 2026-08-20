@@ -40,6 +40,7 @@
   "0039_supabase_security_hardening.sql": "fe761b087d878316c652272ae2208ac4d56fc667bc49c88bc8f6f406f17fbd2a",
   "0040_vendor_research_dossiers.sql": "939541cdfcf380e36a9773c59f8dba8167acbb47374fe5bf04792650fcb06e0c",
   "0041_vendor_final_price_commission_agreements.sql": "63711c1d518bb2a6600082da32331154ae705ed7ac65fa23c0e40592f04de661",
+  "0043_catalog_taxonomy_bootstrap.sql": "e0933a695a67e007e2bf12e7193d3e1e95f777a37f009442f532599410d5a1ec",
   "0044_catalog_taxonomy_foundations.sql": "f591d9322fd38dc2a3e9574c3ed9d4707d29ee81e493c8468f863a1f603be95d",
   "0045_catalog_taxonomy_books_stationery_toys.sql": "15bc3b781465fe7a1073c01e938dc6931f73565a4a6c6a5dd1fcad28c2b422c6",
   "0046_reclassify_demo_books_taxonomy.sql": "90a1c30fc5dd12c2abc765b8afc1f1474e68d954f9b83319b9f986fa77d5ff72",
