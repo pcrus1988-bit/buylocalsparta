@@ -3,6 +3,7 @@ import { PostgresUnitOfWork, type SessionPrincipal, type SqlPool, type SqlRow } 
 import { vendorScope } from "./vendor-auth.ts";
 
 export type MediaKind = "image" | "video" | "document";
+export type VendorProfileMediaRole = "logo" | "storefront" | "team" | "gallery";
 export type MediaUploadIntent = Readonly<{
   id: string;
   objectKey: string;
@@ -23,6 +24,7 @@ const MIME_BY_KIND: Readonly<Record<MediaKind, ReadonlySet<string>>> = {
   video: new Set(["video/mp4","video/webm"]),
   document: new Set(["application/pdf"])
 };
+const PROFILE_ROLES = new Set<VendorProfileMediaRole>(["logo","storefront","team","gallery"]);
 
 export class PostgresMediaPipelineService {
   readonly #uow: PostgresUnitOfWork;
@@ -32,23 +34,33 @@ export class PostgresMediaPipelineService {
     this.#maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
   }
 
-  async createUploadIntent(principal: SessionPrincipal, input: { canonicalVariantId:string; kind:MediaKind; filename:string; contentType:string; byteSize:number; altText?:string; rightsOwner:string; now:number; ttlMs?:number }): Promise<MediaUploadIntent> {
+  async createUploadIntent(principal: SessionPrincipal, input: { canonicalVariantId?:string; profileRole?:VendorProfileMediaRole; kind:MediaKind; filename:string; contentType:string; byteSize:number; altText?:string; rightsOwner:string; now:number; ttlMs?:number }): Promise<MediaUploadIntent> {
     const vendorId=requiredVendor(principal); const kind=input.kind; const contentType=input.contentType.trim().toLowerCase();
     if(!MIME_BY_KIND[kind]?.has(contentType)) throw new Error(`Unsupported ${kind} content type`);
     if(!Number.isSafeInteger(input.byteSize)||input.byteSize<=0||input.byteSize>this.#maxBytes) throw new Error(`Media size must be between 1 and ${this.#maxBytes} bytes`);
     const rightsOwner=input.rightsOwner.trim(); if(!rightsOwner) throw new Error("Rights owner is required");
     const filename=safeFilename(input.filename); if(!filename) throw new Error("Original filename is required");
     const altText=input.altText?.trim()||undefined; if(kind==="image"&&!altText) throw new Error("Image alt text is required");
+    const canonicalVariantId=input.canonicalVariantId?.trim()||undefined;
+    const profileRole=input.profileRole ? requiredProfileRole(input.profileRole) : undefined;
+    if(Boolean(canonicalVariantId)===Boolean(profileRole)) throw new Error("Media upload must target either one catalog product or one vendor storefront role");
+    if(profileRole&&kind!=="image") throw new Error("Vendor storefront media must be an image");
     const ttlMs=input.ttlMs??15*60*1000; if(!Number.isSafeInteger(ttlMs)||ttlMs<60_000||ttlMs>60*60*1000) throw new Error("Upload intent TTL must be between 1 and 60 minutes");
     return this.#uow.withTransaction(vendorScope(principal.userId,vendorId),async(tx)=>{
-      const ownership=await tx.query<SqlRow>(`SELECT cv.id::text AS canonical_uuid FROM canonical_variants cv WHERE cv.public_id=$1 AND EXISTS(
-        SELECT 1 FROM vendor_offers vo JOIN vendor_businesses v ON v.id=vo.vendor_id WHERE vo.canonical_variant_id=cv.id AND v.public_id=$2 AND vo.status='approved')`,[input.canonicalVariantId,vendorId]);
-      if(!ownership.rowCount) throw new Error("Vendor media access denied");
       const user=await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE public_id=$1",[principal.userId]); if(!user.rowCount) throw new Error("Vendor actor not found");
       const vendor=await tx.query<SqlRow>("SELECT id::text AS id FROM vendor_businesses WHERE public_id=$1",[vendorId]); if(!vendor.rowCount) throw new Error("Vendor not found");
-      const intentId=`mui_${randomUUID().replaceAll("-","")}`; const objectKey=`private/vendor-media/${vendorId}/${randomUUID()}`; const expiresAt=input.now+ttlMs;
-      await tx.query(`INSERT INTO media_upload_intents(public_id,vendor_id,canonical_variant_id,kind,object_key,original_filename,content_type,expected_byte_size,alt_text,rights_owner,status,expires_at,created_by,created_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'initiated',$11,$12,$13)`,[intentId,text(vendor.rows[0].id),text(ownership.rows[0].canonical_uuid),kind,objectKey,filename,contentType,input.byteSize,altText??null,rightsOwner,new Date(expiresAt),text(user.rows[0].id),new Date(input.now)]);
+      let canonicalUuid:string|undefined;
+      if(canonicalVariantId){
+        const ownership=await tx.query<SqlRow>(`SELECT cv.id::text AS canonical_uuid FROM canonical_variants cv WHERE cv.public_id=$1 AND EXISTS(
+          SELECT 1 FROM vendor_offers vo JOIN vendor_businesses v ON v.id=vo.vendor_id WHERE vo.canonical_variant_id=cv.id AND v.public_id=$2 AND vo.status='approved')`,[canonicalVariantId,vendorId]);
+        if(!ownership.rowCount) throw new Error("Vendor media access denied");
+        canonicalUuid=text(ownership.rows[0].canonical_uuid);
+      }
+      const intentId=`mui_${randomUUID().replaceAll("-","")}`;
+      const subjectPath=profileRole?`profile/${profileRole}`:"catalog";
+      const objectKey=`private/vendor-media/${vendorId}/${subjectPath}/${randomUUID()}`; const expiresAt=input.now+ttlMs;
+      await tx.query(`INSERT INTO media_upload_intents(public_id,vendor_id,canonical_variant_id,purpose,profile_role,kind,object_key,original_filename,content_type,expected_byte_size,alt_text,rights_owner,status,expires_at,created_by,created_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'initiated',$13,$14,$15)`,[intentId,text(vendor.rows[0].id),canonicalUuid??null,profileRole?"vendor_profile":"catalog",profileRole??null,kind,objectKey,filename,contentType,input.byteSize,altText??null,rightsOwner,new Date(expiresAt),text(user.rows[0].id),new Date(input.now)]);
       return{id:intentId,objectKey,contentType,expectedByteSize:input.byteSize,expiresAt};
     },{isolation:"serializable"});
   }
@@ -57,7 +69,7 @@ export class PostgresMediaPipelineService {
     const vendorId=requiredVendor(principal);
     return this.#uow.withTransaction(vendorScope(principal.userId,vendorId),async(tx)=>{
       const found=await tx.query<SqlRow>(`SELECT mui.id::text AS intent_uuid,mui.status,mui.object_key,mui.kind,mui.original_filename,mui.content_type,mui.expected_byte_size,mui.alt_text,mui.rights_owner,mui.expires_at,mui.media_asset_id::text AS media_uuid,
-        mui.canonical_variant_id::text AS canonical_uuid,mui.vendor_id::text AS vendor_uuid,pm.public_id AS media_public_id
+        mui.canonical_variant_id::text AS canonical_uuid,mui.vendor_id::text AS vendor_uuid,mui.created_by::text AS created_by_uuid,mui.purpose,mui.profile_role,pm.public_id AS media_public_id
         FROM media_upload_intents mui LEFT JOIN product_media pm ON pm.id=mui.media_asset_id WHERE mui.public_id=$1 FOR UPDATE OF mui`,[input.intentId]);
       if(!found.rowCount) throw new Error("Media upload intent not found"); const row=found.rows[0];
       if(text(row.status)==="completed"&&typeof row.media_public_id==="string") return{assetId:row.media_public_id,scanStatus:"pending"};
@@ -67,12 +79,21 @@ export class PostgresMediaPipelineService {
       if(input.actualByteSize!==expected||actualType!==expectedType) throw new Error("Uploaded object metadata does not match the signed intent");
       const assetUuid=randomUUID(),assetId=`media_${randomUUID().replaceAll("-","")}`;
       await tx.query(`INSERT INTO product_media(id,public_id,canonical_variant_id,vendor_id,kind,object_key,alt_text,rights_owner,rights_status,moderation_status,original_filename,content_type,byte_size,scan_status,storage_verified_at,next_scan_at,created_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending','pending',$9,$10,$11,'pending',$12,$12,$12)`,[assetUuid,assetId,text(row.canonical_uuid),text(row.vendor_uuid),text(row.kind),text(row.object_key),optional(row.alt_text)??null,text(row.rights_owner),text(row.original_filename),expectedType,expected,new Date(input.now)]);
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending','pending',$9,$10,$11,'pending',$12,$12,$12)`,[assetUuid,assetId,optional(row.canonical_uuid)??null,text(row.vendor_uuid),text(row.kind),text(row.object_key),optional(row.alt_text)??null,text(row.rights_owner),text(row.original_filename),expectedType,expected,new Date(input.now)]);
+      if(text(row.purpose)==="vendor_profile"){
+        const role=requiredProfileRole(text(row.profile_role));
+        let sortOrder=0;
+        if(role==="gallery"){
+          const order=await tx.query<SqlRow>("SELECT COALESCE(MAX(sort_order),0)+10 AS next_sort FROM vendor_profile_media WHERE vendor_id=$1 AND role='gallery'",[text(row.vendor_uuid)]);
+          sortOrder=int(order.rows[0]?.next_sort??10);
+        }
+        await tx.query(`INSERT INTO vendor_profile_media(id,public_id,vendor_id,media_id,role,sort_order,publication_status,created_by,created_at,updated_at)
+          VALUES($1,$2,$3,$4,$5,$6,'draft',$7,$8,$8)`,[randomUUID(),`vpm_${randomUUID().replaceAll("-","")}`,text(row.vendor_uuid),assetUuid,role,sortOrder,text(row.created_by_uuid),new Date(input.now)]);
+      }
       await tx.query("UPDATE media_upload_intents SET status='completed',storage_verified_at=$2,media_asset_id=$3,completed_at=$2,failure_reason=NULL WHERE id=$1",[text(row.intent_uuid),new Date(input.now),assetUuid]);
       return{assetId,scanStatus:"pending"};
     },{isolation:"serializable"});
   }
-
 
   async uploadIntentForVendor(principal:SessionPrincipal,intentId:string):Promise<{objectKey:string}>{
     const vendorId=requiredVendor(principal);return this.#uow.withTransaction(vendorScope(principal.userId,vendorId),async(tx)=>{const result=await tx.query<SqlRow>(`SELECT object_key FROM media_upload_intents WHERE public_id=$1`,[intentId]);if(!result.rowCount)throw new Error("Media upload intent not found");return{objectKey:text(result.rows[0].object_key)}} ,{readOnly:true})
@@ -99,6 +120,7 @@ export class PostgresMediaPipelineService {
 }
 
 function requiredVendor(principal:SessionPrincipal):string{if(!principal.vendorId||!principal.roles.some((role)=>role.startsWith("vendor_")))throw new Error("VENDOR_AUTH_REQUIRED");return principal.vendorId}
+function requiredProfileRole(value:string):VendorProfileMediaRole{if(!PROFILE_ROLES.has(value as VendorProfileMediaRole))throw new Error("Invalid vendor storefront media role");return value as VendorProfileMediaRole}
 function safeFilename(value:string):string{return value.replace(/[\u0000-\u001f\u007f]/g,"").replaceAll("\\","/").split("/").pop()?.trim().slice(0,240)??""}
 function text(value:unknown):string{if(typeof value!=="string"||!value)throw new Error("Invalid database text value");return value}
 function optional(value:unknown):string|undefined{return typeof value==="string"&&value.length?value:undefined}

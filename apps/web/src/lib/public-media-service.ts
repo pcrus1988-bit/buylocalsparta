@@ -1,5 +1,6 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, objectStorageConfigFromEnv, type StoredObjectRead } from "@buy-local-sparta/object-storage";
+import type { VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type CatalogMediaRequest = Readonly<{
@@ -14,6 +15,13 @@ export type ApprovedCatalogImage = Readonly<{
 }>;
 
 export type ApprovedVendorImage = Readonly<{ vendorId: string; mediaId: string; altText?: string }>;
+export type ApprovedVendorProfileMedia = Readonly<{
+  vendorId: string;
+  mediaId: string;
+  role: VendorProfileMediaRole;
+  sortOrder: number;
+  altText?: string;
+}>;
 
 export type ApprovedPublicMediaRead = StoredObjectRead & Readonly<{
   mediaId: string;
@@ -35,8 +43,10 @@ type PublicMediaRow = SqlRow & {
 };
 
 type VendorImageRow = SqlRow & { vendor_public_id: string; media_public_id: string; alt_text?: string | null };
+type VendorProfileMediaRow = SqlRow & { vendor_public_id: string; media_public_id: string; role: string; sort_order: number | string; alt_text?: string | null };
 
 const PUBLIC_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PROFILE_ROLES = new Set<VendorProfileMediaRole>(["logo","storefront","team","gallery"]);
 let storageSingleton: S3ObjectStorage | undefined;
 
 function storage(): S3ObjectStorage {
@@ -142,6 +152,43 @@ export async function approvedVendorImages(vendorIds: readonly string[]): Promis
   }));
 }
 
+export async function approvedVendorProfileMedia(vendorIds: readonly string[]): Promise<readonly ApprovedVendorProfileMedia[]> {
+  if (!governedPublicMediaEnabled() || vendorIds.length === 0) return [];
+  const unique = [...new Set(vendorIds.map((id) => id.trim()).filter(Boolean))];
+  if (unique.length === 0) return [];
+  if (unique.length > 250) throw new Error("Public storefront media projection accepts at most 250 vendors per request");
+
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
+  const result = await uow.withTransaction({ actorUserId: "public-storefront", marketId: "sparta", platformAccess: true }, (tx) => tx.query<VendorProfileMediaRow>(`
+    SELECT v.public_id AS vendor_public_id,pm.public_id AS media_public_id,vpm.role,vpm.sort_order,pm.alt_text
+    FROM vendor_profile_media vpm
+    JOIN vendor_businesses v ON v.id=vpm.vendor_id
+    JOIN markets m ON m.id=v.market_id
+    JOIN product_media pm ON pm.id=vpm.media_id
+    WHERE v.public_id = ANY($1::text[])
+      AND m.code='sparta' AND v.status='active'
+      AND vpm.publication_status='published'
+      AND pm.kind='image'
+      AND pm.scan_status='clean'
+      AND pm.rights_status='approved'
+      AND pm.moderation_status='approved'
+      AND pm.object_key IS NOT NULL
+      AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+    ORDER BY v.public_id,
+      CASE vpm.role WHEN 'logo' THEN 0 WHEN 'storefront' THEN 1 WHEN 'team' THEN 2 ELSE 3 END,
+      vpm.sort_order,vpm.published_at DESC,pm.public_id
+  `, [unique]), { readOnly: true });
+
+  return result.rows.map((row) => ({
+    vendorId: requiredText(row.vendor_public_id, "vendor_public_id"),
+    mediaId: requiredText(row.media_public_id, "media_public_id"),
+    role: profileRole(row.role),
+    sortOrder: safeInteger(row.sort_order, "sort_order"),
+    altText: optionalText(row.alt_text)
+  }));
+}
+
 export async function readApprovedPublicMedia(mediaId: string): Promise<ApprovedPublicMediaRead | undefined> {
   if (!governedPublicMediaEnabled()) return undefined;
   if (!/^media_[A-Za-z0-9_-]{8,128}$/.test(mediaId)) return undefined;
@@ -166,6 +213,23 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
         AND pm.content_type IN ('image/jpeg','image/png','image/webp')
       UNION ALL
       SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,1 AS eligibility_rank
+      FROM product_media pm
+      JOIN vendor_profile_media vpm ON vpm.media_id=pm.id
+      JOIN vendor_businesses v ON v.id=vpm.vendor_id
+      JOIN markets m ON m.id=v.market_id
+      WHERE pm.public_id=$1
+        AND m.code='sparta'
+        AND v.status='active'
+        AND vpm.publication_status='published'
+        AND pm.canonical_variant_id IS NULL
+        AND pm.kind='image'
+        AND pm.scan_status='clean'
+        AND pm.rights_status='approved'
+        AND pm.moderation_status='approved'
+        AND pm.object_key IS NOT NULL
+        AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+      UNION ALL
+      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,2 AS eligibility_rank
       FROM product_media pm
       JOIN vendor_businesses v ON v.id=pm.vendor_id
       JOIN markets m ON m.id=v.market_id
@@ -221,4 +285,10 @@ function safeInteger(value: unknown, label: string): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error(`Invalid ${label} in public media projection`);
   return parsed;
+}
+
+function profileRole(value: unknown): VendorProfileMediaRole {
+  const role = requiredText(value, "profile_role") as VendorProfileMediaRole;
+  if (!PROFILE_ROLES.has(role)) throw new Error("Invalid profile role in public media projection");
+  return role;
 }

@@ -1,5 +1,6 @@
 import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
 import type { SessionPrincipal } from "@buy-local-sparta/core";
+import type { VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 
@@ -14,7 +15,7 @@ export function mediaUploadMode(): MediaUploadMode {
 }
 export async function mediaPipelineReadiness(){if(!mediaPipelineEnabled())return{enabled:false,ready:true,message:"Media pipeline disabled"};if(!postgresVendorRuntimeEnabled())return{enabled:true,ready:false,message:"Media pipeline requires PostgreSQL"};try{const object=await storage().readiness();if(!object.ok)return{enabled:true,ready:false,message:`Object storage: ${object.message}`};return{enabled:true,ready:true,message:"Private object storage is ready; malware scanning is verified by the separate media worker"}}catch(error){return{enabled:true,ready:false,message:error instanceof Error?error.message:String(error)}}}
 
-export async function createVendorMediaUploadIntent(principal:SessionPrincipal,input:{canonicalVariantId:string;kind:"image"|"video"|"document";filename:string;contentType:string;byteSize:number;altText?:string;rightsOwner:string}){
+export async function createVendorMediaUploadIntent(principal:SessionPrincipal,input:{canonicalVariantId?:string;profileRole?:VendorProfileMediaRole;kind:"image"|"video"|"document";filename:string;contentType:string;byteSize:number;altText?:string;rightsOwner:string}){
   if(mediaUploadMode()!=="direct") throw new Error("Production media upload requires private object storage and malware-scanner configuration");
   const intent=await getProductionPostgresRuntime().mediaPipeline.createUploadIntent(principal,{...input,now:Date.now()});
   const signed=await storage().createUploadUrl({objectKey:intent.objectKey,contentType:intent.contentType});
