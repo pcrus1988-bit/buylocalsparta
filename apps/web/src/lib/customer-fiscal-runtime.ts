@@ -17,6 +17,7 @@ export type CustomerFiscalDocument = Readonly<{
 }>;
 
 const PRIMARY_CUSTOMER_TYPES = ["pending_customer_sale", "retail_receipt", "customer_invoice"] as const;
+const PAID_FISCAL_ELIGIBLE_ORDER_STATUSES = ["confirmed", "ready_for_pickup", "fulfilled"] as const;
 
 export async function capturePaidOrderForFiscalIssuance(orderId: string, now = Date.now()): Promise<{ captured: boolean; documentId?: string }> {
   if (!productionDatabaseConfigured()) return { captured: false };
@@ -36,9 +37,9 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
          FROM customer_orders o
          JOIN payments p ON p.order_id=o.id
          LEFT JOIN users u ON u.id=o.user_id
-        WHERE o.public_id=$1 AND o.status='confirmed' AND p.status IN ('captured','partially_refunded','refunded')
+        WHERE o.public_id=$1 AND o.status = ANY($2::order_status[]) AND p.status IN ('captured','partially_refunded','refunded')
           AND p.captured_minor >= o.total_minor
-        FOR UPDATE OF o,p`, [orderId]);
+        FOR UPDATE OF o,p`, [orderId, [...PAID_FISCAL_ELIGIBLE_ORDER_STATUSES]]);
     if (!order.rowCount) {
       await client.query("ROLLBACK");
       return { captured: false };
