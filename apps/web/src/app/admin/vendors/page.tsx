@@ -155,6 +155,7 @@ export default async function Page() {
               </div>
               {document.lastError && <p className="workspace-queue-summary">{document.lastError}</p>}
               {document.customerEmailError && <p className="workspace-queue-summary">Customer email: {document.customerEmailError}</p>}
+              {document.transmissionStatus === "manual_review" && document.documentNumber && !document.aadeMark && <div className="workspace-action-bar"><span>Read-only AADE recovery: search for this exact numbered document. This never resends SendInvoices.</span><div className="workspace-action-buttons"><AdminActionButton label="Reconcile with AADE" endpoint="/api/admin/tax/reconcile" csrfToken={csrfToken} body={{documentId:document.id}} reasonPrompt="Αιτιολογία read-only AADE reconciliation" /></div></div>}
               <div className="workspace-compact-list">
                 <div className="workspace-compact-row"><strong>Order</strong><span>{document.orderNumber}</span><small>{document.orderId}</small></div>
                 <div className="workspace-compact-row"><strong>Document status</strong><span>{document.status} · {document.transmissionStatus}</span></div>

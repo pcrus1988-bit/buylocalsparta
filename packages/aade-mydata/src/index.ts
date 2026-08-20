@@ -1,3 +1,25 @@
+import {
+  childText,
+  descendants,
+  escapeXml,
+  parseXmlDocument,
+  textContent
+} from "./xml.ts";
+
+export {
+  childElements,
+  childText,
+  decodeXml,
+  descendantText,
+  descendants,
+  escapeXml,
+  parseXmlDocument,
+  serializeXmlElement,
+  textContent,
+  type XmlElement,
+  type XmlElementSpec
+} from "./xml.ts";
+
 export type MyDataEnvironment = "test" | "production";
 export type MyDataFetch = typeof fetch;
 
@@ -40,9 +62,43 @@ export type MyDataDocumentQuery = Readonly<{
   nextRowKey?: string;
 }>;
 
+export type MyDataBookQuery = Readonly<{
+  dateFrom: string;
+  dateTo: string;
+  counterVatNumber?: string;
+  entityVatNumber?: string;
+  invType?: string;
+  nextPartitionKey?: string;
+  nextRowKey?: string;
+}>;
+
+export type MyDataResponseKind =
+  | "success"
+  | "validation_error"
+  | "technical_error"
+  | "xml_error"
+  | "authentication_error"
+  | "unknown_error";
+
+export type MyDataTransportErrorKind = "http" | "timeout" | "network";
+
+export class MyDataTransportError extends Error {
+  readonly kind: MyDataTransportErrorKind;
+  readonly retryable: boolean;
+  readonly httpStatus?: number;
+
+  constructor(kind: MyDataTransportErrorKind, message: string, options?: { retryable?: boolean; httpStatus?: number; cause?: unknown }) {
+    super(message, options?.cause === undefined ? undefined : { cause: options.cause });
+    this.name = "MyDataTransportError";
+    this.kind = kind;
+    this.retryable = options?.retryable ?? false;
+    this.httpStatus = options?.httpStatus;
+  }
+}
+
 const PRODUCTION_BASE_URL = "https://mydatapi.aade.gr/myDATA";
 const TEST_BASE_URL = "https://mydataapidev.aade.gr";
-const CURRENT_SPEC_VERSION = "2.0.2";
+export const CURRENT_MYDATA_SPEC_VERSION = "2.0.2";
 
 export function myDataConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(env.AADE_MYDATA_USER_ID?.trim() && env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim());
@@ -63,7 +119,7 @@ export function myDataConfigFromEnv(env: NodeJS.ProcessEnv = process.env): MyDat
   const explicitBase = env.AADE_MYDATA_BASE_URL?.trim();
   const baseUrl = explicitBase || (environment === "production" ? PRODUCTION_BASE_URL : TEST_BASE_URL);
   if (!/^https:\/\//i.test(baseUrl)) throw new Error("AADE_MYDATA_BASE_URL must be HTTPS");
-  const specVersion = env.AADE_MYDATA_SPEC_VERSION?.trim() || CURRENT_SPEC_VERSION;
+  const specVersion = env.AADE_MYDATA_SPEC_VERSION?.trim() || CURRENT_MYDATA_SPEC_VERSION;
   return {
     environment,
     baseUrl: baseUrl.replace(/\/+$/, ""),
@@ -77,7 +133,12 @@ export function myDataConfigFromEnv(env: NodeJS.ProcessEnv = process.env): MyDat
 export class AadeMyDataClient {
   readonly #config: MyDataConfig;
   readonly #fetch: MyDataFetch;
-  constructor(config: MyDataConfig, fetchFn: MyDataFetch = fetch) { this.#config = config; this.#fetch = fetchFn; }
+
+  constructor(config: MyDataConfig, fetchFn: MyDataFetch = fetch) {
+    this.#config = config;
+    this.#fetch = fetchFn;
+  }
+
   get environment(): MyDataEnvironment { return this.#config.environment; }
   get specVersion(): string { return this.#config.specVersion; }
 
@@ -113,6 +174,16 @@ export class AadeMyDataClient {
     return this.#request(`RequestDocs?${query(input)}`, { method: "GET" });
   }
 
+  async requestMyIncome(input: MyDataBookQuery): Promise<string> {
+    validateBookQuery(input);
+    return this.#request(`RequestMyIncome?${query(input)}`, { method: "GET" });
+  }
+
+  async requestMyExpenses(input: MyDataBookQuery): Promise<string> {
+    validateBookQuery(input);
+    return this.#request(`RequestMyExpenses?${query(input)}`, { method: "GET" });
+  }
+
   async #request(path: string, init: RequestInit): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#config.requestTimeoutMs);
@@ -129,56 +200,166 @@ export class AadeMyDataClient {
         signal: controller.signal
       });
       const body = await response.text();
-      if (!response.ok) throw new Error(`AADE myDATA HTTP ${response.status}: ${compactXml(body).slice(0, 500) || response.statusText}`);
-      if (!body.trim()) throw new Error("AADE myDATA returned an empty response");
+      if (!response.ok) {
+        const detail = redactSecrets(compactXml(body).slice(0, 500) || response.statusText, this.#config);
+        throw new MyDataTransportError("http", `AADE myDATA HTTP ${response.status}: ${detail}`, {
+          httpStatus: response.status,
+          retryable: isRetryableHttpStatus(response.status)
+        });
+      }
+      if (!body.trim()) throw new MyDataTransportError("network", "AADE myDATA returned an empty response", { retryable: true });
       return body;
     } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") throw new Error("AADE myDATA request timed out");
-      throw error;
-    } finally { clearTimeout(timer); }
+      if (error instanceof MyDataTransportError) throw error;
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new MyDataTransportError("timeout", "AADE myDATA request timed out", { retryable: true, cause: error });
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new MyDataTransportError("network", `AADE myDATA network error: ${redactSecrets(message, this.#config)}`, {
+        retryable: true,
+        cause: error
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 
 export function parseTransmissionResponse(xml: string): MyDataTransmissionResult {
-  const blocks = [...xml.matchAll(/<(?:\w+:)?response\b[^>]*>([\s\S]*?)<\/(?:\w+:)?response>/gi)].map(m => m[1]);
-  const candidates = blocks.length ? blocks : [xml];
-  const items = candidates.map((block): MyDataResponseItem => {
-    const errors = [...block.matchAll(/<(?:\w+:)?error\b[^>]*>([\s\S]*?)<\/(?:\w+:)?error>/gi)].map(match => ({
-      code: tag(match[1], "code"),
-      message: tag(match[1], "message") ?? (compactXml(match[1]) || "Unknown AADE error")
+  const document = parseXmlDocument(xml);
+  const responseNodes = document.localName === "response" ? [document] : [...descendants(document, "response")];
+  const candidates = responseNodes.length ? responseNodes : [document];
+  const items = candidates.map((response): MyDataResponseItem => {
+    const errors = descendants(response, "error").map(error => ({
+      code: childText(error, "code"),
+      message: childText(error, "message") ?? (textContent(error).trim() || "Unknown AADE error")
     }));
-    const statusCode = tag(block, "statusCode") ?? (errors.length ? "Error" : "Success");
+    const statusCode = childText(response, "statusCode") ?? (errors.length ? "Error" : "Success");
     return {
-      index: numberOrUndefined(tag(block, "index")),
+      index: numberOrUndefined(childText(response, "index")),
       statusCode,
-      invoiceMark: tag(block, "invoiceMark"),
-      invoiceUid: tag(block, "invoiceUid"),
-      authenticationCode: tag(block, "authenticationCode"),
-      cancellationMark: tag(block, "cancellationMark"),
-      qrUrl: tag(block, "qrUrl") ?? tag(block, "qrCodeUrl"),
+      invoiceMark: childText(response, "invoiceMark"),
+      invoiceUid: childText(response, "invoiceUid"),
+      authenticationCode: childText(response, "authenticationCode"),
+      cancellationMark: childText(response, "cancellationMark"),
+      qrUrl: childText(response, "qrUrl") ?? childText(response, "qrCodeUrl"),
       errors
     };
   });
-  return { ok: items.length > 0 && items.every(item => /^success$/i.test(item.statusCode) && item.errors.length === 0), items, rawXml: xml };
+  return {
+    ok: items.length > 0 && items.every(item => classifyMyDataResponse(item) === "success"),
+    items,
+    rawXml: xml
+  };
 }
 
-export function escapeXml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&apos;");
+export function classifyMyDataResponse(item: MyDataResponseItem): MyDataResponseKind {
+  const status = item.statusCode.trim().toLowerCase();
+  if (status === "success" && item.errors.length === 0) return "success";
+  if (status.includes("validation")) return "validation_error";
+  if (status.includes("xml")) return "xml_error";
+  if (status.includes("technical")) return "technical_error";
+  if (looksLikeAuthenticationError(item)) return "authentication_error";
+  return "unknown_error";
 }
 
-function required(env: NodeJS.ProcessEnv, name: string): string { const value = env[name]?.trim(); if (!value) throw new Error(`${name} is required`); return value; }
-function positiveInt(raw: string | undefined, fallback: number, name: string): number { if (!raw?.trim()) return fallback; const n = Number(raw); if (!Number.isSafeInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer`); return n; }
-function assertXml(xml: string, expectedHint: string): void { if (!xml.trim().startsWith("<")) throw new Error(`myDATA ${expectedHint} payload must be XML`); if (/<!DOCTYPE/i.test(xml)) throw new Error("DOCTYPE is not allowed in myDATA XML payloads"); }
-function assertNumericId(value: string, label: string): void { if (!/^\d{1,40}$/.test(value)) throw new Error(`${label} must be numeric`); }
+export function isRetryableMyDataResponse(item: MyDataResponseItem): boolean {
+  return classifyMyDataResponse(item) === "technical_error";
+}
+
+function required(env: NodeJS.ProcessEnv, name: string): string {
+  const value = env[name]?.trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+function positiveInt(raw: string | undefined, fallback: number, name: string): number {
+  if (!raw?.trim()) return fallback;
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer`);
+  return n;
+}
+
+function assertXml(xml: string, expectedHint: string): void {
+  try {
+    parseXmlDocument(xml);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`myDATA ${expectedHint} payload must be well-formed XML: ${message}`);
+  }
+}
+
+function assertNumericId(value: string, label: string): void {
+  if (!/^\d{1,40}$/.test(value)) throw new Error(`${label} must be numeric`);
+}
+
 function validateDocumentQuery(input: MyDataDocumentQuery): void {
   assertNumericId(input.mark, "AADE MARK cursor");
   if (input.maxMark?.trim()) assertNumericId(input.maxMark.trim(), "AADE maxMark");
   if (input.dateFrom?.trim()) assertMyDataDate(input.dateFrom.trim(), "dateFrom");
   if (input.dateTo?.trim()) assertMyDataDate(input.dateTo.trim(), "dateTo");
+  validateDateOrder(input.dateFrom, input.dateTo);
 }
-function assertMyDataDate(value: string, label: string): void { if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) throw new Error(`${label} must use AADE format dd/MM/yyyy`); }
-function tag(xml: string, name: string): string | undefined { const m = xml.match(new RegExp(`<(?:\\w+:)?${name}\\b[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${name}>`, "i")); return m ? decodeXml(m[1].trim()) : undefined; }
-function decodeXml(value: string): string { return value.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'\"').replace(/&apos;/g,"'").replace(/&amp;/g,"&"); }
-function compactXml(value: string): string { return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
-function numberOrUndefined(value: string | undefined): number | undefined { if (value == null || value === "") return undefined; const n = Number(value); return Number.isSafeInteger(n) ? n : undefined; }
-function query(input: Record<string, string | undefined>): string { const q = new URLSearchParams(); for (const [k,v] of Object.entries(input)) if (v?.trim()) q.set(k,v.trim()); return q.toString(); }
+
+function validateBookQuery(input: MyDataBookQuery): void {
+  assertMyDataDate(input.dateFrom.trim(), "dateFrom");
+  assertMyDataDate(input.dateTo.trim(), "dateTo");
+  validateDateOrder(input.dateFrom, input.dateTo);
+}
+
+function assertMyDataDate(value: string, label: string): void {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) throw new Error(`${label} must use AADE format dd/MM/yyyy`);
+  const [dayRaw, monthRaw, yearRaw] = value.split("/");
+  const day = Number(dayRaw);
+  const month = Number(monthRaw);
+  const year = Number(yearRaw);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error(`${label} must be a real calendar date in AADE format dd/MM/yyyy`);
+  }
+}
+
+function validateDateOrder(dateFrom?: string, dateTo?: string): void {
+  if (!dateFrom?.trim() || !dateTo?.trim()) return;
+  if (myDataDateKey(dateFrom) > myDataDateKey(dateTo)) throw new Error("dateFrom must not be after dateTo");
+}
+
+function myDataDateKey(value: string): number {
+  const [day, month, year] = value.split("/").map(Number);
+  return (year ?? 0) * 10_000 + (month ?? 0) * 100 + (day ?? 0);
+}
+
+function numberOrUndefined(value: string | undefined): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isSafeInteger(n) ? n : undefined;
+}
+
+function query(input: Record<string, string | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) if (value?.trim()) q.set(key, value.trim());
+  return q.toString();
+}
+
+function compactXml(value: string): string {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isRetryableHttpStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function looksLikeAuthenticationError(item: MyDataResponseItem): boolean {
+  const combined = [item.statusCode, ...item.errors.flatMap(error => [error.code ?? "", error.message])].join(" ").toLowerCase();
+  return /auth|credential|subscription|unauthor|forbidden|access denied|user.?id/.test(combined);
+}
+
+function redactSecrets(value: string, config: MyDataConfig): string {
+  let redacted = value;
+  for (const secret of [config.userId, config.subscriptionKey]) {
+    if (secret) redacted = redacted.split(secret).join("[REDACTED]");
+  }
+  return redacted
+    .replace(/(ocp-apim-subscription-key|aade-user-id)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+    .replace(/subscription\s*key\s*[:=]\s*[^\s,;]+/gi, "subscription key=[REDACTED]");
+}

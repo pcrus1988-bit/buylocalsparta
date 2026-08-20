@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/public.ts",
+    "./catalog": "./src/catalog.ts",
+    "./preflight": "./src/preflight.ts",
+    "./classification-preflight": "./src/classification-preflight.ts",
+    "./payment-method-preflight": "./src/payment-method-preflight.ts",
+    "./order-preflight": "./src/order-preflight.ts",
+    "./reporting": "./src/reporting.ts",
+    "./mapping-reference": "./src/mapping-reference.ts",
+    "./digital-movement": "./src/digital-movement.ts",
+    "./group-qr": "./src/group-qr.ts",
+    "./delivery-return-reconciliation": "./src/delivery-return-reconciliation.ts"
   }
 }
