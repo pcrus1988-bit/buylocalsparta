@@ -54,12 +54,27 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.sitemap, changeFrequency: "monthly", priority: 0.4 }
 ];
 
-export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal, SITE_LINKS.howItWorks];
+export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
+  SITE_LINKS.shop,
+  SITE_LINKS.shops,
+  SITE_LINKS.advice,
+  SITE_LINKS.askLocal,
+  SITE_LINKS.howItWorks
+];
 
 export const FOOTER_NAVIGATION = [
-  { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
-  { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
-  { title: "ΚΟΝΤΑ ΜΟΥ Sparta", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.privacy, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] }
+  {
+    title: "Ανακάλυψε",
+    links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal]
+  },
+  {
+    title: "Αγορά με σιγουριά",
+    links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns]
+  },
+  {
+    title: "ΚΟΝΤΑ ΜΟΥ Sparta",
+    links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.privacy, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap]
+  }
 ] as const;
 
 export const HUMAN_SITEMAP_SECTIONS = [
@@ -71,23 +86,116 @@ export const HUMAN_SITEMAP_SECTIONS = [
 ] as const;
 
 export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.login, SITE_LINKS.register];
+
 export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]", "/vendor/[id]"] as const;
 
 export const NON_INDEXABLE_PAGE_ROUTES = [
-  "/cart", "/checkout", "/checkout/failure", "/checkout/success", "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/join/apply",
-  "/account", "/account/orders/[id]",
-  "/daily", "/daily/ask-local", "/daily/login", "/daily/notifications", "/daily/notifications/settings", "/daily/orders", "/daily/pickup", "/daily/push-bridge", "/daily/scan",
-  "/vendor", "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance", "/vendor/notifications", "/vendor/pickup/scan", "/vendor/reports", "/vendor/returns", "/vendor/shipping", "/vendor/storefront", "/vendor/trust",
-  "/admin", "/admin/login", "/admin/activation", "/admin/analytics", "/admin/ask-local", "/admin/categories", "/admin/content", "/admin/hero",
-  "/admin/customers", "/admin/customers/[customerId]", "/admin/customers/[customerId]/manage", "/admin/customers/support", "/admin/email-lab", "/admin/fairness",
-  "/admin/finance", "/admin/finance/agreements", "/admin/finance/agreements/sla", "/admin/finance/mydata", "/admin/finance/mydata/products", "/admin/finance/vendor-billing",
-  "/admin/maintenance", "/admin/matching", "/admin/notifications", "/admin/operations", "/admin/orders", "/admin/orders/[id]", "/admin/partners", "/admin/partners/[id]", "/admin/partners/pipeline",
-  "/admin/platform", "/admin/privacy", "/admin/prospects", "/admin/recalls", "/admin/reports", "/admin/research-vendors", "/admin/research-vendors/[id]", "/admin/reviews", "/admin/search", "/admin/shipping", "/admin/tax", "/admin/trust", "/admin/vendors", "/admin/work"
+  "/cart",
+  "/checkout",
+  "/checkout/failure",
+  "/checkout/success",
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+  "/join/apply",
+  "/account",
+  "/account/orders/[id]",
+  "/daily",
+  "/daily/ask-local",
+  "/daily/login",
+  "/daily/notifications",
+  "/daily/notifications/settings",
+  "/daily/orders",
+  "/daily/pickup",
+  "/daily/push-bridge",
+  "/daily/scan",
+  "/vendor",
+  "/vendor/login",
+  "/vendor/advice",
+  "/vendor/analytics",
+  "/vendor/catalog",
+  "/vendor/daily-access",
+  "/vendor/finance",
+  "/vendor/notifications",
+  "/vendor/pickup/scan",
+  "/vendor/reports",
+  "/vendor/returns",
+  "/vendor/shipping",
+  "/vendor/storefront",
+  "/vendor/trust",
+  "/admin",
+  "/admin/login",
+  "/admin/activation",
+  "/admin/analytics",
+  "/admin/ask-local",
+  "/admin/categories",
+  "/admin/content",
+  "/admin/hero",
+  "/admin/customers",
+  "/admin/customers/[customerId]",
+  "/admin/customers/[customerId]/manage",
+  "/admin/customers/support",
+  "/admin/email-lab",
+  "/admin/fairness",
+  "/admin/finance",
+  "/admin/finance/agreements",
+  "/admin/finance/agreements/sla",
+  "/admin/finance/mydata",
+  "/admin/finance/mydata/products",
+  "/admin/finance/vendor-billing",
+  "/admin/maintenance",
+  "/admin/matching",
+  "/admin/notifications",
+  "/admin/operations",
+  "/admin/orders",
+  "/admin/orders/[id]",
+  "/admin/partners",
+  "/admin/partners/[id]",
+  "/admin/partners/pipeline",
+  "/admin/platform",
+  "/admin/privacy",
+  "/admin/prospects",
+  "/admin/recalls",
+  "/admin/reports",
+  "/admin/research-vendors",
+  "/admin/research-vendors/[id]",
+  "/admin/reviews",
+  "/admin/search",
+  "/admin/shipping",
+  "/admin/tax",
+  "/admin/trust",
+  "/admin/vendors",
+  "/admin/work"
 ] as const;
 
 // Keep /vendor itself out of robots.txt because /vendor/[id] is the public merchant-profile namespace.
 // Private vendor pages are listed explicitly instead.
 export const ROBOTS_DISALLOW_PATHS = [
-  "/account", "/admin", "/api", "/cart", "/checkout", "/daily", "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/join/apply",
-  "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance", "/vendor/notifications", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping", "/vendor/storefront", "/vendor/trust"
+  "/account",
+  "/admin",
+  "/api",
+  "/cart",
+  "/checkout",
+  "/daily",
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+  "/join/apply",
+  "/vendor/login",
+  "/vendor/advice",
+  "/vendor/analytics",
+  "/vendor/catalog",
+  "/vendor/daily-access",
+  "/vendor/finance",
+  "/vendor/notifications",
+  "/vendor/pickup",
+  "/vendor/reports",
+  "/vendor/returns",
+  "/vendor/shipping",
+  "/vendor/storefront",
+  "/vendor/trust"
 ] as const;
