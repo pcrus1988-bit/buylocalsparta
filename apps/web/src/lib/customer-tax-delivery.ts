@@ -2,6 +2,7 @@ import { renderKontaMoyEmail, resendConfigFromEnv, resendDeliveryEnabled, signed
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { renderCustomerTaxPdf } from "./customer-tax-pdf";
+import { resolveAutomaticEmailTemplate } from "./email-template-lab";
 
 export async function deliverAcceptedCustomerTaxDocumentById(documentId: string): Promise<{ sent: boolean; reason?: string }> {
   if (!productionDatabaseConfigured() || !resendDeliveryEnabled(process.env) || !process.env.RESEND_API_KEY?.trim()) return { sent: false, reason: "email_not_configured" };
@@ -25,7 +26,7 @@ export async function deliverAcceptedCustomerTaxDocumentById(documentId: string)
     const pdf = await renderCustomerTaxPdf(document);
     const config = resendConfigFromEnv(process.env);
     const publicBaseUrl = publicBaseUrlFromEnv();
-    const emailInput = {
+    const emailInput = await resolveAutomaticEmailTemplate({
       subject: `Το παραστατικό σας ${document.documentNumber} · KONTA MOY`,
       text: [
         `Η πληρωμή της παραγγελίας ${document.orderId} ολοκληρώθηκε.`,
@@ -35,14 +36,16 @@ export async function deliverAcceptedCustomerTaxDocumentById(documentId: string)
       ].join("\n"),
       eventType: "tax.document_issued",
       locale: "el",
+      purpose: "transactional",
       payload: {
         orderId: document.orderId,
         documentId: document.id,
         documentNumber: document.documentNumber,
+        mark: document.mark,
         ctaPath: `/account/orders/${encodeURIComponent(document.orderId)}`,
         ctaLabel: "Προβολή παραγγελίας"
       }
-    } as const;
+    });
     const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/emails`, {
       method: "POST",
       headers: { authorization: `Bearer ${config.apiKey}`, "content-type": "application/json", "idempotency-key": `customer-tax:${document.id}:${document.mark}` },

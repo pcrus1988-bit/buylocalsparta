@@ -87,6 +87,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Σύστημα",
     links: [
+      { label: "Email Lab", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" },
       { label: "Εργασίες", href: "/admin/maintenance", icon: "⋯", permission: "admin.audit.read" },
       { label: "Ενεργοποίηση", href: "/admin/activation", icon: "◈", permission: "admin.audit.read" },
       { label: "Λειτουργία", href: "/admin/operations", icon: "⚙", permission: "admin.audit.read" }

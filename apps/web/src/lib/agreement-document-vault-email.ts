@@ -2,6 +2,7 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { renderKontaMoyEmail, resendConfigFromEnv, signedKontaMoyText } from "@buy-local-sparta/resend-notifications";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { KONTA_MOY_LEGAL_DETAILS } from "./vendor-agreement-pdf";
+import { resolveAutomaticEmailTemplate } from "./email-template-lab";
 import {
   agreementActorUserId,
   agreementAudit,
@@ -21,7 +22,7 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
   const attachment = await readAgreementVaultPdf(String(row.unsigned_pdf_object_key));
   const config = resendConfigFromEnv();
   const publicBaseUrl = publicBaseUrlFromEnv();
-  const emailInput = {
+  const emailInput = await resolveAutomaticEmailTemplate({
     subject: `KONTA MOY – Συμφωνία συνεργασίας ${row.agreement_code}`,
     text: [
       `Σας αποστέλλουμε τη συμφωνία συνεργασίας ${row.agreement_code} (έκδοση v${row.agreement_version}).`,
@@ -33,13 +34,16 @@ export async function emailCommercialAgreementPdfVault(principal: SessionPrincip
     ].join("\n"),
     eventType: "vendor.agreement_signature_requested",
     locale: "el",
+    purpose: "transactional",
     payload: {
       agreementId: row.public_id,
       agreementCode: row.agreement_code,
+      agreementVersion: row.agreement_version,
+      phone: KONTA_MOY_LEGAL_DETAILS.phone,
       ctaUrl: `mailto:${KONTA_MOY_LEGAL_DETAILS.email}`,
       ctaLabel: "Επικοινωνία για τη συμφωνία"
     }
-  } as const;
+  });
   const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/emails`, {
     method: "POST",
     headers: {

@@ -1,6 +1,9 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { NotificationDeliveryWorker, PostgresUnitOfWork, type Notification, type NotificationDeliveryAttemptSink, type NotificationDeliveryStore, type NotificationDestination, type NotificationRecipientResolver, type SqlExecutor, type SqlPool, type SqlRow } from "@buy-local-sparta/core";
+import { NotificationDeliveryWorker, PostgresUnitOfWork, type Notification, type NotificationDeliveryAttemptSink, type NotificationDeliveryStore, type NotificationDestination, type NotificationProvider, type NotificationRecipientResolver, type SqlExecutor, type SqlPool, type SqlRow } from "@buy-local-sparta/core";
 import { ResendEmailProvider, ResendWebhookVerifier, type ResendConfig, type ResendWebhookEvent } from "@buy-local-sparta/resend-notifications";
+import { PostgresEmailTemplateRegistry } from "./email-templates.ts";
+export { PostgresEmailTemplateRegistry };
+export type { EmailTemplateCatalogItem } from "./email-templates.ts";
 
 function text(v:unknown,label:string){if(typeof v!=="string"||!v)throw new Error(`Invalid ${label}`);return v;}
 function optional(v:unknown){return typeof v==="string"&&v? v:undefined;}
@@ -20,10 +23,28 @@ export class PostgresNotificationRecipientResolver implements NotificationRecipi
   hashDestination(email:string){return createHmac("sha256",this.#suppressionSecret).update(email.trim().toLowerCase()).digest("hex");}
 }
 
+class TemplateAwareResendProvider implements NotificationProvider {
+  readonly channel="email" as const;
+  readonly name="resend";
+  readonly #provider:ResendEmailProvider;
+  readonly #templates:PostgresEmailTemplateRegistry;
+  constructor(provider:ResendEmailProvider,templates:PostgresEmailTemplateRegistry){this.#provider=provider;this.#templates=templates;}
+  async send(input:{notification:Notification;destination:string;idempotencyKey:string}){
+    let notification=input.notification;
+    try { notification=await this.#templates.resolveForSend(input.notification); }
+    catch(error){
+      console.error(JSON.stringify({level:"error",event:"notification_template.resolve_failed",eventType:input.notification.eventType,message:error instanceof Error?error.message:String(error)}));
+    }
+    return this.#provider.send({...input,notification});
+  }
+}
+
 export class PostgresResendNotificationService {
   readonly #uow:PostgresUnitOfWork;readonly #resolver:PostgresNotificationRecipientResolver;readonly #verifier?:ResendWebhookVerifier;readonly worker:NotificationDeliveryWorker;
   constructor(input:{db:SqlPool;store:NotificationDeliveryStore;attemptSink:NotificationDeliveryAttemptSink;config:ResendConfig;suppressionSecret:string;workerId?:string;fetchImpl?:typeof fetch}){
-    this.#uow=new PostgresUnitOfWork(input.db);this.#resolver=new PostgresNotificationRecipientResolver(input.db,input.suppressionSecret);this.#verifier=input.config.webhookSecret?new ResendWebhookVerifier(input.config.webhookSecret):undefined;const provider=new ResendEmailProvider(input.config,input.fetchImpl);this.worker=new NotificationDeliveryWorker({service:input.store,resolver:this.#resolver,providers:[provider],attemptSink:input.attemptSink,workerId:input.workerId,maxAttempts:5,baseRetryMs:5_000,leaseMs:30_000});
+    this.#uow=new PostgresUnitOfWork(input.db);this.#resolver=new PostgresNotificationRecipientResolver(input.db,input.suppressionSecret);this.#verifier=input.config.webhookSecret?new ResendWebhookVerifier(input.config.webhookSecret):undefined;
+    const provider=new TemplateAwareResendProvider(new ResendEmailProvider(input.config,input.fetchImpl),new PostgresEmailTemplateRegistry(input.db));
+    this.worker=new NotificationDeliveryWorker({service:input.store,resolver:this.#resolver,providers:[provider],attemptSink:input.attemptSink,workerId:input.workerId,maxAttempts:5,baseRetryMs:5_000,leaseMs:30_000});
   }
   async runOnce(now=Date.now(),limit=50){return this.worker.runOnce(now,limit);}
   verifyWebhook(input:{payload:string;id:string|undefined;timestamp:string|undefined;signature:string|undefined;now?:number}){if(!this.#verifier)throw new Error("RESEND_WEBHOOK_SECRET is required to verify Resend webhooks");return this.#verifier.verify(input);}

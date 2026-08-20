@@ -1,5 +1,6 @@
 import { ResendEmailProvider, ResendWebhookVerifier, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import type { Notification } from "@buy-local-sparta/core";
+import { resolveAutomaticEmailTemplate } from "./email-template-lab";
 
 const globals = globalThis as typeof globalThis & {
   __blsDirectResendProvider?: ResendEmailProvider;
@@ -22,6 +23,14 @@ export function transactionalEmailConfigured(env: NodeJS.ProcessEnv = process.en
 
 export async function sendTransactionalEmail(input: TransactionalEmailInput): Promise<{ providerMessageId: string }> {
   if (!transactionalEmailConfigured()) throw new Error("Transactional email delivery is not enabled");
+  const resolved = await resolveAutomaticEmailTemplate({
+    subject: input.subject,
+    text: input.text,
+    eventType: input.eventType,
+    locale: input.locale,
+    purpose: "transactional",
+    payload: input.payload
+  });
   const now = Date.now();
   const notification: Notification = {
     id: `direct:${input.idempotencyKey}`,
@@ -30,8 +39,8 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
     eventType: input.eventType,
     templateVersion: "web-direct-v1",
     locale: input.locale ?? "el",
-    title: input.subject,
-    body: input.text,
+    title: resolved.subject,
+    body: resolved.text,
     payload: input.payload ?? {},
     status: "queued",
     deliveryAttempts: 0,
