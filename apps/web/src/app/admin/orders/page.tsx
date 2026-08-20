@@ -5,6 +5,7 @@ import { AdminActionButton } from "../../../components/AdminActionButton";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminOrdersReturnsWorkspace } from "../../../lib/admin-governance-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
+import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ customer?: string; order?: string }> }) {
   const principal = await getAdminSession();
@@ -14,7 +15,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
   const params = await searchParams;
   const customerFilter = params.customer?.trim();
   const orderFilter = params.order?.trim();
-  const orders = data.orders.filter((order) => (!customerFilter || order.customerId === customerFilter) && (!orderFilter || order.id === orderFilter));
+  const [orderReferences, returnReferences] = await Promise.all([
+    marketplaceReferenceMap("order", [...data.orders.map((order) => order.id), ...data.returns.map((item) => item.orderId)]),
+    marketplaceReferenceMap("return", data.returns.map((item) => item.id))
+  ]);
+  const orders = data.orders.filter((order) => (!customerFilter || order.customerId === customerFilter) && (!orderFilter || order.id === orderFilter || orderReferences.get(order.id) === orderFilter));
   const orderIds = new Set(orders.map((order) => order.id));
   const returns = data.returns.filter((item) => (!customerFilter && !orderFilter) || orderIds.has(item.orderId));
   const filtered = Boolean(customerFilter || orderFilter);
@@ -39,7 +44,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Orders" title="Παραγγελίες" note="Οι vendor fulfilments παραμένουν ιδιωτικά scoped, ενώ εδώ βλέπεις την customer-level εικόνα." />
       {orders.length === 0 ? <WorkspaceEmptyState title={filtered ? "Δεν βρέθηκαν παραγγελίες για αυτό το customer/order filter." : "Δεν υπάρχουν ακόμη παραγγελίες."} /> : <div className="workspace-queue-list">{orders.map((order) => <article className="workspace-queue-card" key={order.id}>
-        <div className="workspace-queue-head"><div><strong>{order.id}</strong><small>{order.fulfilmentMode} · {order.customerId ?? "guest"}</small></div><span className="status-pill">{order.status}</span></div>
+        <div className="workspace-queue-head"><div><strong>{orderReferences.get(order.id) ?? order.id}</strong><small>{order.fulfilmentMode} · {order.customerId ?? "guest"}</small></div><span className="status-pill">{order.status}</span></div>
         <div className="workspace-queue-primary"><span>{order.lines.length} lines</span><span>{order.total}</span><span>{order.returns.length} return cases</span></div>
         <WorkspaceRecordDetails label="Γραμμές παραγγελίας & vendor assignments">
           <div className="workspace-compact-list">{order.lines.map((line) => <div className="workspace-compact-row" key={line.id}><strong>{line.quantity}× {line.title}</strong><span>{line.vendorId}</span><small>{line.status}</small></div>)}</div>
@@ -51,7 +56,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="After-sales" title="Return cases" note="Εμφανίζονται μόνο οι ενέργειες που είναι νόμιμες για το τρέχον στάδιο του return workflow." />
       {returns.length === 0 ? <WorkspaceEmptyState title={filtered ? "Δεν υπάρχουν return cases για τα επιλεγμένα orders." : "Δεν υπάρχουν return cases."} /> : <div className="workspace-queue-list">{returns.map((item) => <article className="workspace-queue-card" key={item.id}>
-        <div className="workspace-queue-head"><div><strong>{item.id}</strong><small>Order {item.orderId} · {item.vendorId}</small></div><span className="status-pill">{item.status}</span></div>
+        <div className="workspace-queue-head"><div><strong>{returnReferences.get(item.id) ?? item.id}</strong><small>Order {orderReferences.get(item.orderId) ?? item.orderId} · {item.vendorId}</small></div><span className="status-pill">{item.status}</span></div>
         <div className="workspace-queue-primary"><span>{item.quantity} unit(s)</span><span>{item.requestedRemedy}</span><span>{item.eligibility.state}</span></div>
         <WorkspaceRecordDetails label="Αιτία & workflow στοιχεία"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Reason</strong><span>{item.reason}</span></div><div className="workspace-compact-row"><strong>Requested remedy</strong><span>{item.requestedRemedy}</span><small>{item.eligibility.state}</small></div></div></WorkspaceRecordDetails>
         <div className="workspace-action-bar"><span>Τρέχον στάδιο: <strong>{item.status}</strong></span><div className="workspace-action-buttons">
