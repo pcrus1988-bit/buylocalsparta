@@ -6,6 +6,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 export type AdminAskLocalRequest = Readonly<{
   id: string;
+  referenceNumber: string;
   customerId: string;
   customerName: string;
   customerEmail?: string;
@@ -48,6 +49,7 @@ function mapRequest(row: SqlRow): AdminAskLocalRequest {
   const lastName = optionalText(row.last_name);
   return {
     id: text(row.public_id),
+    referenceNumber: optionalText(row.reference_number) ?? text(row.public_id),
     customerId: text(row.customer_public_id),
     customerName: [firstName, lastName].filter(Boolean).join(" ") || optionalText(row.customer_email) || text(row.customer_public_id),
     customerEmail: optionalText(row.customer_email),
@@ -68,7 +70,7 @@ function mapRequest(row: SqlRow): AdminAskLocalRequest {
 }
 
 async function requestRows(tx: SqlExecutor, limit: number): Promise<readonly AdminAskLocalRequest[]> {
-  const result = await tx.query<SqlRow>(`SELECT cr.public_id,cr.status::text,cr.source_metadata,cr.requested_quantity,cr.postcode,cr.workflow_owner_kind,cr.assignment_reason,cr.expires_at,cr.created_at,cr.updated_at,
+  const result = await tx.query<SqlRow>(`SELECT cr.public_id,cr.reference_number,cr.status::text,cr.source_metadata,cr.requested_quantity,cr.postcode,cr.workflow_owner_kind,cr.assignment_reason,cr.expires_at,cr.created_at,cr.updated_at,
       customer.public_id AS customer_public_id,customer.email::text AS customer_email,cp.first_name,cp.last_name,
       admin_user.public_id AS admin_public_id,v.public_id AS vendor_public_id,v.trading_name
     FROM counteroffer_requests cr
@@ -129,13 +131,14 @@ export async function adminAssignAskLocal(principal: SessionPrincipal, input: { 
   if (input.owner === "vendor" && !input.vendorId?.trim()) throw new Error("Choose an eligible vendor");
 
   return uow().withTransaction(platformScope(principal.userId), async (tx) => {
-    const found = await tx.query<SqlRow>(`SELECT cr.id::text AS request_uuid,cr.public_id,cr.status::text,cr.workflow_owner_kind,cr.assignment_reason,
+    const found = await tx.query<SqlRow>(`SELECT cr.id::text AS request_uuid,cr.public_id,cr.reference_number,cr.status::text,cr.workflow_owner_kind,cr.assignment_reason,
       cr.assigned_vendor_id::text,cr.assigned_admin_user_id::text,cr.expires_at
       FROM counteroffer_requests cr
-      WHERE cr.public_id=$1
+      WHERE cr.public_id=$1 OR cr.reference_number=$1
       FOR UPDATE`, [requestId]);
     if (!found.rowCount) throw new Error("Ask Local request was not found");
     const before = found.rows[0];
+    const internalRequestId = text(before.public_id);
     if (![...OPEN_STATUSES].includes(text(before.status) as (typeof OPEN_STATUSES)[number])) throw new Error("Closed Ask Local requests cannot be reassigned");
 
     const actor = await tx.query<SqlRow>(`SELECT id::text AS id FROM users WHERE public_id=$1 OR id::text=$1 LIMIT 1`, [principal.userId]);
@@ -146,8 +149,8 @@ export async function adminAssignAskLocal(principal: SessionPrincipal, input: { 
         SET workflow_owner_kind='admin',assigned_admin_user_id=$2::uuid,assigned_vendor_id=NULL,assigned_offer_id=NULL,
             assignment_reason='admin_manual_triage',status='submitted',expires_at=NULL,workflow_updated_at=now(),updated_at=now()
         WHERE id=$1::uuid`, [before.request_uuid, actor.rows[0].id]);
-      await audit(tx, principal, requestId, reason, before, { workflowOwnerKind: "admin", assignedAdminId: principal.userId, status: "submitted", assignmentReason: "admin_manual_triage" });
-      return { id: requestId, workflowOwnerKind: "admin" as const, status: "submitted" };
+      await audit(tx, principal, internalRequestId, reason, before, { workflowOwnerKind: "admin", assignedAdminId: principal.userId, status: "submitted", assignmentReason: "admin_manual_triage" });
+      return { id: internalRequestId, referenceNumber: optionalText(before.reference_number) ?? internalRequestId, workflowOwnerKind: "admin" as const, status: "submitted" };
     }
 
     const vendor = await tx.query<SqlRow>(`SELECT v.id::text AS vendor_uuid,v.public_id,v.trading_name
@@ -166,9 +169,9 @@ export async function adminAssignAskLocal(principal: SessionPrincipal, input: { 
       WHERE id=$1::uuid`, [before.request_uuid, vendorRow.vendor_uuid, dueAt]);
     await tx.query(`INSERT INTO notifications(id,public_id,vendor_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
       VALUES($1,$2,$3::uuid,'in_app','transactional','ask_local.assigned','ask-local-admin-assignment-v1','el','Νέο Ask Local αίτημα','Η ομάδα KONTA MOY σας ανέθεσε νέο αίτημα Ask Local.',$4::jsonb,'queued',$5,now())
-      ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [randomUUID(), `notification_${randomUUID()}`, vendorRow.vendor_uuid, JSON.stringify({ requestId, responseDueAt: dueAt.getTime(), assignmentReason: "admin_manual_vendor_assignment" }), `ask-local-vendor-assignment:${requestId}:${vendorRow.public_id}`]);
-    await audit(tx, principal, requestId, reason, before, { workflowOwnerKind: "vendor", assignedVendorId: vendorRow.public_id, assignedVendorName: vendorRow.trading_name, status: "awaiting_vendor", responseDueAt: dueAt.toISOString(), assignmentReason: "admin_manual_vendor_assignment" });
-    return { id: requestId, workflowOwnerKind: "vendor" as const, vendorId: text(vendorRow.public_id), status: "awaiting_vendor" };
+      ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [randomUUID(), `notification_${randomUUID()}`, vendorRow.vendor_uuid, JSON.stringify({ requestId: internalRequestId, responseDueAt: dueAt.getTime(), assignmentReason: "admin_manual_vendor_assignment" }), `ask-local-vendor-assignment:${internalRequestId}:${vendorRow.public_id}`]);
+    await audit(tx, principal, internalRequestId, reason, before, { workflowOwnerKind: "vendor", assignedVendorId: vendorRow.public_id, assignedVendorName: vendorRow.trading_name, status: "awaiting_vendor", responseDueAt: dueAt.toISOString(), assignmentReason: "admin_manual_vendor_assignment" });
+    return { id: internalRequestId, referenceNumber: optionalText(before.reference_number) ?? internalRequestId, workflowOwnerKind: "vendor" as const, vendorId: text(vendorRow.public_id), status: "awaiting_vendor" };
   }, { isolation: "serializable" });
 }
 
