@@ -52,6 +52,7 @@ const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
   "packed",
   "ready_for_handover"
 ]);
+const BRIDGE_FLAG = "kontamou-daily-push-bridge-active";
 
 const formatWhen = (value: string | number) => new Intl.DateTimeFormat("el-GR", {
   dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens"
@@ -102,15 +103,20 @@ export function VendorDailyHomeClient({
   const [message, setMessage] = useState("");
   const [support, setSupport] = useState<BrowserSupport>("checking");
   const [permission, setPermission] = useState<NotificationPermission | "unavailable">("unavailable");
+  const [bridgeActive, setBridgeActive] = useState(false);
 
   useEffect(() => {
+    setBridgeActive(window.localStorage.getItem(BRIDGE_FLAG) === "1");
     const supported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     setSupport(supported ? "supported" : "unsupported");
     setPermission(supported ? Notification.permission : "unavailable");
 
     if (!supported) return;
     const refreshPermission = () => {
-      if (document.visibilityState === "visible") setPermission(Notification.permission);
+      if (document.visibilityState === "visible") {
+        setPermission(Notification.permission);
+        setBridgeActive(window.localStorage.getItem(BRIDGE_FLAG) === "1");
+      }
     };
     document.addEventListener("visibilitychange", refreshPermission);
     window.addEventListener("focus", refreshPermission);
@@ -187,7 +193,7 @@ export function VendorDailyHomeClient({
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
-      if (result === "denied") throw new Error("Οι ειδοποιήσεις αποκλείστηκαν. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για οδηγίες επανενεργοποίησης.");
+      if (result === "denied") throw new Error("Οι ειδοποιήσεις αποκλείστηκαν. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση.");
       if (result !== "granted") throw new Error("Δεν δόθηκε άδεια για ειδοποιήσεις.");
       if (!push.configured || !push.publicKey) {
         setMessage("Ο browser επέτρεψε τις ειδοποιήσεις, αλλά το server Web Push δεν είναι ακόμη διαθέσιμο.");
@@ -227,10 +233,10 @@ export function VendorDailyHomeClient({
     </header>
 
     <div className={styles.shell}>
-      {support !== "checking" && permission !== "granted" && <section className={styles.permissionCard}>
-        <div><span className={styles.eyebrow}>Browser permission</span><h1>Ενεργοποίησε ειδοποιήσεις</h1><p>{permission === "denied" ? "Το kontamou.site είναι αποκλεισμένο από τον browser. Άλλαξε την άδεια σε «Επιτρέπεται» και το Daily θα επανελέγξει αυτόματα τη συσκευή." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
+      {support !== "checking" && permission !== "granted" && !bridgeActive && <section className={styles.permissionCard}>
+        <div><span className={styles.eyebrow}>Browser permission</span><h1>Ενεργοποίησε ειδοποιήσεις</h1><p>{permission === "denied" ? "Το kontamou.site έχει μπλοκαριστεί αυτόματα από τον browser. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση Background Push." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
         <button type="button" onClick={() => void enableNotifications()} disabled={pushBusy || support !== "supported"}>
-          {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Οδηγίες ρυθμίσεων" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
+          {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Εναλλακτική ενεργοποίηση" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
         </button>
       </section>}
 
