@@ -13,6 +13,7 @@
     "./reporting": "./src/reporting.ts",
     "./mapping-reference": "./src/mapping-reference.ts",
     "./digital-movement": "./src/digital-movement.ts",
-    "./group-qr": "./src/group-qr.ts"
+    "./group-qr": "./src/group-qr.ts",
+    "./delivery-return-reconciliation": "./src/delivery-return-reconciliation.ts"
   }
 }
