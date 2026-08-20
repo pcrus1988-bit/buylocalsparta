@@ -7,6 +7,7 @@ import {
   type MyDataTransmissionResult
 } from "./index.ts";
 import { assertClassificationXmlPreflight } from "./classification-preflight.ts";
+import { assertInvoiceElementOrder } from "./order-preflight.ts";
 import { assertPaymentMethodsXmlPreflight } from "./payment-method-preflight.ts";
 import { assertInvoiceXmlPreflight } from "./preflight.ts";
 
@@ -31,6 +32,7 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
 
   override async sendInvoices(xml: string): Promise<MyDataTransmissionResult> {
     assertInvoiceXmlPreflight(xml);
+    assertInvoiceElementOrder(xml);
     assertClassificationXmlPreflight(xml);
     return super.sendInvoices(xml);
   }
