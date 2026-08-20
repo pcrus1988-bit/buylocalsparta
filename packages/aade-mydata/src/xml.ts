@@ -13,6 +13,12 @@ export type XmlElementSpec = Readonly<{
   children?: readonly XmlElementSpec[];
 }>;
 
+export type DecodedAadeXmlEnvelope = Readonly<{
+  wireXml: string;
+  xml: string;
+  wrapped: boolean;
+}>;
+
 type MutableXmlElement = {
   name: string;
   localName: string;
@@ -114,6 +120,26 @@ export function parseXmlDocument(input: string): XmlElement {
     }
     current.text += decodeXml(rawText);
   }
+}
+
+export function decodeAadeXmlEnvelope(input: string): DecodedAadeXmlEnvelope {
+  const wireXml = input.trim();
+  if (!wireXml) throw new Error("AADE myDATA returned empty XML");
+  let xml = wireXml;
+  let wrapped = false;
+
+  for (let depth = 0; depth < 3; depth += 1) {
+    const root = parseXmlDocument(xml);
+    if (root.localName !== "string") return { wireXml, xml, wrapped };
+    if (root.children.length) throw new Error("AADE serialized XML string envelope must not contain child elements");
+    const inner = textContent(root).trim();
+    if (!inner.startsWith("<")) throw new Error("AADE serialized XML string envelope did not contain an XML document");
+    parseXmlDocument(inner);
+    xml = inner;
+    wrapped = true;
+  }
+
+  throw new Error("AADE serialized XML envelope exceeded the supported nesting depth");
 }
 
 export function childElements(element: XmlElement, name: string): readonly XmlElement[] {
