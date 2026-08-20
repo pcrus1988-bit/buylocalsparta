@@ -4,7 +4,7 @@ import { runCustomerFiscalReconciliationSweep } from "../../../../lib/customer-f
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PRIVATE_SCHEDULER_TOKEN_SHA256 = "cb8f8336c633017d741485067b71ccf9c5038df74c3bbdd3bbdd48f2c706a74d";
+const PRIVATE_SCHEDULER_TOKEN_SHA256 = "f2441f8d920cf39943b4516d4f567e8f653d1991205b0d3149f618666fba19b4";
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
