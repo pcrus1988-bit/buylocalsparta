@@ -32,17 +32,24 @@ Browser subscriptions are stored in `vendor_daily_push_subscriptions` and are sc
 
 The service worker is `/daily-sw.js` with scope `/daily/`. Notification clicks may only deep-link into `/daily` routes.
 
-Server delivery uses VAPID and expects these server-only values:
+Server delivery uses VAPID. Configuration is resolved in this order:
+
+1. server environment variables, when both VAPID keys are present;
+2. encrypted Supabase Vault secrets;
+3. if neither source contains a key pair and `BLS_WEB_PUSH_VAULT_AUTOPROVISION` is not `false`, the server generates one P-256 VAPID pair under a PostgreSQL advisory lock and stores it in Supabase Vault.
+
+Optional environment values:
 
 ```text
 BLS_WEB_PUSH_PUBLIC_KEY=<base64url P-256 public key>
 BLS_WEB_PUSH_PRIVATE_KEY=<base64url P-256 private key>
 BLS_WEB_PUSH_SUBJECT=mailto:<operational-contact>
+BLS_WEB_PUSH_VAULT_AUTOPROVISION=false   # only when automatic Vault provisioning must be disabled
 ```
 
-Generate the VAPID key pair once and keep the private key out of Git. On Vercel, store these as encrypted environment variables (Preview first for device testing, then Production). After changing Vercel environment variables, redeploy the affected environment so Functions receive the new values.
+The private key is never returned by Daily APIs and is never stored in ordinary application tables. Vault-backed secrets use the names `bls_web_push_public_key`, `bls_web_push_private_key` and `bls_web_push_subject`. Environment values take precedence so operators may rotate/move the key material without changing application code.
 
-A device is not considered push-enabled merely because browser notification permission is granted. Daily reports background push as active only when server VAPID configuration exists and the current Daily user has a persisted PushSubscription.
+A device is not considered push-enabled merely because browser notification permission is granted. Daily reports background push as active only when a VAPID configuration is available and the current Daily user has a persisted PushSubscription.
 
 ## Delivery lifecycle
 
@@ -74,7 +81,7 @@ Before promoting Daily to production:
 
 - database readiness reports schema 83;
 - every vendor that has agreed explicit SLA timings has a policy attached to its active agreement;
-- VAPID values are configured server-side;
+- VAPID configuration resolves successfully from environment or Supabase Vault;
 - a real Daily employee credential is created from the vendor owner page;
 - verify that the same credential is rejected by `/vendor/login`;
 - register at least one physical phone from `/daily/notifications`;
