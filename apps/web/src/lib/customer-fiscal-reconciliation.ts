@@ -11,6 +11,10 @@ export type CustomerFiscalReconciliation = Readonly<{
   pagesChecked: number;
 }>;
 
+export type CustomerFiscalReconciliationOptions = Readonly<{
+  markPendingOnMiss?: boolean;
+}>;
+
 type TargetDocument = Readonly<{
   documentUuid: string;
   documentId: string;
@@ -37,13 +41,18 @@ type TransmittedInvoice = Readonly<{
 }>;
 
 type SearchDiagnostic = Readonly<{
-  strategy: "issue_date" | "broad_invoice_type";
+  strategy: "issuer_issue_date" | "issuer_broad_invoice_type" | "representative_issue_date" | "representative_broad_invoice_type";
+  entityVatNumberApplied: boolean;
   pagesChecked: number;
   invoicesParsed: number;
   identities: readonly string[];
 }>;
 
-export async function reconcileCustomerFiscalDocument(documentId: string, now = Date.now()): Promise<CustomerFiscalReconciliation> {
+export async function reconcileCustomerFiscalDocument(
+  documentId: string,
+  now = Date.now(),
+  options: CustomerFiscalReconciliationOptions = {}
+): Promise<CustomerFiscalReconciliation> {
   if (!productionDatabaseConfigured()) return { accepted: false, found: false, pagesChecked: 0 };
   const db = getProductionPostgresRuntime().nativePool;
   const target = await loadTarget(documentId);
@@ -63,40 +72,49 @@ export async function reconcileCustomerFiscalDocument(documentId: string, now = 
   const queryDate = toAadeDate(target.issueDate);
   const diagnostics: SearchDiagnostic[] = [];
 
-  const dated = await searchTransmittedDocs(client, target, {
-    strategy: "issue_date",
-    dateFrom: queryDate,
-    dateTo: queryDate,
-    maxPages: 20
-  });
-  diagnostics.push(dated.diagnostic);
-  if (dated.match) {
-    const pagesChecked = diagnostics.reduce((sum, item) => sum + item.pagesChecked, 0);
-    await acceptReconciledDocument(target, dated.match, pagesChecked, diagnostics, now);
-    return { accepted: true, found: true, mark: dated.match.mark, uid: dated.match.uid, qrUrl: dated.match.qrUrl, pagesChecked };
+  // AADE identifies the authenticated ERP user from the request credentials. For the
+  // issuer's own documents, entityVatNumber must not be forced into the request: that
+  // parameter is for requests performed on behalf of another entity. Try the authenticated
+  // issuer view first and retain an explicit-entity fallback for representative credentials.
+  const searches: ReadonlyArray<Readonly<{
+    strategy: SearchDiagnostic["strategy"];
+    dateFrom?: string;
+    dateTo?: string;
+    maxPages: number;
+    includeEntityVatNumber: boolean;
+  }>> = [
+    { strategy: "issuer_issue_date", dateFrom: queryDate, dateTo: queryDate, maxPages: 20, includeEntityVatNumber: false },
+    { strategy: "issuer_broad_invoice_type", maxPages: 50, includeEntityVatNumber: false },
+    { strategy: "representative_issue_date", dateFrom: queryDate, dateTo: queryDate, maxPages: 20, includeEntityVatNumber: true },
+    { strategy: "representative_broad_invoice_type", maxPages: 50, includeEntityVatNumber: true }
+  ];
+
+  for (const search of searches) {
+    const result = await searchTransmittedDocs(client, target, search);
+    diagnostics.push(result.diagnostic);
+    if (result.match) {
+      const pagesChecked = diagnostics.reduce((sum, item) => sum + item.pagesChecked, 0);
+      await acceptReconciledDocument(target, result.match, pagesChecked, diagnostics, now);
+      return { accepted: true, found: true, mark: result.match.mark, uid: result.match.uid, qrUrl: result.match.qrUrl, pagesChecked };
+    }
   }
 
-  // If AADE's date index is not yet consistent, retry read-only without a date filter.
-  // Keep invoice type and entity VAT filters so this remains a narrowly scoped lookup.
-  const broad = await searchTransmittedDocs(client, target, {
-    strategy: "broad_invoice_type",
-    maxPages: 50
-  });
-  diagnostics.push(broad.diagnostic);
   const pagesChecked = diagnostics.reduce((sum, item) => sum + item.pagesChecked, 0);
-  if (broad.match) {
-    await acceptReconciledDocument(target, broad.match, pagesChecked, diagnostics, now);
-    return { accepted: true, found: true, mark: broad.match.mark, uid: broad.match.uid, qrUrl: broad.match.qrUrl, pagesChecked };
-  }
-
-  await markReconciliationPending(target, pagesChecked, diagnostics, now);
+  if (options.markPendingOnMiss !== false) await markReconciliationPending(target, pagesChecked, diagnostics, now);
+  else await recordReconciliationProbe(target, pagesChecked, diagnostics, now);
   return { accepted: false, found: false, pagesChecked };
 }
 
 async function searchTransmittedDocs(
   client: AadeMyDataClient,
   target: TargetDocument,
-  input: Readonly<{ strategy: SearchDiagnostic["strategy"]; dateFrom?: string; dateTo?: string; maxPages: number }>
+  input: Readonly<{
+    strategy: SearchDiagnostic["strategy"];
+    dateFrom?: string;
+    dateTo?: string;
+    maxPages: number;
+    includeEntityVatNumber: boolean;
+  }>
 ): Promise<{ match?: TransmittedInvoice; diagnostic: SearchDiagnostic }> {
   let nextPartitionKey: string | undefined;
   let nextRowKey: string | undefined;
@@ -108,7 +126,7 @@ async function searchTransmittedDocs(
   for (let page = 0; page < input.maxPages; page += 1) {
     const xml = await client.requestTransmittedDocs({
       mark: "0",
-      entityVatNumber: target.entityVatNumber,
+      ...(input.includeEntityVatNumber ? { entityVatNumber: target.entityVatNumber } : {}),
       invType: target.invoiceType,
       dateFrom: input.dateFrom,
       dateTo: input.dateTo,
@@ -123,7 +141,18 @@ async function searchTransmittedDocs(
       identities.push(invoiceIdentity(invoice));
     }
     const match = parsed.invoices.find((invoice) => matches(invoice, target));
-    if (match) return { match, diagnostic: { strategy: input.strategy, pagesChecked, invoicesParsed, identities } };
+    if (match) {
+      return {
+        match,
+        diagnostic: {
+          strategy: input.strategy,
+          entityVatNumberApplied: input.includeEntityVatNumber,
+          pagesChecked,
+          invoicesParsed,
+          identities
+        }
+      };
+    }
     if (!parsed.nextPartitionKey || !parsed.nextRowKey) break;
     const cursor = `${parsed.nextPartitionKey}\u0000${parsed.nextRowKey}`;
     if (seenCursors.has(cursor)) break;
@@ -132,7 +161,15 @@ async function searchTransmittedDocs(
     nextRowKey = parsed.nextRowKey;
   }
 
-  return { diagnostic: { strategy: input.strategy, pagesChecked, invoicesParsed, identities } };
+  return {
+    diagnostic: {
+      strategy: input.strategy,
+      entityVatNumberApplied: input.includeEntityVatNumber,
+      pagesChecked,
+      invoicesParsed,
+      identities
+    }
+  };
 }
 
 async function loadTarget(documentId: string): Promise<TargetDocument | undefined> {
@@ -218,6 +255,16 @@ async function acceptReconciledDocument(target: TargetDocument, invoice: Transmi
   } finally {
     client.release();
   }
+}
+
+async function recordReconciliationProbe(target: TargetDocument, pagesChecked: number, diagnostics: readonly SearchDiagnostic[], now: number): Promise<void> {
+  const db = getProductionPostgresRuntime().nativePool;
+  await db.query(
+    `UPDATE mydata_transmission_attempts
+        SET response_snapshot=COALESCE(response_snapshot,'{}'::jsonb)||$2::jsonb
+      WHERE id=$1::uuid`,
+    [target.attemptUuid, JSON.stringify({ reconciliationProbe: { found: false, pagesChecked, diagnostics, checkedAt: new Date(now).toISOString() } })]
+  );
 }
 
 async function markReconciliationPending(target: TargetDocument, pagesChecked: number, diagnostics: readonly SearchDiagnostic[], now: number): Promise<void> {
