@@ -29,6 +29,10 @@ function optionalEpoch(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function isAdviceNotification(item: { title: string }) {
+  return !item.title.startsWith("vendor.order_") && !item.title.startsWith("vendor.sla_");
+}
+
 export async function vendorCatalogWorkspace(principal: SessionPrincipal) {
   const [catalog, controls] = await Promise.all([
     postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : Promise.resolve(memoryCatalogWorkspace(principal)),
@@ -81,7 +85,8 @@ export async function submitVendorCompliance(principal: SessionPrincipal, input:
 }
 
 export async function vendorAdviceWorkspace(principal: SessionPrincipal) {
-  return postgresVendorRuntimeEnabled() ? db().adviceWorkspace(principal) : memoryAdviceWorkspace(principal);
+  const result = postgresVendorRuntimeEnabled() ? await db().adviceWorkspace(principal) : memoryAdviceWorkspace(principal);
+  return { ...result, notifications: result.notifications.filter(isAdviceNotification) };
 }
 export async function vendorSendAdviceMessage(principal: SessionPrincipal, conversationId: string, body: string) {
   return postgresVendorRuntimeEnabled() ? db().sendAdviceMessage(principal, conversationId, body) : memorySendAdviceMessage(principal, conversationId, body);
