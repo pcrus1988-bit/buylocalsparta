@@ -33,13 +33,47 @@ export type DeliveryNoteLifecycleEvent = Readonly<{
   rejectionReason?: string;
 }>;
 
+export type DeliveryNoteStatusName =
+  | "Registered"
+  | "Cancelled"
+  | "InTransit"
+  | "Rejected"
+  | "DeliveredByCarrier"
+  | "FailedDelivery"
+  | "Completed"
+  | "InTransitReturn";
+
 export type DeliveryNoteStatusResponse = Readonly<{
   invoiceMark?: string;
   status?: string;
+  statusCode?: number;
+  statusName?: DeliveryNoteStatusName;
   dispatchTimestamp?: string;
   lifecycleHistory: readonly DeliveryNoteLifecycleEvent[];
   rawXml: string;
 }>;
+
+export type DeliveryReturnInvoiceContext = Readonly<{
+  invoiceType?: string;
+  reverseDeliveryNote?: boolean;
+}>;
+
+export type DeliveryReturnStateAssessment = Readonly<{
+  state: "state_eligible" | "requires_invoice_context" | "not_state_eligible" | "unknown_status";
+  reason: string;
+  issuerMustMatch: true;
+}>;
+
+const DELIVERY_STATUS_BY_CODE: Readonly<Record<number, DeliveryNoteStatusName>> = {
+  1: "Registered",
+  2: "Cancelled",
+  3: "InTransit",
+  4: "Rejected",
+  5: "DeliveredByCarrier",
+  7: "FailedDelivery",
+  8: "Completed",
+  9: "InTransitReturn"
+};
 
 export function buildConfirmDeliveryReturnXml(input: ConfirmDeliveryReturnInput): string {
   const qrUrl = validateDeliveryQrUrl(input.qrUrl);
@@ -95,13 +129,54 @@ export function parseDeliveryNoteStatusResponse(xml: string): DeliveryNoteStatus
   const lifecycleHistory = descendants(document, "lifecycleHistory").map(parseLifecycleEvent);
   const invoiceMark = descendantOrRootChild(document, "invoiceMark");
   if (invoiceMark && !/^\d{1,40}$/.test(invoiceMark)) throw new Error("AADE delivery-note status returned an invalid invoiceMark");
+  const status = descendantOrRootChild(document, "status");
+  const normalized = normalizeDeliveryNoteStatus(status);
   return {
     invoiceMark,
-    status: descendantOrRootChild(document, "status"),
+    status,
+    statusCode: normalized.code,
+    statusName: normalized.name,
     dispatchTimestamp: descendantOrRootChild(document, "dispatchTimestamp"),
     lifecycleHistory,
     rawXml: xml
   };
+}
+
+export function normalizeDeliveryNoteStatus(value: string | number | undefined): Readonly<{ code?: number; name?: DeliveryNoteStatusName }> {
+  if (value === undefined || value === null) return {};
+  const raw = String(value).trim();
+  if (/^\d+$/.test(raw)) {
+    const code = Number(raw);
+    return { code, name: DELIVERY_STATUS_BY_CODE[code] };
+  }
+  const canonical = raw.replace(/[\s_()-]+/g, "").toLowerCase();
+  const name = (Object.values(DELIVERY_STATUS_BY_CODE) as DeliveryNoteStatusName[]).find(candidate => candidate.toLowerCase() === canonical);
+  if (!name) return {};
+  const code = Number(Object.entries(DELIVERY_STATUS_BY_CODE).find(([, candidate]) => candidate === name)?.[0]);
+  return { code: Number.isSafeInteger(code) ? code : undefined, name };
+}
+
+export function assessConfirmDeliveryReturnState(status: DeliveryNoteStatusResponse, context: DeliveryReturnInvoiceContext = {}): DeliveryReturnStateAssessment {
+  const normalized = status.statusName ? { code: status.statusCode, name: status.statusName } : normalizeDeliveryNoteStatus(status.status);
+  const name = normalized.name;
+  if (!name) return assessment("unknown_status", "AADE delivery-note status could not be normalized; do not submit a return confirmation.");
+  if (name === "Rejected" || name === "FailedDelivery" || name === "InTransitReturn") {
+    return assessment("state_eligible", `${name} is an AADE state from which the issuer can complete the return flow.`);
+  }
+  if (name === "DeliveredByCarrier") {
+    const latestOutcome = [...status.lifecycleHistory].reverse().find(event => event.outcome)?.outcome?.trim().toUpperCase();
+    return latestOutcome === "PARTIAL"
+      ? assessment("state_eligible", "DeliveredByCarrier with PARTIAL carrier outcome is eligible for issuer return confirmation.")
+      : assessment("not_state_eligible", "DeliveredByCarrier is eligible only after a PARTIAL carrier outcome.");
+  }
+  if (name === "InTransit") {
+    const invoiceType = context.invoiceType?.trim();
+    if (!invoiceType) return assessment("requires_invoice_context", "InTransit requires invoice-type context before return confirmation.");
+    if (invoiceType === "9.2") return assessment("state_eligible", "Invoice type 9.2 may be completed from InTransit by the issuer.");
+    if (invoiceType === "9.3" && context.reverseDeliveryNote === true) return assessment("state_eligible", "Reverse delivery note 9.3 may be completed from InTransit by the issuer.");
+    return assessment("not_state_eligible", "Ordinary InTransit movement is not eligible for ConfirmDeliveryReturn without the 9.2 or reverse-9.3 condition.");
+  }
+  return assessment("not_state_eligible", `${name} is not an AADE state from which ConfirmDeliveryReturn may be called.`);
 }
 
 export function validateDeliveryQrUrl(value: string): string {
@@ -152,6 +227,10 @@ function parseOptionalBoolean(value: string | undefined): boolean | undefined {
   if (/^(true|1)$/i.test(value)) return true;
   if (/^(false|0)$/i.test(value)) return false;
   return undefined;
+}
+
+function assessment(state: DeliveryReturnStateAssessment["state"], reason: string): DeliveryReturnStateAssessment {
+  return { state, reason, issuerMustMatch: true };
 }
 
 function assertMyDataSpecAtLeast(specVersion: string, minimum: readonly [number, number, number], message: string): void {
