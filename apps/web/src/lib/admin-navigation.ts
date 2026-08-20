@@ -6,7 +6,7 @@ export function canAccessAdminNavLink(principal: SessionPrincipal, link: Workspa
   return !link.permission || hasAdminPermission(principal, link.permission);
 }
 
-export function adminNavigationForPrincipal(principal: SessionPrincipal): ReadonlyArray<WorkspaceNavGroup> {
+export function adminNavigationForPrincipal(principal: SessionPrincipal, attentionBadges: Readonly<Record<string, number>> = {}): ReadonlyArray<WorkspaceNavGroup> {
   return ADMIN_WORKSPACE_NAVIGATION.flatMap((group): WorkspaceNavGroup[] => {
     const links = group.links.filter((link) => canAccessAdminNavLink(principal, link));
     if (links.length === 0) return [];
@@ -14,7 +14,8 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal): Readon
     const landing = requestedLanding && links.some((link) => link.href === requestedLanding)
       ? requestedLanding
       : links.find((link) => !link.contextHidden)?.href ?? links[0]?.href;
-    return [{ ...group, href: landing, links }];
+    const badge = group.href ? attentionBadges[group.href] : undefined;
+    return [{ ...group, href: landing, links, badge: badge && badge > 0 ? badge : undefined }];
   });
 }
 
