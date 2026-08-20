@@ -77,6 +77,17 @@ function orderHref(notification: SlaNotification): string {
   return orderId ? `/daily/orders?order=${encodeURIComponent(orderId)}` : "/daily/orders";
 }
 
+function notificationStillNeedsAction(notification: SlaNotification, statusByFulfilment: ReadonlyMap<string, string>): boolean {
+  const fulfilmentId = payloadString(notification.payload, "fulfilmentId");
+  if (!fulfilmentId) return !notification.readAt;
+  const status = statusByFulfilment.get(fulfilmentId);
+  if (!status) return !notification.readAt;
+  const stage = payloadString(notification.payload, "stage");
+  if (notification.eventType === "vendor.order_received" || stage === "acceptance") return status === "awaiting_acceptance";
+  if (stage === "preparation" || notification.eventType.startsWith("vendor.sla_")) return ["accepted", "picking", "packed"].includes(status);
+  return !notification.readAt;
+}
+
 export function VendorDailyHomeClient({
   dashboard, advice, sla, push
 }: {
@@ -133,12 +144,17 @@ export function VendorDailyHomeClient({
     item.status !== "awaiting_acceptance" && !(item.mode === "pickup" && item.status === "ready_for_handover")
   ).length;
 
+  const statusByFulfilment = useMemo(() => new Map(dashboard.fulfilments.map((item) => [item.id, item.status])), [dashboard.fulfilments]);
+  const actionableSlaNotifications = useMemo(
+    () => sla.notifications.filter((item) => notificationStillNeedsAction(item, statusByFulfilment)),
+    [sla.notifications, statusByFulfilment]
+  );
   const openAsk = advice.counteroffers.filter((item) => !["closed", "expired", "accepted", "rejected"].includes(item.status));
   const feed = [
-    ...sla.notifications.filter((item) => !item.readAt).map((item) => ({ id: `sla:${item.id}`, title: item.title, body: item.body, at: new Date(item.createdAt).getTime(), href: orderHref(item) })),
+    ...actionableSlaNotifications.map((item) => ({ id: `sla:${item.id}`, title: item.title, body: item.body, at: new Date(item.createdAt).getTime(), href: orderHref(item) })),
     ...advice.notifications.map((item) => ({ id: `advice:${item.id}`, title: item.title, body: item.body, at: item.createdAt ?? 0, href: "/daily/ask-local" }))
   ].sort((a, b) => b.at - a.at).slice(0, 3);
-  const unread = sla.metrics.unread + advice.notifications.length;
+  const unread = actionableSlaNotifications.filter((item) => !item.readAt).length + advice.notifications.length;
 
   async function acknowledge(notification: SlaNotification) {
     setAckBusy(notification.id);
