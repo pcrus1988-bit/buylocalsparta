@@ -32,7 +32,7 @@ export default async function Home() {
             <a className="button" href="/shop">Όλα τα προϊόντα</a>
             <a className="button button-secondary" href="/shops?status=partner">Ενεργά καταστήματα</a>
           </div>
-          <div className={styles.heroProof} aria-label="Buy Local Sparta benefits">
+          <div className={styles.heroProof} aria-label="ΚΟΝΤΑ ΜΟΥ Sparta benefits">
             <span><strong>4</strong> επιλογές που ανανεώνονται</span>
             <span><strong>Fair</strong> ανάθεση καταστήματος</span>
             <span><strong>1</strong> ενιαίο checkout</span>
@@ -41,7 +41,7 @@ export default async function Home() {
 
         <div className={styles.heroVisual} aria-hidden="true">
           <div className={styles.marketCard}>
-            <div className={styles.marketCardTop}><span>BUY LOCAL</span><span>SPARTA · 23100</span></div>
+            <div className={styles.marketCardTop}><span>ΚΟΝΤΑ ΜΟΥ</span><span>SPARTA · 23100</span></div>
             <div className={styles.marketPulse}>
               <span className={styles.pulseCore}>LOCAL</span>
               <span className={styles.pulseRingOne} />
