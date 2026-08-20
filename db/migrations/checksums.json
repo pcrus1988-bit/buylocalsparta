@@ -4,7 +4,7 @@
   "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
   "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
-  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
+  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c08219db496ce63d150",
   "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
   "0008_rls_platform_scope.sql": "ba5afa7a0957d87babbaf0950003424ad151986143d1becdf2b3786e4a48c8d3",
   "0009_media_compliance_jobs.sql": "7a613be9c529567d98296007b38475c244153db1548812f9172f7ff0a961f051",
@@ -44,7 +44,7 @@
   "0044_catalog_taxonomy_foundations.sql": "f591d9322fd38dc2a3e9574c3ed9d4707d29ee81e493c8468f863a1f603be95d",
   "0045_catalog_taxonomy_books_stationery_toys.sql": "15bc3b781465fe7a1073c01e938dc6931f73565a4a6c6a5dd1fcad28c2b422c6",
   "0046_reclassify_demo_books_taxonomy.sql": "90a1c30fc5dd12c2abc765b8afc1f1474e68d954f9b83319b9f986fa77d5ff72",
-  "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2f5eedf51bd3d26c25b48855a704cfb02084f03215437f6",
+  "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2bf12e7193d26c25b48855a704cfb02084f03215437f6",
   "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
   "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
@@ -91,5 +91,6 @@
   "0092_catalog_quality_views_security.sql": "394943157ecff238ab48f53b2618e58371398fd834c3824d1c42e39f7fcb0d15",
   "0093_catalog_taxonomy_guard_family_field_fix.sql": "135716e90965206b031608263f85a6cf385f177533aa370f6b5ed9eb3779d241",
   "0094_checkout_pickup_delivery_rule_fix.sql": "ac02054c0558661be4565860dfc0be50c81d4acf6509848e9ff9914d580783c9",
-  "0095_marketplace_public_references.sql": "6b90458bc8e321cc58125ce35251edad6281f28f94654c5f63413168841ad36c"
+  "0095_marketplace_public_references.sql": "6b90458bc8e321cc58125ce35251edad6281f28f94654c5f63413168841ad36c",
+  "0096_public_reference_counters_rls.sql": "7b1a8cf93c6973388357cb8d4fc2886d43d30e864cfab65bfc10f3639fe2b8c5"
 }
