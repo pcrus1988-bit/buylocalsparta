@@ -7,6 +7,7 @@ import { VendorAgreementForm } from "../../../components/VendorAgreementForm";
 import { VendorToggleControl } from "../../../components/VendorToggleControl";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminVendorsWorkspace } from "../../../lib/admin-runtime";
+import { adminVendorFiscalWorkspace } from "../../../lib/admin-vendor-fiscal-runtime";
 import { adminVendorShopsWorkspace } from "../../../lib/vendor-admin-controls";
 import { getAdminSession } from "../../../lib/admin-session";
 
@@ -33,9 +34,10 @@ function euro(minor?: number) {
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
-  const [applications, managed] = await Promise.all([
+  const [applications, managed, fiscal] = await Promise.all([
     adminVendorsWorkspace(principal),
-    adminVendorShopsWorkspace(principal)
+    adminVendorShopsWorkspace(principal),
+    adminVendorFiscalWorkspace(principal)
   ]);
   const csrfToken = applications.csrfToken;
   const activeShops = managed.shops.filter((shop) => shop.operationalActive).length;
@@ -77,6 +79,7 @@ export default async function Page() {
       /> : <div className="workspace-queue-list">{managed.shops.map((shop) => {
         const applicationRequiresGovernedActivation = Boolean(shop.applicationState && shop.applicationState !== "active");
         const activationBlocked = !shop.operationalActive && (!shop.cooperationDocumented || applicationRequiresGovernedActivation);
+        const fiscalDocuments = fiscal.documentsByVendor[shop.id] ?? [];
         return <article className="workspace-queue-card" key={shop.id} id={`shop-${shop.id}`}>
           <div className="workspace-queue-head">
             <div><strong>{shop.tradingName}</strong><small>{shop.legalName} · {shop.id}</small></div>
@@ -87,6 +90,7 @@ export default async function Page() {
             <span>{shop.approvedOfferCount} approved offers</span>
             <span>{shop.applicationId ? `Application ${shop.applicationState ?? "linked"}` : "No linked application"}</span>
             <span>{shop.agreementCount} cooperation records</span>
+            {fiscal.permitted && <span>{fiscalDocuments.length} fiscal documents</span>}
           </div>
 
           <div className="workspace-action-bar">
@@ -136,6 +140,33 @@ export default async function Page() {
               } : undefined} />
             </details>
           </WorkspaceRecordDetails>
+
+          {fiscal.permitted && <WorkspaceRecordDetails label={`Παραστατικά / Invoices & receipts (${fiscalDocuments.length})`}>
+            <div className="workspace-inline-note">Τα παραστατικά εκδίδονται φορολογικά από KONTA MOY ως seller of record. Η σύνδεση με το κατάστημα γίνεται μέσω των order lines και δεν αλλάζει τον φορολογικό εκδότη.</div>
+            {fiscalDocuments.length === 0 ? <p className="workspace-queue-summary">Δεν υπάρχουν ακόμη παραστατικά για παραγγελίες αυτού του καταστήματος.</p> : <div className="workspace-queue-list">{fiscalDocuments.map((document) => <article className="workspace-queue-card" key={document.id}>
+              <div className="workspace-queue-head"><div><strong>{document.documentNumber ?? document.id}</strong><small>{document.orderNumber} · {document.type}</small></div><span className="status-pill">{document.transmissionStatus}</span></div>
+              <div className="workspace-queue-primary">
+                <span>{euro(document.grossMinor)}</span>
+                <span>Net {euro(document.netMinor)}</span>
+                <span>VAT {euro(document.taxMinor)}</span>
+                {document.invoiceTypeCode && <span>Type {document.invoiceTypeCode}</span>}
+                {document.aadeMark && <span>MARK {document.aadeMark}</span>}
+                <span>Email: {document.customerEmailStatus}</span>
+              </div>
+              {document.lastError && <p className="workspace-queue-summary">{document.lastError}</p>}
+              {document.customerEmailError && <p className="workspace-queue-summary">Customer email: {document.customerEmailError}</p>}
+              {document.transmissionStatus === "manual_review" && document.documentNumber && !document.aadeMark && <div className="workspace-action-bar"><span>Read-only AADE recovery: search for this exact numbered document. This never resends SendInvoices.</span><div className="workspace-action-buttons"><AdminActionButton label="Reconcile with AADE" endpoint="/api/admin/tax/reconcile" csrfToken={csrfToken} body={{documentId:document.id}} reasonPrompt="Αιτιολογία read-only AADE reconciliation" /></div></div>}
+              <div className="workspace-compact-list">
+                <div className="workspace-compact-row"><strong>Order</strong><span>{document.orderNumber}</span><small>{document.orderId}</small></div>
+                <div className="workspace-compact-row"><strong>Document status</strong><span>{document.status} · {document.transmissionStatus}</span></div>
+                <div className="workspace-compact-row"><strong>Mapping</strong><span>{document.mappingVersion ?? "—"} · {document.invoiceTypeCode ?? "—"}</span></div>
+                <div className="workspace-compact-row"><strong>MARK / UID</strong><span>{document.aadeMark ?? "—"} · {document.aadeUid ?? "—"}</span></div>
+                <div className="workspace-compact-row"><strong>Issued / created</strong><span>{document.issuedAt ? new Date(document.issuedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" }) : "Not issued"} · {new Date(document.createdAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })}</span></div>
+                <div className="workspace-compact-row"><strong>Customer delivery</strong><span>{document.customerEmailStatus}{document.customerEmailedAt ? ` · ${new Date(document.customerEmailedAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" })}` : ""}</span></div>
+                {document.qrUrl && <div className="workspace-compact-row"><strong>AADE QR</strong><span>{document.qrUrl}</span></div>}
+              </div>
+            </article>)}</div>}
+          </WorkspaceRecordDetails>}
         </article>;
       })}</div>}
     </section>
