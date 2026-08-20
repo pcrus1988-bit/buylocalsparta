@@ -1,4 +1,5 @@
 import { requireAdminSession } from "../../../../../lib/admin-session";
+import { adminDeliverAcceptedCustomerTaxDocument } from "../../../../../lib/admin-fiscal-reconciliation-runtime";
 import { adminPrepareCustomerFiscalDocument } from "../../../../../lib/admin-fiscal-preparation";
 import { adminCaptureFiscalOrder } from "../../../../../lib/admin-tax-policy-runtime";
 
@@ -14,6 +15,7 @@ export async function POST(request:Request){
     const body=await request.json() as Body;
     const action=required(body,"action");
     if(action==="capture_order")return Response.json(await adminCaptureFiscalOrder(principal,{orderId:required(body,"orderId"),reason:required(body,"reason")}));
+    if(action==="deliver_document")return Response.json(await adminDeliverAcceptedCustomerTaxDocument(principal,{documentId:required(body,"documentId"),reason:required(body,"reason")}));
     if(action==="prepare_document")return Response.json(await adminPrepareCustomerFiscalDocument(principal,{
       documentId:required(body,"documentId"),eventCode:required(body,"eventCode"),processor:required(body,"processor"),processorMethod:required(body,"processorMethod"),
       paymentTid:optional(body,"paymentTid"),ecrSigningAuthor:optional(body,"ecrSigningAuthor"),ecrSignature:optional(body,"ecrSignature"),reason:required(body,"reason")

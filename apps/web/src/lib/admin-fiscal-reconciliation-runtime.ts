@@ -30,3 +30,30 @@ export async function adminReconcileCustomerFiscalDocument(
   }
   return{...result,readOnlyAadeLookup:true as const,notificationWarning};
 }
+
+export async function adminDeliverAcceptedCustomerTaxDocument(
+  principal:SessionPrincipal,
+  input:{documentId:string;reason:string}
+){
+  assertAdminPermission(principal,"finance.write");
+  const documentId=input.documentId.trim();
+  const reason=input.reason.trim();
+  if(!documentId)throw new Error("documentId is required");
+  if(reason.length<3)throw new Error("Customer delivery reason is required");
+
+  const result=await deliverAcceptedCustomerTaxDocumentById(documentId);
+  if(!result.sent)throw new Error(customerDeliveryFailure(result.reason));
+
+  await recordAdminAudit(principal,"mydata.customer_document_manually_delivered","tax_document",documentId,reason,{
+    sent:true,
+    channel:"email"
+  });
+  return{sent:true as const,manual:true as const};
+}
+
+function customerDeliveryFailure(reason?:string):string{
+  if(reason==="email_not_configured")return "Customer tax-document email delivery is not configured.";
+  if(reason==="customer_email_missing")return "The customer has no email address available for tax-document delivery.";
+  if(reason==="not_eligible_or_already_claimed")return "This document is not eligible for manual delivery, or delivery has already started or completed.";
+  return "Customer tax-document email delivery could not be started.";
+}
