@@ -21,9 +21,13 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = event.notification && event.notification.data && typeof event.notification.data.url === "string"
+  const requested = event.notification && event.notification.data && typeof event.notification.data.url === "string"
     ? event.notification.data.url
     : "/daily";
+  const bridgeOrigin = self.location.hostname.endsWith(".vercel.app");
+  const target = bridgeOrigin
+    ? `/daily/push-open?target=${encodeURIComponent(requested.startsWith("/daily") ? requested : "/daily")}`
+    : requested;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of windows) {
