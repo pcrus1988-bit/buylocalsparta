@@ -22,13 +22,38 @@ export function VendorDailyNotificationSettings({ configured, publicKey, devices
   const [thisDevice, setThisDevice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const deliveryReady = configured && deviceCount > 0 && permission === "granted";
+  const deliveryReady = configured && thisDevice && permission === "granted";
 
   useEffect(() => {
     const supported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     setSupport(supported ? "supported" : "unsupported");
-    setPermission(supported ? Notification.permission : "unavailable");
-    if (supported) void navigator.serviceWorker.getRegistration("/daily/").then((registration) => registration?.pushManager.getSubscription()).then((subscription) => setThisDevice(Boolean(subscription))).catch(() => undefined);
+    if (!supported) {
+      setPermission("unavailable");
+      setThisDevice(false);
+      return;
+    }
+
+    const synchronizeBrowserState = async () => {
+      setPermission(Notification.permission);
+      try {
+        const registration = await navigator.serviceWorker.getRegistration("/daily/");
+        const subscription = await registration?.pushManager.getSubscription();
+        setThisDevice(Boolean(subscription));
+      } catch {
+        setThisDevice(false);
+      }
+    };
+
+    void synchronizeBrowserState();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void synchronizeBrowserState();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, []);
 
   async function persist(subscription: PushSubscription) {
@@ -48,10 +73,14 @@ export function VendorDailyNotificationSettings({ configured, publicKey, devices
     setBusy(true); setMessage("");
     try {
       if (!configured || !publicKey) throw new Error("Η υπογραφή Web Push δεν έχει διαμορφωθεί ακόμη στο server.");
+      if (Notification.permission === "denied") {
+        setPermission("denied");
+        throw new Error("Το kontamou.site είναι αποκλεισμένο από τον browser. Στο Android άνοιξε τις ρυθμίσεις του browser → Ρυθμίσεις ιστοτόπου → Ειδοποιήσεις → kontamou.site → Επιτρέπεται. Μετά γύρισε εδώ και πάτησε ξανά ενεργοποίηση.");
+      }
       const registration = await navigator.serviceWorker.register("/daily-sw.js", { scope: "/daily/" });
-      const result = await Notification.requestPermission();
+      const result = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
       setPermission(result);
-      if (result === "denied") throw new Error("Οι ειδοποιήσεις έχουν αποκλειστεί από το browser/τη συσκευή. Άλλαξε την άδεια από τις ρυθμίσεις του browser.");
+      if (result === "denied") throw new Error("Οι ειδοποιήσεις έχουν αποκλειστεί από το browser/τη συσκευή. Άλλαξε την άδεια από τις ρυθμίσεις του browser και επέστρεψε σε αυτή τη σελίδα.");
       if (result !== "granted") throw new Error("Δεν δόθηκε άδεια για ειδοποιήσεις.");
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(publicKey) });
@@ -104,12 +133,13 @@ export function VendorDailyNotificationSettings({ configured, publicKey, devices
           <Status label="Server Web Push" value={configured ? "Διαμορφωμένο" : "Λείπει VAPID configuration"} ok={configured} />
           <Status label="Άδεια ειδοποιήσεων" value={permission === "unavailable" ? "Μη διαθέσιμη" : permission === "granted" ? "Επιτρέπεται" : permission === "denied" ? "Αποκλεισμένη" : "Δεν ζητήθηκε"} ok={permission === "granted"} />
           <Status label="Αυτή η συσκευή" value={thisDevice ? "Εγγεγραμμένη" : "Δεν έχει εγγραφεί"} ok={thisDevice} />
-          <Status label="Background Web Push" value={deliveryReady ? `Ενεργό · ${deviceCount} συσκευή${deviceCount === 1 ? "" : "ς"}` : "Δεν είναι ενεργό"} ok={deliveryReady} />
+          <Status label="Background Web Push" value={deliveryReady ? `Ενεργό σε αυτή τη συσκευή${deviceCount > 1 ? ` · ${deviceCount} συνολικά` : ""}` : "Δεν είναι ενεργό"} ok={deliveryReady} />
         </div>
 
         {!configured && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#f2f0e9", lineHeight: 1.5 }}><strong>Απαιτείται VAPID configuration στο deployment.</strong><br /><span style={{ opacity: .7 }}>Μέχρι να υπάρχουν τα server keys, το Daily δεν εμφανίζει ψευδή ένδειξη ότι το background push είναι ενεργό.</span></div>}
+        {permission === "denied" && <div style={{ padding: "13px 15px", borderRadius: 15, background: "#f2f0e9", lineHeight: 1.5 }}><strong>Η άδεια είναι μπλοκαρισμένη από τον browser.</strong><br /><span style={{ opacity: .7 }}>Δεν επιτρέπεται σε ιστοσελίδα να παρακάμψει αυτή την επιλογή. Στο Android άλλαξε την άδεια του kontamou.site σε «Επιτρέπεται» από τις Ρυθμίσεις ιστοτόπου / Ειδοποιήσεις. Όταν επιστρέψεις στο Daily, η κατάσταση επανελέγχεται αυτόματα.</span></div>}
 
-        <button type="button" onClick={() => void prepareDevice()} disabled={busy || support !== "supported" || !configured} style={{ minHeight: 54, border: 0, borderRadius: 15, background: "#171914", color: "white", font: "inherit", fontWeight: 850, cursor: support === "supported" && configured ? "pointer" : "not-allowed", opacity: support === "supported" && configured ? 1 : .5 }}>{busy ? "Ενημέρωση…" : thisDevice ? "Επανέλεγχος / επανεγγραφή" : "Ενεργοποίηση ειδοποιήσεων"}</button>
+        <button type="button" onClick={() => void prepareDevice()} disabled={busy || support !== "supported" || !configured} style={{ minHeight: 54, border: 0, borderRadius: 15, background: "#171914", color: "white", font: "inherit", fontWeight: 850, cursor: support === "supported" && configured ? "pointer" : "not-allowed", opacity: support === "supported" && configured ? 1 : .5 }}>{busy ? "Ενημέρωση…" : thisDevice ? "Επανέλεγχος / επανεγγραφή" : permission === "denied" ? "Έλεγχος άδειας / οδηγίες" : "Ενεργοποίηση ειδοποιήσεων"}</button>
         {thisDevice && <button type="button" onClick={() => void disableDevice()} disabled={busy} style={{ minHeight: 48, borderRadius: 15, border: "1px solid rgba(23,25,20,.16)", background: "white", font: "inherit", fontWeight: 800 }}>Απενεργοποίηση σε αυτή τη συσκευή</button>}
         {message && <p role="status" style={{ margin: 0, padding: "12px 14px", borderRadius: 13, background: "#f2f0e9", lineHeight: 1.45 }}>{message}</p>}
 
