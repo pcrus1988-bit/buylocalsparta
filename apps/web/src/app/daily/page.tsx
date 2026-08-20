@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { VendorDailyClient } from "../../components/VendorDailyClient";
+import { VendorDailyHomeClient } from "../../components/VendorDailyHomeClient";
 import { getDailySession } from "../../lib/daily-session";
+import { dailyPushStatus } from "../../lib/daily-push";
 import { vendorDashboard } from "../../lib/vendor-runtime";
 import { synchronizeOperationalEvents, vendorAdviceWorkspace } from "../../lib/vendor-backoffice-service";
 import { vendorOrderNotificationWorkspace } from "../../lib/order-sla";
@@ -24,11 +25,12 @@ export default async function VendorDailyPage() {
   if (!principal) redirect("/daily/login");
 
   synchronizeOperationalEvents();
-  const [dashboard, advice, sla] = await Promise.all([
+  const [dashboard, advice, sla, push] = await Promise.all([
     vendorDashboard(principal),
     vendorAdviceWorkspace(principal),
-    productionDatabaseConfigured() ? vendorOrderNotificationWorkspace(principal) : Promise.resolve(emptySlaWorkspace)
+    productionDatabaseConfigured() ? vendorOrderNotificationWorkspace(principal) : Promise.resolve(emptySlaWorkspace),
+    dailyPushStatus(principal)
   ]);
 
-  return <VendorDailyClient dashboard={dashboard} advice={advice} sla={sla} />;
+  return <VendorDailyHomeClient dashboard={dashboard} advice={advice} sla={sla} push={push} />;
 }

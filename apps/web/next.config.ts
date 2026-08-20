@@ -28,7 +28,7 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=(self), usb=()" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self), payment=(self), usb=()" },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   { key: "X-DNS-Prefetch-Control", value: "off" }
 ] as const;
