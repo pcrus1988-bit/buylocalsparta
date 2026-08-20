@@ -9,6 +9,7 @@ import styles from "./VendorDailyOrdersClient.module.css";
 type Fulfilment = {
   id: string;
   orderId: string;
+  orderReference: string;
   orderStatus: string;
   status: string;
   mode: string;
@@ -163,7 +164,7 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
             const highlighted = requestedOrder === item.orderId;
             return <article id={`order-${item.orderId}`} key={item.id} className={`${styles.orderCard} ${styles[selected]} ${highlighted ? styles.highlight : ""}`}>
               <div className={styles.orderHead}>
-                <div><span>{item.mode === "pickup" ? "Παραλαβή από κατάστημα" : item.mode}</span><strong>{item.orderId}</strong><small>{formatWhen(item.createdAt)}</small></div>
+                <div><span>{item.mode === "pickup" ? "Παραλαβή από κατάστημα" : item.mode}</span><strong>{item.orderReference}</strong><small>{formatWhen(item.createdAt)}</small></div>
                 <b>{selected === "new" ? "ΝΕΑ" : selected === "processing" ? "ΣΕ ΕΞΕΛΙΞΗ" : "ΕΤΟΙΜΗ"}</b>
               </div>
               {slaCase && <div className={`${styles.sla} ${slaCase.state === "breached" || slaCase.state === "escalated" ? styles.slaDanger : ""}`}>
