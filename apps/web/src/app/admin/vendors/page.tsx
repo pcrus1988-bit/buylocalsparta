@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { AdminStatusStack, type AdminRecordStateTone, type AdminAttentionSeverity } from "../../../components/AdminRecordStatus";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
 import { adminVendorShopsWorkspace } from "../../../lib/vendor-admin-controls";
@@ -11,6 +12,19 @@ const stateLabel = (state: string) => ({ active: "Active", restricted: "Restrict
 const PARTNER_VIEWS = ["all", "active", "attention", "public", "hidden"] as const;
 type PartnerView = (typeof PARTNER_VIEWS)[number];
 function partnerView(value?: string): PartnerView { return PARTNER_VIEWS.includes(value as PartnerView) ? value as PartnerView : "all"; }
+function partnerStateTone(status: string): AdminRecordStateTone {
+  if (status === "active") return "positive";
+  if (status === "invited") return "caution";
+  if (["restricted", "suspended"].includes(status)) return "critical";
+  return "neutral";
+}
+function partnerAttention(shop: { status: string; cooperationDocumented: boolean }): { label: string; severity: AdminAttentionSeverity } | undefined {
+  const reasons: string[] = [];
+  if (["restricted", "suspended"].includes(shop.status)) reasons.push("Operational review");
+  if (!shop.cooperationDocumented) reasons.push("Agreement gap");
+  if (!reasons.length) return undefined;
+  return { label: reasons.join(" · "), severity: shop.status === "suspended" ? "critical" : "attention" };
+}
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; view?: string }> }) {
   const principal = await getAdminSession();
@@ -45,7 +59,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       { label: "Agreement gaps", value: agreementGaps, tone: agreementGaps ? "attention" : "positive" }
     ]} />
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Directory" title="Partner records" note="Saved views cover active, attention, public and hidden partner sets; search/status can narrow within the selected view." />
+      <WorkspaceSectionHeading eyebrow="Directory" title="Partner records" note="Partner state stays factual. Attention is a second signal only for the existing agreement or operational-review conditions used by the Needs attention view." />
       {!managed.databaseConfigured && <div className="workspace-inline-note">Η production βάση δεν είναι διαθέσιμη· το partner directory είναι unavailable.</div>}
       <nav className="admin-local-tabs" aria-label="Partner saved views">
         <Link href="/admin/vendors" aria-current={view === "all" ? "page" : undefined}>All</Link>
@@ -61,16 +75,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
         <div><button className="button button-secondary" type="submit">Filter</button>{hasAdHocFilters && <Link className="text-link" href={clearHref}>Clear filters</Link>}</div>
       </form>
       {shops.length === 0 ? <WorkspaceEmptyState title={filtered ? "Δεν βρέθηκαν partner records σε αυτό το view / φίλτρο." : "Δεν υπάρχουν partner records."} /> : <div className="admin-directory-table admin-partner-directory" role="table" aria-label="Partner records">
-        <div className="admin-directory-head" role="row"><span>Partner</span><span>Status</span><span>Locations</span><span>Offers</span><span>Agreement</span><span>Public</span><span aria-label="Actions" /></div>
-        {shops.map((shop) => <div className="admin-directory-row" role="row" key={shop.id}>
-          <Link className="admin-directory-identity" href={`/admin/partners/${encodeURIComponent(shop.id)}`}><strong>{shop.tradingName}</strong><small>{shop.legalName} · {shop.id}</small></Link>
-          <span><span className="status-pill">{stateLabel(shop.status)}</span></span>
-          <span><strong>{shop.activeLocationCount}/{shop.locationCount}</strong><small>active</small></span>
-          <span><strong>{shop.approvedOfferCount}</strong><small>approved</small></span>
-          <span><strong>{shop.agreement?.code ?? "—"}</strong><small>{shop.cooperationDocumented ? "documented" : "needs attention"}</small></span>
-          <span><strong>{shop.operationalActive && shop.publicDirectoryVisible ? "Visible" : "Hidden"}</strong></span>
-          <Link className="admin-record-open" href={`/admin/partners/${encodeURIComponent(shop.id)}`} aria-label={`Open ${shop.tradingName}`}>→</Link>
-        </div>)}
+        <div className="admin-directory-head" role="row"><span>Partner</span><span>State / attention</span><span>Locations</span><span>Offers</span><span>Agreement</span><span>Public</span><span aria-label="Actions" /></div>
+        {shops.map((shop) => {
+          const attention = partnerAttention(shop);
+          return <div className="admin-directory-row" role="row" key={shop.id}>
+            <Link className="admin-directory-identity" href={`/admin/partners/${encodeURIComponent(shop.id)}`}><strong>{shop.tradingName}</strong><small>{shop.legalName} · {shop.id}</small></Link>
+            <span><AdminStatusStack state={stateLabel(shop.status)} stateTone={partnerStateTone(shop.status)} attention={attention?.label} attentionSeverity={attention?.severity} /></span>
+            <span><strong>{shop.activeLocationCount}/{shop.locationCount}</strong><small>active</small></span>
+            <span><strong>{shop.approvedOfferCount}</strong><small>approved</small></span>
+            <span><strong>{shop.agreement?.code ?? "—"}</strong><small>{shop.cooperationDocumented ? "documented" : "not documented"}</small></span>
+            <span><strong>{shop.operationalActive && shop.publicDirectoryVisible ? "Visible" : "Hidden"}</strong></span>
+            <Link className="admin-record-open" href={`/admin/partners/${encodeURIComponent(shop.id)}`} aria-label={`Open ${shop.tradingName}`}>→</Link>
+          </div>;
+        })}
       </div>}
     </section>
   </main>;
