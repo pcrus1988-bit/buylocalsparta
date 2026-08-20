@@ -7,6 +7,7 @@
     ".": "./src/public.ts",
     "./catalog": "./src/catalog.ts",
     "./preflight": "./src/preflight.ts",
-    "./classification-preflight": "./src/classification-preflight.ts"
+    "./classification-preflight": "./src/classification-preflight.ts",
+    "./payment-method-preflight": "./src/payment-method-preflight.ts"
   }
 }
