@@ -10,6 +10,12 @@ import { assertClassificationXmlPreflight } from "./classification-preflight.ts"
 import { assertInvoiceElementOrder } from "./order-preflight.ts";
 import { assertPaymentMethodsXmlPreflight } from "./payment-method-preflight.ts";
 import { assertInvoiceXmlPreflight } from "./preflight.ts";
+import {
+  parseE3InfoResponse,
+  parseVatInfoResponse,
+  type MyDataE3InfoResponse,
+  type MyDataVatInfoResponse
+} from "./reporting.ts";
 
 export type MyDataReportingQuery = Readonly<{
   dateFrom: string;
@@ -46,8 +52,16 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
     return this.#extendedRequest(`RequestVatInfo?${reportingQuery(input)}`, { method: "GET" });
   }
 
+  async requestVatInfoParsed(input: MyDataReportingQuery): Promise<MyDataVatInfoResponse> {
+    return parseVatInfoResponse(await this.requestVatInfo(input));
+  }
+
   async requestE3Info(input: MyDataReportingQuery): Promise<string> {
     return this.#extendedRequest(`RequestE3Info?${reportingQuery(input)}`, { method: "GET" });
+  }
+
+  async requestE3InfoParsed(input: MyDataReportingQuery): Promise<MyDataE3InfoResponse> {
+    return parseE3InfoResponse(await this.requestE3Info(input));
   }
 
   async #extendedRequest(path: string, init: RequestInit): Promise<string> {
