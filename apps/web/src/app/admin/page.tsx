@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../components/AdminWorkspaceHeader";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
+import { adminAskLocalDashboard } from "../../lib/admin-ask-local";
 import { adminDashboard, hasAdminPermission } from "../../lib/admin-runtime";
 import { getAdminSession } from "../../lib/admin-session";
 import { adminNavigationForPrincipal, canAccessAdminRoute } from "../../lib/admin-navigation";
@@ -12,6 +14,7 @@ const adminWorkspaceDescriptions: Readonly<Record<string, string>> = {
   "/admin/orders": "Παραγγελίες, exceptions, returns και refunds.",
   "/admin/customers": "Customer directory, Customer 360, support cases, profile & security.",
   "/admin/customers/support": "Ενιαία ουρά customer support με priority, ownership και follow-up.",
+  "/admin/ask-local": "Ask Local triage, ownership, vendor assignment και response deadlines.",
   "/admin/shipping": "Αποστολές, fulfilment και operational exceptions.",
   "/admin/research-vendors": "Έρευνα υποψήφιων συνεργατών πριν το onboarding.",
   "/admin/vendors": "Vendor onboarding, ενεργοποίηση, visibility και συνεργασία.",
@@ -39,9 +42,12 @@ export default async function AdminPage() {
   const dashboard = await adminDashboard(principal);
   const canSeeAnalytics = hasAdminPermission(principal, "analytics.market.read");
   const canSeeSecurity = hasAdminPermission(principal, "security.read");
+  const canSeeAskLocal = hasAdminPermission(principal, "customer.read");
+  const askLocal = canSeeAskLocal ? await adminAskLocalDashboard(principal) : undefined;
   const metrics = [
     ...(hasAdminPermission(principal, "vendor.manage") ? [["Vendor checks", dashboard.metrics.vendorVerificationQueue] as const] : []),
     ...(hasAdminPermission(principal, "catalog.read") ? [["Catalog review", dashboard.metrics.catalogReviewQueue] as const, ["Trust queue", dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance] as const] : []),
+    ...(canSeeAskLocal && askLocal ? [["Ask Local", askLocal.openCount] as const] : []),
     ...(hasAdminPermission(principal, "finance.read") ? [["Payables", dashboard.metrics.payableProcurements] as const] : []),
     ...(hasAdminPermission(principal, "fairness.read") ? [["Fairness", dashboard.metrics.fairnessAppeals] as const] : []),
     ...(hasAdminPermission(principal, "fulfilment.read") ? [["Orders", dashboard.metrics.orders] as const] : [])
@@ -53,6 +59,7 @@ export default async function AdminPage() {
     { kicker: "Commerce", label: "Παραγγελίες", description: "Exceptions, returns και refunds.", href: "/admin/orders", value: dashboard.metrics.orders },
     { kicker: "Customer ops", label: "Πελάτες", description: "Directory → Customer 360 → profile & security.", href: "/admin/customers" },
     { kicker: "Customer support", label: "Υποστήριξη πελατών", description: "Open, urgent, unassigned και overdue cases.", href: "/admin/customers/support" },
+    ...(askLocal ? [{ kicker: "Customer demand", label: "Ask Local", description: "Admin/vendor ownership, assignment και deadlines.", href: "/admin/ask-local", value: askLocal.openCount }] : []),
     { kicker: "Trust", label: "Συμμόρφωση", description: "Media και τεκμήρια ασφάλειας.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance },
     { kicker: "Finance", label: "Οικονομικά", description: "Payables και settlements.", href: "/admin/finance", value: dashboard.metrics.payableProcurements }
   ].filter((link) => canAccessAdminRoute(principal, link.href));
@@ -85,6 +92,14 @@ export default async function AdminPage() {
       <div className="vendor-kpis admin-kpis dashboard-kpis-refined">
         {metrics.map(([label, value]) => <div className={Number(value) > 0 ? "has-work" : undefined} key={label}><span>{label}</span><strong>{value}</strong></div>)}
       </div>
+    </section>}
+
+    {askLocal && askLocal.openCount > 0 && <section className="shell vendor-section">
+      <article className={askLocal.overdueCount > 0 || askLocal.adminOwnedCount > 0 ? "workspace-queue-card needs-attention" : "workspace-queue-card"}>
+        <div className="workspace-queue-head"><div><strong>Ask Local requires operational attention</strong><small>Every request is tracked with explicit Admin or vendor ownership.</small></div><span className="status-pill">{askLocal.openCount} open</span></div>
+        <div className="workspace-queue-primary"><span>{askLocal.adminOwnedCount} Admin-owned</span><span>{askLocal.vendorOwnedCount} vendor-owned</span><span>{askLocal.overdueCount} overdue</span></div>
+        <div className="workspace-action-bar"><span>New Ask Local submissions also create an Admin in-app notification.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/ask-local">Open Ask Local workflow</Link></div></div>
+      </article>
     </section>}
 
     {quickLinks.length > 0 && <WorkspaceQuickLinks density="compact" eyebrow="Κύριες ουρές" title="Εκεί που χρειάζεται απόφαση τώρα." links={quickLinks} />}

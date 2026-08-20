@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../../components/AdminActionButton";
+import { CustomerEmailApprovalPanel } from "../../../../components/CustomerEmailApprovalPanel";
 import { CustomerSupportCaseForm } from "../../../../components/CustomerSupportCaseForm";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
+import { adminCustomerEmailMessages } from "../../../../lib/admin-customer-email";
 import { adminCustomerDetail, type CustomerStatus } from "../../../../lib/admin-customer-management";
 import { adminCustomer360, type CustomerSupportPriority, type CustomerSupportStatus } from "../../../../lib/admin-customer-support";
 import { getAdminSession } from "../../../../lib/admin-session";
@@ -32,6 +34,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
   const { customer, addresses, orders, audit } = result.detail;
   const { engagement, privacyRequests, supportCases } = customer360;
   const canManage = hasAdminPermission(principal, "customer.manage");
+  const customerEmailMessages = canManage && customer.email ? await adminCustomerEmailMessages(principal, customer.id) : [];
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={result.csrfToken} />
@@ -80,7 +83,12 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
       </article>
     </section>
 
-    <section className="vendor-section section-tint"><div className="shell">
+    {canManage && customer.email && <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Customer communication" title="Draft → approve wording → send" note="Operational customer emails are manual. Approval does not send anything, and changing approved wording revokes the approval before another send can happen." />
+      <CustomerEmailApprovalPanel customerId={customer.id} customerEmail={customer.email} csrfToken={result.csrfToken} messages={customerEmailMessages} />
+    </div></section>}
+
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Customer 360" title="Engagement & service signals" note="Operational counts only. Message contents, raw device/IP data and unnecessary personal data are not surfaced here." />
       <div className="workspace-compact-list">
         <div className="workspace-compact-row"><strong>Cart</strong><span>{engagement.cartItems} item(s)</span><small>{engagement.activeCarts} active cart(s)</small></div>
@@ -90,9 +98,9 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
         <div className="workspace-compact-row"><strong>Notifications</strong><span>{engagement.notifications} total</span><small>{engagement.notificationFailures} failed · last {dateTime(engagement.lastNotificationAt)}</small></div>
         <div className="workspace-compact-row"><strong>Privacy</strong><span>{engagement.openPrivacyRequests} open</span><small>{engagement.privacyRequests} total requests</small></div>
       </div>
-    </div></section>
+    </section>
 
-    <section className="shell vendor-section">
+    <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Customer support" title="Cases, notes & ownership" note="Support notes are operational records with their own immutable event history; material administrative actions continue to be written to audit_events." />
       {canManage && <CustomerSupportCaseForm customerId={customer.id} csrfToken={result.csrfToken} />}
       {supportCases.length === 0 ? <WorkspaceEmptyState title="No support cases for this customer." body="Create a case when the customer contacts support or an issue needs follow-up." /> : <div className="workspace-queue-list" style={{ marginTop: 18 }}>{supportCases.map((item) => <article className="workspace-queue-card" key={item.id}>
@@ -115,42 +123,42 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
           {item.followUpAt && <AdminActionButton label="Clear follow-up" endpoint="/api/admin/customers/cases" csrfToken={result.csrfToken} body={{ caseId:item.id, action:"set_follow_up", followUpAt:null }} reasonPrompt="Reason for clearing the follow-up" />}
         </div></div>}
       </article>)}</div>}
-    </section>
+    </div></section>
 
-    <section className="vendor-section section-tint"><div className="shell">
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Commerce" title="Recent orders" note="The latest 50 customer orders. Open the order workspace with this customer and order pre-filtered." />
       {orders.length === 0 ? <WorkspaceEmptyState title="No orders for this customer." /> : <div className="workspace-queue-list">{orders.map((order) => <article className="workspace-queue-card" key={order.id}>
         <div className="workspace-queue-head"><div><strong>{order.orderNumber}</strong><small>{order.id} · {dateTime(order.createdAt)}</small></div><span className="status-pill">{order.status}</span></div>
         <div className="workspace-queue-primary"><span>{money(order.totalMinor, order.currency)}</span><span>{order.fulfilmentPreference}</span><span>{order.confirmedAt ? `Confirmed ${dateTime(order.confirmedAt)}` : "Not confirmed"}</span></div>
         <div className="workspace-action-bar"><span>Order context</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/orders?customer=${encodeURIComponent(customer.id)}&order=${encodeURIComponent(order.id)}`}>Open in Orders</Link></div></div>
       </article>)}</div>}
-    </div></section>
+    </section>
 
-    <section className="shell vendor-section">
+    <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Privacy" title="Customer privacy requests" note="The Customer profile shows status and deadlines only. Processing, retention decisions and completion stay in the dedicated Privacy workspace." />
       {privacyRequests.length === 0 ? <WorkspaceEmptyState title="No privacy requests for this customer." /> : <div className="workspace-queue-list">{privacyRequests.map((request) => <article className="workspace-queue-card" key={request.id}>
         <div className="workspace-queue-head"><div><strong>{request.type}</strong><small>{request.id} · created {dateTime(request.createdAt)}</small></div><span className="status-pill">{request.status}</span></div>
         <div className="workspace-queue-primary"><span>Due {dateTime(request.dueAt)}</span><span>{request.completedAt ? `Completed ${dateTime(request.completedAt)}` : "Not completed"}</span></div>
       </article>)}</div>}
       <div className="workspace-action-bar"><span>GDPR operations remain separated from customer support.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/privacy?customer=${encodeURIComponent(customer.id)}`}>Open Privacy queue</Link></div></div>
-    </section>
+    </div></section>
 
-    <section className="vendor-section section-tint"><div className="shell">
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Fulfilment profile" title="Saved addresses" note="Contact and delivery data is visible only to authorised Customer Management roles and remains separate from privacy-erasure workflows." />
       {addresses.length === 0 ? <WorkspaceEmptyState title="No saved addresses." /> : <div className="workspace-queue-list">{addresses.map((address) => <article className="workspace-queue-card" key={address.id}>
         <div className="workspace-queue-head"><div><strong>{address.label ?? address.recipientName ?? "Address"}</strong><small>{address.id}</small></div><span className="status-pill">{address.countryCode}</span></div>
         <p className="workspace-queue-summary">{address.recipientName ?? ""}{address.companyName ? ` · ${address.companyName}` : ""}<br />{address.line1}{address.line2 ? `, ${address.line2}` : ""}<br />{address.postcode} {address.locality}{address.region ? `, ${address.region}` : ""}</p>
         {address.phone && <small>{address.phone}</small>}
       </article>)}</div>}
-    </div></section>
+    </section>
 
-    <section className="shell vendor-section">
+    <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Governance" title="Customer audit history" note="Account-state, session and recovery actions made from this dashboard appear here with actor, reason and before/after state." />
       {audit.length === 0 ? <WorkspaceEmptyState title="No customer-management audit events yet." /> : <div className="workspace-queue-list">{audit.map((event) => <article className="workspace-queue-card" key={event.id}>
         <div className="workspace-queue-head"><div><strong>{event.action}</strong><small>{event.actor} · {dateTime(event.createdAt)}</small></div></div>
         {event.reason && <p className="workspace-queue-summary">{event.reason}</p>}
         <WorkspaceRecordDetails label="Before / after"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Before</strong><span>{stateJson(event.beforeState)}</span></div><div className="workspace-compact-row"><strong>After</strong><span>{stateJson(event.afterState)}</span></div></div></WorkspaceRecordDetails>
       </article>)}</div>}
-    </section>
+    </div></section>
   </main>;
 }
