@@ -8,6 +8,7 @@ import { PostgresFixedWindowRateLimiter, PostgresVendorAuthService } from "@buy-
 import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
+import { marketplaceReferenceMap } from "./public-reference-service";
 
 export const VENDOR_SESSION_COOKIE = "bls_vendor_session";
 
@@ -89,7 +90,14 @@ export async function logoutVendor(token: string | undefined, now = Date.now()):
 }
 
 export async function vendorDashboard(principal: SessionPrincipal) {
-  if (postgresVendorRuntimeEnabled()) return getProductionPostgresRuntime().vendorOperations.dashboard(principal);
+  if (postgresVendorRuntimeEnabled()) {
+    const dashboard = await getProductionPostgresRuntime().vendorOperations.dashboard(principal);
+    const references = await marketplaceReferenceMap("order", dashboard.fulfilments.map((item) => item.orderId));
+    return {
+      ...dashboard,
+      fulfilments: dashboard.fulfilments.map((item) => ({ ...item, orderReference: references.get(item.orderId) ?? item.orderId }))
+    };
+  }
   return memoryVendorDashboard(principal);
 }
 
@@ -112,7 +120,7 @@ function memoryVendorDashboard(principal: SessionPrincipal) {
     return { offerId: offer.offerId, canonicalVariantId: variant.id, title: variant.title, retailPrice: formatMoney(variant.platformPrice), supplierPrice: formatMoney(offer.supplierUnitPrice), onHand: balance.onHand, reserved: balance.activeReservations, blocked: balance.blocked, safetyStock: balance.safetyStock, availableToSell: commerceRuntime.inventory.availableToSell(offer.offerId), updatedAt: balance.updatedAt };
   }));
   const fulfilments = commerceRuntime.commerce.orders().flatMap((order) => order.fulfilments.filter((fulfilment) => fulfilment.vendorId === vendorId).map((fulfilment) => ({
-    id: fulfilment.id, orderId: order.id, orderStatus: order.status, status: fulfilment.status, mode: order.fulfilmentMode, postcode: order.postcode, createdAt: order.createdAt, customerIdentified: Boolean(order.customerId), merchandiseSubtotal: formatMoney(fulfilment.merchandiseSubtotal), deliveryCharge: formatMoney(fulfilment.deliveryCharge),
+    id: fulfilment.id, orderId: order.id, orderReference: order.id, orderStatus: order.status, status: fulfilment.status, mode: order.fulfilmentMode, postcode: order.postcode, createdAt: order.createdAt, customerIdentified: Boolean(order.customerId), merchandiseSubtotal: formatMoney(fulfilment.merchandiseSubtotal), deliveryCharge: formatMoney(fulfilment.deliveryCharge),
     lines: fulfilment.lineIds.flatMap((lineId) => { const line = order.lines.find((entry) => entry.id === lineId); return line ? [{ id: line.id, title: line.titleSnapshot, quantity: line.quantity, status: line.status }] : []; }), actions: fulfilmentActions(order.status, order.fulfilmentMode, fulfilment.status)
   }))).sort((a, b) => b.createdAt - a.createdAt);
   const ownLines = commerceRuntime.commerce.orders().flatMap((order) => order.lines.filter((line) => line.vendorId === vendorId));
