@@ -59,6 +59,7 @@ for (const path of [
   "apps/web/src/app/admin/customers/page.tsx",
   "apps/web/src/app/admin/vendors/page.tsx",
   "apps/web/src/app/admin/orders/page.tsx",
+  "apps/web/src/app/admin/orders/[id]/page.tsx",
   "apps/web/src/app/admin/matching/page.tsx",
   "apps/web/src/app/admin/customers/support/page.tsx",
   "apps/web/src/app/admin/tax/page.tsx",
@@ -73,7 +74,8 @@ requireText("apps/web/src/app/admin/partners/page.tsx", ["Commercial readiness",
 requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "adminVendorFiscalWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "partner-documents"]);
 requireText("apps/web/src/app/admin/vendors/page.tsx", ["admin-partner-directory", "/admin/partners/${encodeURIComponent(shop.id)}", "Partner saved views", "view=active", "view=attention", "view=public", "view=hidden"]);
 requireText("apps/web/src/app/admin/customers/page.tsx", ["admin-directory-table", "Customer 360", "Customer saved views", "view=attention", "view=new", "view=orders", "view=unverified"]);
-requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds", "Order saved views", "view=open", "view=returns", "view=completed"]);
+requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds", "Order saved views", "view=open", "view=returns", "view=completed", "/admin/orders/${encodeURIComponent(reference)}", "Open order"]);
+requireText("apps/web/src/app/admin/orders/[id]/page.tsx", ["adminOrdersReturnsWorkspace", "marketplaceReferenceMap", "admin-order-record-hero", "Technical ID", "Customer 360", "/admin/partners/${encodeURIComponent", "/api/admin/orders/action", "Open return workflow", "Internal metadata"]);
 requireText("apps/web/src/app/admin/search/page.tsx", ["marketplaceReferenceMap", "/admin/partners/${encodeURIComponent(shop.id)}"]);
 requireText("apps/web/src/app/admin/matching/page.tsx", ["admin-split-workspace", "admin-triage-list", "admin-decision-panel", "Approve match", "Create canonical"]);
 requireText("apps/web/src/components/AskLocalWorkflowPanel.tsx", ["admin-work-queue-split", "admin-work-list", "admin-work-detail", "Assign vendor", "Return to Admin"]);
@@ -118,10 +120,10 @@ if (!orderDetail.includes('href="/delivery-pickup"') || !orderDetail.includes('h
 if (!orderDetail.includes('className="order-detail-id"') || orderDetail.includes("<strong>{item.id}</strong>")) failures.push("Technical fulfilment IDs must remain secondary");
 
 const adminStyles = [
-  "admin-information-architecture.css", "admin-domain-workspaces.css", "admin-directory-search.css", "admin-orders-directory.css", "admin-local-tabs.css", "admin-partner-record.css", "admin-matching-split.css", "admin-queue-split.css", "admin-insights.css", "admin-tax-documents.css"
+  "admin-information-architecture.css", "admin-domain-workspaces.css", "admin-directory-search.css", "admin-orders-directory.css", "admin-order-record.css", "admin-local-tabs.css", "admin-partner-record.css", "admin-matching-split.css", "admin-queue-split.css", "admin-insights.css", "admin-tax-documents.css"
 ] as const;
 const adminCss = adminStyles.map((name) => read(`apps/web/src/app/${name}`)).join("\n");
-for (const requirement of [".admin-domain-nav", ".admin-domain-badge", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", ".admin-tax-documents", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
+for (const requirement of [".admin-domain-nav", ".admin-domain-badge", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-order-record-hero", ".admin-order-line-table", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", ".admin-tax-documents", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
 const layout = read("apps/web/src/app/layout.tsx");
 for (const stylesheet of ["workspace-polish.css", "dashboard-luxury.css", "workspace-pages.css", ...adminStyles]) if (!layout.includes(`import "./${stylesheet}"`)) failures.push(`Shared layout is missing ${stylesheet}`);
 if (layout.indexOf('import "./admin-information-architecture.css"') < layout.indexOf('import "./typography-readability.css"')) failures.push("Admin IA overrides must load after shared readability styles");
@@ -130,4 +132,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, lightweight attention badges, Action Centre, commercial readiness, content operations, saved directory views, partner records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, lightweight attention badges, Action Centre, commercial readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
