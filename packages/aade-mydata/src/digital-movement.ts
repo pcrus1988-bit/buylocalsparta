@@ -144,7 +144,7 @@ function parseLifecycleEvent(node: XmlElement): DeliveryNoteLifecycleEvent {
 }
 
 function descendantOrRootChild(document: XmlElement, name: string): string | undefined {
-  return childText(document, name) ?? descendants(document, name)[0]?.text.trim() || undefined;
+  return childText(document, name) ?? (descendants(document, name)[0]?.text.trim() || undefined);
 }
 
 function parseOptionalBoolean(value: string | undefined): boolean | undefined {
