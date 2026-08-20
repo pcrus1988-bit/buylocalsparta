@@ -120,11 +120,13 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/vendor/reports",
   "/vendor/returns",
   "/vendor/shipping",
+  "/vendor/storefront",
   "/vendor/trust",
   "/admin",
   "/admin/login",
   "/admin/activation",
   "/admin/analytics",
+  "/admin/ask-local",
   "/admin/categories",
   "/admin/content",
   "/admin/customers",
@@ -182,5 +184,6 @@ export const ROBOTS_DISALLOW_PATHS = [
   "/vendor/reports",
   "/vendor/returns",
   "/vendor/shipping",
+  "/vendor/storefront",
   "/vendor/trust"
 ] as const;
