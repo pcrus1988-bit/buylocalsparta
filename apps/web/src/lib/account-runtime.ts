@@ -10,10 +10,10 @@ import {
   normalizeSearchText,
   offerStockIsFresh
 } from "@buy-local-sparta/core";
-import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-runtime";
-import { canonicalIsPubliclyAllowed } from "./vendor-operations-runtime";
-import { getCanonicalAvailability, getPublicCatalogProducts } from "./catalog-view";
-import { categoryCodeMatches } from "./storefront-taxonomy";
+import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-runtime.js";
+import { canonicalIsPubliclyAllowed } from "./vendor-operations-runtime.js";
+import { getCanonicalAvailability, getPublicCatalogProducts } from "./catalog-view.js";
+import { categoryCodeMatches } from "./storefront-taxonomy.js";
 
 export const ACCOUNT_SESSION_COOKIE = "bls_session";
 
