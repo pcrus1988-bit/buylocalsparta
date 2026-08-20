@@ -8,6 +8,10 @@ import {
 } from "./index.ts";
 import { assertClassificationXmlPreflight } from "./classification-preflight.ts";
 import {
+  reconcileDeliveryReturnFromStatus,
+  type DeliveryReturnReconciliation
+} from "./delivery-return-reconciliation.ts";
+import {
   assertMyDataSpecSupportsDeliveryReturn,
   assertMyDataSpecSupportsQrDeliveryStatus,
   buildConfirmDeliveryReturnXml,
@@ -72,6 +76,11 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
     const query = deliveryNoteStatusQuery(input);
     const responseXml = await this.#extendedRequest(`GetDeliveryNoteStatus?${query}`, { method: "GET" });
     return parseDeliveryNoteStatusResponse(responseXml);
+  }
+
+  async reconcileDeliveryReturn(qrUrl: string): Promise<DeliveryReturnReconciliation> {
+    const status = await this.getDeliveryNoteStatus({ qrUrl });
+    return reconcileDeliveryReturnFromStatus(status);
   }
 
   async confirmDeliveryReturn(input: ConfirmDeliveryReturnInput): Promise<ConfirmDeliveryReturnResult> {
