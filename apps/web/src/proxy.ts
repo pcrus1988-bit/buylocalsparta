@@ -12,12 +12,12 @@ function validVisitor(value: string | undefined): string | undefined {
 }
 
 function needsPersistentMarketplaceIdentity(pathname: string): boolean {
-  const prefixes = [
-    "/shop", "/category/", "/product/", "/cart", "/checkout", "/ask-local", "/advice",
+  const routeRoots = [
+    "/shop", "/category", "/product", "/cart", "/checkout", "/ask-local", "/advice",
     "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
-    "/vendor", "/admin", "/daily", "/api/"
+    "/vendor", "/admin", "/daily", "/api"
   ];
-  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
+  return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
 export function proxy(request: NextRequest) {
