@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Καταστήματα & άνθρωποι",
-  description: "Οι ενεργοί συνεργάτες του Buy Local Sparta εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
+  description: "Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
 };
 
 function normalizedSearch(value: string): string {
