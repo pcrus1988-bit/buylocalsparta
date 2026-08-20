@@ -1,8 +1,6 @@
 import { parseVivaWebhookJson } from "@buy-local-sparta/viva-payments";
+import { finalizeCapturedCustomerPayment } from "../../../../../lib/customer-payment-finalization";
 import { requireVivaPayments } from "../../../../../lib/viva-runtime";
-import { capturePaidOrderForFiscalIssuance } from "../../../../../lib/customer-fiscal-runtime";
-import { myDataAdminRuntimeConfig } from "../../../../../lib/mydata-runtime";
-import { syncConfirmedOrderLifecycle } from "../../../../../lib/order-lifecycle";
 
 export const runtime = "nodejs";
 
@@ -63,12 +61,9 @@ export async function POST(request:Request) {
     const envelope=parseVivaWebhookJson(raw);
     const result=await requireVivaPayments().handleWebhook(envelope,now);
     const reconciliation = result.result;
-    if (reconciliation && "orderId" in reconciliation && "orderStatus" in reconciliation && reconciliation.orderStatus === "confirmed") {
-      await syncConfirmedOrderLifecycle(reconciliation.orderId, now);
-      if ("paymentStatus" in reconciliation && reconciliation.paymentStatus === "captured") {
-        const fiscalConfig=await myDataAdminRuntimeConfig();
-        if(fiscalConfig.capturePaidOrders)await capturePaidOrderForFiscalIssuance(reconciliation.orderId, now);
-      }
+    if (reconciliation && "orderId" in reconciliation && "orderStatus" in reconciliation && "paymentStatus" in reconciliation
+      && reconciliation.orderStatus === "confirmed" && reconciliation.paymentStatus === "captured") {
+      await finalizeCapturedCustomerPayment(reconciliation.orderId, now);
     }
     return Response.json({ok:true,eventTypeId:result.eventTypeId});
   } catch(error) {
