@@ -5,7 +5,7 @@ import Link from "next/link";
 import { WorkspaceQuickLinks } from "./WorkspaceQuickLinks";
 
 type Product = { offerId: string; canonicalVariantId: string; title: string; retailPrice: string; supplierPrice: string; onHand: number; reserved: number; blocked: number; safetyStock: number; availableToSell: number; updatedAt: number };
-type Fulfilment = { id: string; orderId: string; orderStatus: string; status: string; mode: string; postcode: string; createdAt: number; customerIdentified: boolean; merchandiseSubtotal: string; deliveryCharge: string; lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>; actions: readonly string[] };
+type Fulfilment = { id: string; orderId: string; orderReference: string; orderStatus: string; status: string; mode: string; postcode: string; createdAt: number; customerIdentified: boolean; merchandiseSubtotal: string; deliveryCharge: string; lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>; actions: readonly string[] };
 type Dashboard = { vendor: { id: string; name: string; adviser: string }; account: { email: string; roles: readonly string[] }; csrfToken: string; metrics: { ordersRequiringAction: number; activeProducts: number; availableUnits: number; openFulfilments: number }; products: readonly Product[]; fulfilments: readonly Fulfilment[]; finance: { supplierValueSnapshot: string; note: string } };
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -67,7 +67,7 @@ export function VendorDashboardClient({ initial }: { initial: Dashboard }) {
     <section className="shell vendor-section" id="orders">
       <div className="section-heading dashboard-section-heading"><div><div className="eyebrow">Fulfilment</div><h2>Παραγγελίες</h2></div><p className="section-note">Μόνο οι αναθέσεις του καταστήματός σου.</p></div>
       {data.fulfilments.length ? <div className="vendor-order-list">{data.fulfilments.map((item) => <article className="vendor-order" key={item.id}>
-        <div className="vendor-order-head"><div><strong>{item.orderId}</strong><small>{date(item.createdAt)} · {item.mode} · ΤΚ {item.postcode}</small></div><span className="status-pill">{item.status}</span></div>
+        <div className="vendor-order-head"><div><strong>{item.orderReference}</strong><small>{date(item.createdAt)} · {item.mode} · ΤΚ {item.postcode}</small></div><span className="status-pill">{item.status}</span></div>
         <div className="vendor-order-lines">{item.lines.map((line) => <span key={line.id}>{line.quantity}× {line.title} <small>{line.status}</small></span>)}</div>
         <div className="vendor-order-foot"><span>Εμπορεύματα {item.merchandiseSubtotal} · παράδοση {item.deliveryCharge}</span><div>{item.actions.map((action) => <button key={action} type="button" className={action === "reject" ? "button button-secondary" : "button"} disabled={busy === `${item.id}:${action}`} onClick={() => void request(`${item.id}:${action}`, "/api/vendor/fulfilments/action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fulfilmentId: item.id, action }) })}>{actionLabel[action] ?? action}</button>)}</div></div>
       </article>)}</div> : <div className="account-empty"><p>Δεν υπάρχουν ανατεθειμένες παραγγελίες αυτή τη στιγμή.</p></div>}
