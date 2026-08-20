@@ -26,6 +26,23 @@ ALTER TABLE customer_orders
 ALTER TABLE customer_orders DROP CONSTRAINT IF EXISTS customer_orders_order_number_public_format;
 ALTER TABLE customer_orders ADD CONSTRAINT customer_orders_order_number_public_format CHECK (order_number ~ '^ORD-[0-9]{5,}$');
 
+CREATE OR REPLACE FUNCTION bls_private.assign_order_reference()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public, bls_private
+AS $$
+BEGIN
+  IF NEW.order_number IS NULL OR NEW.order_number !~ '^ORD-[0-9]{5,}$' THEN
+    NEW.order_number := 'ORD-' || lpad(nextval('public_order_reference_seq')::text, 5, '0');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS customer_orders_assign_public_reference ON customer_orders;
+CREATE TRIGGER customer_orders_assign_public_reference
+BEFORE INSERT ON customer_orders
+FOR EACH ROW EXECUTE FUNCTION bls_private.assign_order_reference();
+
 ALTER TABLE counteroffer_requests ADD COLUMN IF NOT EXISTS reference_number text;
 WITH ranked AS (
   SELECT id, 10000 + row_number() OVER (ORDER BY created_at, id) AS n
@@ -75,6 +92,23 @@ ALTER TABLE returns
   ALTER COLUMN return_number SET DEFAULT ('RET-' || lpad(nextval('public_return_reference_seq')::text, 5, '0'));
 ALTER TABLE returns DROP CONSTRAINT IF EXISTS returns_return_number_public_format;
 ALTER TABLE returns ADD CONSTRAINT returns_return_number_public_format CHECK (return_number ~ '^RET-[0-9]{5,}$');
+
+CREATE OR REPLACE FUNCTION bls_private.assign_return_reference()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public, bls_private
+AS $$
+BEGIN
+  IF NEW.return_number IS NULL OR NEW.return_number !~ '^RET-[0-9]{5,}$' THEN
+    NEW.return_number := 'RET-' || lpad(nextval('public_return_reference_seq')::text, 5, '0');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS returns_assign_public_reference ON returns;
+CREATE TRIGGER returns_assign_public_reference
+BEFORE INSERT ON returns
+FOR EACH ROW EXECUTE FUNCTION bls_private.assign_return_reference();
 
 ALTER TABLE refunds ADD COLUMN IF NOT EXISTS reference_number text;
 WITH ranked AS (
