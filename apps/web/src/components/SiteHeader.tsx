@@ -21,8 +21,14 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
 
   return (
     <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
-      <Link className="brand" href="/" aria-label="Buy Local Sparta · αρχική" onClick={() => setMenuOpen(false)}>
-        <span className="brand-mark">BLS</span><span>Buy Local Sparta</span>
+      <Link className="brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Sparta · αρχική" onClick={() => setMenuOpen(false)}>
+        <img
+          src="/brand/kontamou-sparta-logo.webp"
+          alt="ΚΟΝΤΑ ΜΟΥ Sparta"
+          width={96}
+          height={64}
+          style={{ display: "block", width: "96px", height: "64px", objectFit: "contain" }}
+        />
       </Link>
 
       <button
