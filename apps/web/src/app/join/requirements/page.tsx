@@ -6,7 +6,7 @@ import { SiteHeader } from "../../../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Προϋποθέσεις συνεργάτη",
-  description: "Διαδραστικός έλεγχος επιχειρησιακής ετοιμότητας για καταστήματα που θέλουν να συμμετέχουν στο Buy Local Sparta.",
+  description: "Διαδραστικός έλεγχος επιχειρησιακής ετοιμότητας για καταστήματα που θέλουν να συμμετέχουν στο ΚΟΝΤΑ ΜΟΥ Sparta.",
   alternates: { canonical: "/join/requirements" }
 };
 
