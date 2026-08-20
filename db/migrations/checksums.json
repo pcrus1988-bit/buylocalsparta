@@ -90,5 +90,6 @@
   "0091_catalog_taxonomy_lookup_indexes.sql": "39e4c60495ed5792fcbf599587ed6eb13ac084543f7139f8fed247b26c6da480",
   "0092_catalog_quality_views_security.sql": "394943157ecff238ab48f53b2618e58371398fd834c3824d1c42e39f7fcb0d15",
   "0093_catalog_taxonomy_guard_family_field_fix.sql": "135716e90965206b031608263f85a6cf385f177533aa370f6b5ed9eb3779d241",
-  "0094_checkout_pickup_delivery_rule_fix.sql": "ac02054c0558661be4565860dfc0be50c81d4acf6509848e9ff9914d580783c9"
+  "0094_checkout_pickup_delivery_rule_fix.sql": "ac02054c0558661be4565860dfc0be50c81d4acf6509848e9ff9914d580783c9",
+  "0095_marketplace_public_references.sql": "6b90458bc8e321cc58125ce35251edad6281f28f94654c5f63413168841ad36c"
 }
