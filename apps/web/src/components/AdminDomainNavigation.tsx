@@ -27,8 +27,12 @@ export function AdminDomainNavigation({ id, groups, onNavigate }: Readonly<{ id:
     {groups.map((group) => {
       const href = group.href ?? group.links.find((link) => !link.contextHidden)?.href ?? group.links[0]?.href ?? "/admin";
       const active = current?.group.label === group.label;
+      const badgeLabel = group.badge && group.badge > 99 ? "99+" : group.badge;
       return <Link href={href} key={group.label} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} onClick={onNavigate}>
-        <span className="admin-domain-icon" aria-hidden="true">{group.icon ?? group.links[0]?.icon ?? "·"}</span><span>{group.label}</span><i aria-hidden="true">›</i>
+        <span className="admin-domain-icon" aria-hidden="true">{group.icon ?? group.links[0]?.icon ?? "·"}</span>
+        <span className="admin-domain-label">{group.label}</span>
+        <span className={`admin-domain-badge${group.badge ? "" : " is-empty"}`} aria-label={group.badge ? `${group.badge} items need attention` : undefined} aria-hidden={group.badge ? undefined : true}>{badgeLabel ?? ""}</span>
+        <i aria-hidden="true">›</i>
       </Link>;
     })}
   </nav>;

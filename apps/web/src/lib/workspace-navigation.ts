@@ -13,6 +13,7 @@ export type WorkspaceNavGroup = Readonly<{
   links: ReadonlyArray<WorkspaceNavLink>;
   href?: string;
   icon?: string;
+  badge?: number;
 }>;
 
 export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [

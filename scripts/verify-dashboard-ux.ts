@@ -26,14 +26,15 @@ for (const group of VENDOR_WORKSPACE_NAVIGATION) {
 const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
 for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/session"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
 
-requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", 'from "next/link"', 'aria-current={active ? "page"']);
+requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", 'from "next/link"', 'aria-current={active ? "page"', "admin-domain-badge", '"99+"']);
+requireText("apps/web/src/lib/admin-attention-projection.ts", ["PostgresUnitOfWork", "platformScope", "readOnly: true", "vendor_verification_queue", "catalog_review_queue", "pending_media", "pending_compliance", "payable_procurements", "fairness_appeals", "adminDomainAttentionBadges", 'assign("/admin/partners"', 'assign("/admin/matching"', 'assign("/admin/trust"', 'assign("/admin/finance"']);
 for (const group of ADMIN_WORKSPACE_NAVIGATION) {
   if (!group.links.length) failures.push(`Admin domain ${group.label} cannot be empty`);
   if (!group.href || !group.icon) failures.push(`Admin domain ${group.label} needs a landing href and icon`);
   for (const link of group.links) if (!link.icon) failures.push(`Admin link ${link.href} is missing an icon`);
 }
 const adminHeader = `${read("apps/web/src/components/AdminWorkspaceHeader.tsx")}\n${read("apps/web/src/components/AdminWorkspaceHeaderClient.tsx")}\n${read("apps/web/src/lib/admin-navigation.ts")}`;
-for (const requirement of ["ADMIN_WORKSPACE_NAVIGATION", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "admin-topbar", "admin-global-search", "/admin/search?q=", "aria-expanded={menuOpen}", "workspace-menu-toggle", "metaKey", "ctrlKey", "x-csrf-token"]) if (!adminHeader.includes(requirement)) failures.push(`Admin shell is missing ${requirement}`);
+for (const requirement of ["ADMIN_WORKSPACE_NAVIGATION", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "adminDomainAttentionBadges", ".catch(() => ({}))", "attentionBadges", "badge:", "admin-topbar", "admin-global-search", "/admin/search?q=", "aria-expanded={menuOpen}", "workspace-menu-toggle", "metaKey", "ctrlKey", "x-csrf-token"]) if (!adminHeader.includes(requirement)) failures.push(`Admin shell is missing ${requirement}`);
 
 const account = read("apps/web/src/components/AccountDashboardClient.tsx");
 for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-controls", "/ask-local"]) if (!account.includes(`href: "${destination}"`) && !account.includes(`href="${destination}"`)) failures.push(`Account dashboard is missing task path ${destination}`);
@@ -120,7 +121,7 @@ const adminStyles = [
   "admin-information-architecture.css", "admin-domain-workspaces.css", "admin-directory-search.css", "admin-orders-directory.css", "admin-local-tabs.css", "admin-partner-record.css", "admin-matching-split.css", "admin-queue-split.css", "admin-insights.css", "admin-tax-documents.css"
 ] as const;
 const adminCss = adminStyles.map((name) => read(`apps/web/src/app/${name}`)).join("\n");
-for (const requirement of [".admin-domain-nav", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", ".admin-tax-documents", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
+for (const requirement of [".admin-domain-nav", ".admin-domain-badge", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", ".admin-tax-documents", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
 const layout = read("apps/web/src/app/layout.tsx");
 for (const stylesheet of ["workspace-polish.css", "dashboard-luxury.css", "workspace-pages.css", ...adminStyles]) if (!layout.includes(`import "./${stylesheet}"`)) failures.push(`Shared layout is missing ${stylesheet}`);
 if (layout.indexOf('import "./admin-information-architecture.css"') < layout.indexOf('import "./typography-readability.css"')) failures.push("Admin IA overrides must load after shared readability styles");
@@ -129,4 +130,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, Action Centre, commercial readiness, content operations, saved directory views, partner records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, lightweight attention badges, Action Centre, commercial readiness, content operations, saved directory views, partner records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
