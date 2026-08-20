@@ -20,7 +20,7 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · release gates</div><h1>Launch Readiness</h1><p className="lead">Δες αν το τρέχον build έχει φρέσκο, πραγματικά εκτελεσμένο provider evidence — όχι απλώς configuration. Δεν σχετίζεται με vendor activation.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · release gates · Activation evidence</div><h1>Launch Readiness</h1><p className="lead">Δες αν το τρέχον build έχει φρέσκο, πραγματικά εκτελεσμένο provider evidence — όχι απλώς configuration. Δεν σχετίζεται με vendor activation.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Current build", value: WEB_BUILD_VERSION },
