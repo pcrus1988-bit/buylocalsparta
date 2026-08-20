@@ -11,7 +11,7 @@ export async function deliverAcceptedCustomerTaxDocumentById(documentId: string)
        SET customer_email_status='sending',customer_email_error=NULL
       FROM customer_orders o LEFT JOIN users u ON u.id=o.user_id
      WHERE td.order_id=o.id AND td.public_id=$1 AND td.type IN ('retail_receipt','customer_invoice')
-       AND td.transmission_status='accepted' AND td.aade_mark IS NOT NULL
+       AND td.status='issued' AND td.transmission_status='accepted' AND td.aade_mark IS NOT NULL
        AND td.customer_email_status IN ('not_sent','failed')
      RETURNING o.public_id AS order_id,u.email`, [documentId]);
   if (!claimed.rowCount) return { sent: false, reason: "not_eligible_or_already_claimed" };
