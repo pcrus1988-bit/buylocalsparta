@@ -1,4 +1,4 @@
-import { childElements, childText, descendants, parseXmlDocument, textContent } from "./xml.ts";
+import { childText, descendants, parseXmlDocument, textContent, type XmlElement } from "./xml.ts";
 
 export type MyDataContinuationToken = Readonly<{
   nextPartitionKey?: string;
@@ -72,7 +72,7 @@ export function parseE3InfoResponse(xml:string):MyDataE3InfoResponse{
   return{records,continuation:continuation(root),rawXml:xml};
 }
 
-function continuation(root:ReturnType<typeof parseXmlDocument>):MyDataContinuationToken|undefined{
+function continuation(root:XmlElement):MyDataContinuationToken|undefined{
   const token=descendants(root,"continuationToken")[0];
   if(!token)return undefined;
   const nextPartitionKey=optional(childText(token,"nextPartitionKey"));
@@ -80,18 +80,17 @@ function continuation(root:ReturnType<typeof parseXmlDocument>):MyDataContinuati
   return nextPartitionKey||nextRowKey?{nextPartitionKey,nextRowKey}:undefined;
 }
 
-function fieldMap(node:ReturnType<typeof parseXmlDocument>):Readonly<Record<string,string>>{
+function fieldMap(node:XmlElement):Readonly<Record<string,string>>{
   const fields:Record<string,string>={};
-  for(const child of childElementsFromNode(node)){
+  for(const child of node.children){
     const value=textContent(child).trim();
     if(value)fields[child.localName]=value;
   }
   return fields;
 }
-function childElementsFromNode(node:ReturnType<typeof parseXmlDocument>){return node.children;}
 function optional(value:string|undefined):string|undefined{return value?.trim()||undefined;}
 function decimal(value:string|undefined):number|undefined{
-  if(!value?.trim()||!^-?\d+(?:\.\d+)?$/.test(value.trim()))return undefined;
+  if(!value?.trim()||!/^-?\d+(?:\.\d+)?$/.test(value.trim()))return undefined;
   const parsed=Number(value);return Number.isFinite(parsed)?parsed:undefined;
 }
 function booleanValue(value:string|undefined):boolean{return /^(?:true|1)$/i.test(value?.trim()??"");}
