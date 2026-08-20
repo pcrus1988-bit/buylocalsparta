@@ -38,6 +38,7 @@
   "0037_activation_evidence.sql": "1198229d5354dd9bf7a3f06d3b288b6e5f65fa933c78b707f314bf8fc2ae3dce",
   "0038_paid_reservation_consumption.sql": "b53e31e3ae044cccc56734163a949eec8b2a3767b889059d7a5ced4552f2fd82",
   "0039_supabase_security_hardening.sql": "fe761b087d878316c652272ae2208ac4d56fc667bc49c88bc8f6f406f17fbd2a",
+  "0040_vendor_research_dossiers.sql": "939541cdfcf380e36a9773c59f8dba8167acbb47374fe5bf04792650fcb06e0c",
   "0041_vendor_final_price_commission_agreements.sql": "63711c1d518bb2a6600082da32331154ae705ed7ac65fa23c0e40592f04de661",
   "0044_catalog_taxonomy_foundations.sql": "f591d9322fd38dc2a3e9574c3ed9d4707d29ee81e493c8468f863a1f603be95d",
   "0045_catalog_taxonomy_books_stationery_toys.sql": "15bc3b781465fe7a1073c01e938dc6931f73565a4a6c6a5dd1fcad28c2b422c6",
@@ -79,5 +80,14 @@
   "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
   "0082_order_sla_trigger_search_path.sql": "c915907a6ad7229cff9de2f750f7b9fd0761d4854dc562f2af0672d6bb8fc5d4",
   "0083_daily_sla_fk_indexes.sql": "31172b1950e1e7e4eda15ec8400070474dd8aa943b9bd5a182ffa8e8d9fb2c28",
-  "0084_daily_vapid_vault_bridge.sql": "5cf2df167bdc45e75db005d04b841ba692c7c0d9161d4dfe5204048e886603af"
+  "0084_daily_vapid_vault_bridge.sql": "5cf2df167bdc45e75db005d04b841ba692c7c0d9161d4dfe5204048e886603af",
+  "0085_catalog_taxonomy_consistency_guard.sql": "f7f6a12ac5134533ae290ffdc9680af921a470481a40c01321e82cc616afa366",
+  "0086_catalog_product_type_foundation_expansion.sql": "45411a693bc1f855a118bb46e33ea2d353dff970be31a322cc4543005e1fb2d6",
+  "0087_catalog_product_type_coverage.sql": "122663df9f735c95d4ed906cd178c2fa45e416c2c5b8632fc94f75b45a17000c",
+  "0088_catalog_product_type_attribute_rules_a.sql": "2d78039f983fb7d3e874cc728c79fb0f332c7241166a0b3cefc94ade3278a0f6",
+  "0089_catalog_product_type_attribute_rules_b.sql": "a8341c3c33d9addee8e8af1cf5fee5967169ff1bf327ca81d2529aecf34341c7",
+  "0090_catalog_brand_seed_and_live_normalization.sql": "536b2539e0307b9c696e3d31cb16a1d7f9b5a97c4d94d3723b94ebfd0e7b6e76",
+  "0091_catalog_taxonomy_lookup_indexes.sql": "39e4c60495ed5792fcbf599587ed6eb13ac084543f7139f8fed247b26c6da480",
+  "0092_catalog_quality_views_security.sql": "394943157ecff238ab48f53b2618e58371398fd834c3824d1c42e39f7fcb0d15",
+  "0093_catalog_taxonomy_guard_family_field_fix.sql": "135716e90965206b031608263f85a6cf385f177533aa370f6b5ed9eb3779d241"
 }
