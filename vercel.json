@@ -4,5 +4,11 @@
   "installCommand": "npm install --ignore-scripts",
   "buildCommand": "npm --workspace @buy-local-sparta/web run build",
   "devCommand": "npm --workspace @buy-local-sparta/web run dev",
-  "outputDirectory": "apps/web/.next"
+  "outputDirectory": "apps/web/.next",
+  "crons": [
+    {
+      "path": "/api/cron/fiscal-reconciliation",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }
