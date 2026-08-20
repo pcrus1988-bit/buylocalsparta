@@ -22,6 +22,19 @@ export type AadeSaleMappingReferenceResult = Readonly<{
   message: string;
 }>;
 
+export type AadeSaleMappingAuditItem<T extends AadeSaleMappingReferenceInput = AadeSaleMappingReferenceInput> = Readonly<{
+  mapping: T;
+  reference: AadeSaleMappingReferenceResult;
+}>;
+
+export type AadeSaleMappingAudit<T extends AadeSaleMappingReferenceInput = AadeSaleMappingReferenceInput> = Readonly<{
+  ok: boolean;
+  matched: number;
+  drifted: number;
+  notCovered: number;
+  items: readonly AadeSaleMappingAuditItem<T>[];
+}>;
+
 type ReferenceKey = `${string}|${string}|${string}|${string}`;
 
 const SALE_MAPPING_REFERENCE: Readonly<Record<ReferenceKey, AadeSaleMappingReferenceExpected>> = {
@@ -68,6 +81,14 @@ export function checkAadeSaleMappingReference(input: AadeSaleMappingReferenceInp
     expected,
     message: `Reference expects ${expected.invoiceType}/${expected.incomeCategory}/${expected.e3Code}; configured mapping is ${actual.invoiceType || "—"}/${actual.incomeCategory || "—"}/${actual.e3Code || "—"}. Accountant approval still controls production use.`
   };
+}
+
+export function auditAadeSaleMappings<T extends AadeSaleMappingReferenceInput>(mappings: readonly T[]): AadeSaleMappingAudit<T> {
+  const items = mappings.map(mapping => ({ mapping, reference: checkAadeSaleMappingReference(mapping) }));
+  const matched = items.filter(item => item.reference.status === "match").length;
+  const drifted = items.filter(item => item.reference.status === "drift").length;
+  const notCovered = items.length - matched - drifted;
+  return { ok: drifted === 0, matched, drifted, notCovered, items };
 }
 
 export function aadeSaleMappingReferenceFor(input: Pick<AadeSaleMappingReferenceInput, "customerKind" | "itemKind" | "geography" | "direction">): AadeSaleMappingReferenceExpected | undefined {
