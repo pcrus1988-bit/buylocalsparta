@@ -1,4 +1,4 @@
-import { dailyPushPublicConfiguration } from "../../../../../../lib/daily-push";
+import { dailyPushPublicConfiguration } from "../../../../../lib/daily-push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
