@@ -45,6 +45,14 @@ type PushStatus = { configured: boolean; publicKey?: string; devices: number };
 
 type BrowserSupport = "checking" | "supported" | "unsupported";
 
+const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
+  "awaiting_acceptance",
+  "accepted",
+  "picking",
+  "packed",
+  "ready_for_handover"
+]);
+
 const formatWhen = (value: string | number) => new Intl.DateTimeFormat("el-GR", {
   dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens"
 }).format(new Date(value));
@@ -88,6 +96,17 @@ export function VendorDailyHomeClient({
     const supported = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     setSupport(supported ? "supported" : "unsupported");
     setPermission(supported ? Notification.permission : "unavailable");
+
+    if (!supported) return;
+    const refreshPermission = () => {
+      if (document.visibilityState === "visible") setPermission(Notification.permission);
+    };
+    document.addEventListener("visibilitychange", refreshPermission);
+    window.addEventListener("focus", refreshPermission);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshPermission);
+      window.removeEventListener("focus", refreshPermission);
+    };
   }, []);
 
   const orderReceived = useMemo(
@@ -103,7 +122,7 @@ export function VendorDailyHomeClient({
   ), [orderReceived]);
 
   const visibleOrders = dashboard.fulfilments.filter((item) => {
-    if (["delivered", "rejected", "cancelled", "failed"].includes(item.status)) return false;
+    if (!DAILY_ACTIVE_FULFILMENT_STATUSES.has(item.status)) return false;
     if (item.status !== "awaiting_acceptance") return true;
     if (!receivedFulfilments.has(item.id)) return true; // legacy/backfill safety
     return acknowledgedFulfilments.has(item.id);
@@ -116,7 +135,7 @@ export function VendorDailyHomeClient({
 
   const openAsk = advice.counteroffers.filter((item) => !["closed", "expired", "accepted", "rejected"].includes(item.status));
   const feed = [
-    ...sla.notifications.map((item) => ({ id: `sla:${item.id}`, title: item.title, body: item.body, at: new Date(item.createdAt).getTime(), href: orderHref(item) })),
+    ...sla.notifications.filter((item) => !item.readAt).map((item) => ({ id: `sla:${item.id}`, title: item.title, body: item.body, at: new Date(item.createdAt).getTime(), href: orderHref(item) })),
     ...advice.notifications.map((item) => ({ id: `advice:${item.id}`, title: item.title, body: item.body, at: item.createdAt ?? 0, href: "/daily/ask-local" }))
   ].sort((a, b) => b.at - a.at).slice(0, 3);
   const unread = sla.metrics.unread + advice.notifications.length;
@@ -143,12 +162,16 @@ export function VendorDailyHomeClient({
 
   async function enableNotifications() {
     if (support !== "supported") return;
+    if (Notification.permission === "denied") {
+      router.push("/daily/notifications/settings");
+      return;
+    }
     setPushBusy(true);
     setMessage("");
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
-      if (result === "denied") throw new Error("Οι ειδοποιήσεις αποκλείστηκαν. Επίτρεψέ τες από τις ρυθμίσεις του browser για το kontamou.site.");
+      if (result === "denied") throw new Error("Οι ειδοποιήσεις αποκλείστηκαν. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για οδηγίες επανενεργοποίησης.");
       if (result !== "granted") throw new Error("Δεν δόθηκε άδεια για ειδοποιήσεις.");
       if (!push.configured || !push.publicKey) {
         setMessage("Ο browser επέτρεψε τις ειδοποιήσεις, αλλά το server Web Push δεν είναι ακόμη διαθέσιμο.");
@@ -189,9 +212,9 @@ export function VendorDailyHomeClient({
 
     <div className={styles.shell}>
       {support !== "checking" && permission !== "granted" && <section className={styles.permissionCard}>
-        <div><span className={styles.eyebrow}>Browser permission</span><h1>Ενεργοποίησε ειδοποιήσεις</h1><p>Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό.</p></div>
+        <div><span className={styles.eyebrow}>Browser permission</span><h1>Ενεργοποίησε ειδοποιήσεις</h1><p>{permission === "denied" ? "Το kontamou.site είναι αποκλεισμένο από τον browser. Άλλαξε την άδεια σε «Επιτρέπεται» και το Daily θα επανελέγξει αυτόματα τη συσκευή." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
         <button type="button" onClick={() => void enableNotifications()} disabled={pushBusy || support !== "supported"}>
-          {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
+          {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Οδηγίες ρυθμίσεων" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
         </button>
       </section>}
 
@@ -222,7 +245,7 @@ export function VendorDailyHomeClient({
 
       <section className={styles.events}>
         <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Alerts</span><h2>Τελευταία συμβάντα</h2></div><Link href="/daily/notifications">Ιστορικό</Link></div>
-        {feed.length === 0 ? <div className={styles.empty}>Δεν υπάρχουν πρόσφατα συμβάντα.</div> : <div className={styles.eventList}>
+        {feed.length === 0 ? <div className={styles.empty}>Δεν υπάρχουν πρόσφατα συμβάντα που χρειάζονται ενέργεια.</div> : <div className={styles.eventList}>
           {feed.map((event) => <Link key={event.id} href={event.href} className={styles.event}><div><strong>{event.title}</strong><p>{event.body}</p><small>{event.at ? formatWhen(event.at) : ""}</small></div><span aria-hidden="true">›</span></Link>)}
         </div>}
       </section>

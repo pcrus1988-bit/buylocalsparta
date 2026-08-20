@@ -50,6 +50,14 @@ type SlaWorkspace = {
 };
 type Category = "new" | "processing" | "ready";
 
+const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
+  "awaiting_acceptance",
+  "accepted",
+  "picking",
+  "packed",
+  "ready_for_handover"
+]);
+
 const formatWhen = (value: string | number) => new Intl.DateTimeFormat("el-GR", {
   dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens"
 }).format(new Date(value));
@@ -92,7 +100,7 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
   ), [orderReceived]);
 
   const activeOrders = dashboard.fulfilments.filter((item) => {
-    if (["delivered", "rejected", "cancelled", "failed"].includes(item.status)) return false;
+    if (!DAILY_ACTIVE_FULFILMENT_STATUSES.has(item.status)) return false;
     if (item.status !== "awaiting_acceptance") return true;
     if (!received.has(item.id)) return true; // existing order created before acknowledgement workflow
     return acknowledged.has(item.id);

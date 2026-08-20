@@ -30,3 +30,48 @@ export async function acknowledgeDailyOrderNotification(principal: SessionPrinci
     payload: row.payload ?? {}
   };
 }
+
+export async function resolveDailyFulfilmentNotifications(principal: SessionPrincipal, fulfilmentId: string, now = Date.now()) {
+  const normalized = fulfilmentId.trim();
+  if (!normalized) throw new Error("Fulfilment is required");
+  if (!productionDatabaseConfigured()) return { ok: true, fulfilmentId: normalized, resolved: 0 };
+
+  const vendorId = requiredVendorId(principal);
+  const result = await getProductionPostgresRuntime().nativePool.query(`
+    UPDATE notifications n
+    SET read_at=COALESCE(n.read_at,$3)
+    WHERE n.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2)
+      AND n.channel='in_app'
+      AND n.read_at IS NULL
+      AND (n.event_type LIKE 'vendor.order_%' OR n.event_type LIKE 'vendor.sla_%')
+      AND n.payload->>'fulfilmentId'=$1
+  `, [normalized, vendorId, new Date(now)]);
+
+  return { ok: true, fulfilmentId: normalized, resolved: result.rowCount ?? 0 };
+}
+
+export async function resolveDailyPickupNotifications(principal: SessionPrincipal, token: string, now = Date.now()) {
+  const pickupId = token.trim().split(".", 1)[0] ?? "";
+  if (!pickupId) return { ok: true, resolved: 0 };
+  if (!productionDatabaseConfigured()) return { ok: true, resolved: 0 };
+
+  const vendorId = requiredVendorId(principal);
+  const result = await getProductionPostgresRuntime().nativePool.query(`
+    UPDATE notifications n
+    SET read_at=COALESCE(n.read_at,$3)
+    WHERE n.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2)
+      AND n.channel='in_app'
+      AND n.read_at IS NULL
+      AND (n.event_type LIKE 'vendor.order_%' OR n.event_type LIKE 'vendor.sla_%')
+      AND n.payload->>'fulfilmentId'=(
+        SELECT fo.public_id
+        FROM pickup_groups pg
+        JOIN fulfilment_orders fo ON fo.id=pg.fulfilment_order_id
+        JOIN vendor_businesses vb ON vb.id=fo.vendor_id
+        WHERE pg.public_id=$1 AND vb.public_id=$2
+        LIMIT 1
+      )
+  `, [pickupId, vendorId, new Date(now)]);
+
+  return { ok: true, resolved: result.rowCount ?? 0 };
+}

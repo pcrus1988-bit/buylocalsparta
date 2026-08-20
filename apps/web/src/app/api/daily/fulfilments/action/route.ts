@@ -1,4 +1,5 @@
 import { requireDailySession } from "../../../../../lib/daily-session";
+import { resolveDailyFulfilmentNotifications } from "../../../../../lib/daily-order-inbox";
 import { actOnVendorFulfilment, vendorDashboard } from "../../../../../lib/vendor-runtime";
 import { syncVendorFulfilmentLifecycle } from "../../../../../lib/order-lifecycle";
 
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     const now = Date.now();
     await actOnVendorFulfilment(principal, { fulfilmentId, action, now });
     await syncVendorFulfilmentLifecycle(principal, { fulfilmentId, action, now });
+    await resolveDailyFulfilmentNotifications(principal, fulfilmentId, now);
     return Response.json(await vendorDashboard(principal));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "fulfilment_action_failed" }, { status: 400 });
