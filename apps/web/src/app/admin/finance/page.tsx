@@ -5,6 +5,7 @@ import { AdminActionButton } from "../../../components/AdminActionButton";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminFinanceWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
+import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
 
 export const metadata: Metadata = { title: "Admin · Finance", robots: { index: false, follow: false } };
 
@@ -13,6 +14,7 @@ export default async function Page() {
   if (!principal) redirect("/admin/login");
   let data;
   try { data = await adminFinanceWorkspace(principal); } catch { redirect("/admin"); }
+  const orderReferences = await marketplaceReferenceMap("order", data.procurements.map((item) => item.orderId));
 
   const matched = data.procurements.filter((item) => item.status === "matched").length;
   const payable = data.procurements.filter((item) => item.status === "payable").length;
@@ -35,9 +37,9 @@ export default async function Page() {
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Supplier accounting" title="Procurements" note="Μόνο matched procurements μπορούν να γίνουν payable." />
       {data.procurements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν supplier procurements." body="Fulfilled customer lines θα δημιουργήσουν accruals εδώ." /> : <div className="workspace-queue-list">{data.procurements.map((item) => <article className="workspace-queue-card" key={item.id}>
-        <div className="workspace-queue-head"><div><strong>{item.id}</strong><small>Order {item.orderId} · Vendor {item.vendorId}</small></div><span className="status-pill">{item.status}</span></div>
+        <div className="workspace-queue-head"><div><strong>{item.id}</strong><small>Order {orderReferences.get(item.orderId) ?? item.orderId} · Vendor {item.vendorId}</small></div><span className="status-pill">{item.status}</span></div>
         <div className="workspace-queue-primary"><span>Gross {item.grossLabel}</span><span>Payable {item.payableLabel}</span><span>Invoice {item.invoiceNumber ?? "—"}</span></div>
-        <WorkspaceRecordDetails label="Accounting references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Procurement</strong><span>{item.id}</span></div><div className="workspace-compact-row"><strong>Order / vendor</strong><span>{item.orderId} · {item.vendorId}</span></div></div></WorkspaceRecordDetails>
+        <WorkspaceRecordDetails label="Accounting references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Procurement</strong><span>{item.id}</span></div><div className="workspace-compact-row"><strong>Order</strong><span>{orderReferences.get(item.orderId) ?? item.orderId}</span></div></div></WorkspaceRecordDetails>
         <div className="workspace-action-bar"><span>State: <strong>{item.status}</strong></span><div className="workspace-action-buttons">{item.status === "matched" && <AdminActionButton label="Approve payable" endpoint="/api/admin/finance/procurement" csrfToken={data.csrfToken} body={{ procurementId: item.id }} />}</div></div>
       </article>)}</div>}
     </section>
