@@ -63,5 +63,9 @@ export function verifyDailyPushBridgeToken(token: string, now = Date.now()): Dai
 }
 
 export function dailyPushBridgeOrigin(): string {
-  return (process.env.BLS_DAILY_PUSH_BRIDGE_ORIGIN?.trim() || "https://buylocalsparta-web.vercel.app").replace(/\/$/, "");
+  const configured = process.env.BLS_DAILY_PUSH_BRIDGE_ORIGIN?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  const branchUrl = process.env.VERCEL_BRANCH_URL?.trim();
+  if (process.env.VERCEL_ENV === "preview" && branchUrl) return `https://${branchUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  return "https://buylocalsparta-web.vercel.app";
 }
