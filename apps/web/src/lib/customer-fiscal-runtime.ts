@@ -17,7 +17,7 @@ export type CustomerFiscalDocument = Readonly<{
 }>;
 
 const PRIMARY_CUSTOMER_TYPES = ["pending_customer_sale", "retail_receipt", "customer_invoice"] as const;
-const PAID_FISCAL_ELIGIBLE_ORDER_STATUSES = ["confirmed", "ready_for_pickup", "fulfilled"] as const;
+const PAID_FISCAL_ELIGIBLE_ORDER_STATUSES = ["confirmed", "partially_fulfilled", "fulfilled", "completed"] as const;
 
 export async function capturePaidOrderForFiscalIssuance(orderId: string, now = Date.now()): Promise<{ captured: boolean; documentId?: string }> {
   if (!productionDatabaseConfigured()) return { captured: false };
