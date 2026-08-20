@@ -4,27 +4,116 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const require = createRequire(import.meta.url);
+const VAULT_PUBLIC_NAME = "bls_web_push_public_key";
+const VAULT_PRIVATE_NAME = "bls_web_push_private_key";
+const VAULT_SUBJECT_NAME = "bls_web_push_subject";
+const DEFAULT_VAPID_SUBJECT = "mailto:info@kontamou.site";
+
 type WebPushError = Error & { statusCode?: number };
 type WebPushModule = {
+  generateVAPIDKeys(): { publicKey: string; privateKey: string };
   setVapidDetails(subject: string, publicKey: string, privateKey: string): void;
   sendNotification(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }, payload: string, options?: { TTL?: number; urgency?: string }): Promise<unknown>;
 };
+type VapidConfig = Readonly<{ publicKey?: string; privateKey?: string; subject?: string; ready: boolean; source: "environment" | "vault" | "none" }>;
 
 export type DailyPushSubscriptionInput = Readonly<{
   endpoint: string;
   keys: { p256dh: string; auth: string };
 }>;
 
-function config() {
+let cachedVapidConfig: VapidConfig | undefined;
+let vapidConfigPromise: Promise<VapidConfig> | undefined;
+
+function webPushModule(): WebPushModule { return require("web-push") as WebPushModule; }
+
+function environmentConfig(): VapidConfig {
   const publicKey = process.env.BLS_WEB_PUSH_PUBLIC_KEY?.trim();
   const privateKey = process.env.BLS_WEB_PUSH_PRIVATE_KEY?.trim();
-  const subject = process.env.BLS_WEB_PUSH_SUBJECT?.trim();
-  return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject) };
+  const subject = process.env.BLS_WEB_PUSH_SUBJECT?.trim() || DEFAULT_VAPID_SUBJECT;
+  return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject), source: publicKey && privateKey ? "environment" : "none" };
 }
 
-export function dailyPushPublicConfiguration() {
-  const current = config();
-  return { configured: current.ready, publicKey: current.ready ? current.publicKey : undefined };
+async function readVaultConfig(): Promise<VapidConfig> {
+  if (!productionDatabaseConfigured()) return { ready: false, source: "none" };
+  const rows = await getProductionPostgresRuntime().nativePool.query<{ name: string; decrypted_secret: string }>(`
+    SELECT name,decrypted_secret
+    FROM vault.decrypted_secrets
+    WHERE name = ANY($1::text[])
+  `, [[VAULT_PUBLIC_NAME, VAULT_PRIVATE_NAME, VAULT_SUBJECT_NAME]]);
+  const values = new Map(rows.rows.map((row) => [String(row.name), String(row.decrypted_secret)]));
+  const publicKey = values.get(VAULT_PUBLIC_NAME)?.trim();
+  const privateKey = values.get(VAULT_PRIVATE_NAME)?.trim();
+  const subject = values.get(VAULT_SUBJECT_NAME)?.trim() || process.env.BLS_WEB_PUSH_SUBJECT?.trim() || DEFAULT_VAPID_SUBJECT;
+  return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject), source: publicKey && privateKey ? "vault" : "none" };
+}
+
+async function provisionVaultConfig(): Promise<VapidConfig> {
+  if (!productionDatabaseConfigured()) return { ready: false, source: "none" };
+  const runtime = getProductionPostgresRuntime();
+  const client = await runtime.nativePool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('bls:web-push:vapid'))");
+    const rows = await client.query<{ name: string; decrypted_secret: string }>(`
+      SELECT name,decrypted_secret
+      FROM vault.decrypted_secrets
+      WHERE name = ANY($1::text[])
+    `, [[VAULT_PUBLIC_NAME, VAULT_PRIVATE_NAME, VAULT_SUBJECT_NAME]]);
+    const values = new Map(rows.rows.map((row) => [String(row.name), String(row.decrypted_secret)]));
+    let publicKey = values.get(VAULT_PUBLIC_NAME)?.trim();
+    let privateKey = values.get(VAULT_PRIVATE_NAME)?.trim();
+    let subject = values.get(VAULT_SUBJECT_NAME)?.trim();
+
+    if (Boolean(publicKey) !== Boolean(privateKey)) {
+      throw new Error("Supabase Vault contains an incomplete VAPID key pair; repair the pair before enabling Daily push");
+    }
+    if (!publicKey && !privateKey) {
+      const generated = webPushModule().generateVAPIDKeys();
+      publicKey = generated.publicKey;
+      privateKey = generated.privateKey;
+      await client.query("SELECT vault.create_secret($1,$2,$3,NULL)", [publicKey, VAULT_PUBLIC_NAME, "KONTA MOY Daily Web Push VAPID public key"]);
+      await client.query("SELECT vault.create_secret($1,$2,$3,NULL)", [privateKey, VAULT_PRIVATE_NAME, "KONTA MOY Daily Web Push VAPID private key"]);
+    }
+    if (!subject) {
+      subject = process.env.BLS_WEB_PUSH_SUBJECT?.trim() || DEFAULT_VAPID_SUBJECT;
+      await client.query("SELECT vault.create_secret($1,$2,$3,NULL)", [subject, VAULT_SUBJECT_NAME, "KONTA MOY Daily Web Push VAPID contact subject"]);
+    }
+    await client.query("COMMIT");
+    return { publicKey, privateKey, subject, ready: Boolean(publicKey && privateKey && subject), source: "vault" };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally { client.release(); }
+}
+
+async function loadVapidConfig(): Promise<VapidConfig> {
+  if (cachedVapidConfig?.ready) return cachedVapidConfig;
+  if (vapidConfigPromise) return vapidConfigPromise;
+  vapidConfigPromise = (async () => {
+    const fromEnvironment = environmentConfig();
+    if (fromEnvironment.ready) return fromEnvironment;
+    if (!productionDatabaseConfigured()) return fromEnvironment;
+    try {
+      const fromVault = await readVaultConfig();
+      if (fromVault.ready) return fromVault;
+      if (process.env.BLS_WEB_PUSH_VAULT_AUTOPROVISION === "false") return fromVault;
+      return await provisionVaultConfig();
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", event: "daily_push.vapid_config_failed", message: error instanceof Error ? error.message : String(error) }));
+      return { ready: false, source: "none" };
+    }
+  })();
+  try {
+    const result = await vapidConfigPromise;
+    if (result.ready) cachedVapidConfig = result;
+    return result;
+  } finally { vapidConfigPromise = undefined; }
+}
+
+export async function dailyPushPublicConfiguration() {
+  const current = await loadVapidConfig();
+  return { configured: current.ready, publicKey: current.ready ? current.publicKey : undefined, source: current.source };
 }
 
 function requiredVendor(principal: SessionPrincipal): string {
@@ -44,12 +133,13 @@ function validateSubscription(input: DailyPushSubscriptionInput) {
 
 export async function dailyPushStatus(principal: SessionPrincipal) {
   const vendorId = requiredVendor(principal);
-  if (!productionDatabaseConfigured()) return { ...dailyPushPublicConfiguration(), devices: 0 };
+  const configuration = await dailyPushPublicConfiguration();
+  if (!productionDatabaseConfigured()) return { ...configuration, devices: 0 };
   const result = await getProductionPostgresRuntime().nativePool.query(`SELECT COUNT(*)::int devices
     FROM vendor_daily_push_subscriptions
     WHERE vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1)
       AND user_id=(SELECT id FROM users WHERE public_id=$2) AND active=true`, [vendorId, principal.userId]);
-  return { ...dailyPushPublicConfiguration(), devices: Number(result.rows[0]?.devices ?? 0) };
+  return { ...configuration, devices: Number(result.rows[0]?.devices ?? 0) };
 }
 
 export async function saveDailyPushSubscription(principal: SessionPrincipal, input: DailyPushSubscriptionInput, userAgent?: string) {
@@ -99,16 +189,17 @@ async function mirrorOperationalNotifications(now: number) {
   return mirrored.rowCount;
 }
 
-function webPush(): WebPushModule {
-  const current = config();
+function configuredWebPush(current: VapidConfig): WebPushModule {
   if (!current.ready || !current.publicKey || !current.privateKey || !current.subject) throw new Error("Web Push VAPID configuration is incomplete");
-  const module = require("web-push") as WebPushModule;
+  const module = webPushModule();
   module.setVapidDetails(current.subject, current.publicKey, current.privateKey);
   return module;
 }
 
 export async function runDailyPushDelivery(now = Date.now(), limit = 50) {
-  if (!productionDatabaseConfigured() || !config().ready) return { configured: config().ready, mirrored: 0, claimed: 0, sent: 0, failed: 0 };
+  if (!productionDatabaseConfigured()) return { configured: false, source: "none", mirrored: 0, claimed: 0, sent: 0, failed: 0 };
+  const vapid = await loadVapidConfig();
+  if (!vapid.ready) return { configured: false, source: vapid.source, mirrored: 0, claimed: 0, sent: 0, failed: 0 };
   const runtime = getProductionPostgresRuntime();
   const mirrored = await mirrorOperationalNotifications(now);
   const workerId = `daily-push:${process.env.VERCEL_REGION?.trim() || "runtime"}`;
@@ -124,7 +215,7 @@ export async function runDailyPushDelivery(now = Date.now(), limit = 50) {
     FROM picked WHERE n.id=picked.id
     RETURNING n.id::text notification_uuid,n.public_id,n.vendor_id::text vendor_uuid,n.event_type,n.title,n.body,n.payload,n.delivery_attempts`,
     [new Date(now),limit,workerId,leaseUntil]);
-  const sender = webPush();
+  const sender = configuredWebPush(vapid);
   let sent = 0, failed = 0;
   for (const row of claimed.rows) {
     const notificationUuid = String(row.notification_uuid);
@@ -150,11 +241,8 @@ export async function runDailyPushDelivery(now = Date.now(), limit = 50) {
         const error = cause as WebPushError;
         const statusCode = Number(error.statusCode ?? 0);
         errors.push(statusCode ? `${statusCode}:${error.message}` : error.message);
-        if (statusCode === 404 || statusCode === 410) {
-          await runtime.nativePool.query("UPDATE vendor_daily_push_subscriptions SET active=false,failure_count=failure_count+1,last_failure_at=$2,updated_at=$2 WHERE id=$1", [String(subscription.id),new Date(now)]);
-        } else {
-          await runtime.nativePool.query("UPDATE vendor_daily_push_subscriptions SET failure_count=failure_count+1,last_failure_at=$2,updated_at=$2 WHERE id=$1", [String(subscription.id),new Date(now)]);
-        }
+        await runtime.nativePool.query(`UPDATE vendor_daily_push_subscriptions SET active=CASE WHEN $2 IN (404,410) THEN false ELSE active END,
+          failure_count=failure_count+1,last_failure_at=$3,updated_at=$3 WHERE id=$1`, [String(subscription.id),statusCode,new Date(now)]);
       }
     }
     const ok = successCount > 0;
@@ -169,5 +257,5 @@ export async function runDailyPushDelivery(now = Date.now(), limit = 50) {
       ON CONFLICT (notification_id,attempt) DO NOTHING`, [randomUUID(),`nda_${randomUUID().replaceAll("-", "")}`,notificationUuid,attempts,ok ? "sent" : "failed",`Daily devices ${successCount}/${subscriptions.rowCount}`,ok ? null : errors.join(" | ").slice(0,2000) || "No active Daily push device",new Date(now)]);
     if (ok) sent += 1; else failed += 1;
   }
-  return { configured: true, mirrored, claimed: claimed.rowCount, sent, failed };
+  return { configured: true, source: vapid.source, mirrored, claimed: claimed.rowCount, sent, failed };
 }
