@@ -122,7 +122,7 @@ function snapshotText(snapshot: Record<string, unknown>, key: string, required =
   return value || undefined;
 }
 
-export async function vendorLocalDeliveryContact(principal: SessionPrincipal, fulfilmentId: string): Promise<VendorLocalDeliveryContact> {
+export async function vendorLocalDeliveryContact(principal: SessionPrincipal, fulfilmentId: string, accessRoute = "/api/vendor/fulfilments/delivery-contact"): Promise<VendorLocalDeliveryContact> {
   const vendorId = requiredVendorId(principal);
   if (!postgresVendorRuntimeEnabled()) throw new Error("Local-delivery contact reveal requires the PostgreSQL runtime");
   const runtime = getProductionPostgresRuntime();
@@ -164,7 +164,7 @@ export async function vendorLocalDeliveryContact(principal: SessionPrincipal, fu
     id: `sec_${randomUUID()}`,
     type: "personal_data.revealed",
     severity: "low",
-    route: "/api/vendor/fulfilments/delivery-contact",
+    route: accessRoute,
     method: "POST",
     subjectHash: createHash("sha256").update(`fulfilment:${fulfilmentId}`).digest("hex"),
     actorUserId: principal.userId,
