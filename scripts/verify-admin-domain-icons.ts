@@ -30,7 +30,7 @@ if (renderer.includes('{group.icon ?? group.links[0]?.icon ?? "·"}')) failures.
 
 const icons = readFileSync(`${root}/apps/web/src/components/AdminNavIcon.tsx`, "utf8");
 for (const icon of expected.values()) if (!icons.includes(`case "${icon}"`)) failures.push(`AdminNavIcon is missing ${icon}`);
-for (const requirement of ["<svg", 'stroke="currentColor"', 'aria-hidden']) if (!icons.includes(requirement)) failures.push(`AdminNavIcon is missing ${requirement}`);
+for (const requirement of ["<svg", 'stroke: "currentColor"', '"aria-hidden": true']) if (!icons.includes(requirement)) failures.push(`AdminNavIcon is missing ${requirement}`);
 
 const css = readFileSync(`${root}/apps/web/src/app/admin-nav-icons.css`, "utf8");
 for (const requirement of [".admin-domain-icon svg", "prefers-reduced-motion"]) if (!css.includes(requirement)) failures.push(`Admin icon styles are missing ${requirement}`);
