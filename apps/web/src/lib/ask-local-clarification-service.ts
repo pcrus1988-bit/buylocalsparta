@@ -1,18 +1,25 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
+import type { AskLocalRequestView } from "./ask-local-service";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type AskLocalClarificationMessage = Readonly<{
   id: string;
-  senderType: "customer" | "vendor" | "admin" | "system";
+  senderType: "customer" | "vendor" | "platform" | "system";
   body: string;
   createdAt: number;
 }>;
 
 const globalKey = "__blsAskLocalClarifications" as const;
+const requestMemoryKey = "__blsAskLocalMemory" as const;
 type MemoryThread = Readonly<{ requestId: string; vendorId?: string; customerId?: string; messages: AskLocalClarificationMessage[] }>;
-const globals = globalThis as typeof globalThis & { [globalKey]?: Map<string, MemoryThread> };
+type AskLocalMemoryStore = Map<string, AskLocalRequestView[]>;
+const globals = globalThis as typeof globalThis & {
+  [globalKey]?: Map<string, MemoryThread>;
+  [requestMemoryKey]?: AskLocalMemoryStore;
+};
 function memoryThreads() { return globals[globalKey] ??= new Map<string, MemoryThread>(); }
+function requestMemoryStore() { return globals[requestMemoryKey] ??= new Map<string, AskLocalRequestView[]>(); }
 function postgresEnabled() { return Boolean(process.env.DATABASE_URL?.trim()); }
 
 function validateBody(value: string): string {
@@ -27,8 +34,40 @@ function epoch(value: unknown): number {
 }
 function messageFrom(row: SqlRow): AskLocalClarificationMessage {
   const sender = String(row.sender_type);
-  if (!["customer", "vendor", "admin", "system"].includes(sender)) throw new Error("Invalid clarification sender");
+  if (!["customer", "vendor", "platform", "system"].includes(sender)) throw new Error("Invalid clarification sender");
   return { id: String(row.public_id), senderType: sender as AskLocalClarificationMessage["senderType"], body: String(row.body), createdAt: epoch(row.created_at) };
+}
+
+function vendorRequestMemoryClarification(principal: SessionPrincipal, requestId: string, question: string, now: number): void {
+  for (const [customerId, requests] of requestMemoryStore()) {
+    const index = requests.findIndex((request) => request.id === requestId && request.assignedVendorId === principal.vendorId);
+    if (index < 0) continue;
+    const request = requests[index];
+    if (request.status !== "awaiting_vendor") throw new Error("Διευκρίνιση μπορεί να ζητηθεί μόνο όταν περιμένουμε ενέργεια από το κατάστημα.");
+    const current = memoryThreads().get(requestId);
+    const messages = [...(current?.messages ?? []), { id: `msg_${randomUUID()}`, senderType: "vendor" as const, body: question, createdAt: now }];
+    requests[index] = { ...request, status: "needs_info", responseDueAt: undefined };
+    requestMemoryStore().set(customerId, requests);
+    memoryThreads().set(requestId, { requestId, vendorId: principal.vendorId, customerId, messages });
+    return;
+  }
+  throw new Error("Το Ask Local αίτημα δεν είναι ανατεθειμένο σε αυτό το κατάστημα.");
+}
+
+function customerReplyMemoryClarification(principal: SessionPrincipal, requestId: string, reply: string, now: number): void {
+  const requests = requestMemoryStore().get(principal.userId) ?? [];
+  const index = requests.findIndex((request) => request.id === requestId);
+  if (index < 0) throw new Error("Το Ask Local αίτημα δεν βρέθηκε στον λογαριασμό σου.");
+  const request = requests[index];
+  if (request.status !== "needs_info") throw new Error("Το αίτημα δεν περιμένει διευκρίνιση από εσένα.");
+  const current = memoryThreads().get(requestId);
+  if (!current || current.customerId !== principal.userId) throw new Error("Η συζήτηση διευκρίνισης δεν βρέθηκε.");
+  const last = current.messages.at(-1);
+  if (!last || last.senderType !== "vendor") throw new Error("Δεν υπάρχει νέο ερώτημα καταστήματος που να περιμένει απάντηση.");
+  const messages = [...current.messages, { id: `msg_${randomUUID()}`, senderType: "customer" as const, body: reply, createdAt: now }];
+  requests[index] = { ...request, status: "awaiting_vendor", responseDueAt: now + 24 * 60 * 60 * 1000 };
+  requestMemoryStore().set(principal.userId, requests);
+  memoryThreads().set(requestId, { ...current, messages });
 }
 
 export async function vendorRequestAskLocalClarification(
@@ -42,9 +81,7 @@ export async function vendorRequestAskLocalClarification(
   if (!principal.vendorId) throw new Error("VENDOR_REQUIRED");
 
   if (!postgresEnabled()) {
-    const current = memoryThreads().get(requestId);
-    const messages = [...(current?.messages ?? []), { id: `msg_${randomUUID()}`, senderType: "vendor" as const, body: question, createdAt: now }];
-    memoryThreads().set(requestId, { requestId, vendorId: principal.vendorId, messages });
+    vendorRequestMemoryClarification(principal, requestId, question, now);
     return;
   }
 
@@ -102,15 +139,14 @@ export async function customerReplyAskLocalClarification(
   principal: SessionPrincipal,
   input: { requestId: string; reply: string; now?: number }
 ): Promise<void> {
+  if (!principal.roles.includes("customer")) throw new Error("AUTH_REQUIRED");
   const requestId = input.requestId.trim();
   const reply = validateBody(input.reply);
   const now = input.now ?? Date.now();
   if (!requestId) throw new Error("Ask Local request is required");
 
   if (!postgresEnabled()) {
-    const current = memoryThreads().get(requestId);
-    const messages = [...(current?.messages ?? []), { id: `msg_${randomUUID()}`, senderType: "customer" as const, body: reply, createdAt: now }];
-    memoryThreads().set(requestId, { requestId, customerId: principal.userId, vendorId: current?.vendorId, messages });
+    customerReplyMemoryClarification(principal, requestId, reply, now);
     return;
   }
 
@@ -167,7 +203,12 @@ export async function askLocalClarificationMessages(
 ): Promise<readonly AskLocalClarificationMessage[]> {
   const requestId = requestIdValue.trim();
   if (!requestId) return [];
-  if (!postgresEnabled()) return memoryThreads().get(requestId)?.messages ?? [];
+  if (!postgresEnabled()) {
+    const thread = memoryThreads().get(requestId);
+    if (!thread) return [];
+    if (thread.customerId !== principal.userId) throw new Error("Η συζήτηση διευκρίνισης δεν βρέθηκε.");
+    return thread.messages;
+  }
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 3_000 });
   return uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
