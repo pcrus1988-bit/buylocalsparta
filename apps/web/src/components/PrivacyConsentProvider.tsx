@@ -96,7 +96,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       <div className="privacy-consent-copy">
         <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
         <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Προαιρετικές τεχνολογίες προσωπικοποίησης, analytics και marketing ενεργοποιούνται μόνο αν τις επιλέξεις.</p>
-        <Link href="/privacy-controls">Έλεγχοι ιδιωτικότητας</Link>
+        <div className="privacy-consent-links"><Link href="/cookies">Πολιτική Cookies</Link><Link href="/privacy">Πολιτική Απορρήτου</Link><Link href="/privacy-controls">Privacy controls</Link></div>
         {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
       <div className="privacy-consent-actions" aria-label="Επιλογές cookies">
