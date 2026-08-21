@@ -47,7 +47,7 @@
   "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2f5eedf51bd3d26c25b48855a704cfb02084f03215437f6",
   "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
-  "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
+  "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcebebfd7c3d562414dce1a92a6349eedf81b34e5547d08c416",
   "0052_catalog_taxonomy_semantic_cleanup.sql": "576e4c502a68c9085082f214ae695782c7b3ad5a43f8e829109da702e54ed7fd",
   "0053_product_types_normalized_attributes.sql": "e936775bebec058137945d605e92efef3a0ac3ed7a62a916a2d56dd9315b9257",
@@ -99,5 +99,6 @@
   "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621",
   "0101_checkout_request_integrity.sql": "6a1ecb6f3f0b925f9ca6c1ab815d9ab2d2b78e4d698080201c4688251f877e3d",
   "0102_cookie_consent_receipts.sql": "7cf8a45835957090ab631bcadd568b2f6bfc62346543ea816923f3649e87fd58",
-  "0103_accessibility_governance.sql": "eb5e1943e113cc43184be5f7fd8285a75cb97db50301220163b49fb97d5add04"
+  "0103_accessibility_governance.sql": "eb5e1943e113cc43184be5f7fd8285a75cb97db50301220163b49fb97d5add04",
+  "0104_customer_verified_email_change.sql": "05867456e39ac0e8bdba8c3a724cacb1de6379864d8ea9a946af56887a0262f6"
 }
