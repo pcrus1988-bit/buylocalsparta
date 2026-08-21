@@ -13,13 +13,16 @@ export function VendorWorkspaceHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [roles, setRoles] = useState<readonly string[]>([]);
+  const [csrfToken, setCsrfToken] = useState("");
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/vendor/session", { cache: "no-store" })
+    void fetch("/api/vendor/auth-context", { cache: "no-store" })
       .then(async (response) => response.ok ? response.json() : undefined)
-      .then((payload: { account?: { roles?: readonly string[] } } | undefined) => {
-        if (active && Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
+      .then((payload: { csrfToken?: string; account?: { roles?: readonly string[] } } | undefined) => {
+        if (!active) return;
+        if (Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
+        if (typeof payload?.csrfToken === "string") setCsrfToken(payload.csrfToken);
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -36,15 +39,19 @@ export function VendorWorkspaceHeader() {
   async function logout() {
     setBusy(true);
     try {
-      const session = await fetch("/api/vendor/session", { cache: "no-store" });
-      if (!session.ok) {
-        router.replace("/vendor/login");
-        router.refresh();
-        return;
+      let token = csrfToken;
+      if (!token) {
+        const session = await fetch("/api/vendor/auth-context", { cache: "no-store" });
+        if (!session.ok) {
+          router.replace("/vendor/login");
+          router.refresh();
+          return;
+        }
+        const payload = await session.json() as { csrfToken?: string };
+        token = payload.csrfToken ?? "";
       }
-      const payload = await session.json() as { csrfToken?: string };
-      if (!payload.csrfToken) throw new Error("vendor_session_missing_csrf");
-      await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": payload.csrfToken } });
+      if (!token) throw new Error("vendor_session_missing_csrf");
+      await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": token } });
       router.replace("/vendor/login");
       router.refresh();
     } finally {
