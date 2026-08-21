@@ -9,6 +9,7 @@ const PRIMARY_ACCOUNT_SECTIONS = [
   { href: "/account/ask-local", label: "Ask Local" },
   { href: "/account/saved", label: "Αποθηκευμένα" },
   { href: "/account/notifications", label: "Ειδοποιήσεις" },
+  { href: "/account/support", label: "Υποστήριξη" },
   { href: "/account/profile", label: "Προφίλ & διευθύνσεις" },
   { href: "/account/security", label: "Ασφάλεια" },
   { href: "/account/privacy", label: "Ιδιωτικότητα" }
