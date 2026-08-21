@@ -234,7 +234,7 @@ async function validateContext(tx: SqlExecutor, customerUuidValue: string, conte
   if (!contextId || contextId.length > 200) throw new Error("Η αναφορά του σχετικού αιτήματος δεν είναι έγκυρη.");
   let result;
   if (contextType === "order") {
-    result = await tx.query<SqlRow>("SELECT order_number AS reference_number FROM customer_orders WHERE customer_user_id=$1::uuid AND (public_id=$2 OR order_number=$2) LIMIT 1", [customerUuidValue, contextId]);
+    result = await tx.query<SqlRow>("SELECT order_number AS reference_number FROM customer_orders WHERE user_id=$1::uuid AND (public_id=$2 OR order_number=$2) LIMIT 1", [customerUuidValue, contextId]);
   } else if (contextType === "ask_local") {
     result = await tx.query<SqlRow>("SELECT reference_number FROM counteroffer_requests WHERE customer_user_id=$1::uuid AND (public_id=$2 OR reference_number=$2) LIMIT 1", [customerUuidValue, contextId]);
   } else if (contextType === "return") {
