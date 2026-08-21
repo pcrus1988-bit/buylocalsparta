@@ -1,4 +1,5 @@
 import { hashPassword, verifyPassword, type SessionPrincipal } from "@buy-local-sparta/core";
+import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type CustomerAccountProfile = Readonly<{
@@ -9,6 +10,8 @@ export type CustomerAccountProfile = Readonly<{
   phone: string;
   preferredLocale: "el" | "en";
 }>;
+
+const globals = globalThis as typeof globalThis & { __blsCustomerPasswordChangeRateLimiter?: PostgresFixedWindowRateLimiter };
 
 function requireCustomer(principal: SessionPrincipal) {
   if (!principal.roles.includes("customer")) throw new Error("AUTH_REQUIRED");
@@ -70,6 +73,7 @@ export async function updateCustomerAccountProfile(principal: SessionPrincipal, 
   if (!productionDatabaseConfigured()) throw new Error("Η επεξεργασία προφίλ απαιτεί την παραγωγική υπηρεσία λογαριασμών.");
   const firstName = normalizeName(input.firstName, "Το όνομα");
   const lastName = normalizeName(input.lastName, "Το επώνυμο");
+  if (`${firstName} ${lastName}`.length > 160) throw new Error("Το ονοματεπώνυμο είναι πολύ μεγάλο.");
   const phone = normalizePhone(input.phone);
   const preferredLocale = normalizeLocale(input.preferredLocale);
   const now = new Date(input.now ?? Date.now());
@@ -118,8 +122,13 @@ export async function changeCustomerPassword(principal: SessionPrincipal, input:
   if (!input.currentPassword) throw new Error("Συμπλήρωσε τον τρέχοντα κωδικό σου.");
   if (input.newPassword !== input.newPassword.trim()) throw new Error("Ο νέος κωδικός δεν μπορεί να αρχίζει ή να τελειώνει με κενό.");
   const newPasswordHash = hashPassword(input.newPassword);
-  const now = new Date(input.now ?? Date.now());
+  const nowMs = input.now ?? Date.now();
+  const now = new Date(nowMs);
   const runtime = getProductionPostgresRuntime();
+  const limiter = globals.__blsCustomerPasswordChangeRateLimiter ??= new PostgresFixedWindowRateLimiter(runtime.sqlPool);
+  const limit = await limiter.consume({ route: "customer-password-change", key: principal.userId, limit: 5, windowMs: 15 * 60 * 1000, now: nowMs });
+  if (!limit.allowed) throw new Error("Έγιναν πολλές προσπάθειες αλλαγής κωδικού. Δοκίμασε ξανά αργότερα.");
+
   const client = await runtime.sqlPool.connect();
   try {
     await client.query("BEGIN");
