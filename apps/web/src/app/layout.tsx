@@ -16,6 +16,7 @@ import "./workspace-metrics-polish.css";
 import "./typography-readability.css";
 import "./customer-account-ux.css";
 import "./ask-local-clarifications.css";
+import "./customer-profile-security.css";
 import "./vendor-information-architecture.css";
 import "./vendor-lifecycle.css";
 import "./vendor-login.css";
