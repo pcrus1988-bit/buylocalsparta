@@ -14,7 +14,7 @@
   "scripts": {
     "test:core": "node --experimental-strip-types --test packages/core/test/*.test.ts",
     "dev:core": "node --experimental-strip-types dev/server.ts",
-    "check": "npm run check:consistency && npm run check:deployment && npm run check:storefront && npm run check:merchants && npm run check:navigation && npm run check:dashboard-ux && npm run check:checkout-ux && npm run check:fairness-schema && npm run check:seo && npm run check:advice && npm run check:ask-local && npm run test:preview-auth && npm run db:verify && npm run test:core && npm run test:viva && npm run test:mydata && npm run test:media-processing && npm run test:search-provider && npm run test:resend && npm run test:boxnow && npm run smoke:ui && npm run test:a11y && npm run test:privacy-consent && npm run test:legal-transparency && npm run test:privacy-governance && npm run test:supabase-hardening && npm run smoke:runtime",
+    "check": "npm run check:consistency && npm run check:deployment && npm run check:storefront && npm run check:merchants && npm run check:navigation && npm run check:dashboard-ux && npm run check:checkout-ux && npm run check:fairness-schema && npm run check:seo && npm run check:advice && npm run check:ask-local && npm run test:preview-auth && npm run db:verify && npm run test:core && npm run test:viva && npm run test:mydata && npm run test:media-processing && npm run test:search-provider && npm run test:resend && npm run test:boxnow && npm run smoke:ui && npm run test:a11y && npm run test:privacy-consent && npm run test:legal-transparency && npm run test:privacy-governance && npm run test:supabase-hardening && npm run test:privacy-access-audit && npm run smoke:runtime",
     "smoke:runtime": "node --experimental-strip-types dev/smoke.ts",
     "db:verify": "node --experimental-strip-types scripts/verify-migrations.ts",
     "db:migrate": "node --experimental-strip-types scripts/migrate.ts",
@@ -24,6 +24,7 @@
     "test:legal-transparency": "node --experimental-strip-types scripts/verify-legal-transparency.ts",
     "test:privacy-governance": "node --experimental-strip-types scripts/verify-privacy-governance.ts",
     "test:supabase-hardening": "node --experimental-strip-types scripts/verify-supabase-privilege-hardening.ts",
+    "test:privacy-access-audit": "node --experimental-strip-types scripts/verify-personal-data-access-audit.ts",
     "check:consistency": "node --experimental-strip-types scripts/verify-project-consistency.ts",
     "check:web": "npm --workspace @buy-local-sparta/web run build",
     "typecheck:core": "tsc -p packages/core/tsconfig.json",
