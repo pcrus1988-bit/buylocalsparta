@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { CustomerHowItWorks, CustomerLifecycle, type CustomerLifecycleStage } from "./CustomerAccountPrimitives";
 import type { AskLocalRequestView } from "../lib/ask-local-service";
@@ -105,11 +106,12 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
         {request.privateOffers.length > 0 && <div className="private-offer-list">{request.privateOffers.map((offer) => {
           const active = offer.status === "active" && offer.expiresAt > Date.now() && request.status === "offered";
           return <div key={offer.id} className={active ? "customer-private-offer is-active" : "customer-private-offer"}>
-            <strong>{new Intl.NumberFormat("el-GR", { style: "currency", currency: offer.currency }).format(offer.priceMinor / 100)}</strong>
+            <strong>{new Intl.NumberFormat("el-GR", { style: "currency", currency: offer.currency }).format(offer.priceMinor / 100)} / τεμ.</strong>
             <span>{offer.fulfilmentPromise ?? "Ιδιωτική προσφορά"}</span>
             <small>{labels[offer.status] ?? offer.status} · έως {date(offer.expiresAt)}</small>
             {active && <div className="customer-private-offer-actions"><button className="button button-secondary" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(offer.id, "decline")}>{decisionBusy === `decline:${offer.id}` ? "Απόρριψη…" : "Δεν με ενδιαφέρει"}</button><button className="button" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(offer.id, "accept")}>{decisionBusy === `accept:${offer.id}` ? "Αποδοχή…" : "Αποδέχομαι την προσφορά"}</button></div>}
-            {offer.status === "accepted" && <div className="customer-private-offer-result"><strong>Αποδεκτή</strong><span>Το κατάστημα έχει ενημερωθεί. Η αγορά με την ειδική τιμή θα ενεργοποιηθεί μόνο όταν το checkout μπορεί να διατηρήσει με ασφάλεια την τιμή της ιδιωτικής προσφοράς.</span></div>}
+            {offer.status === "accepted" && <div className="customer-private-offer-result"><strong>Αποδεκτή</strong>{request.canonicalVariantId ? <><span>Η ειδική τιμή μπορεί να περάσει σε checkout χωρίς να αντικατασταθεί από την τιμή καταλόγου. Η τελική επιβεβαίωση ελέγχει ξανά το συγκεκριμένο κατάστημα, pickup και το πραγματικό απόθεμα.</span><Link className="button" href={`/checkout/private-offer/${encodeURIComponent(offer.id)}`}>Ολοκλήρωση αγοράς</Link></> : <span>Το κατάστημα ενημερώθηκε. Για online αγορά χρειάζεται πρώτα η προσφορά να συνδεθεί με συγκεκριμένο προϊόν και εγκεκριμένο απόθεμα.</span>}</div>}
+            {offer.status === "converted" && <div className="customer-private-offer-result"><strong>Έγινε παραγγελία</strong><span>Η ειδική τιμή έχει ήδη δεσμευτεί σε παραγγελία.</span><Link className="text-link" href="/account/orders">Δες τις παραγγελίες →</Link></div>}
           </div>;
         })}</div>}
         <CustomerHowItWorks title="Τι σημαίνει η τρέχουσα κατάσταση;"><p>Η πορεία δείχνει τι ολοκληρώθηκε και ποιος έχει το επόμενο βήμα. Πορτοκαλί σημαίνει ότι το αίτημα έχει φτάσει σε σημείο όπου χρειάζεται δική σου απόφαση ή πληροφορία. Η αποδοχή καταγράφεται οριστικά και ενημερώνει αμέσως το κατάστημα.</p></CustomerHowItWorks>
