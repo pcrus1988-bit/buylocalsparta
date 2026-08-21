@@ -119,6 +119,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/account/orders/[id]",
   "/account/privacy",
   "/account/profile",
+  "/account/security",
   "/account/saved",
   "/daily",
   "/daily/ask-local",
