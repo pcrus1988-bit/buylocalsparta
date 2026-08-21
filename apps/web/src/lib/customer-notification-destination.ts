@@ -18,10 +18,10 @@ function payloadString(payload: Record<string, unknown>, key: string): string | 
   return normalized;
 }
 
-function internalOrderDestination(orderId: string, eventType: string): CustomerNotificationDestination {
+function orderDestination(orderReference: string, eventType: string): CustomerNotificationDestination {
   const needsPayment = /(?:payment\.(?:failed|declined|requires_action|pending)|order\.pending_payment)/.test(eventType);
   return {
-    href: `/account/orders/${encodeURIComponent(orderId)}`,
+    href: `/account/orders/${encodeURIComponent(orderReference)}`,
     label: needsPayment ? "Συνέχιση πληρωμής" : "Άνοιγμα παραγγελίας",
     priority: needsPayment ? "primary" : "secondary"
   };
@@ -29,9 +29,17 @@ function internalOrderDestination(orderId: string, eventType: string): CustomerN
 
 export function customerNotificationDestination(input: CustomerNotificationNavigationInput): CustomerNotificationDestination | undefined {
   const eventType = input.eventType.trim().toLowerCase();
-  const orderId = payloadString(input.payload, "orderId");
-  if (orderId && /^(order|payment|fulfilment|pickup|shipment|return)\./.test(eventType)) {
-    return internalOrderDestination(orderId, eventType);
+  const orderReference = payloadString(input.payload, "orderReference");
+  const legacyOrderId = payloadString(input.payload, "orderId");
+  if (/^(order|payment|fulfilment|pickup|shipment|return)\./.test(eventType)) {
+    if (orderReference) return orderDestination(orderReference, eventType);
+    if (legacyOrderId) {
+      return {
+        href: "/account/orders",
+        label: /(?:payment\.|order\.pending_payment)/.test(eventType) ? "Δες παραγγελίες" : "Άνοιγμα παραγγελιών",
+        priority: "secondary"
+      };
+    }
   }
 
   if (/^(counteroffer|ask_local)\./.test(eventType) || input.group === "advice") {
