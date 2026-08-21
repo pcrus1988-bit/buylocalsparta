@@ -5,6 +5,7 @@ const migration = read("db/migrations/0100_personal_data_access_events.sql");
 const eventModel = read("packages/core/src/security/events.ts");
 const adminRuntime = read("apps/web/src/lib/admin-runtime.ts");
 const customerRuntime = read("apps/web/src/lib/admin-customer-management.ts");
+const customerDirectoryPage = read("apps/web/src/app/admin/customers/page.tsx");
 const operationsPage = read("apps/web/src/app/admin/operations/page.tsx");
 const failures: string[] = [];
 
@@ -33,6 +34,17 @@ for (const token of [
   if (!customerRuntime.includes(token)) failures.push(`Customer management access audit is missing ${token}`);
 }
 
+for (const token of [
+  "function maskEmail",
+  "function maskPhone",
+  'const maskedEmail = maskEmail(customer.email)',
+  'const maskedPhone = maskPhone(customer.phone)',
+  "Bulk views mask contact data by default"
+]) {
+  if (!customerDirectoryPage.includes(token)) failures.push(`Bulk customer directory masking is missing ${token}`);
+}
+if (customerDirectoryPage.includes('{customer.email ?? "No email"}{customer.phone ?')) failures.push("Bulk customer directory must not render raw email/phone values");
+
 if (!operationsPage.includes('event.type.startsWith("personal_data.")')) failures.push("Admin operations page must expose personal-data access audit events to audit-authorized roles");
 if (!operationsPage.includes("Customer identifiers and raw contact/address values are intentionally not shown")) failures.push("Operations page must explain privacy-minimised access logs");
 if (operationsPage.includes("event.subjectHash")) failures.push("Operations page must not display personal-data subject hashes");
@@ -50,4 +62,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Personal-data access audit checks passed: access taxonomy, hashed subjects, purpose metadata, bulk/individual Customer 360 instrumentation and privacy-safe audit rendering verified.");
+console.log("Personal-data access audit checks passed: access taxonomy, hashed subjects, purpose metadata, bulk/individual Customer 360 instrumentation, masked bulk contact display and privacy-safe audit rendering verified.");
