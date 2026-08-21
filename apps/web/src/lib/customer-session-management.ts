@@ -13,6 +13,15 @@ function requireCustomer(principal: SessionPrincipal): void {
   if (!principal.roles.includes("customer")) throw new Error("AUTH_REQUIRED");
 }
 
+function epoch(value: unknown, field: string): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  throw new Error(`Η συνεδρία έχει μη έγκυρο πεδίο ${field}.`);
+}
+
 export function customerSessionManagementReadiness(): { ready: boolean; message: string } {
   return productionDatabaseConfigured()
     ? { ready: true, message: "Active session management enabled" }
@@ -33,9 +42,9 @@ export async function customerActiveSessions(principal: SessionPrincipal, now = 
   return result.rows.map((row) => ({
     id: String(row.public_id),
     current: String(row.public_id) === principal.sessionId,
-    createdAt: new Date(row.created_at as string | number | Date).getTime(),
-    lastSeenAt: new Date(row.last_seen_at as string | number | Date).getTime(),
-    expiresAt: new Date(row.expires_at as string | number | Date).getTime()
+    createdAt: epoch(row.created_at, "created_at"),
+    lastSeenAt: epoch(row.last_seen_at, "last_seen_at"),
+    expiresAt: epoch(row.expires_at, "expires_at")
   }));
 }
 
