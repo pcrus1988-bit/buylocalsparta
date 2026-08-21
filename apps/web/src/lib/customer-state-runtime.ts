@@ -1,8 +1,12 @@
 import {
   NotificationService,
+  PersonalizationService,
   PrivacyRequestService,
+  RecommendationService,
+  SavedProductAlertService,
   SavedSearchService,
   id,
+  type CustomerRecommendation,
   type Notification,
   type PersonalizationPreferences,
   type PrivacyRequest,
@@ -10,130 +14,80 @@ import {
   type SavedProduct,
   type SavedProductAlertPreference,
   type SavedSearch,
-  type SavedSearchQuery,
-  type SessionPrincipal
+  type SavedSearchQuery
 } from "@buy-local-sparta/core";
-import {
-  PostgresCustomerAuthService,
-  PostgresFixedWindowRateLimiter,
-  customerScope
-} from "@buy-local-sparta/postgres-runtime";
-import { accountAuthSecret, getAccountRuntime } from "./account-runtime";
-import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
+import { createPostgresRuntimeFromEnv, type ProductionPostgresRuntime } from "@buy-local-sparta/postgres-runtime";
+import { getAccountRuntime } from "./account-runtime";
 
 const DAY = 24 * 60 * 60 * 1000;
-const postgresGlobals = globalThis as typeof globalThis & {
-  __blsCustomerPostgresAuth?: PostgresCustomerAuthService;
-  __blsCustomerPostgresRateLimiter?: PostgresFixedWindowRateLimiter;
-};
+type CustomerStateBackend = "memory" | "postgres";
 
 export type CustomerStateSnapshot = Readonly<{
-  preferences: PersonalizationPreferences;
   savedProducts: readonly SavedProduct[];
-  recentlyViewed: readonly RecentlyViewedProduct[];
-  savedSearches: readonly SavedSearch[];
   savedProductAlerts: readonly SavedProductAlertPreference[];
+  savedSearches: readonly SavedSearch[];
   notifications: readonly (Notification & { group: string })[];
   unreadNotifications: number;
+  recentlyViewed: readonly RecentlyViewedProduct[];
+  preferences: PersonalizationPreferences;
   privacyRequests: readonly PrivacyRequest[];
 }>;
 
-export function customerStateBackend(): "postgres" | "memory" {
-  if (process.env.DATABASE_URL?.trim()) return "postgres";
-  if (process.env.NODE_ENV === "production" && process.env.BLS_ALLOW_EPHEMERAL_ACCOUNT_RUNTIME !== "true") {
-    throw new Error("Production customer state requires DATABASE_URL; ephemeral account state is disabled");
+type PostgresServices = Readonly<{
+  runtime: ProductionPostgresRuntime;
+}>;
+
+const globals = globalThis as typeof globalThis & { __blsCustomerStatePostgres?: PostgresServices };
+
+function customerStateBackend(): CustomerStateBackend {
+  if (process.env.NODE_ENV === "production") return "postgres";
+  return process.env.BLS_CUSTOMER_STATE_BACKEND === "postgres" ? "postgres" : "memory";
+}
+
+function postgresServices(): PostgresServices {
+  if (!globals.__blsCustomerStatePostgres) {
+    globals.__blsCustomerStatePostgres = { runtime: createPostgresRuntimeFromEnv({ applicationName: "buy-local-sparta:customer-state" }) };
   }
-  return "memory";
+  return globals.__blsCustomerStatePostgres;
 }
 
-function postgresServices() {
-  const runtime = getProductionPostgresRuntime();
-  const auth = postgresGlobals.__blsCustomerPostgresAuth ??= new PostgresCustomerAuthService({
-    identity: runtime.persistence.identity,
-    secret: accountAuthSecret(),
-    sessionTtlMs: 12 * 60 * 60 * 1000
-  });
-  const rateLimiter = postgresGlobals.__blsCustomerPostgresRateLimiter ??= new PostgresFixedWindowRateLimiter(runtime.sqlPool);
-  return { runtime, auth, rateLimiter };
+function customerScope(userId: string) {
+  return { actorUserId: userId, marketId: "sparta" } as const;
 }
 
-export async function authenticateCustomer(input: { email: string; password: string; now: number }) {
+export async function customerStateSnapshot(userId: string, now: number): Promise<CustomerStateSnapshot> {
   if (customerStateBackend() === "memory") {
-    if (databaseLessPreviewSessionEnabled("customer")) {
-      const email = input.email.trim().toLowerCase();
-      if (email !== "customer@demo.local" || !previewCredentialMatches(input.password, "Customer!123")) throw new Error("Invalid email or password");
-      return createDatabaseLessPreviewSession({ kind: "customer", userId: "preview_customer", email, roles: ["customer"], now: input.now, ttlMs: 12 * 60 * 60 * 1000 });
-    }
-    return getAccountRuntime().auth.authenticate(input);
-  }
-  return postgresServices().auth.authenticate(input);
-}
-
-export async function customerSession(token: string | undefined, now: number): Promise<SessionPrincipal | undefined> {
-  if (customerStateBackend() === "memory") {
-    if (databaseLessPreviewSessionEnabled("customer")) return databaseLessPreviewSessionFromToken(token, "customer", now);
-    return getAccountRuntime().auth.session(token, now);
-  }
-  return postgresServices().auth.session(token, now);
-}
-
-export function assertCustomerCsrf(principal: SessionPrincipal, supplied: string | undefined): void {
-  if (customerStateBackend() === "memory") {
-    if (databaseLessPreviewSessionEnabled("customer")) return assertDatabaseLessPreviewCsrf(principal, supplied);
-    return getAccountRuntime().auth.assertCsrf(principal, supplied);
-  }
-  return postgresServices().auth.assertCsrf(principal, supplied);
-}
-
-export async function logoutCustomer(token: string | undefined, now = Date.now()): Promise<void> {
-  if (customerStateBackend() === "memory") {
-    if (!databaseLessPreviewSessionEnabled("customer")) getAccountRuntime().auth.logout(token);
-    return;
-  }
-  await postgresServices().auth.logout(token, now);
-}
-
-export async function consumeCustomerLoginRateLimit(input: { visitorKey: string; now: number }) {
-  if (customerStateBackend() === "memory") {
-    return getAccountRuntime().rateLimiter.consume({ key: `web-login:${input.visitorKey}`, rule: { limit: 5, windowMs: 15 * 60 * 1000 }, now: input.now });
-  }
-  return postgresServices().rateLimiter.consume({ route: "customer-login", key: input.visitorKey, limit: 5, windowMs: 15 * 60 * 1000, now: input.now });
-}
-
-export async function customerStateSnapshot(userId: string, now = Date.now()): Promise<CustomerStateSnapshot> {
-  if (customerStateBackend() === "memory") {
-    const memory = getAccountRuntime();
-    const notifications = memory.notifications.centerForUser(userId);
+    const runtime = getAccountRuntime();
     return {
-      preferences: memory.personalization.preferences(userId, now),
-      savedProducts: memory.personalization.savedProducts(userId),
-      recentlyViewed: memory.personalization.recentlyViewed(userId, now),
-      savedSearches: memory.savedSearches.forUser(userId),
-      savedProductAlerts: memory.savedProductAlerts.forUser(userId),
-      notifications,
-      unreadNotifications: notifications.filter((item) => !item.readAt).length,
-      privacyRequests: memory.privacyRequests.forUser(userId)
+      savedProducts: runtime.personalization.savedProductsForUser(userId),
+      savedProductAlerts: runtime.savedProductAlerts.forUser(userId),
+      savedSearches: runtime.savedSearches.forUser(userId),
+      notifications: runtime.notifications.centerForUser(userId),
+      unreadNotifications: runtime.notifications.unreadForUser(userId),
+      recentlyViewed: runtime.personalization.recentlyViewed(userId, now),
+      preferences: runtime.personalization.preferencesFor(userId),
+      privacyRequests: runtime.privacyRequests.forUser(userId)
     };
   }
+
   const { runtime } = postgresServices();
   const scope = customerScope(userId);
-  const [personalization, savedSearches, alerts, notifications, privacyRequests] = await Promise.all([
-    runtime.persistence.customerPrivacy.listForUser({ scope, userId, now }),
-    runtime.persistence.engagement.listSavedSearches({ scope, userId }),
+  const [savedProducts, savedProductAlerts, savedSearches, notifications, privacyState] = await Promise.all([
+    runtime.persistence.customerPrivacy.savedProductsForUser({ scope, userId }),
     runtime.persistence.engagement.listAlertPreferences({ scope, userId }),
+    runtime.persistence.engagement.listSavedSearches({ scope, userId }),
     runtime.persistence.notificationOperations.centerForUser({ scope, userId }),
-    runtime.persistence.customerPrivacy.privacyRequestsForUser({ scope, userId })
+    runtime.persistence.customerPrivacy.listForUser({ scope, userId, now })
   ]);
   return {
-    preferences: personalization.preferences,
-    savedProducts: personalization.savedProducts,
-    recentlyViewed: personalization.recentlyViewed,
+    savedProducts,
+    savedProductAlerts,
     savedSearches,
-    savedProductAlerts: alerts,
     notifications,
     unreadNotifications: notifications.filter((item) => !item.readAt).length,
-    privacyRequests
+    recentlyViewed: privacyState.recentlyViewed,
+    preferences: privacyState.preferences,
+    privacyRequests: privacyState.requests
   };
 }
 
@@ -228,6 +182,40 @@ export async function markAllCustomerNotificationsRead(input: { userId: string; 
   return postgresServices().runtime.persistence.notificationOperations.markAllRead({ scope: customerScope(input.userId), userId: input.userId, now: input.now });
 }
 
+export async function markCustomerNotificationRead(input: { userId: string; notificationId: string; now: number }): Promise<void> {
+  if (customerStateBackend() === "memory") {
+    getAccountRuntime().notifications.markRead({ id: input.notificationId, userId: input.userId, now: input.now });
+    return;
+  }
+  const { runtime } = postgresServices();
+  const result = await runtime.sqlPool.query(`
+    UPDATE notifications n
+    SET read_at=COALESCE(n.read_at,$3)
+    FROM users u
+    WHERE n.public_id=$1
+      AND n.user_id=u.id
+      AND u.public_id=$2
+      AND n.channel='in_app'
+      AND n.archived_at IS NULL
+    RETURNING n.public_id
+  `, [input.notificationId, input.userId, new Date(input.now)]);
+  if (result.rowCount !== 1) throw new Error("Notification not found or not readable by this user");
+}
+
+export async function archiveCustomerNotification(input: { userId: string; notificationId: string; now: number }): Promise<void> {
+  if (customerStateBackend() === "memory") {
+    getAccountRuntime().notifications.archive({ id: input.notificationId, userId: input.userId, now: input.now });
+    return;
+  }
+  const { runtime } = postgresServices();
+  await runtime.persistence.notificationOperations.archiveForUser({
+    scope: customerScope(input.userId),
+    userId: input.userId,
+    notificationId: input.notificationId,
+    now: input.now
+  });
+}
+
 export async function createCustomerNotification(input: { userId: string; eventType: string; title: string; body: string; payload?: Record<string, unknown>; dedupeKey?: string; now: number }) {
   if (customerStateBackend() === "memory") return getAccountRuntime().notifications.create(input);
   const { runtime } = postgresServices();
@@ -276,4 +264,15 @@ export async function platformPrivacyAction(input: { actorUserId: string; reques
     : { ...current, status: input.action === "partial" ? "partially_completed" : "completed", completedAt: input.now, completedBy: input.actorUserId, retention: input.action === "partial" ? input.retention : [], outcome: { processedBy: "Buy Local Sparta privacy operations" } };
   await runtime.persistence.customerPrivacy.savePrivacyRequest({ scope, request: next });
   return next;
+}
+
+export async function customerRecommendations(input: { userId: string; availableProducts: readonly { canonicalVariantId: string; categoryCode: string; brand?: string; available: boolean; adviceAvailable?: boolean }[]; now: number }): Promise<readonly CustomerRecommendation[]> {
+  const state = await customerStateSnapshot(input.userId, input.now);
+  return new RecommendationService().recommend({
+    preferences: state.preferences,
+    savedProducts: state.savedProducts,
+    recentlyViewed: state.recentlyViewed,
+    availableProducts: input.availableProducts,
+    limit: 8
+  });
 }
