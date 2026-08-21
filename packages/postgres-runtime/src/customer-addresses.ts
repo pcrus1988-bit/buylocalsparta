@@ -288,7 +288,7 @@ export class PostgresCustomerAddressService {
         UPDATE customer_orders
         SET billing_address_snapshot=$3::jsonb,shipping_address_snapshot=$4::jsonb,checkout_address_locked_at=$5,updated_at=$5
         WHERE id=$1 AND user_id=$2 AND checkout_address_locked_at IS NULL
-      `, [String(existing.id), userUuid, JSON.stringify(billingSnapshot(billing, customerFullName)), JSON.stringify(shippingSnapshot), new Date(input.now)]);
+      `, [String(existing.id), userUuid, JSON.stringify(billingSnapshot(billing, customerFullName)), shippingSnapshot === null ? null : JSON.stringify(shippingSnapshot), new Date(input.now)]);
     }, { isolation: "serializable" });
   }
 
