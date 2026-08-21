@@ -14,7 +14,7 @@
   "scripts": {
     "test:core": "node --experimental-strip-types --test packages/core/test/*.test.ts",
     "dev:core": "node --experimental-strip-types dev/server.ts",
-    "check": "npm run check:consistency && npm run check:deployment && npm run check:storefront && npm run check:merchants && npm run check:navigation && npm run check:dashboard-ux && npm run check:checkout-ux && npm run check:private-offer-checkout && npm run check:customer-profile-security && npm run check:fairness-schema && npm run check:seo && npm run check:advice && npm run check:ask-local && npm run test:preview-auth && npm run db:verify && npm run test:core && npm run test:viva && npm run test:mydata && npm run test:media-processing && npm run test:search-provider && npm run test:resend && npm run test:boxnow && npm run smoke:ui && npm run test:a11y && npm run test:accessibility-governance && npm run test:privacy-consent && npm run test:legal-transparency && npm run test:privacy-governance && npm run test:supabase-hardening && npm run test:privacy-access-audit && npm run test:fulfilment-privacy && npm run smoke:runtime",
+    "check": "npm run check:consistency && npm run check:deployment && npm run check:storefront && npm run check:merchants && npm run check:navigation && npm run check:dashboard-ux && npm run check:checkout-ux && npm run check:private-offer-checkout && npm run check:customer-profile-security && npm run check:customer-email-change && npm run check:fairness-schema && npm run check:seo && npm run check:advice && npm run check:ask-local && npm run test:preview-auth && npm run db:verify && npm run test:core && npm run test:viva && npm run test:mydata && npm run test:media-processing && npm run test:search-provider && npm run test:resend && npm run test:boxnow && npm run smoke:ui && npm run test:a11y && npm run test:accessibility-governance && npm run test:privacy-consent && npm run test:legal-transparency && npm run test:privacy-governance && npm run test:supabase-hardening && npm run test:privacy-access-audit && npm run test:fulfilment-privacy && npm run smoke:runtime",
     "smoke:runtime": "node --experimental-strip-types scripts/run-runtime-smoke.ts",
     "db:verify": "node --experimental-strip-types scripts/verify-migrations.ts",
     "db:migrate": "node --experimental-strip-types scripts/migrate.ts",
@@ -75,6 +75,7 @@
     "check:checkout-ux": "node --experimental-strip-types scripts/verify-checkout-ux.ts",
     "check:private-offer-checkout": "node --experimental-strip-types scripts/verify-private-offer-checkout.ts",
     "check:customer-profile-security": "node --experimental-strip-types scripts/verify-customer-profile-security.ts",
+    "check:customer-email-change": "node --experimental-strip-types scripts/verify-customer-email-change.ts",
     "check:fairness-schema": "node --experimental-strip-types scripts/verify-fairness-live-schema.ts"
   },
   "dependencies": {
