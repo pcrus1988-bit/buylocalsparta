@@ -29,7 +29,7 @@ for (const contract of [
   "requireCustomerOrderReference(principal, orderIdentifier)",
   "const orderId = resolved.internalId",
   "downloadUrl: `/api/account/orders/${encodeURIComponent(resolved.referenceNumber)}/invoice`",
-  "const { orderId: _internalOrderId, ...safe } = payload",
+  "orderId: _internalOrderId",
   "payload: { orderReference: resolved.referenceNumber }"
 ]) if (!accountView.includes(contract)) failures.push(`Customer order projection still lacks public-reference contract: ${contract}`);
 
