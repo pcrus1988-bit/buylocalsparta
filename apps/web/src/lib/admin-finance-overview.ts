@@ -33,6 +33,7 @@ export type AdminFinanceOverview = Readonly<{
     finalPaidFulfilmentsMissingProcurement: number;
     vendorsWithoutEffectiveAgreement: number;
     vendorsWithoutVerifiedPayoutDestination: number;
+    payableWithoutIssuedCommissionInvoice: number;
     weakRequiredAccountingEvidence: number;
     openDeliveryClearing: number;
     openPaymentClearing: number;
@@ -75,6 +76,14 @@ export async function adminFinanceOverview(_principal: SessionPrincipal): Promis
       (SELECT count(*) FROM vendor_businesses v WHERE v.status='active' AND NOT EXISTS(
         SELECT 1 FROM vendor_payout_destinations d WHERE d.vendor_id=v.id AND d.status='verified' AND d.superseded_at IS NULL AND d.effective_at<=now()
       ))::int AS vendors_without_payout,
+      (SELECT count(*) FROM procurements p
+        WHERE p.status::text='payable' AND p.service_fee_minor>0
+          AND NOT EXISTS(
+            SELECT 1 FROM platform_vendor_invoice_items pvii
+            JOIN platform_vendor_invoices pvi ON pvi.id=pvii.invoice_id
+            WHERE pvii.procurement_id=p.id AND pvii.source_kind='commission' AND pvi.status='issued'
+          )
+      )::int AS payable_without_issued_commission_invoice,
       (SELECT count(*) FROM delivery_clearing_entries WHERE reconciliation_status IN ('open','disputed'))::int AS open_delivery_clearing,
       (SELECT count(*) FROM payment_clearing_entries WHERE reconciliation_status IN ('open','disputed'))::int AS open_payment_clearing,
       (SELECT count(*) FROM vendor_finance_adjustments WHERE status='pending')::int AS pending_adjustments,
@@ -109,6 +118,7 @@ export async function adminFinanceOverview(_principal: SessionPrincipal): Promis
       finalPaidFulfilmentsMissingProcurement: int(c.missing_procurements),
       vendorsWithoutEffectiveAgreement: int(c.vendors_without_agreement),
       vendorsWithoutVerifiedPayoutDestination: int(c.vendors_without_payout),
+      payableWithoutIssuedCommissionInvoice: int(c.payable_without_issued_commission_invoice),
       weakRequiredAccountingEvidence: weakEvidence,
       openDeliveryClearing: int(c.open_delivery_clearing),
       openPaymentClearing: int(c.open_payment_clearing),
