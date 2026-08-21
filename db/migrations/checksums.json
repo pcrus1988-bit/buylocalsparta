@@ -105,5 +105,6 @@
   "0106_vendor_finance_reconciliation_returns.sql": "778479cfbeeb42b86dcd4f75a4c146284e71fb9e67e320176f10d2fb53e4819a",
   "0107_vendor_finance_payout_credit_workflow.sql": "424cc07060fdc02d24e9eaa1b65c7f5c4b81dc072f9af59082fa2689e7278f6a",
   "0108_vendor_finance_payment_clearing_hardening.sql": "8a245cc9a43b76de594328f172ffd56db28eca7d7a7f5713dfb5320f0fc1c345",
-  "0109_vendor_finance_void_billing_audit.sql": "d4db4071424dbc142df3b88b6317ed195583b911f441a27a485024d224ab410d"
+  "0109_vendor_finance_void_billing_audit.sql": "d4db4071424dbc142df3b88b6317ed195583b911f441a27a485024d224ab410d",
+  "0110_vendor_finance_payout_token_isolation.sql": "ba3b1ba08321c99564dcebd810a1d61f4f00dc3cea9850135a7608f74cdef25e"
 }
