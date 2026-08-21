@@ -24,7 +24,13 @@ type Dashboard = {
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 const completedOrder = (status: string) => /ολοκληρώ|παραλήφθηκε|ακυρ|επιστράφηκαν τα χρήματα/i.test(status);
-const orderNeedsAction = (order: Dashboard["orders"][number]) => /χρειάζεται ενέργεια|έτοιμη για παραλαβή|πρόβλημα/i.test(order.status);
+const orderNeedsAction = (order: Dashboard["orders"][number]) => /αναμονή πληρωμής|χρειάζεται ενέργεια|έτοιμη για παραλαβή|πρόβλημα/i.test(order.status);
+const orderAttentionBody = (status: string) => status.includes("Αναμονή πληρωμής")
+  ? "Η παραγγελία έχει δημιουργηθεί, αλλά χρειάζεται να ολοκληρώσεις την ασφαλή πληρωμή πριν προχωρήσει στο κατάστημα."
+  : status.includes("Έτοιμη για παραλαβή")
+    ? "Η παραγγελία είναι έτοιμη. Άνοιξέ την για να δεις τον ασφαλή κωδικό ή QR παραλαβής."
+    : "Η παραγγελία χρειάζεται έλεγχο ή ενέργεια από εσένα.";
+const orderAttentionAction = (status: string) => status.includes("Αναμονή πληρωμής") ? "Συνέχιση πληρωμής" : "Άνοιγμα παραγγελίας";
 const modeLabel = (mode: string) => mode === "pickup" ? "Παραλαβή από κατάστημα" : mode === "shipping" ? "Αποστολή" : mode === "local_delivery" ? "Τοπική παράδοση" : mode;
 
 export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
@@ -86,7 +92,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
     <section className="shell customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
       <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">Τι χρειάζεται την προσοχή σου</h2></div><p>Πρώτα εμφανίζονται όσα χρειάζονται δική σου ενέργεια. Όταν περιμένουμε κατάστημα ή μεταφορέα, το λέμε ξεκάθαρα.</p></div>
       <div className="customer-action-stack">
-        {attentionOrders.slice(0, 3).map((order) => <CustomerActionCard key={order.id} tone="action" title={`${order.referenceNumber} · ${order.status}`} body={order.status.includes("Έτοιμη για παραλαβή") ? "Η παραγγελία είναι έτοιμη. Άνοιξέ την για να δεις τον ασφαλή κωδικό ή QR παραλαβής." : "Η παραγγελία χρειάζεται έλεγχο ή ενέργεια από εσένα."} href={`/account/orders/${order.id}`} action="Άνοιγμα παραγγελίας" />)}
+        {attentionOrders.slice(0, 3).map((order) => <CustomerActionCard key={order.id} tone="action" title={`${order.referenceNumber} · ${order.status}`} body={orderAttentionBody(order.status)} href={`/account/orders/${order.id}`} action={orderAttentionAction(order.status)} />)}
         {data.unreadNotifications > 0 && <CustomerActionCard tone="action" title={`${data.unreadNotifications} ${data.unreadNotifications === 1 ? "νέα ειδοποίηση" : "νέες ειδοποιήσεις"}`} body="Δες τι άλλαξε στις παραγγελίες, τα αιτήματα και τον λογαριασμό σου." href="/account/notifications" action="Δες ειδοποιήσεις" />}
         {attentionCount === 0 && <CustomerActionCard tone="success" title="Δεν χρειάζεται ενέργεια αυτή τη στιγμή" body="Ό,τι είναι σε εξέλιξη συνεχίζει χωρίς να χρειάζεται να κάνεις κάτι. Θα σε ενημερώσουμε όταν αλλάξει κατάσταση." />}
       </div>
