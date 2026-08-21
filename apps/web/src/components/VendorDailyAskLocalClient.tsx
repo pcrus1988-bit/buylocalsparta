@@ -55,6 +55,28 @@ export function VendorDailyAskLocalClient({ initial }: { initial: Advice }) {
     }
   }
 
+  async function askClarification(requestId: string, form: HTMLFormElement) {
+    const data = new FormData(form);
+    const question = String(data.get("question") ?? "").trim();
+    setBusy(`clarification:${requestId}`);
+    setError("");
+    try {
+      const response = await fetch("/api/daily/advice/clarifications", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
+        body: JSON.stringify({ requestId, question })
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Το αίτημα διευκρίνισης δεν στάλθηκε");
+      form.reset();
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Το αίτημα διευκρίνισης δεν στάλθηκε");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function sendOffer(requestId: string, form: HTMLFormElement) {
     const data = new FormData(form);
     const priceMinor = eurosToMinor(data.get("price"));
@@ -87,12 +109,21 @@ export function VendorDailyAskLocalClient({ initial }: { initial: Advice }) {
 
     <div style={{ width: "min(100% - 32px, 820px)", margin: "0 auto", paddingTop: 24, display: "grid", gap: 24 }}>
       <section>
-        <div style={{ marginBottom: 12 }}><span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".13em", textTransform: "uppercase", opacity: .55 }}>Assigned requests</span><h1 style={{ margin: "4px 0", fontSize: 30, letterSpacing: "-.04em" }}>Ask Local</h1><p style={{ margin: 0, opacity: .62 }}>Αιτήματα που έχουν ανατεθεί στο κατάστημά σου. Απάντησε με μήνυμα ή στείλε μία συγκεκριμένη ιδιωτική προσφορά.</p></div>
+        <div style={{ marginBottom: 12 }}><span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".13em", textTransform: "uppercase", opacity: .55 }}>Assigned requests</span><h1 style={{ margin: "4px 0", fontSize: 30, letterSpacing: "-.04em" }}>Ask Local</h1><p style={{ margin: 0, opacity: .62 }}>Αιτήματα που έχουν ανατεθεί στο κατάστημά σου. Αν λείπει πληροφορία, ζήτησε πρώτα μία συγκεκριμένη διευκρίνιση· όταν έχεις όσα χρειάζεσαι, στείλε την ιδιωτική προσφορά.</p></div>
         {error && <p role="alert" style={{ padding: 12, borderRadius: 12, background: "#fff0ee", color: "#8d2119", fontWeight: 700 }}>{error}</p>}
         {openRequests.length ? <div style={{ display: "grid", gap: 10 }}>{openRequests.map((request) => <article key={request.id} style={{ background: "white", border: "1px solid rgba(23,25,20,.09)", borderRadius: 18, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 14 }}><strong>{request.canonicalVariantId ? "Αίτημα για συγκεκριμένο προϊόν" : "Γενικό αίτημα"}</strong><span style={{ fontSize: 12, fontWeight: 800, background: "#f0eee6", borderRadius: 999, padding: "5px 9px" }}>{request.status}</span></div>
           <p style={{ margin: "10px 0 0", opacity: .72 }}>{needSummary(request.need)}</p>
-          {["awaiting_vendor", "needs_info"].includes(request.status) && <details style={{ marginTop: 14, borderTop: "1px solid rgba(23,25,20,.09)", paddingTop: 12 }}>
+          {request.status === "needs_info" && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff7e9", fontWeight: 700 }}>Περιμένουμε απάντηση από τον πελάτη. Η προθεσμία απάντησης του καταστήματος έχει παγώσει μέχρι να επιστρέψει η διευκρίνιση.</div>}
+          {request.status === "awaiting_vendor" && <details style={{ marginTop: 14, borderTop: "1px solid rgba(23,25,20,.09)", paddingTop: 12 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Ζήτησε διευκρίνιση από τον πελάτη</summary>
+            <form style={{ display: "grid", gap: 10, marginTop: 12 }} onSubmit={(event) => { event.preventDefault(); void askClarification(request.id, event.currentTarget); }}>
+              <label style={{ display: "grid", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 800 }}>Τι ακριβώς χρειάζεσαι να μάθεις;</span><textarea name="question" minLength={3} maxLength={2000} required rows={3} placeholder="π.χ. Ποια διάσταση χρειάζεστε;" style={{ border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: 12, font: "inherit" }} /></label>
+              <small style={{ opacity: .62 }}>Με την αποστολή, το αίτημα περνά σε «χρειάζονται πληροφορίες» και η προθεσμία του καταστήματος παγώνει μέχρι να απαντήσει ο πελάτης.</small>
+              <button type="submit" disabled={Boolean(busy)} style={{ minHeight: 46, border: "1px solid rgba(23,25,20,.16)", borderRadius: 13, background: "white", color: "#171914", padding: "0 16px", font: "inherit", fontWeight: 800 }}>{busy === `clarification:${request.id}` ? "Αποστολή…" : "Αποστολή ερώτησης"}</button>
+            </form>
+          </details>}
+          {request.status === "awaiting_vendor" && <details style={{ marginTop: 14, borderTop: "1px solid rgba(23,25,20,.09)", paddingTop: 12 }}>
             <summary style={{ cursor: "pointer", fontWeight: 800 }}>Στείλε ιδιωτική προσφορά</summary>
             <form style={{ display: "grid", gap: 10, marginTop: 12 }} onSubmit={(event) => { event.preventDefault(); void sendOffer(request.id, event.currentTarget); }}>
               <label style={{ display: "grid", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 800 }}>Τιμή ανά τεμάχιο (€)</span><input name="price" inputMode="decimal" required placeholder="34,90" style={{ minHeight: 46, border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: "0 12px", font: "inherit" }} /></label>
