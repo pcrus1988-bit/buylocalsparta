@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
-import { WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminOperationsWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
@@ -13,6 +13,7 @@ export default async function Page() {
   const data = await adminOperationsWorkspace(principal);
   const nonReady = data.health.checks.filter((check) => !["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase())).length;
   const criticalIssues = data.health.checks.filter((check) => check.critical && !["ready", "healthy", "ok"].includes(String(check.state).toLowerCase())).length;
+  const personalDataEvents = data.security.events.filter((event) => event.type.startsWith("personal_data."));
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
@@ -50,5 +51,17 @@ export default async function Page() {
         </article>
       </div>
     </div></section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Privacy access audit · 7d" title="Personal data access" note="Actor, purpose and data classes are retained for accountability. Customer identifiers and raw contact/address values are intentionally not shown in this log." />
+      {personalDataEvents.length === 0 ? <WorkspaceEmptyState title="No personal-data access events in the current seven-day window." /> : <div className="workspace-queue-list">{personalDataEvents.map((event) => <article className="workspace-queue-card" key={event.id}>
+        <div className="workspace-queue-head"><div><strong>{event.type}</strong><small>{new Date(event.occurredAt).toLocaleString("el-GR")} · {event.route ?? "route unavailable"}</small></div><span className="status-pill">{event.severity}</span></div>
+        <div className="workspace-compact-list">
+          <div className="workspace-compact-row"><strong>Actor</strong><span>{event.actorUserId ?? "system"}</span><small>Authenticated platform identity</small></div>
+          <div className="workspace-compact-row"><strong>Purpose</strong><span>{String(event.details?.purpose ?? "—")}</span><small>{String(event.details?.resourceType ?? "resource")}</small></div>
+          <div className="workspace-compact-row"><strong>Data classes</strong><span>{String(event.details?.dataClasses ?? "—")}</span><small>{String(event.details?.accessScope ?? "individual")} · {String(event.details?.recordCount ?? 1)} record(s)</small></div>
+        </div>
+      </article>)}</div>}
+    </section>
   </main>;
 }
