@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: 24
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
       - name: Verify dependency-free domain/runtime suite
         run: npm run check
       - name: Typecheck Core
