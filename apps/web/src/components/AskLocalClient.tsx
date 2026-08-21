@@ -5,7 +5,7 @@ import { CustomerHowItWorks, CustomerLifecycle, type CustomerLifecycleStage } fr
 import type { AskLocalRequestView } from "../lib/ask-local-service";
 
 type Context = Readonly<{ need?: string; canonicalVariantId?: string; preferredVendorId?: string; sourceUrl?: string }>;
-const labels: Record<string, string> = { submitted: "Σε έλεγχο από την πλατφόρμα", assigned: "Ανατέθηκε ιδιωτικά", awaiting_vendor: "Αναμονή απάντησης καταστήματος", needs_info: "Χρειάζονται πληροφορίες", offered: "Έχει σταλεί ιδιωτική προσφορά", accepted: "Αποδεκτή προσφορά", converted: "Μετατράπηκε σε αγορά", declined: "Απορρίφθηκε", expired: "Έληξε", closed: "Ολοκληρώθηκε" };
+const labels: Record<string, string> = { submitted: "Σε έλεγχο από την πλατφόρμα", assigned: "Ανατέθηκε ιδιωτικά", awaiting_vendor: "Αναμονή απάντησης καταστήματος", needs_info: "Χρειάζονται πληροφορίες", offered: "Έχει σταλεί ιδιωτική προσφορά", active: "Ενεργή", accepted: "Αποδεκτή προσφορά", converted: "Μετατράπηκε σε αγορά", declined: "Απορρίφθηκε", expired: "Έληξε", revoked: "Αντικαταστάθηκε", closed: "Ολοκληρώθηκε" };
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 function requestLifecycle(status: string): readonly CustomerLifecycleStage[] {
@@ -30,6 +30,7 @@ function requestLifecycle(status: string): readonly CustomerLifecycleStage[] {
 export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: string; initial: readonly AskLocalRequestView[]; context: Context }) {
   const [requests, setRequests] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -54,6 +55,27 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
     }
   }
 
+  async function decideOffer(offerId: string, action: "accept" | "decline") {
+    setDecisionBusy(`${action}:${offerId}`);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/account/ask-local/offers", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ offerId, action })
+      });
+      const payload = await response.json() as { requests?: readonly AskLocalRequestView[]; error?: string };
+      if (!response.ok || !payload.requests) throw new Error(payload.error ?? "Η απόφαση δεν αποθηκεύτηκε");
+      setRequests(payload.requests);
+      setSuccess(action === "accept" ? "Η προσφορά έγινε αποδεκτή και το κατάστημα ενημερώθηκε." : "Η προσφορά απορρίφθηκε και το κατάστημα ενημερώθηκε.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Η απόφαση δεν αποθηκεύτηκε");
+    } finally {
+      setDecisionBusy("");
+    }
+  }
+
   return <>
     <section className="shell ask-local-workspace">
       <form className="ask-local-live-form" onSubmit={submit}>
@@ -75,13 +97,22 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
       {requests.length ? <div className="ask-request-list">{requests.map((request) => <article className="ask-request-card" key={request.id}>
         <div className="ask-request-head"><div><strong>{request.referenceNumber}</strong><small>{date(request.createdAt)}</small></div><span className="status-pill">{labels[request.status] ?? request.status}</span></div>
         <p>{request.need}</p>
-        <div className="ask-request-meta"><span>{request.quantity} τεμ.</span><span>ΤΚ {request.postcode}</span>{request.assignedVendorName && <span>Ιδιωτικά προς {request.assignedVendorName}</span>}{request.responseDueAt && <span>Απάντηση έως {date(request.responseDueAt)}</span>}</div>
+        <div className="ask-request-meta"><span>{request.quantity} τεμ.</span><span>ΤΚ {request.postcode}</span>{request.assignedVendorName && <span>Ιδιωτικά προς {request.assignedVendorName}</span>}{request.responseDueAt && request.status === "awaiting_vendor" && <span>Απάντηση έως {date(request.responseDueAt)}</span>}</div>
         <CustomerLifecycle label={`Πορεία Ask Local ${request.referenceNumber}`} stages={requestLifecycle(request.status)} />
         {request.status === "awaiting_vendor" && <p className="account-muted">Περιμένουμε απάντηση από το κατάστημα. Δεν χρειάζεται ενέργεια από εσένα τώρα.</p>}
-        {request.status === "needs_info" && <p className="account-muted"><strong>Χρειάζεται διευκρίνιση.</strong> Η πλήρης απάντηση μέσα από τον λογαριασμό θα προστεθεί στο επόμενο workflow βήμα.</p>}
-        {request.status === "offered" && <p className="account-muted"><strong>Υπάρχει νέα ιδιωτική προσφορά.</strong> Δες τα στοιχεία της παρακάτω.</p>}
-        {request.privateOffers.length > 0 && <div className="private-offer-list">{request.privateOffers.map((offer) => <div key={offer.id}><strong>{new Intl.NumberFormat("el-GR", { style: "currency", currency: offer.currency }).format(offer.priceMinor / 100)}</strong><span>{offer.fulfilmentPromise ?? "Ιδιωτική προσφορά"}</span><small>{labels[offer.status] ?? offer.status} · έως {date(offer.expiresAt)}</small></div>)}</div>}
-        <CustomerHowItWorks title="Τι σημαίνει η τρέχουσα κατάσταση;"><p>Η πορεία δείχνει τι ολοκληρώθηκε και ποιος έχει το επόμενο βήμα. Πορτοκαλί σημαίνει ότι το αίτημα έχει φτάσει σε σημείο όπου χρειάζεται δική σου απόφαση ή πληροφορία.</p></CustomerHowItWorks>
+        {request.status === "needs_info" && <p className="account-muted"><strong>Χρειάζεται διευκρίνιση.</strong> Το αίτημα παραμένει ανοιχτό μέχρι να ολοκληρωθεί η σχετική επικοινωνία.</p>}
+        {request.status === "offered" && <p className="account-muted"><strong>Υπάρχει νέα ιδιωτική προσφορά.</strong> Έλεγξε τι περιλαμβάνει, την τελική τιμή και μέχρι πότε ισχύει πριν αποφασίσεις.</p>}
+        {request.privateOffers.length > 0 && <div className="private-offer-list">{request.privateOffers.map((offer) => {
+          const active = offer.status === "active" && offer.expiresAt > Date.now() && request.status === "offered";
+          return <div key={offer.id} className={active ? "customer-private-offer is-active" : "customer-private-offer"}>
+            <strong>{new Intl.NumberFormat("el-GR", { style: "currency", currency: offer.currency }).format(offer.priceMinor / 100)}</strong>
+            <span>{offer.fulfilmentPromise ?? "Ιδιωτική προσφορά"}</span>
+            <small>{labels[offer.status] ?? offer.status} · έως {date(offer.expiresAt)}</small>
+            {active && <div className="customer-private-offer-actions"><button className="button button-secondary" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(offer.id, "decline")}>{decisionBusy === `decline:${offer.id}` ? "Απόρριψη…" : "Δεν με ενδιαφέρει"}</button><button className="button" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(offer.id, "accept")}>{decisionBusy === `accept:${offer.id}` ? "Αποδοχή…" : "Αποδέχομαι την προσφορά"}</button></div>}
+            {offer.status === "accepted" && <div className="customer-private-offer-result"><strong>Αποδεκτή</strong><span>Το κατάστημα έχει ενημερωθεί. Η αγορά με την ειδική τιμή θα ενεργοποιηθεί μόνο όταν το checkout μπορεί να διατηρήσει με ασφάλεια την τιμή της ιδιωτικής προσφοράς.</span></div>}
+          </div>;
+        })}</div>}
+        <CustomerHowItWorks title="Τι σημαίνει η τρέχουσα κατάσταση;"><p>Η πορεία δείχνει τι ολοκληρώθηκε και ποιος έχει το επόμενο βήμα. Πορτοκαλί σημαίνει ότι το αίτημα έχει φτάσει σε σημείο όπου χρειάζεται δική σου απόφαση ή πληροφορία. Η αποδοχή καταγράφεται οριστικά και ενημερώνει αμέσως το κατάστημα.</p></CustomerHowItWorks>
       </article>)}</div> : <div className="empty-state"><h2>Δεν έχεις ακόμη Ask Local αιτήματα.</h2><p>Το πρώτο σου αίτημα θα εμφανιστεί εδώ με την ιδιωτική του κατάσταση.</p></div>}
     </section>
   </>;
