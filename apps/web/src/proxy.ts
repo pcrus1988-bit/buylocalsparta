@@ -12,6 +12,7 @@ function validVisitor(value: string | undefined): string | undefined {
 }
 
 function needsPersistentMarketplaceIdentity(pathname: string): boolean {
+  if (pathname === "/api/privacy/consent" || pathname.startsWith("/api/analytics/")) return false;
   const routeRoots = [
     "/shop", "/category", "/product", "/cart", "/checkout", "/ask-local", "/advice",
     "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
