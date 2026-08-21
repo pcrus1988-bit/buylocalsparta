@@ -23,6 +23,7 @@ import "./customer-returns-lifecycle.css";
 import "./customer-fulfilment-progress.css";
 import "./customer-notification-lifecycle.css";
 import "./customer-saved-search-editing.css";
+import "./customer-saved-product-alerts.css";
 import "./vendor-information-architecture.css";
 import "./vendor-lifecycle.css";
 import "./vendor-login.css";
