@@ -61,7 +61,7 @@ function vendorRequestMemoryClarification(principal: SessionPrincipal, requestId
     if (request.status !== "awaiting_vendor") throw new Error("Διευκρίνιση μπορεί να ζητηθεί μόνο όταν περιμένουμε ενέργεια από το κατάστημα.");
     const current = memoryThreads().get(requestId);
     const messages = [...(current?.messages ?? []), { id: `message_${randomUUID()}`, senderType: "vendor" as const, body: question, createdAt: now }].slice(-maxMessages);
-    requests[index] = { ...request, status: "needs_info", responseDueAt: undefined };
+    requests[index] = { ...request, status: "needs_info", responseDueAt: undefined, clarificationCount: messages.length };
     requestMemoryStore().set(customerId, requests);
     memoryThreads().set(requestId, { requestId, vendorId: principal.vendorId, customerId, messages });
     return;
@@ -80,7 +80,7 @@ function customerReplyMemoryClarification(principal: SessionPrincipal, requestId
   const last = current.messages.at(-1);
   if (!last || last.senderType !== "vendor") throw new Error("Δεν υπάρχει νέο ερώτημα καταστήματος που να περιμένει απάντηση.");
   const messages = [...current.messages, { id: `message_${randomUUID()}`, senderType: "customer" as const, body: reply, createdAt: now }].slice(-maxMessages);
-  requests[index] = { ...request, status: "awaiting_vendor", responseDueAt: now + 24 * 60 * 60 * 1000 };
+  requests[index] = { ...request, status: "awaiting_vendor", responseDueAt: now + 24 * 60 * 60 * 1000, clarificationCount: messages.length };
   requestMemoryStore().set(principal.userId, requests);
   memoryThreads().set(requestId, { ...current, messages });
 }
