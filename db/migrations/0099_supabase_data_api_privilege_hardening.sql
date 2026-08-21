@@ -47,9 +47,15 @@ END
 $$;
 
 -- Fiscal reconciliation is scheduled by pg_cron as postgres. It must never be
--- reachable as a public RPC or from application runtime credentials.
-REVOKE EXECUTE ON FUNCTION public.run_fiscal_reconciliation_cron()
-  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+-- reachable as a public RPC or from application runtime credentials. Clean
+-- PostGIS CI does not create this Supabase production helper, so guard it.
+DO $$
+BEGIN
+  IF to_regprocedure('public.run_fiscal_reconciliation_cron()') IS NOT NULL THEN
+    EXECUTE 'REVOKE EXECUTE ON FUNCTION public.run_fiscal_reconciliation_cron() FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime';
+  END IF;
+END
+$$;
 
 -- Supabase Security Advisor reports these PostGIS SECURITY DEFINER helpers as
 -- callable by Data API roles. The marketplace does not expose them as RPCs.
