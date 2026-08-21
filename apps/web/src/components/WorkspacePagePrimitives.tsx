@@ -32,6 +32,18 @@ export function WorkspaceSectionHeading({
   </div>;
 }
 
+export function WorkspaceHowItWorks({
+  title = "Πώς λειτουργεί",
+  children,
+  open = false,
+  className = ""
+}: Readonly<{ title?: string; children: ReactNode; open?: boolean; className?: string }>) {
+  return <details className={`workspace-how-it-works${className ? ` ${className}` : ""}`} open={open}>
+    <summary><span className="workspace-how-it-works-icon" aria-hidden="true">i</span><span>{title}</span></summary>
+    <div className="workspace-how-it-works-body">{children}</div>
+  </details>;
+}
+
 export function WorkspaceEmptyState({
   eyebrow = "Δεν υπάρχει εργασία",
   title,

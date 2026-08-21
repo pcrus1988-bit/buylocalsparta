@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { VENDOR_WORKSPACE_NAVIGATION } from "../lib/workspace-navigation";
 import { VendorBreadcrumbs, VendorContextNavigation, VendorDomainNavigation } from "./VendorDomainNavigation";
 
@@ -12,19 +12,46 @@ export function VendorWorkspaceHeader() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [roles, setRoles] = useState<readonly string[]>([]);
+  const [csrfToken, setCsrfToken] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/vendor/auth-context", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() : undefined)
+      .then((payload: { csrfToken?: string; account?: { roles?: readonly string[] } } | undefined) => {
+        if (!active) return;
+        if (Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
+        if (typeof payload?.csrfToken === "string") setCsrfToken(payload.csrfToken);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const navigation = useMemo(() => {
+    if (roles.includes("vendor_owner")) return VENDOR_WORKSPACE_NAVIGATION;
+    return VENDOR_WORKSPACE_NAVIGATION
+      .map((group) => ({ ...group, links: group.links.filter((link) => link.href !== "/vendor/daily-access") }))
+      .filter((group) => group.links.length > 0)
+      .map((group) => group.href === "/vendor/daily-access" ? { ...group, href: group.links[0]?.href } : group);
+  }, [roles]);
 
   async function logout() {
     setBusy(true);
     try {
-      const session = await fetch("/api/vendor/session", { cache: "no-store" });
-      if (!session.ok) {
-        router.replace("/vendor/login");
-        router.refresh();
-        return;
+      let token = csrfToken;
+      if (!token) {
+        const session = await fetch("/api/vendor/auth-context", { cache: "no-store" });
+        if (!session.ok) {
+          router.replace("/vendor/login");
+          router.refresh();
+          return;
+        }
+        const payload = await session.json() as { csrfToken?: string };
+        token = payload.csrfToken ?? "";
       }
-      const payload = await session.json() as { csrfToken?: string };
-      if (!payload.csrfToken) throw new Error("vendor_session_missing_csrf");
-      await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": payload.csrfToken } });
+      if (!token) throw new Error("vendor_session_missing_csrf");
+      await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": token } });
       router.replace("/vendor/login");
       router.refresh();
     } finally {
@@ -43,7 +70,7 @@ export function VendorWorkspaceHeader() {
           <span>{menuOpen ? "Κλείσιμο" : "Μενού"}</span><i aria-hidden="true" />
         </button>
       </div>
-      <VendorDomainNavigation id="vendor-workspace-navigation" groups={VENDOR_WORKSPACE_NAVIGATION} onNavigate={() => setMenuOpen(false)} />
+      <VendorDomainNavigation id="vendor-workspace-navigation" groups={navigation} onNavigate={() => setMenuOpen(false)} />
       <div className="workspace-footer workspace-footer-stacked">
         <span className="workspace-session"><i aria-hidden="true" /> Online · ιδιωτικό scope</span>
         <div className="workspace-footer-actions">
@@ -54,10 +81,10 @@ export function VendorWorkspaceHeader() {
     </header>
     <div className="vendor-topbar">
       <div className="vendor-topbar-main">
-        <div className="vendor-breadcrumbs"><VendorBreadcrumbs groups={VENDOR_WORKSPACE_NAVIGATION} /></div>
+        <div className="vendor-breadcrumbs"><VendorBreadcrumbs groups={navigation} /></div>
         <Link className="vendor-daily-launch" href="/daily">Άνοιγμα KONTA MOY Daily <span aria-hidden="true">↗</span></Link>
       </div>
-      <VendorContextNavigation groups={VENDOR_WORKSPACE_NAVIGATION} />
+      <VendorContextNavigation groups={navigation} />
     </div>
   </>;
 }

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { VendorLifecycle } from "../../components/VendorLifecycle";
 import { VendorWorkspaceHeader } from "../../components/VendorWorkspaceHeader";
-import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
+import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
 import { getVendorSession } from "../../lib/vendor-session";
 import { vendorDashboard } from "../../lib/vendor-runtime";
@@ -31,29 +32,30 @@ export default async function VendorBackofficePage() {
   const attention = [
     orderNotifications.metrics.requiringAction > 0 ? {
       title: `${orderNotifications.metrics.requiringAction} παραγγελίες χρειάζονται ενέργεια`,
-      note: "Άνοιξε τις παραγγελίες και συνέχισε από το επόμενο επιτρεπόμενο στάδιο.",
+      note: "Άνοιξε τις παραγγελίες και συνέχισε από το επισημασμένο επόμενο βήμα.",
       href: "/vendor/orders",
       urgent: true
     } : null,
     orderNotifications.metrics.breached > 0 ? {
       title: `${orderNotifications.metrics.breached} προθεσμίες έχουν λήξει`,
-      note: "Δες τα ενεργά SLA cases και ολοκλήρωσε πρώτα τα εκπρόθεσμα.",
+      note: "Δες πρώτα τις εκπρόθεσμες παραγγελίες και ενημέρωσε την πραγματική τους κατάσταση.",
       href: "/vendor/notifications",
       urgent: true
     } : null,
     catalog.catalogMetrics.lowStockProducts > 0 ? {
       title: `${catalog.catalogMetrics.lowStockProducts} προϊόντα έχουν χαμηλό απόθεμα`,
-      note: "Έλεγξε το πραγματικό stock και το απόθεμα ασφαλείας πριν εξαντληθούν.",
+      note: "Έλεγξε το φυσικό απόθεμα και το απόθεμα ασφαλείας πριν εξαντληθούν.",
       href: "/vendor/catalog",
       urgent: false
     } : null,
     catalog.catalogMetrics.hiddenProducts > 0 ? {
-      title: `${catalog.catalogMetrics.hiddenProducts} προϊόντα δεν είναι δημόσια ορατά`,
-      note: "Έλεγξε αν είναι σκόπιμα κρυφά ή χρειάζονται διόρθωση.",
+      title: `${catalog.catalogMetrics.hiddenProducts} προϊόντα δεν εμφανίζονται δημόσια`,
+      note: "Έλεγξε αν είναι σκόπιμα κρυφά ή αν περιμένουν διόρθωση / έγκριση.",
       href: "/vendor/catalog",
       urgent: false
     } : null
   ].filter((item): item is { title: string; note: string; href: string; urgent: boolean } => Boolean(item));
+  const showOnboarding = principal.roles.includes("vendor_owner") && dashboard.metrics.activeProducts === 0;
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -62,25 +64,40 @@ export default async function VendorBackofficePage() {
       <div>
         <div className="eyebrow">Αρχική · σήμερα</div>
         <h1>{dashboard.vendor.name}</h1>
-        <p className="lead">Ό,τι χρειάζεται το κατάστημά σου τώρα — χωρίς να ψάχνεις ανάμεσα σε τεχνικά modules.</p>
+        <p className="lead">Ό,τι χρειάζεται το κατάστημά σου τώρα — με τις επείγουσες εργασίες πρώτες και τις υπόλοιπες λειτουργίες οργανωμένες ανά σκοπό.</p>
       </div>
       <aside className="dashboard-health-card">
         <span>Τοπικός σύμβουλος</span>
         <strong>{dashboard.vendor.adviser}</strong>
-        <p>Όλες οι ενέργειες παραμένουν αποκλειστικά στο scope του καταστήματός σου.</p>
+        <p>Ο χώρος συνεργάτη εμφανίζει μόνο στοιχεία και εργασίες του δικού σου καταστήματος.</p>
       </aside>
     </section>
+
+    {showOnboarding && <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Πρώτη εγκατάσταση" title="Στήσε το κατάστημά σου βήμα-βήμα" note="Η ενότητα θα φύγει από την αρχική όταν ενεργοποιηθεί το πρώτο προϊόν σου." />
+      <VendorLifecycle steps={[
+        { label: "Δημόσιο προφίλ", tone: "attention", detail: "Λογότυπο και φωτογραφία καταστήματος" },
+        { label: "Πρώτο προϊόν", tone: "future", detail: "Κατηγορία, τιμή και απόθεμα" },
+        { label: "Φωτογραφίες / έγγραφα", tone: "future", detail: "Όπου χρειάζονται για το προϊόν" },
+        { label: "Έτοιμο για λειτουργία", tone: "future", detail: "Παραγγελίες και Daily" }
+      ]} ariaLabel="Πρώτη εγκατάσταση καταστήματος" />
+      <WorkspaceHowItWorks>
+        <p>Δεν χρειάζεται να ολοκληρώσεις όλες τις ρυθμίσεις μαζί. Ξεκίνα με το δημόσιο προφίλ και ένα πραγματικό προϊόν με σωστή τιμή και απόθεμα.</p>
+        <p>Όταν ενεργοποιηθεί το πρώτο προϊόν, η αρχική αλλάζει από onboarding σε καθημερινό κέντρο εργασιών.</p>
+      </WorkspaceHowItWorks>
+      <div className="workspace-action-buttons" style={{ marginTop: 14 }}><Link className="button" href="/vendor/storefront">1. Δημόσιο προφίλ</Link><Link className="button button-secondary" href="/vendor/catalog">2. Προσθήκη προϊόντος</Link></div>
+    </section>}
 
     <WorkspaceMetricStrip items={[
       { label: "Χρειάζονται ενέργεια", value: orderNotifications.metrics.requiringAction, tone: orderNotifications.metrics.requiringAction ? "attention" : "default" },
       { label: "Ενεργά προϊόντα", value: dashboard.metrics.activeProducts },
-      { label: "Διαθέσιμες μονάδες", value: dashboard.metrics.availableUnits },
-      { label: "Πωλήσεις · 30 ημέρες", value: performance.purchases },
-      { label: "Τζίρος · 30 ημέρες", value: euro(performance.revenueMinor) }
+      { label: "Διαθέσιμα τεμάχια", value: dashboard.metrics.availableUnits },
+      { label: "Αγορές · 30 ημέρες", value: performance.purchases },
+      { label: "Πωλήσεις · 30 ημέρες", value: euro(performance.revenueMinor) }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Action centre" title="Τι χρειάζεται την προσοχή σου" note="Πρώτα οι πραγματικές εκκρεμότητες. Οι διαχειριστικές λειτουργίες βρίσκονται στα αντίστοιχα business domains." />
+      <WorkspaceSectionHeading eyebrow="Σήμερα" title="Τι χρειάζεται την προσοχή σου" note="Οι πραγματικές εκκρεμότητες εμφανίζονται πρώτες. Αν δεν υπάρχει κάρτα, δεν χρειάζεται να ψάχνεις για κρυφή εργασία." />
       {attention.length ? <div className="vendor-command-list">
         {attention.map((item) => <article className={`vendor-command-card${item.urgent ? " is-urgent" : ""}`} key={item.title}>
           <div><strong>{item.title}</strong><small>{item.note}</small></div>
@@ -94,18 +111,18 @@ export default async function VendorBackofficePage() {
       eyebrow="Χώροι εργασίας"
       title="Διαχείριση καταστήματος"
       links={[
-        { kicker: "Orders", label: "Παραγγελίες", description: "Αποδοχή, προετοιμασία, αποστολές, παραλαβές και επιστροφές.", href: "/vendor/orders", value: dashboard.metrics.ordersRequiringAction },
-        { kicker: "Products", label: "Προϊόντα", description: "Κατάλογος, απόθεμα, ορατότητα και έγγραφα.", href: "/vendor/catalog", value: dashboard.metrics.activeProducts },
-        { kicker: "Customers", label: "Πελάτες", description: "Μηνύματα, ραντεβού, Ask Local και προσφορές.", href: "/vendor/advice" },
-        { kicker: "Store", label: "Κατάστημα", description: "Η δημόσια εικόνα και το προφίλ του καταστήματός σου.", href: "/vendor/storefront" },
-        { kicker: "Money", label: "Οικονομικά", description: "Παραστατικά, πληρωμές και εμπορική συμφωνία.", href: "/vendor/finance" },
-        { kicker: "Insights", label: "Στατιστικά", description: "Απόδοση, πωλήσεις και αναφορές.", href: "/vendor/analytics" }
+        { kicker: "Καθημερινά", label: "Παραγγελίες", description: "Αποδοχή, προετοιμασία, αποστολές, παραλαβές και επιστροφές.", href: "/vendor/orders", value: dashboard.metrics.ordersRequiringAction },
+        { kicker: "Κατάλογος", label: "Προϊόντα", description: "Κατάλογος, απόθεμα, εμφάνιση και έγγραφα προϊόντων.", href: "/vendor/catalog", value: dashboard.metrics.activeProducts },
+        { kicker: "Εξυπηρέτηση", label: "Πελάτες", description: "Μηνύματα, ραντεβού, Ask Local και ιδιωτικές προσφορές.", href: "/vendor/advice" },
+        { kicker: "Προφίλ", label: "Κατάστημα", description: "Η δημόσια εικόνα και οι φωτογραφίες του καταστήματός σου.", href: "/vendor/storefront" },
+        { kicker: "Πληρωμές", label: "Οικονομικά", description: "Παραστατικά, πληρωμές και εμπορική συμφωνία.", href: "/vendor/finance" },
+        { kicker: "Απόδοση", label: "Στατιστικά", description: "Πωλήσεις, μετατροπή, απόδοση προϊόντων και αναφορές.", href: "/vendor/analytics" }
       ]}
     />
 
     <section className="shell vendor-section">
       <div className="finance-panel dashboard-finance-panel">
-        <div><div className="eyebrow">Οικονομικά</div><h2>{dashboard.finance.supplierValueSnapshot}</h2><p>Λειτουργικό snapshot αξίας προμηθευτή.</p></div>
+        <div><div className="eyebrow">Οικονομικά</div><h2>{dashboard.finance.supplierValueSnapshot}</h2><p>Τρέχουσα οικονομική εικόνα του καταστήματός σου.</p></div>
         <div className="fairness-note"><strong>Πληρωμές & παραστατικά</strong><p>{dashboard.finance.note}</p><Link className="button button-secondary" href="/vendor/finance">Άνοιγμα οικονομικών</Link></div>
       </div>
     </section>
