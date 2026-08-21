@@ -22,7 +22,7 @@ type ConsentBody = Readonly<{
 }>;
 
 function consentAction(input: { personalisation: boolean; analytics: boolean; marketing: boolean }): ConsentDecisionAction {
-  if (input.personalisation && input.analytics && input.marketing) return "accept_all";
+  if (!input.personalisation && input.analytics && !input.marketing) return "accept_all";
   if (!input.personalisation && !input.analytics && !input.marketing) return "reject_optional";
   return "custom";
 }
@@ -37,8 +37,11 @@ export async function POST(request: Request) {
     if (!raw || typeof raw.personalisation !== "boolean" || typeof raw.analytics !== "boolean" || typeof raw.marketing !== "boolean") {
       return Response.json({ error: "invalid_privacy_consent" }, { status: 400, headers: { "cache-control": "no-store" } });
     }
+    if (raw.personalisation || raw.marketing) {
+      return Response.json({ error: "unsupported_unregistered_consent_category" }, { status: 400, headers: { "cache-control": "no-store" } });
+    }
     const source: ConsentDecisionSource = raw.source === "banner" ? "banner" : "settings";
-    const decision = { personalisation: raw.personalisation, analytics: raw.analytics, marketing: raw.marketing };
+    const decision = { personalisation: false, analytics: raw.analytics, marketing: false };
     const action = consentAction(decision);
     const cookieHeader = request.headers.get("cookie") ?? "";
     const previous = readVerifiedPrivacyConsentReceipt(cookieHeader);
