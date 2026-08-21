@@ -55,7 +55,9 @@ export default async function Page() {
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Privacy access audit · 7d" title="Personal data access" note="Actor, purpose and data classes are retained for accountability. Customer identifiers and raw contact/address values are intentionally not shown in this log." />
       {personalDataEvents.length === 0 ? <WorkspaceEmptyState title="No personal-data access events in the current seven-day window." /> : <div className="workspace-queue-list">{personalDataEvents.map((event) => {
-        const actorUserId = "actorUserId" in event ? event.actorUserId : event.actorId;
+        const postgresActor = "actorUserId" in event ? event.actorUserId : undefined;
+        const memoryActor = "actorId" in event ? event.actorId : undefined;
+        const actorUserId = postgresActor ?? memoryActor;
         return <article className="workspace-queue-card" key={event.id}>
           <div className="workspace-queue-head"><div><strong>{event.type}</strong><small>{new Date(event.occurredAt).toLocaleString("el-GR")} · {event.route ?? "route unavailable"}</small></div><span className="status-pill">{event.severity}</span></div>
           <div className="workspace-compact-list">
