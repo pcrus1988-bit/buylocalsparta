@@ -3,9 +3,11 @@ import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
 import { AdminFinanceTabs } from "../../../components/AdminFinanceTabs";
+import { AdminPayoutDestinationsPanel } from "../../../components/AdminPayoutDestinationsPanel";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminFinanceWorkspace } from "../../../lib/admin-runtime";
 import { adminFinanceOverview } from "../../../lib/admin-finance-overview";
+import { adminPayoutDestinationsWorkspace } from "../../../lib/admin-payout-destinations";
 import { getAdminSession } from "../../../lib/admin-session";
 import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
 
@@ -25,6 +27,7 @@ export default async function Page() {
   } catch {
     redirect("/admin");
   }
+  const payoutWorkspace = overview ? await adminPayoutDestinationsWorkspace(principal).catch(() => undefined) : undefined;
   const orderReferences = await marketplaceReferenceMap("order", data.procurements.map((item) => item.orderId));
 
   const matched = data.procurements.filter((item) => item.status === "matched").length;
@@ -67,11 +70,12 @@ export default async function Page() {
       </section>
 
       <section className="vendor-section section-tint"><div className="shell">
-        <WorkspaceSectionHeading eyebrow="Launch controls" title={`Finance blockers · ${blockerCount}`} note="Αυτά είναι operational control findings, όχι απλά dashboard warnings. Missing procurement, agreement ή payout destination πρέπει να είναι μηδέν πριν χρησιμοποιηθεί η πραγματική settlement ροή." />
+        <WorkspaceSectionHeading eyebrow="Launch controls" title={`Finance blockers · ${blockerCount}`} note="Αυτά είναι operational control findings, όχι απλά dashboard warnings. Missing procurement, agreement, fiscal billing ή payout destination πρέπει να είναι μηδέν πριν χρησιμοποιηθεί η πραγματική settlement ροή." />
         <div className="workspace-queue-list">
           <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Paid/final fulfilments χωρίς vendor accrual</strong><small>Πρέπει να είναι πάντα 0 μετά το event-driven accrual.</small></div><span className="status-pill">{overview.controls.finalPaidFulfilmentsMissingProcurement}</span></div></article>
           <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Active vendors χωρίς συμφωνία σε ισχύ</strong><small>Checkout commission terms δεν πρέπει να προκύπτουν από expired ή future agreement.</small></div><span className="status-pill">{overview.controls.vendorsWithoutEffectiveAgreement}</span></div></article>
           <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Active vendors χωρίς verified payout destination</strong><small>Settlement creation μπλοκάρεται μέχρι να υπάρχει ασφαλής επαληθευμένος προορισμός.</small></div><span className="status-pill">{overview.controls.vendorsWithoutVerifiedPayoutDestination}</span></div></article>
+          <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Payables χωρίς issued commission invoice</strong><small>Το draft δημιουργείται με την payable approval. Πριν το settlement πρέπει να ολοκληρωθεί Prepare → AADE/myDATA → issued στο Vendor Billing.</small></div><span className="status-pill">{overview.controls.payableWithoutIssuedCommissionInvoice}</span></div></article>
           <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Required accounting checks με ανεπαρκές evidence</strong><small>Ένα “ok” δεν θεωρείται audit evidence. Χρειάζεται ουσιαστική τεκμηρίωση της απόφασης.</small></div><span className="status-pill">{overview.controls.weakRequiredAccountingEvidence}</span></div></article>
           <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Open reconciliation</strong><small>Delivery {overview.controls.openDeliveryClearing} · Payments {overview.controls.openPaymentClearing}</small></div><span className="status-pill">{overview.controls.openDeliveryClearing + overview.controls.openPaymentClearing}</span></div></article>
           <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Finance adjustments</strong><small>Pending {overview.controls.pendingVendorAdjustments} · Commission reversals awaiting fiscal credit {overview.controls.pendingCommissionCreditDocuments}</small></div><span className="status-pill">{overview.controls.pendingVendorAdjustments}</span></div></article>
@@ -87,18 +91,23 @@ export default async function Page() {
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Supplier accounting" title="Procurements" note="Το procurement είναι η οφειλή για merchandise προς τον vendor. Η χρέωση KONTA MOY συμψηφίζεται αργότερα μόνο μέσω εκδοθέντος platform invoice." />
+      <WorkspaceSectionHeading eyebrow="Supplier accounting" title="Procurements" note="Το procurement είναι η οφειλή για merchandise προς τον vendor. Η χρέωση KONTA MOY τιμολογείται ξεχωριστά και συμψηφίζεται μόνο μετά από issued platform invoice." />
       {data.procurements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν supplier procurements." body="Paid + final fulfilments θα δημιουργούν αυτόματα accruals. Αν το launch-control counter δείχνει missing procurements, απαιτείται έλεγχος πριν από settlement." /> : <div className="workspace-queue-list">{data.procurements.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.id}</strong><small>Order {orderReferences.get(item.orderId) ?? item.orderId} · Vendor {item.vendorId}</small></div><span className="status-pill">{item.status}</span></div>
-        <div className="workspace-queue-primary"><span>Gross {item.grossLabel}</span><span>Supplier payable {item.payableLabel}</span><span>Invoice {item.invoiceNumber ?? "—"}</span></div>
+        <div className="workspace-queue-primary"><span>Gross {item.grossLabel}</span><span>Supplier payable {item.payableLabel}</span><span>Vendor invoice {item.invoiceNumber ?? "—"}</span></div>
         <WorkspaceRecordDetails label="Accounting references"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Procurement</strong><span>{item.id}</span></div><div className="workspace-compact-row"><strong>Order</strong><span>{orderReferences.get(item.orderId) ?? item.orderId}</span></div></div></WorkspaceRecordDetails>
-        <div className="workspace-action-bar"><span>State: <strong>{item.status}</strong></span><div className="workspace-action-buttons">{item.status === "matched" && <AdminActionButton label="Approve payable" endpoint="/api/admin/finance/procurement" csrfToken={data.csrfToken} body={{ procurementId: item.id }} />}</div></div>
+        <div className="workspace-action-bar"><span>State: <strong>{item.status}</strong></span><div className="workspace-action-buttons">{item.status === "matched" && <AdminActionButton label="Approve payable + draft KONTA MOY fee" endpoint="/api/admin/finance/procurement" csrfToken={data.csrfToken} body={{ procurementId: item.id }} />}</div></div>
       </article>)}</div>}
     </section>
 
-    <section className="vendor-section section-tint"><div className="shell">
+    {payoutWorkspace && <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Payout master data" title="Vendor payout destinations" note="Maker/checker, tokenized references και immutable verified στοιχεία. Το settlement παγώνει snapshot του verified destination που ίσχυε κατά τη δημιουργία του." />
+      <AdminPayoutDestinationsPanel initial={payoutWorkspace} csrfToken={data.csrfToken} />
+    </div></section>}
+
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Settlement" title="Settlement batches" note="Η δημιουργία settlement απαιτεί issued commission invoice και verified payout destination. Ο maker δεν μπορεί να εγκρίνει το ίδιο payout." action={payable > 0 ? <AdminActionButton label={`Create batch · ${payable}`} endpoint="/api/admin/finance/settlement" csrfToken={data.csrfToken} body={{ kind: "create", procurementIds: data.procurements.filter((item) => item.status === "payable").map((item) => item.id) }} /> : undefined} />
-      {data.settlements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν settlement batches." body={payable ? "Υπάρχουν payable procurements. Το settlement θα δημιουργηθεί μόνο αν έχουν ολοκληρωθεί οι finance prerequisites." : "Όταν εγκριθούν payables, μπορεί να δημιουργηθεί settlement batch."} /> : <div className="workspace-queue-list">{data.settlements.map((batch) => <article className="workspace-queue-card" key={batch.id}>
+      {data.settlements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν settlement batches." body={payable ? "Υπάρχουν payable procurements. Το settlement θα δημιουργηθεί μόνο αν έχουν ολοκληρωθεί fiscal billing, payout destination και finance prerequisites." : "Όταν εγκριθούν payables, μπορεί να δημιουργηθεί settlement batch."} /> : <div className="workspace-queue-list">{data.settlements.map((batch) => <article className="workspace-queue-card" key={batch.id}>
         <div className="workspace-queue-head"><div><strong>{batch.batchNumber}</strong><small>{batch.lines.length} lines · Maker {batch.createdBy}</small></div><span className="status-pill">{batch.status}</span></div>
         <div className="workspace-queue-primary"><span>Final payout {batch.totalPayableLabel}</span><span>{batch.lines.length} procurements</span></div>
         <WorkspaceRecordDetails label="Batch details"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Batch ID</strong><span>{batch.id}</span></div><div className="workspace-compact-row"><strong>Maker</strong><span>{batch.createdBy}</span></div></div></WorkspaceRecordDetails>
@@ -108,6 +117,6 @@ export default async function Page() {
           {batch.status === "approved" && <AdminActionButton label="Record payout" endpoint="/api/admin/finance/settlement" csrfToken={data.csrfToken} body={{ kind: "pay", batchId: batch.id }} extraPrompt={{ field: "payoutReference", message: "External bank / PSP payout reference" }} />}
         </div></div>
       </article>)}</div>}
-    </div></section>
+    </section>
   </main>;
 }
