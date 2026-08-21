@@ -14,6 +14,7 @@ import "./dashboard-luxury.css";
 import "./workspace-pages.css";
 import "./workspace-metrics-polish.css";
 import "./typography-readability.css";
+import "./customer-account-ux.css";
 import "./vendor-information-architecture.css";
 import "./vendor-lifecycle.css";
 import "./vendor-login.css";
