@@ -17,3 +17,10 @@ jobs:
         run: npm audit --json || true
       - name: Capture installed dependency tree
         run: npm ls --all || true
+      - name: Export generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-lockfile
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
