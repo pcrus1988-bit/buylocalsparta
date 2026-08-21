@@ -84,7 +84,7 @@ export function AccountNotificationsClient({ initial, csrfToken }: { initial: re
   return <section className="shell customer-account-page">
     <div className="customer-page-heading"><div><div className="eyebrow">Ενημερώσεις</div><h1>Ειδοποιήσεις</h1></div><div><strong>{unread} νέες</strong>{unread > 0 && <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void markAllRead()}>{busy === "all" ? "Ενημέρωση…" : "Όλα ως αναγνωσμένα"}</button>}</div></div>
     <CustomerHowItWorks><p>Οι ειδοποιήσεις συγκεντρώνουν αλλαγές από παραγγελίες, Ask Local, επιστροφές και τον λογαριασμό σου. Μπορείς να φιλτράρεις τις ενημερώσεις, να σημειώσεις μία ως αναγνωσμένη ή να την αρχειοθετήσεις όταν δεν τη χρειάζεσαι πια. Οι διαθέσιμες ενέργειες προκύπτουν από το ασφαλές πλαίσιο της ειδοποίησης, όχι από το κείμενό της.</p></CustomerHowItWorks>
-    <div className="customer-filter-tabs" aria-label="Φίλτρα ειδοποιήσεων">{filters.map((item) => <button type="button" className={filter === item.key ? "is-active" : undefined} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)} key={item.key}>{item.label}</button>)}</div>
+    <div className="customer-filter-tabs customer-notification-filters" aria-label="Φίλτρα ειδοποιήσεων">{filters.map((item) => <button type="button" className={filter === item.key ? "is-active" : undefined} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)} key={item.key}>{item.label}</button>)}</div>
     {error && <p className="account-action-error" role="alert">{error}</p>}
     <div className="customer-account-panel" style={{marginTop:14}}>
       {visible.length ? <div className="customer-notification-list">{visible.map((item) => {
@@ -92,7 +92,7 @@ export function AccountNotificationsClient({ initial, csrfToken }: { initial: re
         return <article className={`customer-notification-item${item.readAt ? " is-read" : ""}`} key={item.id}>
           <span className="customer-notification-dot" aria-hidden="true" />
           <div className="customer-notification-copy"><strong>{item.title}</strong><span>{item.body}</span><small>{date(item.createdAt)}{item.readAt ? " · διαβάστηκε" : " · νέο"}</small></div>
-          <div className="hero-actions">
+          <div className="customer-notification-actions">
             {action && <Link className={action.priority === "primary" ? "button" : "text-link"} href={action.href}>{action.label}{action.priority === "secondary" ? " →" : ""}</Link>}
             {!item.readAt && <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void updateItem(item, "read")}>{busy === `read:${item.id}` ? "Ενημέρωση…" : "Αναγνωσμένο"}</button>}
             <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void updateItem(item, "archive")}>{busy === `archive:${item.id}` ? "Αρχειοθέτηση…" : "Αρχειοθέτηση"}</button>
