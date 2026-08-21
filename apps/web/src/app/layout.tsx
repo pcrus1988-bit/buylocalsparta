@@ -18,6 +18,7 @@ import "./customer-account-ux.css";
 import "./ask-local-clarifications.css";
 import "./customer-profile-security.css";
 import "./customer-support.css";
+import "./customer-returns-lifecycle.css";
 import "./vendor-information-architecture.css";
 import "./vendor-lifecycle.css";
 import "./vendor-login.css";
