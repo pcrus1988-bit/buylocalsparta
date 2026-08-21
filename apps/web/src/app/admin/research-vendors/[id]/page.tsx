@@ -70,7 +70,7 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
 
   if (!data.databaseConfigured || !data.vendor) {
     return <main className="vendor-app admin-app">
-      <AdminWorkspaceHeader csrfToken={data.csrfToken} />
+      <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="Vendor dossier" />
       <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Research dossier unavailable</div><h1>Vendor dossier</h1><p className="lead">The production database is not configured, so no fallback dossier is generated.</p></div></section>
       <section className="shell vendor-section"><WorkspaceEmptyState title="Production research data is unavailable." body="Research records remain database-backed and are never replaced with demo vendor data." action={<Link className="button button-secondary" href="/admin/research-vendors">← Research vendors</Link>} /></section>
     </main>;
@@ -84,7 +84,7 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
   const commerceSignals = [vendor.recommendedCommerceMode, vendor.onlineShopActive, vendor.storefrontStatus].filter(Boolean);
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={data.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel={vendor.tradingName} />
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
