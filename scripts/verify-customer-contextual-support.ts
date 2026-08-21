@@ -46,13 +46,14 @@ for (const contract of [
   'route: "customer-support-reply"',
   "WHERE customer_user_id=$1::uuid",
   "AND e.customer_visible=true",
-  "customer_user_id=$1::uuid AND (public_id=$2 OR order_number=$2)",
+  "user_id=$1::uuid AND (public_id=$2 OR order_number=$2)",
   "customer_user_id=$1::uuid AND (public_id=$2 OR reference_number=$2)",
   "customer_user_id=$1::uuid AND (public_id=$2 OR return_number=$2)",
   "user_id=$1::uuid AND (public_id=$2 OR reference_number=$2)",
   "id: referenceNumber",
   "messages: messages.get(internalCaseId) ?? []"
 ]) expect(customerRuntime.includes(contract), `Customer support runtime is missing ${contract}`);
+expect(!customerRuntime.includes("FROM customer_orders WHERE customer_user_id=$1::uuid"), "Order contextual support must use customer_orders.user_id; customer_user_id does not exist on the live order table");
 
 const messageProjection = customerRuntime.match(/export type CustomerSupportMessageView = Readonly<\{([\s\S]*?)\}>;/)?.[1] ?? "";
 expect(Boolean(messageProjection), "Customer support message projection could not be inspected");
