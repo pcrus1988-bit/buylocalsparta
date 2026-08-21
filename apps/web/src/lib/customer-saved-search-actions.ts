@@ -68,12 +68,12 @@ export async function updateCustomerSavedSearch(
   const now = input.now ?? Date.now();
   const name = normalizedName(input.name);
   const query = normalizeSavedSearchQuery(input.query);
-  const currentCanonicalVariantIds = await currentMatches(query);
 
   if (customerStateBackend() === "memory") {
     const runtime = getAccountRuntime();
     const current = runtime.savedSearches.get(searchId);
     if (!current || current.userId !== principal.userId) throw new Error("Η αποθηκευμένη αναζήτηση δεν βρέθηκε.");
+    const currentCanonicalVariantIds = await currentMatches(query);
     return runtime.savedSearches.update({
       searchId,
       userId: principal.userId,
@@ -89,6 +89,7 @@ export async function updateCustomerSavedSearch(
   const searches = await runtime.persistence.engagement.listSavedSearches({ scope, userId: principal.userId });
   const current = searches.find((item) => item.id === searchId);
   if (!current) throw new Error("Η αποθηκευμένη αναζήτηση δεν βρέθηκε.");
+  const currentCanonicalVariantIds = await currentMatches(query);
   const baseline = [...new Set(currentCanonicalVariantIds)].slice(0, 500);
   const next: SavedSearch = {
     ...current,
