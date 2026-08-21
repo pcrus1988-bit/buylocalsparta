@@ -54,7 +54,7 @@ export default async function Page({ params }: Props) {
   const openReturns = orderReturns.filter((item) => !["rejected", "refunded", "closed"].includes(item.status)).length;
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={data.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel={reference} />
     <section className="shell vendor-hero dashboard-hero-refined admin-order-record-hero">
       <div>
         <Link className="text-link" href="/admin/orders">← Order directory</Link>
