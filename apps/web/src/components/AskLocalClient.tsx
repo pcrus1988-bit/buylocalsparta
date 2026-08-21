@@ -115,6 +115,7 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
             {offer.status === "converted" && <div className="customer-private-offer-result"><strong>Έγινε παραγγελία</strong><span>Η ειδική τιμή έχει ήδη δεσμευτεί σε παραγγελία.</span><Link className="text-link" href="/account/orders">Δες τις παραγγελίες →</Link></div>}
           </div>;
         })}</div>}
+        <div className="customer-context-actions"><Link className="text-link" href={`/account/support?context=ask_local&id=${encodeURIComponent(request.referenceNumber)}&label=${encodeURIComponent(`Ask Local ${request.referenceNumber}`)}&subject=${encodeURIComponent(`Βοήθεια με το Ask Local ${request.referenceNumber}`)}`}>Χρειάζομαι βοήθεια με αυτό το αίτημα →</Link></div>
         <CustomerHowItWorks title="Τι σημαίνει η τρέχουσα κατάσταση;"><p>Η πορεία δείχνει τι ολοκληρώθηκε και ποιος έχει το επόμενο βήμα. Πορτοκαλί σημαίνει ότι το αίτημα έχει φτάσει σε σημείο όπου χρειάζεται δική σου απόφαση ή πληροφορία. Όταν απαντάς σε διευκρίνιση, το αίτημα επιστρέφει αυτόματα στο κατάστημα με νέα προθεσμία.</p></CustomerHowItWorks>
       </article>)}</div> : <div className="empty-state"><h2>Δεν έχεις ακόμη Ask Local αιτήματα.</h2><p>Το πρώτο σου αίτημα θα εμφανιστεί εδώ με την ιδιωτική του κατάσταση.</p></div>}
     </section>
