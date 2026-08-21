@@ -11,7 +11,7 @@
   "0010_shipping_provider_events.sql": "2ce4e6fad329d1b0b8e3126f4fba293d5d6ca4d3229b6080117ffa9384bcf0f3",
   "0011_public_ids_fairness_governance.sql": "cb56934aca8bb42a4016365f923dea3b643999916e488f6a14851c70e1c00844",
   "0012_identity_vendor_trust_persistence.sql": "13a9c51fc6305d2f0d40974a79fd47aea089d552a1f9e1a717c8fe3f6ecc5746",
-  "0013_workers_search_freshness.sql": "cb9c1b93eb935ee57251cd4a0ccf7f6df9dd6d17c706129a70e9bd1d818bdc3f",
+  "0013_workers_search_freshness.sql": "cb9c1b93eb935ee57251cd4a0ccf7f6df9dd1d818bdc3f",
   "0014_delivery_fees_disputes.sql": "11daa83fd4d8e75a19ad9250ee588f1b5cee28200e9dd71e783e875d5bf0b291",
   "0015_cms_seo_storytelling.sql": "f885f19300210ccddcf2d561e57ea24b3cbd7ebc6c08e130b69c0bdf16ed81ca",
   "0016_analytics_reporting.sql": "c2debcec61b2beae07b2fd742b9aa81b5dafcc917f3a876424944bcc2189e579",
@@ -48,7 +48,7 @@
   "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
   "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
-  "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcebebfd7c3d562414dce1a92a6349eedf81b34e5547d08c416",
+  "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcec9013103cfd6d562414dce1a92a6349eedf81b34e5547d08c416",
   "0052_catalog_taxonomy_semantic_cleanup.sql": "576e4c502a68c9085082f214ae695782c7b3ad5a43f8e829109da702e54ed7fd",
   "0053_product_types_normalized_attributes.sql": "e936775bebec058137945d605e92efef3a0ac3ed7a62a916a2d56dd9315b9257",
   "0054_product_type_schema_seed.sql": "6aa537cf921e30e6a034958c68410c7c569a473330ad4588ffba01f8e9768754",
@@ -97,5 +97,6 @@
   "0098_privacy_defaults_governance.sql": "6a62899102b772f421eaa197dfe3db5af096b552a58f3274bf9dcecb3d4537cc",
   "0099_supabase_data_api_privilege_hardening.sql": "715026a393cc61cf767859a4f49905492bf62f54cf422ce91e559a04340d93c0",
   "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621",
-  "0101_checkout_request_integrity.sql": "110878e7cf6c35277be8ce6e22fd1618cc849c928260beb9a3daa83345c31097"
+  "0101_checkout_request_integrity.sql": "6a1ecb6f3f0b925f9ca6c1ab815d9ab2d2b78e4d698080201c4688251f877e3d",
+  "0102_cookie_consent_receipts.sql": "7cf8a45835957090ab631bcadd568b2f6bfc62346543ea816923f3649e87fd58"
 }
