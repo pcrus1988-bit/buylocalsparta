@@ -22,6 +22,24 @@ type StoredConsent = Readonly<{
   t: string;
 }>;
 
+function preferencesFromStored(parsed: Partial<StoredConsent>): PrivacyConsentPreferences | undefined {
+  if (
+    parsed.v !== PRIVACY_CONSENT_VERSION ||
+    typeof parsed.p !== "boolean" ||
+    typeof parsed.a !== "boolean" ||
+    typeof parsed.m !== "boolean" ||
+    typeof parsed.t !== "string" ||
+    !Number.isFinite(Date.parse(parsed.t))
+  ) return undefined;
+  return {
+    version: parsed.v,
+    personalisation: parsed.p,
+    analytics: parsed.a,
+    marketing: parsed.m,
+    decidedAt: parsed.t
+  };
+}
+
 export function encodePrivacyConsent(preferences: PrivacyConsentPreferences): string {
   const stored: StoredConsent = {
     v: preferences.version,
@@ -30,31 +48,34 @@ export function encodePrivacyConsent(preferences: PrivacyConsentPreferences): st
     m: preferences.marketing,
     t: preferences.decidedAt
   };
-  return encodeURIComponent(JSON.stringify(stored));
+  // ResponseCookies performs the cookie-safe encoding. Pre-encoding here causes
+  // the browser-visible value to be double encoded and unreadable after reload.
+  return JSON.stringify(stored);
 }
 
 export function decodePrivacyConsent(value: string | undefined): PrivacyConsentPreferences | undefined {
   if (!value) return undefined;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(value)) as Partial<StoredConsent>;
-    if (
-      parsed.v !== PRIVACY_CONSENT_VERSION ||
-      typeof parsed.p !== "boolean" ||
-      typeof parsed.a !== "boolean" ||
-      typeof parsed.m !== "boolean" ||
-      typeof parsed.t !== "string" ||
-      !Number.isFinite(Date.parse(parsed.t))
-    ) return undefined;
-    return {
-      version: parsed.v,
-      personalisation: parsed.p,
-      analytics: parsed.a,
-      marketing: parsed.m,
-      decidedAt: parsed.t
-    };
-  } catch {
-    return undefined;
+
+  // Accept the canonical value plus once- and twice-percent-encoded legacy
+  // values so visitors who already made a choice do not need to consent again.
+  let candidate = value;
+  for (let depth = 0; depth < 3; depth += 1) {
+    try {
+      const parsed = JSON.parse(candidate) as Partial<StoredConsent>;
+      return preferencesFromStored(parsed);
+    } catch {
+      // The browser cookie may still be percent encoded by the cookie serializer.
+    }
+
+    try {
+      const decoded = decodeURIComponent(candidate);
+      if (decoded === candidate) return undefined;
+      candidate = decoded;
+    } catch {
+      return undefined;
+    }
   }
+  return undefined;
 }
 
 export function cookieValue(cookieString: string, name: string): string | undefined {
