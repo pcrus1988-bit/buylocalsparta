@@ -34,6 +34,8 @@ expect(files.consentServer, "parsed.e <= now", "expired signed consent receipt i
 
 expect(files.consentApi, "PRIVACY_CONSENT_MAX_AGE_SECONDS", "versioned consent cookie persisted");
 expect(files.consentApi, "cross_origin_consent_update_denied", "consent preference write is same-origin protected");
+expect(files.consentApi, "unsupported_unregistered_consent_category", "server refuses broad consent for technologies not currently registered");
+expect(files.consentApi, "const decision = { personalisation: false, analytics: raw.analytics, marketing: false }", "server limits optional consent to current first-party analytics");
 expect(files.consentApi, "persistPrivacyConsentReceipt", "consent decisions have pseudonymous evidence");
 expect(files.consentApi, "signPrivacyConsentReceipt", "server issues a signed consent receipt");
 expect(files.consentApi, "PRIVACY_CONSENT_RECEIPT_COOKIE", "signed consent receipt is persisted separately from UI state");
@@ -55,8 +57,11 @@ expect(files.analyticsClient, "hasAnalyticsConsent(document.cookie)", "browser a
 expect(files.analyticsApi, "hasVerifiedAnalyticsConsent(cookieHeader)", "server analytics requires tamper-resistant consent");
 expect(files.analyticsApi, "const analyticsHash", "analytics uses separate pseudonymous identity");
 expect(files.analyticsApi, "const marketplaceHash", "fairness attribution keeps essential identity separate");
+expect(files.consentUi, 'const OPTIONAL_ON: DraftConsent = { personalisation: false, analytics: true, marketing: false }', "accept-all cannot grant consent to inactive future technologies");
 expect(files.consentUi, 'persist(OPTIONAL_ON, "banner")', "accept-all banner choice records banner source");
 expect(files.consentUi, 'persist(OPTIONAL_OFF, "banner")', "reject-optional banner choice records banner source");
+expect(files.consentUi, 'checked={false} disabled aria-label="Marketing trackers, δεν χρησιμοποιούνται"', "inactive marketing consent cannot be toggled");
+expect(files.consentUi, 'checked={false} disabled aria-label="Browser προσωποποίηση, δεν χρησιμοποιείται"', "unregistered browser personalization cannot be toggled");
 expect(files.consentUi, "Αποδοχή όλων", "accept-all choice available");
 expect(files.consentUi, "Απόρριψη προαιρετικών", "reject-optional choice available");
 expect(files.consentUi, "Ρυθμίσεις", "granular settings choice available");
@@ -65,6 +70,7 @@ expect(files.footer, "CookieSettingsButton", "footer consent withdrawal/settings
 expect(files.legalTransparency, "TRACKER_REGISTRY", "non-cookie tracking has a published registry");
 expect(files.legalTransparency, 'name: "bls_consent_receipt"', "signed consent receipt is disclosed in cookie registry");
 expect(files.cookiesPage, "Μητρώο trackers και event capture", "cookie policy exposes tracking technologies, not only cookies");
+expect(files.cookiesPage, "Δεν συλλέγουμε γενική συγκατάθεση", "cookie policy explicitly rejects generic future marketing consent");
 
 const blockedTrackerMarkers = [
   "googletagmanager.com",
@@ -89,7 +95,7 @@ if (failures.length) {
   console.error("Privacy consent checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Privacy consent, signed receipt, withdrawal and tracker-registry checks passed.");
+console.log("Privacy consent, signed receipt, specific scope, withdrawal and tracker-registry checks passed.");
 
 function read(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
