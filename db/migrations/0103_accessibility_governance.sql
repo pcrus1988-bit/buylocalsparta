@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE TABLE accessibility_criteria (
   criterion_id text PRIMARY KEY
-    CONSTRAINT accessibility_criteria_id_check CHECK (criterion_id ~ '^[1-4]\\.[1-9]\\.[0-9]{1,2}$'),
+    CONSTRAINT accessibility_criteria_id_check CHECK (criterion_id ~ '^[1-4][.][1-9][.][0-9]{1,2}$'),
   wcag_version text NOT NULL DEFAULT '2.2'
     CONSTRAINT accessibility_criteria_version_check CHECK (wcag_version = '2.2'),
   level text NOT NULL
