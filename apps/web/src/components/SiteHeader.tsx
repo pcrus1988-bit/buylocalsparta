@@ -14,6 +14,47 @@ function navigationActive(pathname: string, href: string): boolean {
   return pathname === href;
 }
 
+function AccountIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flex: "0 0 auto" }}
+    >
+      <circle cx="12" cy="7" r="4" />
+      <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+    </svg>
+  );
+}
+
+function CartIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flex: "0 0 auto" }}
+    >
+      <path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 7H6" />
+      <circle cx="9.5" cy="20" r="1" />
+      <circle cx="18" cy="20" r="1" />
+    </svg>
+  );
+}
+
 export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { count } = useCart();
   const pathname = usePathname();
@@ -60,8 +101,22 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
       </nav>
 
       <div className="header-actions">
-        <Link className={`icon-button header-icon-link${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός">◎</Link>
-        <Link className={`cart-button${pathname === "/cart" ? " is-active" : ""}`} href="/cart">Καλάθι <span>{count}</span></Link>
+        <Link
+          className={`cart-button account-button${pathname.startsWith("/account") ? " is-active" : ""}`}
+          href="/account"
+          aria-label="Λογαριασμός"
+        >
+          <AccountIcon />
+          Λογαριασμός
+        </Link>
+        <Link
+          className={`cart-button${pathname === "/cart" ? " is-active" : ""}`}
+          href="/cart"
+          aria-label={`Καλάθι, ${count} προϊόντα`}
+        >
+          <CartIcon />
+          Καλάθι <span aria-hidden="true">{count}</span>
+        </Link>
       </div>
     </header>
   );
