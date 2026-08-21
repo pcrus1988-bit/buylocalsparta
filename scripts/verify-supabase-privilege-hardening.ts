@@ -6,6 +6,8 @@ const failures: string[] = [];
 const requiredContracts = [
   "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated, service_role",
   "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, service_role",
+  "REVOKE USAGE ON SCHEMA public FROM PUBLIC, anon, authenticated, service_role",
+  "GRANT USAGE ON SCHEMA public TO bls_app_runtime, bls_platform_runtime",
   "REVOKE USAGE ON SCHEMA bls_private FROM anon, authenticated, service_role",
   "REVOKE EXECUTE ON FUNCTION public.run_fiscal_reconciliation_cron()",
   "FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime",
@@ -44,4 +46,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Supabase privilege hardening checks passed: Data API roles are revoked, privileged RPCs are closed, trusted server roles remain explicit, and no customer data is rewritten.");
+console.log("Supabase privilege hardening checks passed: Data API roles are denied public/bls_private schema access, privileged RPCs are closed, trusted server roles remain explicit, and no customer data is rewritten.");
