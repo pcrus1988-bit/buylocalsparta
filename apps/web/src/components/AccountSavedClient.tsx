@@ -13,7 +13,7 @@ type SavedSearch = Readonly<{
   lastObservedCount: number;
   query: Readonly<{ q: string; categoryCode?: string; availability?: "any" | "in_stock" | "pickup_today" }>;
 }>;
-type SearchDraft = { name: string; q: string; categoryCode: string; availability: "any" | "in_stock" | "pickup_today" };
+type SearchDraft = { name: string; q: string; categoryCode: string; availability: "any" | "in_stock" };
 
 function categorySlug(categoryCode?: string): string {
   if (!categoryCode) return "";
@@ -35,7 +35,7 @@ function searchSummary(search: SavedSearch): string {
   const parts = [
     search.query.q ? `«${search.query.q}»` : undefined,
     category?.label,
-    search.query.availability === "pickup_today" ? "παραλαβή σήμερα" : search.query.availability === "in_stock" ? "σε απόθεμα" : undefined
+    search.query.availability === "in_stock" || search.query.availability === "pickup_today" ? "διαθέσιμο τώρα" : undefined
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Όλη η τοπική αγορά";
 }
@@ -45,7 +45,7 @@ function draftFor(search: SavedSearch): SearchDraft {
     name: search.name,
     q: search.query.q,
     categoryCode: categorySlug(search.query.categoryCode),
-    availability: search.query.availability ?? "any"
+    availability: search.query.availability === "in_stock" || search.query.availability === "pickup_today" ? "in_stock" : "any"
   };
 }
 
@@ -181,7 +181,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
             <label><span>Όνομα αναζήτησης</span><input value={draft.name} maxLength={100} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
             <label><span>Τι ψάχνεις;</span><input value={draft.q} maxLength={160} placeholder="π.χ. ακουστικά, φόρεμα, φωτιστικό" onChange={(event) => setDraft({ ...draft, q: event.target.value })} /></label>
             <label><span>Κατηγορία</span><select value={draft.categoryCode} onChange={(event) => setDraft({ ...draft, categoryCode: event.target.value })}><option value="">Όλες οι κατηγορίες</option>{STOREFRONT_CATEGORIES.map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
-            <label><span>Διαθεσιμότητα</span><select value={draft.availability} onChange={(event) => setDraft({ ...draft, availability: event.target.value as SearchDraft["availability"] })}><option value="any">Οποιαδήποτε</option><option value="in_stock">Σε απόθεμα</option><option value="pickup_today">Παραλαβή σήμερα</option></select></label>
+            <label><span>Διαθεσιμότητα</span><select value={draft.availability} onChange={(event) => setDraft({ ...draft, availability: event.target.value as SearchDraft["availability"] })}><option value="any">Οποιαδήποτε</option><option value="in_stock">Διαθέσιμο τώρα</option></select></label>
             <div className="customer-saved-search-editor-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void saveSearch(search)}>{busy === `search-edit:${search.id}` ? "Αποθήκευση…" : "Αποθήκευση αλλαγών"}</button><button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={cancelEdit}>Άκυρο</button></div>
           </div> : <div className="customer-saved-search-actions">
             <Link className="text-link" href={searchHref(search)}>Αποτελέσματα →</Link>
