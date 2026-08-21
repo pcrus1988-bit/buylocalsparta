@@ -17,6 +17,9 @@ function requireCustomer(principal: SessionPrincipal): void {
 }
 
 export function customerEmailChangeReadiness(): { ready: boolean; message: string } {
+  if (!productionDatabaseConfigured()) {
+    return { ready: false, message: "Η αλλαγή email απαιτεί την ασφαλή υπηρεσία λογαριασμών PostgreSQL." };
+  }
   if (process.env.NODE_ENV !== "production") {
     return { ready: true, message: process.env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? "Email change delivery enabled" : "Development email-change link enabled" };
   }
@@ -214,7 +217,7 @@ export async function confirmCustomerEmailChange(input: { token: string; now?: n
   }
 
   if (oldEmail && oldEmail.toLowerCase() !== newEmail.toLowerCase()) {
-    void sendPreviousEmailSecurityNotice({ userId, oldEmail, newEmail, tokenHash: hashedToken, now: nowMs }).catch((error) => {
+    await sendPreviousEmailSecurityNotice({ userId, oldEmail, newEmail, tokenHash: hashedToken, now: nowMs }).catch((error) => {
       console.error(JSON.stringify({ level: "error", event: "account.email_change_previous_address_notice_failed", userId, message: error instanceof Error ? error.message : String(error) }));
     });
   }
