@@ -203,7 +203,7 @@ function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
   const baseUrl=env.BOXNOW_API_URL?.trim(); const clientId=env.BOXNOW_CLIENT_ID?.trim(); const clientSecret=env.BOXNOW_CLIENT_SECRET?.trim();
   if(!baseUrl||!clientId||!clientSecret) throw new Error("BOXNOW_API_URL, BOXNOW_CLIENT_ID and BOXNOW_CLIENT_SECRET are required when BLS_BOXNOW_ENABLED=true");
   const webhookSecret=env.BOXNOW_WEBHOOK_SECRET?.trim(); if(!webhookSecret || webhookSecret.length<16) throw new Error("BOXNOW_WEBHOOK_SECRET must be configured when BLS_BOXNOW_ENABLED=true");
-  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BLS_BOXNOW_REQUEST_TIMEOUT_MS") };
+  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BOXNOW_REQUEST_TIMEOUT_MS") };
 }
 
 function vivaConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): VivaConfig {
