@@ -112,6 +112,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/reset-password",
   "/join/apply",
   "/account",
+  "/account/privacy",
   "/account/orders/[id]",
   "/daily",
   "/daily/ask-local",
