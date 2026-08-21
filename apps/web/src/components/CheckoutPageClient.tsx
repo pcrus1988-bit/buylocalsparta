@@ -85,7 +85,19 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const [addressError, setAddressError] = useState("");
 
   const effectiveDeliveryAddressId = sameAsBilling ? billingAddressId : deliveryAddressId;
-  const checkoutFingerprint = useMemo(() => `${items.map((item) => `${item.canonicalVariantId}:${item.quantity}`).sort().join("|")}::${postcode}::${fulfilmentMode}::${boxNowLocker?.id ?? ""}::${billingAddressId}::${effectiveDeliveryAddressId}::${recipientName}::${recipientEmail}::${recipientPhone}`, [items, postcode, fulfilmentMode, boxNowLocker?.id, billingAddressId, effectiveDeliveryAddressId, recipientName, recipientEmail, recipientPhone]);
+  const needsDeliveryAddress = fulfilmentMode === "local_delivery";
+  const needsBoxNowRecipient = fulfilmentMode === "shipping";
+  const checkoutFingerprint = useMemo(() => JSON.stringify({
+    items: items.map((item) => `${item.canonicalVariantId}:${item.quantity}`).sort(),
+    fulfilmentMode,
+    billingAddressId,
+    deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : null,
+    boxNowLockerId: needsBoxNowRecipient ? boxNowLocker?.id ?? null : null,
+    boxNowLockerPostcode: needsBoxNowRecipient ? boxNowLocker?.postcode ?? null : null,
+    recipientName: needsBoxNowRecipient ? recipientName : null,
+    recipientEmail: needsBoxNowRecipient ? recipientEmail : null,
+    recipientPhone: needsBoxNowRecipient ? recipientPhone : null
+  }), [items, fulfilmentMode, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker?.id, boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone]);
 
   useEffect(() => {
     if (!checkoutEnabled) return;
@@ -111,10 +123,13 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         setBillingAddressId(billing?.id ?? "");
         setDeliveryAddressId(delivery?.id ?? "");
         setSameAsBilling(Boolean(billing && delivery && billing.id === delivery.id));
-        if (delivery) {
-          setPostcode(delivery.postcode);
-          setRecipientName(delivery.fullName || nextProfile.fullName);
-          setRecipientPhone(delivery.phone ?? "");
+        const contactSource = delivery ?? billing;
+        if (billing) setPostcode(billing.postcode);
+        if (contactSource) {
+          setRecipientName(contactSource.fullName || nextProfile.fullName);
+          setRecipientPhone(contactSource.phone ?? "");
+        } else {
+          setRecipientName(nextProfile.fullName);
         }
         setDraft(blankAddress(nextProfile.fullName));
         setEditorOpen(nextProfile.addresses.length === 0);
@@ -127,12 +142,10 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   }, [checkoutEnabled]);
 
   useEffect(() => {
-    const address = profile?.addresses.find((item) => item.id === effectiveDeliveryAddressId);
-    if (!address) return;
-    setPostcode(address.postcode);
-    setRecipientName(address.fullName || profile?.fullName || "");
-    setRecipientPhone(address.phone ?? "");
-  }, [profile, effectiveDeliveryAddressId]);
+    const addressId = needsDeliveryAddress ? effectiveDeliveryAddressId : billingAddressId;
+    const address = profile?.addresses.find((item) => item.id === addressId);
+    if (address) setPostcode(address.postcode);
+  }, [profile, billingAddressId, effectiveDeliveryAddressId, needsDeliveryAddress]);
 
   useEffect(() => {
     if (!checkoutEnabled || !hydrated || items.length === 0) return;
@@ -214,12 +227,13 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!checkoutKey || accountState !== "authenticated" || !billingAddressId || !effectiveDeliveryAddressId) return;
+    if (!checkoutKey || accountState !== "authenticated" || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId)) return;
+    if (needsBoxNowRecipient && (!boxNowLocker || !recipientName.trim() || !recipientEmail.trim() || !recipientPhone.trim())) return;
     setBusy(true); setResult(null);
     try {
       const headers = new Headers({ "content-type": "application/json", "x-csrf-token": csrfToken });
-      const shipping = fulfilmentMode === "shipping" ? { provider: boxNowLocker ? "boxnow" : undefined, providerDestinationId: boxNowLocker?.id, providerDestinationLabel: boxNowLocker ? `${boxNowLocker.address} · ${boxNowLocker.postcode}` : undefined, recipientName, recipientEmail, recipientPhone } : undefined;
-      const response = await fetch("/api/checkout", { method: "POST", headers, body: JSON.stringify({ checkoutKey, postcode, fulfilmentMode, billingAddressId, deliveryAddressId: effectiveDeliveryAddressId, shipping, items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) }) });
+      const shipping = fulfilmentMode === "shipping" ? { provider: boxNowLocker ? "boxnow" : undefined, providerDestinationId: boxNowLocker?.id, providerDestinationLabel: boxNowLocker ? `${boxNowLocker.address} · ${boxNowLocker.postcode}` : undefined, providerDestinationPostcode: boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone } : undefined;
+      const response = await fetch("/api/checkout", { method: "POST", headers, body: JSON.stringify({ checkoutKey, postcode, fulfilmentMode, billingAddressId, deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : undefined, shipping, items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) }) });
       const body = await response.json() as { id?: string; orderId?: string; error?: string; total?: { minor?: number; currency?: string }; payment?: { provider?: string; redirectUrl?: string; orderCode?: string; amountMinor?: number } };
       if (!response.ok) throw new Error(body.error ?? "Το checkout δεν ολοκληρώθηκε.");
       const orderId = body.id ?? body.orderId ?? "created";
@@ -241,16 +255,17 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   if (boxNowEnabled) fulfilmentOptions.push(["shipping", "BOX NOW locker", "Παραλαβή από επιλεγμένο locker"]);
 
   const billingAddress = profile?.addresses.find((address) => address.id === billingAddressId);
-  const deliveryAddress = profile?.addresses.find((address) => address.id === effectiveDeliveryAddressId);
+  const deliveryAddress = needsDeliveryAddress ? profile?.addresses.find((address) => address.id === effectiveDeliveryAddressId) : undefined;
+  const submitBlocked = busy || !checkoutKey || accountState !== "authenticated" || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId) || (needsBoxNowRecipient && (!boxNowLocker || !recipientName.trim() || !recipientEmail.trim() || !recipientPhone.trim())) || editorOpen;
 
   return <div className="checkout-layout">
     <form className="checkout-form" onSubmit={submit}>
       <div className="checkout-section">
         <div className="eyebrow">01 · Στοιχεία & διευθύνσεις</div>
-        <h2>Ποιος παραγγέλνει και πού;</h2>
-        <p>Το ονοματεπώνυμο και οι διευθύνσεις αποθηκεύονται στον λογαριασμό σου για επόμενες αγορές. Σε κάθε παραγγελία κρατάμε ξεχωριστό, μη μεταβαλλόμενο snapshot.</p>
+        <h2>Τα στοιχεία που χρειάζονται για αυτή την αγορά</h2>
+        <p>Η διεύθυνση τιμολόγησης χρησιμοποιείται για το παραστατικό. Διεύθυνση παράδοσης ζητάμε μόνο όταν επιλέγεις τοπική παράδοση. Για παραλαβή από κατάστημα δεν αποθηκεύεται διεύθυνση παράδοσης, ενώ για BOX NOW χρησιμοποιούμε μόνο τα στοιχεία παραλήπτη και το locker που επιλέγεις.</p>
         {accountState === "loading" && <div className="account-gate"><strong>Φόρτωση λογαριασμού…</strong></div>}
-        {accountState === "anonymous" && <div className="account-gate"><strong>Χρειάζεται σύνδεση.</strong><p>Για να αποθηκεύονται σωστά το ονοματεπώνυμο, η διεύθυνση τιμολόγησης και η διεύθυνση παράδοσης, το checkout ολοκληρώνεται από λογαριασμό πελάτη.</p><div className="hero-actions"><a className="button" href="/login?next=/checkout">Σύνδεση</a><a className="button button-secondary" href="/register?next=/checkout">Δημιουργία λογαριασμού</a></div></div>}
+        {accountState === "anonymous" && <div className="account-gate"><strong>Χρειάζεται σύνδεση.</strong><p>Για να συνδεθούν σωστά τα στοιχεία του παραστατικού και της παραγγελίας με τον λογαριασμό σου, το checkout ολοκληρώνεται από συνδεδεμένο πελάτη.</p><div className="hero-actions"><a className="button" href="/login?next=/checkout">Σύνδεση</a><a className="button button-secondary" href="/register?next=/checkout">Δημιουργία λογαριασμού</a></div></div>}
         {accountState === "error" && <div className="account-gate"><strong>Δεν φορτώθηκαν τα στοιχεία λογαριασμού.</strong><p>Ανανέωσε τη σελίδα ή συνδέσου ξανά.</p></div>}
         {accountState === "authenticated" && <>
           <div className="fairness-note"><strong>{profile?.fullName || "Συμπλήρωσε το ονοματεπώνυμό σου"}</strong><p>{accountEmail}</p></div>
@@ -259,12 +274,14 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
             {profile?.addresses.length ? <div className="fulfilment-options">{profile.addresses.map((address) => <label className={`fulfilment-option ${billingAddressId === address.id ? "selected" : ""}`} key={`billing-${address.id}`}><input type="radio" name="billing-address" value={address.id} checked={billingAddressId === address.id} onChange={() => setBillingAddressId(address.id)} /><span><strong>{address.label}{address.isDefaultBilling ? " · Προεπιλεγμένη" : ""}</strong><small>{address.fullName} · {addressLabel(address)}</small><button className="text-button" type="button" onClick={(event) => { event.preventDefault(); startEditAddress(address); }}>Αλλαγή</button></span></label>)}</div> : !editorOpen && <p>Δεν έχεις αποθηκευμένη διεύθυνση. Πρόσθεσε την πρώτη σου διεύθυνση.</p>}
           </div>
 
-          <label className="checkbox-row"><input type="checkbox" checked={sameAsBilling} disabled={!billingAddressId} onChange={(event) => { setSameAsBilling(event.target.checked); if (event.target.checked) setDeliveryAddressId(billingAddressId); }} /><span>Η διεύθυνση παράδοσης είναι ίδια με τη διεύθυνση τιμολόγησης.</span></label>
+          {needsDeliveryAddress && <>
+            <label className="checkbox-row"><input type="checkbox" checked={sameAsBilling} disabled={!billingAddressId} onChange={(event) => { setSameAsBilling(event.target.checked); if (event.target.checked) setDeliveryAddressId(billingAddressId); }} /><span>Η διεύθυνση παράδοσης είναι ίδια με τη διεύθυνση τιμολόγησης.</span></label>
 
-          {!sameAsBilling && <div className="shipping-provider-fields">
-            <div className="account-card-head"><div><strong>Διεύθυνση παράδοσης</strong><small>Μπορεί να είναι διαφορετική από τη διεύθυνση τιμολόγησης.</small></div><button className="text-button" type="button" onClick={startNewAddress}>+ Νέα διεύθυνση</button></div>
-            <div className="fulfilment-options">{profile?.addresses.map((address) => <label className={`fulfilment-option ${deliveryAddressId === address.id ? "selected" : ""}`} key={`delivery-${address.id}`}><input type="radio" name="delivery-address" value={address.id} checked={deliveryAddressId === address.id} onChange={() => setDeliveryAddressId(address.id)} /><span><strong>{address.label}{address.isDefaultDelivery ? " · Προεπιλεγμένη" : ""}</strong><small>{address.fullName} · {addressLabel(address)}</small><button className="text-button" type="button" onClick={(event) => { event.preventDefault(); startEditAddress(address); }}>Αλλαγή</button></span></label>)}</div>
-          </div>}
+            {!sameAsBilling && <div className="shipping-provider-fields">
+              <div className="account-card-head"><div><strong>Διεύθυνση παράδοσης</strong><small>Χρησιμοποιείται μόνο για την τοπική παράδοση αυτής της παραγγελίας.</small></div><button className="text-button" type="button" onClick={startNewAddress}>+ Νέα διεύθυνση</button></div>
+              <div className="fulfilment-options">{profile?.addresses.map((address) => <label className={`fulfilment-option ${deliveryAddressId === address.id ? "selected" : ""}`} key={`delivery-${address.id}`}><input type="radio" name="delivery-address" value={address.id} checked={deliveryAddressId === address.id} onChange={() => setDeliveryAddressId(address.id)} /><span><strong>{address.label}{address.isDefaultDelivery ? " · Προεπιλεγμένη" : ""}</strong><small>{address.fullName} · {addressLabel(address)}</small><button className="text-button" type="button" onClick={(event) => { event.preventDefault(); startEditAddress(address); }}>Αλλαγή</button></span></label>)}</div>
+            </div>}
+          </>}
 
           {editorOpen && <div className="shipping-provider-fields">
             <div className="account-card-head"><div><strong>{draft.id ? "Επεξεργασία διεύθυνσης" : "Νέα διεύθυνση"}</strong><small>Τα υποχρεωτικά πεδία αποθηκεύονται στον λογαριασμό σου.</small></div><button type="button" className="text-button" onClick={() => setEditorOpen(false)}>Κλείσιμο</button></div>
@@ -287,13 +304,15 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
             <button className="button button-secondary" type="button" disabled={addressBusy} onClick={() => void saveAddress()}>{addressBusy ? "Αποθήκευση…" : "Αποθήκευση διεύθυνσης"}</button>
           </div>}
 
-          {billingAddress && deliveryAddress && <div className="fairness-note"><strong>Θα χρησιμοποιηθούν στην παραγγελία</strong><p>Τιμολόγηση: {billingAddressLabel(billingAddress)}<br />Παράδοση: {billingAddressLabel(deliveryAddress)}</p></div>}
+          {billingAddress && fulfilmentMode === "pickup" && <div className="fairness-note"><strong>Θα χρησιμοποιηθεί στην παραγγελία</strong><p>Τιμολόγηση: {billingAddressLabel(billingAddress)}<br />Παραλαβή από κατάστημα: δεν αποθηκεύουμε διεύθυνση παράδοσης.</p></div>}
+          {billingAddress && deliveryAddress && fulfilmentMode === "local_delivery" && <div className="fairness-note"><strong>Θα χρησιμοποιηθούν στην παραγγελία</strong><p>Τιμολόγηση: {billingAddressLabel(billingAddress)}<br />Τοπική παράδοση: {billingAddressLabel(deliveryAddress)}</p></div>}
+          {billingAddress && fulfilmentMode === "shipping" && <div className="fairness-note"><strong>Ελαχιστοποίηση στοιχείων για BOX NOW</strong><p>Τιμολόγηση: {billingAddressLabel(billingAddress)}<br />Στη μεταφορική αποστέλλονται μόνο το όνομα, το email, το τηλέφωνο του παραλήπτη και το locker που επιλέγεις. Η αποθηκευμένη οδός κατοικίας δεν χρησιμοποιείται για την παράδοση σε locker.</p></div>}
         </>}
       </div>
 
-      <div className="checkout-section"><div className="eyebrow">02 · Τρόπος παραλαβής</div><h2>Διάλεξε διαθέσιμο τρόπο εκπλήρωσης</h2><div className="fulfilment-options">{fulfilmentOptions.map(([value,title,note]) => <label className={`fulfilment-option ${fulfilmentMode === value ? "selected" : ""}`} key={value}><input type="radio" name="fulfilment" value={value} checked={fulfilmentMode === value} onChange={() => setFulfilmentMode(value)} /><span><strong>{title}</strong><small>{note}</small></span></label>)}</div>{boxNowEnabled && fulfilmentMode === "shipping" && <div className="shipping-provider-fields"><div className="form-grid"><label>Ονοματεπώνυμο παραλήπτη<input value={recipientName} onChange={(event)=>setRecipientName(event.target.value)} required /></label><label>Email<input type="email" value={recipientEmail} onChange={(event)=>setRecipientEmail(event.target.value)} required /></label><label>Κινητό τηλέφωνο<input type="tel" value={recipientPhone} onChange={(event)=>setRecipientPhone(event.target.value)} required /></label></div><BoxNowLockerSelector postcode={postcode} selected={boxNowLocker} onSelect={setBoxNowLocker} /></div>}</div>
+      <div className="checkout-section"><div className="eyebrow">02 · Τρόπος παραλαβής</div><h2>Διάλεξε διαθέσιμο τρόπο εκπλήρωσης</h2><div className="fulfilment-options">{fulfilmentOptions.map(([value,title,note]) => <label className={`fulfilment-option ${fulfilmentMode === value ? "selected" : ""}`} key={value}><input type="radio" name="fulfilment" value={value} checked={fulfilmentMode === value} onChange={() => setFulfilmentMode(value)} /><span><strong>{title}</strong><small>{note}</small></span></label>)}</div>{boxNowEnabled && fulfilmentMode === "shipping" && <div className="shipping-provider-fields"><p>Για την παράδοση σε locker δεν ζητάμε διεύθυνση κατοικίας. Χρειαζόμαστε μόνο τα παρακάτω στοιχεία παραλήπτη και το locker.</p><div className="form-grid"><label>Ονοματεπώνυμο παραλήπτη<input autoComplete="name" value={recipientName} onChange={(event)=>setRecipientName(event.target.value)} required /></label><label>Email<input autoComplete="email" type="email" value={recipientEmail} onChange={(event)=>setRecipientEmail(event.target.value)} required /></label><label>Κινητό τηλέφωνο<input autoComplete="tel" type="tel" value={recipientPhone} onChange={(event)=>setRecipientPhone(event.target.value)} required /></label></div><BoxNowLockerSelector postcode={postcode} selected={boxNowLocker} onSelect={setBoxNowLocker} /></div>}</div>
       <div className="checkout-section"><div className="eyebrow">03 · Πληρωμή</div><h2>{paymentMode === "viva" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2><div className="payment-placeholder"><strong>{paymentMode === "viva" ? "Viva Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "viva" ? "Θα μεταφερθείς στη φιλοξενούμενη σελίδα πληρωμής της Viva. Το Buy Local Sparta δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div></div>
-      <button className="button checkout-submit" disabled={busy || !checkoutKey || accountState !== "authenticated" || !billingAddressId || !effectiveDeliveryAddressId || editorOpen} type="submit">{busy ? "Προετοιμασία…" : paymentMode === "viva" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
+      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : paymentMode === "viva" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
       {result && <div className={`checkout-result ${result.ok ? "success" : "error"}`} role="status"><strong>{result.ok ? "Έτοιμο" : "Δεν ολοκληρώθηκε"}</strong><p>{result.message}</p>{result.totalMinor !== undefined && <p><strong>Σύνολο: {money(result.totalMinor)}</strong></p>}{result.orderId && <code>Order: {result.orderId}</code>}</div>}
     </form>
     {summary}
