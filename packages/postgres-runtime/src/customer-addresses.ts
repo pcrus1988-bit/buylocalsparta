@@ -41,6 +41,8 @@ export type CustomerCheckoutProfile = Readonly<{
   addresses: readonly CustomerSavedAddress[];
 }>;
 
+type OrderFulfilmentMode = "pickup" | "local_delivery" | "shipping" | "bulky_special";
+
 function customerScope(customerId: string, requestId?: string): DatabaseScope {
   return { actorUserId: customerId, marketId: "sparta", requestId };
 }
@@ -89,7 +91,7 @@ function savedAddress(row: SqlRow): CustomerSavedAddress {
   };
 }
 
-function snapshot(address: CustomerSavedAddress, customerFullName: string) {
+function billingSnapshot(address: CustomerSavedAddress, customerFullName: string) {
   return {
     addressId: address.id,
     fullName: customerFullName,
@@ -104,6 +106,46 @@ function snapshot(address: CustomerSavedAddress, customerFullName: string) {
     countryCode: address.countryCode,
     phone: address.phone
   };
+}
+
+function localDeliverySnapshot(address: CustomerSavedAddress, customerFullName: string) {
+  return {
+    addressId: address.id,
+    fullName: customerFullName,
+    recipientName: address.fullName || customerFullName,
+    companyName: address.companyName,
+    line1: address.line1,
+    line2: address.line2,
+    locality: address.locality,
+    region: address.region,
+    postcode: address.postcode,
+    countryCode: address.countryCode,
+    phone: address.phone
+  };
+}
+
+function boxNowSnapshot(existing: Record<string, unknown> | undefined) {
+  if (!existing || rowText(existing.provider) !== "boxnow") throw new Error("BOX NOW shipping metadata is missing");
+  const providerDestinationId = rowText(existing.providerDestinationId);
+  const recipientName = rowText(existing.recipientName);
+  const recipientEmail = rowText(existing.recipientEmail);
+  const recipientPhone = rowText(existing.recipientPhone);
+  if (!providerDestinationId || !recipientName || !recipientEmail || !recipientPhone) throw new Error("BOX NOW recipient metadata is incomplete");
+  return {
+    provider: "boxnow",
+    providerDestinationId,
+    providerDestinationLabel: rowText(existing.providerDestinationLabel),
+    recipientName,
+    recipientEmail,
+    recipientPhone,
+    postcode: rowText(existing.postcode),
+    countryCode: rowText(existing.countryCode) ?? "GR"
+  };
+}
+
+function orderMode(value: unknown): OrderFulfilmentMode {
+  if (value === "pickup" || value === "local_delivery" || value === "shipping" || value === "bulky_special") return value;
+  throw new Error("Order fulfilment mode is invalid");
 }
 
 export class PostgresCustomerAddressService {
@@ -202,39 +244,51 @@ export class PostgresCustomerAddressService {
     return this.profile(customerId);
   }
 
-  async attachOrderSnapshots(input: { customerId: string; orderId: string; billingAddressId: string; deliveryAddressId: string; now: number }): Promise<void> {
+  async attachOrderSnapshots(input: { customerId: string; orderId: string; billingAddressId: string; deliveryAddressId?: string; now: number }): Promise<void> {
     await this.#uow.withTransaction(customerScope(input.customerId, `customer-order-addresses:${input.orderId}`), async (tx) => {
       const userUuid = await this.#userUuid(tx, input.customerId);
       const order = await tx.query<SqlRow>(`
-        SELECT id::text AS id,checkout_address_locked_at,billing_address_snapshot,shipping_address_snapshot
+        SELECT id::text AS id,fulfilment_preference,checkout_address_locked_at,billing_address_snapshot,shipping_address_snapshot
         FROM customer_orders WHERE public_id=$1 AND user_id=$2 FOR UPDATE
       `, [input.orderId, userUuid]);
       if (!order.rowCount) throw new Error("Order not found for customer");
       const existing = order.rows[0];
+      const mode = orderMode(existing.fulfilment_preference);
+      const existingBilling = typeof existing.billing_address_snapshot === "string" ? JSON.parse(existing.billing_address_snapshot) : existing.billing_address_snapshot as Record<string, unknown> | undefined;
+      const existingShipping = typeof existing.shipping_address_snapshot === "string" ? JSON.parse(existing.shipping_address_snapshot) : existing.shipping_address_snapshot as Record<string, unknown> | undefined;
       if (existing.checkout_address_locked_at) {
-        const billing = typeof existing.billing_address_snapshot === "string" ? JSON.parse(existing.billing_address_snapshot) : existing.billing_address_snapshot as Record<string, unknown> | undefined;
-        const delivery = typeof existing.shipping_address_snapshot === "string" ? JSON.parse(existing.shipping_address_snapshot) : existing.shipping_address_snapshot as Record<string, unknown> | undefined;
-        if (billing?.addressId !== input.billingAddressId || delivery?.addressId !== input.deliveryAddressId) throw new Error("Order addresses are already locked and cannot be changed");
+        if (existingBilling?.addressId !== input.billingAddressId) throw new Error("Order billing address is already locked and cannot be changed");
+        if (mode === "local_delivery" && existingShipping?.addressId !== input.deliveryAddressId) throw new Error("Order delivery address is already locked and cannot be changed");
         return;
       }
 
       const profile = await tx.query<SqlRow>("SELECT first_name,last_name FROM customer_profiles WHERE user_id=$1", [userUuid]);
       const customerFullName = [rowText(profile.rows[0]?.first_name), rowText(profile.rows[0]?.last_name)].filter(Boolean).join(" ");
       if (!customerFullName || customerFullName.split(/\s+/).length < 2) throw new Error("Full customer name is required before checkout");
+      if (mode === "local_delivery" && !input.deliveryAddressId) throw new Error("Local delivery requires a saved delivery address");
+      const requestedAddressIds = [input.billingAddressId, ...(mode === "local_delivery" && input.deliveryAddressId ? [input.deliveryAddressId] : [])];
       const addresses = await tx.query<SqlRow>(`
         SELECT public_id,label,recipient_name,company_name,vat_number,line1,line2,locality,region,postcode,country_code,phone,is_default_billing,is_default_delivery
         FROM addresses WHERE user_id=$1 AND public_id=ANY($2::text[])
-      `, [userUuid, [input.billingAddressId, input.deliveryAddressId]]);
+      `, [userUuid, requestedAddressIds]);
       const byId = new Map(addresses.rows.map((row) => [String(row.public_id), savedAddress(row)]));
       const billing = byId.get(input.billingAddressId);
-      const delivery = byId.get(input.deliveryAddressId);
-      if (!billing || !delivery) throw new Error("Select saved billing and delivery addresses belonging to your account");
+      if (!billing) throw new Error("Select a saved billing address belonging to your account");
+
+      let shippingSnapshot: Record<string, unknown> | null = null;
+      if (mode === "local_delivery") {
+        const delivery = byId.get(input.deliveryAddressId!);
+        if (!delivery) throw new Error("Select a saved delivery address belonging to your account");
+        shippingSnapshot = localDeliverySnapshot(delivery, customerFullName);
+      } else if (mode === "shipping") {
+        shippingSnapshot = boxNowSnapshot(existingShipping);
+      }
 
       await tx.query(`
         UPDATE customer_orders
         SET billing_address_snapshot=$3::jsonb,shipping_address_snapshot=$4::jsonb,checkout_address_locked_at=$5,updated_at=$5
         WHERE id=$1 AND user_id=$2 AND checkout_address_locked_at IS NULL
-      `, [String(existing.id), userUuid, JSON.stringify(snapshot(billing, customerFullName)), JSON.stringify(snapshot(delivery, customerFullName)), new Date(input.now)]);
+      `, [String(existing.id), userUuid, JSON.stringify(billingSnapshot(billing, customerFullName)), shippingSnapshot === null ? null : JSON.stringify(shippingSnapshot), new Date(input.now)]);
     }, { isolation: "serializable" });
   }
 

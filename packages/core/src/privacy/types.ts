@@ -29,6 +29,7 @@ export type PrivacyRequestType =
   | "export"
   | "correction"
   | "deletion"
+  | "restriction"
   | "objection"
   | "marketing_withdrawal"
   | "account_closure";

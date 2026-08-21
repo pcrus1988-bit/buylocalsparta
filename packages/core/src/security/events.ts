@@ -5,7 +5,10 @@ export type SecurityEventType =
   | "auth.login_failed"
   | "csrf.rejected"
   | "access.denied"
-  | "request.rejected";
+  | "request.rejected"
+  | "personal_data.accessed"
+  | "personal_data.revealed"
+  | "personal_data.exported";
 
 export type SecuritySeverity = "low" | "medium" | "high" | "critical";
 

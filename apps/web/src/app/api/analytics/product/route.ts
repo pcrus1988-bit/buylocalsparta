@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
+import { ANALYTICS_ID_COOKIE, cookieValue } from "../../../../lib/privacy-consent";
+import { hasVerifiedAnalyticsConsent } from "../../../../lib/privacy-consent-server";
 import { getVisitorKey } from "../../../../lib/visitor";
 
 type ClientEventType = "page_view" | "engagement" | "add_to_cart";
 const EVENT_TYPES = new Set<ClientEventType>(["page_view", "engagement", "add_to_cart"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_ID_RE = /^[A-Za-z0-9_-]{8,128}$/;
+const SAFE_ANALYTICS_ID_RE = /^[A-Za-z0-9_-]{16,128}$/;
 
 function visitorHash(visitorKey: string): string {
   return createHash("sha256").update(visitorKey).digest("hex");
@@ -14,6 +17,12 @@ function visitorHash(visitorKey: string): string {
 export async function POST(request: Request) {
   try {
     if (!productionDatabaseConfigured()) return Response.json({ accepted: false }, { status: 503 });
+
+    const cookieHeader = request.headers.get("cookie") ?? "";
+    if (!hasVerifiedAnalyticsConsent(cookieHeader)) return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+    const analyticsKey = cookieValue(cookieHeader, ANALYTICS_ID_COOKIE);
+    if (!analyticsKey || !SAFE_ANALYTICS_ID_RE.test(analyticsKey)) return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+
     const raw = await request.json() as Record<string, unknown>;
     const eventType = raw.eventType as ClientEventType;
     const canonicalVariantPublicId = typeof raw.canonicalVariantId === "string" ? raw.canonicalVariantId.trim() : "";
@@ -29,7 +38,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "invalid_engagement_heartbeat" }, { status: 400 });
     }
 
-    const hash = visitorHash(await getVisitorKey());
+    const marketplaceHash = visitorHash(await getVisitorKey());
+    const analyticsHash = visitorHash(analyticsKey);
     const pool = getProductionPostgresRuntime().nativePool;
     const assignment = await pool.query(`
       SELECT fae.id, fae.canonical_variant_id, fae.selected_offer_id, fae.selected_vendor_id
@@ -39,7 +49,7 @@ export async function POST(request: Request) {
       WHERE fae.visitor_hash=$1 AND cv.public_id=$2 AND fae.created_at >= now() - interval '31 days'
       ORDER BY fae.created_at DESC
       LIMIT 1
-    `, [hash, canonicalVariantPublicId]);
+    `, [marketplaceHash, canonicalVariantPublicId]);
 
     if (!assignment.rowCount) return Response.json({ accepted: false, reason: "no_fairness_assignment" }, { status: 202 });
     const row = assignment.rows[0];
@@ -49,11 +59,11 @@ export async function POST(request: Request) {
         fairness_event_id, view_id, engaged_seconds, attribution_source, idempotency_key, metadata
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'fairness',$9,$10::jsonb)
       ON CONFLICT (idempotency_key) DO NOTHING
-    `, [eventType, hash, row.canonical_variant_id, row.selected_vendor_id, row.selected_offer_id, row.id, viewId, engagedSeconds,
+    `, [eventType, analyticsHash, row.canonical_variant_id, row.selected_vendor_id, row.selected_offer_id, row.id, viewId, engagedSeconds,
       `client:${eventType}:${eventId}`, JSON.stringify({ surface })]);
-    return new Response(null, { status: 204 });
+    return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "product_analytics.capture_failed", message: error instanceof Error ? error.message : String(error) }));
-    return Response.json({ error: "product_analytics_capture_failed" }, { status: 500 });
+    return Response.json({ error: "product_analytics_capture_failed" }, { status: 500, headers: { "cache-control": "no-store" } });
   }
 }

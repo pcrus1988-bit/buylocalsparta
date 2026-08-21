@@ -1,8 +1,11 @@
+import { createHash, randomUUID } from "node:crypto";
 import {
   InMemoryAuthService,
   InMemoryRateLimiter,
+  PostgresUnitOfWork,
   formatMoney,
-  type SessionPrincipal
+  type SessionPrincipal,
+  type SqlRow
 } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter, PostgresVendorAuthService } from "@buy-local-sparta/postgres-runtime";
 import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-runtime";
@@ -54,7 +57,7 @@ function postgresLimiter(): PostgresFixedWindowRateLimiter {
   return globals[postgresLimiterKey] ?? (globals[postgresLimiterKey] = new PostgresFixedWindowRateLimiter(runtime.sqlPool));
 }
 
-export async function consumeVendorLoginLimit(visitorKey: string, now: number) {
+export function consumeVendorLoginLimit(visitorKey: string, now: number) {
   if (postgresVendorRuntimeEnabled()) return postgresLimiter().consume({ route: "vendor-login", key: visitorKey, limit: 5, windowMs: 15 * 60 * 1000, now });
   return memoryRuntime().rateLimiter.consume({ key: `vendor-login:${visitorKey}`, rule: { limit: 5, windowMs: 15 * 60 * 1000 }, now });
 }
@@ -67,7 +70,7 @@ export async function authenticateVendor(input: { email: string; password: strin
     const index = match ? Number(match[1]) - 1 : -1;
     const vendor = Number.isSafeInteger(index) && index >= 0 ? vendors[index] : undefined;
     if (!vendor || !previewCredentialMatches(input.password, "Vendor!12345")) throw new Error("Invalid email or password");
-    return createDatabaseLessPreviewSession({ kind: "vendor", userId: `preview_vendor_${index + 1}`, email, roles: ["vendor_owner"], vendorId: vendor.id, now: input.now, ttlMs: 8 * 60 * 60 * 1000 });
+    return createDatabaseLessPreviewSession({ kind:"vendor", userId:`preview_vendor_${index+1}`, email, roles:["vendor_owner"], vendorId:vendor.id, now:input.now, ttlMs:8*60*60*1000 });
   }
   return memoryRuntime().auth.authenticate(input);
 }
@@ -99,6 +102,82 @@ export async function vendorDashboard(principal: SessionPrincipal) {
     };
   }
   return memoryVendorDashboard(principal);
+}
+
+export type VendorLocalDeliveryContact = Readonly<{
+  fulfilmentId: string;
+  recipientName: string;
+  line1: string;
+  line2?: string;
+  locality: string;
+  region?: string;
+  postcode: string;
+  countryCode: string;
+  phone?: string;
+}>;
+
+function snapshotText(snapshot: Record<string, unknown>, key: string, required = false): string | undefined {
+  const value = typeof snapshot[key] === "string" ? snapshot[key].trim() : "";
+  if (!value && required) throw new Error(`Delivery contact is missing ${key}`);
+  return value || undefined;
+}
+
+export async function vendorLocalDeliveryContact(principal: SessionPrincipal, fulfilmentId: string, accessRoute = "/api/vendor/fulfilments/delivery-contact"): Promise<VendorLocalDeliveryContact> {
+  const vendorId = requiredVendorId(principal);
+  if (!postgresVendorRuntimeEnabled()) throw new Error("Local-delivery contact reveal requires the PostgreSQL runtime");
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  const contact = await uow.withTransaction({ actorUserId: principal.userId, vendorId, marketId: "sparta" }, async (tx) => {
+    const result = await tx.query<SqlRow>(`
+      SELECT fo.status::text AS fulfilment_status,co.status::text AS order_status,co.shipping_address_snapshot
+      FROM fulfilment_orders fo
+      JOIN customer_orders co ON co.id=fo.order_id
+      WHERE fo.public_id=$1
+        AND fo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2)
+        AND fo.mode='local_delivery'
+      LIMIT 1
+    `, [fulfilmentId, vendorId]);
+    if (!result.rowCount) throw new Error("Local-delivery fulfilment access denied");
+    const row = result.rows[0];
+    const fulfilmentStatus = String(row.fulfilment_status ?? "");
+    const orderStatus = String(row.order_status ?? "");
+    if (!["confirmed", "partially_fulfilled"].includes(orderStatus)) throw new Error("Delivery details are available only for payment-confirmed orders");
+    if (!["accepted", "picking", "packed", "ready_for_handover"].includes(fulfilmentStatus)) throw new Error("Delivery details are available only while the accepted local delivery is active");
+    const snapshot = typeof row.shipping_address_snapshot === "string"
+      ? JSON.parse(row.shipping_address_snapshot) as Record<string, unknown>
+      : row.shipping_address_snapshot as Record<string, unknown> | null;
+    if (!snapshot) throw new Error("Local-delivery address is unavailable");
+    return {
+      fulfilmentId,
+      recipientName: snapshotText(snapshot, "recipientName", true)!,
+      line1: snapshotText(snapshot, "line1", true)!,
+      line2: snapshotText(snapshot, "line2"),
+      locality: snapshotText(snapshot, "locality", true)!,
+      region: snapshotText(snapshot, "region"),
+      postcode: snapshotText(snapshot, "postcode", true)!,
+      countryCode: snapshotText(snapshot, "countryCode") ?? "GR",
+      phone: snapshotText(snapshot, "phone")
+    };
+  }, { readOnly: true });
+
+  await runtime.persistence.security.record({
+    id: `sec_${randomUUID()}`,
+    type: "personal_data.revealed",
+    severity: "low",
+    route: accessRoute,
+    method: "POST",
+    subjectHash: createHash("sha256").update(`fulfilment:${fulfilmentId}`).digest("hex"),
+    actorUserId: principal.userId,
+    details: {
+      purpose: "order_fulfilment",
+      resourceType: "fulfilment",
+      dataClasses: "identity,contact,address",
+      recordCount: 1,
+      accessScope: "individual"
+    },
+    occurredAt: Date.now()
+  });
+  return contact;
 }
 
 export async function updateVendorStock(principal: SessionPrincipal, input: { offerId: string; onHand: number; now?: number }) {
