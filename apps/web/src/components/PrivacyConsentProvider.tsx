@@ -19,7 +19,7 @@ type DraftConsent = Readonly<{
 type ConsentSource = "banner" | "settings";
 
 const OPTIONAL_OFF: DraftConsent = { personalisation: false, analytics: false, marketing: false };
-const OPTIONAL_ON: DraftConsent = { personalisation: true, analytics: true, marketing: true };
+const OPTIONAL_ON: DraftConsent = { personalisation: false, analytics: true, marketing: false };
 
 export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -38,9 +38,9 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
     const current = readPrivacyConsent(document.cookie);
     setConsent(current);
     setDraft(current ? {
-      personalisation: current.personalisation,
+      personalisation: false,
       analytics: current.analytics,
-      marketing: current.marketing
+      marketing: false
     } : OPTIONAL_OFF);
     setHydrated(true);
   }, []);
@@ -48,9 +48,9 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
   const openSettings = useCallback(() => {
     const current = readPrivacyConsent(document.cookie);
     setDraft(current ? {
-      personalisation: current.personalisation,
+      personalisation: false,
       analytics: current.analytics,
-      marketing: current.marketing
+      marketing: false
     } : OPTIONAL_OFF);
     setError(undefined);
     const dialog = dialogRef.current;
@@ -72,16 +72,18 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...next, source })
+        body: JSON.stringify({ personalisation: false, analytics: next.analytics, marketing: false, source })
       });
       if (!response.ok) throw new Error("Consent update failed");
       const updated = readPrivacyConsent(document.cookie) ?? {
         version: PRIVACY_CONSENT_VERSION,
-        ...next,
+        personalisation: false,
+        analytics: next.analytics,
+        marketing: false,
         decidedAt: new Date().toISOString()
       };
       setConsent(updated);
-      setDraft(next);
+      setDraft({ personalisation: false, analytics: next.analytics, marketing: false });
       dialogRef.current?.close();
       window.dispatchEvent(new CustomEvent("bls:privacy-consent-changed", { detail: updated }));
     } catch {
@@ -96,7 +98,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
     {hydrated && !consent && <aside className="privacy-consent-banner" aria-label="Ρυθμίσεις απορρήτου και cookies">
       <div className="privacy-consent-copy">
         <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
-        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Προαιρετικές τεχνολογίες προσωπικοποίησης, analytics και marketing ενεργοποιούνται μόνο αν τις επιλέξεις.</p>
+        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Το προαιρετικό first-party Analytics παραμένει κλειστό μέχρι να το επιλέξεις. Δεν υπάρχει ενεργός marketing/remarketing tracker.</p>
         <div className="privacy-consent-links"><Link href="/cookies">Πολιτική Cookies</Link><Link href="/privacy">Πολιτική Απορρήτου</Link><Link href="/privacy-controls">Privacy controls</Link></div>
         {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
@@ -120,21 +122,21 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         </div>
 
         <div className="privacy-consent-option">
-          <div><strong>Απαραίτητα</strong><p>Ασφάλεια, σύνδεση, checkout και βασική συνέχεια της υπηρεσίας.</p></div>
+          <div><strong>Απαραίτητα</strong><p>Ασφάλεια, σύνδεση, checkout, βασική συνέχεια υπηρεσίας και απόδειξη της επιλογής cookies.</p></div>
           <input type="checkbox" checked disabled aria-label="Απαραίτητα cookies, πάντα ενεργά" />
         </div>
+        <div className="privacy-consent-option">
+          <div><strong>Προσωποποίηση browser</strong><p>Δεν υπάρχει σήμερα ξεχωριστός browser tracker προσωποποίησης. Οι επιλογές recommendations/recently viewed του λογαριασμού διαχειρίζονται ξεχωριστά στα Privacy controls.</p></div>
+          <input type="checkbox" checked={false} disabled aria-label="Browser προσωποποίηση, δεν χρησιμοποιείται" />
+        </div>
         <label className="privacy-consent-option">
-          <div><strong>Προσωποποίηση</strong><p>Προαιρετικές browser-level επιλογές εξατομίκευσης. Οι ρυθμίσεις του λογαριασμού σου παραμένουν ξεχωριστές στα Privacy controls.</p></div>
-          <input type="checkbox" checked={draft.personalisation} onChange={(event) => setDraft({ ...draft, personalisation: event.target.checked })} />
+          <div><strong>Analytics</strong><p>First-party μέτρηση product views, engagement και απόδοσης. Δεν ενεργοποιείται πριν από τη συγκατάθεσή σου.</p></div>
+          <input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ personalisation: false, analytics: event.target.checked, marketing: false })} />
         </label>
-        <label className="privacy-consent-option">
-          <div><strong>Analytics</strong><p>Μέτρηση χρήσης και απόδοσης προϊόντων. Δεν ενεργοποιείται πριν από τη συγκατάθεσή σου.</p></div>
-          <input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ ...draft, analytics: event.target.checked })} />
-        </label>
-        <label className="privacy-consent-option">
-          <div><strong>Marketing</strong><p>Μελλοντική διαφήμιση ή remarketing. Παραμένει ανενεργό αν δεν το επιλέξεις.</p></div>
-          <input type="checkbox" checked={draft.marketing} onChange={(event) => setDraft({ ...draft, marketing: event.target.checked })} />
-        </label>
+        <div className="privacy-consent-option">
+          <div><strong>Marketing</strong><p>Δεν υπάρχει ενεργός advertising ή remarketing tracker. Αν προστεθεί συγκεκριμένη τεχνολογία στο μέλλον, θα απαιτεί νέα ενημέρωση και κατάλληλη επιλογή πριν ενεργοποιηθεί.</p></div>
+          <input type="checkbox" checked={false} disabled aria-label="Marketing trackers, δεν χρησιμοποιούνται" />
+        </div>
 
         {error && <p className="privacy-consent-error privacy-consent-dialog-error" role="alert">{error}</p>}
         <div className="privacy-consent-dialog-actions">
