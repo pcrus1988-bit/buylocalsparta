@@ -100,6 +100,8 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       </div>
     </aside>}
 
+    {hydrated && consent && <button type="button" className="privacy-consent-manage-floating" onClick={openSettings}>Ρυθμίσεις cookies</button>}
+
     <dialog className="privacy-consent-dialog" ref={dialogRef} aria-labelledby="privacy-consent-title">
       <form method="dialog" onSubmit={(event) => event.preventDefault()}>
         <div className="privacy-consent-dialog-head">
