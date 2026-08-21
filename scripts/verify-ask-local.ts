@@ -15,7 +15,7 @@ for (const contract of ["vendorCreateAskLocalOffer", "customerDecideAskLocalOffe
 for (const contract of ["requireAccountSession(request, true)", "customerDecideAskLocalOffer", 'body.action === "accept"', 'body.action === "decline"']) if (!offerRoute.includes(contract)) failures.push(`Customer private-offer API is missing ${contract}`);
 for (const contract of ["requireDailySession(request, true)", "vendorCreateAskLocalOffer", "vendorAdviceWorkspace"]) if (!dailyOfferRoute.includes(contract)) failures.push(`Daily private-offer API is missing ${contract}`);
 for (const contract of ["/api/account/ask-local/offers", 'decideOffer(offer.id, "accept")', 'decideOffer(offer.id, "decline")', "Αποδέχομαι την προσφορά"]) if (!client.includes(contract)) failures.push(`Customer Ask Local offer UI is missing ${contract}`);
-for (const contract of ["/api/daily/advice/offers", "sendOffer(request.id", "Τελική τιμή (€)", "Ισχύς προσφοράς"]) if (!dailyClient.includes(contract)) failures.push(`Daily Ask Local offer UI is missing ${contract}`);
+for (const contract of ["/api/daily/advice/offers", "sendOffer(request.id", "Τιμή ανά τεμάχιο (€)", "Ισχύς προσφοράς"]) if (!dailyClient.includes(contract)) failures.push(`Daily Ask Local offer UI is missing ${contract}`);
 if (offerService.includes("UPDATE private_offers SET status='accepted' WHERE public_id=$1") && !offerService.includes("u.public_id=$2")) failures.push("Customer offer acceptance must be scoped to the owning customer");
 
 const dynamicHomepageAskLocal = home.includes("<HomeQuickSearch />") && homeSearch.includes("/api/search/suggest?q=") && homeSearch.includes("setState(payload.hasResults ? \"found\" : \"empty\")") && homeSearch.includes("/ask-local?need=") && homeSearch.includes("state === \"empty\"");
