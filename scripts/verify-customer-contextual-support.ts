@@ -92,9 +92,12 @@ for (const contract of [
   "JSON.stringify({ caseReference: referenceNumber })"
 ]) expect(adminReplyRuntime.includes(contract), `Explicit Admin customer-reply runtime is missing ${contract}`);
 expect(!adminReplyRuntime.includes("JSON.stringify({ caseId:"), "Customer notification payload must use the human ticket reference, not the technical case ID");
-for (const contract of ["requireAdminSession(request, { csrf: true", 'permission: "customer.manage"', "adminReplyToCustomerSupportCase", "message: String(body.message"]) {
-  expect(adminReplyRoute.includes(contract), `Admin customer-reply API is missing ${contract}`);
-}
+for (const contract of [
+  "requireAdminSession(request, { csrf: true",
+  'permission: "customer.manage"',
+  "adminReplyToCustomerSupportCase",
+  'message: String(body.reason ?? body.message ?? "")'
+]) expect(adminReplyRoute.includes(contract), `Admin customer-reply API is missing ${contract}`);
 for (const contract of [
   'label="Reply to customer"',
   'endpoint="/api/admin/customers/cases/customer-reply"',
