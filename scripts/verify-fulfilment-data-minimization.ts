@@ -33,6 +33,7 @@ requireText(addressService, 'if (mode === "local_delivery")', "Local delivery mu
 requireText(addressService, 'shippingSnapshot = localDeliverySnapshot(delivery, customerFullName);', "Local delivery must use its minimized delivery snapshot");
 requireText(addressService, 'shippingSnapshot = boxNowSnapshot(existingShipping);', "BOX NOW must preserve only provider/recipient metadata");
 requireText(addressService, 'let shippingSnapshot: Record<string, unknown> | null = null;', "Pickup must default to no shipping snapshot");
+requireText(addressService, 'shippingSnapshot === null ? null : JSON.stringify(shippingSnapshot)', "Pickup must persist SQL NULL rather than JSONB null for the absent shipping snapshot");
 const localDeliveryFunction = between(addressService, "function localDeliverySnapshot", "function boxNowSnapshot");
 forbidText(localDeliveryFunction, "vatNumber", "Local-delivery snapshot must not inherit billing-only VAT data");
 const boxNowFunction = between(addressService, "function boxNowSnapshot", "function orderMode");
