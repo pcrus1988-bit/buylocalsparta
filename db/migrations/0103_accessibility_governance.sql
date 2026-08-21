@@ -175,10 +175,11 @@ CREATE TABLE accessibility_audit_runs (
 );
 
 REVOKE ALL PRIVILEGES ON TABLE accessibility_criteria, accessibility_assessments, accessibility_reports, accessibility_findings, accessibility_audit_runs
-  FROM PUBLIC, anon, authenticated, service_role;
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
 
 GRANT SELECT ON TABLE accessibility_criteria TO bls_app_runtime, bls_platform_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE accessibility_assessments, accessibility_reports, accessibility_findings, accessibility_audit_runs
-  TO bls_app_runtime, bls_platform_runtime;
+GRANT SELECT, UPDATE ON TABLE accessibility_assessments TO bls_app_runtime, bls_platform_runtime;
+GRANT SELECT, INSERT, UPDATE ON TABLE accessibility_reports, accessibility_findings TO bls_app_runtime, bls_platform_runtime;
+GRANT SELECT, INSERT ON TABLE accessibility_audit_runs TO bls_app_runtime, bls_platform_runtime;
 
 COMMIT;
