@@ -18,7 +18,8 @@ const stateIcon: Record<CustomerLifecycleState, string> = {
 };
 
 export function CustomerLifecycle({ stages, label }: { stages: readonly CustomerLifecycleStage[]; label: string }) {
-  return <ol className="customer-lifecycle" aria-label={label}>
+  const style = { "--customer-stage-count": Math.max(1, stages.length) } as React.CSSProperties;
+  return <ol className="customer-lifecycle" aria-label={label} style={style}>
     {stages.map((stage, index) => <li className={`customer-lifecycle-stage is-${stage.state}`} key={`${stage.label}-${index}`}>
       <span className="customer-lifecycle-marker" aria-hidden="true">{stateIcon[stage.state]}</span>
       <span className="customer-lifecycle-copy"><strong>{stage.label}</strong>{stage.description && <small>{stage.description}</small>}</span>
