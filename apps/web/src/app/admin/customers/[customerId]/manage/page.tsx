@@ -26,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ customerId:st
   const canManage = hasAdminPermission(principal,"customer.manage");
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={result.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={result.csrfToken} entityLabel={name(customer)} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
       <div className="eyebrow">Customer profile & recovery · {customer.id}</div>
       <h1>{name(customer)}</h1>
