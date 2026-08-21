@@ -64,7 +64,7 @@
     "check:advice": "node --experimental-strip-types scripts/verify-advice-hub.ts",
     "check:ask-local": "node --experimental-strip-types scripts/verify-ask-local.ts",
     "check:navigation": "node --experimental-strip-types scripts/verify-public-navigation.ts",
-    "check:dashboard-ux": "node --experimental-strip-types scripts/verify-dashboard-ux.ts && node --experimental-strip-types scripts/verify-admin-commercial-finance.ts && node --experimental-strip-types scripts/verify-admin-domain-icons.ts",
+    "check:dashboard-ux": "node --experimental-strip-types scripts/verify-dashboard-ux.ts && node --experimental-strip-types scripts/verify-admin-commercial-finance.ts && node --experimental-strip-types scripts/verify-admin-domain-icons.ts && node --experimental-strip-types scripts/verify-admin-record-identity.ts",
     "check:checkout-ux": "node --experimental-strip-types scripts/verify-checkout-ux.ts",
     "check:fairness-schema": "node --experimental-strip-types scripts/verify-fairness-live-schema.ts"
   },
