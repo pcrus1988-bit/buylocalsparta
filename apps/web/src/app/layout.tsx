@@ -8,6 +8,7 @@ import "./storefront-merchant-media.css";
 import "./dashboard-ux.css";
 import "./dashboard-premium.css";
 import "./site-polish.css";
+import "./footer-polish.css";
 import "./workspace-polish.css";
 import "./checkout-polish.css";
 import "./dashboard-luxury.css";
