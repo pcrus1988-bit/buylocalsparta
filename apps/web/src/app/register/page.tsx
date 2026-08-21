@@ -25,11 +25,6 @@ export default async function RegisterPage() {
         <div className="eyebrow">Customer account</div>
         <h1>Δημιούργησε τον λογαριασμό σου.</h1>
         <p className="lead compact">Χρησιμοποίησε ένα πραγματικό email. Θα σου στείλουμε σύνδεσμο επιβεβαίωσης και μόνο μετά την επιβεβαίωση θα μπορείς να συνδεθείς.</p>
-        <div className="fairness-note">
-          <strong>Τι αποθηκεύεται</strong>
-          <p>Ο λογαριασμός και το session αποθηκεύονται server-side στη βάση PostgreSQL. Ο κωδικός αποθηκεύεται μόνο ως salted scrypt hash και το session token σε HttpOnly cookie.</p>
-          <a className="text-link" href="/privacy-controls">Privacy controls →</a>
-        </div>
       </div>
       <div className="login-panel">
         <h2>Νέος λογαριασμός</h2>
