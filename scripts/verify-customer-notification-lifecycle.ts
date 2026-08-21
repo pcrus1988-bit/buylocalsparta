@@ -6,6 +6,8 @@ const readRoute = read("apps/web/src/app/api/account/notifications/[id]/read/rou
 const archiveRoute = read("apps/web/src/app/api/account/notifications/[id]/archive/route.ts");
 const readAllRoute = read("apps/web/src/app/api/account/notifications/read-all/route.ts");
 const client = read("apps/web/src/components/AccountNotificationsClient.tsx");
+const styles = read("apps/web/src/app/customer-notification-lifecycle.css");
+const layout = read("apps/web/src/app/layout.tsx");
 const postgresNotifications = read("packages/core/src/persistence/postgres-notifications.ts");
 const coreNotifications = read("packages/core/src/notifications/service.ts");
 const failures: string[] = [];
@@ -31,12 +33,14 @@ for (const [name, source, mutation] of [
   ["read all", readAllRoute, "markAllCustomerNotificationsRead"]
 ] as const) {
   if (!source.includes("requireAccountSession(request, true)")) failures.push(`${name} route must require authenticated CSRF-protected account session.`);
-  if (!source.includes(`userId: principal.userId`)) failures.push(`${name} route must derive customer identity from the session.`);
+  if (!source.includes("userId: principal.userId")) failures.push(`${name} route must derive customer identity from the session.`);
   if (!source.includes(mutation)) failures.push(`${name} route must call ${mutation}.`);
 }
 
 for (const contract of [
   "type Filter = \"all\" | \"unread\" | \"orders\" | \"advice\" | \"returns\" | \"account\" | \"saved\"",
+  "customer-notification-filters",
+  "customer-notification-actions",
   "aria-label=\"Φίλτρα ειδοποιήσεων\"",
   "aria-pressed={filter === item.key}",
   "Λογαριασμός & υποστήριξη",
@@ -50,9 +54,21 @@ for (const contract of [
   "visible.length"
 ]) if (!client.includes(contract)) failures.push(`Notification center is missing lifecycle/filter contract: ${contract}`);
 
+if (client.includes("hero-actions")) failures.push("Notification lifecycle controls must not reuse generic hero action styling.");
 if (!client.includes("if (filter === \"unread\") return !item.readAt")) failures.push("Unread filter must derive from persisted/local read state.");
 if (!client.includes("/^(counteroffer|ask_local)\\./")) failures.push("Ask Local filter must handle direct Ask Local event prefixes even when legacy grouping is 'other'.");
 if (!client.includes("/^(account|security|auth|privacy|customer_support)\\./")) failures.push("Account filter must include security/privacy/support event prefixes.");
+
+for (const contract of [
+  ".customer-notification-filters button",
+  ".customer-notification-filters button.is-active",
+  ".customer-notification-actions",
+  ":focus-visible",
+  "min-height:44px",
+  "@media(max-width:760px)",
+  "@media(max-width:480px)"
+]) if (!styles.includes(contract)) failures.push(`Notification lifecycle styling is missing responsive/accessibility contract: ${contract}`);
+if (!layout.includes('import "./customer-notification-lifecycle.css";')) failures.push("Root layout must load customer notification lifecycle styles.");
 
 for (const contract of [
   "async archiveForUser",
@@ -73,4 +89,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer notification lifecycle checks passed: individual read/archive are CSRF-protected and customer-scoped, archive marks read, filters are contextual, and client state updates immediately.");
+console.log("Customer notification lifecycle checks passed: individual read/archive are CSRF-protected and customer-scoped, archive marks read, filters are contextual, responsive controls are touch/keyboard friendly, and client state updates immediately.");
