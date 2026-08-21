@@ -21,11 +21,15 @@ function between(haystack: string, start: string, end: string): string {
   return haystack.slice(startAt, endAt);
 }
 
-const [addressService, checkoutRoute, checkoutClient, guardMigration] = await Promise.all([
+const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRuntime, vendorOrdersClient, vendorDeliveryRoute, vendorOperations] = await Promise.all([
   source("packages/postgres-runtime/src/customer-addresses.ts"),
   source("apps/web/src/app/api/checkout/route.ts"),
   source("apps/web/src/components/CheckoutPageClient.tsx"),
-  source("db/migrations/0101_checkout_request_integrity.sql")
+  source("db/migrations/0101_checkout_request_integrity.sql"),
+  source("apps/web/src/lib/vendor-runtime.ts"),
+  source("apps/web/src/components/VendorOrdersClient.tsx"),
+  source("apps/web/src/app/api/vendor/fulfilments/delivery-contact/route.ts"),
+  source("packages/postgres-runtime/src/vendor-operations.ts")
 ]);
 
 requireText(addressService, 'const mode = orderMode(existing.fulfilment_preference);', "Order snapshot persistence must derive purpose from the stored fulfilment mode");
@@ -51,6 +55,20 @@ requireText(checkoutClient, 'deliveryAddressId: needsDeliveryAddress ? effective
 requireText(checkoutClient, 'providerDestinationPostcode: boxNowLocker?.postcode', "Client must send the selected BOX NOW locker postcode explicitly");
 requireText(checkoutClient, "Για παραλαβή από κατάστημα δεν αποθηκεύεται διεύθυνση παράδοσης", "Checkout must explain pickup data minimization to the customer");
 
+const vendorDashboardQuery = between(vendorOperations, "async dashboard", "async updateStock");
+for (const forbidden of ["->>'recipientName'", "->>'recipientEmail'", "->>'recipientPhone'", "->>'line1'", "->>'phone'"]) {
+  forbidText(vendorDashboardQuery, forbidden, `Vendor dashboard must not preload personal delivery field ${forbidden}`);
+}
+requireText(vendorRuntime, 'if (!["accepted", "picking", "packed", "ready_for_handover"].includes(fulfilmentStatus))', "Vendor delivery reveal must be limited to active accepted fulfilments");
+requireText(vendorRuntime, 'type: "personal_data.revealed"', "Vendor delivery reveal must create a personal-data access event");
+requireText(vendorRuntime, 'purpose: "order_fulfilment"', "Vendor delivery reveal must record its fulfilment purpose");
+requireText(vendorRuntime, 'dataClasses: "identity,contact,address"', "Vendor delivery reveal must record disclosed data classes");
+requireText(vendorDeliveryRoute, "requireVendorSession(request, true)", "Vendor delivery reveal endpoint must require authenticated CSRF-protected vendor access");
+requireText(vendorDeliveryRoute, '"cache-control": "no-store, private"', "Vendor delivery contact responses must not be cached");
+requireText(vendorOrdersClient, "Εμφάνιση στοιχείων παράδοσης", "Vendor must explicitly request local-delivery personal data");
+requireText(vendorOrdersClient, "Η πρόσβαση καταγράφεται", "Vendor UI must tell the operator that personal-data access is logged");
+requireText(vendorOrdersClient, 'delete next[fulfilmentId]', "Revealed delivery data must be removable from client state after use/status change");
+
 requireText(guardMigration, "actor_hash text NOT NULL", "Replay guard must store an actor hash");
 requireText(guardMigration, "request_hash text NOT NULL", "Replay guard must store a request hash");
 requireText(guardMigration, "REVOKE ALL PRIVILEGES ON TABLE checkout_request_guards FROM PUBLIC, anon, authenticated, service_role", "Replay guard must remain outside Supabase Data API roles");
@@ -58,4 +76,4 @@ for (const forbidden of ["recipient_email", "recipient_phone", "address_line", "
   forbidText(guardMigration, forbidden, `Replay guard must not persist raw personal field ${forbidden}`);
 }
 
-console.log("Fulfilment data-minimization and checkout replay-integrity contracts verified.");
+console.log("Fulfilment data-minimization, audited vendor reveal and checkout replay-integrity contracts verified.");
