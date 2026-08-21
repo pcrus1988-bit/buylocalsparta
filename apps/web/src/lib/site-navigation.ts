@@ -122,6 +122,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/account/profile",
   "/account/security",
   "/account/saved",
+  "/account/support",
   "/daily",
   "/daily/ask-local",
   "/daily/login",
