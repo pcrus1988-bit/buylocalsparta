@@ -15,7 +15,7 @@ import { marketplaceReferenceMap } from "./public-reference-service";
 import { requireCustomerOrderReference } from "./customer-order-reference";
 
 function browserNotificationPayload(payload: Record<string, unknown>): Record<string, unknown> {
-  const { orderId: _internalOrderId, ...safe } = payload;
+  const { orderId: _internalOrderId, returnId: _internalReturnId, ...safe } = payload;
   return safe;
 }
 
@@ -140,7 +140,7 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
     eventType: "return.requested",
     title: "Λάβαμε το αίτημα επιστροφής",
     body: `Αίτημα ${created.returnNumber} · θα ενημερωθείτε μόλις ολοκληρωθεί ο έλεγχος.`,
-    payload: { orderReference: resolved.referenceNumber, returnId: created.returnId, returnNumber: created.returnNumber, returnReference: created.returnNumber },
+    payload: { orderReference: resolved.referenceNumber, returnNumber: created.returnNumber, returnReference: created.returnNumber },
     dedupeKey: `return:${created.returnId}:requested`,
     now
   });
