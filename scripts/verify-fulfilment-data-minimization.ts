@@ -21,7 +21,7 @@ function between(haystack: string, start: string, end: string): string {
   return haystack.slice(startAt, endAt);
 }
 
-const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRuntime, vendorOrdersClient, vendorDeliveryRoute, vendorOperations, dailyOrdersClient, dailyDeliveryRoute] = await Promise.all([
+const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRuntime, vendorOrdersClient, vendorDeliveryRoute, vendorOperations, dailyOrdersClient, dailyDeliveryRoute, boxNowRuntime, boxNowLabelRoute] = await Promise.all([
   source("packages/postgres-runtime/src/customer-addresses.ts"),
   source("apps/web/src/app/api/checkout/route.ts"),
   source("apps/web/src/components/CheckoutPageClient.tsx"),
@@ -31,7 +31,9 @@ const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRunt
   source("apps/web/src/app/api/vendor/fulfilments/delivery-contact/route.ts"),
   source("packages/postgres-runtime/src/vendor-operations.ts"),
   source("apps/web/src/components/VendorDailyOrdersClient.tsx"),
-  source("apps/web/src/app/api/daily/fulfilments/delivery-contact/route.ts")
+  source("apps/web/src/app/api/daily/fulfilments/delivery-contact/route.ts"),
+  source("apps/web/src/lib/boxnow-shipping-runtime.ts"),
+  source("apps/web/src/app/api/vendor/shipping/label/route.ts")
 ]);
 
 requireText(addressService, 'const mode = orderMode(existing.fulfilment_preference);', "Order snapshot persistence must derive purpose from the stored fulfilment mode");
@@ -80,6 +82,13 @@ requireText(dailyOrdersClient, "Δεν φορτώνονται αυτόματα",
 requireText(dailyOrdersClient, "Η πρόσβαση καταγράφεται", "Daily must disclose that personal-data access is logged");
 requireText(dailyOrdersClient, 'delete next[item.id]', "Daily must remove revealed delivery data from client state after completion/rejection");
 
+requireText(boxNowRuntime, 'type:"personal_data.exported"', "Opening a carrier label must create an auditable personal-data export event");
+requireText(boxNowRuntime, 'purpose:"carrier_handover"', "Carrier label audit must record its operational purpose");
+requireText(boxNowRuntime, 'dataClasses:"identity,contact,shipping"', "Carrier label audit must identify the disclosed data classes without storing the values");
+requireText(boxNowRuntime, 'recipient:"assigned_vendor"', "Carrier label audit must identify the authorised recipient class");
+requireText(boxNowLabelRoute, 'const PRIVATE_NO_STORE = { "cache-control": "private, no-store", pragma: "no-cache" }', "Carrier labels and label errors must be non-cacheable");
+requireText(boxNowLabelRoute, "vendorBoxNowLabel(principal, shipmentId)", "Carrier label must remain behind the vendor-scoped label service");
+
 requireText(guardMigration, "actor_hash text NOT NULL", "Replay guard must store an actor hash");
 requireText(guardMigration, "request_hash text NOT NULL", "Replay guard must store a request hash");
 requireText(guardMigration, "REVOKE ALL PRIVILEGES ON TABLE checkout_request_guards FROM PUBLIC, anon, authenticated, service_role", "Replay guard must remain outside Supabase Data API roles");
@@ -87,4 +96,4 @@ for (const forbidden of ["recipient_email", "recipient_phone", "address_line", "
   forbidText(guardMigration, forbidden, `Replay guard must not persist raw personal field ${forbidden}`);
 }
 
-console.log("Fulfilment data-minimization, audited vendor/Daily reveals and checkout replay-integrity contracts verified.");
+console.log("Fulfilment data-minimization, audited vendor/Daily reveals, carrier-label exports and checkout replay-integrity contracts verified.");
