@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { CustomerHowItWorks } from "./CustomerAccountPrimitives";
 
-type SavedProduct = Readonly<{ canonicalVariantId: string; title?: string; price?: string; available?: boolean; unavailable?: boolean }>;
+type ProductAlert = Readonly<{ backInStockEnabled: boolean; priceDropEnabled: boolean; minimumPriceDropMinor: number }>;
+type SavedProduct = Readonly<{ canonicalVariantId: string; title?: string; price?: string; available?: boolean; unavailable?: boolean; alert?: ProductAlert | null }>;
 type SavedSearch = Readonly<{
   id: string;
   name: string;
@@ -40,6 +41,28 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
       setStatus("Το προϊόν αφαιρέθηκε από τα αποθηκευμένα.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η αφαίρεση του προϊόντος.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateProductAlert(product: SavedProduct, patch: Partial<ProductAlert>) {
+    const key = `product-alert:${product.canonicalVariantId}`;
+    setBusy(key);
+    setError("");
+    setStatus("");
+    try {
+      const response = await fetch(`/api/account/saved-products/${encodeURIComponent(product.canonicalVariantId)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify(patch)
+      });
+      const payload = await response.json() as { alert?: ProductAlert; error?: string };
+      if (!response.ok || !payload.alert) throw new Error(payload.error ?? "Δεν ήταν δυνατή η αλλαγή των ειδοποιήσεων προϊόντος.");
+      setProducts((current) => current.map((item) => item.canonicalVariantId === product.canonicalVariantId ? { ...item, alert: payload.alert } : item));
+      setStatus("Οι ειδοποιήσεις του προϊόντος ενημερώθηκαν.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η αλλαγή των ειδοποιήσεων προϊόντος.");
     } finally {
       setBusy("");
     }
@@ -92,11 +115,22 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
     <div className="customer-account-grid">
       <article className="customer-account-panel">
         <div className="account-card-head"><div><div className="eyebrow">Προϊόντα</div><h2>Αποθηκευμένα προϊόντα</h2></div><span className="count-pill">{products.length}</span></div>
-        {products.length ? <div className="customer-account-panel-list">{products.map((product) => <div className="customer-account-panel-row" key={product.canonicalVariantId}>
-          <div><Link href={`/product/${product.canonicalVariantId}`}><strong>{product.title ?? "Αποθηκευμένο προϊόν"}</strong></Link><small>{product.price ?? ""} · {product.available ? "διαθέσιμο" : product.unavailable ? "δεν εμφανίζεται πλέον" : "μη διαθέσιμο"}</small></div>
-          <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void remove(product.canonicalVariantId)}>{busy === `product:${product.canonicalVariantId}` ? "Αφαίρεση…" : "Αφαίρεση"}</button>
-        </div>)}</div> : <div className="account-empty"><p>Δεν έχεις αποθηκεύσει προϊόντα.</p><Link className="text-link" href="/shop">Ανακάλυψε προϊόντα →</Link></div>}
-        <CustomerHowItWorks title="Τι γίνεται όταν αποθηκεύω προϊόν;"><p>Το προϊόν παραμένει στη λίστα σου ώστε να το βρίσκεις ξανά εύκολα. Όπου υποστηρίζεται, η πλατφόρμα μπορεί επίσης να χρησιμοποιεί αυτή την επιλογή για ειδοποιήσεις διαθεσιμότητας ή πτώσης τιμής.</p></CustomerHowItWorks>
+        {products.length ? <div className="customer-account-panel-list">{products.map((product) => {
+          const alert = product.alert ?? { backInStockEnabled: false, priceDropEnabled: false, minimumPriceDropMinor: 100 };
+          return <div className="customer-saved-product" key={product.canonicalVariantId}>
+            <div className="customer-account-panel-row">
+              <div><Link href={`/product/${product.canonicalVariantId}`}><strong>{product.title ?? "Αποθηκευμένο προϊόν"}</strong></Link><small>{product.price ?? ""} · {product.available ? "διαθέσιμο" : product.unavailable ? "δεν εμφανίζεται πλέον" : "μη διαθέσιμο"}</small></div>
+              <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void remove(product.canonicalVariantId)}>{busy === `product:${product.canonicalVariantId}` ? "Αφαίρεση…" : "Αφαίρεση"}</button>
+            </div>
+            {!product.unavailable && <div className="customer-product-alerts" aria-label={`Ειδοποιήσεις για ${product.title ?? "αποθηκευμένο προϊόν"}`}>
+              <label><input type="checkbox" checked={alert.backInStockEnabled} disabled={Boolean(busy)} onChange={(event) => void updateProductAlert(product, { backInStockEnabled: event.target.checked })} /><span><strong>Ξανά διαθέσιμο</strong><small>Ενημέρωσέ με όταν το προϊόν επιστρέψει σε διαθέσιμο απόθεμα.</small></span></label>
+              <label><input type="checkbox" checked={alert.priceDropEnabled} disabled={Boolean(busy)} onChange={(event) => void updateProductAlert(product, { priceDropEnabled: event.target.checked })} /><span><strong>Πτώση τιμής</strong><small>Ενημέρωσέ με όταν η τιμή πέσει τουλάχιστον όσο το όριο που επιλέγω.</small></span></label>
+              <label className="customer-price-drop-threshold"><span>Ελάχιστη πτώση</span><select value={alert.minimumPriceDropMinor} disabled={Boolean(busy) || !alert.priceDropEnabled} onChange={(event) => void updateProductAlert(product, { minimumPriceDropMinor: Number(event.target.value) })}><option value={100}>1 €</option><option value={300}>3 €</option><option value={500}>5 €</option><option value={1000}>10 €</option><option value={2000}>20 €</option></select></label>
+              {busy === `product-alert:${product.canonicalVariantId}` && <small className="customer-alert-saving">Αποθήκευση ρύθμισης…</small>}
+            </div>}
+          </div>;
+        })}</div> : <div className="account-empty"><p>Δεν έχεις αποθηκεύσει προϊόντα.</p><Link className="text-link" href="/shop">Ανακάλυψε προϊόντα →</Link></div>}
+        <CustomerHowItWorks title="Τι γίνεται όταν αποθηκεύω προϊόν;"><p>Το προϊόν παραμένει στη λίστα σου ώστε να το βρίσκεις ξανά εύκολα. Εσύ αποφασίζεις χωριστά αν θέλεις ενημέρωση όταν επιστρέψει σε απόθεμα ή όταν πέσει η τιμή. Όταν αλλάζεις ρύθμιση, το σύστημα χρησιμοποιεί την τρέχουσα κατάσταση ως νέο σημείο αναφοράς ώστε να μην ειδοποιηθείς αμέσως για κάτι που ήδη ίσχυε.</p></CustomerHowItWorks>
       </article>
       <article className="customer-account-panel">
         <div className="account-card-head"><div><div className="eyebrow">Αναζητήσεις</div><h2>Αποθηκευμένες αναζητήσεις</h2></div><span className="count-pill">{searches.length}</span></div>
