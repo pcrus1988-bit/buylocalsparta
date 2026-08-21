@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci --ignore-scripts",
-  "buildCommand": "npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build",
+  "buildCommand": "npm --workspace @buy-local-sparta/web run build",
   "devCommand": "npm --workspace @buy-local-sparta/web run dev",
   "outputDirectory": "apps/web/.next"
 }
