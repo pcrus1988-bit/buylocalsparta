@@ -26,7 +26,7 @@ for (const group of VENDOR_WORKSPACE_NAVIGATION) {
 const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
 for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/session"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
 
-requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", 'from "next/link"', 'aria-current={active ? "page"', "admin-domain-badge", '"99+"']);
+requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "entityLabel", 'from "next/link"', 'aria-current={active ? "page"', "admin-domain-badge", '"99+"']);
 requireText("apps/web/src/components/AdminRecordStatus.tsx", ["AdminRecordState", "AdminAttentionFlag", "AdminStatusStack", "admin-record-state", "admin-attention-flag", "attentionSeverity"]);
 requireText("apps/web/src/lib/admin-attention-projection.ts", ["PostgresUnitOfWork", "platformScope", "readOnly: true", "vendor_verification_queue", "catalog_review_queue", "pending_media", "pending_compliance", "payable_procurements", "fairness_appeals", "adminDomainAttentionBadges", 'assign("/admin/partners"', 'assign("/admin/matching"', 'assign("/admin/trust"', 'assign("/admin/finance"']);
 for (const group of ADMIN_WORKSPACE_NAVIGATION) {
@@ -35,7 +35,7 @@ for (const group of ADMIN_WORKSPACE_NAVIGATION) {
   for (const link of group.links) if (!link.icon) failures.push(`Admin link ${link.href} is missing an icon`);
 }
 const adminHeader = `${read("apps/web/src/components/AdminWorkspaceHeader.tsx")}\n${read("apps/web/src/components/AdminWorkspaceHeaderClient.tsx")}\n${read("apps/web/src/lib/admin-navigation.ts")}`;
-for (const requirement of ["ADMIN_WORKSPACE_NAVIGATION", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "adminDomainAttentionBadges", ".catch(() => ({}))", "attentionBadges", "badge:", "admin-topbar", "admin-global-search", "/admin/search?q=", "aria-expanded={menuOpen}", "workspace-menu-toggle", "metaKey", "ctrlKey", "x-csrf-token"]) if (!adminHeader.includes(requirement)) failures.push(`Admin shell is missing ${requirement}`);
+for (const requirement of ["ADMIN_WORKSPACE_NAVIGATION", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "entityLabel={entityLabel}", "adminDomainAttentionBadges", ".catch(() => ({}))", "attentionBadges", "badge:", "admin-topbar", "admin-global-search", "/admin/search?q=", "aria-expanded={menuOpen}", "workspace-menu-toggle", "metaKey", "ctrlKey", "x-csrf-token"]) if (!adminHeader.includes(requirement)) failures.push(`Admin shell is missing ${requirement}`);
 
 const account = read("apps/web/src/components/AccountDashboardClient.tsx");
 for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-controls", "/ask-local"]) if (!account.includes(`href: "${destination}"`) && !account.includes(`href="${destination}"`)) failures.push(`Account dashboard is missing task path ${destination}`);
@@ -72,11 +72,11 @@ for (const path of [
 ]) requireText(path, ["dashboard-hero-refined", "AdminWorkspaceHeader"]);
 
 requireText("apps/web/src/app/admin/partners/page.tsx", ["Commercial readiness", "commercialAgreementWorkspace", "adminSlaPolicyWorkspace", "adminVendorBillingWorkspace", "admin-insight-table", "Agreement → SLA → billing", "/admin/finance/vendor-billing"]);
-requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "adminVendorFiscalWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "partner-documents"]);
+requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "adminVendorFiscalWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "partner-documents", "entityLabel={shop.tradingName}"]);
 requireText("apps/web/src/app/admin/vendors/page.tsx", ["admin-partner-directory", "/admin/partners/${encodeURIComponent(shop.id)}", "Partner saved views", "view=active", "view=attention", "view=public", "view=hidden", "AdminStatusStack", "partnerAttention", "Agreement gap", "State / attention"]);
 requireText("apps/web/src/app/admin/customers/page.tsx", ["admin-directory-table", "Customer 360", "Customer saved views", "view=attention", "view=new", "view=orders", "view=unverified", "AdminStatusStack", "customerAttention", "Verification pending", "State / attention"]);
 requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds", "Order saved views", "view=open", "view=returns", "view=completed", "/admin/orders/${encodeURIComponent(reference)}", "Open order", "AdminStatusStack", "orderAttention", "order.returns.length ?", "State / attention"]);
-requireText("apps/web/src/app/admin/orders/[id]/page.tsx", ["adminOrdersReturnsWorkspace", "marketplaceReferenceMap", "admin-order-record-hero", "Technical ID", "Customer 360", "/admin/partners/${encodeURIComponent", "/api/admin/orders/action", "Open return workflow", "Internal metadata"]);
+requireText("apps/web/src/app/admin/orders/[id]/page.tsx", ["adminOrdersReturnsWorkspace", "marketplaceReferenceMap", "admin-order-record-hero", "Technical ID", "Customer 360", "/admin/partners/${encodeURIComponent", "/api/admin/orders/action", "Open return workflow", "Internal metadata", "entityLabel={reference}"]);
 requireText("apps/web/src/app/admin/search/page.tsx", ["marketplaceReferenceMap", "/admin/partners/${encodeURIComponent(shop.id)}"]);
 requireText("apps/web/src/app/admin/matching/page.tsx", ["admin-split-workspace", "admin-triage-list", "admin-decision-panel", "Approve match", "Create canonical"]);
 requireText("apps/web/src/components/AskLocalWorkflowPanel.tsx", ["admin-work-queue-split", "admin-work-list", "admin-work-detail", "Assign vendor", "Return to Admin"]);
@@ -133,4 +133,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, lightweight attention badges, semantic record-state versus attention indicators, Action Centre, commercial readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, lightweight attention badges, semantic record-state versus attention indicators, entity-aware Admin detail breadcrumbs, Action Centre, commercial readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);

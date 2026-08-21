@@ -7,9 +7,9 @@ import { AdminWorkspaceHeaderClient } from "./AdminWorkspaceHeaderClient";
 // Attention counts are a fail-soft read-only projection: navigation must stay available even if a
 // dashboard aggregate cannot be read. The canonical Admin IA keeps /admin/activation exposed as the
 // Launch Readiness / Activation evidence workspace even though the route is resolved through navigation data.
-export async function AdminWorkspaceHeader({ csrfToken }: { csrfToken: string }) {
+export async function AdminWorkspaceHeader({ csrfToken, entityLabel }: { csrfToken: string; entityLabel?: string }) {
   const principal = await getAdminSession();
   if (!principal) return null;
   const attentionBadges = await adminDomainAttentionBadges(principal).catch(() => ({}));
-  return <AdminWorkspaceHeaderClient csrfToken={csrfToken} groups={adminNavigationForPrincipal(principal, attentionBadges)} />;
+  return <AdminWorkspaceHeaderClient csrfToken={csrfToken} groups={adminNavigationForPrincipal(principal, attentionBadges)} entityLabel={entityLabel} />;
 }

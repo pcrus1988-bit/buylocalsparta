@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import type { WorkspaceNavGroup } from "../lib/workspace-navigation";
 import { AdminBreadcrumbs, AdminContextNavigation, AdminDomainNavigation } from "./AdminDomainNavigation";
 
-export function AdminWorkspaceHeaderClient({ csrfToken, groups }: { csrfToken: string; groups: ReadonlyArray<WorkspaceNavGroup> }) {
+export function AdminWorkspaceHeaderClient({ csrfToken, groups, entityLabel }: { csrfToken: string; groups: ReadonlyArray<WorkspaceNavGroup>; entityLabel?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,7 +49,7 @@ export function AdminWorkspaceHeaderClient({ csrfToken, groups }: { csrfToken: s
       <div className="workspace-footer workspace-footer-stacked"><span className="workspace-session"><i aria-hidden="true" /> Admin · ασφαλής συνεδρία</span><div className="workspace-footer-actions"><Link className="workspace-footer-action" href="/" onClick={() => setMenuOpen(false)}>Δημόσιο site <span aria-hidden="true">↗</span></Link><button className="workspace-footer-action admin-logout" type="button" onClick={logout} disabled={busy}>{busy ? "Έξοδος…" : "Αποσύνδεση"}</button></div></div>
     </header>
     <div className="admin-topbar">
-      <div className="admin-topbar-main"><div className="admin-breadcrumbs"><AdminBreadcrumbs groups={groups} /></div><form className="admin-global-search" role="search" onSubmit={search}><span aria-hidden="true">⌕</span><input ref={searchRef} name="q" aria-label="Αναζήτηση στο Admin" placeholder="Παραγγελία, πελάτης, συνεργάτης, ticket…" autoComplete="off" /><kbd>⌘K</kbd></form></div>
+      <div className="admin-topbar-main"><div className="admin-breadcrumbs"><AdminBreadcrumbs groups={groups} entityLabel={entityLabel} /></div><form className="admin-global-search" role="search" onSubmit={search}><span aria-hidden="true">⌕</span><input ref={searchRef} name="q" aria-label="Αναζήτηση στο Admin" placeholder="Παραγγελία, πελάτης, συνεργάτης, ticket…" autoComplete="off" /><kbd>⌘K</kbd></form></div>
       <AdminContextNavigation groups={groups} />
     </div>
   </>;

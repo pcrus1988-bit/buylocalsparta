@@ -44,7 +44,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const activationBlocked = !shop.operationalActive && (!shop.cooperationDocumented || applicationRequiresGovernedActivation);
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={managed.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={managed.csrfToken} entityLabel={shop.tradingName} />
     <section id="partner-overview" className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Partner record</div><h1>{shop.tradingName}</h1><p className="lead">{shop.legalName} · {shop.id}. Ένα record για operational status, orders, agreement/SLA και fiscal documents.</p><div className="hero-actions"><Link className="text-link" href="/admin/vendors">← Partner directory</Link>{shop.applicationId && <Link className="text-link" href="/admin/partners/pipeline">Pipeline →</Link>}</div></div></section>
     <section className="shell admin-local-tabs-shell"><nav className="admin-local-tabs" aria-label="Partner record sections"><a href="#partner-overview">Overview</a>{canOrders && <a href="#partner-orders">Orders</a>}<a href="#partner-agreement">Agreement & SLA</a>{fiscal.permitted && <a href="#partner-documents">Documents</a>}<a href="#partner-activity">Activity</a></nav></section>
     <WorkspaceMetricStrip items={[
