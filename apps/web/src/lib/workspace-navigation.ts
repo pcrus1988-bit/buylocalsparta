@@ -145,6 +145,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Αξιολογήσεις", href: "/admin/reviews", icon: "☆", permission: "reviews.read" },
       { label: "Product Safety", href: "/admin/recalls", icon: "!", permission: "returns.read" },
       { label: "Privacy", href: "/admin/privacy", icon: "◐", permission: "privacy.read" },
+      { label: "Accessibility", href: "/admin/accessibility", icon: "◎", permission: "accessibility.read" },
       { label: "Fairness", href: "/admin/fairness", icon: "⚖", permission: "fairness.read" }
     ]
   },

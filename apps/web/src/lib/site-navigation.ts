@@ -140,6 +140,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/vendor/trust",
   "/admin",
   "/admin/login",
+  "/admin/accessibility",
   "/admin/activation",
   "/admin/analytics",
   "/admin/ask-local",

@@ -98,5 +98,6 @@
   "0099_supabase_data_api_privilege_hardening.sql": "42b7a1031b92a5afba7b4f657004677b2b6e442d70d7ffedcc134c70a0cb53b2",
   "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621",
   "0101_checkout_request_integrity.sql": "6a1ecb6f3f0b925f9ca6c1ab815d9ab2d2b78e4d698080201c4688251f877e3d",
-  "0102_cookie_consent_receipts.sql": "7cf8a45835957090ab631bcadd568b2f6bfc62346543ea816923f3649e87fd58"
+  "0102_cookie_consent_receipts.sql": "7cf8a45835957090ab631bcadd568b2f6bfc62346543ea816923f3649e87fd58",
+  "0103_accessibility_governance.sql": "eb5e1943e113cc43184be5f7fd8285a75cb97db50301220163b49fb97d5add04"
 }
