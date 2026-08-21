@@ -34,7 +34,7 @@ for (const page of dynamicPages) {
 
 const orderPath = "apps/web/src/app/admin/orders/[id]/page.tsx";
 const order = readFileSync(join(root, orderPath), "utf8");
-for (const requirement of ['marketplaceReferenceMap("order"', "entityLabel={reference}", "Technical ID", "Internal metadata", "public order number"]) {
+for (const requirement of ['marketplaceReferenceMap("order"', "entityLabel={reference}", "Technical ID", "Internal metadata", "Order number"]) {
   if (!order.includes(requirement)) failures.push(`${orderPath} is missing ${requirement}`);
 }
 
