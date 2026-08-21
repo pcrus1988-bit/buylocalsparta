@@ -1,5 +1,5 @@
-import { requireAccountSession } from "../../../../../../../lib/account-session";
-import { archiveCustomerNotification } from "../../../../../../../lib/customer-state-runtime";
+import { requireAccountSession } from "../../../../../../lib/account-session";
+import { archiveCustomerNotification } from "../../../../../../lib/customer-state-runtime";
 
 type Context = { params: Promise<{ id: string }> };
 
