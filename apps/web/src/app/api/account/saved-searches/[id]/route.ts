@@ -1,7 +1,7 @@
 import { requireAccountSession } from "../../../../../lib/account-session";
 import { configureCustomerSavedSearchAlerts, removeCustomerSavedSearch, updateCustomerSavedSearch } from "../../../../../lib/customer-saved-search-actions";
 
-const availability = (value: unknown): "any" | "in_stock" | "pickup_today" => value === "in_stock" || value === "pickup_today" ? value : "any";
+const availability = (value: unknown): "any" | "in_stock" => value === "in_stock" || value === "pickup_today" ? "in_stock" : "any";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
