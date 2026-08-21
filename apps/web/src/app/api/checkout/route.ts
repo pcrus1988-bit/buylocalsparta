@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { formatMoney } from "@buy-local-sparta/core";
 import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
@@ -10,6 +11,46 @@ type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfil
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
 const VIVA_MINIMUM_AMOUNT_MINOR = 30;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
+function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
+
+async function assertCheckoutRequestIntegrity(
+  runtime: ReturnType<typeof getProductionPostgresRuntime>,
+  input: {
+    checkoutKey: string;
+    actorUserId: string;
+    postcode: string;
+    fulfilmentMode: "pickup" | "local_delivery" | "shipping";
+    billingAddressId: string;
+    deliveryAddressId?: string;
+    items: readonly Readonly<{ canonicalVariantId: string; quantity: number }>[];
+    shipping?: Readonly<{ provider?: "boxnow"; providerDestinationId?: string; recipientName?: string; recipientEmail?: string; recipientPhone?: string }>;
+  }
+): Promise<void> {
+  const requestHash = sha256(JSON.stringify({
+    postcode: input.postcode,
+    fulfilmentMode: input.fulfilmentMode,
+    billingAddressId: input.billingAddressId,
+    deliveryAddressId: input.fulfilmentMode === "local_delivery" ? input.deliveryAddressId ?? null : null,
+    items: [...input.items].map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })).sort((a, b) => a.canonicalVariantId.localeCompare(b.canonicalVariantId)),
+    shipping: input.fulfilmentMode === "shipping" ? {
+      provider: input.shipping?.provider ?? null,
+      providerDestinationId: input.shipping?.providerDestinationId ?? null,
+      recipientName: input.shipping?.recipientName ?? null,
+      recipientEmail: input.shipping?.recipientEmail ?? null,
+      recipientPhone: input.shipping?.recipientPhone ?? null
+    } : null
+  }));
+  const actorHash = sha256(input.actorUserId);
+  const guard = await runtime.sqlPool.query(`
+    INSERT INTO checkout_request_guards(checkout_key,actor_hash,request_hash,created_at,last_seen_at)
+    VALUES($1,$2,$3,now(),now())
+    ON CONFLICT(checkout_key) DO UPDATE SET last_seen_at=now()
+    WHERE checkout_request_guards.actor_hash=EXCLUDED.actor_hash
+      AND checkout_request_guards.request_hash=EXCLUDED.request_hash
+    RETURNING checkout_key
+  `, [input.checkoutKey, actorHash, requestHash]);
+  if (!guard.rowCount) throw new Error("Αυτό το checkout έχει ήδη χρησιμοποιηθεί με διαφορετικά στοιχεία. Ανανέωσε το checkout και δοκίμασε ξανά.");
+}
 
 export async function POST(request: Request) {
   try {
@@ -83,8 +124,19 @@ export async function POST(request: Request) {
       deliveryAddress = undefined;
     }
 
+    const runtime = getProductionPostgresRuntime();
+    await assertCheckoutRequestIntegrity(runtime, {
+      checkoutKey,
+      actorUserId: principal.userId,
+      postcode,
+      fulfilmentMode,
+      billingAddressId,
+      deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined,
+      items,
+      shipping
+    });
+
     if (vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
-      const runtime = getProductionPostgresRuntime();
       let pickupTotalMinor = 0;
       for (const item of items) {
         const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
