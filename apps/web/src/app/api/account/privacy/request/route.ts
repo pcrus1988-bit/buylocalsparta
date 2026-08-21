@@ -39,6 +39,7 @@ function privacyRequestLabel(type: string): string {
     case "export": return "εξαγωγής / φορητότητας";
     case "correction": return "διόρθωσης";
     case "deletion": return "διαγραφής";
+    case "restriction": return "περιορισμού επεξεργασίας";
     case "objection": return "εναντίωσης";
     case "marketing_withdrawal": return "ανάκλησης marketing";
     case "account_closure": return "κλεισίματος λογαριασμού";
