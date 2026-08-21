@@ -21,8 +21,10 @@ walk(adminRoot);
 
 const expected = [
   "apps/web/src/app/admin/customers/[customerId]/page.tsx",
+  "apps/web/src/app/admin/customers/[customerId]/manage/page.tsx",
   "apps/web/src/app/admin/orders/[id]/page.tsx",
-  "apps/web/src/app/admin/partners/[id]/page.tsx"
+  "apps/web/src/app/admin/partners/[id]/page.tsx",
+  "apps/web/src/app/admin/research-vendors/[id]/page.tsx"
 ] as const;
 
 for (const page of expected) if (!dynamicPages.includes(page)) failures.push(`Missing expected Admin record route ${page}`);
@@ -48,6 +50,18 @@ const customerPath = "apps/web/src/app/admin/customers/[customerId]/page.tsx";
 const customer = readFileSync(join(root, customerPath), "utf8");
 for (const requirement of ["entityLabel={customerName(customer)}", "<h1>{customerName(customer)}</h1>"]) {
   if (!customer.includes(requirement)) failures.push(`${customerPath} is missing ${requirement}`);
+}
+
+const customerManagePath = "apps/web/src/app/admin/customers/[customerId]/manage/page.tsx";
+const customerManage = readFileSync(join(root, customerManagePath), "utf8");
+for (const requirement of ["entityLabel={name(customer)}", "<h1>{name(customer)}</h1>", "privacy-minimised account recovery signals"]) {
+  if (!customerManage.includes(requirement)) failures.push(`${customerManagePath} is missing ${requirement}`);
+}
+
+const researchVendorPath = "apps/web/src/app/admin/research-vendors/[id]/page.tsx";
+const researchVendor = readFileSync(join(root, researchVendorPath), "utf8");
+for (const requirement of ['entityLabel="Vendor dossier"', "entityLabel={vendor.tradingName}", "<h1>{vendor.tradingName}</h1>", "internal acquisition intelligence"]) {
+  if (!researchVendor.includes(requirement)) failures.push(`${researchVendorPath} is missing ${requirement}`);
 }
 
 const customerRuntimePath = "apps/web/src/lib/admin-customer-management.ts";
