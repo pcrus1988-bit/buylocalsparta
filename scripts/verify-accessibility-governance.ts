@@ -60,7 +60,7 @@ expect(migration.includes("FROM PUBLIC, anon, authenticated, service_role"), "ac
 const checksums = JSON.parse(checksumsRaw) as Record<string, string>;
 const actualHash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0103_accessibility_governance.sql"] === actualHash, `0103 checksum mismatch: manifest=${checksums["0103_accessibility_governance.sql"] ?? "missing"} actual=${actualHash}`);
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 111"), "PostgreSQL runtime schema target must be 111");
+expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 112"), "PostgreSQL runtime schema target must be 112");
 
 expect(rbac.includes('"accessibility.read"'), "accessibility.read RBAC permission is missing");
 expect(rbac.includes('"accessibility.manage"'), "accessibility.manage RBAC permission is missing");
