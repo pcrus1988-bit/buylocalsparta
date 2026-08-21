@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
+import { AdminFinanceTabs } from "../../../components/AdminFinanceTabs";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminFinanceWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
@@ -26,6 +27,7 @@ export default async function Page() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div><div className="eyebrow">Maker / checker</div><h1>Finance</h1><p className="lead">Procurement matching, payable approval και settlement παραμένουν ξεχωριστά στάδια με καθαρή επόμενη ενέργεια.</p></div>
     </section>
+    <section className="shell admin-local-tabs-shell"><AdminFinanceTabs /></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Procurements", value: data.procurements.length },
