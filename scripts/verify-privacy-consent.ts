@@ -5,7 +5,7 @@ import {
   decodePrivacyConsent,
   encodePrivacyConsent,
   readPrivacyConsent
-} from "../apps/web/src/lib/privacy-consent";
+} from "../apps/web/src/lib/privacy-consent.ts";
 
 const files = {
   layout: read("apps/web/src/app/layout.tsx"),
