@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export type VendorLifecycleTone = "done" | "current" | "attention" | "waiting" | "blocked" | "future";
 
@@ -21,7 +21,8 @@ export function VendorLifecycle({
   steps,
   ariaLabel = "Πορεία εργασίας"
 }: Readonly<{ steps: readonly VendorLifecycleStep[]; ariaLabel?: string }>) {
-  return <ol className="vendor-lifecycle" aria-label={ariaLabel}>
+  const style = { "--vendor-lifecycle-columns": Math.max(1, Math.min(steps.length, 6)) } as CSSProperties;
+  return <ol className="vendor-lifecycle" aria-label={ariaLabel} style={style}>
     {steps.map((step, index) => <li className={`vendor-lifecycle-step is-${step.tone}`} key={`${index}:${step.label}`}>
       <span className="vendor-lifecycle-marker" aria-hidden="true">{STEP_ICON[step.tone]}</span>
       <span className="vendor-lifecycle-copy"><strong>{step.label}</strong>{step.detail ? <small>{step.detail}</small> : null}</span>
@@ -43,6 +44,12 @@ export function VendorActionNotice({
 export function vendorStatusLabel(value: string): string {
   const status = value.trim().toLowerCase();
   const labels: Record<string, string> = {
+    active: "Ενεργό",
+    private: "Ιδιωτική",
+    booked: "Προγραμματισμένο",
+    offered: "Προσφορά στάλθηκε",
+    offer_sent: "Προσφορά στάλθηκε",
+    waiting_customer: "Περιμένουμε τον πελάτη",
     pending: "Νέα",
     assigned: "Νέα",
     awaiting_vendor: "Περιμένει αποδοχή",
@@ -68,6 +75,7 @@ export function vendorStatusLabel(value: string): string {
     replaced: "Ολοκληρώθηκε με αντικατάσταση",
     refunded: "Ολοκληρώθηκε με επιστροφή χρημάτων",
     closed: "Ολοκληρώθηκε",
+    expired: "Έληξε",
     in_repair: "Σε επισκευή",
     awaiting_part: "Αναμονή ανταλλακτικού",
     ready_for_customer: "Έτοιμο για τον πελάτη",
