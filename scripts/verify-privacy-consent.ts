@@ -1,4 +1,11 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  PRIVACY_CONSENT_COOKIE,
+  PRIVACY_CONSENT_VERSION,
+  decodePrivacyConsent,
+  encodePrivacyConsent,
+  readPrivacyConsent
+} from "../apps/web/src/lib/privacy-consent";
 
 const files = {
   layout: read("apps/web/src/app/layout.tsx"),
@@ -27,10 +34,40 @@ expect(files.proxy, 'pathname.startsWith("/api/analytics/")', "analytics-only re
 if (files.proxy.includes("90 * 24 * 60 * 60")) failures.push("proxy: legacy 90-day visitor retention is still present");
 
 expect(files.consentClient, 'PRIVACY_CONSENT_RECEIPT_COOKIE = "bls_consent_receipt"', "signed receipt cookie is explicitly defined");
+expect(files.consentClient, "return JSON.stringify(stored)", "browser consent is not pre-percent-encoded before ResponseCookies serialization");
+expect(files.consentClient, "depth < 3", "legacy double-encoded consent cookies are recoverable");
 expect(files.consentServer, "createHmac", "consent receipt is cryptographically signed");
 expect(files.consentServer, "timingSafeEqual", "consent signature comparison is timing safe");
 expect(files.consentServer, 'process.env.BLS_AUTH_SECRET', "consent receipt uses the server authentication secret");
 expect(files.consentServer, "parsed.e <= now", "expired signed consent receipt is rejected");
+
+const sampleConsent = {
+  version: PRIVACY_CONSENT_VERSION,
+  personalisation: false,
+  analytics: true,
+  marketing: false,
+  decidedAt: "2026-08-21T10:00:00.000Z"
+} as const;
+const canonicalConsent = encodePrivacyConsent(sampleConsent);
+const onceEncodedConsent = encodeURIComponent(canonicalConsent);
+const legacyDoubleEncodedConsent = encodeURIComponent(onceEncodedConsent);
+if (canonicalConsent.startsWith("%7B") || canonicalConsent.startsWith("%7b")) {
+  failures.push("consent runtime: canonical cookie value is still pre-percent-encoded");
+}
+for (const [label, value] of [
+  ["canonical", canonicalConsent],
+  ["once encoded", onceEncodedConsent],
+  ["legacy double encoded", legacyDoubleEncodedConsent]
+] as const) {
+  const decoded = decodePrivacyConsent(value);
+  if (!decoded || decoded.analytics !== true || decoded.version !== PRIVACY_CONSENT_VERSION) {
+    failures.push(`consent runtime: ${label} value cannot be decoded`);
+  }
+}
+const legacyCookieString = `${PRIVACY_CONSENT_COOKIE}=${legacyDoubleEncodedConsent}; another_cookie=ok`;
+if (readPrivacyConsent(legacyCookieString)?.analytics !== true) {
+  failures.push("consent runtime: legacy browser cookie is not recovered from document.cookie");
+}
 
 expect(files.consentApi, "PRIVACY_CONSENT_MAX_AGE_SECONDS", "versioned consent cookie persisted");
 expect(files.consentApi, "cross_origin_consent_update_denied", "consent preference write is same-origin protected");
@@ -95,7 +132,7 @@ if (failures.length) {
   console.error("Privacy consent checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Privacy consent, signed receipt, specific scope, withdrawal and tracker-registry checks passed.");
+console.log("Privacy consent, signed receipt, persistence compatibility, specific scope, withdrawal and tracker-registry checks passed.");
 
 function read(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
