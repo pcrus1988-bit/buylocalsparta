@@ -25,17 +25,19 @@ for (const contract of [
   "customerReplyAskLocalClarification",
   "cr.workflow_owner_kind='vendor'",
   'String(row.status) !== "awaiting_vendor"',
-  "status='needs_info',expires_at=NULL",
+  "source_metadata=$2::jsonb,status='needs_info',expires_at=NULL",
   'String(row.status) !== "needs_info"',
-  'String(last.rows[0].sender_type) !== "vendor"',
-  "status='awaiting_vendor',expires_at=$2",
+  'last.senderType !== "vendor"',
+  "source_metadata=$2::jsonb,status='awaiting_vendor',expires_at=$3",
   "24 * 60 * 60 * 1000",
-  "c.context->>'askLocalRequestId'",
+  "clarificationMessages",
+  "metadataWithMessages",
   "u.public_id=$2",
   "thread.customerId !== principal.userId",
   "counteroffer.needs_info",
   "counteroffer.customer_replied"
 ]) if (!clarificationService.includes(contract)) failures.push(`Ask Local clarification governance is missing ${contract}`);
+if (clarificationService.includes("c.context") || clarificationService.includes("INSERT INTO conversations")) failures.push("Ask Local clarification must not depend on a non-existent conversations.context schema bridge");
 for (const contract of ["getAccountSession()", "requireAccountSession(request, true)", "askLocalClarificationMessages", "customerReplyAskLocalClarification", "customerAskLocalRequests"]) if (!clarificationRoute.includes(contract)) failures.push(`Customer clarification API is missing ${contract}`);
 for (const contract of ["requireDailySession(request, true)", "vendorRequestAskLocalClarification", "vendorAdviceWorkspace"]) if (!dailyClarificationRoute.includes(contract)) failures.push(`Vendor clarification API is missing ${contract}`);
 for (const contract of ["/api/account/ask-local/clarifications", "x-csrf-token", "requestId, reply", "νέα 24ωρη προθεσμία"]) if (!clarificationClient.includes(contract)) failures.push(`Customer clarification UI is missing ${contract}`);
@@ -47,4 +49,4 @@ if (!dynamicHomepageAskLocal && !home.includes('action="/ask-local"')) failures.
 if (home.includes("Demo interface — δεν αποστέλλεται") || homeSearch.includes("Demo interface — δεν αποστέλλεται")) failures.push("Homepage Ask Local must not present a demo-only workflow");
 if (!INDEXABLE_STATIC_ROUTES.some((entry) => entry.href === "/ask-local")) failures.push("Sitemap registry must contain Ask Local");
 if (failures.length) { console.error("Ask Local checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n")); process.exit(1); }
-console.log("Ask Local checks passed: auth/CSRF, validation, fair product routing, private vendor scope, governed clarification question/reply lifecycle, clarification-gated offers, customer-owned offer decisions, notifications, live homepage and sitemap registry verified.");
+console.log("Ask Local checks passed: auth/CSRF, validation, fair product routing, private vendor scope, request-scoped clarification lifecycle, clarification-gated offers, customer-owned offer decisions, notifications, live homepage and sitemap registry verified.");
