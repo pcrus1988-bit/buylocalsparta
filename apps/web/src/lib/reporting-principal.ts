@@ -5,36 +5,55 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 
 /**
  * Reporting persistence stores ownership/audit actors using internal database UUIDs.
- * Authentication principals expose application-facing identifiers, and some of those public
- * identifiers are themselves UUID-shaped. Therefore identifier *shape* is never sufficient to
- * decide whether a principal value is already an internal UUID.
+ * Authentication principals intentionally expose public application identifiers instead.
  *
- * This report-scoped adapter resolves the authenticated actor through the identity tables and,
- * for vendor principals, resolves/validates the vendor through the actor's active membership.
- * It deliberately accepts every legitimate identity representation currently used by the auth
- * layer (users.id/users.public_id and vendor_users.id/vendor_users.public_id) while returning
- * only internal users.id/vendor_businesses.id UUIDs to the reporting engine.
+ * The current authenticated session is the strongest identity link available because
+ * user_sessions.user_id already references the exact internal users.id that owns the session.
+ * Resolve through that link first. This also keeps reports working for accounts whose public
+ * identifiers have changed format over time. Public/user/vendor identifiers remain a fallback
+ * for non-session principals and legacy callers.
  */
 export async function resolveReportPrincipal(principal: SessionPrincipal): Promise<SessionPrincipal> {
   if (!productionDatabaseConfigured()) return principal;
 
   const pool = getProductionPostgresRuntime().nativePool;
+  const sessionRef = String(principal.sessionId ?? "").trim();
   const actorRef = String(principal.userId ?? "").trim();
-  if (!actorRef) throw new Error("REPORT_ACTOR_NOT_FOUND");
+  if (!sessionRef && !actorRef) throw new Error("REPORT_ACTOR_NOT_FOUND");
 
-  const actorResult = await pool.query(`
-    SELECT DISTINCT u.id::text AS user_id
-    FROM users u
-    LEFT JOIN vendor_users vu ON vu.user_id=u.id
-    WHERE u.id::text=$1
-       OR u.public_id=$1
-       OR vu.id::text=$1
-       OR vu.public_id=$1
-    LIMIT 2
-  `, [actorRef]);
+  let internalUserId = "";
 
-  if (actorResult.rowCount !== 1) throw new Error("REPORT_ACTOR_NOT_FOUND");
-  const internalUserId = String(actorResult.rows[0]?.user_id ?? "");
+  if (sessionRef) {
+    const sessionActor = await pool.query(`
+      SELECT u.id::text AS user_id
+      FROM user_sessions us
+      JOIN users u ON u.id=us.user_id
+      WHERE us.public_id=$1 OR us.id::text=$1
+      LIMIT 2
+    `, [sessionRef]);
+
+    if (sessionActor.rowCount === 1) {
+      internalUserId = String(sessionActor.rows[0]?.user_id ?? "");
+    }
+  }
+
+  if (!UUID_RE.test(internalUserId) && actorRef) {
+    const actorResult = await pool.query(`
+      SELECT DISTINCT u.id::text AS user_id
+      FROM users u
+      LEFT JOIN vendor_users vu ON vu.user_id=u.id
+      WHERE u.id::text=$1
+         OR u.public_id=$1
+         OR vu.id::text=$1
+         OR vu.public_id=$1
+      LIMIT 2
+    `, [actorRef]);
+
+    if (actorResult.rowCount === 1) {
+      internalUserId = String(actorResult.rows[0]?.user_id ?? "");
+    }
+  }
+
   if (!UUID_RE.test(internalUserId)) throw new Error("REPORT_ACTOR_NOT_FOUND");
 
   if (!principal.vendorId) return { ...principal, userId: internalUserId };
