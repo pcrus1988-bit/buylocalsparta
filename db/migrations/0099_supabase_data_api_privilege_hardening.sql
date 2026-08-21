@@ -10,6 +10,13 @@ BEGIN;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated, service_role;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, service_role;
 
+-- Hosted Supabase owns some PostGIS extension objects as supabase_admin, so the
+-- project postgres role cannot always revoke those object-level grants directly.
+-- Close the exposed public schema to Data API roles; direct PostgreSQL runtime
+-- roles retain explicit schema access.
+REVOKE USAGE ON SCHEMA public FROM PUBLIC, anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA public TO bls_app_runtime, bls_platform_runtime;
+
 -- bls_private is an internal helper schema, not a client API.
 REVOKE USAGE ON SCHEMA bls_private FROM anon, authenticated, service_role;
 
@@ -59,6 +66,8 @@ $$;
 
 -- Supabase Security Advisor reports these PostGIS SECURITY DEFINER helpers as
 -- callable by Data API roles. The marketplace does not expose them as RPCs.
+-- Object-level revokes work when this migration role owns those objects; the
+-- schema-level Data API denial above is the hosted-Supabase backstop.
 REVOKE EXECUTE ON FUNCTION public.st_estimatedextent(text, text)
   FROM PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.st_estimatedextent(text, text, text)
