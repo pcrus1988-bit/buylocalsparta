@@ -33,16 +33,18 @@ for (const contract of [
   "resumeCustomerOrderPayment",
   "PAYMENT_WINDOW_EXPIRED",
   "PAYMENT_NOT_PENDING",
-  "cache-control\": \"no-store"
+  '"cache-control": "no-store"'
 ]) if (!route.includes(contract)) failures.push(`Payment-resume route is missing ${contract}`);
 
 for (const contract of [
   "data.sourceStatus === \"pending_payment\"",
+  "data.sourceStatus !== \"pending_payment\" && <CustomerFulfilmentProgress",
   "/payment`",
   "x-csrf-token",
   "window.location.assign(payload.redirectUrl)",
   "Συνέχιση ασφαλούς πληρωμής",
-  "Δεν δημιουργείται νέα παραγγελία"
+  "Δεν δημιουργείται νέα παραγγελία",
+  "paymentError && <p className=\"form-error\" role=\"alert\""
 ]) if (!client.includes(contract)) failures.push(`Order detail payment recovery is missing ${contract}`);
 
 for (const contract of [
