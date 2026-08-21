@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AskLocalClarificationClient } from "./AskLocalClarificationClient";
 import { CustomerHowItWorks, CustomerLifecycle, type CustomerLifecycleStage } from "./CustomerAccountPrimitives";
 import type { AskLocalRequestView } from "../lib/ask-local-service";
 
@@ -94,14 +95,14 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
       </form>
     </section>
     <section className="shell section" aria-labelledby="requests-title">
-      <div className="section-heading"><div><div className="eyebrow">Τα αιτήματά μου</div><h2 id="requests-title">Ιδιωτική εξέλιξη</h2></div><p className="section-note">Η ανάθεση και οι προσφορές εμφανίζονται μόνο στον λογαριασμό σου.</p></div>
+      <div className="section-heading"><div><div className="eyebrow">Τα αιτήματά μου</div><h2 id="requests-title">Ιδιωτική εξέλιξη</h2></div><p className="section-note">Η ανάθεση, οι διευκρινίσεις και οι προσφορές εμφανίζονται μόνο στον λογαριασμό σου.</p></div>
       {requests.length ? <div className="ask-request-list">{requests.map((request) => <article className="ask-request-card" key={request.id}>
         <div className="ask-request-head"><div><strong>{request.referenceNumber}</strong><small>{date(request.createdAt)}</small></div><span className="status-pill">{labels[request.status] ?? request.status}</span></div>
         <p>{request.need}</p>
         <div className="ask-request-meta"><span>{request.quantity} τεμ.</span><span>ΤΚ {request.postcode}</span>{request.assignedVendorName && <span>Ιδιωτικά προς {request.assignedVendorName}</span>}{request.responseDueAt && request.status === "awaiting_vendor" && <span>Απάντηση έως {date(request.responseDueAt)}</span>}</div>
         <CustomerLifecycle label={`Πορεία Ask Local ${request.referenceNumber}`} stages={requestLifecycle(request.status)} />
         {request.status === "awaiting_vendor" && <p className="account-muted">Περιμένουμε απάντηση από το κατάστημα. Δεν χρειάζεται ενέργεια από εσένα τώρα.</p>}
-        {request.status === "needs_info" && <p className="account-muted"><strong>Χρειάζεται διευκρίνιση.</strong> Το αίτημα παραμένει ανοιχτό μέχρι να ολοκληρωθεί η σχετική επικοινωνία.</p>}
+        {request.status === "needs_info" && <><p className="account-muted"><strong>Χρειάζεται διευκρίνιση από εσένα.</strong> Δες την ερώτηση του καταστήματος και απάντησε μέσα από το ίδιο αίτημα.</p><AskLocalClarificationClient requestId={request.id} status={request.status} csrfToken={csrfToken} onRequestsChanged={setRequests} /></>}
         {request.status === "offered" && <p className="account-muted"><strong>Υπάρχει νέα ιδιωτική προσφορά.</strong> Έλεγξε τι περιλαμβάνει, την τελική τιμή και μέχρι πότε ισχύει πριν αποφασίσεις.</p>}
         {request.privateOffers.length > 0 && <div className="private-offer-list">{request.privateOffers.map((offer) => {
           const active = offer.status === "active" && offer.expiresAt > Date.now() && request.status === "offered";
@@ -114,7 +115,7 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
             {offer.status === "converted" && <div className="customer-private-offer-result"><strong>Έγινε παραγγελία</strong><span>Η ειδική τιμή έχει ήδη δεσμευτεί σε παραγγελία.</span><Link className="text-link" href="/account/orders">Δες τις παραγγελίες →</Link></div>}
           </div>;
         })}</div>}
-        <CustomerHowItWorks title="Τι σημαίνει η τρέχουσα κατάσταση;"><p>Η πορεία δείχνει τι ολοκληρώθηκε και ποιος έχει το επόμενο βήμα. Πορτοκαλί σημαίνει ότι το αίτημα έχει φτάσει σε σημείο όπου χρειάζεται δική σου απόφαση ή πληροφορία. Η αποδοχή καταγράφεται οριστικά και ενημερώνει αμέσως το κατάστημα.</p></CustomerHowItWorks>
+        <CustomerHowItWorks title="Τι σημαίνει η τρέχουσα κατάσταση;"><p>Η πορεία δείχνει τι ολοκληρώθηκε και ποιος έχει το επόμενο βήμα. Πορτοκαλί σημαίνει ότι το αίτημα έχει φτάσει σε σημείο όπου χρειάζεται δική σου απόφαση ή πληροφορία. Όταν απαντάς σε διευκρίνιση, το αίτημα επιστρέφει αυτόματα στο κατάστημα με νέα προθεσμία.</p></CustomerHowItWorks>
       </article>)}</div> : <div className="empty-state"><h2>Δεν έχεις ακόμη Ask Local αιτήματα.</h2><p>Το πρώτο σου αίτημα θα εμφανιστεί εδώ με την ιδιωτική του κατάσταση.</p></div>}
     </section>
   </>;
