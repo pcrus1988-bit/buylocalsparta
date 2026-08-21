@@ -9,6 +9,7 @@ function epoch(value: unknown): number {
   return parsed;
 }
 
+
 function jsonRecord(value: unknown): Readonly<Record<string, unknown>> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   return value as Readonly<Record<string, unknown>>;
@@ -127,23 +128,36 @@ export class PostgresCustomerPrivacyRepository {
     }, { readOnly: true });
   }
 
+
   async privacyRequestsForUser(input: { scope: DatabaseScope; userId: string }): Promise<PrivacyRequest[]> {
-    const uid = await this.#uow.withTransaction(input.scope, (tx) => userUuid(tx, input.userId), { readOnly: true });
-    return this.#privacyRequests(input.scope, "pr.user_id=$1", [uid]);
+    return this.#uow.withTransaction(input.scope, async (tx) => {
+      const uid = await userUuid(tx, input.userId);
+      const result = await tx.query<SqlRow>(`
+        SELECT pr.public_id, u.public_id AS user_public_id, pr.request_type, pr.status, pr.due_at, pr.details,
+               pr.processing_started_at, pr.completed_at, completed.public_id AS completed_by_public_id,
+               pr.retention_snapshot, pr.outcome, pr.created_at
+        FROM privacy_requests pr
+        JOIN users u ON u.id=pr.user_id
+        LEFT JOIN users completed ON completed.id=pr.completed_by
+        WHERE pr.user_id=$1
+        ORDER BY pr.created_at DESC
+      `, [uid]);
+      return result.rows.map(mapPrivacyRequest);
+    }, { readOnly: true });
   }
 
   async privacyRequestsForPlatform(input: { scope: DatabaseScope }): Promise<PrivacyRequest[]> {
     if (!input.scope.platformAccess) throw new Error("Platform access is required for privacy operations");
-    return this.#privacyRequests(input.scope, "TRUE", []);
-  }
-
-  async #privacyRequests(scope: DatabaseScope, where: string, params: unknown[]): Promise<PrivacyRequest[]> {
-    return this.#uow.withTransaction(scope, async (tx) => {
+    return this.#uow.withTransaction(input.scope, async (tx) => {
       const result = await tx.query<SqlRow>(`
-        SELECT pr.public_id,u.public_id AS user_public_id,pr.request_type,pr.status,pr.due_at,pr.details,pr.processing_started_at,pr.completed_at,
-          completed.public_id AS completed_by_public_id,pr.retention_snapshot,pr.outcome,pr.created_at
-        FROM privacy_requests pr JOIN users u ON u.id=pr.user_id LEFT JOIN users completed ON completed.id=pr.completed_by
-        WHERE ${where} ORDER BY pr.created_at DESC`, params);
+        SELECT pr.public_id, u.public_id AS user_public_id, pr.request_type, pr.status, pr.due_at, pr.details,
+               pr.processing_started_at, pr.completed_at, completed.public_id AS completed_by_public_id,
+               pr.retention_snapshot, pr.outcome, pr.created_at
+        FROM privacy_requests pr
+        JOIN users u ON u.id=pr.user_id
+        LEFT JOIN users completed ON completed.id=pr.completed_by
+        ORDER BY pr.created_at DESC
+      `);
       return result.rows.map(mapPrivacyRequest);
     }, { readOnly: true });
   }
@@ -170,30 +184,38 @@ export class PostgresCustomerPrivacyRepository {
       const uid = await userUuid(tx, input.request.userId);
       const completedBy = input.request.completedBy ? await userUuid(tx, input.request.completedBy).catch(() => null) : null;
       await tx.query(`INSERT INTO privacy_requests (id,public_id,user_id,request_type,status,due_at,details,processing_started_at,completed_at,completed_by,retention_snapshot,outcome,created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12::jsonb,$13)
-        ON CONFLICT (public_id) DO UPDATE SET request_type=EXCLUDED.request_type,status=EXCLUDED.status,due_at=EXCLUDED.due_at,details=EXCLUDED.details,
-          processing_started_at=EXCLUDED.processing_started_at,completed_at=EXCLUDED.completed_at,completed_by=EXCLUDED.completed_by,
-          retention_snapshot=EXCLUDED.retention_snapshot,outcome=EXCLUDED.outcome`,
-      [randomUUID(), input.request.id, uid, input.request.type, input.request.status, new Date(input.request.targetAt), JSON.stringify(input.request.details ?? {}),
-       input.request.processingStartedAt ? new Date(input.request.processingStartedAt) : null, input.request.completedAt ? new Date(input.request.completedAt) : null,
-       completedBy, JSON.stringify(input.request.retention ?? []), JSON.stringify(input.request.outcome ?? {}), new Date(input.request.submittedAt)]);
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        ON CONFLICT (public_id) DO UPDATE SET status=EXCLUDED.status, details=EXCLUDED.details, processing_started_at=EXCLUDED.processing_started_at,
+          completed_at=EXCLUDED.completed_at, completed_by=EXCLUDED.completed_by, retention_snapshot=EXCLUDED.retention_snapshot, outcome=EXCLUDED.outcome`,
+      [randomUUID(), input.request.id, uid, input.request.type, input.request.status, new Date(input.request.targetAt), JSON.stringify(input.request.details ?? {}), input.request.processingStartedAt ? new Date(input.request.processingStartedAt) : null, input.request.completedAt ? new Date(input.request.completedAt) : null, completedBy, JSON.stringify(input.request.retention), JSON.stringify(input.request.outcome ?? {}), new Date(input.request.submittedAt)]);
     });
   }
 
   async closeCustomerAccount(input: { scope: DatabaseScope; userId: string; now: number }): Promise<void> {
     await this.#uow.withTransaction(input.scope, async (tx) => {
+      if (input.scope.actorUserId !== input.userId) throw new Error("Customer account closure must be self-authorized");
       const uid = await userUuid(tx, input.userId);
-      await tx.query("SELECT set_config('app.privacy_erasure','true',true)");
+      const governed = await tx.query<SqlRow>(`SELECT (
+        EXISTS (SELECT 1 FROM platform_user_roles pur WHERE pur.user_id=$1) OR
+        EXISTS (SELECT 1 FROM vendor_users vu WHERE vu.user_id=$1 AND vu.active=true)
+      ) AS governed_business_identity`, [uid]);
+      if (Boolean(governed.rows[0]?.governed_business_identity)) throw new Error("Business or staff accounts require administrative offboarding");
+      const row = await tx.query<SqlRow>("SELECT email::text AS email FROM users WHERE id=$1 FOR UPDATE", [uid]);
+      if (row.rowCount !== 1) throw new Error("Account not found");
+      const original = String(row.rows[0].email ?? "");
+      const hash = createHash("sha256").update(`${input.userId}:${original}`).digest("hex");
       await tx.query("DELETE FROM saved_products WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM saved_vendors WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM recently_viewed_products WHERE user_id=$1", [uid]);
+      await tx.query("SELECT set_config('app.privacy_erasure','true',true)");
       await tx.query("DELETE FROM saved_product_alert_events WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM saved_product_alert_preferences WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM saved_search_alert_events WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM saved_searches WHERE user_id=$1", [uid]);
+      await tx.query("DELETE FROM notification_preferences WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM user_sessions WHERE user_id=$1", [uid]);
-      await tx.query(`UPDATE users SET status='closed',closed_at=$2,anonymized_at=$2,email='deleted+'||encode(digest(email::text||id::text,'sha256'),'hex')||'@privacy.invalid',phone=NULL,updated_at=$2 WHERE id=$1`, [uid, new Date(input.now)]);
-      await tx.query(`UPDATE customer_profiles SET first_name=NULL,last_name=NULL,recommendations_enabled=false,recently_viewed_enabled=false,marketing_consent=false,personalization_updated_at=$2,updated_at=$2 WHERE user_id=$1`, [uid, new Date(input.now)]);
+      await tx.query(`UPDATE customer_profiles SET first_name=NULL,last_name=NULL,marketing_consent=false,recommendations_enabled=false,recently_viewed_enabled=false,updated_at=$2 WHERE user_id=$1`, [uid, new Date(input.now)]);
+      await tx.query(`UPDATE users SET email=$2, phone=NULL, password_hash=NULL, status='closed', email_verified_at=NULL, closed_at=$3, anonymized_at=$3, original_email_hash=$4, updated_at=$3 WHERE id=$1`, [uid, `closed+${hash.slice(0,24)}@privacy.invalid`, new Date(input.now), hash]);
     }, { isolation: "serializable" });
   }
 }
