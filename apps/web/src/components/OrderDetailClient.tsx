@@ -41,11 +41,12 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   const [reason, setReason] = useState("Άλλαξα γνώμη πριν την έναρξη φυσικής παράδοσης");
   const [busy, setBusy] = useState(false);
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
   const [error, setError] = useState("");
 
   async function resumePayment() {
     setPaymentBusy(true);
-    setError("");
+    setPaymentError("");
     try {
       const response = await fetch(`/api/account/orders/${encodeURIComponent(data.id)}/payment`, {
         method: "POST",
@@ -55,7 +56,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
       if (!response.ok || !payload.redirectUrl) throw new Error(payload.error ?? "Δεν ήταν δυνατή η συνέχιση της πληρωμής.");
       window.location.assign(payload.redirectUrl);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η συνέχιση της πληρωμής.");
+      setPaymentError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η συνέχιση της πληρωμής.");
     } finally {
       setPaymentBusy(false);
     }
@@ -96,11 +97,11 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         </div>)}
       </div>
 
-      <CustomerFulfilmentProgress
+      {data.sourceStatus !== "pending_payment" && <CustomerFulfilmentProgress
         fulfilments={data.fulfilments}
         lines={data.lines.map((line) => ({ id: line.id, title: line.title, quantity: line.quantity }))}
         fulfilmentMode={data.fulfilmentMode}
-      />
+      />}
 
       <CustomerReturnsPanel
         orderId={data.id}
@@ -126,6 +127,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <p>Η παραγγελία έχει δημιουργηθεί, αλλά δεν θα προχωρήσει στο κατάστημα μέχρι να ολοκληρωθεί η ασφαλής πληρωμή. Το απόθεμα δεσμεύεται μόνο για περιορισμένο χρονικό διάστημα.</p>
         <button className="button button-primary" type="button" disabled={paymentBusy} onClick={() => void resumePayment()}>{paymentBusy ? "Άνοιγμα ασφαλούς πληρωμής…" : "Συνέχιση ασφαλούς πληρωμής"}</button>
         <small>Δεν δημιουργείται νέα παραγγελία. Αν υπάρχει ήδη ενεργή Viva πληρωμή, συνεχίζεις την ίδια.</small>
+        {paymentError && <p className="form-error" role="alert">{paymentError}</p>}
       </div>}
 
       <div className="order-summary">
