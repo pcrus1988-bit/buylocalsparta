@@ -1,0 +1,211 @@
+.section {
+  position: relative;
+  z-index: 5;
+  padding-top: 30px;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(250px, 0.55fr);
+  gap: 42px;
+  align-items: center;
+  min-height: 290px;
+  padding: clamp(36px, 5vw, 64px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 253, 248, 0.18);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 88% 8%, rgba(230, 200, 137, 0.28), transparent 34%),
+    radial-gradient(circle at 18% 115%, rgba(109, 118, 81, 0.42), transparent 38%),
+    linear-gradient(135deg, #17382d 0%, #214b3c 58%, #365a47 100%);
+  box-shadow: 0 26px 70px rgba(24, 48, 39, 0.18);
+  color: #fffdf8;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  width: 270px;
+  height: 270px;
+  right: -80px;
+  bottom: -150px;
+  border: 1px solid rgba(255, 253, 248, 0.12);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 34px rgba(255, 253, 248, 0.035),
+    0 0 0 78px rgba(255, 253, 248, 0.02);
+  pointer-events: none;
+}
+
+.heartMark {
+  position: absolute;
+  right: clamp(28px, 4vw, 58px);
+  top: 22px;
+  color: rgba(234, 215, 169, 0.35);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(72px, 9vw, 126px);
+  line-height: 1;
+  transform: rotate(8deg);
+  pointer-events: none;
+}
+
+.copy,
+.actionArea {
+  position: relative;
+  z-index: 2;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(234, 215, 169, 0.4);
+  border-radius: 999px;
+  background: rgba(234, 215, 169, 0.1);
+  color: #ead7a9;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.copy h2 {
+  max-width: 850px;
+  margin: 16px 0 15px;
+  color: #fffdf8;
+  font-size: clamp(38px, 4.8vw, 64px);
+  font-weight: 750;
+  line-height: 0.99;
+  letter-spacing: -0.05em;
+}
+
+.copy p {
+  max-width: 760px;
+  margin: 0;
+  color: rgba(255, 253, 248, 0.78);
+  font-size: clamp(15px, 1.4vw, 18px);
+  line-height: 1.6;
+}
+
+.actionArea {
+  display: grid;
+  gap: 13px;
+  justify-items: stretch;
+  align-self: end;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 62px;
+  padding: 0 22px 0 26px;
+  border-radius: 999px;
+  background: #f7f0df;
+  box-shadow: 0 12px 30px rgba(8, 25, 19, 0.22);
+  color: #17382d;
+  font-size: 15px;
+  font-weight: 850;
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  background: #fffaf0;
+  box-shadow: 0 17px 36px rgba(8, 25, 19, 0.28);
+}
+
+.button:focus-visible {
+  outline: 3px solid #ead7a9;
+  outline-offset: 4px;
+}
+
+.arrow {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #17382d;
+  color: #fffdf8;
+  font-size: 18px;
+}
+
+.actionArea small {
+  color: rgba(255, 253, 248, 0.64);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .card {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .actionArea {
+    max-width: 420px;
+    align-self: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .section {
+    padding-top: 18px;
+  }
+
+  .card {
+    min-height: 0;
+    gap: 24px;
+    padding: 28px 22px 24px;
+    border-radius: 24px;
+  }
+
+  .heartMark {
+    right: 10px;
+    top: 18px;
+    font-size: 82px;
+  }
+
+  .eyebrow {
+    min-height: 29px;
+    max-width: calc(100% - 58px);
+    padding: 0 10px;
+    font-size: 9px;
+  }
+
+  .copy h2 {
+    margin-top: 14px;
+    font-size: clamp(34px, 10.5vw, 46px);
+    line-height: 1.02;
+  }
+
+  .copy p {
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .actionArea {
+    max-width: none;
+  }
+
+  .button {
+    min-height: 58px;
+    padding-left: 20px;
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .button:hover {
+    transform: none;
+  }
+}
