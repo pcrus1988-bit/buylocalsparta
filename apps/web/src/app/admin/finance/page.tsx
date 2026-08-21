@@ -101,12 +101,12 @@ export default async function Page() {
     </section>
 
     {payoutWorkspace && <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Payout master data" title="Vendor payout destinations" note="Maker/checker, tokenized references και immutable verified στοιχεία. Το settlement παγώνει snapshot του verified destination που ίσχυε κατά τη δημιουργία του." />
+      <WorkspaceSectionHeading eyebrow="Payout master data" title="Vendor payout destinations" note="Maker / checker: ο maker καταχωρίζει pending destination και διαφορετικός checker το επαληθεύει. Τα provider references είναι tokenized και τα verified οικονομικά στοιχεία immutable. Το settlement παγώνει snapshot του verified destination που ίσχυε κατά τη δημιουργία του." />
       <AdminPayoutDestinationsPanel initial={payoutWorkspace} csrfToken={data.csrfToken} />
     </div></section>}
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Settlement" title="Settlement batches" note="Η δημιουργία settlement απαιτεί issued commission invoice και verified payout destination. Ο maker δεν μπορεί να εγκρίνει το ίδιο payout." action={payable > 0 ? <AdminActionButton label={`Create batch · ${payable}`} endpoint="/api/admin/finance/settlement" csrfToken={data.csrfToken} body={{ kind: "create", procurementIds: data.procurements.filter((item) => item.status === "payable").map((item) => item.id) }} /> : undefined} />
+      <WorkspaceSectionHeading eyebrow="Settlement" title="Settlement batches" note="Maker / checker separation: η δημιουργία settlement απαιτεί issued commission invoice και verified payout destination, και ο maker δεν μπορεί να εγκρίνει το ίδιο payout." action={payable > 0 ? <AdminActionButton label={`Create batch · ${payable}`} endpoint="/api/admin/finance/settlement" csrfToken={data.csrfToken} body={{ kind: "create", procurementIds: data.procurements.filter((item) => item.status === "payable").map((item) => item.id) }} /> : undefined} />
       {data.settlements.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν settlement batches." body={payable ? "Υπάρχουν payable procurements. Το settlement θα δημιουργηθεί μόνο αν έχουν ολοκληρωθεί fiscal billing, payout destination και finance prerequisites." : "Όταν εγκριθούν payables, μπορεί να δημιουργηθεί settlement batch."} /> : <div className="workspace-queue-list">{data.settlements.map((batch) => <article className="workspace-queue-card" key={batch.id}>
         <div className="workspace-queue-head"><div><strong>{batch.batchNumber}</strong><small>{batch.lines.length} lines · Maker {batch.createdBy}</small></div><span className="status-pill">{batch.status}</span></div>
         <div className="workspace-queue-primary"><span>Final payout {batch.totalPayableLabel}</span><span>{batch.lines.length} procurements</span></div>
