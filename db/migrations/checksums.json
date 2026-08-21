@@ -4,7 +4,7 @@
   "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
   "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
-  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52b0823ae83d03527b9a30a52b08219db496ce63d150",
+  "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
   "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
   "0008_rls_platform_scope.sql": "ba5afa7a0957d87babbaf0950003424ad151986143d1becdf2b3786e4a48c8d3",
   "0009_media_compliance_jobs.sql": "7a613be9c529567d98296007b38475c244153db1548812f9172f7ff0a961f051",
@@ -95,7 +95,7 @@
   "0096_public_reference_counters_rls.sql": "7b1a8cf93c6973388357cb8d4fc2886d43d30e864cfab65bfc10f3639fe2b8c5",
   "0097_homepage_hero_database_storage.sql": "b82e3b5498e0f4dbe47b915aeaf2c82add0457fab0b3aa79fd3385be4adf031d",
   "0098_privacy_defaults_governance.sql": "6a62899102b772f421eaa197dfe3db5af096b552a58f3274bf9dcecb3d4537cc",
-  "0099_supabase_data_api_privilege_hardening.sql": "42b7a1031b92a5afba7b4f657004677b2b6e442d70d7ffedcc134c70a0cb53b2",
+  "0099_supabase_data_api_privilege_hardening.sql": "6889e66b3581be8fcea75e5594b00c3331d0e8440e97894b7e26d2f8cb35e624",
   "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621",
   "0101_checkout_request_integrity.sql": "6a1ecb6f3f0b925f9ca6c1ab815d9ab2d2b78e4d698080201c4688251f877e3d",
   "0102_cookie_consent_receipts.sql": "7cf8a45835957090ab631bcadd568b2f6bfc62346543ea816923f3649e87fd58"
