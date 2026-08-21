@@ -13,6 +13,8 @@ type Props = Readonly<{ searchParams: Promise<{ view?: string }> }>;
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 const complete = (status: string) => /ολοκληρώ|παραλήφθηκε|ακυρ|επιστράφηκαν τα χρήματα/i.test(status);
 const modeLabel = (mode: string) => mode === "pickup" ? "Παραλαβή από κατάστημα" : mode === "shipping" ? "Αποστολή" : mode === "local_delivery" ? "Τοπική παράδοση" : mode;
+const orderActionLabel = (status: string) => status.includes("Αναμονή πληρωμής") ? "Συνέχιση πληρωμής" : status.includes("Έτοιμη για παραλαβή") ? "Δες QR παραλαβής" : "Λεπτομέρειες παραγγελίας";
+const orderActionClass = (status: string) => /Αναμονή πληρωμής|Έτοιμη για παραλαβή/.test(status) ? "button" : "button button-secondary";
 
 export default async function CustomerOrdersPage({ searchParams }: Props) {
   const principal = await getAccountSession();
@@ -53,7 +55,7 @@ export default async function CustomerOrdersPage({ searchParams }: Props) {
         </div>
         <div className="customer-order-card-lines">{order.lines.slice(0, 5).map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div>
         <CustomerLifecycle label={`Πορεία παραγγελίας ${order.referenceNumber}`} stages={customerOrderLifecycle(order.status, order.fulfilmentMode)} />
-        <div className="customer-order-card-actions"><Link className="button button-secondary" href={`/account/orders/${order.id}`}>{order.status.includes("Έτοιμη για παραλαβή") ? "Δες QR παραλαβής" : "Λεπτομέρειες παραγγελίας"}</Link></div>
+        <div className="customer-order-card-actions"><Link className={orderActionClass(order.status)} href={`/account/orders/${order.id}`}>{orderActionLabel(order.status)}</Link></div>
       </article>) : <div className="account-empty"><h2>Δεν υπάρχουν παραγγελίες σε αυτή την προβολή.</h2><p>Άλλαξε φίλτρο ή συνέχισε τις αγορές σου.</p><Link className="button" href="/shop">Ανακάλυψε προϊόντα</Link></div>}
     </section>
   </main>;
