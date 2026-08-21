@@ -25,7 +25,6 @@ function needsOperationalPersistence(pathname: string): boolean {
 }
 
 function needsSessionContinuity(pathname: string): boolean {
-  if (isConsentOrAnalytics(pathname)) return false;
   const routeRoots = ["/shop", "/category", "/product", "/ask-local", "/advice", "/api"];
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
@@ -39,8 +38,9 @@ export function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const pathname = request.nextUrl.pathname;
-  const persistOperationally = !isConsentOrAnalytics(pathname) && needsOperationalPersistence(pathname);
-  const persistForSession = !persistOperationally && (Boolean(current || legacy) || needsSessionContinuity(pathname));
+  const identityNeutral = isConsentOrAnalytics(pathname);
+  const persistOperationally = !identityNeutral && needsOperationalPersistence(pathname);
+  const persistForSession = !identityNeutral && !persistOperationally && (Boolean(current || legacy) || needsSessionContinuity(pathname));
   if (persistOperationally) {
     response.cookies.set({
       name: MARKETPLACE_COOKIE,
