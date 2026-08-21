@@ -24,6 +24,7 @@ import "./admin-status-semantics.css";
 import "./admin-local-tabs.css";
 import "./admin-partner-record.css";
 import "./admin-matching-split.css";
+import "./admin-commercial-finance.css";
 import "./admin-queue-split.css";
 import "./admin-insights.css";
 import "./admin-tax-documents.css";
