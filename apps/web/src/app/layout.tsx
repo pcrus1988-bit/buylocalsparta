@@ -15,6 +15,7 @@ import "./workspace-pages.css";
 import "./workspace-metrics-polish.css";
 import "./typography-readability.css";
 import "./customer-account-ux.css";
+import "./customer-account-onboarding.css";
 import "./ask-local-clarifications.css";
 import "./customer-profile-security.css";
 import "./customer-support.css";
