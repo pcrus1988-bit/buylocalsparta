@@ -82,6 +82,8 @@ requireText(dailyOrdersClient, "Δεν φορτώνονται αυτόματα",
 requireText(dailyOrdersClient, "Η πρόσβαση καταγράφεται", "Daily must disclose that personal-data access is logged");
 requireText(dailyOrdersClient, 'delete next[item.id]', "Daily must remove revealed delivery data from client state after completion/rejection");
 
+requireText(boxNowRuntime, 'purpose:"carrier_fulfilment"', "Carrier shipment creation must record the disclosure purpose");
+requireText(boxNowRuntime, 'recipient:"BOX NOW"', "Carrier shipment creation must record the external recipient without logging the recipient customer data");
 requireText(boxNowRuntime, 'type:"personal_data.exported"', "Opening a carrier label must create an auditable personal-data export event");
 requireText(boxNowRuntime, 'purpose:"carrier_handover"', "Carrier label audit must record its operational purpose");
 requireText(boxNowRuntime, 'dataClasses:"identity,contact,shipping"', "Carrier label audit must identify the disclosed data classes without storing the values");
@@ -91,9 +93,11 @@ requireText(boxNowLabelRoute, "vendorBoxNowLabel(principal, shipmentId)", "Carri
 
 requireText(guardMigration, "actor_hash text NOT NULL", "Replay guard must store an actor hash");
 requireText(guardMigration, "request_hash text NOT NULL", "Replay guard must store a request hash");
+requireText(guardMigration, "expires_at timestamptz NOT NULL DEFAULT (now() + interval '7 days')", "Replay guard must have a fixed seven-day retention boundary");
+requireText(guardMigration, "checkout_request_guards_purge_expired", "Replay guard must purge expired fingerprints during subsequent checkout activity");
 requireText(guardMigration, "REVOKE ALL PRIVILEGES ON TABLE checkout_request_guards FROM PUBLIC, anon, authenticated, service_role", "Replay guard must remain outside Supabase Data API roles");
 for (const forbidden of ["recipient_email", "recipient_phone", "address_line", "vat_number"]) {
   forbidText(guardMigration, forbidden, `Replay guard must not persist raw personal field ${forbidden}`);
 }
 
-console.log("Fulfilment data-minimization, audited vendor/Daily reveals, carrier-label exports and checkout replay-integrity contracts verified.");
+console.log("Fulfilment data-minimization, audited vendor/Daily/carrier disclosures, carrier-label exports and bounded checkout replay-integrity contracts verified.");
