@@ -48,6 +48,17 @@ type SlaWorkspace = {
   cases: ReadonlyArray<SlaCase>;
   notifications: ReadonlyArray<SlaNotification>;
 };
+type DeliveryContact = Readonly<{
+  fulfilmentId: string;
+  recipientName: string;
+  line1: string;
+  line2?: string;
+  locality: string;
+  region?: string;
+  postcode: string;
+  countryCode: string;
+  phone?: string;
+}>;
 type Category = "new" | "processing" | "ready";
 
 const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
@@ -57,6 +68,7 @@ const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
   "packed",
   "ready_for_handover"
 ]);
+const DELIVERY_REVEAL_STATUSES = new Set(["accepted", "picking", "packed", "ready_for_handover"]);
 
 const formatWhen = (value: string | number) => new Intl.DateTimeFormat("el-GR", {
   dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens"
@@ -89,6 +101,8 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
     requested === "processing" || requested === "ready" || requested === "new" ? requested : "new"
   );
   const [busy, setBusy] = useState("");
+  const [contactBusy, setContactBusy] = useState("");
+  const [deliveryContacts, setDeliveryContacts] = useState<Record<string, DeliveryContact | undefined>>({});
   const [error, setError] = useState("");
 
   const orderReceived = sla.notifications.filter((item) => item.eventType === "vendor.order_received");
@@ -102,7 +116,7 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
   const activeOrders = dashboard.fulfilments.filter((item) => {
     if (!DAILY_ACTIVE_FULFILMENT_STATUSES.has(item.status)) return false;
     if (item.status !== "awaiting_acceptance") return true;
-    if (!received.has(item.id)) return true; // existing order created before acknowledgement workflow
+    if (!received.has(item.id)) return true;
     return acknowledged.has(item.id);
   });
 
@@ -129,12 +143,44 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Η ενημέρωση απέτυχε.");
+      if (action === "delivered" || action === "reject") {
+        setDeliveryContacts((current) => {
+          const next = { ...current };
+          delete next[item.id];
+          return next;
+        });
+      }
       router.refresh();
       if (action === "accept") setSelected("processing");
       if (action === "ready") setSelected("ready");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η ενημέρωση απέτυχε.");
     } finally { setBusy(""); }
+  }
+
+  async function revealDeliveryContact(fulfilmentId: string) {
+    setContactBusy(fulfilmentId); setError("");
+    try {
+      const response = await fetch("/api/daily/fulfilments/delivery-contact", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json", "x-csrf-token": dashboard.csrfToken },
+        body: JSON.stringify({ fulfilmentId })
+      });
+      const payload = await response.json() as DeliveryContact & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Δεν ήταν δυνατή η εμφάνιση των στοιχείων παράδοσης.");
+      setDeliveryContacts((current) => ({ ...current, [fulfilmentId]: payload }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η εμφάνιση των στοιχείων παράδοσης.");
+    } finally { setContactBusy(""); }
+  }
+
+  function hideDeliveryContact(fulfilmentId: string) {
+    setDeliveryContacts((current) => {
+      const next = { ...current };
+      delete next[fulfilmentId];
+      return next;
+    });
   }
 
   return <main className={styles.page}>
@@ -170,9 +216,11 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
           {list.map((item) => {
             const slaCase = slaByFulfilment.get(item.id);
             const highlighted = requestedOrder === item.orderId;
+            const deliveryContact = deliveryContacts[item.id];
+            const mayRevealDelivery = item.mode === "local_delivery" && DELIVERY_REVEAL_STATUSES.has(item.status) && ["confirmed", "partially_fulfilled"].includes(item.orderStatus);
             return <article id={`order-${item.orderId}`} key={item.id} className={`${styles.orderCard} ${styles[selected]} ${highlighted ? styles.highlight : ""}`}>
               <div className={styles.orderHead}>
-                <div><span>{item.mode === "pickup" ? "Παραλαβή από κατάστημα" : item.mode}</span><strong>{item.orderReference}</strong><small>{formatWhen(item.createdAt)}</small></div>
+                <div><span>{item.mode === "pickup" ? "Παραλαβή από κατάστημα" : item.mode === "local_delivery" ? "Τοπική παράδοση" : "Αποστολή"}</span><strong>{item.orderReference}</strong><small>{formatWhen(item.createdAt)}</small></div>
                 <b>{selected === "new" ? "ΝΕΑ" : selected === "processing" ? "ΣΕ ΕΞΕΛΙΞΗ" : "ΕΤΟΙΜΗ"}</b>
               </div>
               {slaCase && <div className={`${styles.sla} ${slaCase.state === "breached" || slaCase.state === "escalated" ? styles.slaDanger : ""}`}>
@@ -180,6 +228,15 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
               </div>}
               <div className={styles.lines}>{item.lines.map((line) => <div key={line.id}><strong>{line.quantity}×</strong><span>{line.title}</span></div>)}</div>
               <div className={styles.meta}><span>{item.merchandiseSubtotal}</span>{item.deliveryCharge && <span>Παράδοση {item.deliveryCharge}</span>}</div>
+
+              {mayRevealDelivery && <div className={styles.deliveryReveal}>
+                {deliveryContact ? <>
+                  <div className={styles.deliveryRevealHead}><div><strong>Στοιχεία παράδοσης</strong><small>Η πρόσβαση καταγράφεται και αφορά μόνο αυτή την ενεργή παράδοση.</small></div><button type="button" className={styles.revealLink} onClick={() => hideDeliveryContact(item.id)}>Απόκρυψη</button></div>
+                  <p><strong>{deliveryContact.recipientName}</strong><br />{deliveryContact.line1}{deliveryContact.line2 ? ` · ${deliveryContact.line2}` : ""}<br />{deliveryContact.postcode} {deliveryContact.locality}{deliveryContact.region ? ` · ${deliveryContact.region}` : ""}{deliveryContact.phone ? <><br /><a href={`tel:${deliveryContact.phone}`}>{deliveryContact.phone}</a></> : null}</p>
+                  <small>Χρήση αποκλειστικά για την εκτέλεση της συγκεκριμένης παράδοσης. Όχι για CRM, marketing ή άλλη ανεξάρτητη χρήση.</small>
+                </> : <div className={styles.deliveryRevealHead}><div><strong>Χρειάζεσαι τα στοιχεία παράδοσης;</strong><small>Δεν φορτώνονται αυτόματα. Εμφανίζονται ανά παραγγελία μόνο μετά την αποδοχή.</small></div><button type="button" className={styles.revealButton} disabled={contactBusy === item.id} onClick={() => void revealDeliveryContact(item.id)}>{contactBusy === item.id ? "Φόρτωση…" : "Εμφάνιση"}</button></div>}
+              </div>}
+
               {selected === "ready" ? <Link href="/daily/scan" className={styles.scanButton}>Σάρωση QR παραλαβής</Link> :
                 item.actions.length > 0 ? <div className={styles.actions}>{item.actions.map((action) => <button key={action} type="button" disabled={Boolean(busy)}
                   className={action === "reject" ? styles.secondary : styles.primary} onClick={() => void act(item, action)}>
