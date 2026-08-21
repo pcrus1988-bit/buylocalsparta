@@ -16,6 +16,7 @@ type DraftConsent = Readonly<{
   analytics: boolean;
   marketing: boolean;
 }>;
+type ConsentSource = "banner" | "settings";
 
 const OPTIONAL_OFF: DraftConsent = { personalisation: false, analytics: false, marketing: false };
 const OPTIONAL_ON: DraftConsent = { personalisation: true, analytics: true, marketing: true };
@@ -62,7 +63,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(OPEN_EVENT, listener);
   }, [openSettings]);
 
-  async function persist(next: DraftConsent) {
+  async function persist(next: DraftConsent, source: ConsentSource) {
     if (busy) return;
     setBusy(true);
     setError(undefined);
@@ -71,7 +72,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(next)
+        body: JSON.stringify({ ...next, source })
       });
       if (!response.ok) throw new Error("Consent update failed");
       const updated = readPrivacyConsent(document.cookie) ?? {
@@ -100,8 +101,8 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
       <div className="privacy-consent-actions" aria-label="Επιλογές cookies">
-        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON)}>Αποδοχή όλων</button>
-        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF)}>Απόρριψη προαιρετικών</button>
+        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON, "banner")}>Αποδοχή όλων</button>
+        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF, "banner")}>Απόρριψη προαιρετικών</button>
         <button type="button" disabled={busy} onClick={openSettings}>Ρυθμίσεις</button>
       </div>
     </aside>}
@@ -137,9 +138,9 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
 
         {error && <p className="privacy-consent-error privacy-consent-dialog-error" role="alert">{error}</p>}
         <div className="privacy-consent-dialog-actions">
-          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF)}>Απόρριψη προαιρετικών</button>
-          <button type="button" disabled={busy} onClick={() => void persist(draft)}>Αποθήκευση επιλογών</button>
-          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON)}>Αποδοχή όλων</button>
+          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF, "settings")}>Απόρριψη προαιρετικών</button>
+          <button type="button" disabled={busy} onClick={() => void persist(draft, "settings")}>Αποθήκευση επιλογών</button>
+          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON, "settings")}>Αποδοχή όλων</button>
         </div>
       </form>
     </dialog>
