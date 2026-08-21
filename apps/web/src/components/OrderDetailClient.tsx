@@ -131,7 +131,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <p>Παρακολούθησε εδώ την πορεία κάθε αιτήματος. Μην επιστρέψεις προϊόν πριν εμφανιστούν RMA/οδηγίες.</p>
         <div className="workspace-compact-list">{data.returns.map((item) => <div className="workspace-compact-row" key={item.id} style={{ alignItems: "flex-start" }}>
           <div><strong>{item.returnNumber}</strong><small>{date(item.requestedAt)} · {reasonLabel[item.reason] ?? item.reason}</small><small>{item.requestedRemedy ? `Ζητούμενο: ${remedyLabel[item.requestedRemedy] ?? item.requestedRemedy}` : ""}</small>{item.approvedRemedy && <small>Εγκεκριμένο: {remedyLabel[item.approvedRemedy] ?? item.approvedRemedy}</small>}</div>
-          <div style={{ textAlign: "right" }}><span className="status-pill">{returnStatusLabel[item.status] ?? item.status}</span><small style={{ display: "block", marginTop: 6 }}>{item.lines.map((line) => `${line.quantity}× ${data.lines.find((entry) => entry.id === line.orderLineId)?.title ?? line.orderLineId}`).join(", ")}</small>{item.rmaCode && <small style={{ display: "block" }}><strong>RMA {item.rmaCode}</strong>{item.returnByAt ? ` · έως ${date(item.returnByAt)}` : ""}</small>}{item.instructions && <small style={{ display: "block" }}>{item.instructions}</small>}{item.trackingNumber && <small style={{ display: "block" }}>{item.carrier ? `${item.carrier} · ` : ""}{item.trackingNumber}</small>}</div>
+          <div style={{ textAlign: "right" }}><span className="status-pill">{returnStatusLabel[item.status] ?? item.status}</span><small style={{ display: "block", marginTop: 6 }}>{item.lines.map((line) => `${line.quantity}× ${data.lines.find((entry) => entry.id === line.orderLineId)?.title ?? line.orderLineId}`).join(", ")}</small>{item.rmaCode && <small style={{ display: "block" }}><strong>RMA {item.rmaCode}</strong>{item.returnByAt ? ` · έως ${date(item.returnByAt)}` : ""}</small>}{item.instructions && <small style={{ display: "block" }}>{item.instructions}</small>}{item.trackingNumber && <small style={{ display: "block" }}>{item.carrier ? `${item.carrier} · ` : ""}{item.trackingNumber}</small>}<Link className="text-link" href={`/account/support?context=return&id=${encodeURIComponent(item.returnNumber)}&label=${encodeURIComponent(`Επιστροφή ${item.returnNumber}`)}&subject=${encodeURIComponent(`Βοήθεια με την επιστροφή ${item.returnNumber}`)}`}>Χρειάζομαι βοήθεια →</Link></div>
         </div>)}</div>
       </div>}
 
@@ -171,11 +171,12 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
       </div>}
 
       <div className="order-help-links" aria-label="Βοήθεια παραγγελίας">
+        <Link href={`/account/support?context=order&id=${encodeURIComponent(data.referenceNumber)}&label=${encodeURIComponent(`Παραγγελία ${data.referenceNumber}`)}&subject=${encodeURIComponent(`Βοήθεια με την παραγγελία ${data.referenceNumber}`)}`}><span>Υποστήριξη για αυτή την παραγγελία</span><span aria-hidden="true">→</span></Link>
         <Link href="/delivery-pickup"><span>Παράδοση & παραλαβή</span><span aria-hidden="true">→</span></Link>
         <Link href="/returns-refunds"><span>Πολιτική επιστροφών</span><span aria-hidden="true">→</span></Link>
       </div>
 
-      {data.canCancel && <details className="order-cancel-disclosure"><summary>Ακύρωση πριν το handover</summary><div><p>Η ακύρωση επιτρέπεται μόνο πριν ξεκινήσει η φυσική παράδοση. Μετά χρησιμοποιείται η διαδικασία επιστροφής / υπαναχώρησης.</p><label htmlFor="cancel-reason">Λόγος ακύρωσης</label><textarea id="cancel-reason" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} /><button className="button button-secondary" type="button" disabled={busy || !reason.trim()} onClick={() => void cancel()}>{busy ? "Ακύρωση…" : "Ακύρωση παραγγελίας"}</button></div></details>}
+      {data.canCancel && <details className="order-cancel-disclosure"><summary>Ακύρωση πριν ξεκινήσει η παράδοση</summary><div><p>Η ακύρωση επιτρέπεται μόνο πριν ξεκινήσει η φυσική παράδοση. Μετά χρησιμοποιείται η διαδικασία επιστροφής / υπαναχώρησης.</p><label htmlFor="cancel-reason">Λόγος ακύρωσης</label><textarea id="cancel-reason" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} /><button className="button button-secondary" type="button" disabled={busy || !reason.trim()} onClick={() => void cancel()}>{busy ? "Ακύρωση…" : "Ακύρωση παραγγελίας"}</button></div></details>}
     </aside>
   </section>;
 }
