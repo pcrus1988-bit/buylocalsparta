@@ -16,8 +16,8 @@ assert(root.engines?.node === ">=24 <25", "root must require Node 24");
 assert(web.type === "module", "web workspace must be ESM for direct Node type-stripping verification");
 await stat(new URL("../package-lock.json", import.meta.url));
 assert(vercel.framework === "nextjs", "Vercel framework must be Next.js");
-assert(vercel.installCommand === "npm ci --ignore-scripts", "Vercel install must consume the committed root lockfile");
-assert(vercel.buildCommand === "npm --workspace @buy-local-sparta/web run build", "Vercel build must target the web workspace from root");
+assert(vercel.installCommand === "npm ci --ignore-scripts", "source-controlled Vercel install must consume the committed root lockfile");
+assert(vercel.buildCommand === "npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build", "Vercel build must reassert the locked graph before building the web workspace");
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
 assert(!("crons" in vercel), "long-running BLS workers must not be disguised as Vercel cron jobs");
 for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
@@ -32,6 +32,7 @@ assert(dockerfile.includes("npm ci --omit=dev --ignore-scripts"), "worker image 
 assert(!dockerfile.includes("npm install --omit=dev --ignore-scripts"), "worker image must not re-resolve production dependencies");
 assert(docs.includes("repository root") && docs.includes("not `apps/web`"), "deployment runbook must document canonical Vercel root");
 assert(docs.includes("npm ci --ignore-scripts"), "deployment runbook must document deterministic locked Vercel installs");
+assert(docs.includes("dashboard Install Command override"), "deployment runbook must document the observed Vercel dashboard override and build-time lockfile guard");
 assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports"), "deployment runbook must document independent worker roles");
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
 
