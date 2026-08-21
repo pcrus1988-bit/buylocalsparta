@@ -118,11 +118,15 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
         run: npm run db:ready
-      - name: Bootstrap governed DB smoke vendor agreements
+      - name: Bootstrap governed DB smoke vendor finance fixtures
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO users(email,password_hash,status,email_verified_at)
           VALUES('ci-agreement-signer@example.test','ci-only-not-a-runtime-password','active',now())
+          ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
+
+          INSERT INTO users(email,password_hash,status,email_verified_at)
+          VALUES('ci-finance-checker@example.test','ci-only-not-a-runtime-password','active',now())
           ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
 
           CREATE OR REPLACE FUNCTION bls_private.ci_seed_db_smoke_vendor_agreement()
@@ -133,6 +137,7 @@ jobs:
           AS $$
           DECLARE
             signer_id uuid;
+            checker_id uuid;
           BEGIN
             IF NEW.public_id NOT LIKE 'vendor_db_smoke_%'
                AND NEW.public_id NOT LIKE 'vendor_rescue_db_smoke_%' THEN
@@ -142,6 +147,11 @@ jobs:
             SELECT id INTO signer_id
             FROM public.users
             WHERE email='ci-agreement-signer@example.test'
+            LIMIT 1;
+
+            SELECT id INTO checker_id
+            FROM public.users
+            WHERE email='ci-finance-checker@example.test'
             LIMIT 1;
 
             INSERT INTO public.vendor_commercial_agreements(
@@ -193,6 +203,38 @@ jobs:
               now(),
               signer_id
             );
+
+            INSERT INTO public.vendor_payout_destinations(
+              vendor_id,
+              provider,
+              provider_reference,
+              display_label,
+              masked_account,
+              account_holder,
+              status,
+              verified_by,
+              verified_at,
+              effective_at,
+              metadata,
+              created_by,
+              created_at,
+              updated_at
+            ) VALUES (
+              NEW.id,
+              'bank_transfer',
+              'ci-vault-token-' || NEW.public_id,
+              'CI payout destination',
+              'GR••••0001',
+              'CI Smoke Vendor',
+              'verified',
+              checker_id,
+              now(),
+              now() - interval '1 minute',
+              jsonb_build_object('fixture','db-integration-smoke','makerChecker',true),
+              signer_id,
+              now(),
+              now()
+            );
             RETURN NEW;
           END;
           $$;
@@ -209,7 +251,7 @@ jobs:
           SQL
       - name: Run live database integration smoke
         run: npm run db:smoke
-      - name: Disable DB smoke agreement fixture
+      - name: Disable DB smoke finance fixture
         if: always()
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
