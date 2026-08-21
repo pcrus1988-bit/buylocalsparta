@@ -23,10 +23,12 @@ function expectDestination(name: string, input: Parameters<typeof customerNotifi
   if (expected.priority && actual.priority !== expected.priority) failures.push(`${name}: expected priority ${expected.priority}, got ${actual.priority}`);
 }
 
-expectDestination("exact order", { eventType: "order.ready", group: "orders", payload: { orderId: "order_123" } }, { href: "/account/orders/order_123", label: "Άνοιγμα παραγγελίας" });
-expectDestination("encoded order", { eventType: "pickup.ready", group: "delivery", payload: { orderId: "order/a b" } }, { href: "/account/orders/order%2Fa%20b" });
-expectDestination("payment action", { eventType: "payment.requires_action", group: "orders", payload: { orderId: "order_456" } }, { href: "/account/orders/order_456", label: "Συνέχιση πληρωμής", priority: "primary" });
-expectDestination("return order", { eventType: "return.requested", group: "returns", payload: { orderId: "order_return" } }, { href: "/account/orders/order_return" });
+expectDestination("exact public order", { eventType: "order.ready", group: "orders", payload: { orderReference: "BLS-20260822-ABC123" } }, { href: "/account/orders/BLS-20260822-ABC123", label: "Άνοιγμα παραγγελίας" });
+expectDestination("encoded public order", { eventType: "pickup.ready", group: "delivery", payload: { orderReference: "BLS/A B" } }, { href: "/account/orders/BLS%2FA%20B" });
+expectDestination("payment action", { eventType: "payment.requires_action", group: "orders", payload: { orderReference: "BLS-20260822-PAY456" } }, { href: "/account/orders/BLS-20260822-PAY456", label: "Συνέχιση πληρωμής", priority: "primary" });
+expectDestination("return order", { eventType: "return.requested", group: "returns", payload: { orderReference: "BLS-20260822-RET001" } }, { href: "/account/orders/BLS-20260822-RET001" });
+expectDestination("legacy order id", { eventType: "order.ready", group: "orders", payload: { orderId: "order_123" } }, { href: "/account/orders", label: "Άνοιγμα παραγγελιών", priority: "secondary" });
+expectDestination("legacy payment id", { eventType: "payment.requires_action", group: "orders", payload: { orderId: "order_456" } }, { href: "/account/orders", label: "Δες παραγγελίες", priority: "secondary" });
 expectDestination("Ask Local", { eventType: "counteroffer.needs_info", group: "advice", payload: { requestId: "cor_1" } }, { href: "/account/ask-local" });
 expectDestination("Ask Local direct prefix", { eventType: "ask_local.offer_received", group: "other", payload: { requestId: "cor_2" } }, { href: "/account/ask-local" });
 expectDestination("support", { eventType: "customer_support.reply", group: "other", payload: { caseReference: "TKT-100" } }, { href: "/account/support" });
@@ -37,7 +39,7 @@ expectDestination("security", { eventType: "account.password_changed", group: "o
 expectDestination("order group fallback", { eventType: "legacy.event", group: "orders", payload: {} }, { href: "/account/orders" });
 expectDestination("no context", { eventType: "misc.notice", group: "other", payload: {} }, undefined);
 expectDestination("malicious URL ignored", { eventType: "misc.notice", group: "other", payload: { url: "https://evil.example", href: "//evil.example", redirect: "javascript:alert(1)", sourceUrl: "https://evil.example" } }, undefined);
-expectDestination("malicious URL cannot override order", { eventType: "order.ready", group: "orders", payload: { orderId: "safe_order", url: "https://evil.example" } }, { href: "/account/orders/safe_order" });
+expectDestination("malicious URL cannot override public order", { eventType: "order.ready", group: "orders", payload: { orderReference: "BLS-SAFE-001", url: "https://evil.example" } }, { href: "/account/orders/BLS-SAFE-001" });
 
 for (const forbidden of ["item.title", "item.body", "input.title", "input.body", "payload.url", "payload.href", "payload.redirect", "payload.sourceUrl"]) {
   if (resolver.includes(forbidden)) failures.push(`Resolver must not depend on notification prose or payload navigation field: ${forbidden}`);
@@ -45,10 +47,13 @@ for (const forbidden of ["item.title", "item.body", "input.title", "input.body",
 for (const contract of [
   "eventType: string",
   "payload: Record<string, unknown>",
-  "encodeURIComponent(orderId)",
+  "encodeURIComponent(orderReference)",
+  "payloadString(input.payload, \"orderReference\")",
+  "payloadString(input.payload, \"orderId\")",
   "encodeURIComponent(canonicalVariantId)",
   "customerNotificationDestination"
 ]) if (!resolver.includes(contract)) failures.push(`Structured notification resolver is missing contract: ${contract}`);
+if (resolver.includes("encodeURIComponent(orderId)")) failures.push("Legacy internal orderId must never be converted into a customer-facing deep link.");
 
 for (const contract of [
   "eventType: string",
@@ -73,4 +78,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer notification action checks passed: actions use structured event context, deep-link to governed internal routes, preserve CSRF read controls, and ignore arbitrary payload URLs and human-facing copy.");
+console.log("Customer notification action checks passed: actions use structured event context, public order references for customer deep links, safe legacy fallbacks, CSRF read controls, and ignore arbitrary payload URLs and human-facing copy.");
