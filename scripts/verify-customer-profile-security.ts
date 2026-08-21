@@ -11,12 +11,12 @@ const securityClient = read("apps/web/src/components/AccountSecurityClient.tsx")
 const navigation = read("apps/web/src/components/AccountSectionNavigation.tsx");
 const failures: string[] = [];
 
-for (const contract of ["customerAccountProfile", "updateCustomerAccountProfile", "changeCustomerPassword", "u.public_id=$1", "customer_profiles", "preferred_locale", "normalizePhone", "normalizeLocale"]) {
+for (const contract of ["customerAccountProfile", "updateCustomerAccountProfile", "changeCustomerPassword", "u.public_id=$1", "customer_profiles", "preferred_locale", "normalizePhone", "normalizeLocale", "`${firstName} ${lastName}`.length > 160"]) {
   if (!service.includes(contract)) failures.push(`Customer profile runtime is missing ${contract}`);
 }
 if (service.includes("UPDATE users SET email") || service.includes("SET email=")) failures.push("Customer profile self-service must not silently change the login email");
 if (service.includes("user_roles")) failures.push("Customer profile runtime must not depend on the non-existent user_roles table");
-for (const contract of ["verifyPassword(input.currentPassword", "hashPassword(input.newPassword)", "verifyPassword(input.newPassword", "DELETE FROM user_sessions", "password_reset_tokens", "FOR UPDATE", "u.status='active'"]) {
+for (const contract of ["verifyPassword(input.currentPassword", "hashPassword(input.newPassword)", "verifyPassword(input.newPassword", "DELETE FROM user_sessions", "password_reset_tokens", "FOR UPDATE", "u.status='active'", "PostgresFixedWindowRateLimiter", 'route: "customer-password-change"', "limit: 5", "15 * 60 * 1000"]) {
   if (!service.includes(contract)) failures.push(`Password change security is missing ${contract}`);
 }
 for (const contract of ["requireAccountSession(request, true)", "updateCustomerAccountProfile", "firstName", "lastName", "preferredLocale"]) {
@@ -44,4 +44,4 @@ if (failures.length) {
   console.error("Customer profile/security checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Customer profile/security checks passed: customer-owned personal details, protected login email, current-password verification, password policy, global session revocation, reset-token invalidation, CSRF and account navigation verified.");
+console.log("Customer profile/security checks passed: customer-owned personal details, protected login email, existing name constraints, current-password verification, password policy, rate limiting, global session revocation, reset-token invalidation, CSRF and account navigation verified.");
