@@ -61,7 +61,7 @@ export async function vendorCreateAskLocalOffer(
     if (!found.rowCount) throw new Error("Το Ask Local αίτημα δεν είναι ανατεθειμένο σε αυτό το κατάστημα.");
     const row = found.rows[0];
     const status = String(row.status);
-    if (!["awaiting_vendor", "needs_info"].includes(status)) throw new Error("Το αίτημα δεν δέχεται νέα προσφορά στην τρέχουσα κατάσταση.");
+    if (status !== "awaiting_vendor") throw new Error("Το αίτημα δεν δέχεται νέα προσφορά στην τρέχουσα κατάσταση.");
     if (row.expires_at && new Date(String(row.expires_at)).getTime() <= now) throw new Error("Η προθεσμία απάντησης του αιτήματος έχει λήξει.");
 
     const existing = await tx.query<SqlRow>("SELECT 1 FROM private_offers WHERE counteroffer_request_id=$1::uuid AND status='active' LIMIT 1", [String(row.request_uuid)]);
@@ -155,7 +155,7 @@ function vendorCreateMemoryOffer(
     const index = requests.findIndex((item) => item.id === requestId && item.assignedVendorId === vendorId);
     if (index < 0) continue;
     const request = requests[index];
-    if (!["awaiting_vendor", "needs_info"].includes(request.status)) throw new Error("Το αίτημα δεν δέχεται νέα προσφορά στην τρέχουσα κατάσταση.");
+    if (request.status !== "awaiting_vendor") throw new Error("Το αίτημα δεν δέχεται νέα προσφορά στην τρέχουσα κατάσταση.");
     if (request.privateOffers.some((item) => item.status === "active")) throw new Error("Υπάρχει ήδη ενεργή ιδιωτική προσφορά για αυτό το αίτημα.");
     const created: PrivateOfferView = { id: `poffer_${randomUUID()}`, status: "active", priceMinor: offer.priceMinor, currency: "EUR", fulfilmentPromise: offer.fulfilmentPromise, expiresAt: offer.expiresAt };
     requests[index] = { ...request, status: "offered", privateOffers: [...request.privateOffers, created] };
