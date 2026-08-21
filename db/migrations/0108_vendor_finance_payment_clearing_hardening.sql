@@ -148,34 +148,7 @@ AFTER INSERT OR UPDATE OF status,captured_minor,refunded_minor,provider_transact
 ON public.payments
 FOR EACH ROW EXECUTE FUNCTION bls_private.finance_sync_chargeback_clearing();
 
--- Controlled backfill for existing payment/refund rows. Deliberately not executed here.
-CREATE OR REPLACE FUNCTION bls_private.backfill_payment_clearing(p_limit integer DEFAULT 1000)
-RETURNS integer
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public, bls_private
-AS $$
-DECLARE
-  v_row record;
-  v_count integer := 0;
-BEGIN
-  IF NOT bls_private.is_platform_runtime() THEN RAISE EXCEPTION 'Platform runtime required'; END IF;
-  FOR v_row IN
-    SELECT p.* FROM public.payments p
-    WHERE p.order_id IS NOT NULL AND p.captured_minor>0
-      AND p.status::text IN ('captured','partially_refunded','refunded','chargeback')
-    ORDER BY p.created_at
-    LIMIT GREATEST(0,LEAST(COALESCE(p_limit,1000),5000))
-  LOOP
-    PERFORM bls_private.finance_sync_payment_capture_clearing_row(v_row.id);
-    v_count:=v_count+1;
-  END LOOP;
-  RETURN v_count;
-END
-$$;
-
--- Row helper used by the controlled backfill rather than trying to invoke a trigger
--- function directly.
+-- Row helper used by controlled backfill rather than trying to invoke a trigger function.
 CREATE OR REPLACE FUNCTION bls_private.finance_sync_payment_capture_clearing_row(p_payment_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -201,6 +174,54 @@ BEGIN
   ON CONFLICT (payment_id) WHERE event_kind='capture'
   DO UPDATE SET amount_minor=EXCLUDED.amount_minor,provider_reference=EXCLUDED.provider_reference,
     evidence=public.payment_clearing_entries.evidence || EXCLUDED.evidence,occurred_at=EXCLUDED.occurred_at;
+END
+$$;
+
+-- Controlled backfill for existing payment/refund rows. Deliberately not executed here.
+CREATE OR REPLACE FUNCTION bls_private.backfill_payment_clearing(p_limit integer DEFAULT 1000)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, bls_private
+AS $$
+DECLARE
+  v_row record;
+  v_count integer := 0;
+  v_limit integer;
+BEGIN
+  IF NOT bls_private.is_platform_runtime() THEN RAISE EXCEPTION 'Platform runtime required'; END IF;
+  v_limit:=GREATEST(0,LEAST(COALESCE(p_limit,1000),5000));
+
+  FOR v_row IN
+    SELECT p.id FROM public.payments p
+    WHERE p.order_id IS NOT NULL AND p.captured_minor>0
+      AND p.status::text IN ('captured','partially_refunded','refunded','chargeback')
+    ORDER BY p.created_at
+    LIMIT v_limit
+  LOOP
+    PERFORM bls_private.finance_sync_payment_capture_clearing_row(v_row.id);
+    v_count:=v_count+1;
+  END LOOP;
+
+  FOR v_row IN
+    SELECT r.* FROM public.refunds r
+    WHERE r.status='completed'
+    ORDER BY r.created_at
+    LIMIT v_limit
+  LOOP
+    INSERT INTO public.payment_clearing_entries(
+      payment_id,order_id,event_kind,currency,amount_minor,platform_expense_minor,
+      vendor_responsibility_minor,provider_reference,evidence,reconciliation_status,occurred_at,created_at
+    ) VALUES(
+      v_row.payment_id,v_row.order_id,'refund',v_row.currency,v_row.amount_minor,0,0,v_row.id::text,
+      jsonb_build_object('refundId',v_row.id,'providerRefundId',v_row.provider_refund_id,'providerEventId',v_row.provider_event_id,'reason',v_row.reason,'source','refunds_backfill','syncedAt',now()),
+      'open',COALESCE(v_row.completed_at,v_row.updated_at,now()),now()
+    )
+    ON CONFLICT (payment_id,provider_reference) WHERE event_kind='refund'
+    DO UPDATE SET amount_minor=EXCLUDED.amount_minor,evidence=public.payment_clearing_entries.evidence || EXCLUDED.evidence,occurred_at=EXCLUDED.occurred_at;
+    v_count:=v_count+1;
+  END LOOP;
+  RETURN v_count;
 END
 $$;
 
