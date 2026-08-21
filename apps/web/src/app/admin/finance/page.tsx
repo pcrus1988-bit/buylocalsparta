@@ -4,10 +4,12 @@ import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminActionButton } from "../../../components/AdminActionButton";
 import { AdminFinanceTabs } from "../../../components/AdminFinanceTabs";
 import { AdminPayoutDestinationsPanel } from "../../../components/AdminPayoutDestinationsPanel";
+import { AdminFinanceAdjustmentsPanel } from "../../../components/AdminFinanceAdjustmentsPanel";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminFinanceWorkspace } from "../../../lib/admin-runtime";
 import { adminFinanceOverview } from "../../../lib/admin-finance-overview";
 import { adminPayoutDestinationsWorkspace } from "../../../lib/admin-payout-destinations";
+import { adminFinanceAdjustmentWorkspace } from "../../../lib/admin-finance-adjustments";
 import { getAdminSession } from "../../../lib/admin-session";
 import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
 
@@ -27,7 +29,12 @@ export default async function Page() {
   } catch {
     redirect("/admin");
   }
-  const payoutWorkspace = overview ? await adminPayoutDestinationsWorkspace(principal).catch(() => undefined) : undefined;
+  const [payoutWorkspace, adjustmentWorkspace] = overview
+    ? await Promise.all([
+        adminPayoutDestinationsWorkspace(principal).catch(() => undefined),
+        adminFinanceAdjustmentWorkspace(principal).catch(() => undefined)
+      ])
+    : [undefined, undefined];
   const orderReferences = await marketplaceReferenceMap("order", data.procurements.map((item) => item.orderId));
 
   const matched = data.procurements.filter((item) => item.status === "matched").length;
@@ -82,6 +89,11 @@ export default async function Page() {
         </div>
       </div></section>
     </>}
+
+    {adjustmentWorkspace && <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Exceptions & reversals" title="Finance adjustments" note="Επιστροφές, chargebacks και corrections δεν τροποποιούν σιωπηρά ένα payout. Κάθε debit/credit έχει evidence, approval trail και ακριβή settlement allocation. Commission reversal απαιτεί AADE-accepted B2B credit note για τον ίδιο vendor." />
+      <AdminFinanceAdjustmentsPanel initial={adjustmentWorkspace} csrfToken={data.csrfToken} />
+    </section>}
 
     <WorkspaceMetricStrip items={[
       { label: "Procurements", value: data.procurements.length },
