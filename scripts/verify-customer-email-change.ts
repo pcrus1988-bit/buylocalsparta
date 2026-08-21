@@ -73,7 +73,7 @@ for (const contract of [
   "/api/account/security/email-change/confirm",
   "type=\"button\"",
   "emailChanged=1",
-  "Επιβεβαίωση αλλαγής email"
+  "Επιβεβαίωση νέου email"
 ]) {
   if (!confirmClient.includes(contract)) failures.push(`Email-change confirmation UI is missing ${contract}`);
 }
