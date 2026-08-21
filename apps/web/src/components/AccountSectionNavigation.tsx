@@ -10,6 +10,7 @@ const PRIMARY_ACCOUNT_SECTIONS = [
   { href: "/account/saved", label: "Αποθηκευμένα" },
   { href: "/account/notifications", label: "Ειδοποιήσεις" },
   { href: "/account/profile", label: "Προφίλ & διευθύνσεις" },
+  { href: "/account/security", label: "Ασφάλεια" },
   { href: "/account/privacy", label: "Ιδιωτικότητα" }
 ] as const;
 
