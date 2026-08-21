@@ -73,7 +73,7 @@ export function CustomerFulfilmentProgress({ fulfilments, lines, fulfilmentMode 
           <div className="customer-fulfilment-card-head"><div><span>Τμήμα {index + 1}</span><strong>{item.vendorName}</strong></div><span className="status-pill">{statusLabel[item.status] ?? item.status.replaceAll("_", " ")}</span></div>
           <p className="customer-fulfilment-items">{itemCopy(item, lines)}</p>
           <div className="customer-fulfilment-next"><span>{tone === "action" ? "Δική σου ενέργεια" : tone === "problem" ? "Χρειάζεται προσοχή" : tone === "success" ? "Ολοκληρώθηκε" : "Τι ακολουθεί"}</span><p>{nextStep(item.status, fulfilmentMode)}</p></div>
-          {item.deliveryCharge !== "0,00 €" && item.deliveryCharge !== "0,00 €" && <small className="customer-fulfilment-charge">Χρέωση παράδοσης: {item.deliveryCharge}</small>}
+          <small className="customer-fulfilment-charge">Χρέωση παράδοσης: {item.deliveryCharge}</small>
         </article>;
       })}
     </div>
