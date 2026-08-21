@@ -67,14 +67,17 @@ REVOKE EXECUTE ON FUNCTION public.st_estimatedextent(text, text, text, boolean)
   FROM PUBLIC, anon, authenticated, service_role;
 
 -- Future postgres-owned objects are deny-by-default for Supabase Data API roles.
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  REVOKE ALL PRIVILEGES ON TABLES FROM anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  REVOKE ALL PRIVILEGES ON SEQUENCES FROM anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated, service_role;
-
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA bls_private
-  REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated, service_role;
+-- Hosted Supabase owns these objects as postgres; plain PostGIS CI may not define
+-- that role, so only apply these owner defaults when it exists.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL PRIVILEGES ON TABLES FROM anon, authenticated, service_role';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL PRIVILEGES ON SEQUENCES FROM anon, authenticated, service_role';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated, service_role';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA bls_private REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated, service_role';
+  END IF;
+END
+$$;
 
 COMMIT;
