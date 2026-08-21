@@ -1,7 +1,10 @@
 export const PRIVACY_CONSENT_VERSION = "2026-08-21";
+export const PRIVACY_POLICY_VERSION = "2026-08-21";
 export const PRIVACY_CONSENT_COOKIE = "bls_consent_v1";
+export const PRIVACY_CONSENT_RECEIPT_COOKIE = "bls_consent_receipt";
 export const ANALYTICS_ID_COOKIE = "bls_analytics";
 export const PRIVACY_CONSENT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
+export const PRIVACY_CONSENT_EVIDENCE_RETENTION_SECONDS = 730 * 24 * 60 * 60;
 
 export type PrivacyConsentPreferences = Readonly<{
   version: string;
@@ -68,6 +71,14 @@ export function readPrivacyConsent(cookieString: string): PrivacyConsentPreferen
   return decodePrivacyConsent(cookieValue(cookieString, PRIVACY_CONSENT_COOKIE));
 }
 
+export function hasPersonalisationConsent(cookieString: string): boolean {
+  return readPrivacyConsent(cookieString)?.personalisation === true;
+}
+
 export function hasAnalyticsConsent(cookieString: string): boolean {
   return readPrivacyConsent(cookieString)?.analytics === true;
+}
+
+export function hasMarketingConsent(cookieString: string): boolean {
+  return readPrivacyConsent(cookieString)?.marketing === true;
 }
