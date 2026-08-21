@@ -38,6 +38,8 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [confirmHistoryClear, setConfirmHistoryClear] = useState(false);
+  const [historyStatus, setHistoryStatus] = useState("");
 
   const activeOrders = useMemo(() => data.orders.filter((order) => !completedOrder(order.status)), [data.orders]);
   const attentionOrders = useMemo(() => activeOrders.filter(orderNeedsAction), [activeOrders]);
@@ -64,6 +66,26 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
     }
   }
 
+  async function clearRecentHistory() {
+    if (busy) return;
+    setBusy("recent-history");
+    setError("");
+    setHistoryStatus("");
+    try {
+      const response = await fetch("/api/account/recently-viewed", { method: "DELETE", headers: { "x-csrf-token": data.csrfToken } });
+      const payload = await response.json() as { removed?: number; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Δεν ήταν δυνατός ο καθαρισμός του ιστορικού.");
+      setData((current) => ({ ...current, recentlyViewed: [] }));
+      setConfirmHistoryClear(false);
+      setHistoryStatus(payload.removed ? `Καθαρίστηκαν ${payload.removed} πρόσφατες προβολές. Η μελλοντική καταγραφή παραμένει ενεργή.` : "Το ιστορικό ήταν ήδη κενό. Η μελλοντική καταγραφή παραμένει όπως την έχεις ορίσει.");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατός ο καθαρισμός του ιστορικού.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function logout() {
     setBusy("logout");
     try {
@@ -76,6 +98,8 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
   }
 
   async function updatePreferences(patch: Partial<Dashboard["preferences"]>) {
+    setHistoryStatus("");
+    setConfirmHistoryClear(false);
     await mutate("preferences", "/api/account/preferences", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
   }
 
@@ -154,7 +178,8 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
       <article className="account-live-card" id="privacy">
         <div className="account-card-head"><div><div className="eyebrow">Έλεγχος</div><h2>Ιδιωτικότητα</h2></div><Link className="text-link" href="/account/privacy">Κέντρο ιδιωτικότητας →</Link></div>
         <label className="preference-row"><span><strong>Προσωποποιημένες προτάσεις</strong><small>Χρήση μόνο δικών σου σημάτων ενδιαφέροντος.</small></span><input type="checkbox" checked={data.preferences.recommendationsEnabled} onChange={(event) => void updatePreferences({ recommendationsEnabled: event.target.checked })} /></label>
-        <label className="preference-row"><span><strong>Πρόσφατα προβεβλημένα</strong><small>Η απενεργοποίηση καθαρίζει το σχετικό ιστορικό.</small></span><input type="checkbox" checked={data.preferences.recentlyViewedEnabled} onChange={(event) => void updatePreferences({ recentlyViewedEnabled: event.target.checked })} /></label>
+        <label className="preference-row"><span><strong>Πρόσφατα προβεβλημένα</strong><small>Η απενεργοποίηση σταματά τη μελλοντική καταγραφή και καθαρίζει το σχετικό ιστορικό.</small></span><input type="checkbox" checked={data.preferences.recentlyViewedEnabled} onChange={(event) => void updatePreferences({ recentlyViewedEnabled: event.target.checked })} /></label>
+        <p className="customer-history-privacy-note">Θέλεις να κρατήσεις τη λειτουργία ενεργή αλλά να διαγράψεις μόνο όσα έχουν ήδη καταγραφεί; Χρησιμοποίησε τον καθαρισμό ιστορικού στην ενότητα «Πρόσφατα προϊόντα».</p>
         {data.privacyRequests.length > 0 && <small className="privacy-status">Τελευταίο αίτημα: {data.privacyRequests[0].status} · {date(data.privacyRequests[0].submittedAt)}</small>}
       </article>
 
@@ -164,8 +189,11 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
       </article>
 
       <article className="account-live-card account-wide" id="recent">
-        <div className="account-card-head"><div><div className="eyebrow">Ιστορικό</div><h2>Πρόσφατα προϊόντα</h2></div><span className="count-pill">{data.recentlyViewed.length}</span></div>
-        {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={`/product/${item.canonicalVariantId}`} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">Δεν υπάρχει πρόσφατο ιστορικό.</p>}
+        <div className="account-card-head customer-history-card-head"><div><div className="eyebrow">Ιστορικό</div><h2>Πρόσφατα προϊόντα</h2></div><div className="customer-history-head-actions"><span className="count-pill">{data.recentlyViewed.length}</span>{data.recentlyViewed.length > 0 && !confirmHistoryClear && <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => { setConfirmHistoryClear(true); setHistoryStatus(""); }}>Καθαρισμός ιστορικού</button>}</div></div>
+        {confirmHistoryClear && <div className="customer-history-confirm" role="group" aria-label="Επιβεβαίωση καθαρισμού ιστορικού"><span>Να διαγραφούν όλες οι πρόσφατες προβολές; Η λειτουργία θα παραμείνει {data.preferences.recentlyViewedEnabled ? "ενεργή" : "ανενεργή"}.</span><div><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void clearRecentHistory()}>{busy === "recent-history" ? "Καθαρισμός…" : "Ναι, καθαρισμός"}</button><button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => setConfirmHistoryClear(false)}>Άκυρο</button></div></div>}
+        {historyStatus && <p className="customer-history-status" role="status">{historyStatus}</p>}
+        {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={`/product/${item.canonicalVariantId}`} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">{data.preferences.recentlyViewedEnabled ? "Δεν υπάρχει πρόσφατο ιστορικό. Νέες προβολές μπορούν να καταγραφούν ξανά όσο η λειτουργία παραμένει ενεργή." : "Η καταγραφή πρόσφατων προβολών είναι απενεργοποιημένη."}</p>}
+        <CustomerHowItWorks title="Καθαρισμός ή απενεργοποίηση;"><p><strong>Καθαρισμός ιστορικού:</strong> διαγράφει μόνο τις προβολές που έχουν ήδη αποθηκευτεί και δεν αλλάζει την επιλογή σου για μελλοντική καταγραφή. <strong>Απενεργοποίηση:</strong> καθαρίζει το ιστορικό και σταματά την καταγραφή νέων προβολών μέχρι να την ενεργοποιήσεις ξανά.</p></CustomerHowItWorks>
       </article>
     </section>
 
