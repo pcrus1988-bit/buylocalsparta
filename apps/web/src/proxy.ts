@@ -11,13 +11,22 @@ function validVisitor(value: string | undefined): string | undefined {
   return value && SAFE_VISITOR_KEY.test(value) ? value : undefined;
 }
 
-function needsPersistentMarketplaceIdentity(pathname: string): boolean {
-  if (pathname === "/api/privacy/consent" || pathname.startsWith("/api/analytics/")) return false;
+function isConsentOrAnalytics(pathname: string): boolean {
+  return pathname === "/api/privacy/consent" || pathname.startsWith("/api/analytics/");
+}
+
+function needsOperationalPersistence(pathname: string): boolean {
   const routeRoots = [
-    "/shop", "/category", "/product", "/cart", "/checkout", "/ask-local", "/advice",
-    "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
-    "/vendor", "/admin", "/daily", "/api"
+    "/cart", "/checkout", "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
+    "/vendor", "/admin", "/daily",
+    "/api/checkout", "/api/account", "/api/vendor", "/api/admin", "/api/daily", "/api/payments"
   ];
+  return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
+}
+
+function needsSessionContinuity(pathname: string): boolean {
+  if (isConsentOrAnalytics(pathname)) return false;
+  const routeRoots = ["/shop", "/category", "/product", "/ask-local", "/advice", "/api"];
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
@@ -29,8 +38,10 @@ export function proxy(request: NextRequest) {
   requestHeaders.set(VISITOR_HEADER, visitorKey);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  const shouldPersist = Boolean(current || legacy || needsPersistentMarketplaceIdentity(request.nextUrl.pathname));
-  if (shouldPersist && !current) {
+  const pathname = request.nextUrl.pathname;
+  const persistOperationally = !isConsentOrAnalytics(pathname) && needsOperationalPersistence(pathname);
+  const persistForSession = !persistOperationally && (Boolean(current || legacy) || needsSessionContinuity(pathname));
+  if (persistOperationally) {
     response.cookies.set({
       name: MARKETPLACE_COOKIE,
       value: visitorKey,
@@ -39,6 +50,15 @@ export function proxy(request: NextRequest) {
       secure: request.nextUrl.protocol === "https:",
       path: "/",
       maxAge: MARKETPLACE_RETENTION_SECONDS
+    });
+  } else if (persistForSession && !current) {
+    response.cookies.set({
+      name: MARKETPLACE_COOKIE,
+      value: visitorKey,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: request.nextUrl.protocol === "https:",
+      path: "/"
     });
   }
   if (request.cookies.has(LEGACY_VISITOR_COOKIE)) {
