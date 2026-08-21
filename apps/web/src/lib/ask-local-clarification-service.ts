@@ -12,6 +12,7 @@ export type AskLocalClarificationMessage = Readonly<{
 
 const globalKey = "__blsAskLocalClarifications" as const;
 const requestMemoryKey = "__blsAskLocalMemory" as const;
+const maxMessages = 40;
 type MemoryThread = Readonly<{ requestId: string; vendorId?: string; customerId?: string; messages: AskLocalClarificationMessage[] }>;
 type AskLocalMemoryStore = Map<string, AskLocalRequestView[]>;
 const globals = globalThis as typeof globalThis & {
@@ -27,15 +28,29 @@ function validateBody(value: string): string {
   if (body.length < 3 || body.length > 2000) throw new Error("Το μήνυμα πρέπει να έχει από 3 έως 2.000 χαρακτήρες.");
   return body;
 }
-function epoch(value: unknown): number {
-  const parsed = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
-  if (!Number.isFinite(parsed)) throw new Error("Invalid clarification timestamp");
-  return parsed;
+
+function messageFromValue(value: unknown): AskLocalClarificationMessage | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const senderType = typeof record.senderType === "string" ? record.senderType : "";
+  const id = typeof record.id === "string" ? record.id : "";
+  const body = typeof record.body === "string" ? record.body : "";
+  const createdAt = Number(record.createdAt);
+  if (!id || !body || !["customer", "vendor", "platform", "system"].includes(senderType) || !Number.isFinite(createdAt)) return undefined;
+  return { id, senderType: senderType as AskLocalClarificationMessage["senderType"], body, createdAt };
 }
-function messageFrom(row: SqlRow): AskLocalClarificationMessage {
-  const sender = String(row.sender_type);
-  if (!["customer", "vendor", "platform", "system"].includes(sender)) throw new Error("Invalid clarification sender");
-  return { id: String(row.public_id), senderType: sender as AskLocalClarificationMessage["senderType"], body: String(row.body), createdAt: epoch(row.created_at) };
+
+function clarificationMessagesFromMetadata(value: unknown): AskLocalClarificationMessage[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const raw = (value as Record<string, unknown>).clarificationMessages;
+  if (!Array.isArray(raw)) return [];
+  return raw.map(messageFromValue).filter((item): item is AskLocalClarificationMessage => Boolean(item)).slice(-maxMessages);
+}
+
+function metadataWithMessages(value: unknown, messages: readonly AskLocalClarificationMessage[]): string {
+  const metadata = value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
+  metadata.clarificationMessages = messages.slice(-maxMessages);
+  return JSON.stringify(metadata);
 }
 
 function vendorRequestMemoryClarification(principal: SessionPrincipal, requestId: string, question: string, now: number): void {
@@ -45,7 +60,7 @@ function vendorRequestMemoryClarification(principal: SessionPrincipal, requestId
     const request = requests[index];
     if (request.status !== "awaiting_vendor") throw new Error("Διευκρίνιση μπορεί να ζητηθεί μόνο όταν περιμένουμε ενέργεια από το κατάστημα.");
     const current = memoryThreads().get(requestId);
-    const messages = [...(current?.messages ?? []), { id: `msg_${randomUUID()}`, senderType: "vendor" as const, body: question, createdAt: now }];
+    const messages = [...(current?.messages ?? []), { id: `message_${randomUUID()}`, senderType: "vendor" as const, body: question, createdAt: now }].slice(-maxMessages);
     requests[index] = { ...request, status: "needs_info", responseDueAt: undefined };
     requestMemoryStore().set(customerId, requests);
     memoryThreads().set(requestId, { requestId, vendorId: principal.vendorId, customerId, messages });
@@ -64,7 +79,7 @@ function customerReplyMemoryClarification(principal: SessionPrincipal, requestId
   if (!current || current.customerId !== principal.userId) throw new Error("Η συζήτηση διευκρίνισης δεν βρέθηκε.");
   const last = current.messages.at(-1);
   if (!last || last.senderType !== "vendor") throw new Error("Δεν υπάρχει νέο ερώτημα καταστήματος που να περιμένει απάντηση.");
-  const messages = [...current.messages, { id: `msg_${randomUUID()}`, senderType: "customer" as const, body: reply, createdAt: now }];
+  const messages = [...current.messages, { id: `message_${randomUUID()}`, senderType: "customer" as const, body: reply, createdAt: now }].slice(-maxMessages);
   requests[index] = { ...request, status: "awaiting_vendor", responseDueAt: now + 24 * 60 * 60 * 1000 };
   requestMemoryStore().set(principal.userId, requests);
   memoryThreads().set(requestId, { ...current, messages });
@@ -90,11 +105,9 @@ export async function vendorRequestAskLocalClarification(
   await uow.withTransaction({ actorUserId: principal.userId, vendorId: principal.vendorId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const found = await tx.query<SqlRow>(`
       SELECT cr.id::text AS request_uuid,cr.public_id,cr.status::text,cr.customer_user_id::text AS customer_uuid,
-             cr.canonical_variant_id::text AS canonical_uuid,cr.market_id::text AS market_uuid,
-             v.id::text AS vendor_uuid,u.public_id AS customer_public_id
+             cr.source_metadata,v.id::text AS vendor_uuid
       FROM counteroffer_requests cr
       JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
-      JOIN users u ON u.id=cr.customer_user_id
       WHERE cr.public_id=$1 AND v.public_id=$2 AND cr.workflow_owner_kind='vendor'
       FOR UPDATE OF cr
     `, [requestId, principal.vendorId]);
@@ -102,35 +115,21 @@ export async function vendorRequestAskLocalClarification(
     const row = found.rows[0];
     if (String(row.status) !== "awaiting_vendor") throw new Error("Διευκρίνιση μπορεί να ζητηθεί μόνο όταν περιμένουμε ενέργεια από το κατάστημα.");
 
-    const existing = await tx.query<SqlRow>(`
-      SELECT c.id::text AS conversation_uuid,c.public_id
-      FROM conversations c
-      WHERE c.customer_user_id=$1::uuid AND c.vendor_id=$2::uuid
-        AND c.context->>'askLocalRequestId'=$3
-      ORDER BY c.created_at DESC LIMIT 1
-      FOR UPDATE
-    `, [row.customer_uuid, row.vendor_uuid, requestId]);
-    const conversationUuid = existing.rows[0]?.conversation_uuid ? String(existing.rows[0].conversation_uuid) : randomUUID();
-    const conversationId = existing.rows[0]?.public_id ? String(existing.rows[0].public_id) : `conversation_${randomUUID()}`;
-    if (!existing.rowCount) {
-      await tx.query(`INSERT INTO conversations(id,public_id,market_id,customer_user_id,vendor_id,canonical_variant_id,status,context,created_at,updated_at)
-        VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,'waiting_customer',$7::jsonb,$8,$8)`, [
-        conversationUuid, conversationId, row.market_uuid, row.customer_uuid, row.vendor_uuid, row.canonical_uuid ?? null,
-        JSON.stringify({ kind: "ask_local_clarification", askLocalRequestId: requestId }), new Date(now)
-      ]);
-    } else {
-      await tx.query("UPDATE conversations SET status='waiting_customer',updated_at=$2 WHERE id=$1::uuid", [conversationUuid, new Date(now)]);
-    }
-    await tx.query(`INSERT INTO messages(id,public_id,conversation_id,sender_type,sender_user_id,body,created_at)
-      VALUES($1,$2,$3::uuid,'vendor',(SELECT id FROM users WHERE public_id=$4),$5,$6)`, [randomUUID(), `message_${randomUUID()}`, conversationUuid, principal.userId, question, new Date(now)]);
+    const messages = [...clarificationMessagesFromMetadata(row.source_metadata), {
+      id: `message_${randomUUID()}`,
+      senderType: "vendor" as const,
+      body: question,
+      createdAt: now
+    }].slice(-maxMessages);
+    const metadata = metadataWithMessages(row.source_metadata, messages);
     await tx.query(`UPDATE counteroffer_requests
-      SET status='needs_info',expires_at=NULL,updated_at=$2,workflow_updated_at=$2
-      WHERE id=$1::uuid`, [row.request_uuid, new Date(now)]);
+      SET source_metadata=$2::jsonb,status='needs_info',expires_at=NULL,updated_at=$3,workflow_updated_at=$3
+      WHERE id=$1::uuid`, [row.request_uuid, metadata, new Date(now)]);
     await tx.query(`INSERT INTO notifications(id,public_id,user_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
       VALUES($1,$2,$3::uuid,'in_app','transactional','counteroffer.needs_info','ask-local-clarification-v1','el','Χρειάζεται μία διευκρίνιση',$4,$5::jsonb,'sent',$6,$7)
       ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [
       randomUUID(), `notification_${randomUUID()}`, row.customer_uuid, question.slice(0, 240),
-      JSON.stringify({ requestId, conversationId, vendorId: principal.vendorId }), `ask-local-needs-info:${requestId}:${conversationId}:${now}`, new Date(now)
+      JSON.stringify({ requestId, vendorId: principal.vendorId }), `ask-local-needs-info:${requestId}:${now}`, new Date(now)
     ]);
   }, { isolation: "serializable" });
 }
@@ -155,7 +154,7 @@ export async function customerReplyAskLocalClarification(
   await uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const found = await tx.query<SqlRow>(`
       SELECT cr.id::text AS request_uuid,cr.status::text,cr.assigned_vendor_id::text AS vendor_uuid,
-             v.public_id AS vendor_public_id,u.id::text AS customer_uuid
+             cr.source_metadata,u.id::text AS customer_uuid
       FROM counteroffer_requests cr
       JOIN users u ON u.id=cr.customer_user_id
       JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
@@ -166,33 +165,26 @@ export async function customerReplyAskLocalClarification(
     const row = found.rows[0];
     if (String(row.status) !== "needs_info") throw new Error("Το αίτημα δεν περιμένει διευκρίνιση από εσένα.");
 
-    const conversation = await tx.query<SqlRow>(`
-      SELECT c.id::text AS conversation_uuid,c.public_id
-      FROM conversations c
-      WHERE c.customer_user_id=$1::uuid AND c.vendor_id=$2::uuid
-        AND c.context->>'askLocalRequestId'=$3
-      ORDER BY c.created_at DESC LIMIT 1
-      FOR UPDATE
-    `, [row.customer_uuid, row.vendor_uuid, requestId]);
-    if (!conversation.rowCount) throw new Error("Η συζήτηση διευκρίνισης δεν βρέθηκε.");
-    const conversationUuid = String(conversation.rows[0].conversation_uuid);
-    const conversationId = String(conversation.rows[0].public_id);
-    const last = await tx.query<SqlRow>("SELECT sender_type FROM messages WHERE conversation_id=$1::uuid ORDER BY created_at DESC,id DESC LIMIT 1", [conversationUuid]);
-    if (!last.rowCount || String(last.rows[0].sender_type) !== "vendor") throw new Error("Δεν υπάρχει νέο ερώτημα καταστήματος που να περιμένει απάντηση.");
-
-    await tx.query(`INSERT INTO messages(id,public_id,conversation_id,sender_type,sender_user_id,body,created_at)
-      VALUES($1,$2,$3::uuid,'customer',$4::uuid,$5,$6)`, [randomUUID(), `message_${randomUUID()}`, conversationUuid, row.customer_uuid, reply, new Date(now)]);
-    await tx.query("UPDATE conversations SET status='waiting_vendor',updated_at=$2 WHERE id=$1::uuid", [conversationUuid, new Date(now)]);
+    const existingMessages = clarificationMessagesFromMetadata(row.source_metadata);
+    const last = existingMessages.at(-1);
+    if (!last || last.senderType !== "vendor") throw new Error("Δεν υπάρχει νέο ερώτημα καταστήματος που να περιμένει απάντηση.");
+    const messages = [...existingMessages, {
+      id: `message_${randomUUID()}`,
+      senderType: "customer" as const,
+      body: reply,
+      createdAt: now
+    }].slice(-maxMessages);
+    const metadata = metadataWithMessages(row.source_metadata, messages);
     const dueAt = new Date(now + 24 * 60 * 60 * 1000);
     await tx.query(`UPDATE counteroffer_requests
-      SET status='awaiting_vendor',expires_at=$2,updated_at=$3,workflow_updated_at=$3
-      WHERE id=$1::uuid`, [row.request_uuid, dueAt, new Date(now)]);
+      SET source_metadata=$2::jsonb,status='awaiting_vendor',expires_at=$3,updated_at=$4,workflow_updated_at=$4
+      WHERE id=$1::uuid`, [row.request_uuid, metadata, dueAt, new Date(now)]);
     await tx.query(`INSERT INTO notifications(id,public_id,vendor_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
       VALUES($1,$2,$3::uuid,'in_app','transactional','counteroffer.customer_replied','ask-local-clarification-v1','el','Ο πελάτης απάντησε στο Ask Local',$4,$5::jsonb,'sent',$6,$7)
       ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [
       randomUUID(), `notification_${randomUUID()}`, row.vendor_uuid, reply.slice(0, 240),
-      JSON.stringify({ requestId, conversationId, responseDueAt: dueAt.getTime(), customerId: principal.userId }),
-      `ask-local-customer-replied:${requestId}:${conversationId}:${now}`, new Date(now)
+      JSON.stringify({ requestId, responseDueAt: dueAt.getTime(), customerId: principal.userId }),
+      `ask-local-customer-replied:${requestId}:${now}`, new Date(now)
     ]);
   }, { isolation: "serializable" });
 }
@@ -213,16 +205,13 @@ export async function askLocalClarificationMessages(
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 3_000 });
   return uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const result = await tx.query<SqlRow>(`
-      SELECT m.public_id,m.sender_type,m.body,m.created_at
+      SELECT cr.source_metadata
       FROM counteroffer_requests cr
       JOIN users u ON u.id=cr.customer_user_id
-      JOIN conversations c ON c.customer_user_id=cr.customer_user_id
-        AND c.vendor_id=cr.assigned_vendor_id
-        AND c.context->>'askLocalRequestId'=cr.public_id
-      JOIN messages m ON m.conversation_id=c.id
       WHERE cr.public_id=$1 AND u.public_id=$2
-      ORDER BY m.created_at,m.id
+      LIMIT 1
     `, [requestId, principal.userId]);
-    return result.rows.map(messageFrom);
+    if (!result.rowCount) throw new Error("Η συζήτηση διευκρίνισης δεν βρέθηκε.");
+    return clarificationMessagesFromMetadata(result.rows[0].source_metadata);
   }, { readOnly: true });
 }
