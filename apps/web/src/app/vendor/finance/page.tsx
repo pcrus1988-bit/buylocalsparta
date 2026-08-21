@@ -19,8 +19,8 @@ export default async function VendorFinancePage() {
   const inReview = finance.procurements.some((item) => ["matched", "disputed"].includes(item.status));
   const payable = finance.procurements.some((item) => item.status === "payable");
   const paid = finance.settlements.some((item) => ["paid", "settled", "closed"].includes(item.status));
-  const current = needsInvoice ? 1 : inReview ? 2 : payable ? 3 : paid ? 4 : 0;
   const labels = ["Παραγγελία ολοκληρώθηκε", "Παραστατικό", "Έλεγχος", "Προγραμματισμός πληρωμής", "Πληρωμή"];
+  const current = needsInvoice ? 1 : inReview ? 2 : payable ? 3 : paid ? labels.length : 0;
   const steps = labels.map((label, index) => ({ label, tone: index < current ? "done" as const : index === current ? (current === 0 ? "current" as const : "attention" as const) : "future" as const }));
 
   return <main className="vendor-app">
