@@ -30,6 +30,8 @@ type Detail = {
   returns: ReadonlyArray<CustomerReturnCaseView>;
 };
 
+type PaymentResumePayload = Readonly<{ redirectUrl?: string; reservationExpiresAt?: number; error?: string }>;
+
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 const modeLabel: Record<string, string> = { pickup: "Παραλαβή από κατάστημα", local_delivery: "Τοπική παράδοση", shipping: "Αποστολή" };
 
@@ -38,7 +40,26 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   const [data, setData] = useState(initial);
   const [reason, setReason] = useState("Άλλαξα γνώμη πριν την έναρξη φυσικής παράδοσης");
   const [busy, setBusy] = useState(false);
+  const [paymentBusy, setPaymentBusy] = useState(false);
   const [error, setError] = useState("");
+
+  async function resumePayment() {
+    setPaymentBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/account/orders/${encodeURIComponent(data.id)}/payment`, {
+        method: "POST",
+        headers: { "x-csrf-token": data.csrfToken }
+      });
+      const payload = await response.json() as PaymentResumePayload;
+      if (!response.ok || !payload.redirectUrl) throw new Error(payload.error ?? "Δεν ήταν δυνατή η συνέχιση της πληρωμής.");
+      window.location.assign(payload.redirectUrl);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η συνέχιση της πληρωμής.");
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
 
   async function cancel() {
     setBusy(true);
@@ -99,6 +120,14 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
     </div>
 
     <aside className="order-detail-side">
+      {data.sourceStatus === "pending_payment" && <div className="order-summary needs-attention">
+        <div className="eyebrow">Χρειάζεται ενέργεια</div>
+        <h2>Ολοκλήρωσε την πληρωμή</h2>
+        <p>Η παραγγελία έχει δημιουργηθεί, αλλά δεν θα προχωρήσει στο κατάστημα μέχρι να ολοκληρωθεί η ασφαλής πληρωμή. Το απόθεμα δεσμεύεται μόνο για περιορισμένο χρονικό διάστημα.</p>
+        <button className="button button-primary" type="button" disabled={paymentBusy} onClick={() => void resumePayment()}>{paymentBusy ? "Άνοιγμα ασφαλούς πληρωμής…" : "Συνέχιση ασφαλούς πληρωμής"}</button>
+        <small>Δεν δημιουργείται νέα παραγγελία. Αν υπάρχει ήδη ενεργή Viva πληρωμή, συνεχίζεις την ίδια.</small>
+      </div>}
+
       <div className="order-summary">
         <h2>Σύνοψη</h2>
         <div className="summary-row"><span>Εμπορεύματα</span><strong>{data.merchandiseSubtotal}</strong></div>
