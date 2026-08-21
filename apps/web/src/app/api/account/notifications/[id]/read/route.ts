@@ -1,5 +1,5 @@
-import { requireAccountSession } from "../../../../../../../lib/account-session";
-import { markCustomerNotificationRead } from "../../../../../../../lib/customer-state-runtime";
+import { requireAccountSession } from "../../../../../../lib/account-session";
+import { markCustomerNotificationRead } from "../../../../../../lib/customer-state-runtime";
 
 type Context = { params: Promise<{ id: string }> };
 
