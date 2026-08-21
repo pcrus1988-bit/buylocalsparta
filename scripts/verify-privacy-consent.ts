@@ -12,6 +12,7 @@ const files = {
   proxy: read("apps/web/src/proxy.ts"),
   consentApi: read("apps/web/src/app/api/privacy/consent/route.ts"),
   consentUi: read("apps/web/src/components/PrivacyConsentProvider.tsx"),
+  utilityLauncher: read("apps/web/src/components/SiteUtilityLauncher.tsx"),
   consentClient: read("apps/web/src/lib/privacy-consent.ts"),
   consentServer: read("apps/web/src/lib/privacy-consent-server.ts"),
   consentEvidence: read("apps/web/src/lib/privacy-consent-evidence.ts"),
@@ -26,6 +27,7 @@ const files = {
 const failures: string[] = [];
 expect(files.layout, "PrivacyConsentProvider", "consent provider mounted globally");
 expect(files.layout, "privacy-consent.css", "consent styles mounted globally");
+expect(files.layout, "SiteUtilityLauncher", "site utility launcher mounted globally");
 expect(files.proxy, 'const MARKETPLACE_COOKIE = "bls_marketplace"', "essential marketplace identity separated");
 expect(files.proxy, "31 * 24 * 60 * 60", "essential marketplace identity limited to 31 days");
 expect(files.proxy, 'const LEGACY_VISITOR_COOKIE = "bls_visitor"', "legacy visitor migration retained");
@@ -102,7 +104,8 @@ expect(files.consentUi, 'checked={false} disabled aria-label="Browser προσω
 expect(files.consentUi, "Αποδοχή όλων", "accept-all choice available");
 expect(files.consentUi, "Απόρριψη προαιρετικών", "reject-optional choice available");
 expect(files.consentUi, "Ρυθμίσεις", "granular settings choice available");
-expect(files.consentUi, "privacy-consent-manage-floating", "withdrawal/settings control remains available in dashboards");
+expect(files.utilityLauncher, "requestCookieSettings", "withdrawal/settings action remains reachable from the utility launcher");
+expect(files.utilityLauncher, "Ρυθμίσεις cookies", "cookie settings remain visibly labelled in the utility launcher");
 expect(files.footer, "CookieSettingsButton", "footer consent withdrawal/settings control available");
 expect(files.legalTransparency, "TRACKER_REGISTRY", "non-cookie tracking has a published registry");
 expect(files.legalTransparency, 'name: "bls_consent_receipt"', "signed consent receipt is disclosed in cookie registry");

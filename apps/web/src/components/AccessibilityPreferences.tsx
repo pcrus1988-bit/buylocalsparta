@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 
 const STORAGE_KEY = "bls_accessibility_preferences_v1";
+const OPEN_EVENT = "bls:open-accessibility-settings";
 
 type Preferences = Readonly<{
   textScale: "100" | "112" | "125";
@@ -73,6 +74,12 @@ export function AccessibilityPreferences() {
   }, [preferences, ready]);
 
   useEffect(() => {
+    const listener = () => setOpen(true);
+    window.addEventListener(OPEN_EVENT, listener);
+    return () => window.removeEventListener(OPEN_EVENT, listener);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
     window.addEventListener("keydown", onKeyDown);
@@ -86,17 +93,6 @@ export function AccessibilityPreferences() {
   function reset() { setPreferences(defaults); }
 
   return <div className="a11y-preferences-root">
-    <button
-      type="button"
-      className="a11y-launcher"
-      aria-expanded={open}
-      aria-controls="a11y-preferences-panel"
-      onClick={() => setOpen((value) => !value)}
-    >
-      <span aria-hidden="true">◉</span>
-      <span>Προσβασιμότητα</span>
-    </button>
-
     {open && <aside id="a11y-preferences-panel" className="a11y-preferences-panel" role="dialog" aria-modal="false" aria-labelledby={headingId}>
       <div className="a11y-preferences-head">
         <div><small>Ρυθμίσεις εμφάνισης</small><h2 id={headingId}>Προσβασιμότητα</h2></div>
@@ -125,4 +121,8 @@ export function AccessibilityPreferences() {
       <p className="a11y-preferences-note">Οι ρυθμίσεις αυτές είναι βοηθήματα χρήσης. Δεν αντικαθιστούν τη συμμόρφωση WCAG ούτε αποτελούν accessibility overlay/certificate.</p>
     </aside>}
   </div>;
+}
+
+export function requestAccessibilitySettings(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(OPEN_EVENT));
 }
