@@ -18,7 +18,8 @@ const stateIcon: Record<CustomerLifecycleState, string> = {
 };
 
 export function CustomerLifecycle({ stages, label }: { stages: readonly CustomerLifecycleStage[]; label: string }) {
-  return <ol className="customer-lifecycle" aria-label={label}>
+  const style = { "--customer-stage-count": Math.max(1, stages.length) } as React.CSSProperties;
+  return <ol className="customer-lifecycle" aria-label={label} style={style}>
     {stages.map((stage, index) => <li className={`customer-lifecycle-stage is-${stage.state}`} key={`${stage.label}-${index}`}>
       <span className="customer-lifecycle-marker" aria-hidden="true">{stateIcon[stage.state]}</span>
       <span className="customer-lifecycle-copy"><strong>{stage.label}</strong>{stage.description && <small>{stage.description}</small>}</span>
@@ -52,6 +53,21 @@ export function CustomerActionCard({
     <span className="customer-action-icon" aria-hidden="true">{tone === "success" ? "✓" : tone === "progress" ? "●" : "!"}</span>
     <div className="customer-action-copy"><strong>{title}</strong><p>{body}</p>{meta && <small>{meta}</small>}</div>
     {href && action && <Link className="button button-secondary" href={href}>{action}</Link>}
+  </article>;
+}
+
+export function CustomerStatusNotice({
+  tone,
+  title,
+  children
+}: Readonly<{
+  tone: "action" | "progress" | "success" | "problem";
+  title: string;
+  children: React.ReactNode;
+}>) {
+  return <article className={`customer-action-card customer-status-notice is-${tone}`}>
+    <span className="customer-action-icon" aria-hidden="true">{tone === "success" ? "✓" : tone === "progress" ? "●" : "!"}</span>
+    <div className="customer-action-copy"><strong>{title}</strong><div>{children}</div></div>
   </article>;
 }
 
