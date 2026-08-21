@@ -24,6 +24,9 @@ export const SITE_LINKS = {
   payments: { label: "Πληρωμές & ασφάλεια", href: "/payments-security", description: "Πώς προστατεύεται η ενιαία συναλλαγή του marketplace." },
   returns: { label: "Επιστροφές & refunds", href: "/returns-refunds", description: "Επιστροφές, επισκευές, αντικαταστάσεις και επιστροφές χρημάτων." },
   privacy: { label: "Privacy controls", href: "/privacy-controls", description: "Διαχείριση ιδιωτικότητας, προσωποποίησης και δικαιωμάτων δεδομένων." },
+  privacyNotice: { label: "Πολιτική Απορρήτου", href: "/privacy", description: "Πώς χρησιμοποιούνται, διαβιβάζονται, προστατεύονται και διατηρούνται προσωπικά δεδομένα." },
+  cookies: { label: "Πολιτική Cookies", href: "/cookies", description: "Το τρέχον cookie registry, οι κατηγορίες συγκατάθεσης και ο τρόπος ανάκλησης επιλογής." },
+  accessibility: { label: "Προσβασιμότητα", href: "/accessibility", description: "Ο στόχος WCAG 2.2 AA, η τρέχουσα κατάσταση και ο τρόπος αναφοράς εμποδίου." },
   about: { label: "Η ιδέα και η αποστολή", href: "/about", description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ Sparta και ποιο πρόβλημα λύνει." },
   help: { label: "Κέντρο βοήθειας", href: "/help", description: "Καθοδήγηση για αγορές, αιτήματα και υποστήριξη." },
   join: { label: "Γίνε συνεργάτης", href: "/join", description: "Η πρόταση συνεργασίας για τοπικές επιχειρήσεις." },
@@ -47,6 +50,9 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.payments, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.returns, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.privacy, changeFrequency: "monthly", priority: 0.6 },
+  { ...SITE_LINKS.privacyNotice, changeFrequency: "monthly", priority: 0.6 },
+  { ...SITE_LINKS.cookies, changeFrequency: "monthly", priority: 0.55 },
+  { ...SITE_LINKS.accessibility, changeFrequency: "monthly", priority: 0.55 },
   { ...SITE_LINKS.about, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.help, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.join, changeFrequency: "monthly", priority: 0.6 },
@@ -73,7 +79,11 @@ export const FOOTER_NAVIGATION = [
   },
   {
     title: "ΚΟΝΤΑ ΜΟΥ Sparta",
-    links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.privacy, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap]
+    links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap]
+  },
+  {
+    title: "Ιδιωτικότητα & πρόσβαση",
+    links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility]
   }
 ] as const;
 
@@ -81,7 +91,8 @@ export const HUMAN_SITEMAP_SECTIONS = [
   { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
   { title: "Άνθρωποι & συμβουλή", links: [SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
-  { title: "Κανόνες & υποστήριξη", links: [SITE_LINKS.fairness, SITE_LINKS.privacy, SITE_LINKS.help, SITE_LINKS.about] },
+  { title: "Ιδιωτικότητα & πρόσβαση", links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
+  { title: "Κανόνες & υποστήριξη", links: [SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.about] },
   { title: "Για επιχειρήσεις", links: [SITE_LINKS.join, SITE_LINKS.joinRequirements, SITE_LINKS.vendorApply] }
 ] as const;
 
