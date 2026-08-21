@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   PRIVACY_CONSENT_VERSION,
@@ -20,12 +21,17 @@ const OPTIONAL_OFF: DraftConsent = { personalisation: false, analytics: false, m
 const OPTIONAL_ON: DraftConsent = { personalisation: true, analytics: true, marketing: true };
 
 export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
   const [consent, setConsent] = useState<PrivacyConsentPreferences | undefined>();
   const [draft, setDraft] = useState<DraftConsent>(OPTIONAL_OFF);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const needsFloatingSettings = [
+    "/account", "/cart", "/checkout", "/admin", "/vendor", "/daily",
+    "/login", "/register", "/forgot-password", "/reset-password", "/verify-email"
+  ].some((root) => pathname === root || pathname.startsWith(`${root}/`));
 
   useEffect(() => {
     const current = readPrivacyConsent(document.cookie);
@@ -100,7 +106,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       </div>
     </aside>}
 
-    {hydrated && consent && <button type="button" className="privacy-consent-manage-floating" onClick={openSettings}>Ρυθμίσεις cookies</button>}
+    {hydrated && consent && needsFloatingSettings && <button type="button" className="privacy-consent-manage-floating" onClick={openSettings}>Ρυθμίσεις cookies</button>}
 
     <dialog className="privacy-consent-dialog" ref={dialogRef} aria-labelledby="privacy-consent-title">
       <form method="dialog" onSubmit={(event) => event.preventDefault()}>
