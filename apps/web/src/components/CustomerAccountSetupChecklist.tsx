@@ -24,7 +24,7 @@ export function CustomerAccountSetupChecklist({ setup }: { setup: CustomerAccoun
     </div>
     <progress className="customer-setup-meter" max={setup.totalCount} value={setup.completedCount}>{Math.round((setup.completedCount / setup.totalCount) * 100)}%</progress>
     <div className="customer-setup-grid">
-      <SetupStep complete={setup.profileComplete} title="Προσωπικά στοιχεία" body="Συμπλήρωσε ονοματεπώνυμο και προτίμηση επικοινωνίας." href="/account/profile" action="Συμπλήρωση" />
+      <SetupStep complete={setup.profileComplete} title="Προσωπικά στοιχεία" body="Συμπλήρωσε το όνομα και το επώνυμό σου." href="/account/profile" action="Συμπλήρωση" />
       <SetupStep complete={setup.addressComplete} title="Διεύθυνση" body="Πρόσθεσε τουλάχιστον μία διεύθυνση για παράδοση ή τιμολόγηση." href="/account/profile" action="Προσθήκη" />
     </div>
   </section>;
