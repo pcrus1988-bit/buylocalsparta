@@ -55,6 +55,21 @@ export function CustomerActionCard({
   </article>;
 }
 
+export function CustomerStatusNotice({
+  tone,
+  title,
+  children
+}: Readonly<{
+  tone: "action" | "progress" | "success" | "problem";
+  title: string;
+  children: React.ReactNode;
+}>) {
+  return <article className={`customer-action-card customer-status-notice is-${tone}`}>
+    <span className="customer-action-icon" aria-hidden="true">{tone === "success" ? "✓" : tone === "progress" ? "●" : "!"}</span>
+    <div className="customer-action-copy"><strong>{title}</strong><div>{children}</div></div>
+  </article>;
+}
+
 export function customerOrderLifecycle(status: string, fulfilmentMode: string): readonly CustomerLifecycleStage[] {
   const normalized = status.toLocaleLowerCase("el-GR");
   const cancelled = normalized.includes("ακυρ");
