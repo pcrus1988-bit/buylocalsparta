@@ -50,11 +50,17 @@ export function AdminContextNavigation({ groups }: Readonly<{ groups: ReadonlyAr
   </nav>;
 }
 
-export function AdminBreadcrumbs({ groups }: Readonly<{ groups: ReadonlyArray<WorkspaceNavGroup> }>) {
+export function AdminBreadcrumbs({ groups, entityLabel }: Readonly<{ groups: ReadonlyArray<WorkspaceNavGroup>; entityLabel?: string }>) {
   const pathname = usePathname();
   const context = activeContext(pathname, groups);
   const group = context?.group;
   const current = context?.link;
-  if (!group || group.href === "/admin") return <span className="admin-breadcrumb-current">Επισκόπηση</span>;
-  return <><Link href="/admin">Admin</Link><span aria-hidden="true">/</span><Link href={group.href ?? current?.href ?? "/admin"}>{group.label}</Link>{current && current.href !== group.href && <><span aria-hidden="true">/</span><span className="admin-breadcrumb-current">{current.label}</span></>}</>;
+  if (!group || group.href === "/admin") return <span className="admin-breadcrumb-current">{entityLabel ?? "Επισκόπηση"}</span>;
+  return <>
+    <Link href="/admin">Admin</Link>
+    <span aria-hidden="true">/</span>
+    <Link href={group.href ?? current?.href ?? "/admin"}>{group.label}</Link>
+    {current && current.href !== group.href && <><span aria-hidden="true">/</span><span className={entityLabel ? undefined : "admin-breadcrumb-current"}>{current.label}</span></>}
+    {entityLabel && <><span aria-hidden="true">/</span><span className="admin-breadcrumb-current">{entityLabel}</span></>}
+  </>;
 }
