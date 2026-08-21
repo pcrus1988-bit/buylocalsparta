@@ -83,12 +83,13 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
  * Admin navigation is organised by operator mental model rather than implementation module.
  * The sidebar renders one entry per group; the active group's links become contextual tabs.
  * Existing routes remain registered here so RBAC and deep links continue to work unchanged.
+ * Admin group icons are semantic tokens rendered as inline SVG by AdminDomainNavigation.
  */
 export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Επισκόπηση",
     href: "/admin",
-    icon: "⌂",
+    icon: "overview",
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
       { label: "Αναζήτηση", href: "/admin/search", icon: "⌕", contextHidden: true }
@@ -97,7 +98,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Λειτουργίες",
     href: "/admin/work",
-    icon: "◈",
+    icon: "operations",
     links: [
       { label: "Κέντρο λειτουργιών", href: "/admin/work", icon: "◈", permission: "fulfilment.read" },
       { label: "Παραγγελίες", href: "/admin/orders", icon: "□", permission: "fulfilment.read" },
@@ -109,7 +110,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Συνεργάτες",
     href: "/admin/partners",
-    icon: "◎",
+    icon: "partners",
     links: [
       { label: "Επισκόπηση συνεργατών", href: "/admin/partners", icon: "◎", permission: "vendor.manage" },
       { label: "Κατάλογος συνεργατών", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
@@ -123,7 +124,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Κατάλογος",
     href: "/admin/matching",
-    icon: "▦",
+    icon: "catalog",
     links: [
       { label: "Product Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
       { label: "Κατηγορίες & policies", href: "/admin/categories", icon: "▦", permission: "catalog.read" }
@@ -132,13 +133,13 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Πελάτες",
     href: "/admin/customers",
-    icon: "◉",
+    icon: "customers",
     links: [{ label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" }]
   },
   {
     label: "Εμπιστοσύνη & Ασφάλεια",
     href: "/admin/trust",
-    icon: "✓",
+    icon: "trust",
     links: [
       { label: "Review queue", href: "/admin/trust", icon: "✓", permission: "catalog.read" },
       { label: "Αξιολογήσεις", href: "/admin/reviews", icon: "☆", permission: "reviews.read" },
@@ -150,7 +151,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Οικονομικά & Φορολογία",
     href: "/admin/finance",
-    icon: "€",
+    icon: "finance",
     links: [
       { label: "Settlements", href: "/admin/finance", icon: "€", permission: "finance.read" },
       { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
@@ -160,7 +161,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Περιεχόμενο",
     href: "/admin/content",
-    icon: "✎",
+    icon: "content",
     links: [
       { label: "Pages & SEO", href: "/admin/content", icon: "✎", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
@@ -170,7 +171,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Αναλύσεις",
     href: "/admin/analytics",
-    icon: "∿",
+    icon: "analytics",
     links: [
       { label: "Analytics", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
       { label: "Reports", href: "/admin/reports", icon: "▤", permission: "analytics.market.read" }
@@ -179,7 +180,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Πλατφόρμα",
     href: "/admin/platform",
-    icon: "⚙",
+    icon: "platform",
     links: [
       { label: "Platform overview", href: "/admin/platform", icon: "⚙", permission: "admin.audit.read" },
       { label: "System Health", href: "/admin/operations", icon: "◉", permission: "admin.audit.read" },
