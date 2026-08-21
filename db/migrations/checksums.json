@@ -47,7 +47,7 @@
   "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2f5eedf51bd3d26c25b48855a704cfb02084f03215437f6",
   "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
-  "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
+  "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
   "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcebebfd7c3d562414dce1a92a6349eedf81b34e5547d08c416",
   "0052_catalog_taxonomy_semantic_cleanup.sql": "576e4c502a68c9085082f214ae695782c7b3ad5a43f8e829109da702e54ed7fd",
   "0053_product_types_normalized_attributes.sql": "e936775bebec058137945d605e92efef3a0ac3ed7a62a916a2d56dd9315b9257",
