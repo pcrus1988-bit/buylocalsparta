@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { WorkspaceNavGroup, WorkspaceNavLink } from "../lib/workspace-navigation";
+import { AdminNavIcon } from "./AdminNavIcon";
 
 function matches(pathname: string, href: string) {
   if (href === "/admin") return pathname === href;
@@ -29,7 +30,7 @@ export function AdminDomainNavigation({ id, groups, onNavigate }: Readonly<{ id:
       const active = current?.group.label === group.label;
       const badgeLabel = group.badge && group.badge > 99 ? "99+" : group.badge;
       return <Link href={href} key={group.label} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} onClick={onNavigate}>
-        <span className="admin-domain-icon" aria-hidden="true">{group.icon ?? group.links[0]?.icon ?? "·"}</span>
+        <span className="admin-domain-icon" aria-hidden="true"><AdminNavIcon name={group.icon ?? "overview"} /></span>
         <span className="admin-domain-label">{group.label}</span>
         <span className={`admin-domain-badge${group.badge ? "" : " is-empty"}`} aria-label={group.badge ? `${group.badge} items need attention` : undefined} aria-hidden={group.badge ? undefined : true}>{badgeLabel ?? ""}</span>
         <i aria-hidden="true">›</i>
