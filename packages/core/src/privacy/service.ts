@@ -29,7 +29,7 @@ export class CustomerPersonalizationService {
   preferences(userId: string, now = Date.now()): PersonalizationPreferences {
     const existing = this.#preferences.get(userId);
     if (existing) return structuredClone(existing);
-    const item: PersonalizationPreferences = { userId, recommendationsEnabled: true, recentlyViewedEnabled: true, updatedAt: now };
+    const item: PersonalizationPreferences = { userId, recommendationsEnabled: false, recentlyViewedEnabled: false, updatedAt: now };
     this.#preferences.set(userId, item);
     return structuredClone(item);
   }
