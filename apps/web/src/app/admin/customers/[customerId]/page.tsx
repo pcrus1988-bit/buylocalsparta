@@ -42,7 +42,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
   ]);
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={result.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={result.csrfToken} entityLabel={customerName(customer)} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
         <div className="eyebrow">Customer 360</div>
