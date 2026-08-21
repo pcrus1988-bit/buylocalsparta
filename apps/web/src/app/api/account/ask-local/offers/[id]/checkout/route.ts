@@ -35,15 +35,21 @@ export async function POST(request: Request, { params }: Context) {
     if (!profile.addresses.some((address) => address.id === billingAddressId)) throw new Error("Η επιλεγμένη διεύθυνση τιμολόγησης δεν ανήκει στον λογαριασμό σου.");
 
     const now = Date.now();
+    const visitorKey = await getVisitorKey();
     const result = await checkoutCustomerPrivateOffer(principal, {
       offerId,
       checkoutKey,
-      visitorKey: await getVisitorKey(),
+      visitorKey,
       billingAddressId,
       now
     });
-    if (result.created) {
+
+    // Address snapshots may be repaired while payment is still pending, but never mutated
+    // after authorisation/capture has moved the order past the payment gate.
+    if (result.created || result.order.status === "pending_payment") {
       await attachCustomerOrderAddresses(principal, { orderId: result.order.id, billingAddressId, now });
+    }
+    if (result.created) {
       await createCustomerNotification({
         userId: principal.userId,
         eventType: result.order.status === "pending_payment" ? "order.pending_payment" : "order.authorised",
@@ -56,7 +62,7 @@ export async function POST(request: Request, { params }: Context) {
     }
 
     if (vivaPaymentsEnabled()) {
-      const payment = await requireVivaPayments().initiateOrderPayment({ orderId: result.order.id, customerId: principal.userId, visitorKey: await getVisitorKey(), now });
+      const payment = await requireVivaPayments().initiateOrderPayment({ orderId: result.order.id, customerId: principal.userId, visitorKey, now });
       return Response.json({ ...result.order, payment: { provider: "viva", orderCode: payment.orderCode, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: result.created ? 201 : 200 });
     }
     return Response.json(result.order, { status: result.created ? 201 : 200 });
