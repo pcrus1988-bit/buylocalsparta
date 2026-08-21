@@ -1,4 +1,5 @@
 import { requireAccountSession } from "../../../../../../lib/account-session";
+import { requireCustomerOrderReference } from "../../../../../../lib/customer-order-reference";
 import { resumeCustomerOrderPayment } from "../../../../../../lib/customer-payment-resume";
 import { getVisitorKey } from "../../../../../../lib/visitor";
 
@@ -9,8 +10,9 @@ export async function POST(request: Request, { params }: Context) {
     const principal = await requireAccountSession(request, true);
     if (!principal.roles.includes("customer")) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
     const { id } = await params;
+    const resolved = await requireCustomerOrderReference(principal, id);
     const visitorKey = await getVisitorKey();
-    const payment = await resumeCustomerOrderPayment(principal, { orderId: id, visitorKey });
+    const payment = await resumeCustomerOrderPayment(principal, { orderId: resolved.internalId, visitorKey });
     return Response.json(payment, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "payment_resume_failed";
