@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
-import { ANALYTICS_ID_COOKIE, cookieValue, hasAnalyticsConsent } from "../../../../lib/privacy-consent";
+import { ANALYTICS_ID_COOKIE, cookieValue } from "../../../../lib/privacy-consent";
+import { hasVerifiedAnalyticsConsent } from "../../../../lib/privacy-consent-server";
 import { getVisitorKey } from "../../../../lib/visitor";
 
 type ClientEventType = "page_view" | "engagement" | "add_to_cart";
@@ -18,9 +19,9 @@ export async function POST(request: Request) {
     if (!productionDatabaseConfigured()) return Response.json({ accepted: false }, { status: 503 });
 
     const cookieHeader = request.headers.get("cookie") ?? "";
-    if (!hasAnalyticsConsent(cookieHeader)) return new Response(null, { status: 204 });
+    if (!hasVerifiedAnalyticsConsent(cookieHeader)) return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     const analyticsKey = cookieValue(cookieHeader, ANALYTICS_ID_COOKIE);
-    if (!analyticsKey || !SAFE_ANALYTICS_ID_RE.test(analyticsKey)) return new Response(null, { status: 204 });
+    if (!analyticsKey || !SAFE_ANALYTICS_ID_RE.test(analyticsKey)) return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
 
     const raw = await request.json() as Record<string, unknown>;
     const eventType = raw.eventType as ClientEventType;
@@ -60,9 +61,9 @@ export async function POST(request: Request) {
       ON CONFLICT (idempotency_key) DO NOTHING
     `, [eventType, analyticsHash, row.canonical_variant_id, row.selected_vendor_id, row.selected_offer_id, row.id, viewId, engagedSeconds,
       `client:${eventType}:${eventId}`, JSON.stringify({ surface })]);
-    return new Response(null, { status: 204 });
+    return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "product_analytics.capture_failed", message: error instanceof Error ? error.message : String(error) }));
-    return Response.json({ error: "product_analytics_capture_failed" }, { status: 500 });
+    return Response.json({ error: "product_analytics_capture_failed" }, { status: 500, headers: { "cache-control": "no-store" } });
   }
 }
