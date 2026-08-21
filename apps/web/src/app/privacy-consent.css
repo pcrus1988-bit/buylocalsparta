@@ -20,6 +20,8 @@
 .privacy-consent-copy strong { font-size: 1rem; }
 .privacy-consent-copy p { margin: 0; max-width: 70ch; line-height: 1.55; }
 .privacy-consent-copy a { width: fit-content; font-weight: 700; }
+.privacy-consent-error { margin: .25rem 0 0; font-weight: 800; }
+.privacy-consent-dialog-error { padding: 1rem 1.25rem 0; }
 .privacy-consent-actions { display: flex; flex-wrap: wrap; gap: .65rem; justify-content: flex-end; }
 .privacy-consent-actions button,
 .privacy-consent-dialog-actions button {
