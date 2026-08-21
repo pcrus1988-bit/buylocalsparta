@@ -46,7 +46,7 @@
   "0046_reclassify_demo_books_taxonomy.sql": "90a1c30fc5dd12c2abc765b8afc1f1474e68d954f9b83319b9f986fa77d5ff72",
   "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2f5eedf51bd3d26c25b48855a704cfb02084f03215437f6",
   "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
-  "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
+  "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a5ed3ed3",
   "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
   "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcebebfd7c3d562414dce1a92a6349eedf81b34e5547d08c416",
   "0052_catalog_taxonomy_semantic_cleanup.sql": "576e4c502a68c9085082f214ae695782c7b3ad5a43f8e829109da702e54ed7fd",
@@ -75,7 +75,7 @@
   "0076_accounting_mapping_v1.sql": "ec680d9221be33beaa64e2bb7e842c58ff1df61e9efa72b6715e64e033e0dc7a",
   "0077_product_tax_profile_audit.sql": "3254685ce114e88e4cc004ae645e5651c65de46b34ce9c310f6bd99b8b974b2d",
   "0078_customer_comms_ask_local_workflow.sql": "c09ab0fc446ce9454bd8637bf5a8ae1a59410a999207ee327ce93fe768124d6b",
-  "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01c0948ac787eb8e3666418519221",
+  "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01f0948ac787eb8e3666418519221",
   "0080_vendor_order_sla_notifications.sql": "cbdd161638a2903aea56e73ff86b59639880967c8ae29fc3fcd9718613160696",
   "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
   "0082_order_sla_trigger_search_path.sql": "c915907a6ad7229cff9de2f750f7b9fd0761d4854dc562f2af0672d6bb8fc5d4",
@@ -93,5 +93,6 @@
   "0094_checkout_pickup_delivery_rule_fix.sql": "ac02054c0558661be4565860dfc0be50c81d4acf6509848e9ff9914d580783c9",
   "0095_marketplace_public_references.sql": "6b90458bc8e321cc58125ce35251edad6281f28f94654c5f63413168841ad36c",
   "0096_public_reference_counters_rls.sql": "7b1a8cf93c6973388357cb8d4fc2886d43d30e864cfab65bfc10f3639fe2b8c5",
-  "0097_homepage_hero_database_storage.sql": "b82e3b5498e0f4dbe47b915aeaf2c82add0457fab0b3aa79fd3385be4adf031d"
+  "0097_homepage_hero_database_storage.sql": "b82e3b5498e0f4dbe47b915aeaf2c82add0457fab0b3aa79fd3385be4adf031d",
+  "0098_privacy_defaults_governance.sql": "61e83f08a2729e060951c88f24653ab55ea36ab555edfc8f3792de2e1fb8005a"
 }
