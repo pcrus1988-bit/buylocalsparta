@@ -44,8 +44,7 @@ export async function customerAccountProfile(principal: SessionPrincipal): Promi
     SELECT u.email::text,u.email_verified_at,u.phone,u.preferred_locale,cp.first_name,cp.last_name
     FROM users u
     LEFT JOIN customer_profiles cp ON cp.user_id=u.id
-    WHERE u.public_id=$1
-      AND EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='customer')
+    WHERE u.public_id=$1 AND u.status<>'closed'
     LIMIT 1
   `, [principal.userId]);
   if (!result.rowCount) throw new Error("Ο λογαριασμός πελάτη δεν βρέθηκε.");
@@ -81,9 +80,7 @@ export async function updateCustomerAccountProfile(principal: SessionPrincipal, 
     const user = await client.query(`
       UPDATE users u
       SET phone=$2,preferred_locale=$3,updated_at=$4
-      WHERE u.public_id=$1
-        AND u.status<>'closed'
-        AND EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='customer')
+      WHERE u.public_id=$1 AND u.status<>'closed'
       RETURNING u.id::text,u.email::text,u.email_verified_at,u.phone,u.preferred_locale
     `, [principal.userId, phone || null, preferredLocale, now]);
     if (user.rowCount !== 1) throw new Error("Ο λογαριασμός πελάτη δεν είναι διαθέσιμος.");
@@ -129,9 +126,7 @@ export async function changeCustomerPassword(principal: SessionPrincipal, input:
     const found = await client.query(`
       SELECT u.id::text AS id,u.password_hash
       FROM users u
-      WHERE u.public_id=$1
-        AND u.status='active'
-        AND EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='customer')
+      WHERE u.public_id=$1 AND u.status='active'
       FOR UPDATE
     `, [principal.userId]);
     if (found.rowCount !== 1) throw new Error("Ο λογαριασμός πελάτη δεν είναι διαθέσιμος.");
