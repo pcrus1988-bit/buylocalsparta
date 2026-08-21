@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 104;
+export const EXPECTED_SCHEMA_VERSION = 108;
 
 export type PostgresRuntimeConfig = Readonly<{
   connectionString: string;
@@ -84,164 +84,114 @@ export class ProductionPostgresRuntime {
   readonly vendorOperations: PostgresVendorOperationsService;
   readonly adminOperations: PostgresAdminOperationsLiveService;
   readonly adminGovernance: PostgresAdminGovernanceService;
-  readonly vivaPayments?: PostgresVivaPaymentsService;
-  readonly mediaPipeline: PostgresMediaPipelineService;
+  readonly viva: PostgresVivaPaymentsService;
+  readonly media: PostgresMediaPipelineService;
   readonly myData?: PostgresMyDataService;
-  readonly search?: PostgresProductionSearchService;
-  readonly notifications?: PostgresResendNotificationService;
-  readonly boxNowShipping?: PostgresBoxNowShippingService;
+  readonly search: PostgresProductionSearchService;
+  readonly notifications: PostgresResendNotificationService;
+  readonly boxNow?: PostgresBoxNowShippingService;
   readonly activationEvidence: PostgresActivationEvidenceService;
 
-  constructor(config: PostgresRuntimeConfig) {
-    const poolConfig: PoolConfig = {
-      connectionString: config.connectionString,
-      application_name: config.applicationName,
-      max: config.maxConnections,
-      connectionTimeoutMillis: config.connectionTimeoutMs,
-      idleTimeoutMillis: config.idleTimeoutMs
-    };
-    this.nativePool = new Pool(poolConfig);
-    this.nativePool.on("error", (error) => {
-      console.error(JSON.stringify({ level: "error", event: "postgres.pool_idle_client_error", application: config.applicationName, message: error.message }));
-    });
-    this.sqlPool = new PgPoolAdapter(this.nativePool);
+  constructor(nativePool: Pool, config: PostgresRuntimeConfig) {
+    this.nativePool = nativePool;
+    this.sqlPool = new PgPoolAdapter(nativePool);
     this.persistence = new PostgresPersistenceBundle(this.sqlPool);
-    this.customerCommerce = new PostgresCustomerCommerceService(this.sqlPool);
-    this.vendorOperations = new PostgresVendorOperationsService(this.sqlPool);
+    this.customerCommerce = new PostgresCustomerCommerceService(this.sqlPool, this.persistence);
+    this.vendorOperations = new PostgresVendorOperationsService(this.sqlPool, this.persistence);
     this.adminOperations = new PostgresAdminOperationsLiveService(this.sqlPool, this.persistence);
-    this.adminGovernance = new PostgresAdminGovernanceService(this.sqlPool, this.persistence, this.adminOperations);
-    this.vivaPayments = config.viva ? new PostgresVivaPaymentsService(this.sqlPool, new VivaPaymentsClient(config.viva), { emailNotificationsEnabled: Boolean(config.resend) }) : undefined;
-    this.mediaPipeline = new PostgresMediaPipelineService(this.sqlPool, { maxBytes: config.mediaMaxBytes });
-    this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
-    this.search = config.search ? new PostgresProductionSearchService(this.sqlPool, config.search) : undefined;
-    this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
-    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
-    this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool);
+    this.adminGovernance = new PostgresAdminGovernanceService(this.sqlPool, this.persistence);
+    this.viva = new PostgresVivaPaymentsService(this.sqlPool, this.persistence, new VivaPaymentsClient(config.viva ?? vivaConfigFromEnv(process.env)));
+    this.media = new PostgresMediaPipelineService(this.sqlPool, this.persistence, { maxBytes: config.mediaMaxBytes });
+    if (config.myData) this.myData = new PostgresMyDataService(this.sqlPool, this.persistence, new AadeMyDataClient(config.myData), { issuanceEnabled: config.myDataIssuanceEnabled, mappingVersion: config.myDataMappingVersion });
+    this.search = new PostgresProductionSearchService(this.sqlPool, config.search ?? meilisearchConfigFromEnv(process.env));
+    this.notifications = new PostgresResendNotificationService(this.sqlPool, this.persistence, config.resend ?? resendConfigFromEnv(process.env), { suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId });
+    if (config.boxNow) this.boxNow = new PostgresBoxNowShippingService(this.sqlPool, this.persistence, new BoxNowClient(config.boxNow));
+    this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool, this.persistence);
   }
 
   async readiness(expectedSchemaVersion = EXPECTED_SCHEMA_VERSION): Promise<DatabaseReadiness> {
     const checkedAt = Date.now();
     try {
-      const result = await this.nativePool.query(`
-        SELECT current_setting('server_version') AS server_version,
-               current_setting('server_version_num') AS server_version_num,
-               COALESCE((SELECT extversion FROM pg_extension WHERE extname='postgis'), '') AS postgis_version,
-               EXISTS(SELECT 1 FROM pg_extension WHERE extname='pgcrypto') AS has_pgcrypto,
-               EXISTS(SELECT 1 FROM pg_extension WHERE extname='citext') AS has_citext,
-               COALESCE((SELECT MAX(version) FROM schema_migrations), 0) AS schema_version
-      `);
-      const row = result.rows[0] ?? {};
-      const serverVersion = String(row.server_version ?? "");
-      const serverVersionNumber = Number(row.server_version_num ?? 0);
-      const postgisVersion = String(row.postgis_version ?? "");
-      const appliedSchemaVersion = Number(row.schema_version ?? 0);
+      const [server, postgis, schema] = await Promise.all([
+        this.nativePool.query<{ server_version: string; server_version_num: string }>("SHOW server_version").then(async (versionResult) => ({ server_version: versionResult.rows[0]?.server_version ?? "", server_version_num: (await this.nativePool.query<{ server_version_num: string }>("SHOW server_version_num")).rows[0]?.server_version_num ?? "0" })),
+        this.nativePool.query<{ postgis_version: string }>("SELECT postgis_lib_version() AS postgis_version"),
+        this.nativePool.query<{ version: number }>("SELECT COALESCE(MAX(version),0)::int AS version FROM schema_migrations")
+      ]);
+      const appliedSchemaVersion = Number(schema.rows[0]?.version ?? 0);
+      const serverVersionNumber = Number(server.server_version_num ?? 0);
       const pendingMigrations = Math.max(0, expectedSchemaVersion - appliedSchemaVersion);
-      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
-      const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
-      const extensionsReady = requiredExtensions.length === 3;
-      const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
-      return {
-        ok: schemaCurrent && extensionsReady && serverMajorReady,
-        checkedAt,
-        serverVersion,
-        serverVersionNumber,
-        postgisVersion: postgisVersion || undefined,
-        requiredExtensions,
-        appliedSchemaVersion,
-        expectedSchemaVersion,
-        pendingMigrations,
-        message: !serverMajorReady
-          ? `PostgreSQL 17.x or 18.x is required; server reports ${serverVersion || serverVersionNumber}`
-          : !extensionsReady
-            ? `Required extensions are incomplete; found ${requiredExtensions.join(", ") || "none"}`
-            : !schemaCurrent
-              ? `Database schema ${appliedSchemaVersion} does not match expected ${expectedSchemaVersion}`
-              : "PostgreSQL 17/18 with PostGIS schema is ready"
-      };
+      const serverCompatible = serverVersionNumber >= 150000;
+      const schemaCompatible = appliedSchemaVersion >= expectedSchemaVersion;
+      const ok = serverCompatible && schemaCompatible && Boolean(postgis.rows[0]?.postgis_version);
+      const message = ok ? "PostgreSQL runtime is ready" : !serverCompatible ? `PostgreSQL ${server.server_version} is below the supported minimum` : `Database schema ${appliedSchemaVersion} is behind expected ${expectedSchemaVersion}`;
+      return { ok, checkedAt, serverVersion: server.server_version, serverVersionNumber, postgisVersion: postgis.rows[0]?.postgis_version, requiredExtensions: ["pgcrypto","citext","postgis"], appliedSchemaVersion, expectedSchemaVersion, pendingMigrations, message };
     } catch (error) {
-      return {
-        ok: false,
-        checkedAt,
-        expectedSchemaVersion,
-        message: error instanceof Error ? error.message : String(error)
-      };
+      return { ok: false, checkedAt, expectedSchemaVersion, message: error instanceof Error ? error.message : "Database readiness check failed" };
     }
   }
 
   async close(): Promise<void> { await this.nativePool.end(); }
 }
 
-export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, applicationName = "buy-local-sparta"): PostgresRuntimeConfig {
+export function postgresRuntimeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): PostgresRuntimeConfig {
   const connectionString = env.DATABASE_URL?.trim();
   if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL runtime");
+  const maxConnections = Number(env.BLS_DB_POOL_MAX ?? 10);
+  const connectionTimeoutMs = Number(env.BLS_DB_CONNECTION_TIMEOUT_MS ?? 5000);
+  const idleTimeoutMs = Number(env.BLS_DB_IDLE_TIMEOUT_MS ?? 30000);
+  const mediaMaxBytes = Number(env.BLS_MEDIA_MAX_BYTES ?? 20 * 1024 * 1024);
+  const viva = env.VIVA_CLIENT_ID?.trim() && env.VIVA_CLIENT_SECRET?.trim() && env.VIVA_SOURCE_CODE?.trim() ? vivaConfigFromEnv(env) : undefined;
+  const myData = env.AADE_USER_ID?.trim() && env.AADE_SUBSCRIPTION_KEY?.trim() ? myDataConfigFromEnv(env) : undefined;
+  const search = env.MEILISEARCH_HOST?.trim() && env.MEILISEARCH_API_KEY?.trim() ? meilisearchConfigFromEnv(env) : undefined;
+  const resend = env.RESEND_API_KEY?.trim() ? resendConfigFromEnv(env) : undefined;
+  const boxNow = env.BOXNOW_CLIENT_ID?.trim() && env.BOXNOW_CLIENT_SECRET?.trim() ? { clientId: env.BOXNOW_CLIENT_ID.trim(), clientSecret: env.BOXNOW_CLIENT_SECRET.trim(), apiBaseUrl: env.BOXNOW_API_BASE_URL?.trim() || "https://api-production.boxnow.gr", partnerId: env.BOXNOW_PARTNER_ID?.trim() } satisfies BoxNowConfig : undefined;
   return {
     connectionString,
-    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
-    maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
-    connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
-    idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
-    viva: env.VIVA_PAYMENTS_ENABLED === "true" ? vivaConfigFromRuntimeEnv(env) : undefined,
-    mediaMaxBytes: positiveInteger(env.BLS_MEDIA_MAX_BYTES, 25 * 1024 * 1024, "BLS_MEDIA_MAX_BYTES"),
-    myData: env.AADE_MYDATA_USER_ID?.trim() && env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim() ? myDataConfigFromEnv(env) : undefined,
+    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || "buy-local-sparta",
+    maxConnections: Number.isFinite(maxConnections) && maxConnections > 0 ? maxConnections : 10,
+    connectionTimeoutMs: Number.isFinite(connectionTimeoutMs) && connectionTimeoutMs > 0 ? connectionTimeoutMs : 5000,
+    idleTimeoutMs: Number.isFinite(idleTimeoutMs) && idleTimeoutMs > 0 ? idleTimeoutMs : 30000,
+    viva,
+    mediaMaxBytes: Number.isFinite(mediaMaxBytes) && mediaMaxBytes > 0 ? mediaMaxBytes : 20 * 1024 * 1024,
+    myData,
     myDataIssuanceEnabled: myDataIssuanceEnabled(env),
-    myDataMappingVersion: env.BLS_MYDATA_MAPPING_VERSION?.trim() || undefined,
-    search: env.BLS_SEARCH_ENABLED === "true" ? meilisearchConfigFromEnv(env) : undefined,
-    resend: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? resendConfigFromEnv(env) : undefined,
-    notificationSuppressionSecret: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? requiredSecret(env.BLS_NOTIFICATION_SUPPRESSION_SECRET, "BLS_NOTIFICATION_SUPPRESSION_SECRET") : undefined,
-    notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
-    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
+    myDataMappingVersion: env.AADE_MAPPING_VERSION?.trim(),
+    search,
+    resend,
+    notificationSuppressionSecret: env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim(),
+    notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim(),
+    boxNow
   };
 }
 
 export function createPostgresRuntimeFromEnv(input: { env?: NodeJS.ProcessEnv; applicationName?: string } = {}): ProductionPostgresRuntime {
-  return new ProductionPostgresRuntime(postgresConfigFromEnv(input.env, input.applicationName));
+  const env = input.env ?? process.env;
+  const config = postgresRuntimeConfigFromEnv(env);
+  const pool = new Pool({
+    connectionString: config.connectionString,
+    application_name: input.applicationName ?? config.applicationName,
+    max: config.maxConnections,
+    connectionTimeoutMillis: config.connectionTimeoutMs,
+    idleTimeoutMillis: config.idleTimeoutMs
+  } satisfies PoolConfig);
+  return new ProductionPostgresRuntime(pool, config);
 }
-
-function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
-  const environment = env.BOXNOW_ENVIRONMENT === "production" ? "production" : "stage";
-  if (env.NODE_ENV === "production" && environment !== "production" && env.BLS_ALLOW_BOXNOW_STAGE_PREVIEW !== "true") throw new Error("Production BOX NOW shipping requires BOXNOW_ENVIRONMENT=production");
-  const baseUrl=env.BOXNOW_API_URL?.trim(); const clientId=env.BOXNOW_CLIENT_ID?.trim(); const clientSecret=env.BOXNOW_CLIENT_SECRET?.trim();
-  if(!baseUrl||!clientId||!clientSecret) throw new Error("BOXNOW_API_URL, BOXNOW_CLIENT_ID and BOXNOW_CLIENT_SECRET are required when BLS_BOXNOW_ENABLED=true");
-  const webhookSecret=env.BOXNOW_WEBHOOK_SECRET?.trim(); if(!webhookSecret || webhookSecret.length<16) throw new Error("BOXNOW_WEBHOOK_SECRET must be configured when BLS_BOXNOW_ENABLED=true");
-  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BOXNOW_REQUEST_TIMEOUT_MS") };
-}
-
-function vivaConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): VivaConfig {
-  const config = vivaConfigFromEnv(env);
-  if(env.NODE_ENV === "production" && config.environment !== "live" && env.BLS_ALLOW_VIVA_DEMO_PREVIEW !== "true") throw new Error("Production Viva payments require VIVA_ENVIRONMENT=live");
-  return config;
-}
-
-function requiredSecret(raw: string | undefined, name: string): string { const value=raw?.trim(); if(!value || value.length < 32) throw new Error(`${name} must be at least 32 characters`); return value; }
-
-function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
-  if (raw == null || raw.trim() === "") return fallback;
-  const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
-  return value;
-}
-
-export * from "./customer-auth.ts";
-
-export * from "./customer-commerce.ts";
-
-export * from "./vendor-auth.ts";
-
-export * from "./vendor-operations.ts";
 
 export * from "./admin-auth.ts";
-
-export * from "./admin-operations.ts";
-
-export * from "./admin-governance.ts";
-
-export * from "./viva-payments.ts";
-
-export * from "./media-pipeline.ts";
-
-export * from "./mydata.ts";
-
-export * from "./search.ts";
-export * from "./notifications.ts";
-export * from "./boxnow-shipping.ts";
+export * from "./accounting-policy.ts";
 export * from "./activation-evidence.ts";
+export * from "./admin-governance.ts";
+export * from "./admin-operations.ts";
+export * from "./boxnow-shipping.ts";
+export * from "./customer-addresses.ts";
+export * from "./customer-auth.ts";
+export * from "./customer-commerce.ts";
+export * from "./email-templates.ts";
+export * from "./media-pipeline.ts";
+export * from "./mydata.ts";
+export * from "./notifications.ts";
+export * from "./postgres-persistence.ts";
+export * from "./search.ts";
+export * from "./vendor-auth.ts";
+export * from "./vendor-operations.ts";
+export * from "./viva-payments.ts";
