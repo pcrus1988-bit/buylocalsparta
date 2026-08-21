@@ -14,6 +14,13 @@ function forbidText(haystack: string, needle: string, message: string): void {
   if (haystack.includes(needle)) throw new Error(message);
 }
 
+function between(haystack: string, start: string, end: string): string {
+  const startAt = haystack.indexOf(start);
+  const endAt = haystack.indexOf(end, startAt + start.length);
+  if (startAt < 0 || endAt < 0) throw new Error(`Could not isolate source contract between ${start} and ${end}`);
+  return haystack.slice(startAt, endAt);
+}
+
 const [addressService, checkoutRoute, checkoutClient, guardMigration] = await Promise.all([
   source("packages/postgres-runtime/src/customer-addresses.ts"),
   source("apps/web/src/app/api/checkout/route.ts"),
@@ -26,7 +33,12 @@ requireText(addressService, 'if (mode === "local_delivery")', "Local delivery mu
 requireText(addressService, 'shippingSnapshot = localDeliverySnapshot(delivery, customerFullName);', "Local delivery must use its minimized delivery snapshot");
 requireText(addressService, 'shippingSnapshot = boxNowSnapshot(existingShipping);', "BOX NOW must preserve only provider/recipient metadata");
 requireText(addressService, 'let shippingSnapshot: Record<string, unknown> | null = null;', "Pickup must default to no shipping snapshot");
-forbidText(addressService, "vatNumber: address.vatNumber,\n    line1: address.line1", "Delivery snapshot must not inherit billing-only VAT data");
+const localDeliveryFunction = between(addressService, "function localDeliverySnapshot", "function boxNowSnapshot");
+forbidText(localDeliveryFunction, "vatNumber", "Local-delivery snapshot must not inherit billing-only VAT data");
+const boxNowFunction = between(addressService, "function boxNowSnapshot", "function orderMode");
+for (const forbidden of ["line1", "line2", "locality", "region", "vatNumber", "companyName"]) {
+  forbidText(boxNowFunction, forbidden, `BOX NOW snapshot must not contain saved-address field ${forbidden}`);
+}
 
 requireText(checkoutRoute, 'deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined', "Checkout must not attach a delivery address to pickup or BOX NOW orders");
 requireText(checkoutRoute, 'const providerDestinationPostcode = boundedString(raw.providerDestinationPostcode', "BOX NOW must use the selected locker postcode");
