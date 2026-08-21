@@ -17,6 +17,7 @@ export default async function OrderPage({ params }: Props) {
   const { id } = await params;
   try {
     const detail = await accountOrderDetail(principal, id);
+    if (id !== detail.referenceNumber) redirect(`/account/orders/${encodeURIComponent(detail.referenceNumber)}`);
     return <main className="account-order-page">
       <div className="announcement">Παραγγελία · πού βρίσκεται τώρα, τι ακολουθεί και τι χρειάζεται από εσένα.</div>
       <SiteHeader compact />
