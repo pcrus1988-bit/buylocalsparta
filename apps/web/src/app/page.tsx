@@ -3,8 +3,10 @@ import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
+import { HomeRegistrationCta } from "../components/HomeRegistrationCta";
 import { STOREFRONT_CATEGORIES, categoryCodeMatches } from "../lib/storefront-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
+import { listHomepagePromoCtas } from "../lib/homepage-promo-cta-runtime";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
@@ -13,10 +15,12 @@ const FEATURED_PRODUCT_LIMIT = 4;
 
 export default async function Home() {
   const visitorKey = await getVisitorKey();
-  const [featuredProducts, heroSlides] = await Promise.all([
+  const [featuredProducts, heroSlides, promoCtas] = await Promise.all([
     getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
-    listHomepageHeroSlides({ visibleOnly: true })
+    listHomepageHeroSlides({ visibleOnly: true }),
+    listHomepagePromoCtas({ visibleOnly: true })
   ]);
+  const promoCta = promoCtas[0] ?? null;
   const visibleCategories = STOREFRONT_CATEGORIES.filter((category) =>
     featuredProducts.some((card) => categoryCodeMatches(card.categoryCode, category.slug))
   );
@@ -60,6 +64,8 @@ export default async function Home() {
           </div>
         </section>
       </HomeHeroCarousel>
+
+      {promoCta ? <HomeRegistrationCta cta={promoCta} /> : null}
 
       <section className={`${styles.discoverySection} shell`} aria-labelledby="featured-title">
         <div className={styles.sectionTop}>
