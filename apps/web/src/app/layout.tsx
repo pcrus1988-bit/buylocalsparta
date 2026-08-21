@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Comfortaa } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import "./storefront-merchants.css";
 import "./storefront-advice.css";
@@ -59,7 +58,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <PrivacyConsentProvider><CartProvider>{children}</CartProvider></PrivacyConsentProvider>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
-      <Analytics />
     </body>
   </html>;
 }
