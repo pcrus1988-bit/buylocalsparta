@@ -24,6 +24,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
   const [consent, setConsent] = useState<PrivacyConsentPreferences | undefined>();
   const [draft, setDraft] = useState<DraftConsent>(OPTIONAL_OFF);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | undefined>();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       analytics: current.analytics,
       marketing: current.marketing
     } : OPTIONAL_OFF);
+    setError(undefined);
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
@@ -57,6 +59,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
   async function persist(next: DraftConsent) {
     if (busy) return;
     setBusy(true);
+    setError(undefined);
     try {
       const response = await fetch("/api/privacy/consent", {
         method: "POST",
@@ -74,6 +77,8 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       setDraft(next);
       dialogRef.current?.close();
       window.dispatchEvent(new CustomEvent("bls:privacy-consent-changed", { detail: updated }));
+    } catch {
+      setError("Δεν ήταν δυνατή η αποθήκευση των επιλογών σου. Δοκίμασε ξανά.");
     } finally {
       setBusy(false);
     }
@@ -84,8 +89,9 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
     {hydrated && !consent && <aside className="privacy-consent-banner" aria-label="Ρυθμίσεις απορρήτου και cookies">
       <div className="privacy-consent-copy">
         <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
-        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Προσωποποίηση, analytics και marketing ενεργοποιούνται μόνο αν τα επιλέξεις.</p>
-        <Link href="/privacy-controls">Privacy controls</Link>
+        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Προαιρετικές τεχνολογίες προσωπικοποίησης, analytics και marketing ενεργοποιούνται μόνο αν τις επιλέξεις.</p>
+        <Link href="/privacy-controls">Έλεγχοι ιδιωτικότητας</Link>
+        {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
       <div className="privacy-consent-actions" aria-label="Επιλογές cookies">
         <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON)}>Αποδοχή όλων</button>
@@ -109,7 +115,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
           <input type="checkbox" checked disabled aria-label="Απαραίτητα cookies, πάντα ενεργά" />
         </div>
         <label className="privacy-consent-option">
-          <div><strong>Προσωποποίηση</strong><p>Προαιρετικές προτιμήσεις, πρόσφατα προϊόντα και εξατομικευμένη εμπειρία.</p></div>
+          <div><strong>Προσωποποίηση</strong><p>Προαιρετικές browser-level επιλογές εξατομίκευσης. Οι ρυθμίσεις του λογαριασμού σου παραμένουν ξεχωριστές στα Privacy controls.</p></div>
           <input type="checkbox" checked={draft.personalisation} onChange={(event) => setDraft({ ...draft, personalisation: event.target.checked })} />
         </label>
         <label className="privacy-consent-option">
@@ -121,6 +127,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
           <input type="checkbox" checked={draft.marketing} onChange={(event) => setDraft({ ...draft, marketing: event.target.checked })} />
         </label>
 
+        {error && <p className="privacy-consent-error privacy-consent-dialog-error" role="alert">{error}</p>}
         <div className="privacy-consent-dialog-actions">
           <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF)}>Απόρριψη προαιρετικών</button>
           <button type="button" disabled={busy} onClick={() => void persist(draft)}>Αποθήκευση επιλογών</button>
