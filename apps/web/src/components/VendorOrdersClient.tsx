@@ -27,6 +27,18 @@ type Dashboard = {
   fulfilments: readonly Fulfilment[];
 };
 
+type DeliveryContact = Readonly<{
+  fulfilmentId: string;
+  recipientName: string;
+  line1: string;
+  line2?: string;
+  locality: string;
+  region?: string;
+  postcode: string;
+  countryCode: string;
+  phone?: string;
+}>;
+
 const when = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
 const actionLabel: Record<string, string> = {
   accept: "Αποδοχή παραγγελίας",
@@ -34,6 +46,7 @@ const actionLabel: Record<string, string> = {
   ready: "Έτοιμη για παράδοση",
   delivered: "Επιβεβαίωση παράδοσης"
 };
+const deliveryRevealStatuses = new Set(["accepted", "picking", "packed", "ready_for_handover"]);
 
 function isFinished(status: string) {
   return ["delivered", "collected", "completed", "fulfilled"].includes(status.toLowerCase());
@@ -74,6 +87,8 @@ function lifecycle(item: Fulfilment): readonly VendorLifecycleStep[] {
 export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState("");
+  const [contactBusy, setContactBusy] = useState("");
+  const [deliveryContacts, setDeliveryContacts] = useState<Record<string, DeliveryContact | undefined>>({});
   const [error, setError] = useState("");
 
   async function act(fulfilmentId: string, action: string) {
@@ -91,11 +106,46 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
       const payload = await response.json() as Dashboard & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Δεν μπορέσαμε να ενημερώσουμε την παραγγελία.");
       setData(payload);
+      if (["reject", "delivered"].includes(action)) {
+        setDeliveryContacts((current) => {
+          const next = { ...current };
+          delete next[fulfilmentId];
+          return next;
+        });
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν μπορέσαμε να ενημερώσουμε την παραγγελία.");
     } finally {
       setBusy("");
     }
+  }
+
+  async function revealDeliveryContact(fulfilmentId: string) {
+    setContactBusy(fulfilmentId);
+    setError("");
+    try {
+      const response = await fetch("/api/vendor/fulfilments/delivery-contact", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json", "x-csrf-token": data.csrfToken },
+        body: JSON.stringify({ fulfilmentId })
+      });
+      const payload = await response.json() as DeliveryContact & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Δεν ήταν δυνατή η εμφάνιση των στοιχείων παράδοσης.");
+      setDeliveryContacts((current) => ({ ...current, [fulfilmentId]: payload }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η εμφάνιση των στοιχείων παράδοσης.");
+    } finally {
+      setContactBusy("");
+    }
+  }
+
+  function hideDeliveryContact(fulfilmentId: string) {
+    setDeliveryContacts((current) => {
+      const next = { ...current };
+      delete next[fulfilmentId];
+      return next;
+    });
   }
 
   const pickup = data.fulfilments.filter((item) => item.mode === "pickup").length;
@@ -108,7 +158,7 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
       { label: "Χρειάζονται ενέργεια", value: data.metrics.ordersRequiringAction, tone: data.metrics.ordersRequiringAction ? "attention" : "default" },
       { label: "Ανοιχτές", value: data.metrics.openFulfilments },
       { label: "Παραλαβή από κατάστημα", value: pickup },
-      { label: "Αποστολή", value: shipping }
+      { label: "Αποστολή / παράδοση", value: shipping }
     ]} />
 
     <section className="shell vendor-section">
@@ -117,14 +167,17 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
         <p><strong>Τι είναι αυτή η σελίδα;</strong> Εδώ βλέπεις τις παραγγελίες που έχουν ανατεθεί στο κατάστημά σου.</p>
         <p><strong>Τι κάνεις;</strong> Ακολούθησε το επισημασμένο βήμα και πάτησε μόνο όταν το πραγματικό γεγονός έχει συμβεί.</p>
         <p><strong>Τι γίνεται μετά;</strong> Η πορεία ενημερώνεται αυτόματα και οι επόμενες εργασίες εμφανίζονται όταν γίνουν διαθέσιμες.</p>
+        <p><strong>Στοιχεία παράδοσης:</strong> για τοπική παράδοση εμφανίζονται μόνο όταν τα ζητήσεις για ενεργή ανάθεση. Η πρόσβαση καταγράφεται και τα στοιχεία χρησιμοποιούνται αποκλειστικά για τη συγκεκριμένη παράδοση.</p>
       </WorkspaceHowItWorks>
       {data.fulfilments.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ανατεθειμένες παραγγελίες αυτή τη στιγμή." /> : <div className="workspace-queue-list">
         {data.fulfilments.map((item) => {
           const finished = isFinished(item.status);
           const stopped = isStopped(item.status);
+          const deliveryContact = deliveryContacts[item.id];
+          const mayRevealDelivery = item.mode === "local_delivery" && deliveryRevealStatuses.has(item.status) && ["confirmed", "partially_fulfilled"].includes(item.orderStatus);
           return <article className="workspace-queue-card" key={item.id}>
             <div className="workspace-queue-head">
-              <div><strong className="vendor-case-title">{item.orderReference}</strong><small>{when(item.createdAt)} · {item.mode === "pickup" ? "Παραλαβή από κατάστημα" : "Αποστολή"} · ΤΚ {item.postcode}</small></div>
+              <div><strong className="vendor-case-title">{item.orderReference}</strong><small>{when(item.createdAt)} · {item.mode === "pickup" ? "Παραλαβή από κατάστημα" : item.mode === "local_delivery" ? "Τοπική παράδοση" : "Αποστολή"} · ΤΚ {item.postcode}</small></div>
               <span className="vendor-merchant-status">{vendorStatusLabel(item.status)}</span>
             </div>
 
@@ -145,6 +198,15 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               {item.lines.map((line) => <div className="workspace-compact-row" key={line.id}><strong>{line.quantity}× {line.title}</strong><span>{vendorStatusLabel(line.status)}</span></div>)}
             </div>
+
+            {mayRevealDelivery && <div className="fairness-note" style={{ marginTop: 12 }}>
+              {deliveryContact ? <>
+                <div className="account-card-head"><div><strong>Στοιχεία για την ενεργή τοπική παράδοση</strong><small>Εμφανίστηκαν μόνο επειδή ζητήθηκαν για την εκτέλεση αυτής της ανατεθειμένης παράδοσης. Η πρόσβαση καταγράφεται.</small></div><button type="button" className="text-button" onClick={() => hideDeliveryContact(item.id)}>Απόκρυψη</button></div>
+                <p><strong>{deliveryContact.recipientName}</strong><br />{deliveryContact.line1}{deliveryContact.line2 ? ` · ${deliveryContact.line2}` : ""}<br />{deliveryContact.postcode} {deliveryContact.locality}{deliveryContact.region ? ` · ${deliveryContact.region}` : ""} · {deliveryContact.countryCode}{deliveryContact.phone ? <><br />Τηλέφωνο: {deliveryContact.phone}</> : null}</p>
+                <small>Χρήση αποκλειστικά για την παράδοση της συγκεκριμένης παραγγελίας. Δεν επιτρέπεται αντιγραφή σε CRM, λίστα marketing ή άλλη ανεξάρτητη χρήση.</small>
+              </> : <div className="account-card-head"><div><strong>Χρειάζεσαι τη διεύθυνση για την παράδοση;</strong><small>Δεν φορτώνεται μαζί με τη λίστα παραγγελιών. Η αποκάλυψη είναι ανά παραγγελία και καταγράφεται.</small></div><button type="button" className="button button-secondary" disabled={contactBusy === item.id} onClick={() => void revealDeliveryContact(item.id)}>{contactBusy === item.id ? "Φόρτωση…" : "Εμφάνιση στοιχείων παράδοσης"}</button></div>}
+            </div>}
+
             <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη">
               <div className="workspace-compact-list">
                 <div className="workspace-compact-row"><strong>Εσωτερική ανάθεση</strong><span className="vendor-technical-id">{item.id}</span><small className="vendor-technical-id">Order {item.orderId} · {item.orderStatus}</small></div>

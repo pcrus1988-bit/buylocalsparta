@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { formatMoney } from "@buy-local-sparta/core";
 import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
@@ -10,6 +11,46 @@ type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfil
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
 const VIVA_MINIMUM_AMOUNT_MINOR = 30;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
+function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
+
+async function assertCheckoutRequestIntegrity(
+  runtime: ReturnType<typeof getProductionPostgresRuntime>,
+  input: {
+    checkoutKey: string;
+    actorUserId: string;
+    postcode: string;
+    fulfilmentMode: "pickup" | "local_delivery" | "shipping";
+    billingAddressId: string;
+    deliveryAddressId?: string;
+    items: readonly Readonly<{ canonicalVariantId: string; quantity: number }>[];
+    shipping?: Readonly<{ provider?: "boxnow"; providerDestinationId?: string; recipientName?: string; recipientEmail?: string; recipientPhone?: string }>;
+  }
+): Promise<void> {
+  const requestHash = sha256(JSON.stringify({
+    postcode: input.postcode,
+    fulfilmentMode: input.fulfilmentMode,
+    billingAddressId: input.billingAddressId,
+    deliveryAddressId: input.fulfilmentMode === "local_delivery" ? input.deliveryAddressId ?? null : null,
+    items: [...input.items].map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })).sort((a, b) => a.canonicalVariantId.localeCompare(b.canonicalVariantId)),
+    shipping: input.fulfilmentMode === "shipping" ? {
+      provider: input.shipping?.provider ?? null,
+      providerDestinationId: input.shipping?.providerDestinationId ?? null,
+      recipientName: input.shipping?.recipientName ?? null,
+      recipientEmail: input.shipping?.recipientEmail ?? null,
+      recipientPhone: input.shipping?.recipientPhone ?? null
+    } : null
+  }));
+  const actorHash = sha256(input.actorUserId);
+  const guard = await runtime.sqlPool.query(`
+    INSERT INTO checkout_request_guards(checkout_key,actor_hash,request_hash,created_at,last_seen_at)
+    VALUES($1,$2,$3,now(),now())
+    ON CONFLICT(checkout_key) DO UPDATE SET last_seen_at=now()
+    WHERE checkout_request_guards.actor_hash=EXCLUDED.actor_hash
+      AND checkout_request_guards.request_hash=EXCLUDED.request_hash
+    RETURNING checkout_key
+  `, [input.checkoutKey, actorHash, requestHash]);
+  if (!guard.rowCount) throw new Error("Αυτό το checkout έχει ήδη χρησιμοποιηθεί με διαφορετικά στοιχεία. Ανανέωσε το checkout και δοκίμασε ξανά.");
+}
 
 export async function POST(request: Request) {
   try {
@@ -48,14 +89,19 @@ export async function POST(request: Request) {
 
     const billingAddressId = boundedString(body.billingAddressId, "", 128);
     const deliveryAddressId = boundedString(body.deliveryAddressId, "", 128);
-    if (!billingAddressId || !deliveryAddressId) throw new Error("Επίλεξε διεύθυνση τιμολόγησης και διεύθυνση παράδοσης.");
+    if (!billingAddressId) throw new Error("Επίλεξε διεύθυνση τιμολόγησης.");
     const addressProfile = await customerCheckoutProfile(principal);
     if (!addressProfile.fullName || addressProfile.fullName.trim().split(/\s+/).length < 2) throw new Error("Συμπλήρωσε το πλήρες ονοματεπώνυμό σου πριν από την παραγγελία.");
     const billingAddress = addressProfile.addresses.find((address) => address.id === billingAddressId);
-    const deliveryAddress = addressProfile.addresses.find((address) => address.id === deliveryAddressId);
-    if (!billingAddress || !deliveryAddress) throw new Error("Η επιλεγμένη διεύθυνση δεν ανήκει στον λογαριασμό σου.");
-    const postcode = deliveryAddress.postcode;
-    if (!/^\d{5}$/.test(postcode)) throw new Error("Η διεύθυνση παράδοσης χρειάζεται έγκυρο πενταψήφιο ΤΚ.");
+    if (!billingAddress) throw new Error("Η επιλεγμένη διεύθυνση τιμολόγησης δεν ανήκει στον λογαριασμό σου.");
+
+    let postcode = billingAddress.postcode;
+    let deliveryAddress = deliveryAddressId ? addressProfile.addresses.find((address) => address.id === deliveryAddressId) : undefined;
+    if (fulfilmentMode === "local_delivery") {
+      if (!deliveryAddressId || !deliveryAddress) throw new Error("Επίλεξε διεύθυνση παράδοσης για την τοπική παράδοση.");
+      postcode = deliveryAddress.postcode;
+    }
+    if (!/^\d{5}$/.test(postcode)) throw new Error("Χρειάζεται έγκυρος πενταψήφιος ΤΚ.");
 
     let shipping: { provider?: "boxnow"; providerDestinationId?: string; providerDestinationLabel?: string; recipientName?: string; recipientEmail?: string; recipientPhone?: string } | undefined;
     if (fulfilmentMode === "shipping") {
@@ -63,20 +109,34 @@ export async function POST(request: Request) {
       const provider = boundedString(raw.provider, "", 32);
       const providerDestinationId = boundedString(raw.providerDestinationId, "", 128);
       const providerDestinationLabel = boundedString(raw.providerDestinationLabel, "", 300);
-      const recipientName = boundedString(raw.recipientName, deliveryAddress.fullName || addressProfile.fullName, 160);
+      const providerDestinationPostcode = boundedString(raw.providerDestinationPostcode, "", 16);
+      const recipientName = boundedString(raw.recipientName, addressProfile.fullName, 160);
       const recipientEmail = boundedString(raw.recipientEmail, principal.email, 254).toLowerCase();
-      const recipientPhone = boundedString(raw.recipientPhone, deliveryAddress.phone ?? "", 40);
-      if (process.env.BLS_BOXNOW_ENABLED === "true") {
-        if (provider !== "boxnow" || !providerDestinationId) throw new Error("Select a BOX NOW locker for shipping");
-        if (!recipientName || !recipientEmail || !recipientPhone) throw new Error("Recipient name, email and phone are required for BOX NOW shipping");
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new Error("A valid recipient email is required");
-        if (!/^\+?[0-9 ()-]{8,24}$/.test(recipientPhone)) throw new Error("A valid recipient phone is required");
-      }
-      shipping = { provider: provider === "boxnow" ? "boxnow" : undefined, providerDestinationId: providerDestinationId || undefined, providerDestinationLabel: providerDestinationLabel || undefined, recipientName: recipientName || undefined, recipientEmail: recipientEmail || undefined, recipientPhone: recipientPhone || undefined };
+      const recipientPhone = boundedString(raw.recipientPhone, billingAddress.phone ?? "", 40);
+      if (provider !== "boxnow") throw new Error("Select a BOX NOW locker for shipping");
+      if (!providerDestinationId || !providerDestinationPostcode) throw new Error("Select a BOX NOW locker with a valid postcode");
+      if (!/^\d{5}$/.test(providerDestinationPostcode)) throw new Error("BOX NOW locker postcode is invalid");
+      if (!recipientName || !recipientEmail || !recipientPhone) throw new Error("Recipient name, email and phone are required for BOX NOW shipping");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new Error("A valid recipient email is required");
+      if (!/^\+?[0-9 ()-]{8,24}$/.test(recipientPhone)) throw new Error("A valid recipient phone is required");
+      postcode = providerDestinationPostcode;
+      shipping = { provider: "boxnow", providerDestinationId, providerDestinationLabel: providerDestinationLabel || undefined, recipientName, recipientEmail, recipientPhone };
+      deliveryAddress = undefined;
     }
 
+    const runtime = getProductionPostgresRuntime();
+    await assertCheckoutRequestIntegrity(runtime, {
+      checkoutKey,
+      actorUserId: principal.userId,
+      postcode,
+      fulfilmentMode,
+      billingAddressId,
+      deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined,
+      items,
+      shipping
+    });
+
     if (vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
-      const runtime = getProductionPostgresRuntime();
       let pickupTotalMinor = 0;
       for (const item of items) {
         const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
@@ -90,7 +150,7 @@ export async function POST(request: Request) {
 
     const now = Date.now();
     const order = await checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now });
-    await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId, now });
+    await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined, now });
 
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id }, dedupeKey: `web-order:${order.id}:${order.status}`, now });

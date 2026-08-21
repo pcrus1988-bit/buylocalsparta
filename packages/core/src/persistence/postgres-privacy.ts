@@ -120,7 +120,7 @@ export class PostgresCustomerPrivacyRepository {
       ]);
       const p = profile.rows[0];
       return {
-        preferences: { userId: input.userId, recommendationsEnabled: p ? Boolean(p.recommendations_enabled) : true, recentlyViewedEnabled: p ? Boolean(p.recently_viewed_enabled) : true, updatedAt: p ? epoch(p.updated_at) : input.now },
+        preferences: { userId: input.userId, recommendationsEnabled: p ? Boolean(p.recommendations_enabled) : false, recentlyViewedEnabled: p ? Boolean(p.recently_viewed_enabled) : false, updatedAt: p ? epoch(p.updated_at) : input.now },
         savedProducts: products.rows.map((r) => ({ userId: input.userId, canonicalVariantId: String(r.canonical_variant_id), savedAt: epoch(r.saved_at) })),
         savedVendors: vendors.rows.map((r) => ({ userId: input.userId, vendorId: String(r.vendor_id), savedAt: epoch(r.saved_at) })),
         recentlyViewed: recent.rows.map((r) => ({ userId: input.userId, canonicalVariantId: String(r.canonical_variant_id), viewedAt: epoch(r.viewed_at), expiresAt: epoch(r.expires_at) }))

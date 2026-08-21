@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { accountAuthSecret } from "./account-runtime";
-import { assertAdminPermission } from "./admin-runtime";
+import { assertAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { requestCustomerPasswordReset } from "./customer-password-reset-runtime";
 import { sendCustomerVerificationEmail } from "./customer-registration-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -47,7 +47,7 @@ export async function adminCustomersWorkspace(principal: SessionPrincipal, input
   if (!productionDatabaseConfigured()) return { csrfToken: principal.csrfToken, databaseConfigured: false, metrics: emptyMetrics, customers: [] as AdminCustomerSummary[] };
   const query = (input.query ?? "").trim().slice(0, 120);
   const status = CUSTOMER_STATUSES.includes(input.status as CustomerStatus) ? input.status as CustomerStatus : undefined;
-  return uow().withTransaction(platformScope(principal.userId), async (tx) => {
+  const result = await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const metricsResult = await tx.query<SqlRow>(`
       SELECT count(*)::int AS total,
         count(*) FILTER (WHERE u.status='active')::int AS active,
@@ -99,12 +99,22 @@ export async function adminCustomersWorkspace(principal: SessionPrincipal, input
       customers: rows.rows.map(mapCustomerSummary)
     };
   }, { readOnly: true });
+  await recordAdminPersonalDataAccess(principal, {
+    route: "/admin/customers",
+    resourceType: "customer_directory",
+    resourceId: `${status ?? "all"}:${query ? "filtered" : "all"}`,
+    purpose: "customer_management",
+    dataClasses: ["identity", "contact", "account_state", "commerce_summary", "session_summary"],
+    recordCount: result.customers.length,
+    accessScope: "bulk"
+  });
+  return result;
 }
 
 export async function adminCustomerDetail(principal: SessionPrincipal, customerId: string): Promise<{ csrfToken: string; detail: AdminCustomerDetail } | undefined> {
   assertAdminPermission(principal, "customer.read");
   if (!productionDatabaseConfigured()) return undefined;
-  return uow().withTransaction(platformScope(principal.userId), async (tx) => {
+  const result = await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const user = await tx.query<SqlRow>(`
       SELECT u.id::text AS user_uuid,u.public_id,u.email::text AS email,u.phone,u.status,u.email_verified_at,u.preferred_locale,u.created_at,u.updated_at,u.closed_at,u.anonymized_at,
         cp.first_name,cp.last_name,COALESCE(cp.marketing_consent,false) AS marketing_consent,COALESCE(cp.recommendations_enabled,false) AS recommendations_enabled,COALESCE(cp.recently_viewed_enabled,false) AS recently_viewed_enabled,
@@ -134,6 +144,18 @@ export async function adminCustomerDetail(principal: SessionPrincipal, customerI
       }
     };
   }, { readOnly: true });
+  if (result) {
+    await recordAdminPersonalDataAccess(principal, {
+      route: "/admin/customers/[customerId]",
+      resourceType: "customer",
+      resourceId: result.detail.customer.id,
+      purpose: "customer_management",
+      dataClasses: ["identity", "contact", "addresses", "order_history", "consent_preferences", "session_summary", "admin_audit_history"],
+      recordCount: 1,
+      accessScope: "individual"
+    });
+  }
+  return result;
 }
 
 export async function adminUpdateCustomerStatus(principal: SessionPrincipal, input: { customerId: string; status: CustomerStatus; reason: string }) {
