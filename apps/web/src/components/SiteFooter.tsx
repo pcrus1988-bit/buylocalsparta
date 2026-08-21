@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FOOTER_NAVIGATION } from "../lib/site-navigation";
+import { CookieSettingsButton } from "./CookieSettingsButton";
 
 export function SiteFooter() {
   return (
@@ -28,6 +29,7 @@ export function SiteFooter() {
       <div className="shell footer-bottom">
         <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Sparta</span>
         <span>Τοπικά προϊόντα · πραγματικοί άνθρωποι · καθαροί κανόνες</span>
+        <CookieSettingsButton />
       </div>
     </footer>
   );

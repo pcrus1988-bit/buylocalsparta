@@ -71,3 +71,31 @@ test("security events exclude secret-like metadata and summarize by type/severit
   assert.equal(summary.bySeverity.medium, 1);
   assert.equal(events.purge(2_000), 1);
 });
+
+test("personal-data access events keep purpose metadata but never raw contact data", async () => {
+  const { SecurityEventService } = await import("../src/index.ts");
+  const events = new SecurityEventService();
+  const created = events.record({
+    type: "personal_data.accessed",
+    severity: "low",
+    route: "/admin/customers/[customerId]",
+    method: "GET",
+    subjectHash: "4f8c8b88f2d8c9204c327427e1584360",
+    actorUserId: "usr_admin",
+    details: {
+      purpose: "customer_management",
+      resourceType: "customer",
+      dataClasses: "identity,contact,addresses",
+      recordCount: 1,
+      email: "person@example.test",
+      note: "caller person@example.test +306912345678"
+    },
+    occurredAt: 5_000
+  });
+  assert.equal(created.type, "personal_data.accessed");
+  assert.equal(created.details?.purpose, "customer_management");
+  assert.equal(created.details?.dataClasses, "identity,contact,addresses");
+  assert.equal("email" in (created.details ?? {}), false);
+  assert.equal(String(created.details?.note).includes("person@example.test"), false);
+  assert.equal(String(created.details?.note).includes("6912345678"), false);
+});

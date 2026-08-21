@@ -21,7 +21,7 @@ export async function removeCustomerAddress(principal: SessionPrincipal, address
   return service().remove(principal.userId, addressId, now);
 }
 
-export async function attachCustomerOrderAddresses(principal: SessionPrincipal, input: { orderId: string; billingAddressId: string; deliveryAddressId: string; now: number }): Promise<void> {
+export async function attachCustomerOrderAddresses(principal: SessionPrincipal, input: { orderId: string; billingAddressId: string; deliveryAddressId?: string; now: number }): Promise<void> {
   return service().attachOrderSnapshots({ customerId: principal.userId, ...input });
 }
 

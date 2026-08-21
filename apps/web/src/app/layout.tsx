@@ -29,8 +29,11 @@ import "./admin-nav-icons.css";
 import "./admin-queue-split.css";
 import "./admin-insights.css";
 import "./admin-tax-documents.css";
+import "./privacy-consent.css";
+import "./legal-pages.css";
 import { CartProvider } from "../components/CartProvider";
+import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { publicOrigin } from "../lib/public-origin";
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 export const metadata: Metadata = { metadataBase: new URL(publicOrigin()), title: { default: "ΚΟΝΤΑ ΜΟΥ Sparta | Η τοπική αγορά της Σπάρτης online", template: "%s | ΚΟΝΤΑ ΜΟΥ Sparta" }, description: "Ανακάλυψε προϊόντα από καταστήματα της Σπάρτης, πάρε πραγματική συμβουλή από τοπικούς επαγγελματίες και αγόρασε με μία ενιαία εμπειρία checkout.", keywords: ["Σπάρτη", "τοπικά καταστήματα", "ΚΟΝΤΑ ΜΟΥ", "marketplace", "Λακωνία", "online αγορές"], openGraph: { title: "ΚΟΝΤΑ ΜΟΥ Sparta", description: "ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου", locale: "el_GR", type: "website", url: "/" } };
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="el" className={comfortaa.variable}><body><CartProvider>{children}</CartProvider></body></html>; }
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="el" className={comfortaa.variable}><body><PrivacyConsentProvider><CartProvider>{children}</CartProvider></PrivacyConsentProvider></body></html>; }

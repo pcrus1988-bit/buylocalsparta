@@ -50,6 +50,16 @@ function createAccountRuntime() {
     now
   }) : undefined;
 
+  // Production and all new accounts remain privacy-by-default OFF. The ephemeral
+  // development demo explicitly opts in so smoke journeys can exercise the
+  // recently-viewed and recommendation features after consent.
+  if (demoCustomer) personalization.updatePreferences({
+    userId: demoCustomer.id,
+    recommendationsEnabled: true,
+    recentlyViewedEnabled: true,
+    now
+  });
+
   if (demoCustomer) notifications.create({
     userId: demoCustomer.id,
     eventType: "account.welcome",

@@ -20,16 +20,23 @@ export class CustomerPersonalizationService {
   readonly #recentlyViewed = new Map<string, RecentlyViewedProduct>();
   readonly #recentTtlMs: number;
   readonly #recentLimit: number;
+  readonly #defaultEnabled: boolean;
 
-  constructor(options: { recentTtlMs?: number; recentLimit?: number } = {}) {
+  constructor(options: { recentTtlMs?: number; recentLimit?: number; defaultEnabled?: boolean } = {}) {
     this.#recentTtlMs = options.recentTtlMs ?? 90 * DAY;
     this.#recentLimit = options.recentLimit ?? 50;
+    this.#defaultEnabled = options.defaultEnabled ?? (process.env.NODE_ENV !== "production" && process.env.BLS_DEV_SMOKE_PERSONALIZATION === "true");
   }
 
   preferences(userId: string, now = Date.now()): PersonalizationPreferences {
     const existing = this.#preferences.get(userId);
     if (existing) return structuredClone(existing);
-    const item: PersonalizationPreferences = { userId, recommendationsEnabled: true, recentlyViewedEnabled: true, updatedAt: now };
+    const item: PersonalizationPreferences = {
+      userId,
+      recommendationsEnabled: this.#defaultEnabled,
+      recentlyViewedEnabled: this.#defaultEnabled,
+      updatedAt: now
+    };
     this.#preferences.set(userId, item);
     return structuredClone(item);
   }

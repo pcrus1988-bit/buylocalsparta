@@ -1,8 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   can,
   type Permission,
   type Role,
+  type SecurityEventType,
+  type SecuritySeverity,
   type SessionPrincipal,
   type VendorOnboardingState
 } from "@buy-local-sparta/core";
@@ -58,10 +60,33 @@ export async function adminSessionFromToken(token:string|undefined,now:number):P
 export function assertAdminCsrf(principal:SessionPrincipal,supplied:string|undefined):void{if(postgresAdminRuntimeEnabled())postgresAuth().assertCsrf(principal,supplied);else if(databaseLessPreviewSessionEnabled("admin"))assertDatabaseLessPreviewCsrf(principal,supplied);else memory.getAdminRuntime().auth.assertCsrf(principal,supplied);}
 export async function logoutAdmin(token:string|undefined,now=Date.now()):Promise<void>{if(postgresAdminRuntimeEnabled())await postgresAuth().logout(token,now);else if(!databaseLessPreviewSessionEnabled("admin"))memory.getAdminRuntime().auth.logout(token);}
 
-export async function recordAdminSecurityEvent(input:{type:"rate_limit.exceeded"|"auth.login_failed";severity:"medium";route:string;method:string;subjectHash:string;details?:Record<string,string|number|boolean|null>;occurredAt:number}){
+export async function recordAdminSecurityEvent(input:{type:SecurityEventType;severity:SecuritySeverity;route:string;method:string;subjectHash:string;actorUserId?:string;details?:Record<string,string|number|boolean|null>;occurredAt:number}){
   if(postgresAdminRuntimeEnabled()){await getProductionPostgresRuntime().persistence.security.record({id:`sec_${randomUUID()}`, ...input});return;}
   memory.getAdminRuntime().securityEvents.record(input);
 }
+
+export type AdminPersonalDataPurpose = "customer_management" | "customer_support" | "privacy_operations" | "order_fulfilment" | "finance_tax" | "security_investigation";
+export async function recordAdminPersonalDataAccess(principal:SessionPrincipal,input:{eventType?:Extract<SecurityEventType,"personal_data.accessed"|"personal_data.revealed"|"personal_data.exported">;route:string;method?:string;resourceType:string;resourceId:string;purpose:AdminPersonalDataPurpose;dataClasses:readonly string[];recordCount?:number;accessScope?:"individual"|"bulk"}){
+  const eventType=input.eventType??"personal_data.accessed";
+  const subjectHash=createHash("sha256").update(`${input.resourceType}:${input.resourceId}`).digest("hex");
+  await recordAdminSecurityEvent({
+    type:eventType,
+    severity:eventType==="personal_data.exported"?"high":"low",
+    route:input.route,
+    method:input.method??"GET",
+    subjectHash,
+    actorUserId:principal.userId,
+    details:{
+      purpose:input.purpose,
+      resourceType:input.resourceType.slice(0,80),
+      dataClasses:input.dataClasses.join(",").slice(0,500),
+      recordCount:Math.max(0,input.recordCount??1),
+      accessScope:input.accessScope??"individual"
+    },
+    occurredAt:Date.now()
+  });
+}
+
 export async function recordAdminAudit(principal:SessionPrincipal,action:string,entityType:string,entityId:string,reason?:string,after?:unknown){
   const now=Date.now();
   if(postgresAdminRuntimeEnabled()){await getProductionPostgresRuntime().persistence.trust.saveAudit({scope:platformScope(principal.userId),event:{id:`audit_${randomUUID()}`,actorId:principal.userId,actorRole:principal.roles[0],action,entityType,entityId,reason,after,createdAt:now}});return;}

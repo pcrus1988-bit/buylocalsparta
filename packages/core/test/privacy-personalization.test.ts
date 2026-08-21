@@ -4,17 +4,25 @@ import { CustomerPersonalizationService, PrivacyRequestService, defaultCustomerR
 
 const DAY = 24 * 60 * 60 * 1000;
 
-test("saved products/shops are idempotent and recently viewed obeys opt-out and retention", () => {
+test("saved products/shops are idempotent and recently viewed is opt-in with retention", () => {
   const service = new CustomerPersonalizationService({ recentTtlMs: 2 * DAY, recentLimit: 2 });
+  const defaults = service.preferences("u1", 50);
+  assert.equal(defaults.recommendationsEnabled, false);
+  assert.equal(defaults.recentlyViewedEnabled, false);
+  assert.equal(service.recordView("u1", "before-opt-in", 60), undefined);
+
   service.saveProduct("u1", "p1", 100);
   service.saveProduct("u1", "p1", 200);
   service.saveVendor("u1", "v1", 100);
   assert.equal(service.savedProducts("u1").length, 1);
   assert.equal(service.savedVendors("u1").length, 1);
+
+  service.updatePreferences({ userId: "u1", recentlyViewedEnabled: true, now: 500 });
   service.recordView("u1", "p1", 1_000);
   service.recordView("u1", "p2", 2_000);
   service.recordView("u1", "p3", 3_000);
   assert.deepEqual(service.recentlyViewed("u1", 3_100).map((x) => x.canonicalVariantId), ["p3", "p2"]);
+
   service.updatePreferences({ userId: "u1", recentlyViewedEnabled: false, now: 4_000 });
   assert.equal(service.recentlyViewed("u1", 4_001).length, 0);
   assert.equal(service.recordView("u1", "p4", 5_000), undefined);
@@ -39,10 +47,19 @@ test("privacy requests are user scoped, deduplicated while active, and retain ex
   assert.equal(completed.retention.some((item) => item.retained), true);
 });
 
+test("restriction of processing is a first-class privacy request", () => {
+  const service = new PrivacyRequestService({ responseTargetMs: DAY });
+  const request = service.submit({ userId: "u1", type: "restriction", now: 1_000, details: { scope: "analytics" } });
+  assert.equal(request.type, "restriction");
+  assert.equal(request.status, "submitted");
+  assert.equal(service.forUser("u1")[0]?.type, "restriction");
+});
+
 test("customer data export contains personalization but can keep statutory retention categories explicit", () => {
   const personalization = new CustomerPersonalizationService();
   personalization.saveProduct("u1", "p1", 100);
   personalization.saveVendor("u1", "v1", 110);
+  personalization.updatePreferences({ userId: "u1", recentlyViewedEnabled: true, now: 115 });
   personalization.recordView("u1", "p1", 120);
   const privacy = new PrivacyRequestService();
   const result = privacy.buildExport({
@@ -59,6 +76,7 @@ test("customer data export contains personalization but can keep statutory reten
   });
   assert.equal(result.exportVersion, "1.0");
   assert.equal(result.personalization.savedProducts[0].canonicalVariantId, "p1");
+  assert.equal(result.personalization.recentlyViewed[0].canonicalVariantId, "p1");
   assert.deepEqual(result.data.orders, [{ id: "o1" }]);
 });
 
