@@ -2,6 +2,6 @@
 
 import { requestCookieSettings } from "./PrivacyConsentProvider";
 
-export function CookieSettingsButton() {
-  return <button type="button" className="cookie-settings-button" onClick={requestCookieSettings}>Ρυθμίσεις cookies</button>;
+export function CookieSettingsButton({ className = "cookie-settings-button", label = "Ρυθμίσεις cookies" }: { className?: string; label?: string }) {
+  return <button type="button" className={className} onClick={requestCookieSettings}>{label}</button>;
 }
