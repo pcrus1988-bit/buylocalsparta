@@ -122,7 +122,7 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
         {data.fulfilments.map((item) => {
           const finished = isFinished(item.status);
           const stopped = isStopped(item.status);
-          return <article className="workspace-queue-card" key={item.id}>
+          return <article className="workspace-queue-card" id={`order-${encodeURIComponent(item.orderId)}`} key={item.id}>
             <div className="workspace-queue-head">
               <div><strong className="vendor-case-title">{item.orderReference}</strong><small>{when(item.createdAt)} · {item.mode === "pickup" ? "Παραλαβή από κατάστημα" : "Αποστολή"} · ΤΚ {item.postcode}</small></div>
               <span className="vendor-merchant-status">{vendorStatusLabel(item.status)}</span>
