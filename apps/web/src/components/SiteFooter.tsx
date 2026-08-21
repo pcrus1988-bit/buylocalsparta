@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 import { FOOTER_NAVIGATION } from "../lib/site-navigation";
 import { CookieSettingsButton } from "./CookieSettingsButton";
 
 const MAIN_FOOTER_NAVIGATION = FOOTER_NAVIGATION.slice(0, 3);
 const LEGAL_FOOTER_NAVIGATION = FOOTER_NAVIGATION[3];
+const BUSINESS_NAME = "SP BUSINESS LAB";
+const SPARTA_BRANCH_ADDRESS = "Σειρήνων 11, 23100 Σπάρτη";
 
 export function SiteFooter() {
   return (
@@ -26,15 +29,35 @@ export function SiteFooter() {
 
           <section className="site-footer-business" aria-labelledby="footer-business-title">
             <span className="site-footer-business-eyebrow">Νομικά & επικοινωνία</span>
-            <strong id="footer-business-title">Στοιχεία επιχείρησης</strong>
+            <strong id="footer-business-title">{BUSINESS_NAME}</strong>
             <dl>
               <div>
-                <dt>Εμπορική ονομασία</dt>
-                <dd>ΚΟΝΤΑ ΜΟΥ Sparta</dd>
+                <dt>Νόμιμος εκπρόσωπος</dt>
+                <dd>{KONTA_MOY_EMAIL_COMPANY.representative}</dd>
               </div>
               <div>
-                <dt>Διεύθυνση επικοινωνίας</dt>
-                <dd>Σειρήνων 11, 23100 Σπάρτη</dd>
+                <dt>ΑΦΜ</dt>
+                <dd>{KONTA_MOY_EMAIL_COMPANY.taxNumber}</dd>
+              </div>
+              <div>
+                <dt>Αριθμός ΓΕΜΗ</dt>
+                <dd>{KONTA_MOY_EMAIL_COMPANY.gemiNumber}</dd>
+              </div>
+              <div>
+                <dt>Έδρα</dt>
+                <dd>{KONTA_MOY_EMAIL_COMPANY.address}</dd>
+              </div>
+              <div>
+                <dt>Υποκατάστημα Σπάρτης</dt>
+                <dd>{SPARTA_BRANCH_ADDRESS}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd><a href={`mailto:${KONTA_MOY_EMAIL_COMPANY.email}`}>{KONTA_MOY_EMAIL_COMPANY.email}</a></dd>
+              </div>
+              <div>
+                <dt>Τηλέφωνο</dt>
+                <dd><a href={`tel:+30${KONTA_MOY_EMAIL_COMPANY.phone}`}>693 699 9686</a></dd>
               </div>
             </dl>
             <Link href="/help">Κέντρο βοήθειας & επικοινωνία</Link>
@@ -65,7 +88,7 @@ export function SiteFooter() {
       </div>
 
       <div className="shell site-footer-bottom">
-        <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Sparta</span>
+        <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Sparta · {BUSINESS_NAME}</span>
         <nav className="site-footer-legal-links" aria-label={LEGAL_FOOTER_NAVIGATION.title}>
           {LEGAL_FOOTER_NAVIGATION.links.map((link) => <Link href={link.href} key={link.href}>{link.label}</Link>)}
           <CookieSettingsButton className="site-footer-cookie-button" />
