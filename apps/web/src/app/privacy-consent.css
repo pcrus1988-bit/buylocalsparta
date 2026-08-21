@@ -40,9 +40,27 @@
 .privacy-consent-actions button:focus-visible,
 .privacy-consent-dialog button:focus-visible,
 .cookie-settings-button:focus-visible,
+.privacy-consent-manage-floating:focus-visible,
 .privacy-consent-option input:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
 .privacy-consent-actions button:disabled,
 .privacy-consent-dialog-actions button:disabled { opacity: .55; cursor: wait; }
+
+.privacy-consent-manage-floating {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 1200;
+  min-height: 44px;
+  padding: .6rem .85rem;
+  border: 1px solid rgba(20, 35, 28, .2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .96);
+  color: inherit;
+  box-shadow: 0 8px 24px rgba(18, 32, 24, .14);
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
 
 .privacy-consent-dialog {
   width: min(720px, calc(100vw - 2rem));
@@ -112,6 +130,7 @@
   .privacy-consent-actions { justify-content: stretch; }
   .privacy-consent-actions button { flex: 1 1 100%; }
   .privacy-consent-dialog-actions { display: grid; grid-template-columns: 1fr; }
+  .privacy-consent-manage-floating { bottom: calc(4.75rem + env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
