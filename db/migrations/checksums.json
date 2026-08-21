@@ -47,7 +47,7 @@
   "0047_catalog_taxonomy_technology.sql": "a7a12cd63f368104e2f5eedf51bd3d26c25b48855a704cfb02084f03215437f6",
   "0048_catalog_taxonomy_fashion.sql": "51b85893bd2c270e65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0049_catalog_taxonomy_beauty_health.sql": "f8781a1c6c44856487c6203f37693614095494ebc4f3bf7766532a9d9da065ef",
-  "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d654e2edc134197ac0a907a5558768f862f04f3ca0cbf0dc66",
+  "0050_catalog_taxonomy_home_diy.sql": "60c92d26036f71d65402059cdf36c94d298712d3048e5d15995ed58fffd69bc",
   "0051_catalog_taxonomy_auto_outdoors_specialist.sql": "2b6627babbc24bcebebfd7c3d562414dce1a92a6349eedf81b34e5547d08c416",
   "0052_catalog_taxonomy_semantic_cleanup.sql": "576e4c502a68c9085082f214ae695782c7b3ad5a43f8e829109da702e54ed7fd",
   "0053_product_types_normalized_attributes.sql": "e936775bebec058137945d605e92efef3a0ac3ed7a62a916a2d56dd9315b9257",
@@ -57,7 +57,7 @@
   "0057_identifier_scope_and_matching_semantics.sql": "dca81cc1d1d0ce313883ddaf1baf6bdb9edce5b743c2eb05c570936b06540e27",
   "0059_taxonomy_deterministic_attribute_backfill.sql": "7c05c8d3f563deafb9c3f7ea8ac6380c3efea8b3453782aa8ec4863e0116664c",
   "0060_product_funnel_analytics.sql": "086887951f78504f90d914ae9dcfb1e5d250b974ce3b0b22e44029b1a154a79d",
-  "0061_vendor_catalog_visibility_controls.sql": "9bdcd4be2be8faea3f6947f54166be6543f691b94603324d6723fa397821622e",
+  "0061_vendor_catalog_visibility_controls.sql": "9bdcd4be2beae3f6947f54166be6543f691b94603324d6723fa397821622e",
   "0062_vendor_subscription_plans.sql": "38e4af3006b6113cabbcddf295a4d2fdd23efd880deb1d8e63ae0ebb11a7e5b7",
   "0063_customer_password_recovery.sql": "5e661cadc0160a25dc1b0da0ca34468b643d201893049acd7bc16cc54addaccb",
   "0064_reporting_engine.sql": "40e2e64c7557ae28c999e7c66b613e27ff8e9e2ed081b27e9662860fbc7428c8",
@@ -77,7 +77,7 @@
   "0078_customer_comms_ask_local_workflow.sql": "c09ab0fc446ce9454bd8637bf5a8ae1a59410a999207ee327ce93fe768124d6b",
   "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01c0948ac787eb8e3666418519221",
   "0080_vendor_order_sla_notifications.sql": "cbdd161638a2903aea56e73ff86b59639880967c8ae29fc3fcd9718613160696",
-  "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
+  "0081_vendor_daily_access_push.sql": "4dc95d4be8fb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
   "0082_order_sla_trigger_search_path.sql": "c915907a6ad7229cff9de2f750f7b9fd0761d4854dc562f2af0672d6bb8fc5d4",
   "0083_daily_sla_fk_indexes.sql": "31172b1950e1e7e4eda15ec8400070474dd8aa943b9bd5a182ffa8e8d9fb2c28",
   "0084_daily_vapid_vault_bridge.sql": "5cf2df167bdc45e75db005d04b841ba692c7c0d9161d4dfe5204048e886603af",
@@ -99,5 +99,5 @@
   "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621",
   "0101_checkout_request_integrity.sql": "6a1ecb6f3f0b925f9ca6c1ab815d9ab2d2b78e4d698080201c4688251f877e3d",
   "0102_cookie_consent_receipts.sql": "7cf8a45835957090ab631bcadd568b2f6bfc62346543ea816923f3649e87fd58",
-  "0103_accessibility_governance.sql": "35445252e70656fe890e462feb10350cd522ff3a289428cfc935e89bdea2be21"
+  "0103_accessibility_governance.sql": "eb5e1943e113cc43184be5f7fd8285a75cb97db50301220163b49fb97d5add04"
 }
