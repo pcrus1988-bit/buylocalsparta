@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
-import { platformScope } from "@buy-local-sparta/postgres-runtime";
+import { platformScope, PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { CUSTOMER_SUPPORT_CATEGORIES, CUSTOMER_SUPPORT_STATUSES, type CustomerSupportCategory, type CustomerSupportStatus } from "./admin-customer-support";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
@@ -8,7 +8,6 @@ export const CUSTOMER_SUPPORT_CONTEXT_TYPES = ["account", "security", "order", "
 export type CustomerSupportContextType = (typeof CUSTOMER_SUPPORT_CONTEXT_TYPES)[number];
 
 export type CustomerSupportMessageView = Readonly<{
-  id: string;
   sender: "customer" | "support";
   body: string;
   createdAt: number;
@@ -36,8 +35,16 @@ type CustomerSupportCreateInput = Readonly<{
   now?: number;
 }>;
 
+const globals = globalThis as typeof globalThis & { __blsCustomerSupportRateLimiter?: PostgresFixedWindowRateLimiter };
+
 function requireCustomer(principal: SessionPrincipal): void {
   if (!principal.roles.includes("customer")) throw new Error("AUTH_REQUIRED");
+}
+
+function runtimeAndLimiter() {
+  const runtime = getProductionPostgresRuntime();
+  const limiter = globals.__blsCustomerSupportRateLimiter ??= new PostgresFixedWindowRateLimiter(runtime.sqlPool);
+  return { runtime, limiter };
 }
 
 function uow() {
@@ -68,7 +75,7 @@ export async function customerSupportCases(principal: SessionPrincipal): Promise
       LIMIT 50
     `, [customer]);
     const events = await tx.query<SqlRow>(`
-      SELECT sc.public_id AS case_public_id,e.public_id,e.actor_public_id,e.note,e.created_at
+      SELECT sc.public_id AS case_public_id,e.actor_public_id,e.note,e.created_at
       FROM customer_support_case_events e
       JOIN customer_support_cases sc ON sc.id=e.case_id
       WHERE sc.customer_user_id=$1::uuid
@@ -82,7 +89,6 @@ export async function customerSupportCases(principal: SessionPrincipal): Promise
       const caseId = text(row.case_public_id);
       const list = messages.get(caseId) ?? [];
       list.push({
-        id: text(row.public_id),
         sender: text(row.actor_public_id) === principal.userId ? "customer" : "support",
         body: text(row.note),
         createdAt: epoch(row.created_at)
@@ -90,7 +96,8 @@ export async function customerSupportCases(principal: SessionPrincipal): Promise
       messages.set(caseId, list);
     }
     return cases.rows.map((row) => {
-      const caseId = text(row.public_id);
+      const internalCaseId = text(row.public_id);
+      const referenceNumber = optionalText(row.reference_number) ?? "TKT";
       const category = text(row.category) as CustomerSupportCategory;
       const status = text(row.status) as CustomerSupportStatus;
       if (!CUSTOMER_SUPPORT_CATEGORIES.includes(category)) throw new Error("Invalid customer support category");
@@ -98,8 +105,8 @@ export async function customerSupportCases(principal: SessionPrincipal): Promise
       const contextRaw = optionalText(row.context_type);
       const contextType = contextRaw && CUSTOMER_SUPPORT_CONTEXT_TYPES.includes(contextRaw as CustomerSupportContextType) ? contextRaw as CustomerSupportContextType : undefined;
       return {
-        id: caseId,
-        referenceNumber: optionalText(row.reference_number) ?? caseId,
+        id: referenceNumber,
+        referenceNumber,
         subject: text(row.subject),
         category,
         status,
@@ -107,7 +114,7 @@ export async function customerSupportCases(principal: SessionPrincipal): Promise
         contextReference: optionalText(row.context_public_id),
         createdAt: epoch(row.created_at),
         updatedAt: epoch(row.updated_at),
-        messages: messages.get(caseId) ?? []
+        messages: messages.get(internalCaseId) ?? []
       };
     });
   }, { readOnly: true });
@@ -122,7 +129,11 @@ export async function createCustomerSupportCase(principal: SessionPrincipal, inp
   if (message.length < 10 || message.length > 4000) throw new Error("Το μήνυμα πρέπει να έχει από 10 έως 4.000 χαρακτήρες.");
   if (!CUSTOMER_SUPPORT_CATEGORIES.includes(input.category)) throw new Error("Η κατηγορία υποστήριξης δεν είναι έγκυρη.");
   const contextType = input.contextType && CUSTOMER_SUPPORT_CONTEXT_TYPES.includes(input.contextType) ? input.contextType : undefined;
-  const now = new Date(input.now ?? Date.now());
+  const nowMs = input.now ?? Date.now();
+  const now = new Date(nowMs);
+  const { limiter } = runtimeAndLimiter();
+  const rate = await limiter.consume({ route: "customer-support-create", key: principal.userId, limit: 5, windowMs: 60 * 60 * 1000, now: nowMs });
+  if (!rate.allowed) throw new Error("Έχεις δημιουργήσει αρκετά αιτήματα σε σύντομο διάστημα. Δοκίμασε ξανά αργότερα.");
 
   await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const customer = await customerUuid(tx, principal.userId);
@@ -147,9 +158,9 @@ export async function createCustomerSupportCase(principal: SessionPrincipal, inp
       ) VALUES($1,$2::uuid,$3::uuid,$4,'created',$5,'{}'::jsonb,$6::jsonb,true,$7)
     `, [id("caseevt"), caseUuid, customer, principal.userId, message, JSON.stringify({ status: "open", category: input.category, contextType, contextReference }), now]);
     await tx.query(`
-      INSERT INTO audit_events(actor_role,action,entity_type,entity_id,reason,before_state,after_state,actor_public_id)
-      VALUES('customer','customer_support.case_created','customer_support_case',$1,'Customer-created support case','{}'::jsonb,$2::jsonb,$3)
-    `, [casePublicId, JSON.stringify({ referenceNumber, category: input.category, contextType, contextReference }), principal.userId]);
+      INSERT INTO audit_events(actor_role,action,entity_type,entity_id,reason,before_state,after_state,actor_public_id,actor_user_id)
+      VALUES('customer','customer_support.case_created','customer_support_case',$1,'Customer-created support case','{}'::jsonb,$2::jsonb,$3,$4::uuid)
+    `, [casePublicId, JSON.stringify({ referenceNumber, category: input.category, contextType, contextReference }), principal.userId, customer]);
     await notifySupportTeam(tx, {
       eventType: "customer_support.case_created",
       title: "Νέο αίτημα υποστήριξης πελάτη",
@@ -169,7 +180,11 @@ export async function replyCustomerSupportCase(principal: SessionPrincipal, inpu
   const message = input.message.trim();
   if (!caseId || caseId.length > 200) throw new Error("Το αίτημα υποστήριξης δεν είναι έγκυρο.");
   if (message.length < 3 || message.length > 4000) throw new Error("Το μήνυμα πρέπει να έχει από 3 έως 4.000 χαρακτήρες.");
-  const now = new Date(input.now ?? Date.now());
+  const nowMs = input.now ?? Date.now();
+  const now = new Date(nowMs);
+  const { limiter } = runtimeAndLimiter();
+  const rate = await limiter.consume({ route: "customer-support-reply", key: principal.userId, limit: 30, windowMs: 60 * 60 * 1000, now: nowMs });
+  if (!rate.allowed) throw new Error("Έγιναν πολλές απαντήσεις σε σύντομο διάστημα. Δοκίμασε ξανά αργότερα.");
 
   await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const customer = await customerUuid(tx, principal.userId);
@@ -183,7 +198,7 @@ export async function replyCustomerSupportCase(principal: SessionPrincipal, inpu
     const row = found.rows[0];
     const currentStatus = text(row.status) as CustomerSupportStatus;
     if (currentStatus === "closed") throw new Error("Αυτό το αίτημα έχει κλείσει. Δημιούργησε νέο αίτημα αν χρειάζεσαι επιπλέον βοήθεια.");
-    const nextStatus: CustomerSupportStatus = currentStatus === "open" ? "open" : "waiting_internal";
+    const nextStatus: CustomerSupportStatus = "waiting_internal";
     await tx.query(`UPDATE customer_support_cases SET status=$2,resolved_at=NULL,updated_at=$3 WHERE id=$1::uuid`, [text(row.case_uuid), nextStatus, now]);
     await tx.query(`
       INSERT INTO customer_support_case_events(
@@ -191,9 +206,9 @@ export async function replyCustomerSupportCase(principal: SessionPrincipal, inpu
       ) VALUES($1,$2::uuid,$3::uuid,$4,'note_added',$5,$6::jsonb,$7::jsonb,true,$8)
     `, [id("caseevt"), text(row.case_uuid), customer, principal.userId, message, JSON.stringify({ status: currentStatus }), JSON.stringify({ status: nextStatus }), now]);
     await tx.query(`
-      INSERT INTO audit_events(actor_role,action,entity_type,entity_id,reason,before_state,after_state,actor_public_id)
-      VALUES('customer','customer_support.customer_replied','customer_support_case',$1,'Customer support reply',$2::jsonb,$3::jsonb,$4)
-    `, [text(row.public_id), JSON.stringify({ status: currentStatus }), JSON.stringify({ status: nextStatus }), principal.userId]);
+      INSERT INTO audit_events(actor_role,action,entity_type,entity_id,reason,before_state,after_state,actor_public_id,actor_user_id)
+      VALUES('customer','customer_support.customer_replied','customer_support_case',$1,'Customer support reply',$2::jsonb,$3::jsonb,$4,$5::uuid)
+    `, [text(row.public_id), JSON.stringify({ status: currentStatus }), JSON.stringify({ status: nextStatus }), principal.userId, customer]);
     await notifySupportTeam(tx, {
       eventType: "customer_support.customer_replied",
       title: "Νέα απάντηση πελάτη",
