@@ -29,7 +29,7 @@ export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
   {
     name: "bls_consent_v1",
     category: "necessary",
-    purpose: "Αποθηκεύει την έκδοση και τις επιλογές συγκατάθεσης για προαιρετική προσωποποίηση, analytics και marketing ώστε να θυμόμαστε την επιλογή και να μπορεί να ανακληθεί.",
+    purpose: "Αποθηκεύει την έκδοση και τις επιλογές συγκατάθεσης ώστε να θυμόμαστε την επιλογή και να μπορεί να ανακληθεί.",
     duration: "180 ημέρες",
     whenSet: "Μετά από επιλογή στο banner ή στις Ρυθμίσεις cookies",
     httpOnly: false,
@@ -40,16 +40,16 @@ export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
     category: "necessary",
     purpose: "Υπογεγραμμένη HttpOnly απόδειξη της ίδιας επιλογής. Επιτρέπει στον server να επαληθεύει ότι προαιρετικό analytics ενεργοποιήθηκε μέσω του consent flow και όχι επειδή τροποποιήθηκε χειροκίνητα ένα browser cookie.",
     duration: "180 ημέρες",
-    whenSet: "Μαζί με κάθε αποδοχή, απόρριψη ή αποθήκευση προσαρμοσμένων επιλογών",
+    whenSet: "Μαζί με κάθε αποδοχή, απόρριψη ή αποθήκευση επιλογών",
     httpOnly: true,
     consentRequired: false
   },
   {
     name: "bls_marketplace",
     category: "necessary",
-    purpose: "Ψευδωνυμικό αναγνωριστικό πρώτου μέρους για αναγκαία συνέχεια marketplace, ασφάλεια/rate limiting και λειτουργίες δίκαιης ανάθεσης σε ροές καταστήματος, προϊόντος, καλαθιού, checkout, λογαριασμού και dashboards.",
-    duration: "31 ημέρες",
-    whenSet: "Μόνο σε λειτουργικές ροές που χρειάζονται διατηρήσιμη marketplace identity",
+    purpose: "Ψευδωνυμικό first-party αναγνωριστικό για συνέχεια της ενεργής marketplace συνεδρίας, ασφάλεια/rate limiting και συνεπή δίκαιη ανάθεση προσφοράς. Δεν χρησιμοποιείται για analytics ή advertising.",
+    duration: "Μόνο για τη συνεδρία κατά τη δημόσια ανακάλυψη· έως 31 ημέρες όταν ο χρήστης εισέρχεται σε cart/checkout, authentication ή εξουσιοδοτημένο operational workspace",
+    whenSet: "Ως session cookie σε ροές καταστήματος/προϊόντος/Ask Local/συμβουλής ή API continuity· με 31ήμερη διάρκεια μόνο σε transactional ή authenticated ροές",
     httpOnly: true,
     consentRequired: false
   },
