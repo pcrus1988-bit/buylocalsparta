@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/next";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   PRIVACY_CONSENT_VERSION,
+  hasAnalyticsConsent,
   readPrivacyConsent,
   type PrivacyConsentPreferences
 } from "../lib/privacy-consent";
@@ -89,6 +91,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
 
   return <>
     {children}
+    {consent?.analytics && <Analytics beforeSend={(event) => hasAnalyticsConsent(document.cookie) ? event : null} />}
     {hydrated && !consent && <aside className="privacy-consent-banner" aria-label="Ρυθμίσεις απορρήτου και cookies">
       <div className="privacy-consent-copy">
         <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
