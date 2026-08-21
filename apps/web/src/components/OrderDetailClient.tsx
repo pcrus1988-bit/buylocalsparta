@@ -4,6 +4,7 @@ import Link from "next/link";
 import QRCode from "react-qr-code";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CustomerFulfilmentProgress } from "./CustomerFulfilmentProgress";
 import { CustomerReturnsPanel, type CustomerReturnCaseView } from "./CustomerReturnsPanel";
 
 type Detail = {
@@ -30,10 +31,6 @@ type Detail = {
 };
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-const fulfilmentLabel: Record<string, string> = {
-  awaiting_acceptance: "Αναμονή αποδοχής", accepted: "Έγινε αποδεκτή", picking: "Ετοιμάζεται", packed: "Συσκευάστηκε",
-  ready_for_handover: "Έτοιμη για παραλαβή", handed_over: "Παραλήφθηκε", shipped: "Σε αποστολή", delivered: "Παραδόθηκε", failed: "Πρόβλημα παράδοσης", cancelled: "Ακυρώθηκε"
-};
 const modeLabel: Record<string, string> = { pickup: "Παραλαβή από κατάστημα", local_delivery: "Τοπική παράδοση", shipping: "Αποστολή" };
 
 export function OrderDetailClient({ initial }: { initial: Detail }) {
@@ -78,17 +75,18 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         </div>)}
       </div>
 
+      <CustomerFulfilmentProgress
+        fulfilments={data.fulfilments}
+        lines={data.lines.map((line) => ({ id: line.id, title: line.title, quantity: line.quantity }))}
+        fulfilmentMode={data.fulfilmentMode}
+      />
+
       <CustomerReturnsPanel
         orderId={data.id}
         csrfToken={data.csrfToken}
         initialLines={data.lines.map((line) => ({ id: line.id, title: line.title, returnableQuantity: line.returnableQuantity }))}
         initialReturns={data.returns}
       />
-
-      <div className="order-detail-card is-refined">
-        <h2>Παράδοση</h2>
-        {data.fulfilments.map((item) => <div className="order-detail-line" key={item.id}><div><strong>{item.vendorName}</strong><small>{item.lineIds.length} {item.lineIds.length === 1 ? "προϊόν" : "προϊόντα"} · {item.deliveryCharge}</small></div><span className="status-pill">{fulfilmentLabel[item.status] ?? item.status.replaceAll("_", " ")}</span></div>)}
-      </div>
 
       {data.pickups.length > 0 && <div className="order-detail-card is-refined">
         <h2>Παραλαβή από το κατάστημα</h2>
