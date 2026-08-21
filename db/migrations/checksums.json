@@ -69,7 +69,7 @@
   "0070_vendor_agreement_vault_hardening.sql": "16606d367db351c9d9bdd2c206d1df0e1dac3fac112199d60d2cab265bfbcc17",
   "0071_password_reset_token_acl_hardening.sql": "b500d3620b0f5fe33a29445477dd46bc5d8f15a6c578f1bdfcae1587f21f6228",
   "0072_customer_addresses_checkout.sql": "1171cff82370b0b96c1dd057efee29077ff48d1cdd4f0e4021bee1b426ed646f",
-  "0073_password_reset_runtime_rls.sql": "7c4ff66b2d56cafd7bdc9686d19b773a0229f9aa2c01b2472393095a54f86953",
+  "0073_password_reset_runtime_rls.sql": "7c4ff66e5be030b93c606eea1910707b03456bfa873027325af73b331e35dc5e",
   "0074_server_private_reporting_rls.sql": "9a0b09cbd534811c9203bf9e50d11063194614365f698071e56eb06ee90b63b1",
   "0075_customer_fiscal_delivery.sql": "c53e3c154c05e1debdfeb17d47e00cdbec90111c76ece361377eb142f8b95cb2",
   "0076_accounting_mapping_v1.sql": "ec680d9221be33beaa64e2bb7e842c58ff1df61e9efa72b6715e64e033e0dc7a",
