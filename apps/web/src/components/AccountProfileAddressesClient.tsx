@@ -1,116 +1,91 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { CustomerHowItWorks } from "./CustomerAccountPrimitives";
 
 type Address = Readonly<{
-  id: string;
-  label: string;
-  fullName: string;
-  companyName?: string;
-  vatNumber?: string;
-  line1: string;
-  line2?: string;
-  locality: string;
-  region?: string;
-  postcode: string;
-  countryCode: string;
-  phone?: string;
-  isDefaultBilling: boolean;
-  isDefaultDelivery: boolean;
+  id: string; label: string; fullName: string; companyName?: string; vatNumber?: string; line1: string; line2?: string;
+  locality: string; region?: string; postcode: string; countryCode: string; phone?: string; isDefaultBilling: boolean; isDefaultDelivery: boolean;
 }>;
 type Profile = Readonly<{ customerId: string; fullName: string; addresses: readonly Address[] }>;
+type AccountProfile = Readonly<{ email: string; emailVerified: boolean; firstName: string; lastName: string; phone: string; preferredLocale: "el" | "en" }>;
 type Draft = {
-  id?: string;
-  label: string;
-  fullName: string;
-  companyName: string;
-  vatNumber: string;
-  line1: string;
-  line2: string;
-  locality: string;
-  region: string;
-  postcode: string;
-  countryCode: string;
-  phone: string;
-  isDefaultBilling: boolean;
-  isDefaultDelivery: boolean;
+  id?: string; label: string; fullName: string; companyName: string; vatNumber: string; line1: string; line2: string;
+  locality: string; region: string; postcode: string; countryCode: string; phone: string; isDefaultBilling: boolean; isDefaultDelivery: boolean;
 };
 
 const blank = (fullName: string, first = false): Draft => ({ label: "Σπίτι", fullName, companyName: "", vatNumber: "", line1: "", line2: "", locality: "Σπάρτη", region: "Λακωνία", postcode: "23100", countryCode: "GR", phone: "", isDefaultBilling: first, isDefaultDelivery: first });
 const toDraft = (address: Address): Draft => ({ id: address.id, label: address.label, fullName: address.fullName, companyName: address.companyName ?? "", vatNumber: address.vatNumber ?? "", line1: address.line1, line2: address.line2 ?? "", locality: address.locality, region: address.region ?? "", postcode: address.postcode, countryCode: address.countryCode, phone: address.phone ?? "", isDefaultBilling: address.isDefaultBilling, isDefaultDelivery: address.isDefaultDelivery });
 
-export function AccountProfileAddressesClient({ initialProfile, email, csrfToken }: { initialProfile: Profile; email: string; csrfToken: string }) {
+export function AccountProfileAddressesClient({ initialProfile, initialAccount, csrfToken }: { initialProfile: Profile; initialAccount: AccountProfile; csrfToken: string }) {
   const [profile, setProfile] = useState(initialProfile);
+  const [account, setAccount] = useState(initialAccount);
+  const [accountDraft, setAccountDraft] = useState({ firstName: initialAccount.firstName, lastName: initialAccount.lastName, phone: initialAccount.phone, preferredLocale: initialAccount.preferredLocale });
   const [draft, setDraft] = useState<Draft>(() => blank(initialProfile.fullName, initialProfile.addresses.length === 0));
   const [editorOpen, setEditorOpen] = useState(initialProfile.addresses.length === 0);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  function newAddress() {
-    setDraft(blank(profile.fullName, profile.addresses.length === 0));
-    setEditorOpen(true);
-    setError("");
-    setSuccess("");
-  }
+  function newAddress() { setDraft(blank(profile.fullName, profile.addresses.length === 0)); setEditorOpen(true); setError(""); setSuccess(""); }
+  function editAddress(address: Address) { setDraft(toDraft(address)); setEditorOpen(true); setError(""); setSuccess(""); }
 
-  function editAddress(address: Address) {
-    setDraft(toDraft(address));
-    setEditorOpen(true);
-    setError("");
-    setSuccess("");
+  async function saveAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy("account"); setError(""); setSuccess("");
+    try {
+      const response = await fetch("/api/account/profile", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify(accountDraft) });
+      const body = await response.json() as AccountProfile & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Τα στοιχεία δεν αποθηκεύτηκαν.");
+      setAccount(body);
+      setAccountDraft({ firstName: body.firstName, lastName: body.lastName, phone: body.phone, preferredLocale: body.preferredLocale });
+      const fullName = `${body.firstName} ${body.lastName}`.trim();
+      setProfile((current) => ({ ...current, fullName }));
+      setDraft((current) => current.id ? current : { ...current, fullName });
+      setSuccess("Τα στοιχεία λογαριασμού αποθηκεύτηκαν.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Τα στοιχεία δεν αποθηκεύτηκαν."); }
+    finally { setBusy(""); }
   }
 
   async function save() {
-    setBusy("save");
-    setError("");
-    setSuccess("");
+    setBusy("save"); setError(""); setSuccess("");
     try {
       const response = await fetch("/api/account/addresses", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify(draft) });
       const body = await response.json() as Profile & { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Η διεύθυνση δεν αποθηκεύτηκε.");
-      setProfile(body);
-      setDraft(blank(body.fullName, body.addresses.length === 0));
-      setEditorOpen(false);
-      setSuccess("Η διεύθυνση αποθηκεύτηκε.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Η διεύθυνση δεν αποθηκεύτηκε.");
-    } finally {
-      setBusy("");
-    }
+      setProfile(body); setDraft(blank(body.fullName, body.addresses.length === 0)); setEditorOpen(false); setSuccess("Η διεύθυνση αποθηκεύτηκε.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Η διεύθυνση δεν αποθηκεύτηκε."); }
+    finally { setBusy(""); }
   }
 
   async function remove(address: Address) {
     if (!window.confirm(`Να διαγραφεί η διεύθυνση «${address.label}»;`)) return;
-    setBusy(`delete-${address.id}`);
-    setError("");
-    setSuccess("");
+    setBusy(`delete-${address.id}`); setError(""); setSuccess("");
     try {
       const response = await fetch("/api/account/addresses", { method: "DELETE", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify({ id: address.id }) });
       const body = await response.json() as Profile & { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Η διεύθυνση δεν διαγράφηκε.");
-      setProfile(body);
-      setSuccess("Η διεύθυνση διαγράφηκε.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Η διεύθυνση δεν διαγράφηκε.");
-    } finally {
-      setBusy("");
-    }
+      setProfile(body); setSuccess("Η διεύθυνση διαγράφηκε.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Η διεύθυνση δεν διαγράφηκε."); }
+    finally { setBusy(""); }
   }
 
   return <section className="shell customer-account-page">
-    <div className="customer-page-heading"><div><div className="eyebrow">Τα στοιχεία μου</div><h1>Προφίλ & διευθύνσεις</h1></div><p>Διαχειρίσου τα στοιχεία που χρησιμοποιούνται για παράδοση και τιμολόγηση πριν φτάσεις στο checkout.</p></div>
+    <div className="customer-page-heading"><div><div className="eyebrow">Τα στοιχεία μου</div><h1>Προφίλ & διευθύνσεις</h1></div><p>Διαχειρίσου τα προσωπικά στοιχεία, τη γλώσσα και τις διευθύνσεις που χρησιμοποιούνται στην εμπειρία αγοράς.</p></div>
     {error && <p className="account-action-error" role="alert">{error}</p>}
     {success && <p className="privacy-status" role="status">{success}</p>}
     <div className="customer-account-grid">
       <article className="customer-account-panel">
-        <div className="eyebrow">Λογαριασμός</div><h2>Στοιχεία λογαριασμού</h2>
-        <div className="customer-account-panel-list">
-          <div className="customer-account-panel-row"><div><strong>Email</strong><small>Χρησιμοποιείται για σύνδεση και σημαντικές ενημερώσεις.</small></div><span>{email}</span></div>
-          <div className="customer-account-panel-row"><div><strong>Ονοματεπώνυμο</strong><small>Προέρχεται από τον λογαριασμό σου.</small></div><span>{profile.fullName || "—"}</span></div>
-        </div>
-        <CustomerHowItWorks title="Ποια στοιχεία χρησιμοποιούνται στην αγορά;"><p>Η διεύθυνση τιμολόγησης χρησιμοποιείται για τα στοιχεία της συναλλαγής. Η διεύθυνση παράδοσης χρησιμοποιείται μόνο όταν η παραγγελία χρειάζεται φυσική παράδοση. Μπορείς να ορίσεις διαφορετικές προεπιλογές.</p></CustomerHowItWorks>
+        <div className="account-card-head"><div><div className="eyebrow">Λογαριασμός</div><h2>Προσωπικά στοιχεία</h2></div><Link className="text-link" href="/account/security">Ασφάλεια →</Link></div>
+        <div className="customer-account-panel-list"><div className="customer-account-panel-row"><div><strong>Email</strong><small>Στοιχείο σύνδεσης · αλλάζει μόνο με ξεχωριστή επιβεβαίωση.</small></div><span>{account.email} · {account.emailVerified ? "επιβεβαιωμένο" : "μη επιβεβαιωμένο"}</span></div></div>
+        <form className="customer-profile-form" onSubmit={saveAccount}>
+          <label><span>Όνομα</span><input autoComplete="given-name" maxLength={120} value={accountDraft.firstName} onChange={(event) => setAccountDraft({ ...accountDraft, firstName: event.target.value })} required /></label>
+          <label><span>Επώνυμο</span><input autoComplete="family-name" maxLength={120} value={accountDraft.lastName} onChange={(event) => setAccountDraft({ ...accountDraft, lastName: event.target.value })} required /></label>
+          <label><span>Τηλέφωνο</span><input autoComplete="tel" inputMode="tel" maxLength={30} value={accountDraft.phone} onChange={(event) => setAccountDraft({ ...accountDraft, phone: event.target.value })} placeholder="π.χ. +3069…" /></label>
+          <label><span>Προτιμώμενη γλώσσα</span><select value={accountDraft.preferredLocale} onChange={(event) => setAccountDraft({ ...accountDraft, preferredLocale: event.target.value as "el" | "en" })}><option value="el">Ελληνικά</option><option value="en">English</option></select></label>
+          <button className="button" type="submit" disabled={busy === "account"}>{busy === "account" ? "Αποθήκευση…" : "Αποθήκευση στοιχείων"}</button>
+        </form>
+        <CustomerHowItWorks title="Πού χρησιμοποιούνται αυτά τα στοιχεία;"><p>Το όνομα, το τηλέφωνο και η γλώσσα χρησιμοποιούνται για την εξυπηρέτηση του λογαριασμού και για να προσυμπληρώνονται σχετικές εμπειρίες. Οι αποθηκευμένες διευθύνσεις παραμένουν ξεχωριστές, ώστε να μπορείς να χρησιμοποιείς διαφορετικό παραλήπτη ή στοιχεία τιμολόγησης.</p></CustomerHowItWorks>
       </article>
       <article className="customer-account-panel">
         <div className="account-card-head"><div><div className="eyebrow">Διευθύνσεις</div><h2>Παράδοση & τιμολόγηση</h2></div><button className="button button-secondary" type="button" onClick={newAddress}>+ Νέα διεύθυνση</button></div>
@@ -122,6 +97,7 @@ export function AccountProfileAddressesClient({ initialProfile, email, csrfToken
           {address.phone && <p>Τηλ. {address.phone}</p>}{address.vatNumber && <p>ΑΦΜ {address.vatNumber}</p>}
           <div className="customer-address-actions"><button className="text-button" type="button" disabled={busy === `delete-${address.id}`} onClick={() => void remove(address)}>{busy === `delete-${address.id}` ? "Διαγραφή…" : "Διαγραφή"}</button></div>
         </article>)}</div> : <div className="account-empty"><p>Δεν έχεις ακόμη αποθηκευμένη διεύθυνση.</p></div>}
+        <CustomerHowItWorks title="Πώς χρησιμοποιούνται οι διευθύνσεις;"><p>Η προεπιλεγμένη διεύθυνση τιμολόγησης χρησιμοποιείται για τα στοιχεία της συναλλαγής. Η προεπιλεγμένη διεύθυνση παράδοσης χρησιμοποιείται μόνο όταν η παραγγελία χρειάζεται φυσική παράδοση. Μπορείς να ορίσεις διαφορετικές προεπιλογές.</p></CustomerHowItWorks>
       </article>
     </div>
 
