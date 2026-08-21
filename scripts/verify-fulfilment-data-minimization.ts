@@ -21,7 +21,7 @@ function between(haystack: string, start: string, end: string): string {
   return haystack.slice(startAt, endAt);
 }
 
-const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRuntime, vendorOrdersClient, vendorDeliveryRoute, vendorOperations] = await Promise.all([
+const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRuntime, vendorOrdersClient, vendorDeliveryRoute, vendorOperations, dailyOrdersClient, dailyDeliveryRoute] = await Promise.all([
   source("packages/postgres-runtime/src/customer-addresses.ts"),
   source("apps/web/src/app/api/checkout/route.ts"),
   source("apps/web/src/components/CheckoutPageClient.tsx"),
@@ -29,7 +29,9 @@ const [addressService, checkoutRoute, checkoutClient, guardMigration, vendorRunt
   source("apps/web/src/lib/vendor-runtime.ts"),
   source("apps/web/src/components/VendorOrdersClient.tsx"),
   source("apps/web/src/app/api/vendor/fulfilments/delivery-contact/route.ts"),
-  source("packages/postgres-runtime/src/vendor-operations.ts")
+  source("packages/postgres-runtime/src/vendor-operations.ts"),
+  source("apps/web/src/components/VendorDailyOrdersClient.tsx"),
+  source("apps/web/src/app/api/daily/fulfilments/delivery-contact/route.ts")
 ]);
 
 requireText(addressService, 'const mode = orderMode(existing.fulfilment_preference);', "Order snapshot persistence must derive purpose from the stored fulfilment mode");
@@ -60,6 +62,7 @@ for (const forbidden of ["->>'recipientName'", "->>'recipientEmail'", "->>'recip
   forbidText(vendorDashboardQuery, forbidden, `Vendor dashboard must not preload personal delivery field ${forbidden}`);
 }
 requireText(vendorRuntime, 'if (!["accepted", "picking", "packed", "ready_for_handover"].includes(fulfilmentStatus))', "Vendor delivery reveal must be limited to active accepted fulfilments");
+requireText(vendorRuntime, 'accessRoute = "/api/vendor/fulfilments/delivery-contact"', "Shared delivery reveal must default to the vendor route while allowing the Daily route to be recorded accurately");
 requireText(vendorRuntime, 'type: "personal_data.revealed"', "Vendor delivery reveal must create a personal-data access event");
 requireText(vendorRuntime, 'purpose: "order_fulfilment"', "Vendor delivery reveal must record its fulfilment purpose");
 requireText(vendorRuntime, 'dataClasses: "identity,contact,address"', "Vendor delivery reveal must record disclosed data classes");
@@ -67,7 +70,15 @@ requireText(vendorDeliveryRoute, "requireVendorSession(request, true)", "Vendor 
 requireText(vendorDeliveryRoute, '"cache-control": "no-store, private"', "Vendor delivery contact responses must not be cached");
 requireText(vendorOrdersClient, "Εμφάνιση στοιχείων παράδοσης", "Vendor must explicitly request local-delivery personal data");
 requireText(vendorOrdersClient, "Η πρόσβαση καταγράφεται", "Vendor UI must tell the operator that personal-data access is logged");
-requireText(vendorOrdersClient, 'delete next[fulfilmentId]', "Revealed delivery data must be removable from client state after use/status change");
+requireText(vendorOrdersClient, 'delete next[fulfilmentId]', "Revealed delivery data must be removable from vendor client state after use/status change");
+
+requireText(dailyDeliveryRoute, "requireDailySession(request, true)", "Daily delivery reveal endpoint must require authenticated CSRF-protected Daily access");
+requireText(dailyDeliveryRoute, 'vendorLocalDeliveryContact(principal, fulfilmentId, "/api/daily/fulfilments/delivery-contact")', "Daily must reuse the shared delivery reveal policy and record its own access route");
+requireText(dailyDeliveryRoute, '"cache-control": "no-store, private"', "Daily delivery contact responses must not be cached");
+requireText(dailyOrdersClient, 'fetch("/api/daily/fulfilments/delivery-contact"', "Daily must fetch delivery data only after an explicit operator action");
+requireText(dailyOrdersClient, "Δεν φορτώνονται αυτόματα", "Daily must explain that delivery personal data is not preloaded");
+requireText(dailyOrdersClient, "Η πρόσβαση καταγράφεται", "Daily must disclose that personal-data access is logged");
+requireText(dailyOrdersClient, 'delete next[item.id]', "Daily must remove revealed delivery data from client state after completion/rejection");
 
 requireText(guardMigration, "actor_hash text NOT NULL", "Replay guard must store an actor hash");
 requireText(guardMigration, "request_hash text NOT NULL", "Replay guard must store a request hash");
@@ -76,4 +87,4 @@ for (const forbidden of ["recipient_email", "recipient_phone", "address_line", "
   forbidText(guardMigration, forbidden, `Replay guard must not persist raw personal field ${forbidden}`);
 }
 
-console.log("Fulfilment data-minimization, audited vendor reveal and checkout replay-integrity contracts verified.");
+console.log("Fulfilment data-minimization, audited vendor/Daily reveals and checkout replay-integrity contracts verified.");
