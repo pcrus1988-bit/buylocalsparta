@@ -15,6 +15,16 @@ export type CookieRegistryEntry = Readonly<{
   consentRequired: boolean;
 }>;
 
+export type TrackerRegistryEntry = Readonly<{
+  name: string;
+  provider: string;
+  category: CookieCategory;
+  technology: string;
+  purpose: string;
+  data: string;
+  activation: string;
+}>;
+
 export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
   {
     name: "bls_consent_v1",
@@ -23,6 +33,15 @@ export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
     duration: "180 ημέρες",
     whenSet: "Μετά από επιλογή στο banner ή στις Ρυθμίσεις cookies",
     httpOnly: false,
+    consentRequired: false
+  },
+  {
+    name: "bls_consent_receipt",
+    category: "necessary",
+    purpose: "Υπογεγραμμένη HttpOnly απόδειξη της ίδιας επιλογής. Επιτρέπει στον server να επαληθεύει ότι προαιρετικό analytics ενεργοποιήθηκε μέσω του consent flow και όχι επειδή τροποποιήθηκε χειροκίνητα ένα browser cookie.",
+    duration: "180 ημέρες",
+    whenSet: "Μαζί με κάθε αποδοχή, απόρριψη ή αποθήκευση προσαρμοσμένων επιλογών",
+    httpOnly: true,
     consentRequired: false
   },
   {
@@ -39,7 +58,7 @@ export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
     category: "analytics",
     purpose: "Ξεχωριστό ψευδωνυμικό αναγνωριστικό για μέτρηση page views, engagement και product performance. Δεν χρησιμοποιείται ως essential marketplace identity.",
     duration: "Έως 180 ημέρες, διαγράφεται αμέσως όταν ανακληθεί Analytics consent",
-    whenSet: "Μόνο μετά από ρητή αποδοχή Analytics",
+    whenSet: "Μόνο μετά από ρητή αποδοχή Analytics και έγκυρη υπογεγραμμένη consent receipt",
     httpOnly: true,
     consentRequired: true
   },
@@ -78,6 +97,18 @@ export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
     whenSet: "Με επιτυχή σύνδεση Daily",
     httpOnly: true,
     consentRequired: false
+  }
+] as const;
+
+export const TRACKER_REGISTRY: readonly TrackerRegistryEntry[] = [
+  {
+    name: "Product analytics events",
+    provider: "ΚΟΝΤΑ ΜΟΥ · first party",
+    category: "analytics",
+    technology: "First-party HTTP event capture + bls_analytics pseudonymous identifier",
+    purpose: "Μέτρηση page views, engagement και add-to-cart/product performance.",
+    data: "Ψευδωνυμικό analytics hash, product/offer references, surface και περιορισμένο engagement metadata. Όχι όνομα, email, τηλέφωνο, διεύθυνση ή στοιχεία πληρωμής.",
+    activation: "Μόνο όταν το browser preference επιτρέπει Analytics και ο server επαληθεύσει έγκυρη HttpOnly υπογεγραμμένη consent receipt."
   }
 ] as const;
 
