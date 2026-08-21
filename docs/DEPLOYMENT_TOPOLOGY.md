@@ -10,10 +10,12 @@ Required Vercel settings:
 - Root Directory: leave blank / repository root
 - Node.js: 24.x
 - Install Command: `npm ci --ignore-scripts`
-- Build Command: `npm --workspace @buy-local-sparta/web run build`
+- Build Command: `npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build`
 - Output Directory: `apps/web/.next`
 
 The same settings are committed in `/vercel.json` so dashboard drift is visible in source control. The repository-root `package-lock.json` is authoritative for CI, staging, Vercel and worker image dependency resolution; release paths must use `npm ci`, not `npm install`, so the tested graph is reproduced instead of re-resolved.
+
+The current Vercel project has an observed dashboard Install Command override that still performs a preliminary `npm install --ignore-scripts` before the source-controlled build command. The connected Vercel integration available to this project does not expose a project-setting write action. Until that dashboard override is removed, the source-controlled Build Command intentionally runs `npm ci --ignore-scripts` again before `next build`; this clean reinstall is the authoritative dependency graph used by the actual web build. Removing the dashboard Install Command override later will eliminate the redundant preliminary install without changing the locked build result.
 
 Why: `apps/web` imports private workspace packages from `/packages/*`. A Vercel Root Directory that isolates `apps/web` can make those files unavailable or cause npm to resolve unpublished `@buy-local-sparta/*` packages from the registry instead of the workspace.
 
