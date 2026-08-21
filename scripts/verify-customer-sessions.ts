@@ -53,7 +53,12 @@ for (const contract of [
 ]) {
   if (!client.includes(contract)) failures.push(`Customer session-management UI is missing ${contract}`);
 }
-if (client.includes("session.id}</") || client.includes("{session.id}")) failures.push("Customer UI must not render the public session identifier as account-facing content");
+const clientWithoutAllowedSessionIdUses = client
+  .replaceAll("session.id !== sessionId", "")
+  .replaceAll("key={session.id}", "")
+  .replaceAll("busySessionId === session.id", "")
+  .replaceAll("revokeOne(session.id)", "");
+if (clientWithoutAllowedSessionIdUses.includes("session.id")) failures.push("Customer UI may use the public session identifier only for internal keying, action targeting and local busy-state comparisons; it must not render it as account-facing content");
 for (const style of ["customer-session-toolbar", "customer-session-list", "customer-session-card", "customer-session-meta"]) {
   if (!css.includes(style)) failures.push(`Customer session-management styles are missing ${style}`);
 }
