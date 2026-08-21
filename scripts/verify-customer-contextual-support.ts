@@ -17,6 +17,7 @@ const adminPage = read("apps/web/src/app/admin/customers/support/page.tsx");
 const accountNavigation = read("apps/web/src/components/AccountSectionNavigation.tsx");
 const siteNavigation = read("apps/web/src/lib/site-navigation.ts");
 const orderDetail = read("apps/web/src/components/OrderDetailClient.tsx");
+const returnsPanel = read("apps/web/src/components/CustomerReturnsPanel.tsx");
 const askLocal = read("apps/web/src/components/AskLocalClient.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
 const styles = read("apps/web/src/app/customer-support.css");
@@ -108,7 +109,7 @@ for (const contract of [
 expect(accountNavigation.includes('{ href: "/account/support", label: "Υποστήριξη" }'), "Account navigation must include customer support");
 expect(siteNavigation.includes('"/account/support"'), "Customer support route must be explicitly non-indexable");
 expect(orderDetail.includes("/account/support?context=order"), "Order detail must provide contextual order support entry");
-expect(orderDetail.includes("/account/support?context=return"), "Return records must provide contextual return support entry");
+expect(returnsPanel.includes("/account/support?context=return"), "Return records must provide contextual return support entry");
 expect(askLocal.includes("/account/support?context=ask_local"), "Ask Local requests must provide contextual support entry");
 expect(layout.includes('import "./customer-support.css"'), "Global layout must load customer support styles");
 for (const style of ["customer-support-layout", "customer-support-case", "customer-support-thread", "customer-support-message"]) expect(styles.includes(style), `Customer support stylesheet is missing ${style}`);
