@@ -6,7 +6,7 @@ import { CustomerHowItWorks, CustomerLifecycle } from "./CustomerAccountPrimitiv
 type SupportStatus = "open" | "waiting_customer" | "waiting_internal" | "resolved" | "closed";
 type SupportCategory = "account" | "order" | "payment" | "return" | "delivery" | "privacy" | "technical" | "other";
 type SupportContextType = "account" | "security" | "order" | "ask_local" | "return" | "privacy" | "saved" | "other";
-type SupportMessage = Readonly<{ id: string; sender: "customer" | "support"; body: string; createdAt: number }>;
+type SupportMessage = Readonly<{ sender: "customer" | "support"; body: string; createdAt: number }>;
 type SupportCase = Readonly<{
   id: string;
   referenceNumber: string;
@@ -88,7 +88,8 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
   const [category, setCategory] = useState<SupportCategory>(defaultCategory(initialContext.type));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [replyCaseId, setReplyCaseId] = useState("");
+  const [replyDraftCaseId, setReplyDraftCaseId] = useState("");
+  const [replyBusyCaseId, setReplyBusyCaseId] = useState("");
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -115,9 +116,9 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
   }
 
   async function sendReply(caseId: string) {
-    const text = reply.trim();
-    if (!text) return;
-    setError(""); setStatus(""); setReplyCaseId(caseId);
+    const text = replyDraftCaseId === caseId ? reply.trim() : "";
+    if (!text || replyBusyCaseId) return;
+    setError(""); setStatus(""); setReplyBusyCaseId(caseId);
     try {
       const response = await fetch(`/api/account/support/${encodeURIComponent(caseId)}/messages`, {
         method: "POST",
@@ -126,10 +127,10 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
       });
       const body = await response.json() as { cases?: SupportCase[]; error?: string };
       if (!response.ok || !body.cases) throw new Error(body.error ?? "Η απάντηση δεν αποθηκεύτηκε.");
-      setCases(body.cases); setReply(""); setStatus("Η απάντησή σου στάλθηκε στην ομάδα υποστήριξης.");
+      setCases(body.cases); setReply(""); setReplyDraftCaseId(""); setStatus("Η απάντησή σου στάλθηκε στην ομάδα υποστήριξης.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η απάντηση δεν αποθηκεύτηκε.");
-    } finally { setReplyCaseId(""); }
+    } finally { setReplyBusyCaseId(""); }
   }
 
   return <section className="shell customer-account-page customer-support-page">
@@ -155,14 +156,14 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
 
       <div className="customer-support-cases">
         <div className="customer-support-summary"><strong>{activeCount} ενεργά αιτήματα</strong><span>{cases.length} συνολικά</span></div>
-        {cases.length === 0 ? <div className="customer-empty-state"><strong>Δεν έχεις αιτήματα υποστήριξης.</strong><p>Αν χρειάζεσαι βοήθεια, δημιούργησε το πρώτο σου αίτημα από τη φόρμα.</p></div> : cases.map((item) => <article className="customer-account-panel customer-support-case" key={item.id}>
+        {cases.length === 0 ? <div className="customer-empty-state"><strong>Δεν έχεις αιτήματα υποστήριξης.</strong><p>Αν χρειάζεσαι βοήθεια, δημιούργησε το πρώτο σου αίτημα από τη φόρμα.</p></div> : cases.map((item) => <article className="customer-account-panel customer-support-case" key={item.referenceNumber}>
           <div className="customer-support-case-head"><div><span className="eyebrow">{item.referenceNumber}</span><h2>{item.subject}</h2><small>{CATEGORY_LABELS[item.category]} · ενημέρωση {formatDate(item.updatedAt)}</small></div><span className={`status-pill${item.status === "waiting_customer" ? " warning" : ""}`}>{STATUS_LABELS[item.status]}</span></div>
           {item.contextType && <div className="customer-support-context is-compact"><strong>{CONTEXT_LABELS[item.contextType]}</strong>{item.contextReference && <span>{item.contextReference}</span>}</div>}
           <CustomerLifecycle label={`Πορεία ${item.referenceNumber}`} stages={lifecycle(item.status)} />
           <div className="customer-support-thread" aria-label={`Συνομιλία ${item.referenceNumber}`}>
-            {item.messages.map((entry) => <div className={`customer-support-message is-${entry.sender}`} key={entry.id}><div><strong>{entry.sender === "customer" ? "Εσύ" : "Ομάδα ΚΟΝΤΑ ΜΟΥ"}</strong><small>{formatDate(entry.createdAt)}</small></div><p>{entry.body}</p></div>)}
+            {item.messages.map((entry, index) => <div className={`customer-support-message is-${entry.sender}`} key={`${entry.sender}:${entry.createdAt}:${index}`}><div><strong>{entry.sender === "customer" ? "Εσύ" : "Ομάδα ΚΟΝΤΑ ΜΟΥ"}</strong><small>{formatDate(entry.createdAt)}</small></div><p>{entry.body}</p></div>)}
           </div>
-          {item.status !== "closed" && <div className="customer-support-reply"><label><span>Απάντηση στο {item.referenceNumber}</span><textarea rows={4} value={replyCaseId === item.id ? reply : ""} onFocus={() => { if (replyCaseId !== item.id) { setReplyCaseId(item.id); setReply(""); } }} onChange={(event) => { setReplyCaseId(item.id); setReply(event.target.value); }} placeholder="Γράψε την απάντησή σου…" /></label><button className="button button-secondary" type="button" disabled={!reply.trim() || replyCaseId !== item.id} onClick={() => void sendReply(item.id)}>Αποστολή απάντησης</button></div>}
+          {item.status !== "closed" && <div className="customer-support-reply"><label><span>Απάντηση στο {item.referenceNumber}</span><textarea rows={4} value={replyDraftCaseId === item.id ? reply : ""} onFocus={() => { if (replyDraftCaseId !== item.id) { setReplyDraftCaseId(item.id); setReply(""); } }} onChange={(event) => { setReplyDraftCaseId(item.id); setReply(event.target.value); }} disabled={Boolean(replyBusyCaseId)} placeholder="Γράψε την απάντησή σου…" /></label><button className="button button-secondary" type="button" disabled={!reply.trim() || replyDraftCaseId !== item.id || Boolean(replyBusyCaseId)} onClick={() => void sendReply(item.id)}>{replyBusyCaseId === item.id ? "Αποστολή…" : "Αποστολή απάντησης"}</button></div>}
         </article>)}
       </div>
     </div>
