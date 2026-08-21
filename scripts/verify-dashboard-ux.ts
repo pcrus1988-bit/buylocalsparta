@@ -24,7 +24,8 @@ for (const group of VENDOR_WORKSPACE_NAVIGATION) {
   for (const link of group.links) if (!link.icon) failures.push(`Vendor link ${link.href} is missing an icon`);
 }
 const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
-for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/session"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
+for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/auth-context"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
+if (vendorHeader.includes('fetch("/api/vendor/session"')) failures.push("Vendor shell must not load the full vendor dashboard just to resolve navigation auth context");
 
 requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "entityLabel", 'from "next/link"', 'aria-current={active ? "page"', "admin-domain-badge", '"99+"']);
 requireText("apps/web/src/components/AdminRecordStatus.tsx", ["AdminRecordState", "AdminAttentionFlag", "AdminStatusStack", "admin-record-state", "admin-attention-flag", "attentionSeverity"]);
