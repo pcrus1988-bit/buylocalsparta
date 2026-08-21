@@ -33,6 +33,7 @@ export async function adminReplyToCustomerSupportCase(principal: SessionPrincipa
     const currentStatus = text(row.status);
     if (currentStatus === "closed") throw new Error("Closed support cases cannot receive a new customer-visible reply");
     const nextStatus = "waiting_customer";
+    const referenceNumber = text(row.reference_number);
 
     await tx.query(`UPDATE customer_support_cases SET status=$2,resolved_at=NULL,updated_at=$3 WHERE id=$1::uuid`, [text(row.case_uuid), nextStatus, now]);
     await tx.query(`
@@ -48,7 +49,7 @@ export async function adminReplyToCustomerSupportCase(principal: SessionPrincipa
       INSERT INTO notifications(id,public_id,user_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
       VALUES(gen_random_uuid(),'notification_' || gen_random_uuid()::text,$1::uuid,'in_app','transactional','customer_support.reply','customer-support-v1','el','Νέα απάντηση από την υποστήριξη',$2,$3::jsonb,'queued',$4,$5)
       ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
-    `, [text(row.customer_uuid), `${text(row.reference_number)} · ${text(row.subject)}`, JSON.stringify({ caseId: text(row.public_id), referenceNumber: text(row.reference_number) }), `support-admin-reply:${text(row.public_id)}:${now.getTime()}`, now]);
-    return { id: text(row.public_id), referenceNumber: text(row.reference_number), status: nextStatus, customerId: text(row.customer_public_id) };
+    `, [text(row.customer_uuid), `${referenceNumber} · ${text(row.subject)}`, JSON.stringify({ caseReference: referenceNumber }), `support-admin-reply:${text(row.public_id)}:${now.getTime()}`, now]);
+    return { id: referenceNumber, referenceNumber, status: nextStatus, customerId: text(row.customer_public_id) };
   }, { isolation: "serializable" });
 }
