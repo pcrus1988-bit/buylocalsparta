@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: Context) {
       note
     });
     const latestReturn = result.returns[0];
-    const reference = latestReturn?.returnNumber ?? latestReturn?.id ?? id;
+    const reference = latestReturn?.returnNumber ?? latestReturn?.id ?? result.referenceNumber;
     const remedyLabel = requestedRemedy === "replacement" ? "Αντικατάσταση" : requestedRemedy === "repair" ? "Επισκευή" : "Επιστροφή χρημάτων";
     await sendTransactionalEmailBestEffort({
       to: principal.email,
@@ -43,13 +43,13 @@ export async function POST(request: Request, { params }: Context) {
         "Η ομάδα KONTA MOY θα ελέγξει την επιλεξιμότητα και τη διαθέσιμη λύση και θα σε ενημερώσει για τα επόμενα βήματα. Μην αποστείλεις το προϊόν πριν λάβεις οδηγίες επιστροφής."
       ].join("\n"),
       eventType: "return.requested",
-      idempotencyKey: `customer-return-requested:${latestReturn?.id ?? `${id}:${orderLineId}:${reference}`}`,
+      idempotencyKey: `customer-return-requested:${latestReturn?.id ?? `${result.referenceNumber}:${orderLineId}:${reference}`}`,
       payload: {
-        orderId: id,
+        orderReference: result.referenceNumber,
         returnId: latestReturn?.id,
         returnReference: reference,
         requestedRemedy,
-        ctaPath: `/account/orders/${encodeURIComponent(id)}`,
+        ctaPath: `/account/orders/${encodeURIComponent(result.referenceNumber)}`,
         ctaLabel: "Προβολή αιτήματος"
       }
     });
