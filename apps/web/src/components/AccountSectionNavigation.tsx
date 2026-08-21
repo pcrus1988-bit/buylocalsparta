@@ -8,6 +8,7 @@ const PRIMARY_ACCOUNT_SECTIONS = [
 ] as const;
 
 const SECONDARY_ACCOUNT_SECTIONS = [
+  { href: "/account/privacy", label: "Privacy & data" },
   { href: "#searches", label: "Αναζητήσεις" },
   { href: "#recommendations", label: "Προτάσεις" },
   { href: "#recent", label: "Πρόσφατα" }
