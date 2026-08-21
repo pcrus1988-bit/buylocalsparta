@@ -19,7 +19,8 @@ const failures: string[] = [];
 for (const route of ["/privacy", "/cookies", "/accessibility", "/privacy-controls"]) {
   expect(files.navigation, `href: \"${route}\"`, `navigation exposes ${route}`);
 }
-expect(files.privacy, "KONTA_MOY", "privacy page uses shared controller identity");
+expect(files.privacy, "CONTROLLER", "privacy page uses shared controller identity");
+expect(files.legalRegistry, "KONTA_MOY_EMAIL_COMPANY", "legal registry reuses verified transactional legal identity");
 expect(files.privacy, "DATA_RECIPIENTS", "privacy page lists concrete recipients");
 expect(files.cookies, "COOKIE_REGISTRY", "cookie policy renders canonical cookie registry");
 expect(files.cookies, "CookieSettingsButton", "cookie policy provides withdrawal/settings control");
