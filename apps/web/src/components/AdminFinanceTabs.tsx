@@ -11,14 +11,10 @@ const financeTabs = [
   { href: "/admin/tax", label: "Tax & myDATA" }
 ] as const;
 
-function active(pathname: string, href: string) {
-  if (href === "/admin/finance") return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 export function AdminFinanceTabs() {
   const pathname = usePathname();
+  const current = [...financeTabs].filter((tab) => pathname === tab.href || pathname.startsWith(`${tab.href}/`)).sort((a, b) => b.href.length - a.href.length)[0];
   return <nav className="admin-local-tabs admin-finance-tabs" aria-label="Finance workspace sections">
-    {financeTabs.map((tab) => <Link href={tab.href} key={tab.href} aria-current={active(pathname, tab.href) ? "page" : undefined}>{tab.label}</Link>)}
+    {financeTabs.map((tab) => <Link href={tab.href} key={tab.href} aria-current={current?.href === tab.href ? "page" : undefined}>{tab.label}</Link>)}
   </nav>;
 }
