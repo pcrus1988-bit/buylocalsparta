@@ -103,6 +103,7 @@ export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]
 export const NON_INDEXABLE_PAGE_ROUTES = [
   "/cart",
   "/checkout",
+  "/checkout/private-offer/[id]",
   "/checkout/failure",
   "/checkout/success",
   "/login",
