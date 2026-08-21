@@ -18,6 +18,10 @@ type ConsentBody = Readonly<{
 }>;
 
 export async function POST(request: Request) {
+  const requestUrl = new URL(request.url);
+  const origin = request.headers.get("origin");
+  if (origin && origin !== requestUrl.origin) return Response.json({ error: "cross_origin_consent_update_denied" }, { status: 403 });
+
   const raw = await request.json().catch(() => null) as ConsentBody | null;
   if (!raw || typeof raw.personalisation !== "boolean" || typeof raw.analytics !== "boolean" || typeof raw.marketing !== "boolean") {
     return Response.json({ error: "invalid_privacy_consent" }, { status: 400 });
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
   const response = new NextResponse(null, { status: 204 });
-  const secure = new URL(request.url).protocol === "https:";
+  const secure = requestUrl.protocol === "https:";
   response.headers.set("cache-control", "no-store");
   response.cookies.set({
     name: PRIVACY_CONSENT_COOKIE,
