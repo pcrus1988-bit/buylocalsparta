@@ -28,6 +28,7 @@ import "./admin-queue-split.css";
 import "./admin-insights.css";
 import "./admin-tax-documents.css";
 import "./privacy-consent.css";
+import "./legal-pages.css";
 import { CartProvider } from "../components/CartProvider";
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { publicOrigin } from "../lib/public-origin";
