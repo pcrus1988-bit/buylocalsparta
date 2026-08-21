@@ -1,0 +1,19 @@
+name: Dependency Audit Diagnostic
+
+on:
+  pull_request:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install current dependency graph
+        run: npm install --ignore-scripts
+      - name: Capture exact npm audit report
+        run: npm audit --json || true
+      - name: Capture installed dependency tree
+        run: npm ls --all || true
