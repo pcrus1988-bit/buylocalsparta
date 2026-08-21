@@ -96,5 +96,6 @@
   "0097_homepage_hero_database_storage.sql": "b82e3b5498e0f4dbe47b915aeaf2c82add0457fab0b3aa79fd3385be4adf031d",
   "0098_privacy_defaults_governance.sql": "6a62899102b772f421eaa197dfe3db5af096b552a58f3274bf9dcecb3d4537cc",
   "0099_supabase_data_api_privilege_hardening.sql": "715026a393cc61cf767859a4f49905492bf62f54cf422ce91e559a04340d93c0",
-  "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621"
+  "0100_personal_data_access_events.sql": "0122649bd2814f789a0812e950a896e39172a2aaccae5b41635eb77c7164e621",
+  "0101_checkout_request_integrity.sql": "110878e7cf6c35277be8ce6e22fd1618cc849c928260beb9a3daa83345c31097"
 }
