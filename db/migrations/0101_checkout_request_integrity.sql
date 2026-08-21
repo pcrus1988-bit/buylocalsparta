@@ -18,6 +18,22 @@ CREATE TABLE checkout_request_guards (
 CREATE INDEX checkout_request_guards_expires_at_idx
   ON checkout_request_guards(expires_at);
 
+CREATE FUNCTION purge_expired_checkout_request_guards_before_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM checkout_request_guards WHERE expires_at <= now();
+  RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER checkout_request_guards_purge_expired
+BEFORE INSERT ON checkout_request_guards
+FOR EACH STATEMENT
+EXECUTE FUNCTION purge_expired_checkout_request_guards_before_insert();
+
 COMMENT ON TABLE checkout_request_guards IS
   'Server-only replay-integrity guard. Stores SHA-256 actor/request fingerprints for seven days so a checkout key cannot be replayed with different fulfilment or recipient instructions without retaining customer contact/address content.';
 
