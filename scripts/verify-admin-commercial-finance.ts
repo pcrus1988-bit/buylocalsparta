@@ -24,7 +24,7 @@ requireText("apps/web/src/app/admin/finance/vendor-billing/page.tsx", [
   "Governed billing actions & create billing draft", "VendorBillingClient", "Ready for AADE", "MARK", "UID", "Draft ≠ fiscal issuance", "Open Partner record"
 ]);
 requireText("apps/web/src/components/AdminCommercialAgreementsClient.tsx", [
-  'fetch("/api/admin/finance/agreements"', 'action: "verify_govgr"', 'action: "activate"', 'action: "signed_upload"', 'action: "email_pdf"'
+  'fetch("/api/admin/finance/agreements"', 'action: "verify_govgr"', 'action: "activate"', '"signed_upload"', 'action: "email_pdf"'
 ]);
 requireText("apps/web/src/components/VendorBillingClient.tsx", [
   'fetch("/api/admin/finance/vendor-billing"', 'action(inv.id,"prepare"', 'action(inv.id,"transmit")', 'action(inv.id,"email")', "approvedPayments"
