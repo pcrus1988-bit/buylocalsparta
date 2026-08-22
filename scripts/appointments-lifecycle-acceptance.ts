@@ -108,7 +108,7 @@ try {
   `, [otherVendorId, `Appointments Isolation Vendor ${suffix}`, new Date(now)]);
 
   await saveAccount({ id: vendorOwnerId, email: vendorOwnerEmail, password: "Vendor!12345", roles: ["vendor_owner"], vendorId, createdAt: now + 10 });
-  await saveAccount({ id: vendorStaffId, email: vendorStaffEmail, password: "Vendor!12345", roles: ["vendor_staff"], vendorId, createdAt: now + 11 });
+  await saveAccount({ id: vendorStaffId, email: vendorStaffEmail, password: "Vendor!12345", roles: ["vendor_adviser"], vendorId, createdAt: now + 11 });
   await saveAccount({ id: otherVendorOwnerId, email: otherVendorEmail, password: "Vendor!12345", roles: ["vendor_owner"], vendorId: otherVendorId, createdAt: now + 12 });
 
   await runtime.sqlPool.query(`
