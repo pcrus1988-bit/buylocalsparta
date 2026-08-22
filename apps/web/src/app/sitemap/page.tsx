@@ -50,6 +50,8 @@ async function governedVendorGroups(): Promise<readonly VendorGroup[]> {
     const taxonomy = vendor.taxonomies[0];
     return [{
       vendor,
+      // The default public vendor route family remains /vendor/[id]. Keep canonical
+      // overrides in the shared resolver so the human and XML sitemaps cannot diverge.
       href: absoluteSeoCanonical(settings.canonicalOrigin, reference, override),
       groupSlug: taxonomy?.categorySlug ?? "other",
       groupLabel: taxonomy?.categoryLabel ?? "Άλλες τοπικές επιχειρήσεις"
