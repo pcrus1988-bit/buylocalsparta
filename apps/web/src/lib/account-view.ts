@@ -11,7 +11,17 @@ import { customerReturnsSnapshot, requestCustomerReturn as createCustomerReturnC
 import { getCanonicalAvailability, getPublicCatalogProducts, getPublicVendor } from "./catalog-view";
 import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
-import { marketplaceReference, marketplaceReferenceMap } from "./public-reference-service";
+import { marketplaceReferenceMap } from "./public-reference-service";
+import { requireCustomerOrderReference } from "./customer-order-reference";
+import { customerOrderLineActionToken, requireCustomerOrderLineInternalId } from "./customer-order-line-action-token";
+import {
+  customerBrowserNotification,
+  customerBrowserPreferences,
+  customerBrowserPrivacyRequest,
+  customerBrowserRecentlyViewed,
+  customerBrowserSavedProductAlert,
+  customerBrowserSavedSearch
+} from "./customer-account-browser-view";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -22,13 +32,25 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
   const catalogMap = new Map(catalog.map((product) => [product.id, product]));
   const savedProducts = await Promise.all(state.savedProducts.map(async (saved) => {
     const product = catalogMap.get(saved.canonicalVariantId);
-    if (!product) return { ...saved, unavailable: true as const };
+    const alert = state.savedProductAlerts.find((item) => item.canonicalVariantId === saved.canonicalVariantId);
+    if (!product) return {
+      canonicalVariantId: saved.canonicalVariantId,
+      unavailable: true as const,
+      alert: alert ? customerBrowserSavedProductAlert(alert) : null
+    };
     const availability = await getCanonicalAvailability(product.id);
-    return { ...saved, title: product.title, price: product.price, available: availability?.available ?? false, alert: state.savedProductAlerts.find((item) => item.canonicalVariantId === product.id) ?? null };
+    return {
+      canonicalVariantId: saved.canonicalVariantId,
+      slug: product.slug,
+      title: product.title,
+      price: product.price,
+      available: availability?.available ?? false,
+      alert: alert ? customerBrowserSavedProductAlert(alert) : null
+    };
   }));
   const recentlyViewed = state.recentlyViewed.flatMap((view) => {
     const product = catalogMap.get(view.canonicalVariantId);
-    return product ? [{ ...view, title: product.title, price: product.price }] : [];
+    return product ? [{ ...customerBrowserRecentlyViewed(view), slug: product.slug, title: product.title, price: product.price }] : [];
   });
   const recommendationSignals = (ids: readonly { canonicalVariantId: string; viewedAt?: number }[]) => ids.flatMap((item) => {
     const product = catalogMap.get(item.canonicalVariantId);
@@ -45,35 +67,40 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
     limit: 6
   }).map((item) => {
     const product = catalogMap.get(item.canonicalVariantId)!;
-    return { ...item, title: product.title, price: product.price };
+    return { ...item, slug: product.slug, title: product.title, price: product.price };
   });
   const orderReferences = await marketplaceReferenceMap("order", ordersRaw.map((order) => order.id));
-  const orders = ordersRaw.map((order) => ({
-    id: order.id,
-    referenceNumber: orderReferences.get(order.id) ?? order.id,
-    status: customerOrderStatusLabel(order),
-    total: formatMoney(order.total),
-    createdAt: order.createdAt,
-    fulfilmentMode: order.fulfilmentMode,
-    lines: order.lines.map((line) => ({ id: line.id, title: line.titleSnapshot, quantity: line.quantity, status: line.status }))
-  }));
+  const orders = ordersRaw.map((order) => {
+    const referenceNumber = orderReferences.get(order.id) ?? order.id;
+    return {
+      id: referenceNumber,
+      referenceNumber,
+      status: customerOrderStatusLabel(order),
+      total: formatMoney(order.total),
+      createdAt: order.createdAt,
+      fulfilmentMode: order.fulfilmentMode,
+      lines: order.lines.map((line) => ({ id: customerOrderLineActionToken(principal.userId, order.id, line.id), title: line.titleSnapshot, quantity: line.quantity, status: line.status }))
+    };
+  });
   return {
-    account: { userId: principal.userId, email: principal.email },
+    account: { email: principal.email },
     csrfToken: principal.csrfToken,
     savedProducts,
-    savedSearches: state.savedSearches,
-    notifications: state.notifications,
+    savedSearches: state.savedSearches.map(customerBrowserSavedSearch),
+    notifications: state.notifications.map(customerBrowserNotification),
     unreadNotifications: state.unreadNotifications,
     recentlyViewed,
-    preferences: state.preferences,
+    preferences: customerBrowserPreferences(state.preferences),
     recommendations,
-    privacyRequests: state.privacyRequests,
+    privacyRequests: state.privacyRequests.map(customerBrowserPrivacyRequest),
     retention: defaultCustomerRetentionSnapshot(now),
     orders
   };
 }
 
-export async function accountOrderDetail(principal: SessionPrincipal, orderId: string) {
+export async function accountOrderDetail(principal: SessionPrincipal, orderIdentifier: string) {
+  const resolved = await requireCustomerOrderReference(principal, orderIdentifier);
+  const orderId = resolved.internalId;
   let order = await customerOrder(principal, orderId);
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
@@ -86,31 +113,32 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups, invoice, returns, orderReference] = await Promise.all([
+  const [vendorEntries, pickups, invoice, returns, catalog] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
     customerPickupCredentials(principal, orderId),
     customerFiscalDocumentForOrder(orderId),
     customerReturnsSnapshot(principal, orderId),
-    marketplaceReference("order", order.id)
+    getPublicCatalogProducts()
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, orderReference, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
+  const productSlugs = new Map(catalog.map((product) => [product.id, product.slug]));
+  return orderDetailProjection(order, principal.userId, resolved.referenceNumber, principal.csrfToken, canCancel, vendorNames, productSlugs, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
     uid: invoice.uid,
     qrUrl: invoice.qrUrl,
     issuedAt: invoice.issuedAt,
-    downloadUrl: `/api/account/orders/${encodeURIComponent(orderId)}/invoice`
+    downloadUrl: `/api/account/orders/${encodeURIComponent(resolved.referenceNumber)}/invoice`
   } : undefined);
 }
 
 export async function cancelCustomerOrder(principal: SessionPrincipal, input: { orderId: string; reason: string; now?: number }) {
   const now = input.now ?? Date.now();
-  const updated = await cancelCustomerCommerceOrder(principal, { orderId: input.orderId, reason: input.reason, now });
-  const referenceNumber = await marketplaceReference("order", updated.id);
-  await createCustomerNotification({ userId: principal.userId, eventType: "order.cancelled", title: "Η παραγγελία ακυρώθηκε", body: `Παραγγελία ${referenceNumber}`, payload: { orderId: updated.id, orderReference: referenceNumber }, dedupeKey: `web-order:${updated.id}:cancelled`, now });
-  return accountOrderDetail(principal, updated.id);
+  const resolved = await requireCustomerOrderReference(principal, input.orderId);
+  const updated = await cancelCustomerCommerceOrder(principal, { orderId: resolved.internalId, reason: input.reason, now });
+  await createCustomerNotification({ userId: principal.userId, eventType: "order.cancelled", title: "Η παραγγελία ακυρώθηκε", body: `Παραγγελία ${resolved.referenceNumber}`, payload: { orderReference: resolved.referenceNumber }, dedupeKey: `web-order:${updated.id}:cancelled`, now });
+  return accountOrderDetail(principal, resolved.referenceNumber);
 }
 
 export async function requestCustomerReturn(principal: SessionPrincipal, input: {
@@ -123,31 +151,43 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
   now?: number;
 }) {
   const now = input.now ?? Date.now();
-  const created = await createCustomerReturnCase(principal, { ...input, now });
+  const resolved = await requireCustomerOrderReference(principal, input.orderId);
+  const line = await requireCustomerOrderLineInternalId(principal, resolved.internalId, input.orderLineId);
+  const created = await createCustomerReturnCase(principal, { ...input, orderId: resolved.internalId, orderLineId: line.internalId, now });
   await createCustomerNotification({
     userId: principal.userId,
     eventType: "return.requested",
     title: "Λάβαμε το αίτημα επιστροφής",
     body: `Αίτημα ${created.returnNumber} · θα ενημερωθείτε μόλις ολοκληρωθεί ο έλεγχος.`,
-    payload: { orderId: input.orderId, returnId: created.returnId, returnNumber: created.returnNumber, returnReference: created.returnNumber },
+    payload: { orderReference: resolved.referenceNumber, returnNumber: created.returnNumber, returnReference: created.returnNumber },
     dedupeKey: `return:${created.returnId}:requested`,
     now
   });
-  return accountOrderDetail(principal, input.orderId);
+  return accountOrderDetail(principal, resolved.referenceNumber);
 }
 
 function orderDetailProjection(
   order: CustomerOrder,
+  userId: string,
   referenceNumber: string,
   csrfToken: string,
   canCancel: boolean,
   vendorNames: ReadonlyMap<string, string>,
+  productSlugs: ReadonlyMap<string, string>,
   pickups: readonly CustomerPickupCredential[],
   returns: CustomerReturnsSnapshot,
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
 ) {
+  const lineTokens = new Map(order.lines.map((line) => [line.id, customerOrderLineActionToken(userId, order.id, line.id)] as const));
+  const browserReturns = returns.cases.map((item) => ({
+    ...item,
+    lines: item.lines.flatMap((entry) => {
+      const token = lineTokens.get(entry.orderLineId);
+      return token ? [{ ...entry, orderLineId: token }] : [];
+    })
+  }));
   return {
-    id: order.id,
+    id: referenceNumber,
     referenceNumber,
     status: customerOrderStatusLabel(order),
     sourceStatus: order.status,
@@ -164,8 +204,9 @@ function orderDetailProjection(
     csrfToken,
     invoice,
     lines: order.lines.map((line) => ({
-      id: line.id,
+      id: lineTokens.get(line.id)!,
       canonicalVariantId: line.canonicalVariantId,
+      productSlug: productSlugs.get(line.canonicalVariantId),
       title: line.titleSnapshot,
       quantity: line.quantity,
       fulfilledQuantity: line.fulfilledQuantity,
@@ -176,9 +217,19 @@ function orderDetailProjection(
       vendorId: line.vendorId,
       vendorName: vendorNames.get(line.vendorId) ?? line.vendorId
     })),
-    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds })),
+    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment, index) => ({
+      id: `part-${index + 1}`,
+      status: fulfilment.status,
+      vendorId: fulfilment.vendorId,
+      vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId,
+      deliveryCharge: formatMoney(fulfilment.deliveryCharge),
+      lineIds: fulfilment.lineIds.flatMap((lineId) => {
+        const token = lineTokens.get(lineId);
+        return token ? [token] : [];
+      })
+    })),
     pickups,
-    returns: returns.cases
+    returns: browserReturns
   };
 }
 

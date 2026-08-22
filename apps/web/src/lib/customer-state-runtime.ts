@@ -228,6 +228,40 @@ export async function markAllCustomerNotificationsRead(input: { userId: string; 
   return postgresServices().runtime.persistence.notificationOperations.markAllRead({ scope: customerScope(input.userId), userId: input.userId, now: input.now });
 }
 
+export async function markCustomerNotificationRead(input: { userId: string; notificationId: string; now: number }): Promise<void> {
+  if (customerStateBackend() === "memory") {
+    getAccountRuntime().notifications.markRead({ id: input.notificationId, userId: input.userId, now: input.now });
+    return;
+  }
+  const { runtime } = postgresServices();
+  const result = await runtime.sqlPool.query(`
+    UPDATE notifications n
+    SET read_at=COALESCE(n.read_at,$3)
+    FROM users u
+    WHERE n.public_id=$1
+      AND n.user_id=u.id
+      AND u.public_id=$2
+      AND n.channel='in_app'
+      AND n.archived_at IS NULL
+    RETURNING n.public_id
+  `, [input.notificationId, input.userId, new Date(input.now)]);
+  if (result.rowCount !== 1) throw new Error("Notification not found or not readable by this user");
+}
+
+export async function archiveCustomerNotification(input: { userId: string; notificationId: string; now: number }): Promise<void> {
+  if (customerStateBackend() === "memory") {
+    getAccountRuntime().notifications.archive({ id: input.notificationId, userId: input.userId, now: input.now });
+    return;
+  }
+  const { runtime } = postgresServices();
+  await runtime.persistence.notificationOperations.archiveForUser({
+    scope: customerScope(input.userId),
+    userId: input.userId,
+    notificationId: input.notificationId,
+    now: input.now
+  });
+}
+
 export async function createCustomerNotification(input: { userId: string; eventType: string; title: string; body: string; payload?: Record<string, unknown>; dedupeKey?: string; now: number }) {
   if (customerStateBackend() === "memory") return getAccountRuntime().notifications.create(input);
   const { runtime } = postgresServices();

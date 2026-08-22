@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { CatalogCard } from "../lib/catalog-view";
+import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 
 const catalogImageStyle = {
@@ -22,10 +24,11 @@ export function CatalogProductCard({ product, index = 0, vendorContext }: { prod
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
   const externalDemoCover = demoBookCover(product);
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : externalDemoCover;
+  const productHref = productPublicPath(product);
 
   return (
     <article className="product-card">
-      <a href={`/product/${product.id}`} className={`product-art ${category.artClass}`} aria-label={`Δες ${product.title}`}>
+      <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${product.title}`}>
         <span className="art-category">{category.name}</span>
         <span className="art-symbol" aria-hidden="true">{category.symbol}</span>
         <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
@@ -40,10 +43,10 @@ export function CatalogProductCard({ product, index = 0, vendorContext }: { prod
           />
         ) : null}
         <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
-      </a>
+      </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}{product.mpn ? ` · Κωδ. ${product.mpn}` : ""}</div>
-        <h3><a href={`/product/${product.id}`}>{product.title}</a></h3>
+        <h3><Link href={productHref}>{product.title}</Link></h3>
         {product.description ? <p className="partner">{product.description}</p> : null}
         {vendorName && adviser ? (
           <p className="partner">Συμβουλή & παραλαβή από <strong>{vendorHref ? <a href={vendorHref}>{vendorName}</a> : vendorName}</strong> · Ρώτησε {adviser}.</p>
@@ -52,7 +55,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext }: { prod
         ) : (
           <p className="partner">Δεν υπάρχει αυτή τη στιγμή επιλέξιμος τοπικός συνεργάτης εκπλήρωσης.</p>
         )}
-        <div className="product-bottom"><div className="price">{product.price}</div><a className="round-add" href={`/product/${product.id}`} aria-label={`Δες ${product.title}`}>→</a></div>
+        <div className="product-bottom"><div className="price">{product.price}</div><Link className="round-add" href={productHref} aria-label={`Δες ${product.title}`}>→</Link></div>
       </div>
     </article>
   );

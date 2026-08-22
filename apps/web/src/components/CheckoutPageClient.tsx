@@ -31,7 +31,7 @@ type SavedAddress = Readonly<{
   isDefaultDelivery: boolean;
 }>;
 
-type AddressProfile = Readonly<{ customerId: string; fullName: string; addresses: readonly SavedAddress[] }>;
+type AddressProfile = Readonly<{ fullName: string; addresses: readonly SavedAddress[] }>;
 type AddressDraft = {
   id?: string;
   label: string;

@@ -56,6 +56,24 @@ test("saved-search alerts can be disabled and re-enabled without firing historic
   assert.equal(service.reconcile({ searchId: saved.id, currentCanonicalVariantIds: ["p1", "p2", "p3"], now: 500 }).length, 1);
 });
 
+test("saved-search editing preserves identity, enforces ownership and re-baselines edited criteria", () => {
+  const service = new SavedSearchService();
+  const saved = service.create({ userId: "u1", marketId: "sparta", name: "Old name", query: { q: "gift" }, currentCanonicalVariantIds: ["p1"], now: 100 });
+  assert.throws(() => service.update({ searchId: saved.id, userId: "u2", name: "Nope", query: { q: "lamp" }, currentCanonicalVariantIds: ["p2"], now: 150 }), /ownership/i);
+  const updated = service.update({ searchId: saved.id, userId: "u1", name: "  Desk   lamps  ", query: { q: "  lamp  ", categoryCode: "home-living", availability: "in_stock" }, currentCanonicalVariantIds: ["p2", "p3"], now: 200 });
+  assert.equal(updated.id, saved.id);
+  assert.equal(updated.createdAt, saved.createdAt);
+  assert.equal(updated.name, "Desk lamps");
+  assert.equal(updated.query.q, "lamp");
+  assert.equal(updated.query.categoryCode, "home-living");
+  assert.deepEqual(updated.seenCanonicalVariantIds, ["p2", "p3"]);
+  assert.equal(updated.lastObservedCount, 2);
+  assert.equal(service.reconcile({ searchId: saved.id, currentCanonicalVariantIds: ["p2", "p3"], now: 201 }).length, 0);
+  const events = service.reconcile({ searchId: saved.id, currentCanonicalVariantIds: ["p2", "p3", "p4"], now: 300 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].canonicalVariantId, "p4");
+});
+
 test("recommendations use canonical public metadata, explanations and diversity limits", () => {
   const service = new CustomerRecommendationService();
   const products = [

@@ -3,6 +3,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../lib/public-vendor-directory";
 import { PUBLIC_VENDOR_CATEGORIES } from "../../lib/public-vendor-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
 type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string; subcategory?: string; status?: string }> }>;
 
@@ -14,10 +15,17 @@ type ResearchVendorGroup = Readonly<{
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Καταστήματα & άνθρωποι",
-  description: "Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
-};
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const base = await governedStaticSeoMetadata("/shops", {
+    title: "Καταστήματα & άνθρωποι",
+    description: "Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
+  });
+  const params = await searchParams;
+  const hasQueryState = [params.q, params.category, params.subcategory, params.status].some((value) => typeof value === "string" && value.trim().length > 0);
+  return hasQueryState
+    ? { ...base, alternates: { canonical: "/shops" }, robots: { index: false, follow: true } }
+    : base;
+}
 
 function normalizedSearch(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");

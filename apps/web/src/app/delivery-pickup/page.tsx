@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/delivery-pickup", {
   title: "Παράδοση & παραλαβή",
-  description: "Πώς λειτουργούν η τοπική παραλαβή, η αποστολή και η παρακολούθηση παραγγελιών στο ΚΟΝΤΑ ΜΟΥ Sparta.",
-  alternates: { canonical: "/delivery-pickup" }
-};
+  description: "Πώς λειτουργούν η τοπική παραλαβή, η αποστολή και η παρακολούθηση παραγγελιών στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  });
+}
 
 export default function DeliveryPickupPage() {
   return <main>

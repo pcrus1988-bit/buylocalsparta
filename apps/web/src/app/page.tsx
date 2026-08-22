@@ -1,29 +1,38 @@
+import type { Metadata } from "next";
 import { getHomepageCatalogCards } from "../lib/home-catalog";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
 import { HomeRegistrationCta } from "../components/HomeRegistrationCta";
-import { STOREFRONT_CATEGORIES, categoryCodeMatches } from "../lib/storefront-taxonomy";
+import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { listHomepagePromoCtas } from "../lib/homepage-promo-cta-runtime";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
+import { governedStaticSeoMetadata } from "../lib/seo-metadata";
+import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
+import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
 const FEATURED_PRODUCT_LIMIT = 4;
 
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/", { canonicalPath: "/" });
+}
+
 export default async function Home() {
-  const visitorKey = await getVisitorKey();
-  const [featuredProducts, heroSlides, promoCtas] = await Promise.all([
-    getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
+  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
+  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
+  const [featuredProducts, heroSlides, promoCtas, visibleCategories] = await Promise.all([
+    readOnlyCrawler
+      ? getCrawlerHomepageCatalogCards("23100", FEATURED_PRODUCT_LIMIT)
+      : getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
     listHomepageHeroSlides({ visibleOnly: true }),
-    listHomepagePromoCtas({ visibleOnly: true })
+    listHomepagePromoCtas({ visibleOnly: true }),
+    getAvailableStorefrontCategories("23100")
   ]);
   const promoCta = promoCtas[0] ?? null;
-  const visibleCategories = STOREFRONT_CATEGORIES.filter((category) =>
-    featuredProducts.some((card) => categoryCodeMatches(card.categoryCode, category.slug))
-  );
 
   return (
     <main className={styles.home}>

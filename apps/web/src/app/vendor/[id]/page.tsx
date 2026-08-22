@@ -11,7 +11,11 @@ import { getAccountSession } from "../../../lib/account-session";
 import { getVendorCatalogCards } from "../../../lib/catalog-view";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
-import { publicOrigin } from "../../../lib/public-origin";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
+import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
+import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -51,43 +55,65 @@ function firstRole(media: readonly ApprovedVendorProfileMedia[], role: ApprovedV
   return media.find((item) => item.role === role);
 }
 
-function absolutePublicMedia(url: string): string {
-  return /^https?:\/\//.test(url) ? url : `${publicOrigin()}${url}`;
+function absolutePublicMedia(url: string, origin: string): string {
+  return /^https?:\/\//.test(url) ? url : `${origin}${url}`;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const [vendor, profileMedia] = await Promise.all([
+  const [vendor, profileMedia, { settings }, overrides] = await Promise.all([
     getPublicVendorDirectoryEntry(id),
-    approvedVendorProfileMedia([id])
+    approvedVendorProfileMedia([id]),
+    getSeoGlobalSettingsSnapshot(),
+    getSeoEntityOverridesSnapshot()
   ]);
   if (!vendor) return { title: "Κατάστημα" };
   const isResearch = vendor.directoryStatus === "research";
+  const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
+  const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
   const category = vendor.taxonomies[0];
   const description = vendor.story?.excerpt ?? (isResearch
     ? `Δημόσια καταχώριση για το ${vendor.name}${category?.subcategoryLabel ? ` · ${category.subcategoryLabel}` : ""} στη χαρτογραφημένη αγορά της Σπάρτης.`
     : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το ΚΟΝΤΑ ΜΟΥ Sparta.`);
   const ogMedia = vendor.story?.mediaUrl ?? mediaPath(firstRole(profileMedia, "storefront") ?? firstRole(profileMedia, "logo"));
-  return {
-    title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
-    description,
-    alternates: { canonical: `/vendor/${encodeURIComponent(vendor.id)}` },
-    openGraph: {
-      title: vendor.name,
+  return buildGovernedSeoMetadata({
+    reference,
+    settings,
+    override: findSeoEntityOverride(overrides.entries, reference),
+    defaults: {
+      title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
       description,
-      url: `/vendor/${encodeURIComponent(vendor.id)}`,
-      images: ogMedia ? [ogMedia] : undefined,
-      type: "website"
-    }
-  };
+      canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`,
+      openGraphTitle: vendor.name,
+      openGraphDescription: description,
+      openGraphImage: ogMedia
+    },
+    entityEligible: !isResearch || quality.blockingReasons.length === 0,
+    defaultIndexAllowed: !isResearch || (settings.researchVendorIndexingEnabled && quality.eligible)
+  });
 }
 
 export default async function VendorPage({ params }: Props) {
   const { id } = await params;
-  const vendor = await getPublicVendorDirectoryEntry(id);
+  const [vendor, { settings }, overrides] = await Promise.all([
+    getPublicVendorDirectoryEntry(id),
+    getSeoGlobalSettingsSnapshot(),
+    getSeoEntityOverridesSnapshot()
+  ]);
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
+  const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
+  const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
+  const override = findSeoEntityOverride(overrides.entries, reference);
+  const seoControl = resolveSeoEntityControl({
+    settings,
+    kind: reference.kind,
+    entityEligible: !isResearch || quality.blockingReasons.length === 0,
+    defaultIndexAllowed: !isResearch || (settings.researchVendorIndexingEnabled && quality.eligible),
+    defaultSchemaAllowed: true,
+    override
+  });
   const [products, principal, profileMedia] = isResearch
     ? [[], undefined, []] as const
     : await Promise.all([getVendorCatalogCards(id), getAccountSession(), approvedVendorProfileMedia([id])]);
@@ -102,14 +128,14 @@ export default async function VendorPage({ params }: Props) {
   const teamUrl = mediaPath(teamMedia);
   const website = safeHttpUrl(vendor.research?.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.research?.directoryProfileUrl);
-  const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
+  const vendorUrl = absoluteSeoCanonical(settings.canonicalOrigin, reference, override);
   const fullAddress = addressText(location);
   const mapHref = `/shops/map?vendor=${encodeURIComponent(vendor.id)}`;
   const adviserName = vendor.adviser ?? "Η ομάδα του καταστήματος";
   const intro = isResearch
     ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το ΚΟΝΤΑ ΜΟΥ Sparta δεν έχει ακόμη ενεργοποιηθεί.`
     : (vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
-  const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map(absolutePublicMedia);
+  const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -119,7 +145,7 @@ export default async function VendorPage({ params }: Props) {
     url: vendorUrl,
     description: vendor.story?.excerpt ?? (isResearch ? "Χαρτογραφημένη τοπική επιχείρηση από δημόσιες επιχειρηματικές πηγές." : undefined),
     image: structuredImages.length ? structuredImages : undefined,
-    logo: logoUrl ? absolutePublicMedia(logoUrl) : undefined,
+    logo: logoUrl ? absolutePublicMedia(logoUrl, settings.canonicalOrigin) : undefined,
     telephone: location?.phone,
     email: location?.publicEmail,
     sameAs: [website, directoryProfile].filter(Boolean),
@@ -139,7 +165,7 @@ export default async function VendorPage({ params }: Props) {
 
   return (
     <main className={styles.page}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
+      {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} /> : null}
       <div className="announcement">
         {isResearch
           ? "Τοπικός επιχειρηματικός κατάλογος · δημόσια στοιχεία και σαφές στάδιο συνεργασίας."

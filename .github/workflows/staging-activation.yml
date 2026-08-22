@@ -72,7 +72,7 @@ jobs:
         with:
           node-version: 24
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
       - name: Verify source before external checks
         run: npm run check && npm run typecheck:activation
       - name: Confirm staging database schema

@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { CONTROLLER, DATA_ACCESS_EXAMPLES, DATA_RECIPIENTS, LEGAL_LAST_UPDATED } from "../../lib/legal-transparency";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/privacy", {
   title: "Πολιτική Απορρήτου",
-  description: "Πώς το ΚΟΝΤΑ ΜΟΥ συλλέγει, χρησιμοποιεί, διαβιβάζει, προστατεύει και διατηρεί προσωπικά δεδομένα.",
-  alternates: { canonical: "/privacy" }
-};
+  description: "Πώς το ΚΟΝΤΑ ΜΟΥ συλλέγει, χρησιμοποιεί, διαβιβάζει, προστατεύει και διατηρεί προσωπικά δεδομένα."
+  });
+}
 
 const processing = [
   ["Λογαριασμός & ταυτοποίηση", "Email, στοιχεία προφίλ, στοιχεία σύνδεσης και ασφάλειας", "Εκτέλεση σύμβασης / λήψη μέτρων κατόπιν αιτήματος και ασφάλεια υπηρεσίας"],

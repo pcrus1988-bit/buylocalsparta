@@ -3,11 +3,14 @@ import { SiteHeader } from "../../components/SiteHeader";
 import { getCanonicalProductSummary } from "../../lib/catalog-view";
 import { getPublicVendorDirectory } from "../../lib/public-vendor-directory";
 import { storefrontCategoryForCode } from "../../lib/storefront-taxonomy";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { SiteFooter } from "../../components/SiteFooter";
 
 type Props = Readonly<{ searchParams: Promise<{ product?: string; vendor?: string }> }>;
 
-export const metadata: Metadata = { title: "Πραγματική τοπική συμβουλή", description: "Βρες τον κατάλληλο επαγγελματία της Σπάρτης και ζήτησε συμβουλή πριν αγοράσεις.", alternates: { canonical: "/advice" } };
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/advice", { title: "Πραγματική τοπική συμβουλή", description: "Βρες τον κατάλληλο επαγγελματία της Σπάρτης και ζήτησε συμβουλή πριν αγοράσεις." });
+}
 
 export default async function AdvicePage({ searchParams }: Props) {
   const params = await searchParams;

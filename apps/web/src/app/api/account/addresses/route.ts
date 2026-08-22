@@ -1,6 +1,7 @@
 import { requireAccountSession } from "../../../../lib/account-session";
 import { assertCustomerCsrf } from "../../../../lib/customer-state-runtime";
 import { customerCheckoutProfile, removeCustomerAddress, saveCustomerAddress } from "../../../../lib/customer-address-runtime";
+import { customerBrowserAddressProfile } from "../../../../lib/customer-account-browser-view";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const principal = await requireAccountSession();
-    return Response.json(await customerCheckoutProfile(principal), { headers: { "Cache-Control": "no-store" } });
+    return Response.json(customerBrowserAddressProfile(await customerCheckoutProfile(principal)), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "address_profile_failed" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
       isDefaultBilling: body.isDefaultBilling === true,
       isDefaultDelivery: body.isDefaultDelivery === true
     }, Date.now());
-    return Response.json(profile, { status: body.id ? 200 : 201, headers: { "Cache-Control": "no-store" } });
+    return Response.json(customerBrowserAddressProfile(profile), { status: body.id ? 200 : 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "address_save_failed" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
@@ -47,7 +48,7 @@ export async function DELETE(request: Request) {
     assertCustomerCsrf(principal, request.headers.get("x-csrf-token") ?? undefined);
     const body = await request.json() as Record<string, unknown>;
     const id = requiredString(body.id, "Address id", 128);
-    return Response.json(await removeCustomerAddress(principal, id, Date.now()), { headers: { "Cache-Control": "no-store" } });
+    return Response.json(customerBrowserAddressProfile(await removeCustomerAddress(principal, id, Date.now())), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "address_delete_failed" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }

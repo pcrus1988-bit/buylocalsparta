@@ -1,5 +1,5 @@
 import { requireAccountSession } from "../../../../../../lib/account-session";
-import { accountOrderDetail } from "../../../../../../lib/account-view";
+import { requireCustomerOrderReference } from "../../../../../../lib/customer-order-reference";
 import { customerFiscalDocumentForOrder } from "../../../../../../lib/customer-fiscal-runtime";
 import { renderCustomerTaxPdf } from "../../../../../../lib/customer-tax-pdf";
 
@@ -9,8 +9,8 @@ export async function GET(request: Request, { params }: Context) {
   try {
     const principal = await requireAccountSession(request, false);
     const { id } = await params;
-    await accountOrderDetail(principal, id); // ownership/visibility authorization
-    const document = await customerFiscalDocumentForOrder(id);
+    const resolved = await requireCustomerOrderReference(principal, id);
+    const document = await customerFiscalDocumentForOrder(resolved.internalId);
     if (!document) return Response.json({ error: "INVOICE_NOT_FOUND" }, { status: 404 });
     const pdf = await renderCustomerTaxPdf(document);
     const body = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer;

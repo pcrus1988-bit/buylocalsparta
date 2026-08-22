@@ -22,11 +22,10 @@ export async function POST(request: Request, { params }: Context) {
         "Αν απαιτείται επιστροφή ποσού, η σχετική εξέλιξη θα εμφανιστεί στην παραγγελία σου και θα λάβεις ξεχωριστή ενημέρωση."
       ].join("\n"),
       eventType: "order.cancelled",
-      idempotencyKey: `customer-order-cancelled:${id}`,
+      idempotencyKey: `customer-order-cancelled:${result.referenceNumber}`,
       payload: {
-        orderId: id,
         orderReference: result.referenceNumber,
-        ctaPath: `/account/orders/${encodeURIComponent(id)}`,
+        ctaPath: `/account/orders/${encodeURIComponent(result.referenceNumber)}`,
         ctaLabel: "Προβολή παραγγελίας"
       }
     });

@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { SiteFooter } from "../../components/SiteFooter";
 import styles from "./page.module.css";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/join", {
   title: "Γίνε συνεργάτης",
-  description: "Σύγκρινε τα προγράμματα συνεργασίας, δες ποια καταστήματα μπορούν να συμμετέχουν και ξεκίνα την ελεγχόμενη αίτηση συνεργασίας.",
-  alternates: { canonical: "/join" }
-};
+  description: "Σύγκρινε τα προγράμματα συνεργασίας, δες ποια καταστήματα μπορούν να συμμετέχουν και ξεκίνα την ελεγχόμενη αίτηση συνεργασίας."
+  });
+}
 
 const steps = [
   ["01", "Αίτηση", "Υποβάλλεις τα πραγματικά στοιχεία της επιχείρησης. Η αίτηση καταχωρίζεται σε verification pending — χωρίς vendor access."],

@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/payments-security", {
   title: "Πληρωμές & ασφάλεια checkout",
-  description: "Πώς λειτουργεί η ενιαία πληρωμή, η φιλοξενούμενη σελίδα Viva και η επαλήθευση παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Sparta.",
-  alternates: { canonical: "/payments-security" }
-};
+  description: "Πώς λειτουργεί η ενιαία πληρωμή, η φιλοξενούμενη σελίδα Viva και η επαλήθευση παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  });
+}
 
 export default function PaymentsSecurityPage() {
   return <main>
