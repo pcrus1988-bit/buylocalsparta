@@ -135,12 +135,13 @@ Automated package results included:
 
 After deterministic compression of the research asset, `check:research-seed` passed again with the exact 351/353/48/476 counts. The application code tree did not change during that packaging step.
 
+Vercel reported `success` for preservation/report head `d49b33e133ecbbecc35bc233e2725a30bf2e9650`. The status-only documentation update that records that result does not change the verified application tree.
+
 ## 7. Work still required
 
 ### P0 — repository maintenance
 
 - Physically delete the 219 non-main remote refs using an authenticated GitHub environment that has branch-delete permission. Do not merge them again.
-- Confirm the production deployment for the final `main` head. The local production build passed, but the GitHub API had not yet reported a workflow/status result for the direct API-created commit at report time.
 
 ### P0 — production data and acceptance
 
