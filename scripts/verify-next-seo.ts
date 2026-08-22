@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { INDEXABLE_STATIC_ROUTES } from "../apps/web/src/lib/site-navigation.ts";
+import { INDEXABLE_STATIC_ROUTES, NON_INDEXABLE_PAGE_ROUTES } from "../apps/web/src/lib/site-navigation.ts";
 import {
   productIndexEligibility,
   researchVendorIndexEligibility,
@@ -15,6 +15,8 @@ const sitemap = read("apps/web/src/app/sitemap.ts");
 const robots = read("apps/web/src/app/robots.ts");
 const rootLayout = read("apps/web/src/app/layout.tsx");
 const homepage = read("apps/web/src/app/page.tsx");
+const shop = read("apps/web/src/app/shop/page.tsx");
+const shops = read("apps/web/src/app/shops/page.tsx");
 const category = read("apps/web/src/app/category/[slug]/page.tsx");
 const vendor = read("apps/web/src/app/vendor/[id]/page.tsx");
 const vendorLayout = read("apps/web/src/app/vendor/[id]/layout.tsx");
@@ -30,9 +32,16 @@ const reportRuntime = read("apps/web/src/lib/seo-diagnostic-reports.ts");
 const reportRunner = read("apps/web/src/components/AdminSeoReportRunner.tsx");
 const reportExportRoute = read("apps/web/src/app/api/admin/seo/reports/[id]/route.ts");
 const adminSeoPage = read("apps/web/src/app/admin/seo/page.tsx");
+const adminCrawlPage = read("apps/web/src/app/admin/seo/crawl/page.tsx");
+const adminSearchConsolePage = read("apps/web/src/app/admin/seo/search-console/page.tsx");
 const catalogRuntime = read("apps/web/src/lib/catalog-view.ts");
+const crawlerCatalog = read("apps/web/src/lib/crawler-catalog.ts");
+const requestAudience = read("apps/web/src/lib/request-audience.ts");
+const crawlGraph = read("apps/web/src/lib/seo-crawl-graph.ts");
+const searchConsole = read("apps/web/src/lib/seo-search-console.ts");
 const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts");
 const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
+const envExample = read(".env.example");
 
 for (const required of [
   "getPublicProductSeoInventory()",
@@ -67,6 +76,8 @@ if (robots.includes('disallow: "/"')) failures.push("The global noindex switch m
 
 const expectedPathClasses = new Map([
   ["/admin/seo", "AUTHENTICATED_PRIVATE"],
+  ["/admin/seo/crawl", "AUTHENTICATED_PRIVATE"],
+  ["/admin/seo/search-console", "AUTHENTICATED_PRIVATE"],
   ["/account/orders/example", "AUTHENTICATED_PRIVATE"],
   ["/daily/notifications", "AUTHENTICATED_PRIVATE"],
   ["/vendor/finance", "AUTHENTICATED_PRIVATE"],
@@ -80,6 +91,9 @@ const expectedPathClasses = new Map([
 for (const [pathname, expected] of expectedPathClasses) {
   const actual = seoVisibilityForPath(pathname).visibility;
   if (actual !== expected) failures.push(`Visibility policy classified ${pathname} as ${actual}; expected ${expected}`);
+}
+for (const route of ["/admin/seo", "/admin/seo/crawl", "/admin/seo/search-console"]) {
+  if (!NON_INDEXABLE_PAGE_ROUTES.includes(route as never)) failures.push(`Admin SEO route ${route} is missing from the explicit non-indexable inventory`);
 }
 
 const strongResearchVendor = {
@@ -129,9 +143,19 @@ if (!rootLayout.includes("metadataBase: new URL(settings.canonicalOrigin)")) fai
 if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title and description defaults");
 if (!rootLayout.includes("robots: settings.indexingEnabled")) failures.push("Root metadata must publish the emergency global noindex signal");
 if (!homepage.includes('governedStaticSeoMetadata("/"')) failures.push("Homepage must consume governed entity metadata and publish a self-canonical URL");
+if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("getCrawlerHomepageCatalogCards")) failures.push("Homepage crawler rendering must bypass customer fairness assignment");
+if (!homepage.includes("const discoveryCategories = STOREFRONT_CATEGORIES")) failures.push("Homepage must link every curated category independently of the rotating product set");
 if (!category.includes("title: category.label")) failures.push("Category metadata must rely on the root title template rather than duplicating the brand");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
+if (!category.includes("isReadOnlyPublicCrawlerRequest") || !category.includes("getCrawlerCatalogCards")) failures.push("Category crawler rendering must use the read-only catalogue projection");
 if (category.includes('title: `${category.label} · Buy Local Sparta`')) failures.push("Category title must not duplicate the root title template");
+
+for (const source of [shop, shops]) {
+  if (!source.includes("searchParams") || !source.includes("index: false, follow: true")) failures.push("Filtered public directory/catalogue URLs must publish noindex,follow");
+}
+if (!shop.includes('alternates: { canonical: category ? `/category/${category.slug}` : "/shop" }')) failures.push("Filtered shop URLs must canonicalize to a clean catalogue/category landing page");
+if (!shops.includes('alternates: { canonical: "/shops" }')) failures.push("Filtered merchant-directory URLs must canonicalize to /shops");
+if (!shop.includes("isReadOnlyPublicCrawlerRequest") || !shop.includes("getCrawlerCatalogCards")) failures.push("Shop crawler rendering must use the read-only catalogue projection");
 
 if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
@@ -148,7 +172,11 @@ if (!product.includes("buildGovernedSeoMetadata") || !product.includes("productP
 if (!product.includes("seoControl.schemaAllowed ? <script")) failures.push("Product structured data must honor the governed schema decision");
 if (!product.includes("productIndexEligibility") || !product.includes("quality.blockingReasons.length === 0") || !product.includes("defaultIndexAllowed: quality.eligible")) failures.push("Product metadata/schema must honor the product quality/index gate");
 if (product.includes("vendorPrice") || product.includes("supplierPrice")) failures.push("Product structured data must not expose hidden supplier pricing");
-if (!product.includes("permanentRedirect(productPublicPath(summary))") || !product.includes("getCatalogCard(summary.id, visitorKey)")) failures.push("Legacy product-ID URLs must redirect before commerce resolves the unchanged canonical product ID");
+if (!product.includes("permanentRedirect(productPublicPath(summary))")) failures.push("Legacy product-ID URLs must redirect before commerce resolves the unchanged canonical product ID");
+if (!product.includes("isReadOnlyPublicCrawlerRequest") || !product.includes("getCrawlerCatalogCard(summary.id)")) failures.push("Product crawler rendering must use the read-only catalogue projection");
+if (!product.includes("getCatalogCard(summary.id, await getVisitorKey())")) failures.push("Human product rendering must keep the existing customer fairness-assignment path");
+if (!product.includes("const offerData = readOnlyCrawler ? undefined")) failures.push("Crawler product schema must not publish a personalized Offer without a real customer assignment");
+if (!product.includes('itemListElement: [') || product.includes('item: `${origin}/shop?category=${encodeURIComponent(category.slug)}&subcategory=${encodeURIComponent(product.categoryCode)}`')) failures.push("Product structured breadcrumbs must use canonical indexable routes rather than noindex filter URLs");
 if (product.includes("sku: product.mpn ?? product.id")) failures.push("Product schema must not fall back to exposing the canonical product ID as a public SKU");
 if (!product.includes("<Image") || !product.includes("openGraphImage:")) failures.push("Product SEO must use approved media for the visible image and social metadata when available");
 if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: openGraphImage ? "summary_large_image" : "summary"')) failures.push("Governed metadata must publish Twitter/X card fallbacks alongside Open Graph data");
@@ -162,6 +190,22 @@ for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInvent
   if (!catalogRuntime.includes(contract)) failures.push(`Public product SEO projection is missing ${contract}`);
 }
 if (!catalogCard.includes("productPublicPath(product)")) failures.push("Public catalogue cards must link to the preferred friendly product URL");
+
+for (const contract of ["publicCanonicalAvailability", "getPublicProductSeoInventory", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
+  if (!crawlerCatalog.includes(contract)) failures.push(`Crawler-safe catalogue is missing ${contract}`);
+}
+if (crawlerCatalog.includes("publicAssignedCanonical")) failures.push("Crawler catalogue must never call Fair Vendor Assignment");
+for (const bot of ["googlebot", "bingbot", "google-inspectiontool", "facebookexternalhit", "twitterbot"]) {
+  if (!requestAudience.includes(`"${bot}"`)) failures.push(`Crawler classification is missing ${bot}`);
+}
+if (!requestAudience.includes("used only to select a read-only public") && !requestAudience.includes("read-only public")) failures.push("Crawler classification must document that it never grants access or bypasses authentication");
+
+for (const contract of ["adminSeoCrawlGraph", '"/shop catalogue"', '"/shops directory"', '"Homepage category rail"', "orphan", "weak", "indexAllowed"]) {
+  if (!crawlGraph.includes(contract)) failures.push(`SEO crawl graph is missing ${contract}`);
+}
+for (const contract of ["Internal linking & orphan diagnostics", "Weakly linked", "Orphans", "Open public page"]) {
+  if (!adminCrawlPage.includes(contract)) failures.push(`Admin crawl graph UI is missing ${contract}`);
+}
 
 for (const privateSource of ["/account/:path*", "/admin/:path*", "/daily/:path*", "/vendor/finance/:path*", "/api/internal/:path*"]) {
   if (!nextConfig.includes(`"${privateSource}"`)) failures.push(`Central X-Robots-Tag coverage is missing ${privateSource}`);
@@ -215,6 +259,29 @@ for (const contract of ["Product index eligibility", "productIndexEligible", "Wh
   if (!adminSeoPage.includes(contract)) failures.push(`Admin product SEO quality UI is missing ${contract}`);
 }
 
+for (const contract of [
+  'import "server-only"',
+  'https://www.googleapis.com/auth/webmasters.readonly',
+  "BLS_GOOGLE_SEARCH_CONSOLE_ENABLED",
+  "BLS_GOOGLE_SEARCH_CONSOLE_SITE_URL",
+  "GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL",
+  "GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY",
+  "createSign(\"RSA-SHA256\")",
+  "searchAnalytics/query",
+  "urlInspection/index:inspect",
+  'cache: "no-store"'
+]) {
+  if (!searchConsole.includes(contract)) failures.push(`Search Console server adapter is missing ${contract}`);
+}
+if (adminSearchConsolePage.includes("GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY") || adminSearchConsolePage.includes("accessToken")) failures.push("Search Console Admin UI must never expose credential/token material");
+for (const contract of ["Search Console integration", "Credentials", "Search Analytics snapshot", "URL Inspection"]) {
+  if (!adminSearchConsolePage.includes(contract)) failures.push(`Search Console Admin UI is missing ${contract}`);
+}
+for (const variable of ["BLS_GOOGLE_SEARCH_CONSOLE_ENABLED", "BLS_GOOGLE_SEARCH_CONSOLE_SITE_URL", "GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL", "GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY"]) {
+  if (!envExample.includes(variable)) failures.push(`Search Console environment documentation is missing ${variable}`);
+}
+if (/GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY=\S+/.test(envExample)) failures.push("Search Console private key example must remain empty");
+
 const entitySettings = {
   indexingEnabled: true,
   sitemap: { staticPages: true, categories: true, products: true, partnerVendors: true, researchVendors: true }
@@ -239,4 +306,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed global/entity/product metadata, friendly legacy-compatible product URLs, product and Research quality gates, audited overrides/reports, protected exports, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");
+console.log("Next SEO checks passed: governed metadata/settings/overrides/reports, friendly product URLs, Research/product quality gates, query canonicalization, crawler/fairness isolation, crawl graph, optional Search Console boundary, private-route headers and diagnostic hardening verified.");
