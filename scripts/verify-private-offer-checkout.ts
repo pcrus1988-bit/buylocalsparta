@@ -43,7 +43,7 @@ for (const contract of [
 ]) if (!route.includes(contract)) failures.push(`Private-offer checkout route is missing ${contract}`);
 
 for (const contract of [
-  "customerPrivateOfferCheckoutPreview",
+  "customerPrivateOfferBrowserPreview",
   "PrivateOfferCheckoutClient",
   "offer.unavailableReason",
   "profile.addresses.length === 0",
