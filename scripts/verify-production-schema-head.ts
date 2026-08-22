@@ -19,7 +19,7 @@ async function verifyProductionSchemaHead(): Promise<void> {
     throw new Error("Repository contains no migrations; refusing production schema verification");
   }
 
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = resolveProductionDatabaseUrl();
   if (connectionString) {
     await verifyDirectDatabase(connectionString, migrations);
     return;
@@ -30,7 +30,7 @@ async function verifyProductionSchemaHead(): Promise<void> {
     return;
   }
 
-  throw new Error("DATABASE_URL is required for the production schema gate outside Vercel production builds");
+  throw new Error("DATABASE_URL or POSTGRES_URL is required for the production schema gate outside Vercel production builds");
 }
 
 async function verifyDirectDatabase(connectionString: string, migrations: readonly MigrationFile[]): Promise<void> {
@@ -176,6 +176,23 @@ function assertLedgerMatchesRepository(rows: readonly any[], migrations: readonl
 function ledgerFingerprint(entries: readonly Pick<MigrationFile, "version" | "filename" | "sha256">[]): string {
   const canonical = entries.map((entry) => `${entry.version}\t${entry.filename}\t${entry.sha256}`).join("\n");
   return createHash("sha256").update(`schema-ledger-v1\n${canonical}`).digest("hex");
+}
+
+function resolveProductionDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const explicit = env.DATABASE_URL?.trim();
+  if (explicit) return explicit;
+  const marketplace = env.POSTGRES_URL?.trim();
+  if (!marketplace) return undefined;
+  try {
+    const url = new URL(marketplace);
+    const hostname = url.hostname.toLowerCase();
+    if (hostname.endsWith(".supabase.co") || hostname.endsWith(".supabase.com")) {
+      url.searchParams.set("sslmode", "no-verify");
+    }
+    return url.toString();
+  } catch {
+    return marketplace;
+  }
 }
 
 function productionSchemaOrigin(): URL {
