@@ -95,6 +95,34 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
         run: npm run db:ready
+      - name: Bootstrap synthetic appointment public-phone fixture
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_appointment_phone_location()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          SET search_path = pg_catalog, public, bls_private
+          AS $$
+          BEGIN
+            IF NEW.public_id NOT LIKE 'vendor_appointments_%' THEN
+              RETURN NEW;
+            END IF;
+            INSERT INTO public.vendor_locations(
+              vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,active,is_primary
+            ) VALUES (
+              NEW.id,NEW.market_id,'CI appointment location','Synthetic acceptance location','Sparta','23100','GR','+302731000000',true,true
+            );
+            RETURN NEW;
+          END;
+          $$;
+          DROP TRIGGER IF EXISTS ci_seed_appointment_phone_location ON public.vendor_businesses;
+          CREATE TRIGGER ci_seed_appointment_phone_location
+          AFTER INSERT ON public.vendor_businesses
+          FOR EACH ROW
+          WHEN (NEW.public_id LIKE 'vendor_appointments_%')
+          EXECUTE FUNCTION bls_private.ci_seed_appointment_phone_location();
+          SQL
       - name: Run appointment authorization and privacy acceptance
         run: >-
           node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
@@ -103,3 +131,10 @@ jobs:
         run: >-
           node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
           scripts/appointments-lifecycle-acceptance.ts
+      - name: Disable synthetic appointment public-phone fixture
+        if: always()
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER IF EXISTS ci_seed_appointment_phone_location ON public.vendor_businesses;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_appointment_phone_location();
+          SQL
