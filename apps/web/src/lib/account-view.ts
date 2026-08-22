@@ -13,6 +13,7 @@ import { customerFiscalDocumentForOrder } from "./customer-fiscal-runtime";
 import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerPickupCredential } from "./order-lifecycle";
 import { marketplaceReferenceMap } from "./public-reference-service";
 import { requireCustomerOrderReference } from "./customer-order-reference";
+import { customerOrderLineActionToken, requireCustomerOrderLineInternalId } from "./customer-order-line-action-token";
 
 function browserNotificationPayload(payload: Record<string, unknown>): Record<string, unknown> {
   const { orderId: _internalOrderId, returnId: _internalReturnId, requestId: _internalAskLocalRequestId, privateOfferId: _internalPrivateOfferId, ...safe } = payload;
@@ -63,7 +64,7 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
       total: formatMoney(order.total),
       createdAt: order.createdAt,
       fulfilmentMode: order.fulfilmentMode,
-      lines: order.lines.map((line) => ({ id: line.id, title: line.titleSnapshot, quantity: line.quantity, status: line.status }))
+      lines: order.lines.map((line) => ({ id: customerOrderLineActionToken(principal.userId, order.id, line.id), title: line.titleSnapshot, quantity: line.quantity, status: line.status }))
     };
   });
   return {
@@ -104,7 +105,7 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderIdent
     customerReturnsSnapshot(principal, orderId)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, resolved.referenceNumber, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
+  return orderDetailProjection(order, principal.userId, resolved.referenceNumber, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
@@ -134,7 +135,8 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
 }) {
   const now = input.now ?? Date.now();
   const resolved = await requireCustomerOrderReference(principal, input.orderId);
-  const created = await createCustomerReturnCase(principal, { ...input, orderId: resolved.internalId, now });
+  const line = await requireCustomerOrderLineInternalId(principal, resolved.internalId, input.orderLineId);
+  const created = await createCustomerReturnCase(principal, { ...input, orderId: resolved.internalId, orderLineId: line.internalId, now });
   await createCustomerNotification({
     userId: principal.userId,
     eventType: "return.requested",
@@ -149,6 +151,7 @@ export async function requestCustomerReturn(principal: SessionPrincipal, input: 
 
 function orderDetailProjection(
   order: CustomerOrder,
+  userId: string,
   referenceNumber: string,
   csrfToken: string,
   canCancel: boolean,
@@ -157,6 +160,14 @@ function orderDetailProjection(
   returns: CustomerReturnsSnapshot,
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
 ) {
+  const lineTokens = new Map(order.lines.map((line) => [line.id, customerOrderLineActionToken(userId, order.id, line.id)] as const));
+  const browserReturns = returns.cases.map((item) => ({
+    ...item,
+    lines: item.lines.flatMap((entry) => {
+      const token = lineTokens.get(entry.orderLineId);
+      return token ? [{ ...entry, orderLineId: token }] : [];
+    })
+  }));
   return {
     id: referenceNumber,
     referenceNumber,
@@ -175,7 +186,7 @@ function orderDetailProjection(
     csrfToken,
     invoice,
     lines: order.lines.map((line) => ({
-      id: line.id,
+      id: lineTokens.get(line.id)!,
       canonicalVariantId: line.canonicalVariantId,
       title: line.titleSnapshot,
       quantity: line.quantity,
@@ -187,9 +198,19 @@ function orderDetailProjection(
       vendorId: line.vendorId,
       vendorName: vendorNames.get(line.vendorId) ?? line.vendorId
     })),
-    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment) => ({ id: fulfilment.id, status: fulfilment.status, vendorId: fulfilment.vendorId, vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId, deliveryCharge: formatMoney(fulfilment.deliveryCharge), lineIds: fulfilment.lineIds })),
+    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment, index) => ({
+      id: `part-${index + 1}`,
+      status: fulfilment.status,
+      vendorId: fulfilment.vendorId,
+      vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId,
+      deliveryCharge: formatMoney(fulfilment.deliveryCharge),
+      lineIds: fulfilment.lineIds.flatMap((lineId) => {
+        const token = lineTokens.get(lineId);
+        return token ? [token] : [];
+      })
+    })),
     pickups,
-    returns: returns.cases
+    returns: browserReturns
   };
 }
 
