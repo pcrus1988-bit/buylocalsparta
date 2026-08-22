@@ -3,6 +3,8 @@ import { NON_INDEXABLE_PAGE_ROUTES } from "../apps/web/src/lib/site-navigation.t
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/private-offer-checkout-service.ts");
+const resolver = read("apps/web/src/lib/customer-private-offer-reference.ts");
+const publicView = read("apps/web/src/lib/customer-private-offer-checkout-view.ts");
 const route = read("apps/web/src/app/api/account/ask-local/offers/[id]/checkout/route.ts");
 const page = read("apps/web/src/app/checkout/private-offer/[id]/page.tsx");
 const client = read("apps/web/src/components/PrivateOfferCheckoutClient.tsx");
@@ -34,31 +36,59 @@ if (!service.includes("unitPriceMinor * quantity")) failures.push("Private-offer
 if (!service.includes("splitGrossTax(money(merchandiseMinor), taxRateBps)")) failures.push("Private-offer checkout must calculate line tax from the private-offer gross total");
 
 for (const contract of [
+  "u.public_id=$2",
+  "po.public_id=$1 OR (cr.reference_number=$1",
+  'purpose === "decision"',
+  "po.status IN ('accepted','converted')",
+  "result.rowCount !== 1"
+]) if (!resolver.includes(contract)) failures.push(`Private-offer reference resolver is missing ${contract}`);
+
+for (const contract of [
+  'Omit<CustomerPrivateOfferCheckoutPreview, "offerId" | "requestId" | "existingOrderId">',
+  "actionReference: resolved.requestReference",
+  "requestReference: resolved.requestReference",
+  'marketplaceReference("order", preview.existingOrderId)'
+]) if (!publicView.includes(contract)) failures.push(`Private-offer browser projection is missing ${contract}`);
+
+for (const contract of [
   "requireAccountSession(request, true)",
   "customerCheckoutProfile",
   "billingAddressId",
+  "resolveCustomerPrivateOfferReference",
+  '"checkout"',
+  "offerId: resolved.offerId",
   "checkoutCustomerPrivateOffer",
   "attachCustomerOrderAddresses",
+  'marketplaceReference("order", result.order.id)',
   "requireVivaPayments().initiateOrderPayment"
 ]) if (!route.includes(contract)) failures.push(`Private-offer checkout route is missing ${contract}`);
+if (route.includes("payload: { orderId:") || route.includes("privateOfferId:")) failures.push("Private-offer checkout customer notification must not expose internal order/private-offer IDs");
 
 for (const contract of [
-  "customerPrivateOfferCheckoutPreview",
+  "customerPrivateOfferCheckoutView",
   "PrivateOfferCheckoutClient",
   "offer.unavailableReason",
   "profile.addresses.length === 0",
-  "robots: { index: false, follow: false }"
+  "robots: { index: false, follow: false }",
+  "id !== offer.actionReference",
+  "offer.requestReference",
+  "offer.existingOrderReference"
 ]) if (!page.includes(contract)) failures.push(`Private-offer checkout page is missing ${contract}`);
 
 for (const contract of [
   "x-csrf-token",
   "billingAddressId",
   "crypto.randomUUID()",
+  "offer.actionReference",
+  "offer.requestReference",
+  "createdOrderReference",
   "Παραλαβή από το κατάστημα",
   "Δεν εφαρμόζεται η δημόσια τιμή καταλόγου"
 ]) if (!client.includes(contract)) failures.push(`Private-offer checkout client is missing ${contract}`);
+if (client.includes("offer.offerId") || client.includes("offer.requestId")) failures.push("Private-offer checkout client must not receive technical offer/request IDs");
 
 if (!askLocal.includes("/checkout/private-offer/")) failures.push("Accepted Ask Local offers are not linked to private-offer checkout");
+if (!askLocal.includes("encodeURIComponent(actionReference)")) failures.push("Accepted Ask Local offers must enter checkout via the Ask Local reference");
 if (!askLocal.includes("request.canonicalVariantId")) failures.push("Generic Ask Local requests must not expose checkout without a concrete canonical product");
 if (!NON_INDEXABLE_PAGE_ROUTES.includes("/checkout/private-offer/[id]" as never)) failures.push("Private-offer checkout must be registered as non-indexable");
 
@@ -66,4 +96,4 @@ if (failures.length) {
   console.error("Private-offer checkout checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Private-offer checkout checks passed: accepted ownership, exact vendor inventory, pickup-only fulfilment, private price provenance, CSRF/Viva flow and non-indexable routing verified.");
+console.log("Private-offer checkout checks passed: accepted ownership, ASK-reference customer actions, exact vendor inventory, pickup-only fulfilment, private price provenance, public order responses, CSRF/Viva flow and non-indexable routing verified.");
