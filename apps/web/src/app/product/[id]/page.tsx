@@ -14,6 +14,8 @@ import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { productPublicPath } from "../../../lib/product-url";
 import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
+import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
+import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -73,8 +75,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!summary) notFound();
   if (routeKey !== summary.slug) permanentRedirect(productPublicPath(summary));
 
-  const [visitorKey, { settings }, overrides] = await Promise.all([getVisitorKey(), getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
-  const product = await getCatalogCard(summary.id, visitorKey);
+  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
+  const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  const product = readOnlyCrawler
+    ? await getCrawlerCatalogCard(summary.id)
+    : await getCatalogCard(summary.id, await getVisitorKey());
   if (!product) notFound();
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
@@ -91,6 +96,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
     legalName: "SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ",
     url: origin
   } as const;
+  const offerData = readOnlyCrawler ? undefined : {
+    "@type": "Offer",
+    url: productUrl,
+    priceCurrency: "EUR",
+    price: (product.priceMinor / 100).toFixed(2),
+    availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    seller: { "@id": `${origin}/#organization` },
+    availableAtOrFrom: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
+  };
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -111,23 +125,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
         color: product.color,
         size: product.sizes.length ? product.sizes.join(", ") : undefined,
         itemCondition: "https://schema.org/NewCondition",
-        offers: {
-          "@type": "Offer",
-          url: productUrl,
-          priceCurrency: "EUR",
-          price: (product.priceMinor / 100).toFixed(2),
-          availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-          seller: { "@id": `${origin}/#organization` },
-          availableAtOrFrom: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
-        }
+        offers: offerData
       },
       {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Αρχική", item: origin },
           { "@type": "ListItem", position: 2, name: category.label, item: categoryUrl },
-          { "@type": "ListItem", position: 3, name: product.categoryLabel ?? category.label, item: `${origin}/shop?category=${encodeURIComponent(category.slug)}&subcategory=${encodeURIComponent(product.categoryCode)}` },
-          { "@type": "ListItem", position: 4, name: product.title, item: productUrl }
+          { "@type": "ListItem", position: 3, name: product.title, item: productUrl }
         ]
       }
     ]
@@ -147,10 +152,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
         </div>
         <div className="product-detail-copy">
-          <div className="eyebrow"><a href={`/shop?category=${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
+          <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
           <h1>{product.title}</h1>
           <div className="detail-price">{product.price}</div>
-          <p className="lead compact">{product.available ? "Η τιμή και η διαθεσιμότητα προέρχονται από το επιλεγμένο τοπικό offer. Το ΚΟΝΤΑ ΜΟΥ δεν προσθέτει προσαύξηση στην τιμή προϊόντος." : "Ενδεικτική τιμή καταλόγου από την τελευταία καταγεγραμμένη πηγή. Η αγορά θα ενεργοποιηθεί μόνο όταν υπάρχει εγκεκριμένο τοπικό offer με επιβεβαιωμένο stock."}</p>
+          <p className="lead compact">{readOnlyCrawler
+            ? "Ενδεικτική τιμή καταλόγου. Η τελική τιμή, το κατάστημα εκπλήρωσης και το διαθέσιμο stock επιβεβαιώνονται για τον πελάτη από το δίκαιο σύστημα ανάθεσης του ΚΟΝΤΑ ΜΟΥ."
+            : product.available
+              ? "Η τιμή και η διαθεσιμότητα προέρχονται από το επιλεγμένο τοπικό offer. Το ΚΟΝΤΑ ΜΟΥ δεν προσθέτει προσαύξηση στην τιμή προϊόντος."
+              : "Ενδεικτική τιμή καταλόγου από την τελευταία καταγεγραμμένη πηγή. Η αγορά θα ενεργοποιηθεί μόνο όταν υπάρχει εγκεκριμένο τοπικό offer με επιβεβαιωμένο stock."}</p>
 
           {product.description ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p>{product.description}</p></div></div> : null}
 
@@ -166,9 +175,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.madeIn ? <div><strong>Κατασκευή</strong><span>{product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn}</span></div> : null}
           </div>
 
-          {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς ανάθεση</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div></div></div>}
-          <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock παραμένουν συνδεδεμένα με το ίδιο τοπικό offer στη διαδρομή προς το checkout.</span></div><div className="purchase-actions"><AddToCartButton product={product} /><ProductAccountActions productId={product.id} /></div></div>
-          <div className="detail-assurances"><div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div><div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπεις είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div><div><strong>Σταθερή ανάθεση</strong><span>Όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div></div>
+          {!readOnlyCrawler && product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : !readOnlyCrawler && product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">{readOnlyCrawler ? "Δίκαιη τοπική ανάθεση" : "Προσωρινά χωρίς ανάθεση"}</div><strong>{readOnlyCrawler ? "Το κατάστημα εκπλήρωσης επιλέγεται για τον πραγματικό πελάτη, όχι για τον crawler." : "Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή."}</strong><p>{readOnlyCrawler ? "Έτσι η μηχανή αναζήτησης μπορεί να διαβάσει το δημόσιο προϊόν χωρίς να δημιουργεί τεχνητές προβολές ή sticky assignments." : "Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι."}</p>{!readOnlyCrawler ? <div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div> : null}</div></div>}
+          {readOnlyCrawler
+            ? <div className="purchase-card"><div><strong>{product.available ? "Διαθέσιμο στην τοπική αγορά" : "Προσωρινά μη διαθέσιμο"}</strong><span>Τιμή, stock και κατάστημα εκπλήρωσης επιβεβαιώνονται χωρίς να επηρεάζεται η δίκαιη κατανομή από crawler traffic.</span></div></div>
+            : <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock παραμένουν συνδεδεμένα με το ίδιο τοπικό offer στη διαδρομή προς το checkout.</span></div><div className="purchase-actions"><AddToCartButton product={product} /><ProductAccountActions productId={product.id} /></div></div>}
+          <div className="detail-assurances"><div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div><div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div><div><strong>Σταθερή ανάθεση</strong><span>Όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div></div>
         </div>
       </section>
       <SiteFooter />
