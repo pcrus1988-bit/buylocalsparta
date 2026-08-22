@@ -238,9 +238,10 @@ for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'a
 for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) requireText(reportRunner, contract, `SEO report runner is missing ${contract}`);
 for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) requireText(reportExportRoute, contract, `Protected SEO report export is missing ${contract}`);
 for (const contract of ["Persisted diagnostic reports", "scoreDelta", "Changed since last run", "regressionSignals", "?format=json", "?format=csv", "Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO UI is missing ${contract}`);
-for (const contract of ["critical-check-growth", "health-score-drop", "product-runtime-loss", "vendor-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change", "materialDrop", "materialWeakGrowth"]) requireText(monitoringRuntime, contract, `SEO regression monitoring is missing ${contract}`);
+for (const contract of ["critical-diagnostic:", "health-score-drop", "product-runtime-loss", "vendor-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change", "routeClassChanges", "comparableCurrentFormat", "materialDrop", "materialWeakGrowth"]) requireText(monitoringRuntime, contract, `SEO regression monitoring is missing ${contract}`);
 
 const baselineReport = {
+  formatVersion: 2,
   score: 94,
   severityCounts: { critical: 0, warning: 0, info: 3, good: 5 },
   metrics: {
@@ -251,9 +252,11 @@ const baselineReport = {
     crawlWeak: 10
   },
   routeClassCounts: { PUBLIC_INDEXABLE: 20, PUBLIC_NOINDEX: 10, AUTHENTICATED_PRIVATE: 5, INTERNAL_SYSTEM: 5 },
-  runtime: { databaseProductsAvailable: true, databaseVendorsAvailable: true, governedPublicMediaEnabled: true }
+  runtime: { databaseProductsAvailable: true, databaseVendorsAvailable: true, governedPublicMediaEnabled: true },
+  diagnostics: []
 };
 const regressedReport = {
+  formatVersion: 2,
   score: 61,
   severityCounts: { critical: 1, warning: 2, info: 4, good: 3 },
   metrics: {
@@ -264,10 +267,11 @@ const regressedReport = {
     crawlWeak: 14
   },
   routeClassCounts: { PUBLIC_INDEXABLE: 21, PUBLIC_NOINDEX: 10, AUTHENTICATED_PRIVATE: 5, INTERNAL_SYSTEM: 5 },
-  runtime: { databaseProductsAvailable: false, databaseVendorsAvailable: true, governedPublicMediaEnabled: false }
+  runtime: { databaseProductsAvailable: false, databaseVendorsAvailable: true, governedPublicMediaEnabled: false },
+  diagnostics: [{ id: "new-critical", severity: "critical", title: "New critical", detail: "A new critical diagnostic appeared." }]
 };
 const regressionIds = new Set(seoDiagnosticRegressionSignals(regressedReport as never, baselineReport as never).map((signal) => signal.id));
-for (const expected of ["critical-check-growth", "health-score-drop", "product-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change"]) {
+for (const expected of ["critical-diagnostic:new-critical", "health-score-drop", "product-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change"]) {
   if (!regressionIds.has(expected)) failures.push(`SEO regression comparison did not detect ${expected}`);
 }
 const withinNoise = seoDiagnosticRegressionSignals({
@@ -276,6 +280,32 @@ const withinNoise = seoDiagnosticRegressionSignals({
   metrics: { ...baselineReport.metrics, sitemapEstimatedCount: 398, productIndexEligible: 118, vendorIndexEligible: 298, crawlWeak: 12 }
 } as never, baselineReport as never);
 if (withinNoise.length !== 0) failures.push("SEO regression comparison must ignore bounded inventory and weak-link noise");
+
+const replacementCritical = seoDiagnosticRegressionSignals({
+  ...baselineReport,
+  severityCounts: { ...baselineReport.severityCounts, critical: 1 },
+  diagnostics: [{ id: "new-critical-b", severity: "critical", title: "Replacement critical", detail: "A different critical diagnostic appeared." }]
+} as never, {
+  ...baselineReport,
+  severityCounts: { ...baselineReport.severityCounts, critical: 1 },
+  diagnostics: [{ id: "old-critical-a", severity: "critical", title: "Old critical", detail: "The previous critical diagnostic." }]
+} as never);
+if (!replacementCritical.some((signal) => signal.id === "critical-diagnostic:new-critical-b")) failures.push("SEO regression comparison must detect a new critical diagnostic even when the total critical count is unchanged");
+
+const routeReclassification = seoDiagnosticRegressionSignals({
+  ...baselineReport,
+  routeClassCounts: { ...baselineReport.routeClassCounts, PUBLIC_INDEXABLE: 21, AUTHENTICATED_PRIVATE: 4 }
+} as never, baselineReport as never);
+if (!routeReclassification.some((signal) => signal.id === "route-policy-inventory-change")) failures.push("SEO regression comparison must detect route reclassification even when the total route count is unchanged");
+
+const legacySnapshotComparison = seoDiagnosticRegressionSignals(baselineReport as never, {
+  ...baselineReport,
+  formatVersion: 1,
+  metrics: { ...baselineReport.metrics, productIndexEligible: baselineReport.metrics.products, crawlOrphans: 0, crawlWeak: 0 }
+} as never);
+for (const falseLegacySignal of ["product-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth"]) {
+  if (legacySnapshotComparison.some((signal) => signal.id === falseLegacySignal)) failures.push(`SEO regression comparison must not emit ${falseLegacySignal} against a legacy snapshot with unknown quality/crawl metrics`);
+}
 
 // Optional server-only Google Search Console boundary.
 for (const contract of [

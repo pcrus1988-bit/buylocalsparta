@@ -6,6 +6,7 @@ import { getVisitorKey } from "../../lib/visitor";
 import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-analytics";
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
+import { CatalogSearchInput } from "../../components/CatalogSearchInput";
 import { storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 
@@ -97,7 +98,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <aside className="catalog-sidebar">
           <form className="filter-form" action="/shop">
             <label htmlFor="q">Αναζήτηση</label>
-            <input id="q" name="q" defaultValue={valueOf(params.q)} placeholder={categoryView?.searchHint ?? "Τι ψάχνεις;"} />
+            <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Τι ψάχνεις;"} />
 
             {availableCategories.length > 0 ? <>
               <label htmlFor="category">Τμήμα</label>

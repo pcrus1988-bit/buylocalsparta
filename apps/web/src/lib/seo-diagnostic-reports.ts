@@ -8,6 +8,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 export const SEO_DIAGNOSTIC_REPORTS_KEY = "seo.visibility.reports.v1";
 export const SEO_DIAGNOSTIC_REPORT_AUDIT_ENTITY = "seo_diagnostic_report";
 export const SEO_DIAGNOSTIC_REPORT_LIMIT = 50;
+export const SEO_DIAGNOSTIC_REPORT_FORMAT_VERSION = 2;
 
 export type SeoDiagnosticSeverity = "critical" | "warning" | "info" | "good";
 
@@ -52,6 +53,7 @@ export type SeoDiagnosticReportRuntime = Readonly<{
 }>;
 
 export type SeoDiagnosticReport = Readonly<{
+  formatVersion: number;
   id: string;
   createdAt: string;
   sourceGeneratedAt: string;
@@ -197,6 +199,8 @@ export function seoDiagnosticHealthScore(diagnostics: readonly SeoDiagnosticRepo
 
 function normalizeReport(value: unknown): SeoDiagnosticReport | undefined {
   const input = object(value);
+  const persistedFormatVersion = finiteCount(input.formatVersion);
+  const formatVersion = persistedFormatVersion === undefined ? 1 : persistedFormatVersion;
   const id = boundedText(input.id, 80);
   const createdAt = validIsoDate(input.createdAt);
   const sourceGeneratedAt = validIsoDate(input.sourceGeneratedAt);
@@ -207,7 +211,7 @@ function normalizeReport(value: unknown): SeoDiagnosticReport | undefined {
   const routeClassCounts = normalizeRouteClassCounts(input.routeClassCounts);
   const runtime = normalizeRuntime(input.runtime);
   const diagnostics = normalizeDiagnostics(input.diagnostics);
-  if (!id?.match(/^seo_report_[a-f0-9]{32}$/) || !createdAt || !sourceGeneratedAt || !actorId || !reason || !origin || !metrics || !routeClassCounts || !runtime || !diagnostics) return undefined;
+  if (formatVersion < 1 || formatVersion > SEO_DIAGNOSTIC_REPORT_FORMAT_VERSION || !id?.match(/^seo_report_[a-f0-9]{32}$/) || !createdAt || !sourceGeneratedAt || !actorId || !reason || !origin || !metrics || !routeClassCounts || !runtime || !diagnostics) return undefined;
   let parsedOrigin: URL;
   try {
     parsedOrigin = new URL(origin);
@@ -217,6 +221,7 @@ function normalizeReport(value: unknown): SeoDiagnosticReport | undefined {
   const localOrigin = parsedOrigin.hostname === "localhost" || parsedOrigin.hostname === "127.0.0.1";
   if (parsedOrigin.origin !== origin || (parsedOrigin.protocol !== "https:" && !(localOrigin && parsedOrigin.protocol === "http:"))) return undefined;
   return {
+    formatVersion,
     id,
     createdAt,
     sourceGeneratedAt,
@@ -293,6 +298,7 @@ export async function createSeoDiagnosticReport(input: {
   if (!productionDatabaseConfigured()) throw new Error("SEO diagnostic report persistence requires PostgreSQL runtime.");
   const reason = requiredReason(input.reason);
   const report = normalizeReport({
+    formatVersion: SEO_DIAGNOSTIC_REPORT_FORMAT_VERSION,
     id: `seo_report_${randomUUID().replaceAll("-", "")}`,
     createdAt: new Date().toISOString(),
     sourceGeneratedAt: input.sourceGeneratedAt,

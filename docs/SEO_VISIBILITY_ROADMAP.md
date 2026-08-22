@@ -1,10 +1,9 @@
 # KONTΑ ΜΟΥ — SEO, Search Visibility & Index Governance Roadmap
 
-Status: **active implementation workstream**
+Status: **implemented on `main`; operational activation remains**
 
-Working branch: `agent/seo-visibility-control-center`
-
-Base branch: `main` (must remain unchanged until review/merge)
+Continuation branch: `main` only. The former `agent/seo-visibility-control-center` and
+`agent/seo-visibility-monitoring` workstreams were consolidated on 22 August 2026.
 
 ## Objectives
 
@@ -36,7 +35,7 @@ Security and search directives are separate controls:
 
 # Phase 0 — Security and index-governance foundation (P0/P1)
 
-Implementation status: **foundation implemented on the working branch.**
+Implementation status: **foundation implemented on `main`.**
 
 ## 0.1 Secret/diagnostic hardening
 
@@ -92,7 +91,7 @@ Suggested navigation label: **SEO & Visibility** under **Περιεχόμενο*
 
 ## 1.1 Overview dashboard
 
-Implementation status: **implemented on the working branch.**
+Implementation status: **implemented on `main`.**
 
 Cards/KPIs:
 
@@ -113,7 +112,7 @@ Cards/KPIs:
 
 ## 1.2 Global SEO settings
 
-Implementation status: **editable governed foundation implemented on the working branch.** Settings are stored in the existing market-scoped `system_settings` registry with optimistic version checks and append-only `audit_events` evidence. The current UI controls canonical/default metadata, the guarded global indexing switch, Research-vendor indexing/threshold, sitemap entity families, public-media crawler policy and Google verification. Entity-specific overrides are implemented in Phase 1.3 below.
+Implementation status: **editable governed foundation implemented on `main`.** Settings are stored in the existing market-scoped `system_settings` registry with optimistic version checks and append-only `audit_events` evidence. The current UI controls canonical/default metadata, the guarded global indexing switch, Research-vendor indexing/threshold, sitemap entity families, public-media crawler policy and Google verification. Entity-specific overrides are implemented in Phase 1.3 below.
 
 Manageable fields:
 
@@ -138,7 +137,7 @@ All writes:
 
 ## 1.3 Page/entity SEO registry
 
-Implementation status: **governed override registry implemented on the working branch.** Static pages, curated categories, public canonical products, partner vendors and Research vendors now resolve through one market-scoped registry. Generated metadata remains the default; intentional overrides are permission/CSRF protected, optimistic-version checked and append-only audited. Global indexing, public entity admission, sitemap-family controls and hard Research quality blockers remain authoritative. Persisted override fields now drive page metadata, canonical URLs, index/noindex, XML sitemap admission and Product/LocalBusiness schema eligibility.
+Implementation status: **governed override registry implemented on `main`.** Static pages, curated categories, public canonical products, partner vendors and Research vendors now resolve through one market-scoped registry. Generated metadata remains the default; intentional overrides are permission/CSRF protected, optimistic-version checked and append-only audited. Global indexing, public entity admission, sitemap-family controls and hard Research quality blockers remain authoritative. Persisted override fields now drive page metadata, canonical URLs, index/noindex, XML sitemap admission and Product/LocalBusiness schema eligibility.
 
 Manage SEO for:
 
@@ -191,7 +190,7 @@ Diagnostics must never store credentials, raw session cookies, private customer 
 
 ## 1.5 Reports
 
-Implementation status: **persisted reporting foundation implemented on the working branch.** Authorised Admin users can capture the current aggregate SEO inventory, route-policy counts, runtime readiness and sanitized diagnostic results as a bounded 50-snapshot history. Creation is permission/CSRF protected and append-only audited. Saved reports expose protected, private/no-store/noindex JSON and UTF-8 CSV downloads. The displayed trend compares the two latest internal health scores.
+Implementation status: **persisted reporting foundation implemented on `main`.** Authorised Admin users can capture the current aggregate SEO inventory, route-policy counts, runtime readiness and sanitized diagnostic results as a bounded 50-snapshot history. Creation is permission/CSRF protected and append-only audited. Saved reports expose protected, private/no-store/noindex JSON and UTF-8 CSV downloads. The displayed trend compares the two latest internal health scores.
 
 Persist/read-only snapshots:
 
@@ -209,7 +208,7 @@ Persist/read-only snapshots:
 
 Business decision: **Research vendors are an intentional local-directory/search surface.**
 
-Implementation status: **quality-gated indexing and sitemap admission implemented on the working branch.** Quantity does not override quality.
+Implementation status: **quality-gated indexing and sitemap admission implemented on `main`.** Quantity does not override quality.
 
 ## 2.1 Eligibility gate
 
@@ -270,7 +269,7 @@ Before indexing:
 
 Internal canonical IDs remain authoritative and unchanged.
 
-Implementation status: **metadata/media, friendly URLs, product quality/index gating and crawler-safe offer rendering are implemented on the working branch.** The existing market-unique `canonical_variants.slug` is exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. A second gate above the existing public safety/admission projection scores meaningful title, classification, description, approved image, public identifier/brand and variant differentiation. Thin or unresolved duplicate records remain human-visible but are `noindex`, excluded from the sitemap and visible in Admin diagnostics; eligible records can still be narrowed through audited entity overrides, while hard content/identity blockers cannot be bypassed.
+Implementation status: **metadata/media, friendly URLs, product quality/index gating and crawler-safe offer rendering are implemented on `main`.** The existing market-unique `canonical_variants.slug` is exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. A second gate above the existing public safety/admission projection scores meaningful title, classification, description, approved image, public identifier/brand and variant differentiation. Thin or unresolved duplicate records remain human-visible but are `noindex`, excluded from the sitemap and visible in Admin diagnostics; eligible records can still be narrowed through audited entity overrides, while hard content/identity blockers cannot be bypassed.
 
 ## 3.1 Metadata and schema
 
@@ -413,13 +412,13 @@ No production database migration or secret rotation should be executed implicitl
 9. ✅ Persisted diagnostic reporting/export foundation.
 10. ✅ Optional server-only Search Console integration boundary.
 11. ✅ Honest product `lastmod` policy + automated release invariant.
-12. 🟡 Final CI/release validation, application-accessible preview smoke review, operational credential rotation/Search Console activation, then only after approval merge to `main`.
+12. 🟡 Full repository checks, release typechecks and the production Next.js build passed during the 22 August 2026 main-only consolidation. Application-accessible deployed smoke evidence, operational credential rotation and Search Console activation remain release operations outside the code merge.
 
 ---
 
-# Non-goals for this branch unless required for correctness
+# Non-goals for this workstream unless required for correctness
 
 - Do **not** rename or relocate the `/vendor` workspace or current public `/vendor/[id]` route family merely for SEO aesthetics.
 - Do **not** change internal order/product/vendor identifiers used by finance, tax, procurement, checkout or audit systems.
 - Do **not** deploy database migrations to production automatically.
-- Do **not** push/merge the work into `main` without review.
+- Continue follow-up work directly on `main`; do not recreate long-lived SEO workstream branches.

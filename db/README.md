@@ -54,3 +54,14 @@ Migration files are registered in `migrations/checksums.json`. Run `npm run db:v
 The local dependency-free development runtime still uses in-memory repositories for the full executable demo, but Build 0.22 includes the PostgreSQL unit-of-work abstraction, public-ID/UUID bridge, repository adapters covering catalog/inventory/fairness/commerce/advice/finance/shipping plus identity/vendor/media/trust/returns/notifications/audit, a unified persistence bundle, database-side inventory transaction functions and persistence structures for product trust/background events/direct shipping plus CMS/SEO/storytelling, analytics reporting, notification template/preference/delivery state, verified review persistence, and the expanded return/guarantee/recall operating model. PostgreSQL remains the production source of truth; the in-memory runtime is not a production persistence substitute.
 
 Before production checkout, the seller/supplier, AADE/myDATA, supplier invoice, VAT and PSP payout model must be approved as documented in `docs/LEGAL_TECH_GATE.md`.
+
+## Research vendor seed
+
+`db/seeds/0002_sparta_research_vendors.sql.gz` preserves the governed 14 August 2026 research baseline as deterministic compressed SQL in an idempotent transaction:
+
+- 351 unclaimed vendor candidates and 353 locations;
+- 48 taxonomy records covering 9 major branches and 39 sub-branches;
+- 351 factual Greek profile stubs;
+- 476 dated census, public-web, ΓΕΜΗ-candidate and e-shop-health evidence records.
+
+Every merchant remains `invited`, every location remains unverified and every generated subscription remains `draft`. Reruns do not overwrite claimed/contracted merchants or human-reviewed evidence. Validate the embedded dataset with `npm run check:research-seed`. After migrations are current and the target database has been reviewed, apply it explicitly with `npm run db:seed:research`.

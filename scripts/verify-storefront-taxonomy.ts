@@ -26,12 +26,15 @@ const categoryPage = readFileSync(`${root}/apps/web/src/app/category/[slug]/page
 const shopPage = readFileSync(`${root}/apps/web/src/app/shop/page.tsx`, "utf8");
 const catalogView = readFileSync(`${root}/apps/web/src/lib/catalog-view.ts`, "utf8");
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
+const catalogSearchInput = readFileSync(`${root}/apps/web/src/components/CatalogSearchInput.tsx`, "utf8");
 
 if (!categoryPage.includes('getCatalogCards(visitorKey, "23100", "", category.slug)')) failures.push("Category landing pages must filter the canonical public catalog through getCatalogCards");
 if (!shopPage.includes('getCatalogCards(visitorKey, "23100", query, category')) failures.push("Shop category filter must be applied server-side");
 if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category)')) failures.push("PostgreSQL catalog projection must filter category codes before fairness assignment");
 if (!catalogView.includes('reason: "search_card"')) failures.push("Category browsing must retain search-card fairness assignment semantics");
 if (!productCard.includes("storefrontCategoryForCode(product.categoryCode)")) failures.push("Product cards must derive their visual category from canonical categoryCode");
+if (!shopPage.includes("<CatalogSearchInput") || !catalogSearchInput.includes("/api/search/suggest")) failures.push("Shop search must retain governed catalogue autocomplete");
+if (!catalogSearchInput.includes("AbortController") || !catalogSearchInput.includes("maxLength={120}")) failures.push("Catalogue autocomplete must cancel stale requests and retain the bounded search contract");
 
 if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
