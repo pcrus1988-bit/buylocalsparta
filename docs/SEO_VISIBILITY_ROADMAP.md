@@ -254,6 +254,7 @@ Index-eligible research vendors:
 - receive canonical URL
 - receive LocalBusiness schema based only on available public/verified fields
 - use a real reviewed/checked timestamp for `lastmod` when available
+- appear in the governed human `/sitemap` directory as a second stable internal discovery path
 
 ## 2.4 Duplicate prevention
 
@@ -269,7 +270,7 @@ Before indexing:
 
 Internal canonical IDs remain authoritative and unchanged.
 
-Implementation status: **metadata/media, friendly URLs and the product quality/index gate are implemented on the working branch.** The existing market-unique `canonical_variants.slug` is exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata also consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. A second gate above the existing public safety/admission projection now scores meaningful title, classification, description, approved image, public identifier/brand and variant differentiation. Thin or unresolved duplicate records remain human-visible but are `noindex`, excluded from the sitemap and visible in Admin diagnostics; eligible records can still be narrowed through audited entity overrides, while hard content/identity blockers cannot be bypassed.
+Implementation status: **metadata/media, friendly URLs, product quality/index gating and crawler-safe offer rendering are implemented on the working branch.** The existing market-unique `canonical_variants.slug` is exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. A second gate above the existing public safety/admission projection scores meaningful title, classification, description, approved image, public identifier/brand and variant differentiation. Thin or unresolved duplicate records remain human-visible but are `noindex`, excluded from the sitemap and visible in Admin diagnostics; eligible records can still be narrowed through audited entity overrides, while hard content/identity blockers cannot be bypassed.
 
 ## 3.1 Metadata and schema
 
@@ -278,13 +279,13 @@ For every public canonical product:
 - generated unique SEO title
 - meaningful description fallback
 - explicit canonical
-- Product + Offer schema where the offer represents a real customer assignment
+- Product + Offer schema based on a real eligible public offer
 - seller relationship
 - availability/price where valid
 - crawlable primary image
-- breadcrumbs
+- canonical breadcrumbs
 
-Crawler rendering now deliberately omits personalized Offer/vendor schema because crawler traffic does not receive a Fair Vendor Assignment. This avoids advertising a crawler-only pseudo-offer merely to obtain a rich result.
+Search/social crawler rendering does **not** consume Fair Vendor Assignment. Instead it selects a currently eligible approved local offer through a strictly read-only projection and exposes that offer's real customer price, vendor and stock. The projection does not update fairness rotation state, create sticky assignments, increment qualified exposures or write fairness-assignment events. Normal customer requests continue through the existing personalised Fair Vendor Assignment path. This keeps crawler-visible commerce content materially aligned with customer-visible content without allowing crawler traffic to distort merchant fairness.
 
 ## 3.2 Human-friendly URLs
 
@@ -307,7 +308,7 @@ Implementation status: **implemented.** The public canonical admission boundary 
 
 # Phase 4 — Sitemap, canonicals and crawl graph
 
-Implementation status: **core crawl architecture implemented; lastmod enrichment and stronger vendor cross-linking remain refinement items.**
+Implementation status: **core crawl architecture and governed internal-link coverage implemented. Honest product-freshness policy is now explicit and release-tested.**
 
 Implemented:
 
@@ -316,16 +317,18 @@ Implemented:
 - Approved public-media paths remain crawlable while private APIs remain outside the public crawl graph.
 - Homepage links every curated category consistently rather than only categories represented in the rotating four-product selection.
 - Category pages and the public catalogue expose product links while product breadcrumbs use canonical category URLs.
-- Arbitrary `/shop?...` and `/shops?...` search/filter combinations are now `noindex,follow` with clean canonical targets, preventing query-parameter index bloat without breaking filtering UX.
+- Arbitrary `/shop?...` and `/shops?...` search/filter combinations are `noindex,follow` with clean canonical targets, preventing query-parameter index bloat without breaking filtering UX.
 - `/admin/seo/crawl` models stable inbound discovery paths and reports orphan/weak-link indexable entities.
-- Search/social crawler requests use a dedicated read-only public catalogue projection. Crawlers can render homepage, shop, category and product content without creating `sticky_assignments`, incrementing `qualified_exposures` or writing Fair Vendor Assignment events.
+- The human `/sitemap` exposes only governed/index-approved vendors, including quality-approved Research listings, grouped by category. Held-back/noindex records stay absent.
+- Search/social crawler requests use a dedicated read-only public-offer projection. Crawlers can render homepage, shop, category and product content without creating `sticky_assignments`, incrementing `qualified_exposures` or writing Fair Vendor Assignment events.
 - Normal customer traffic continues to use the unchanged Fair Vendor Assignment path.
+- Product `lastmod` deliberately uses only an explicit governed `lastReviewedAt` today. Although `canonical_variants.updated_at` exists, `product_translations` has no update timestamp and approved-media changes are separate; therefore no single reliable public-content update clock exists yet. Deployment time, `Date.now()` and incomplete canonical timestamps are explicitly rejected as sitemap freshness signals.
+- The SEO release verifier enforces the above freshness and crawler/fairness invariants.
 
-Remaining refinement:
+Future refinement, not a reason to fabricate current sitemap data:
 
-- Add more accurate `lastmod` for entity types where a trustworthy content-change timestamp is available; omit it rather than manufacture a timestamp where it is not.
-- Increase meaningful category/context links into Research vendor dossiers so directory pages are not dependent on a single `/shops` inbound source.
-- Expand broken-link/reachability probes once the preview can be accessed by an automated smoke client without the Vercel SSO interstitial.
+- Introduce a unified product public-content change timestamp only when all title/description/variant/media publication edits reliably advance it. At that point product `lastmod` can use that clock.
+- Expand live broken-link/reachability probes once an automated smoke client can access the application preview without the Vercel SSO interstitial.
 
 ---
 
@@ -378,16 +381,18 @@ Required before merging to `main`:
 
 - existing test suite passes
 - build/typecheck passes
-- route visibility policy unit tests
-- sitemap inclusion/exclusion tests
-- robots tests
-- anonymous private-route access tests
-- public product/vendor crawl tests
-- crawler/fairness isolation tests
-- diagnostic tool tests
-- admin RBAC/CSRF tests
-- migration/schema verification if persistence is added
-- preview deployment smoke test
+- route visibility policy checks
+- sitemap inclusion/exclusion and honest-freshness checks
+- robots checks
+- anonymous private-route access checks
+- public product/vendor crawl checks
+- crawler/fairness isolation checks, including real read-only public-offer rendering with no fairness writes
+- diagnostic tool checks
+- admin RBAC/CSRF checks
+- migration/schema verification where applicable
+- preview deployment smoke test against an application-accessible preview
+
+Current limitation: Vercel preview deployment builds are green, but direct automated application-page smoke requests are intercepted by the project's Vercel SSO protection. The interstitial itself is `noindex`; this is recorded as an environment limitation rather than treated as successful application HTML validation.
 
 No production database migration or secret rotation should be executed implicitly by merging application code. Those operational steps must be explicit release actions.
 
@@ -402,10 +407,11 @@ No production database migration or secret rotation should be executed implicitl
 5. ✅ Persistence/settings + audited editing.
 6. ✅ Research-vendor Model C eligibility + sitemap/schema integration.
 7. ✅ Product SEO/canonical/quality enhancements.
-8. ✅ Internal-link/crawl-graph foundation + query-index control + crawler/fairness isolation.
+8. ✅ Internal-link/crawl-graph + governed human sitemap + query-index control + crawler/fairness isolation.
 9. ✅ Persisted diagnostic reporting/export foundation.
 10. ✅ Optional server-only Search Console integration boundary.
-11. 🟡 Full release validation, preview smoke review, remaining `lastmod`/link refinements, then only after approval merge to `main`.
+11. ✅ Honest product `lastmod` policy + automated release invariant.
+12. 🟡 Final CI/release validation, application-accessible preview smoke review, operational credential rotation/Search Console activation, then only after approval merge to `main`.
 
 ---
 
