@@ -6,7 +6,7 @@ import { SiteFooter } from "../../../../components/SiteFooter";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { getAccountSession } from "../../../../lib/account-session";
 import { customerCheckoutProfile } from "../../../../lib/customer-address-runtime";
-import { customerPrivateOfferCheckoutPreview } from "../../../../lib/private-offer-checkout-service";
+import { customerPrivateOfferBrowserPreview } from "../../../../lib/customer-private-offer-browser-view";
 import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
 
 export const metadata: Metadata = { title: "Ιδιωτική προσφορά · Checkout", robots: { index: false, follow: false } };
@@ -21,8 +21,9 @@ export default async function PrivateOfferCheckoutPage({ params }: Props) {
   const { id } = await params;
   const principal = await getAccountSession();
   if (!principal?.roles.includes("customer")) redirect(`/login?next=${encodeURIComponent(`/checkout/private-offer/${id}`)}`);
-  const offer = await customerPrivateOfferCheckoutPreview(principal, id);
+  const offer = await customerPrivateOfferBrowserPreview(principal, id);
   if (!offer) notFound();
+  if (id !== offer.offerId) redirect(`/checkout/private-offer/${encodeURIComponent(offer.offerId)}`);
   const profile = await customerCheckoutProfile(principal);
   const viva = await vivaPaymentsProviderReadiness();
   const checkoutEnabled = process.env.NODE_ENV === "production" ? viva.enabled && viva.ready : true;
