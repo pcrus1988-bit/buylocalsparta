@@ -174,13 +174,19 @@ try {
   const vendorRecoveryMinor = Number(line.rows[0]?.vendor_proceeds_minor ?? 0);
   expect(lineId && vendorRecoveryMinor > 0, "Fulfilled return line did not persist vendor proceeds");
 
-  const procurementId = `procurement_returns_${suffix}`;
-  await runtime.sqlPool.query(`
-    INSERT INTO procurements(id,public_id,procurement_number,market_id,order_id,fulfilment_order_id,vendor_id,status,currency,supplier_net_minor,supplier_tax_minor,shipping_reimbursement_minor,service_fee_minor,adjustment_minor,payable_minor,created_at,updated_at)
-    SELECT gen_random_uuid(),$1,$2,m.id,o.id,fo.id,v.id,'payable','EUR',800,192,0,0,0,992,$3,$3
-    FROM markets m,customer_orders o,fulfilment_orders fo,vendor_businesses v
-    WHERE m.code='sparta' AND o.public_id=$4 AND fo.public_id=$5 AND v.public_id=$6
-  `, [procurementId, `PROC-RET-${suffix}`, new Date(now + 250), order.id, fulfilment.id, vendorId]);
+  const accrued = await runtime.sqlPool.query<{ public_id: string; status: string; payable_minor: number } & Record<string, unknown>>(`
+    SELECT p.public_id,p.status::text AS status,p.payable_minor
+    FROM procurements p
+    JOIN fulfilment_orders fo ON fo.id=p.fulfilment_order_id
+    WHERE fo.public_id=$1
+    LIMIT 1
+  `, [fulfilment.id]);
+  expect(accrued.rows[0]?.status === "vendor_invoice_required", "Delivered captured fulfilment did not auto-accrue vendor procurement");
+  expect(Number(accrued.rows[0]?.payable_minor ?? 0) > 0, "Auto-accrued procurement did not calculate a payable amount");
+  const procurementId = String(accrued.rows[0]?.public_id ?? "");
+  expect(procurementId, "Auto-accrued procurement did not have a public reference");
+  await runtime.sqlPool.query(`UPDATE procurements SET status='payable',updated_at=$2 WHERE public_id=$1`, [procurementId, new Date(now + 250)]);
+
   const batch = await runtime.adminOperations.settlementAction(admin.principal, { kind: "create", procurementIds: [procurementId], now: now + 260 });
   await runtime.adminOperations.settlementAction(admin.principal, { kind: "submit", batchId: batch.id, now: now + 270 });
   await runtime.adminOperations.settlementAction(finance.principal, { kind: "approve", batchId: batch.id, now: now + 280 });
@@ -269,6 +275,7 @@ try {
     customerOwnershipIsolation: true,
     overReturnProtection: true,
     canonicalReturnReference: true,
+    automaticProcurementAccrual: true,
     adminTransitionGuards: true,
     vendorTenantIsolation: true,
     vendorReceiptAndInspection: true,
