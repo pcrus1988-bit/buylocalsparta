@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { hashPassword } from "../packages/core/src/index.ts";
+import { hashPassword, type Role } from "../packages/core/src/index.ts";
 import {
   createPostgresRuntimeFromEnv,
   PostgresCustomerAuthService,
@@ -58,7 +58,7 @@ async function saveAccount(input: {
   id: string;
   email: string;
   password: string;
-  roles: readonly string[];
+  roles: readonly Role[];
   vendorId?: string;
   createdAt: number;
 }) {
