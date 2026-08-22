@@ -11,7 +11,12 @@ import { productPublicPath } from "../apps/web/src/lib/product-url.ts";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const failures: string[] = [];
+const requireText = (source: string, contract: string, message: string) => {
+  if (!source.includes(contract)) failures.push(message);
+};
+
 const sitemap = read("apps/web/src/app/sitemap.ts");
+const humanSitemap = read("apps/web/src/app/sitemap/page.tsx");
 const robots = read("apps/web/src/app/robots.ts");
 const rootLayout = read("apps/web/src/app/layout.tsx");
 const homepage = read("apps/web/src/app/page.tsx");
@@ -43,7 +48,8 @@ const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts
 const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
 const envExample = read(".env.example");
 
-for (const required of [
+// XML sitemap governance and honest freshness.
+for (const contract of [
   "getPublicProductSeoInventory()",
   "getPublicVendorDirectory()",
   "STOREFRONT_CATEGORIES",
@@ -56,24 +62,35 @@ for (const required of [
   "productPublicPath(product)",
   "productIndexEligibility(product)",
   "researchVendorIndexEligibility"
-]) {
-  if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
-}
-if (!sitemap.includes("if (!settings.indexingEnabled) return []")) failures.push("Sitemap must fail closed when the global indexing master switch is off");
-if (!sitemap.includes('vendor.directoryStatus === "partner"')) failures.push("Sitemap must independently control partner and Research vendor admission");
-if (!sitemap.includes("override?.lastReviewedAt ?? vendor.research?.checkedAt")) failures.push("Vendor sitemap entries must preserve governed review/research freshness");
+]) requireText(sitemap, contract, `Sitemap is missing ${contract}`);
+requireText(sitemap, "if (!settings.indexingEnabled) return []", "Sitemap must fail closed when the global indexing master switch is off");
+requireText(sitemap, 'vendor.directoryStatus === "partner"', "Sitemap must independently control partner and Research vendor admission");
+requireText(sitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
+requireText(sitemap, "do not manufacture freshness", "Product sitemap freshness policy must explicitly forbid manufactured timestamps");
 
-for (const required of [
+const productSitemapStart = sitemap.indexOf('...(products.status === "fulfilled"');
+const productSitemapEnd = sitemap.indexOf('...(vendors.status === "fulfilled"');
+if (productSitemapStart < 0 || productSitemapEnd <= productSitemapStart) {
+  failures.push("Unable to isolate product sitemap block for freshness checks");
+} else {
+  const productSitemap = sitemap.slice(productSitemapStart, productSitemapEnd);
+  requireText(productSitemap, "lastModified: safeLastModified(override?.lastReviewedAt)", "Products may expose lastmod only from an explicit governed review date until a trustworthy public-content clock exists");
+  if (/lastModified:[^\n]*(?:Date\.now\(|new Date\(\)|product\.(?:updatedAt|createdAt|priceUpdatedAt))/i.test(productSitemap)) {
+    failures.push("Product sitemap must not manufacture or infer lastmod from incomplete/transient timestamps");
+  }
+}
+
+// robots.txt is crawl policy, not access control.
+for (const contract of [
   "getSeoGlobalSettingsSnapshot()",
   'disallow: ["/api/"]',
   '"/api/media/"',
   "settings.indexingEnabled ? `${origin}/sitemap.xml` : undefined"
-]) {
-  if (!robots.includes(required)) failures.push(`robots.txt governance is missing ${required}`);
-}
-if (robots.includes("ROBOTS_DISALLOW_PATHS")) failures.push("robots.txt must not hide authenticated HTML before crawlers can process its explicit noindex response");
-if (robots.includes('disallow: "/"')) failures.push("The global noindex switch must keep public HTML crawlable so search engines can process the directive");
+]) requireText(robots, contract, `robots.txt governance is missing ${contract}`);
+if (robots.includes("ROBOTS_DISALLOW_PATHS")) failures.push("robots.txt must not hide authenticated HTML before crawlers can process explicit noindex responses");
+if (robots.includes('disallow: "/"')) failures.push("Global noindex mode must keep public HTML crawlable so search engines can process noindex");
 
+// Central visibility model.
 const expectedPathClasses = new Map([
   ["/admin/seo", "AUTHENTICATED_PRIVATE"],
   ["/admin/seo/crawl", "AUTHENTICATED_PRIVATE"],
@@ -96,6 +113,7 @@ for (const route of ["/admin/seo", "/admin/seo/crawl", "/admin/seo/search-consol
   if (!NON_INDEXABLE_PAGE_ROUTES.includes(route as never)) failures.push(`Admin SEO route ${route} is missing from the explicit non-indexable inventory`);
 }
 
+// Research-vendor Model C quality gate.
 const strongResearchVendor = {
   id: "research-strong",
   name: "Βιβλιοπωλείο Σπάρτης",
@@ -107,8 +125,7 @@ const strongResearchVendor = {
 } as const;
 const strongEligibility = researchVendorIndexEligibility(strongResearchVendor as never, { enabled: true, minimumScore: 7 });
 if (!strongEligibility.eligible || strongEligibility.score !== 7 || strongEligibility.minimumScore !== 7) failures.push("Strong Research vendors must pass the configured Model C threshold");
-if (researchVendorIndexEligibility(strongResearchVendor as never, { enabled: false }).eligible) failures.push("The global Research-vendor switch must override a strong record to noindex");
-
+if (researchVendorIndexEligibility(strongResearchVendor as never, { enabled: false }).eligible) failures.push("Research-vendor master switch must override a strong record to noindex");
 const weakResearchVendor = {
   ...strongResearchVendor,
   id: "research-weak",
@@ -118,15 +135,11 @@ const weakResearchVendor = {
   research: { checkedAt: "2026-08-20", storefrontStatus: "active" }
 } as const;
 if (researchVendorIndexEligibility(weakResearchVendor as never).eligible) failures.push("Research vendors missing required address/classification signals must stay out of the index");
-
-const closedResearchVendor = {
-  ...strongResearchVendor,
-  id: "research-closed",
-  research: { checkedAt: "2026-08-20", storefrontStatus: "permanently_closed" }
-} as const;
+const closedResearchVendor = { ...strongResearchVendor, id: "research-closed", research: { checkedAt: "2026-08-20", storefrontStatus: "permanently_closed" } } as const;
 if (researchVendorIndexEligibility(closedResearchVendor as never).eligible) failures.push("Closed Research vendors must stay out of the index");
-if (!vendorIndexEligible({ ...strongResearchVendor, directoryStatus: "partner" } as never, { enabled: false, minimumScore: 7 })) failures.push("Active partner profiles must remain independent of the Research-only switch");
+if (!vendorIndexEligible({ ...strongResearchVendor, directoryStatus: "partner" } as never, { enabled: false, minimumScore: 7 })) failures.push("Active partners must remain independent of the Research-only switch");
 
+// Product quality/index gate.
 const strongProduct = {
   title: "Nike Air Max 90",
   categoryCode: "shoes",
@@ -139,126 +152,91 @@ if (!productIndexEligibility(strongProduct).eligible) failures.push("Useful admi
 if (productIndexEligibility({ title: "Product", categoryCode: "", duplicateTitleCount: 1 }).eligible) failures.push("Placeholder products without classification/content must stay out of the index");
 if (!productIndexEligibility({ ...strongProduct, description: undefined, mediaId: undefined, brand: undefined, duplicateTitleCount: 2 }).blockingReasons.some((reason) => reason.includes("duplicate title"))) failures.push("Undifferentiated duplicate product titles must be a hard index blocker");
 
-if (!rootLayout.includes("metadataBase: new URL(settings.canonicalOrigin)")) failures.push("Root metadata must use the governed canonical origin");
-if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title and description defaults");
-if (!rootLayout.includes("robots: settings.indexingEnabled")) failures.push("Root metadata must publish the emergency global noindex signal");
-if (!homepage.includes('governedStaticSeoMetadata("/"')) failures.push("Homepage must consume governed entity metadata and publish a self-canonical URL");
+// Governed metadata, canonicals and query-space control.
+requireText(rootLayout, "metadataBase: new URL(settings.canonicalOrigin)", "Root metadata must use the governed canonical origin");
+if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title/description defaults");
+requireText(rootLayout, "robots: settings.indexingEnabled", "Root metadata must publish the emergency global noindex signal");
+requireText(homepage, 'governedStaticSeoMetadata("/"', "Homepage must publish governed self-canonical metadata");
 if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("getCrawlerHomepageCatalogCards")) failures.push("Homepage crawler rendering must bypass customer fairness assignment");
-if (!homepage.includes("const discoveryCategories = STOREFRONT_CATEGORIES")) failures.push("Homepage must link every curated category independently of the rotating product set");
-if (!category.includes("title: category.label")) failures.push("Category metadata must rely on the root title template rather than duplicating the brand");
+requireText(homepage, "const discoveryCategories = STOREFRONT_CATEGORIES", "Homepage must link every curated category independently of rotating products");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
 if (!category.includes("isReadOnlyPublicCrawlerRequest") || !category.includes("getCrawlerCatalogCards")) failures.push("Category crawler rendering must use the read-only catalogue projection");
-if (category.includes('title: `${category.label} · Buy Local Sparta`')) failures.push("Category title must not duplicate the root title template");
-
 for (const source of [shop, shops]) {
-  if (!source.includes("searchParams") || !source.includes("index: false, follow: true")) failures.push("Filtered public directory/catalogue URLs must publish noindex,follow");
+  if (!source.includes("searchParams") || !source.includes("index: false, follow: true")) failures.push("Filtered public catalogue/directory URLs must publish noindex,follow");
 }
-if (!shop.includes('alternates: { canonical: category ? `/category/${category.slug}` : "/shop" }')) failures.push("Filtered shop URLs must canonicalize to a clean catalogue/category landing page");
-if (!shops.includes('alternates: { canonical: "/shops" }')) failures.push("Filtered merchant-directory URLs must canonicalize to /shops");
+requireText(shop, 'alternates: { canonical: category ? `/category/${category.slug}` : "/shop" }', "Filtered shop URLs must canonicalize to a clean catalogue/category landing page");
+requireText(shops, 'alternates: { canonical: "/shops" }', "Filtered merchant-directory URLs must canonicalize to /shops");
 if (!shop.includes("isReadOnlyPublicCrawlerRequest") || !shop.includes("getCrawlerCatalogCards")) failures.push("Shop crawler rendering must use the read-only catalogue projection");
 
+// Vendor metadata/schema.
 if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
-if (!vendor.includes('replaceAll("<", "\\\\u003c")')) failures.push("Structured data must escape HTML-opening characters");
-const vendorPublishesCanonical = vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`');
-if (!vendorPublishesCanonical) failures.push("Vendor metadata must publish a canonical URL");
-if (!vendor.includes("seoControl.schemaAllowed ? <script")) failures.push("Vendor structured data must honor the governed schema decision");
+requireText(vendor, 'replaceAll("<", "\\\\u003c")', "Structured data must escape HTML-opening characters");
+if (!(vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`'))) failures.push("Vendor metadata must publish a canonical URL");
+requireText(vendor, "seoControl.schemaAllowed ? <script", "Vendor structured data must honor the governed schema decision");
 
+// Product metadata/schema and crawler/customer separation.
 for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', "availableAtOrFrom:", '"@type": "BreadcrumbList"', "gtinSchema(product.gtin)", 'itemCondition: "https://schema.org/NewCondition"']) {
-  if (!product.includes(contract)) failures.push(`Product SEO contract is missing ${contract}`);
+  requireText(product, contract, `Product SEO contract is missing ${contract}`);
 }
-if (!product.includes("settings.canonicalOrigin")) failures.push("Product structured data must use the governed canonical origin");
-if (!product.includes("buildGovernedSeoMetadata") || !product.includes("productPublicPath(product)")) failures.push("Product metadata and schema must publish the governed friendly canonical URL");
-if (!product.includes("seoControl.schemaAllowed ? <script")) failures.push("Product structured data must honor the governed schema decision");
+requireText(product, "settings.canonicalOrigin", "Product structured data must use the governed canonical origin");
+if (!product.includes("buildGovernedSeoMetadata") || !product.includes("productPublicPath(product)")) failures.push("Product metadata/schema must publish the governed friendly canonical URL");
+requireText(product, "seoControl.schemaAllowed ? <script", "Product structured data must honor the governed schema decision");
 if (!product.includes("productIndexEligibility") || !product.includes("quality.blockingReasons.length === 0") || !product.includes("defaultIndexAllowed: quality.eligible")) failures.push("Product metadata/schema must honor the product quality/index gate");
 if (product.includes("vendorPrice") || product.includes("supplierPrice")) failures.push("Product structured data must not expose hidden supplier pricing");
-if (!product.includes("permanentRedirect(productPublicPath(summary))")) failures.push("Legacy product-ID URLs must redirect before commerce resolves the unchanged canonical product ID");
-if (!product.includes("isReadOnlyPublicCrawlerRequest") || !product.includes("getCrawlerCatalogCard(summary.id)")) failures.push("Product crawler rendering must use the read-only catalogue projection");
-if (!product.includes("getCatalogCard(summary.id, await getVisitorKey())")) failures.push("Human product rendering must keep the existing customer fairness-assignment path");
-if (!product.includes("const offerData = readOnlyCrawler ? undefined")) failures.push("Crawler product schema must not publish a personalized Offer without a real customer assignment");
-if (!product.includes('itemListElement: [') || product.includes('item: `${origin}/shop?category=${encodeURIComponent(category.slug)}&subcategory=${encodeURIComponent(product.categoryCode)}`')) failures.push("Product structured breadcrumbs must use canonical indexable routes rather than noindex filter URLs");
-if (product.includes("sku: product.mpn ?? product.id")) failures.push("Product schema must not fall back to exposing the canonical product ID as a public SKU");
-if (!product.includes("<Image") || !product.includes("openGraphImage:")) failures.push("Product SEO must use approved media for the visible image and social metadata when available");
-if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: openGraphImage ? "summary_large_image" : "summary"')) failures.push("Governed metadata must publish Twitter/X card fallbacks alongside Open Graph data");
+requireText(product, "permanentRedirect(productPublicPath(summary))", "Legacy product-ID URLs must redirect before commerce resolves the canonical product ID");
+if (!product.includes("isReadOnlyPublicCrawlerRequest") || !product.includes("getCrawlerCatalogCard(summary.id)")) failures.push("Product crawler rendering must use the read-only offer projection");
+requireText(product, "getCatalogCard(summary.id, await getVisitorKey())", "Human product rendering must keep customer Fair Vendor Assignment");
+requireText(product, "const offerData = {", "Crawler and human Product schema must use a real eligible public offer rather than a fabricated/omitted crawler offer");
+if (product.includes("const offerData = readOnlyCrawler ? undefined")) failures.push("Crawler Product schema must no longer diverge by omitting a real eligible public offer");
+if (!product.includes('itemListElement: [') || product.includes('item: `${origin}/shop?category=${encodeURIComponent(category.slug)}&subcategory=${encodeURIComponent(product.categoryCode)}`')) failures.push("Product breadcrumbs must use canonical indexable routes rather than noindex filter URLs");
+if (product.includes("sku: product.mpn ?? product.id")) failures.push("Product schema must not fall back to exposing the canonical product ID as public SKU");
+if (!product.includes("<Image") || !product.includes("openGraphImage:")) failures.push("Product SEO must use approved media for visible/social imagery when available");
+if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: openGraphImage ? "summary_large_image" : "summary"')) failures.push("Governed metadata must publish Twitter/X fallbacks alongside Open Graph");
 
-if (productPublicPath({ id: "canonical_123", slug: "nike-air-max-90" }) !== "/product/nike-air-max-90") failures.push("Product friendly paths must prefer the governed catalogue slug");
-if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") failures.push("Product friendly paths must retain a legacy-ID compatibility fallback");
-for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) {
-  if (!commerceRuntime.includes(contract)) failures.push(`Public catalogue slug projection is missing ${contract}`);
-}
-for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount"]) {
-  if (!catalogRuntime.includes(contract)) failures.push(`Public product SEO projection is missing ${contract}`);
-}
-if (!catalogCard.includes("productPublicPath(product)")) failures.push("Public catalogue cards must link to the preferred friendly product URL");
+if (productPublicPath({ id: "canonical_123", slug: "nike-air-max-90" }) !== "/product/nike-air-max-90") failures.push("Friendly product paths must prefer the catalogue slug");
+if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") failures.push("Friendly product paths must retain legacy-ID fallback");
+for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) requireText(commerceRuntime, contract, `Public catalogue slug projection is missing ${contract}`);
+for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
+requireText(catalogCard, "productPublicPath(product)", "Public catalogue cards must link to the preferred friendly product URL");
 
-for (const contract of ["publicCanonicalAvailability", "getPublicProductSeoInventory", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
-  if (!crawlerCatalog.includes(contract)) failures.push(`Crawler-safe catalogue is missing ${contract}`);
+// Read-only crawler offer projection must be truthful and mutation-free.
+for (const contract of ["readOnlyOfferPreview", "vo.customer_price_minor", "available_to_sell", "vendor_public_id", "vendor_name", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
+  requireText(crawlerCatalog, contract, `Crawler-safe catalogue is missing ${contract}`);
 }
 if (crawlerCatalog.includes("publicAssignedCanonical")) failures.push("Crawler catalogue must never call Fair Vendor Assignment");
-for (const bot of ["googlebot", "bingbot", "google-inspectiontool", "facebookexternalhit", "twitterbot"]) {
-  if (!requestAudience.includes(`"${bot}"`)) failures.push(`Crawler classification is missing ${bot}`);
+if (/\bUPDATE\s+fairness_rotation_state\b/i.test(crawlerCatalog) || /\bINSERT\s+INTO\s+sticky_assignments\b/i.test(crawlerCatalog) || /\bINSERT\s+INTO\s+fairness_assignment_events\b/i.test(crawlerCatalog)) {
+  failures.push("Crawler catalogue must never write fairness rotation, sticky assignments or fairness events");
 }
-if (!requestAudience.includes("used only to select a read-only public") && !requestAudience.includes("read-only public")) failures.push("Crawler classification must document that it never grants access or bypasses authentication");
+for (const bot of ["googlebot", "bingbot", "google-inspectiontool", "facebookexternalhit", "twitterbot"]) requireText(requestAudience, `"${bot}"`, `Crawler classification is missing ${bot}`);
+if (!requestAudience.includes("read-only public")) failures.push("Crawler classification must document that it only selects a read-only public projection and grants no access");
 
-for (const contract of ["adminSeoCrawlGraph", '"/shop catalogue"', '"/shops directory"', '"Homepage category rail"', "orphan", "weak", "indexAllowed"]) {
-  if (!crawlGraph.includes(contract)) failures.push(`SEO crawl graph is missing ${contract}`);
-}
-for (const contract of ["Internal linking & orphan diagnostics", "Weakly linked", "Orphans", "Open public page"]) {
-  if (!adminCrawlPage.includes(contract)) failures.push(`Admin crawl graph UI is missing ${contract}`);
-}
+// Human sitemap and crawl graph provide real internal-link coverage.
+for (const contract of ["getPublicVendorDirectory", "resolveSeoEntityControl", "researchVendorIndexEligibility", "sitemapAllowed", "vendorGroups", "/vendor/"]) requireText(humanSitemap, contract, `Human sitemap governed vendor directory is missing ${contract}`);
+for (const contract of ["adminSeoCrawlGraph", '"/shop catalogue"', '"/shops directory"', '"Homepage category rail"', '"/sitemap governed vendor directory"', "orphan", "weak", "indexAllowed"]) requireText(crawlGraph, contract, `SEO crawl graph is missing ${contract}`);
+for (const contract of ["Internal linking & orphan diagnostics", "Weakly linked", "Orphans", "Open public page"]) requireText(adminCrawlPage, contract, `Admin crawl graph UI is missing ${contract}`);
 
-for (const privateSource of ["/account/:path*", "/admin/:path*", "/daily/:path*", "/vendor/finance/:path*", "/api/internal/:path*"]) {
-  if (!nextConfig.includes(`"${privateSource}"`)) failures.push(`Central X-Robots-Tag coverage is missing ${privateSource}`);
-}
-if (!nextConfig.includes('"X-Robots-Tag"') || !nextConfig.includes("private, no-store")) failures.push("Private route families must receive central noindex and private/no-store response headers");
-
-for (const contract of ["timingSafeEqual", "RESEARCH_SEED_DIAGNOSTIC_TOKEN", 'authorization?.startsWith("Bearer ")', 'url.protocol !== "https:"', 'redirect: "error"', '"x-robots-tag"']) {
-  if (!diagnosticRoute.includes(contract)) failures.push(`Internal diagnostic hardening is missing ${contract}`);
-}
+// Private route/header and diagnostic hardening.
+for (const privateSource of ["/account/:path*", "/admin/:path*", "/daily/:path*", "/vendor/finance/:path*", "/api/internal/:path*"]) requireText(nextConfig, `"${privateSource}"`, `Central X-Robots-Tag coverage is missing ${privateSource}`);
+if (!nextConfig.includes('"X-Robots-Tag"') || !nextConfig.includes("private, no-store")) failures.push("Private route families must receive central noindex and private/no-store headers");
+for (const contract of ["timingSafeEqual", "RESEARCH_SEED_DIAGNOSTIC_TOKEN", 'authorization?.startsWith("Bearer ")', 'url.protocol !== "https:"', 'redirect: "error"', '"x-robots-tag"']) requireText(diagnosticRoute, contract, `Internal diagnostic hardening is missing ${contract}`);
 if (/const\s+BRIDGE_TOKEN\s*=|searchParams\.get\(["']token["']\)/.test(diagnosticRoute)) failures.push("Internal diagnostics must not contain a hard-coded or URL-query credential path");
 
-for (const contract of ["system_settings", "expectedVersion", "before_state", "after_state", "pg_advisory_xact_lock", "NOINDEX WHOLE SITE"]) {
-  if (!settingsRuntime.includes(contract)) failures.push(`Governed SEO settings persistence is missing ${contract}`);
-}
-for (const contract of ['assertAdminPermission(principal, "content.write")', "assertAdminCsrf", 'revalidatePath("/robots.txt")', 'revalidatePath("/sitemap.xml")']) {
-  if (!settingsAction.includes(contract)) failures.push(`SEO settings Server Action is missing ${contract}`);
-}
+// Governed settings/entity overrides/reports.
+for (const contract of ["system_settings", "expectedVersion", "before_state", "after_state", "pg_advisory_xact_lock", "NOINDEX WHOLE SITE"]) requireText(settingsRuntime, contract, `Governed SEO settings persistence is missing ${contract}`);
+for (const contract of ['assertAdminPermission(principal, "content.write")', "assertAdminCsrf", 'revalidatePath("/robots.txt")', 'revalidatePath("/sitemap.xml")']) requireText(settingsAction, contract, `SEO settings Server Action is missing ${contract}`);
+for (const contract of ["seo.visibility.entities.v1", "expectedVersion", "pg_advisory_xact_lock", "seo.entity_override_upserted", "seo.entity_override_deleted", "before_state", "after_state"]) requireText(entityRuntime, contract, `Governed SEO entity persistence is missing ${contract}`);
+for (const contract of ["buildGovernedSeoMetadata", "findSeoEntityOverride", "resolveSeoEntityControl", "noarchive", "nosnippet"]) requireText(entityMetadata, contract, `Governed SEO metadata is missing ${contract}`);
+for (const contract of ["updateSeoEntityOverrideAction", "assertSeoEntityExists", "assertAdminCsrf", 'revalidatePath("/sitemap.xml")']) requireText(settingsAction, contract, `SEO entity Server Action is missing ${contract}`);
+for (const contract of ["Search snippet", "Canonical override", "Quality status", "Delete override", "Reason for this entity change"]) requireText(entityEditor, contract, `SEO entity editor is missing ${contract}`);
+for (const contract of ["seo.visibility.reports.v1", "SEO_DIAGNOSTIC_REPORT_LIMIT = 50", "pg_advisory_xact_lock", "seo.diagnostic_report_created", "after_state", "seoDiagnosticHealthScore", "seoDiagnosticReportCsv", "/^[=+\\-@\\t\\r]/"]) requireText(reportRuntime, contract, `Persisted SEO reporting is missing ${contract}`);
+for (const forbidden of ["cookie", "password", "credential", "customer"]) if (reportRuntime.includes(`${forbidden}: input.`)) failures.push(`SEO report snapshots must not persist ${forbidden} fields`);
+for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) requireText(settingsAction, contract, `SEO report Server Action is missing ${contract}`);
+for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) requireText(reportRunner, contract, `SEO report runner is missing ${contract}`);
+for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) requireText(reportExportRoute, contract, `Protected SEO report export is missing ${contract}`);
+for (const contract of ["Persisted diagnostic reports", "scoreDelta", "?format=json", "?format=csv", "Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO UI is missing ${contract}`);
 
-for (const contract of ["seo.visibility.entities.v1", "expectedVersion", "pg_advisory_xact_lock", "seo.entity_override_upserted", "seo.entity_override_deleted", "before_state", "after_state"]) {
-  if (!entityRuntime.includes(contract)) failures.push(`Governed SEO entity persistence is missing ${contract}`);
-}
-for (const contract of ["buildGovernedSeoMetadata", "findSeoEntityOverride", "resolveSeoEntityControl", "noarchive", "nosnippet"]) {
-  if (!entityMetadata.includes(contract)) failures.push(`Governed SEO entity metadata is missing ${contract}`);
-}
-for (const contract of ["updateSeoEntityOverrideAction", "assertSeoEntityExists", "assertAdminCsrf", 'revalidatePath("/sitemap.xml")']) {
-  if (!settingsAction.includes(contract)) failures.push(`SEO entity Server Action is missing ${contract}`);
-}
-for (const contract of ["Search snippet", "Canonical override", "Quality status", "Delete override", "Reason for this entity change"]) {
-  if (!entityEditor.includes(contract)) failures.push(`SEO entity editor is missing ${contract}`);
-}
-
-for (const contract of ["seo.visibility.reports.v1", "SEO_DIAGNOSTIC_REPORT_LIMIT = 50", "pg_advisory_xact_lock", "seo.diagnostic_report_created", "after_state", "seoDiagnosticHealthScore", "seoDiagnosticReportCsv", "/^[=+\\-@\\t\\r]/"]) {
-  if (!reportRuntime.includes(contract)) failures.push(`Persisted SEO reporting is missing ${contract}`);
-}
-for (const forbidden of ["cookie", "password", "credential", "customer"]) {
-  if (reportRuntime.includes(`${forbidden}: input.`)) failures.push(`SEO report snapshots must not persist ${forbidden} fields`);
-}
-for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) {
-  if (!settingsAction.includes(contract)) failures.push(`SEO report Server Action is missing ${contract}`);
-}
-for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) {
-  if (!reportRunner.includes(contract)) failures.push(`SEO report runner is missing ${contract}`);
-}
-for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) {
-  if (!reportExportRoute.includes(contract)) failures.push(`Protected SEO report export is missing ${contract}`);
-}
-for (const contract of ["Persisted diagnostic reports", "scoreDelta", "?format=json", "?format=csv"]) {
-  if (!adminSeoPage.includes(contract)) failures.push(`Admin SEO report history UI is missing ${contract}`);
-}
-for (const contract of ["Product index eligibility", "productIndexEligible", "Why this product is held back", "Open public product"]) {
-  if (!adminSeoPage.includes(contract)) failures.push(`Admin product SEO quality UI is missing ${contract}`);
-}
-
+// Optional server-only Google Search Console boundary.
 for (const contract of [
   'import "server-only"',
   'https://www.googleapis.com/auth/webmasters.readonly',
@@ -270,18 +248,13 @@ for (const contract of [
   "searchAnalytics/query",
   "urlInspection/index:inspect",
   'cache: "no-store"'
-]) {
-  if (!searchConsole.includes(contract)) failures.push(`Search Console server adapter is missing ${contract}`);
-}
+]) requireText(searchConsole, contract, `Search Console server adapter is missing ${contract}`);
 if (adminSearchConsolePage.includes("GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY") || adminSearchConsolePage.includes("accessToken")) failures.push("Search Console Admin UI must never expose credential/token material");
-for (const contract of ["Search Console integration", "Credentials", "Search Analytics snapshot", "URL Inspection"]) {
-  if (!adminSearchConsolePage.includes(contract)) failures.push(`Search Console Admin UI is missing ${contract}`);
-}
-for (const variable of ["BLS_GOOGLE_SEARCH_CONSOLE_ENABLED", "BLS_GOOGLE_SEARCH_CONSOLE_SITE_URL", "GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL", "GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY"]) {
-  if (!envExample.includes(variable)) failures.push(`Search Console environment documentation is missing ${variable}`);
-}
-if (/GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY=\S+/.test(envExample)) failures.push("Search Console private key example must remain empty");
+for (const contract of ["Search Console integration", "Credentials", "Search Analytics snapshot", "URL Inspection"]) requireText(adminSearchConsolePage, contract, `Search Console Admin UI is missing ${contract}`);
+for (const variable of ["BLS_GOOGLE_SEARCH_CONSOLE_ENABLED", "BLS_GOOGLE_SEARCH_CONSOLE_SITE_URL", "GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL", "GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY"]) requireText(envExample, variable, `Search Console environment documentation is missing ${variable}`);
+if (/GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY=\S+/.test(envExample)) failures.push("Search Console private-key example must remain empty");
 
+// Entity-control hierarchy must fail closed.
 const entitySettings = {
   indexingEnabled: true,
   sitemap: { staticPages: true, categories: true, products: true, partnerVendors: true, researchVendors: true }
@@ -306,4 +279,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed metadata/settings/overrides/reports, friendly product URLs, Research/product quality gates, query canonicalization, crawler/fairness isolation, crawl graph, optional Search Console boundary, private-route headers and diagnostic hardening verified.");
+console.log("Next SEO checks passed: governed index controls, honest sitemap freshness, Model C/product quality gates, canonicalized query space, real read-only crawler offers without fairness writes, internal-link diagnostics, Search Console boundary, private-route headers and hardened diagnostics verified.");
