@@ -23,11 +23,18 @@ The web deployment is request/response compute only. It may perform short provid
 
 ### Hard production schema gate
 
-Every Vercel production build runs `scripts/verify-production-schema-head.ts` before `next build`. The production schema gate reads the immutable repository migration manifest and the live `public.schema_migrations` ledger through `DATABASE_URL`, then requires an exact match for every migration version, filename and SHA-256 checksum. A missing production migration, an unexpected production-only migration, or a checksum/filename mismatch fails the build before a new application deployment can become READY.
+Every Vercel production build runs `scripts/verify-production-schema-head.ts` before `next build`. The gate validates the immutable repository migration manifest and requires production to contain the same ordered migration versions, filenames and SHA-256 checksums before application code may be built for production.
 
-This gate is intentionally read-only. Schema changes must be applied as a separate one-off release action before the matching application commit is promoted. Preview and non-production Vercel builds skip this live-production comparison; CI still validates the full migration chain against an isolated PostGIS database.
+There are two verification paths:
 
-If the gate reports drift, do not bypass it. Apply the repository migrations to production first and redeploy the exact same commit. This ordering prevents application code from reaching production ahead of the schema it expects.
+- Release tooling with `DATABASE_URL` available reads `public.schema_migrations` directly and compares every ledger row.
+- Vercel production builds, where the database integration credential is intentionally not available during the build phase, query the currently deployed production runtime at `/api/health/schema`. That endpoint reads the live database at runtime and returns only the migration count, head version and a SHA-256 **schema-ledger fingerprint** derived from the complete ordered `version + filename + checksum` ledger. It exposes no database credential and no raw migration contents.
+
+The first deployment that introduces `/api/health/schema` has a deliberately narrow bootstrap fallback to the existing `/api/health/ready` schema version check. That fallback is hard-capped at schema **115** in source and can never authorize schema 116 or later. Once the fingerprint endpoint is deployed, all later production releases require the complete ledger fingerprint and fail closed if the endpoint is missing or differs.
+
+This gate is intentionally read-only. Schema changes must be applied as a separate one-off release action before the matching application commit is promoted. Preview and non-production Vercel builds skip the live-production comparison; CI still validates the full migration chain against an isolated PostGIS database.
+
+If the gate reports drift, do not bypass it. Apply and reconcile the repository migrations in production first and redeploy the exact same commit. This ordering prevents application code from reaching production ahead of the schema it expects.
 
 ## Worker processes: long-lived container runtime
 
@@ -75,7 +82,7 @@ Do not enable async mode unless at least one healthy `reports` worker is running
 2. Apply PostgreSQL migrations as a one-off release command.
 3. Verify production `public.schema_migrations` matches the repository migration head and checksums.
 4. Deploy/update worker roles from the same locked dependency graph.
-5. Deploy Vercel web from the same locked dependency graph; the production prebuild independently repeats the schema-head verification and blocks on drift.
+5. Deploy Vercel web from the same locked dependency graph; the production prebuild independently verifies the live schema ledger directly or through the deployed runtime fingerprint and blocks on drift.
 6. Verify `/api/health/ready` reports the exact release build/schema.
 7. Run `stage:preflight -- --record` for staging.
 8. Execute and record provider scenarios before production promotion.
