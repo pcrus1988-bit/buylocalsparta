@@ -16,52 +16,24 @@ jobs:
   crawl:
     if: github.head_ref == 'agent/nikolaou-master-crawl-20260822' || github.ref_name == 'agent/nikolaou-master-crawl-20260822'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    environment: staging
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      NIKOLAOU_CRAWL_RUN_ID: nikolaou_master_20260823_github_001
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install crawler dependencies
-        run: python -m pip install --disable-pip-version-check requests beautifulsoup4 lxml 'psycopg[binary]'
-      - name: Crawl exact Nikolaou master targets
-        run: python scripts/crawl-nikolaou-targets-db.py
-      - name: Export crawl result
-        if: always()
+      - name: Probe Nikolaou endpoints
+        shell: bash
         run: |
-          mkdir -p artifacts/nikolaou-crawl
-          python - <<'PY'
-          import csv, json, os
-          import psycopg
-          from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-          raw=os.environ['DATABASE_URL']
-          p=urlsplit(raw)
-          allowed={'sslmode','connect_timeout','application_name','options','target_session_attrs','channel_binding','sslrootcert','sslcert','sslkey','sslpassword','gssencmode','keepalives','keepalives_idle','keepalives_interval','keepalives_count'}
-          db=urlunsplit((p.scheme,p.netloc,p.path,urlencode([(k,v) for k,v in parse_qsl(p.query,keep_blank_values=True) if k in allowed]),p.fragment))
-          run=os.environ['NIKOLAOU_CRAWL_RUN_ID']
-          with psycopg.connect(db) as conn, conn.cursor() as cur:
-              cur.execute('select run_id,status,discovered_count,crawled_count,valid_product_count,error_count,started_at,completed_at,notes from research_internal.nikolaou_crawl_runs where run_id=%s',(run,))
-              summary=cur.fetchone()
-              cols=['run_id','status','discovered_count','crawled_count','valid_product_count','error_count','started_at','completed_at','notes']
-              open('artifacts/nikolaou-crawl/summary.json','w').write(json.dumps(dict(zip(cols,summary)) if summary else {'run_id':run,'status':'missing'},default=str,ensure_ascii=False,indent=2))
-              cur.execute('select target_model,target_supplier_code,source_url,final_url,http_status,model,supplier_code,barcode,brand,title,supplier_description,specifications,page_bullets,included_items,manual_url,spare_parts_url,image_url,related_models,compatibility_candidates,canonical_url,crawl_error,crawled_at from research_internal.nikolaou_crawl where run_id=%s order by target_model,target_supplier_code,source_url',(run,))
-              names=[d.name for d in cur.description]
-              with open('artifacts/nikolaou-crawl/products.csv','w',newline='',encoding='utf-8-sig') as f:
-                  w=csv.writer(f); w.writerow(names)
-                  for row in cur:
-                      w.writerow([json.dumps(x,ensure_ascii=False) if isinstance(x,(dict,list)) else x for x in row])
-          PY
-      - name: Upload crawl artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nikolaou-catalog-crawl-exact
-          path: artifacts/nikolaou-crawl/
-          if-no-files-found: error
-          retention-days: 7
+          set -u
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
+          probe() {
+            label="$1"; url="$2"
+            echo "=== $label ==="
+            curl -L --max-time 25 -sS -A "$UA" -H 'Accept: text/html,application/xhtml+xml' -H 'Accept-Language: el-GR,el;q=0.9,en;q=0.7' -o "/tmp/$label.html" -w 'status=%{http_code} final=%{url_effective} size=%{size_download}\n' "$url" || true
+            head -c 180 "/tmp/$label.html" 2>/dev/null | tr '\n' ' ' || true
+            echo
+          }
+          probe home 'https://www.nikolaoutools.gr/'
+          probe pretty_search 'https://www.nikolaoutools.gr/search/GB6500M'
+          probe oc_search 'https://www.nikolaoutools.gr/index.php?route=product/search&search=GB6500M'
+          probe oc_filter 'https://www.nikolaoutools.gr/index.php?route=product/search&filter_name=GB6500M'
+          probe direct 'https://www.nikolaoutools.gr/kumatsugen-gb6500m-%CE%B3%CE%B5%CE%BD%CE%BD%CE%AE%CF%84%CF%81%CE%B9%CE%B1-%CE%B2%CE%B5%CE%BD%CE%B6%CE%AF%CE%BD%CE%B7%CF%82-avr-7-5kva-13hp-GB6500M/'
