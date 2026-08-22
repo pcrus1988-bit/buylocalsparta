@@ -14,7 +14,8 @@ import {
   slugCode,
   sourceProductKey,
   sourceTaxonomyKey,
-  sourceTaxonomyPath,
+  sourceTaxonomyNodeUrl,
+  sourceTaxonomyPathForRow,
   splitPipe,
   structuredAttributes,
   text,
@@ -22,7 +23,7 @@ import {
   type CsvRow
 } from "./catalogue/nikolaou-import-lib.ts";
 
-const IMPORTER_VERSION = "nikolaou-master-v1";
+const IMPORTER_VERSION = "nikolaou-master-v2";
 const args = process.argv.slice(2);
 const csvPath = args.find((arg) => !arg.startsWith("--"));
 if (!csvPath) throw new Error("Usage: import-nikolaou-master.ts <master.csv> [--apply] [--expected-row-count=3165] [--approve-high-confidence-taxonomy]");
@@ -81,9 +82,12 @@ try {
     `, [marketId, currency, JSON.stringify({ importerVersion: IMPORTER_VERSION })]);
     const sourceId = sourceResult.rows[0].id as string;
 
-    const existingSnapshot = await client.query("SELECT id,row_count FROM catalog_source_snapshots WHERE source_id=$1 AND source_hash=$2", [sourceId, fileHash]);
+    const existingSnapshot = await client.query("SELECT id,row_count,metadata FROM catalog_source_snapshots WHERE source_id=$1 AND source_hash=$2", [sourceId, fileHash]);
     if (existingSnapshot.rowCount) {
       const snapshotId = existingSnapshot.rows[0].id as string;
+      const metadata = existingSnapshot.rows[0].metadata as Record<string, unknown> | undefined;
+      const priorImporterVersion = typeof metadata?.importerVersion === "string" ? metadata.importerVersion : undefined;
+      if (priorImporterVersion && priorImporterVersion !== IMPORTER_VERSION) throw new Error(`Existing snapshot ${snapshotId} was produced by ${priorImporterVersion}; refusing to silently reuse it with ${IMPORTER_VERSION}`);
       const productCount = await client.query("SELECT count(*)::integer AS n FROM catalog_source_products WHERE snapshot_id=$1", [snapshotId]);
       if (Number(productCount.rows[0].n) !== rows.length) throw new Error(`Existing snapshot ${snapshotId} is incomplete: ${productCount.rows[0].n}/${rows.length} products`);
       await client.query("ROLLBACK");
@@ -126,7 +130,7 @@ try {
 
     const leafCounts = new Map<string, number>();
     for (const row of rows) {
-      const key = sourceTaxonomyKey(sourceTaxonomyPath(row.supplier_categories));
+      const key = sourceTaxonomyKey(sourceTaxonomyPathForRow(row));
       leafCounts.set(key, (leafCounts.get(key) ?? 0) + 1);
     }
     for (const [key, count] of leafCounts) {
@@ -161,7 +165,7 @@ try {
       const classificationStatus = appCategory?.assignable ? "mapped" : "review_required";
       return {
         key: sourceProductKey(row), row,
-        taxonomyNodeId: required(nodeIdByKey.get(sourceTaxonomyKey(sourceTaxonomyPath(row.supplier_categories))), "product taxonomy node"),
+        taxonomyNodeId: required(nodeIdByKey.get(sourceTaxonomyKey(sourceTaxonomyPathForRow(row))), "product taxonomy node"),
         classificationStatus
       };
     });
@@ -279,11 +283,11 @@ try {
 function collectTaxonomyNodes(rows: readonly CsvRow[]) {
   const nodes = new Map<string, { key: string; path: string[]; sourceUrl: string }>();
   for (const row of rows) {
-    const path = sourceTaxonomyPath(row.supplier_categories);
+    const path = sourceTaxonomyPathForRow(row);
     for (let depth = 1; depth <= path.length; depth += 1) {
       const nodePath = path.slice(0, depth);
       const key = sourceTaxonomyKey(nodePath);
-      if (!nodes.has(key)) nodes.set(key, { key, path: nodePath, sourceUrl: text(row.source_url) });
+      if (!nodes.has(key)) nodes.set(key, { key, path: nodePath, sourceUrl: sourceTaxonomyNodeUrl(row, depth) });
     }
   }
   return [...nodes.values()];
@@ -295,7 +299,7 @@ function collectTaxonomyMappings(rows: readonly CsvRow[]) {
   for (const row of rows) {
     const appCode = text(row.app_category_code);
     if (!appCode) continue;
-    const leafKey = sourceTaxonomyKey(sourceTaxonomyPath(row.supplier_categories));
+    const leafKey = sourceTaxonomyKey(sourceTaxonomyPathForRow(row));
     const pairKey = `${leafKey}\u0000${appCode}`;
     const pair = pairs.get(pairKey) ?? { leafKey, appCode, confidences: [], reasons: new Set<string>() };
     pair.confidences.push(confidence(row.taxonomy_confidence, 0.5));
