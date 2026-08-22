@@ -15,6 +15,10 @@ function uow() {
 }
 
 function text(value: unknown): string { return typeof value === "string" ? value : String(value ?? ""); }
+function timestamp(value: unknown): number {
+  const parsed = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
 function auditPublicId(): string { return `audit_${randomUUID().replaceAll("-", "")}`; }
 function notificationPublicId(): string { return `notification_${randomUUID().replaceAll("-", "")}`; }
 
@@ -41,7 +45,7 @@ export async function vendorAppointmentLifecycleAction(
     if (!found.rowCount) throw new Error("Vendor appointment access denied");
     const row = found.rows[0];
     const status = text(row.status);
-    const startsAt = new Date(String(row.starts_at)).getTime();
+    const startsAt = timestamp(row.starts_at);
     const now = new Date(nowMs);
     let next: "completed" | "cancelled" | "no_show";
     if (action === "cancel") {
