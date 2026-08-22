@@ -19,6 +19,10 @@ expect(vendorRuntime.includes('can(role, "advice.write")'), "Vendor appointment 
 expect(vendorRuntime.includes("VENDOR_ADVICE_FORBIDDEN"), "Vendor appointment mutation lacks a distinct advice authorization failure");
 expect(customerRuntime.includes("vendor_user_roles vur"), "Vendor appointment notification fan-out does not consult vendor roles");
 expect(customerRuntime.includes("vur.role IN ('vendor_owner','vendor_adviser')"), "Appointment notifications are not limited to advice-authorized vendor roles");
+expect(customerRuntime.includes("vendor_locations vl"), "Phone appointment capability does not consult public vendor locations");
+expect(customerRuntime.includes("phoneAvailable"), "Phone appointment capability is not projected to the customer UI");
+expect(customerRuntime.includes('channel === "phone" && !adviser.phoneAvailable'), "Phone appointment capability is not enforced server-side");
+expect(customerClient.includes('disabled={!selectedAdviser?.phoneAvailable}'), "Phone appointment option is not disabled when public phone is unavailable");
 expect(customerClient.includes("#store-info"), "Phone appointment UX does not link to the vendor's public contact details");
 expect(customerClient.includes("δεν κοινοποιούμε ιδιωτικά στοιχεία λογαριασμού"), "Phone appointment UX does not state the privacy boundary");
 expect(!customerClient.includes("το κατάστημα θα χρησιμοποιήσει τα στοιχεία της παραγγελίας/λογαριασμού"), "Phone appointment UX still implies private account/order data is shared with the vendor");
@@ -43,5 +47,6 @@ console.log(JSON.stringify({
   nonAdviceVendorRejected: true,
   notificationFanoutRoleScoped: true,
   phoneAppointmentUsesPublicVendorContact: true,
+  phoneAppointmentCapabilityGated: true,
   privateCustomerContactNotRequired: true
 }, null, 2));
