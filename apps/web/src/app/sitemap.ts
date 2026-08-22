@@ -3,9 +3,16 @@ import { getPublicCatalogProducts } from "../lib/catalog-view";
 import { INDEXABLE_STATIC_ROUTES } from "../lib/site-navigation";
 import { publicOrigin } from "../lib/public-origin";
 import { getPublicVendorDirectory } from "../lib/public-vendor-directory";
+import { vendorIndexEligible } from "../lib/seo-visibility-policy";
 import { STOREFRONT_CATEGORIES } from "../lib/storefront-taxonomy";
 
 export const dynamic = "force-dynamic";
+
+function safeLastModified(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = publicOrigin();
@@ -28,10 +35,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     ...fixed,
-    ...(products.status === "fulfilled" ? products.value.map((product) => ({ url: `${origin}/product/${encodeURIComponent(product.id)}`, changeFrequency: "daily" as const, priority: 0.75 })) : []),
+    ...(products.status === "fulfilled" ? products.value.map((product) => ({
+      url: `${origin}/product/${encodeURIComponent(product.id)}`,
+      changeFrequency: "daily" as const,
+      priority: 0.75
+    })) : []),
     ...(vendors.status === "fulfilled" ? vendors.value
-      .filter((vendor) => vendor.directoryStatus === "partner")
-      .map((vendor) => ({ url: `${origin}/vendor/${encodeURIComponent(vendor.id)}`, changeFrequency: "weekly" as const, priority: 0.7 })) : [])
+      .filter(vendorIndexEligible)
+      .map((vendor) => ({
+        url: `${origin}/vendor/${encodeURIComponent(vendor.id)}`,
+        changeFrequency: vendor.directoryStatus === "partner" ? "weekly" as const : "monthly" as const,
+        priority: vendor.directoryStatus === "partner" ? 0.7 : 0.6,
+        lastModified: safeLastModified(vendor.research?.checkedAt)
+      })) : [])
   ];
 
   return [...new Map(entries.map((entry) => [entry.url, entry])).values()];
