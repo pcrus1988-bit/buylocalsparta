@@ -2,7 +2,7 @@
   "0001_core.sql": "efd71870ec8ac483f4dbc136b4d9251fea56b56a02e874a9dba913d0a333d853",
   "0002_runtime_hardening.sql": "195d6847d888f1eabff65e4c94a43d021ec4f45deb8d7c6015e5f9d330fcd47e",
   "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
-  "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
+  "0004_launch_plan_configuration.sql": "7ad703765d2190fba012a08931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
   "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
   "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
@@ -62,7 +62,7 @@
   "0063_customer_password_recovery.sql": "5e661cadc0160a25dc1b0da0ca34468b643d201893049acd7bc16cc54addaccb",
   "0064_reporting_engine.sql": "40e2e64c7557ae28c999e7c66b613e27ff8e9e2ed081b27e9662860fbc7428c8",
   "0065_reporting_indexes.sql": "650d8b9628afc3082fafcae16c88b317101c0017efb727cfd03e19844e46ac20",
-  "0066_vendor_profile_media.sql": "291bcb5656c766c8497d1adaef9d20ae20bbf068ef7c6761f2000dc6e4c99ffc",
+  "0066_vendor_profile_media.sql": "291bcb5656c766c8497d1adaef7c6761f2000dc6e4c99ffc",
   "0067_vendor_agreement_lifecycle.sql": "4d66f966062383764bc29692f49a2598551c8e5f4ef49ec4058b6b3bde9c8e86",
   "0068_vendor_agreement_document_vault.sql": "7c0afc160f979449e8654934ea85091aac0b4c85edde3d84c501ab5e85433b5d",
   "0069_customer_support_cases.sql": "eacf3c6270304db66d10a0978d7fca7d39e73c0854efed348a0e26e832207918",
@@ -112,5 +112,6 @@
   "0113_product_identity_matching.sql": "a2e2a257cc1ec18a193b07f55b5116029db0585f647065f04237b3662728b965",
   "0114_customer_verified_email_change.sql": "05867456e39ac0e8bdba8c3a724cacb1de6379864d8ea9a946af56887a0262f6",
   "0115_customer_contextual_support.sql": "199645946d2c0fe751c79c6e2200f7926d9c6291b3ede288d92a3b5dc3a81d23",
-  "0116_private_offer_finance_pricing.sql": "41f95fcb9a05d3f9841ff079b0f199e9c23c0ead6bfe4908ae2dafa403e59258"
+  "0116_private_offer_finance_pricing.sql": "41f95fcb9a05d3f9841ff079b0f199e9c23c0ead6bfe4908ae2dafa403e59258",
+  "0117_supplier_catalogue_pim_foundation.sql": "fb773258641a881bb3766ff5b9bcbe79d5fd36a8cbc71437cf4f990f0dcb66a4"
 }
