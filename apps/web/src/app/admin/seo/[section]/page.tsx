@@ -24,7 +24,7 @@ export default async function AdminSeoSectionPage({ params }: Props) {
   const canWrite = hasAdminPermission(principal, "content.write");
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="SEO Issues" />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Issues</div>
