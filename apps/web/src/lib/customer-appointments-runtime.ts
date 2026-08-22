@@ -15,6 +15,7 @@ export type CustomerAppointmentAdviser = Readonly<{
   displayName: string;
   jobTitle?: string;
   specialties: readonly string[];
+  phoneAvailable: boolean;
 }>;
 
 export type CustomerAppointmentView = Readonly<{
@@ -88,7 +89,11 @@ export async function customerAppointmentAdvisers(principal: SessionPrincipal): 
              ap.job_title,
              ap.specialties,
              vb.public_id AS vendor_public_id,
-             vb.trading_name AS vendor_name
+             vb.trading_name AS vendor_name,
+             EXISTS(
+               SELECT 1 FROM vendor_locations vl
+               WHERE vl.vendor_id=vb.id AND vl.active=true AND NULLIF(BTRIM(vl.phone),'') IS NOT NULL
+             ) AS phone_available
       FROM adviser_profiles ap
       JOIN vendor_users vu ON vu.id=ap.vendor_user_id
       JOIN vendor_businesses vb ON vb.id=vu.vendor_id
@@ -104,7 +109,8 @@ export async function customerAppointmentAdvisers(principal: SessionPrincipal): 
       vendorName: text(row.vendor_name),
       displayName: text(row.display_name),
       jobTitle: optionalText(row.job_title),
-      specialties: Array.isArray(row.specialties) ? row.specialties.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []
+      specialties: Array.isArray(row.specialties) ? row.specialties.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : [],
+      phoneAvailable: row.phone_available === true
     }));
   }, { readOnly: true });
 }
@@ -159,6 +165,7 @@ export async function bookCustomerAppointment(principal: SessionPrincipal, input
   await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     const customer = await customerUuid(tx, principal.userId);
     const adviser = await resolveAdviser(tx, vendorId, adviserId);
+    if (channel === "phone" && !adviser.phoneAvailable) throw new Error("Το κατάστημα δεν έχει δημοσιευμένο τηλέφωνο για τηλεφωνικό ραντεβού.");
     await lockAdviser(tx, adviser.adviserUuid);
     await assertAvailable(tx, adviser.adviserUuid, slot.startsAt, slot.endsAt);
     const canonicalUuid = await resolveCanonicalVariant(tx, input.canonicalVariantId);
@@ -273,10 +280,14 @@ async function customerUuid(tx: SqlExecutor, userId: string): Promise<string> {
   return text(result.rows[0].id);
 }
 
-async function resolveAdviser(tx: SqlExecutor, vendorPublicId: string, adviserPublicId: string): Promise<{ adviserUuid: string; adviserName: string; vendorUuid: string; marketUuid: string }> {
+async function resolveAdviser(tx: SqlExecutor, vendorPublicId: string, adviserPublicId: string): Promise<{ adviserUuid: string; adviserName: string; vendorUuid: string; marketUuid: string; phoneAvailable: boolean }> {
   const result = await tx.query<SqlRow>(`
     SELECT ap.id::text AS adviser_uuid,ap.display_name AS adviser_name,
-           vb.id::text AS vendor_uuid,vb.market_id::text AS market_uuid
+           vb.id::text AS vendor_uuid,vb.market_id::text AS market_uuid,
+           EXISTS(
+             SELECT 1 FROM vendor_locations vl
+             WHERE vl.vendor_id=vb.id AND vl.active=true AND NULLIF(BTRIM(vl.phone),'') IS NOT NULL
+           ) AS phone_available
     FROM adviser_profiles ap
     JOIN vendor_users vu ON vu.id=ap.vendor_user_id
     JOIN vendor_businesses vb ON vb.id=vu.vendor_id
@@ -288,7 +299,8 @@ async function resolveAdviser(tx: SqlExecutor, vendorPublicId: string, adviserPu
   if (!result.rowCount) throw new Error("Ο σύμβουλος δεν είναι διαθέσιμος για αυτό το κατάστημα.");
   return {
     adviserUuid: text(result.rows[0].adviser_uuid), adviserName: text(result.rows[0].adviser_name),
-    vendorUuid: text(result.rows[0].vendor_uuid), marketUuid: text(result.rows[0].market_uuid)
+    vendorUuid: text(result.rows[0].vendor_uuid), marketUuid: text(result.rows[0].market_uuid),
+    phoneAvailable: result.rows[0].phone_available === true
   };
 }
 
