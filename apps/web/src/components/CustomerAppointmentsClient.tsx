@@ -87,6 +87,12 @@ export function CustomerAppointmentsClient({
     }
   }
 
+  function changeAdviser(nextId: string) {
+    setAdviserId(nextId);
+    const next = advisers.find((item) => item.id === nextId);
+    if (channel === "phone" && !next?.phoneAvailable) setChannel("in_person");
+  }
+
   return <>
     {error && <div className="shell form-error" role="alert"><strong>Το ραντεβού δεν ενημερώθηκε.</strong> {error}</div>}
 
@@ -101,14 +107,15 @@ export function CustomerAppointmentsClient({
     <section className="shell customer-account-page">
       <div className="customer-page-heading"><div><div className="eyebrow">Νέο ραντεβού</div><h2>Διάλεξε άνθρωπο και ώρα</h2></div><p>Η ώρα δεσμεύεται άμεσα στο ΚΟΝΤΑ ΜΟΥ. Δεν δημιουργούμε αυτόματα εξωτερικό Meet/Viber/WhatsApp link. Στα τηλεφωνικά ραντεβού καλείς εσύ το κατάστημα στην προγραμματισμένη ώρα από το δημόσιο τηλέφωνο της σελίδας του· δεν κοινοποιούμε ιδιωτικά στοιχεία λογαριασμού στον vendor για αυτόν τον σκοπό.</p></div>
       {advisers.length === 0 ? <div className="empty-state"><h2>Δεν υπάρχουν ακόμη ενεργοί σύμβουλοι για online ραντεβού.</h2><p>Μπορείς να στείλεις ιδιωτικό αίτημα μέσω Ask Local.</p><Link className="button" href="/account/ask-local">Ask Local</Link></div> : <form className="customer-preferences-form" onSubmit={submitBooking}>
-        <label><span>Σύμβουλος</span><select value={adviserId} onChange={(event) => setAdviserId(event.target.value)} required>{advisers.map((adviser) => <option value={adviser.id} key={adviser.id}>{adviser.displayName} · {adviser.vendorName}</option>)}</select></label>
+        <label><span>Σύμβουλος</span><select value={adviserId} onChange={(event) => changeAdviser(event.target.value)} required>{advisers.map((adviser) => <option value={adviser.id} key={adviser.id}>{adviser.displayName} · {adviser.vendorName}</option>)}</select></label>
         {selectedAdviser && <p className="form-help">{selectedAdviser.jobTitle ? `${selectedAdviser.jobTitle} · ` : ""}{selectedAdviser.specialties.length ? selectedAdviser.specialties.join(" · ") : selectedAdviser.vendorName}</p>}
         <div className="customer-form-grid">
           <label><span>Ημερομηνία & ώρα</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required /></label>
           <label><span>Διάρκεια</span><select value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)}><option value="30">30 λεπτά</option><option value="45">45 λεπτά</option><option value="60">60 λεπτά</option></select></label>
-          <label><span>Τρόπος</span><select value={channel} onChange={(event) => setChannel(event.target.value as "in_person" | "phone")}><option value="in_person">Στο κατάστημα</option><option value="phone">Τηλεφωνικά</option></select></label>
+          <label><span>Τρόπος</span><select value={channel} onChange={(event) => setChannel(event.target.value as "in_person" | "phone")}><option value="in_person">Στο κατάστημα</option><option value="phone" disabled={!selectedAdviser?.phoneAvailable}>Τηλεφωνικά{selectedAdviser?.phoneAvailable ? "" : " · μη διαθέσιμο"}</option></select></label>
         </div>
-        {channel === "phone" && selectedAdviser && <p className="form-help">Στην ώρα του ραντεβού άνοιξε τα <Link className="text-link" href={`/vendor/${encodeURIComponent(selectedAdviser.vendorId)}#store-info`}>δημόσια στοιχεία επικοινωνίας του {selectedAdviser.vendorName}</Link> και κάλεσε το κατάστημα.</p>}
+        {selectedAdviser && !selectedAdviser.phoneAvailable && <p className="form-help">Το συγκεκριμένο κατάστημα δεν έχει δημοσιευμένο τηλέφωνο, επομένως το ραντεβού μπορεί να γίνει μόνο στο κατάστημα.</p>}
+        {channel === "phone" && selectedAdviser?.phoneAvailable && <p className="form-help">Στην ώρα του ραντεβού άνοιξε τα <Link className="text-link" href={`/vendor/${encodeURIComponent(selectedAdviser.vendorId)}#store-info`}>δημόσια στοιχεία επικοινωνίας του {selectedAdviser.vendorName}</Link> και κάλεσε το κατάστημα.</p>}
         <label><span>Τι θέλεις να συζητήσεις; <small>(προαιρετικό)</small></span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} rows={3} placeholder="Π.χ. χρειάζομαι βοήθεια να επιλέξω σωστό μέγεθος / συμβατότητα…" /></label>
         <button className="button" disabled={Boolean(busy) || !startsAt || !selectedAdviser}>{busy === "create" ? "Δέσμευση…" : "Κλείσε το ραντεβού"}</button>
       </form>}
