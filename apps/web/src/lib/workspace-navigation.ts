@@ -165,6 +165,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     icon: "content",
     links: [
       { label: "Pages & SEO", href: "/admin/content", icon: "✎", permission: "content.read" },
+      { label: "SEO & Visibility", href: "/admin/seo", icon: "⌕", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
       { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" }
     ]
