@@ -1,0 +1,43 @@
+name: Nikolaou Catalogue Import Acceptance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  importer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck importer
+        run: >-
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
+          --allowImportingTsExtensions --skipLibCheck
+          scripts/catalogue/nikolaou-import-lib.ts scripts/import-nikolaou-master.ts
+      - name: Run parser and governance tests
+        run: node --experimental-strip-types --test scripts/catalogue/nikolaou-import-lib.test.ts
+      - name: Exercise safe dry-run CLI
+        run: |
+          node --experimental-strip-types --input-type=module <<'NODE'
+          import { writeFile } from 'node:fs/promises';
+          import { NIKOLAOU_REQUIRED_HEADERS } from './scripts/catalogue/nikolaou-import-lib.ts';
+          const row = Object.fromEntries(NIKOLAOU_REQUIRED_HEADERS.map((header) => [header, '']));
+          Object.assign(row, {
+            supplier_code: '532', gtin13: '5205909000532', model: 'AB80', brand: 'Kumatsugen',
+            title: 'KUMATSUGEN AB80 Αντλία Βενζίνης 3x3', master_description_el: 'Δοκιμαστική εγγραφή',
+            product_type: 'pump_or_pump_accessory', source_url: 'https://www.nikolaoutools.gr/example',
+            supplier_categories: 'Αντλίες Βενζίνης', app_category_code: 'irrigation-watering', taxonomy_confidence: 'medium',
+            variant_attributes_json: '{"diameter_in":"3"}', specifications_json: '{}', disambiguation_key: 'fixture-ab80',
+            price_status: 'unpriced', price_review_required: 'yes', data_quality_flags: 'legacy_unpriced',
+            master_record_version: 'fixture', last_researched_date: '2026-08-22'
+          });
+          const escape = (value) => /[",\n\r]/.test(value) ? `"${value.replaceAll('"','""')}"` : value;
+          await writeFile('/tmp/nikolaou-fixture.csv', `${NIKOLAOU_REQUIRED_HEADERS.join(',')}\n${NIKOLAOU_REQUIRED_HEADERS.map((header) => escape(row[header])).join(',')}\n`);
+          NODE
+          node --experimental-strip-types scripts/import-nikolaou-master.ts /tmp/nikolaou-fixture.csv --expected-row-count=1
