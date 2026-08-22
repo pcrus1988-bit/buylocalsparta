@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { can, type Role } from "@buy-local-sparta/core";
 import { VENDOR_WORKSPACE_NAVIGATION } from "../lib/workspace-navigation";
 import { VendorBreadcrumbs, VendorContextNavigation, VendorDomainNavigation } from "./VendorDomainNavigation";
 
@@ -29,11 +30,17 @@ export function VendorWorkspaceHeader() {
   }, []);
 
   const navigation = useMemo(() => {
-    if (roles.includes("vendor_owner")) return VENDOR_WORKSPACE_NAVIGATION;
     return VENDOR_WORKSPACE_NAVIGATION
-      .map((group) => ({ ...group, links: group.links.filter((link) => link.href !== "/vendor/daily-access") }))
+      .map((group) => ({
+        ...group,
+        links: group.links.filter((link) => {
+          if (link.href === "/vendor/daily-access" && !roles.includes("vendor_owner")) return false;
+          if (!link.permission) return true;
+          return roles.some((role) => can(role as Role, link.permission!));
+        })
+      }))
       .filter((group) => group.links.length > 0)
-      .map((group) => group.href === "/vendor/daily-access" ? { ...group, href: group.links[0]?.href } : group);
+      .map((group) => group.href && !group.links.some((link) => link.href === group.href) ? { ...group, href: group.links[0]?.href } : group);
   }, [roles]);
 
   async function logout() {
