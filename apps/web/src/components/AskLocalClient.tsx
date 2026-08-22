@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AskLocalClarificationClient } from "./AskLocalClarificationClient";
 import { CustomerHowItWorks, CustomerLifecycle, type CustomerLifecycleStage } from "./CustomerAccountPrimitives";
-import type { AskLocalRequestView } from "../lib/ask-local-service";
+import type { CustomerAskLocalRequestView } from "../lib/customer-ask-local-view";
 
 type Context = Readonly<{ need?: string; canonicalVariantId?: string; preferredVendorId?: string; sourceUrl?: string }>;
 const labels: Record<string, string> = { submitted: "Σε έλεγχο από την πλατφόρμα", assigned: "Ανατέθηκε ιδιωτικά", awaiting_vendor: "Αναμονή απάντησης καταστήματος", needs_info: "Χρειάζονται πληροφορίες", offered: "Έχει σταλεί ιδιωτική προσφορά", active: "Ενεργή", accepted: "Αποδεκτή προσφορά", converted: "Μετατράπηκε σε αγορά", declined: "Απορρίφθηκε", expired: "Έληξε", revoked: "Αντικαταστάθηκε", closed: "Ολοκληρώθηκε" };
@@ -29,7 +29,7 @@ function requestLifecycle(status: string): readonly CustomerLifecycleStage[] {
   });
 }
 
-export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: string; initial: readonly AskLocalRequestView[]; context: Context }) {
+export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: string; initial: readonly CustomerAskLocalRequestView[]; context: Context }) {
   const [requests, setRequests] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState("");
@@ -45,7 +45,7 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
     const form = new FormData(formElement);
     try {
       const response = await fetch("/api/account/ask-local", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify({ need: form.get("need"), postcode: form.get("postcode"), quantity: Number(form.get("quantity")), sourceUrl: form.get("sourceUrl"), canonicalVariantId: context.canonicalVariantId, preferredVendorId: context.preferredVendorId, category: form.get("category") }) });
-      const payload = await response.json() as { request?: AskLocalRequestView; error?: string };
+      const payload = await response.json() as { request?: CustomerAskLocalRequestView; error?: string };
       if (!response.ok || !payload.request) throw new Error(payload.error ?? "Το αίτημα δεν ολοκληρώθηκε");
       setRequests((current) => [payload.request!, ...current]);
       setSuccess(`Το αίτημα ${payload.request.referenceNumber} καταχωρίστηκε ιδιωτικά.`);
@@ -57,17 +57,17 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
     }
   }
 
-  async function decideOffer(offerId: string, action: "accept" | "decline") {
-    setDecisionBusy(`${action}:${offerId}`);
+  async function decideOffer(requestReference: string, action: "accept" | "decline") {
+    setDecisionBusy(`${action}:${requestReference}`);
     setError("");
     setSuccess("");
     try {
       const response = await fetch("/api/account/ask-local/offers", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({ offerId, action })
+        body: JSON.stringify({ requestReference, action })
       });
-      const payload = await response.json() as { requests?: readonly AskLocalRequestView[]; error?: string };
+      const payload = await response.json() as { requests?: readonly CustomerAskLocalRequestView[]; error?: string };
       if (!response.ok || !payload.requests) throw new Error(payload.error ?? "Η απόφαση δεν αποθηκεύτηκε");
       setRequests(payload.requests);
       setSuccess(action === "accept" ? "Η προσφορά έγινε αποδεκτή και το κατάστημα ενημερώθηκε." : "Η προσφορά απορρίφθηκε και το κατάστημα ενημερώθηκε.");
@@ -107,12 +107,14 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
         {request.status === "offered" && <p className="account-muted"><strong>Υπάρχει νέα ιδιωτική προσφορά.</strong> Έλεγξε τι περιλαμβάνει, την τελική τιμή και μέχρι πότε ισχύει πριν αποφασίσεις.</p>}
         {request.privateOffers.length > 0 && <div className="private-offer-list">{request.privateOffers.map((offer) => {
           const active = offer.status === "active" && offer.expiresAt > Date.now() && request.status === "offered";
-          return <div key={offer.id} className={active ? "customer-private-offer is-active" : "customer-private-offer"}>
+          const actionReference = offer.actionReference;
+          const offerKey = `${request.referenceNumber}:${offer.expiresAt}:${offer.priceMinor}:${offer.status}`;
+          return <div key={offerKey} className={active ? "customer-private-offer is-active" : "customer-private-offer"}>
             <strong>{new Intl.NumberFormat("el-GR", { style: "currency", currency: offer.currency }).format(offer.priceMinor / 100)} / τεμ.</strong>
             <span>{offer.fulfilmentPromise ?? "Ιδιωτική προσφορά"}</span>
             <small>{labels[offer.status] ?? offer.status} · έως {date(offer.expiresAt)}</small>
-            {active && <div className="customer-private-offer-actions"><button className="button button-secondary" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(offer.id, "decline")}>{decisionBusy === `decline:${offer.id}` ? "Απόρριψη…" : "Δεν με ενδιαφέρει"}</button><button className="button" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(offer.id, "accept")}>{decisionBusy === `accept:${offer.id}` ? "Αποδοχή…" : "Αποδέχομαι την προσφορά"}</button></div>}
-            {offer.status === "accepted" && <div className="customer-private-offer-result"><strong>Αποδεκτή</strong>{request.canonicalVariantId ? <><span>Η ειδική τιμή μπορεί να περάσει σε checkout χωρίς να αντικατασταθεί από την τιμή καταλόγου. Η τελική επιβεβαίωση ελέγχει ξανά το συγκεκριμένο κατάστημα, pickup και το πραγματικό απόθεμα.</span><Link className="button" href={`/checkout/private-offer/${encodeURIComponent(offer.id)}`}>Ολοκλήρωση αγοράς</Link></> : <span>Το κατάστημα ενημερώθηκε. Για online αγορά χρειάζεται πρώτα η προσφορά να συνδεθεί με συγκεκριμένο προϊόν και εγκεκριμένο απόθεμα.</span>}</div>}
+            {active && <div className="customer-private-offer-actions"><button className="button button-secondary" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(actionReference, "decline")}>{decisionBusy === `decline:${actionReference}` ? "Απόρριψη…" : "Δεν με ενδιαφέρει"}</button><button className="button" type="button" disabled={Boolean(decisionBusy)} onClick={() => void decideOffer(actionReference, "accept")}>{decisionBusy === `accept:${actionReference}` ? "Αποδοχή…" : "Αποδέχομαι την προσφορά"}</button></div>}
+            {offer.status === "accepted" && <div className="customer-private-offer-result"><strong>Αποδεκτή</strong>{request.canonicalVariantId ? <><span>Η ειδική τιμή μπορεί να περάσει σε checkout χωρίς να αντικατασταθεί από την τιμή καταλόγου. Η τελική επιβεβαίωση ελέγχει ξανά το συγκεκριμένο κατάστημα, pickup και το πραγματικό απόθεμα.</span><Link className="button" href={`/checkout/private-offer/${encodeURIComponent(actionReference)}`}>Ολοκλήρωση αγοράς</Link></> : <span>Το κατάστημα ενημερώθηκε. Για online αγορά χρειάζεται πρώτα η προσφορά να συνδεθεί με συγκεκριμένο προϊόν και εγκεκριμένο απόθεμα.</span>}</div>}
             {offer.status === "converted" && <div className="customer-private-offer-result"><strong>Έγινε παραγγελία</strong><span>Η ειδική τιμή έχει ήδη δεσμευτεί σε παραγγελία.</span><Link className="text-link" href="/account/orders">Δες τις παραγγελίες →</Link></div>}
           </div>;
         })}</div>}
