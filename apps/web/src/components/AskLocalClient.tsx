@@ -96,14 +96,14 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
     </section>
     <section className="shell section" aria-labelledby="requests-title">
       <div className="section-heading"><div><div className="eyebrow">Τα αιτήματά μου</div><h2 id="requests-title">Ιδιωτική εξέλιξη</h2></div><p className="section-note">Η ανάθεση, οι διευκρινίσεις και οι προσφορές εμφανίζονται μόνο στον λογαριασμό σου.</p></div>
-      {requests.length ? <div className="ask-request-list">{requests.map((request) => <article className="ask-request-card" key={request.id}>
+      {requests.length ? <div className="ask-request-list">{requests.map((request) => <article className="ask-request-card" key={request.referenceNumber}>
         <div className="ask-request-head"><div><strong>{request.referenceNumber}</strong><small>{date(request.createdAt)}</small></div><span className="status-pill">{labels[request.status] ?? request.status}</span></div>
         <p>{request.need}</p>
         <div className="ask-request-meta"><span>{request.quantity} τεμ.</span><span>ΤΚ {request.postcode}</span>{request.assignedVendorName && <span>Ιδιωτικά προς {request.assignedVendorName}</span>}{request.responseDueAt && request.status === "awaiting_vendor" && <span>Απάντηση έως {date(request.responseDueAt)}</span>}</div>
         <CustomerLifecycle label={`Πορεία Ask Local ${request.referenceNumber}`} stages={requestLifecycle(request.status)} />
         {request.status === "awaiting_vendor" && <p className="account-muted">Περιμένουμε απάντηση από το κατάστημα. Δεν χρειάζεται ενέργεια από εσένα τώρα.</p>}
         {request.status === "needs_info" && <p className="account-muted"><strong>Χρειάζεται διευκρίνιση από εσένα.</strong> Δες την ερώτηση του καταστήματος και απάντησε μέσα από το ίδιο αίτημα.</p>}
-        {(request.status === "needs_info" || (request.clarificationCount ?? 0) > 0) && <AskLocalClarificationClient requestId={request.id} status={request.status} clarificationCount={request.clarificationCount ?? 0} csrfToken={csrfToken} onRequestsChanged={setRequests} />}
+        {(request.status === "needs_info" || (request.clarificationCount ?? 0) > 0) && <AskLocalClarificationClient requestId={request.referenceNumber} status={request.status} clarificationCount={request.clarificationCount ?? 0} csrfToken={csrfToken} onRequestsChanged={setRequests} />}
         {request.status === "offered" && <p className="account-muted"><strong>Υπάρχει νέα ιδιωτική προσφορά.</strong> Έλεγξε τι περιλαμβάνει, την τελική τιμή και μέχρι πότε ισχύει πριν αποφασίσεις.</p>}
         {request.privateOffers.length > 0 && <div className="private-offer-list">{request.privateOffers.map((offer) => {
           const active = offer.status === "active" && offer.expiresAt > Date.now() && request.status === "offered";
