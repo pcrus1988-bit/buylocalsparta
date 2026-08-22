@@ -22,7 +22,13 @@ export function isContentLocale(value: string | undefined): value is ContentLoca
 
 export async function getPublicCmsPage(locale: ContentLocale, slug: string, now = Date.now()): Promise<{ page: ContentPage; translation: ContentTranslation } | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
-  return getProductionPostgresRuntime().persistence.content.publicPage({ marketId: MARKET_ID, slug, locale, now });
+  const resolved = await getProductionPostgresRuntime().persistence.content.publicPage({ marketId: MARKET_ID, slug, locale, now });
+  if (!resolved) return undefined;
+  const translation = resolved.page.translations[locale];
+  // Do not expose the repository's Greek fallback at an English URL. Fallback is useful
+  // to internal consumers, but a public locale route must have its own translation so we
+  // do not create duplicate-language indexable pages.
+  return translation ? { page: resolved.page, translation } : undefined;
 }
 
 export async function getPublicCmsPages(now = Date.now()): Promise<readonly ContentPage[]> {
