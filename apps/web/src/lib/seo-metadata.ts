@@ -57,6 +57,14 @@ export function buildGovernedSeoMetadata(input: {
           images: openGraphImage ? [openGraphImage] : undefined,
           type: "website"
         }
+      : undefined,
+    twitter: openGraphTitle || openGraphDescription || openGraphImage
+      ? {
+          card: openGraphImage ? "summary_large_image" : "summary",
+          title: openGraphTitle,
+          description: openGraphDescription,
+          images: openGraphImage ? [openGraphImage] : undefined
+        }
       : undefined
   };
 }

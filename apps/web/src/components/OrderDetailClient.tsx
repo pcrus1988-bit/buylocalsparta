@@ -4,6 +4,7 @@ import Link from "next/link";
 import QRCode from "react-qr-code";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { productPublicPath } from "../lib/product-url";
 
 type ReturnCase = {
   id: string;
@@ -41,7 +42,7 @@ type Detail = {
   canCancel: boolean;
   csrfToken: string;
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string };
-  lines: ReadonlyArray<{ id: string; canonicalVariantId: string; title: string; quantity: number; fulfilledQuantity: number; refundedQuantity: number; returnableQuantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
+  lines: ReadonlyArray<{ id: string; canonicalVariantId: string; productSlug?: string; title: string; quantity: number; fulfilledQuantity: number; refundedQuantity: number; returnableQuantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
   fulfilments: ReadonlyArray<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[] }>;
   pickups: ReadonlyArray<{ id: string; fulfilmentId: string; vendorName: string; status: "ready" | "collected" | "expired"; readyAt: number; expiresAt: number; collectedAt?: number; shortCode: string; qrUrl: string }>;
   returns: ReadonlyArray<ReturnCase>;
@@ -109,7 +110,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <h2>Προϊόντα</h2>
         {data.lines.map((line) => <div key={line.id} style={{ display: "grid", gap: 10 }}>
           <div className="order-detail-line">
-            <div><Link href={`/product/${line.canonicalVariantId}`}><strong>{line.quantity}× {line.title}</strong></Link><small>από <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small>{line.refundedQuantity > 0 && <small>{line.refundedQuantity} τεμ. έχουν ήδη γίνει refund</small>}</div>
+            <div><Link href={productPublicPath({ id: line.canonicalVariantId, slug: line.productSlug })}><strong>{line.quantity}× {line.title}</strong></Link><small>από <Link href={`/vendor/${line.vendorId}`}>{line.vendorName}</Link></small>{line.refundedQuantity > 0 && <small>{line.refundedQuantity} τεμ. έχουν ήδη γίνει refund</small>}</div>
             <span>{line.retailUnitPrice} / τεμ.</span>
           </div>
           {line.returnableQuantity > 0 && <details className="order-cancel-disclosure" style={{ marginBottom: 12 }}>

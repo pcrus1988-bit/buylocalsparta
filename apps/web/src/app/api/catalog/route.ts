@@ -1,4 +1,5 @@
 import { getCatalogCards } from "../../../lib/catalog-view";
+import { productPublicPath } from "../../../lib/product-url";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -9,6 +10,8 @@ export async function GET(request: Request) {
   const category = url.searchParams.get("category")?.trim().slice(0, 100) || "";
   const products = (await getCatalogCards(visitorKey, postcode.slice(0, 16), query, category)).map((product) => ({
     id: product.id,
+    slug: product.slug,
+    url: productPublicPath(product),
     title: product.title,
     price: product.price,
     priceMinor: product.priceMinor,

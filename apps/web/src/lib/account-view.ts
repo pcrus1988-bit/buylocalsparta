@@ -24,11 +24,11 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
     const product = catalogMap.get(saved.canonicalVariantId);
     if (!product) return { ...saved, unavailable: true as const };
     const availability = await getCanonicalAvailability(product.id);
-    return { ...saved, title: product.title, price: product.price, available: availability?.available ?? false, alert: state.savedProductAlerts.find((item) => item.canonicalVariantId === product.id) ?? null };
+    return { ...saved, slug: product.slug, title: product.title, price: product.price, available: availability?.available ?? false, alert: state.savedProductAlerts.find((item) => item.canonicalVariantId === product.id) ?? null };
   }));
   const recentlyViewed = state.recentlyViewed.flatMap((view) => {
     const product = catalogMap.get(view.canonicalVariantId);
-    return product ? [{ ...view, title: product.title, price: product.price }] : [];
+    return product ? [{ ...view, slug: product.slug, title: product.title, price: product.price }] : [];
   });
   const recommendationSignals = (ids: readonly { canonicalVariantId: string; viewedAt?: number }[]) => ids.flatMap((item) => {
     const product = catalogMap.get(item.canonicalVariantId);
@@ -45,7 +45,7 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
     limit: 6
   }).map((item) => {
     const product = catalogMap.get(item.canonicalVariantId)!;
-    return { ...item, title: product.title, price: product.price };
+    return { ...item, slug: product.slug, title: product.title, price: product.price };
   });
   const orderReferences = await marketplaceReferenceMap("order", ordersRaw.map((order) => order.id));
   const orders = ordersRaw.map((order) => ({
@@ -86,15 +86,17 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderId: s
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups, invoice, returns, orderReference] = await Promise.all([
+  const [vendorEntries, pickups, invoice, returns, orderReference, catalog] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
     customerPickupCredentials(principal, orderId),
     customerFiscalDocumentForOrder(orderId),
     customerReturnsSnapshot(principal, orderId),
-    marketplaceReference("order", order.id)
+    marketplaceReference("order", order.id),
+    getPublicCatalogProducts()
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, orderReference, principal.csrfToken, canCancel, vendorNames, pickups, returns, invoice ? {
+  const productSlugs = new Map(catalog.map((product) => [product.id, product.slug]));
+  return orderDetailProjection(order, orderReference, principal.csrfToken, canCancel, vendorNames, productSlugs, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
@@ -142,6 +144,7 @@ function orderDetailProjection(
   csrfToken: string,
   canCancel: boolean,
   vendorNames: ReadonlyMap<string, string>,
+  productSlugs: ReadonlyMap<string, string>,
   pickups: readonly CustomerPickupCredential[],
   returns: CustomerReturnsSnapshot,
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
@@ -166,6 +169,7 @@ function orderDetailProjection(
     lines: order.lines.map((line) => ({
       id: line.id,
       canonicalVariantId: line.canonicalVariantId,
+      productSlug: productSlugs.get(line.canonicalVariantId),
       title: line.titleSnapshot,
       quantity: line.quantity,
       fulfilledQuantity: line.fulfilledQuantity,

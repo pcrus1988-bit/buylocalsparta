@@ -8,6 +8,7 @@ import { INDEXABLE_STATIC_ROUTES, NON_INDEXABLE_PAGE_ROUTES } from "./site-navig
 import { researchVendorIndexEligibility, SEO_ROUTE_POLICIES, type SeoVisibilityClass } from "./seo-visibility-policy";
 import { getSeoGlobalSettingsSnapshot, getSeoSettingsAuditHistory } from "./seo-settings";
 import { STOREFRONT_CATEGORIES } from "./storefront-taxonomy";
+import { productPublicPath } from "./product-url";
 import { getSeoEntityOverrideAuditHistory, getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
 import { getSeoDiagnosticReportsSnapshot } from "./seo-diagnostic-reports";
 import {
@@ -101,6 +102,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
     defaultIndexAllowed: boolean;
     defaultSchemaAllowed?: boolean;
     entityAvailable?: boolean;
+    route?: string;
   }) => {
     const override = findSeoEntityOverride(entityOverrides.entries, input.reference);
     const control = resolveSeoEntityControl({
@@ -116,7 +118,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
       kind: input.reference.kind,
       id: input.reference.id,
       label: input.label,
-      route: routeForSeoEntity(input.reference),
+      route: input.route ?? routeForSeoEntity(input.reference),
       generatedTitle: input.generatedTitle,
       generatedDescription: input.generatedDescription,
       indexAllowed: control.indexAllowed,
@@ -145,6 +147,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
   });
   for (const product of products) addCandidate({
     reference: { kind: "product", id: product.id },
+    route: productPublicPath(product),
     label: `Product · ${product.title}`,
     generatedTitle: product.title,
     generatedDescription: `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και μία καθαρή εμπειρία αγοράς.`,

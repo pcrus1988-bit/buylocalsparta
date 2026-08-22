@@ -5,17 +5,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AccountSectionNavigation } from "./AccountSectionNavigation";
 import { WorkspaceQuickLinks } from "./WorkspaceQuickLinks";
+import { productPublicPath } from "../lib/product-url";
 
 type Dashboard = {
   account: { userId: string; email: string };
   csrfToken: string;
-  savedProducts: ReadonlyArray<{ canonicalVariantId: string; title?: string; price?: string; available?: boolean; unavailable?: boolean }>;
+  savedProducts: ReadonlyArray<{ canonicalVariantId: string; slug?: string; title?: string; price?: string; available?: boolean; unavailable?: boolean }>;
   savedSearches: ReadonlyArray<{ id: string; name: string; alertsEnabled: boolean; lastObservedCount: number }>;
   notifications: ReadonlyArray<{ id: string; title: string; body: string; group: string; readAt?: number; createdAt: number }>;
   unreadNotifications: number;
-  recentlyViewed: ReadonlyArray<{ canonicalVariantId: string; title: string; price: string; viewedAt: number }>;
+  recentlyViewed: ReadonlyArray<{ canonicalVariantId: string; slug: string; title: string; price: string; viewedAt: number }>;
   preferences: { recommendationsEnabled: boolean; recentlyViewedEnabled: boolean };
-  recommendations: ReadonlyArray<{ canonicalVariantId: string; title: string; price: string; explanation: string }>;
+  recommendations: ReadonlyArray<{ canonicalVariantId: string; slug: string; title: string; price: string; explanation: string }>;
   privacyRequests: ReadonlyArray<{ id: string; type: string; status: string; submittedAt: number }>;
   retention: ReadonlyArray<{ category: string; retained: boolean; reason: string }>;
   orders: ReadonlyArray<{ id: string; referenceNumber: string; status: string; total: string; createdAt: number; fulfilmentMode: string; lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }> }>;
@@ -109,7 +110,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
       <article className="account-live-card" id="saved">
         <div className="account-card-head"><div><div className="eyebrow">Για αργότερα</div><h2>Αποθηκευμένα</h2></div><span className="count-pill">{data.savedProducts.length}</span></div>
-        {data.savedProducts.length ? <div className="mini-list">{data.savedProducts.map((product) => <div key={product.canonicalVariantId}><Link href={`/product/${product.canonicalVariantId}`}><strong>{product.title ?? product.canonicalVariantId}</strong></Link><span>{product.price ?? ""} · {product.available ? "διαθέσιμο" : "μη διαθέσιμο"}</span><button type="button" onClick={() => void mutate(`remove-${product.canonicalVariantId}`, `/api/account/saved-products/${encodeURIComponent(product.canonicalVariantId)}`, { method: "DELETE" })}>Αφαίρεση</button></div>)}</div> : <p className="account-muted">Δεν έχεις αποθηκεύσει προϊόντα.</p>}
+        {data.savedProducts.length ? <div className="mini-list">{data.savedProducts.map((product) => <div key={product.canonicalVariantId}><Link href={productPublicPath({ id: product.canonicalVariantId, slug: product.slug })}><strong>{product.title ?? product.canonicalVariantId}</strong></Link><span>{product.price ?? ""} · {product.available ? "διαθέσιμο" : "μη διαθέσιμο"}</span><button type="button" onClick={() => void mutate(`remove-${product.canonicalVariantId}`, `/api/account/saved-products/${encodeURIComponent(product.canonicalVariantId)}`, { method: "DELETE" })}>Αφαίρεση</button></div>)}</div> : <p className="account-muted">Δεν έχεις αποθηκεύσει προϊόντα.</p>}
       </article>
 
       <article className="account-live-card" id="notifications">
@@ -125,7 +126,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
       <article className="account-live-card" id="recommendations">
         <div className="account-card-head"><div><div className="eyebrow">Για εσένα</div><h2>Προτάσεις</h2></div></div>
-        {data.recommendations.length ? <div className="mini-list">{data.recommendations.map((item) => <div key={item.canonicalVariantId}><Link href={`/product/${item.canonicalVariantId}`}><strong>{item.title}</strong></Link><span>{item.price}</span><small>{item.explanation}</small></div>)}</div> : <p className="account-muted">Οι προτάσεις εμφανίζονται όταν η προσωποποίηση είναι ενεργή.</p>}
+        {data.recommendations.length ? <div className="mini-list">{data.recommendations.map((item) => <div key={item.canonicalVariantId}><Link href={productPublicPath({ id: item.canonicalVariantId, slug: item.slug })}><strong>{item.title}</strong></Link><span>{item.price}</span><small>{item.explanation}</small></div>)}</div> : <p className="account-muted">Οι προτάσεις εμφανίζονται όταν η προσωποποίηση είναι ενεργή.</p>}
       </article>
 
       <article className="account-live-card" id="privacy">
@@ -139,7 +140,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
       <article className="account-live-card account-wide" id="recent">
         <div className="account-card-head"><div><div className="eyebrow">Ιστορικό</div><h2>Πρόσφατα προϊόντα</h2></div><span className="count-pill">{data.recentlyViewed.length}</span></div>
-        {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={`/product/${item.canonicalVariantId}`} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">Δεν υπάρχει πρόσφατο ιστορικό.</p>}
+        {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={productPublicPath({ id: item.canonicalVariantId, slug: item.slug })} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">Δεν υπάρχει πρόσφατο ιστορικό.</p>}
       </article>
     </section>
   </>;

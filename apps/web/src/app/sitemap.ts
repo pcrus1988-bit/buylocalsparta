@@ -7,6 +7,7 @@ import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../lib/seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../lib/seo-entity-policy";
 import { STOREFRONT_CATEGORIES } from "../lib/storefront-taxonomy";
+import { productPublicPath } from "../lib/product-url";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const reference: SeoEntityReference = { kind: "product", id: product.id };
       const { override, control } = governed(reference, true, true);
       return control.sitemapAllowed ? [{
-        url: absoluteSeoCanonical(origin, reference, override),
+        url: new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString(),
         changeFrequency: "daily" as const,
         priority: 0.75,
         lastModified: safeLastModified(override?.lastReviewedAt)

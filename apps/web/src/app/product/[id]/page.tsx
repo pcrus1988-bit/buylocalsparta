@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getCanonicalProductSummary, getCatalogCard } from "../../../lib/catalog-view";
+import Image from "next/image";
+import { notFound, permanentRedirect } from "next/navigation";
+import { getCanonicalProductSummary, getCatalogCard, getPublicProductSeoSummary } from "../../../lib/catalog-view";
 import { getVisitorKey } from "../../../lib/visitor";
 import { AddToCartButton } from "../../../components/AddToCartButton";
 import { SiteHeader } from "../../../components/SiteHeader";
@@ -9,8 +10,9 @@ import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
-import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
+import { productPublicPath } from "../../../lib/product-url";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -23,37 +25,61 @@ const productImageStyle = {
   zIndex: 1
 } as const;
 
+function productSeoDescription(product: { title: string; description?: string }): string {
+  const description = product.description?.replace(/\s+/g, " ").trim()
+    || `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και ασφαλής ενιαία εμπειρία αγοράς.`;
+  return description.length <= 160 ? description : `${description.slice(0, 157).trimEnd()}…`;
+}
+
+function gtinSchema(gtin: string | undefined): Record<string, string> {
+  if (!gtin || !/^\d+$/.test(gtin)) return {};
+  if (gtin.length === 8) return { gtin8: gtin };
+  if (gtin.length === 12) return { gtin12: gtin };
+  if (gtin.length === 13) return { gtin13: gtin };
+  if (gtin.length === 14) return { gtin14: gtin };
+  return {};
+}
+
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { id } = await params;
   const [product, { settings }, overrides] = await Promise.all([
-    getCanonicalProductSummary(id),
+    getPublicProductSeoSummary(id),
     getSeoGlobalSettingsSnapshot(),
     getSeoEntityOverridesSnapshot()
   ]);
   if (!product) return { title: "Προϊόν" };
-  const description = `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και μία καθαρή εμπειρία αγοράς.`;
+  const description = productSeoDescription(product);
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
     reference,
     settings,
     override: findSeoEntityOverride(overrides.entries, reference),
-    defaults: { title: product.title, description, canonicalPath: `/product/${encodeURIComponent(product.id)}` },
+    defaults: {
+      title: product.title,
+      description,
+      canonicalPath: productPublicPath(product),
+      openGraphImage: product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined
+    },
     entityEligible: true,
     defaultIndexAllowed: true
   });
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = await params;
+  const { id: routeKey } = await params;
+  const summary = await getCanonicalProductSummary(routeKey);
+  if (!summary) notFound();
+  if (routeKey !== summary.slug) permanentRedirect(productPublicPath(summary));
+
   const [visitorKey, { settings }, overrides] = await Promise.all([getVisitorKey(), getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
-  const product = await getCatalogCard(id, visitorKey);
+  const product = await getCatalogCard(summary.id, visitorKey);
   if (!product) notFound();
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
   const seoControl = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible: true, defaultIndexAllowed: true, defaultSchemaAllowed: true, override });
   const category = storefrontCategoryForCode(product.categoryCode);
   const origin = settings.canonicalOrigin;
-  const productUrl = absoluteSeoCanonical(origin, reference, override);
+  const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
   const categoryUrl = `${origin}/category/${category.slug}`;
   const sellerOfRecord = {
     "@type": "Organization",
@@ -69,14 +95,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {
         "@type": "Product",
         "@id": `${productUrl}#product`,
+        url: productUrl,
+        mainEntityOfPage: productUrl,
         name: product.title,
-        description: product.description,
-        sku: product.mpn ?? product.id,
+        description: productSeoDescription(product),
+        sku: product.mpn,
         mpn: product.mpn,
+        ...gtinSchema(product.gtin),
         brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
         image: product.mediaId ? `${origin}/api/media/${encodeURIComponent(product.mediaId)}` : undefined,
         category: product.categoryLabel ?? category.label,
         color: product.color,
+        size: product.sizes.length ? product.sizes.join(", ") : undefined,
+        itemCondition: "https://schema.org/NewCondition",
         offers: {
           "@type": "Offer",
           url: productUrl,
@@ -109,7 +140,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className={`product-detail-art ${category.artClass}`}>
           <span className="detail-category">{category.name}</span>
           <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
-          {product.mediaId ? <img src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? product.title} decoding="async" style={productImageStyle} /> : null}
+          {product.mediaId ? <Image src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : null}
           <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
         </div>
         <div className="product-detail-copy">

@@ -6,6 +6,7 @@ import {
   vendorIndexEligible
 } from "../apps/web/src/lib/seo-visibility-policy.ts";
 import { resolveSeoEntityControl, routeForSeoEntity, seoEntityKey } from "../apps/web/src/lib/seo-entity-policy.ts";
+import { productPublicPath } from "../apps/web/src/lib/product-url.ts";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const failures: string[] = [];
@@ -28,6 +29,9 @@ const reportRuntime = read("apps/web/src/lib/seo-diagnostic-reports.ts");
 const reportRunner = read("apps/web/src/components/AdminSeoReportRunner.tsx");
 const reportExportRoute = read("apps/web/src/app/api/admin/seo/reports/[id]/route.ts");
 const adminSeoPage = read("apps/web/src/app/admin/seo/page.tsx");
+const catalogRuntime = read("apps/web/src/lib/catalog-view.ts");
+const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts");
+const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
 
 for (const required of [
   "getPublicCatalogProducts()",
@@ -39,6 +43,7 @@ for (const required of [
   "getSeoEntityOverridesSnapshot()",
   "resolveSeoEntityControl",
   "absoluteSeoCanonical",
+  "productPublicPath(product)",
   "researchVendorIndexEligibility"
 ]) {
   if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
@@ -121,13 +126,27 @@ const vendorPublishesCanonical = vendor.includes("buildGovernedSeoMetadata") && 
 if (!vendorPublishesCanonical) failures.push("Vendor metadata must publish a canonical URL");
 if (!vendor.includes("seoControl.schemaAllowed ? <script")) failures.push("Vendor structured data must honor the governed schema decision");
 
-for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', "availableAtOrFrom:", '"@type": "BreadcrumbList"']) {
+for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', "availableAtOrFrom:", '"@type": "BreadcrumbList"', "gtinSchema(product.gtin)", 'itemCondition: "https://schema.org/NewCondition"']) {
   if (!product.includes(contract)) failures.push(`Product SEO contract is missing ${contract}`);
 }
 if (!product.includes("settings.canonicalOrigin")) failures.push("Product structured data must use the governed canonical origin");
-if (!product.includes("buildGovernedSeoMetadata") || !product.includes("absoluteSeoCanonical")) failures.push("Product metadata and schema must publish the governed canonical URL");
+if (!product.includes("buildGovernedSeoMetadata") || !product.includes("productPublicPath(product)")) failures.push("Product metadata and schema must publish the governed friendly canonical URL");
 if (!product.includes("seoControl.schemaAllowed ? <script")) failures.push("Product structured data must honor the governed schema decision");
 if (product.includes("vendorPrice") || product.includes("supplierPrice")) failures.push("Product structured data must not expose hidden supplier pricing");
+if (!product.includes("permanentRedirect(productPublicPath(summary))") || !product.includes("getCatalogCard(summary.id, visitorKey)")) failures.push("Legacy product-ID URLs must redirect before commerce resolves the unchanged canonical product ID");
+if (product.includes("sku: product.mpn ?? product.id")) failures.push("Product schema must not fall back to exposing the canonical product ID as a public SKU");
+if (!product.includes("<Image") || !product.includes("openGraphImage:")) failures.push("Product SEO must use approved media for the visible image and social metadata when available");
+if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: openGraphImage ? "summary_large_image" : "summary"')) failures.push("Governed metadata must publish Twitter/X card fallbacks alongside Open Graph data");
+
+if (productPublicPath({ id: "canonical_123", slug: "nike-air-max-90" }) !== "/product/nike-air-max-90") failures.push("Product friendly paths must prefer the governed catalogue slug");
+if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") failures.push("Product friendly paths must retain a legacy-ID compatibility fallback");
+for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) {
+  if (!commerceRuntime.includes(contract)) failures.push(`Public catalogue slug projection is missing ${contract}`);
+}
+for (const contract of ["getPublicProductSeoSummary", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages"]) {
+  if (!catalogRuntime.includes(contract)) failures.push(`Public product SEO projection is missing ${contract}`);
+}
+if (!catalogCard.includes("productPublicPath(product)")) failures.push("Public catalogue cards must link to the preferred friendly product URL");
 
 for (const privateSource of ["/account/:path*", "/admin/:path*", "/daily/:path*", "/vendor/finance/:path*", "/api/internal/:path*"]) {
   if (!nextConfig.includes(`"${privateSource}"`)) failures.push(`Central X-Robots-Tag coverage is missing ${privateSource}`);
@@ -202,4 +221,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed global/entity metadata, audited overrides/reports, protected exports, quality-gated Research vendors, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");
+console.log("Next SEO checks passed: governed global/entity/product metadata, friendly legacy-compatible product URLs, audited overrides/reports, protected exports, quality-gated Research vendors, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");

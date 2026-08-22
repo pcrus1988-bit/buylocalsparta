@@ -265,6 +265,8 @@ Before indexing:
 
 Internal canonical IDs remain authoritative and unchanged.
 
+Implementation status: **metadata/media and friendly-URL foundation implemented on the working branch.** The existing market-unique `canonical_variants.slug` is now exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata also consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. Product quality/index eligibility remains Phase 3.3 work.
+
 ## 3.1 Metadata and schema
 
 For every public canonical product:
