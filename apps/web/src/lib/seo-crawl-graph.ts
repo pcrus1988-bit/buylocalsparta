@@ -91,17 +91,22 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
     const kind = isPartner ? "partner_vendor" as const : "research_vendor" as const;
     const reference: SeoEntityReference = { kind, id: vendor.id };
     const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
+    const control = controlled(
+      reference,
+      isPartner || quality.blockingReasons.length === 0,
+      isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)
+    );
     nodes.push({
       key: `${kind}:${vendor.id}`,
       kind,
       label: vendor.name,
       route: `/vendor/${encodeURIComponent(vendor.id)}`,
-      indexAllowed: controlled(
-        reference,
-        isPartner || quality.blockingReasons.length === 0,
-        isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)
-      ).indexAllowed,
-      inboundSources: unique(["/shops directory", isPartner && vendor.adviser ? "/advice adviser discovery" : ""])
+      indexAllowed: control.indexAllowed,
+      inboundSources: unique([
+        "/shops directory",
+        control.sitemapAllowed ? "/sitemap governed vendor directory" : "",
+        isPartner && vendor.adviser ? "/advice adviser discovery" : ""
+      ])
     });
   }
 
