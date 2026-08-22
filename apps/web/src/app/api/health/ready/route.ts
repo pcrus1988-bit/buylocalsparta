@@ -4,6 +4,7 @@ import { productionDatabaseReadiness } from "../../../../lib/postgres-runtime";
 import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
 import { mediaPipelineReadiness } from "../../../../lib/media-upload-service";
 import { myDataReadiness } from "../../../../lib/mydata-runtime";
+import { postgresStorefrontSearchReadiness } from "../../../../lib/postgres-storefront-search";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,14 +15,31 @@ export async function GET() {
   const media = await mediaPipelineReadiness();
   const myData = await myDataReadiness();
 
-  const searchEnabled = process.env.BLS_SEARCH_ENABLED === "true";
-  let search = { enabled: searchEnabled, ready: !searchEnabled, status: searchEnabled ? "unavailable" : "disabled" };
-  if (searchEnabled && database.ok) {
+  const searchAcceleratorEnabled = process.env.BLS_SEARCH_ENABLED === "true";
+  const postgresSearch = database.ok
+    ? await postgresStorefrontSearchReadiness()
+    : { ready: false, provider: "postgres" as const, mode: "authoritative_catalog" as const, visibleProducts: 0, message: "PostgreSQL readiness failed" };
+  let search = {
+    enabled: true,
+    ready: postgresSearch.ready,
+    provider: "postgres",
+    status: postgresSearch.ready ? "ready" : "unavailable",
+    mode: postgresSearch.mode,
+    visibleProducts: postgresSearch.visibleProducts,
+    accelerator: searchAcceleratorEnabled ? "meilisearch" : "disabled",
+    acceleratorReady: searchAcceleratorEnabled ? false : null as boolean | null,
+    message: postgresSearch.message
+  };
+  if (searchAcceleratorEnabled && database.ok) {
     try {
       const health = await (await import("../../../../lib/postgres-runtime")).getProductionPostgresRuntime().search?.readiness();
-      search = { enabled: true, ready: Boolean(health?.ok), status: health?.status ?? "unavailable" };
+      if (health?.ok) {
+        search = { ...search, ready: true, provider: "meilisearch", status: health.status ?? "ready", acceleratorReady: true, message: "Meilisearch accelerator is healthy; PostgreSQL remains the authoritative fallback" };
+      } else {
+        search = { ...search, ready: postgresSearch.ready, provider: "postgres", status: postgresSearch.ready ? "fallback" : "unavailable", acceleratorReady: false, message: postgresSearch.ready ? "Meilisearch accelerator is unavailable; PostgreSQL fallback is healthy" : "Both Meilisearch and PostgreSQL storefront search are unavailable" };
+      }
     } catch {
-      search = { enabled: true, ready: false, status: "unavailable" };
+      search = { ...search, ready: postgresSearch.ready, provider: "postgres", status: postgresSearch.ready ? "fallback" : "unavailable", acceleratorReady: false, message: postgresSearch.ready ? "Meilisearch accelerator failed; PostgreSQL fallback is healthy" : "Search providers are unavailable" };
     }
   }
 
