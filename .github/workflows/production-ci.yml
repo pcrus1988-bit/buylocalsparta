@@ -264,3 +264,5 @@ jobs:
         run: docker build -f deploy/worker.Dockerfile -t buy-local-sparta-worker:ci .
       - name: Build production Next.js application
         run: npm run check:web
+      - name: Smoke built Next.js SEO and privacy contracts
+        run: node scripts/verify-seo-http-smoke.mjs
