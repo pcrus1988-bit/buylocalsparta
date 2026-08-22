@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getActivePublicCmsRedirect } from "./lib/public-cms";
+import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
