@@ -4,6 +4,8 @@ const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const mapper = read("apps/web/src/lib/customer-ask-local-view.ts");
 const resolver = read("apps/web/src/lib/customer-private-offer-reference.ts");
 const askLocalClient = read("apps/web/src/components/AskLocalClient.tsx");
+const publicAskLocalPage = read("apps/web/src/app/ask-local/page.tsx");
+const accountAskLocalPage = read("apps/web/src/app/account/ask-local/page.tsx");
 const askLocalRoute = read("apps/web/src/app/api/account/ask-local/route.ts");
 const offerRoute = read("apps/web/src/app/api/account/ask-local/offers/route.ts");
 const clarificationRoute = read("apps/web/src/app/api/account/ask-local/clarifications/route.ts");
@@ -23,6 +25,9 @@ for (const contract of [
   "actionReference: request.referenceNumber"
 ]) expect(mapper.includes(contract), `Customer Ask Local browser mapper is missing ${contract}`);
 
+for (const [name, source] of [["public Ask Local", publicAskLocalPage], ["account Ask Local", accountAskLocalPage]] as const) {
+  expect(source.includes("customerAskLocalRequestViews(await customerAskLocalRequests(principal))"), `${name} page must sanitize raw Ask Local requests before rendering customer state`);
+}
 for (const source of [askLocalRoute, offerRoute, clarificationRoute]) {
   expect(source.includes("customerAskLocalRequestView") || source.includes("customerAskLocalRequestViews"), "Every customer Ask Local API response carrying requests must use the browser-safe mapper");
 }
@@ -97,4 +102,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer private-offer reference checks passed: customer state/actions/checkout use ASK and order references only, legacy poffer IDs resolve server-side under ownership, and exact private-offer IDs remain confined to internal provenance services.");
+console.log("Customer private-offer reference checks passed: both Ask Local pages, customer APIs, decisions and checkout use ASK/order references only; legacy poffer IDs resolve server-side under ownership; exact private-offer IDs remain confined to internal provenance services.");
