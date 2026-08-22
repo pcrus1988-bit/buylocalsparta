@@ -170,11 +170,11 @@ export async function reconcileRefundedReturnFinance(returnId: string, actorUser
       }
     }
 
-    const actor = await tx.query<SqlRow>(`SELECT id::text AS actor_uuid FROM users WHERE public_id=$1 OR id::text=$1`, [actorUserId]);
+    const actor = await tx.query<SqlRow>(`SELECT id::text AS actor_uuid,public_id AS actor_public_id FROM users WHERE public_id=$1 OR id::text=$1`, [actorUserId]);
     if (!actor.rowCount) throw new Error("Admin actor not found for return finance reconciliation");
-    await tx.query(`INSERT INTO audit_events(id,public_id,market_id,actor_user_id,actor_role,action,entity_type,entity_id,reason,after_state,created_at)
-      VALUES($1,$2,(SELECT id FROM markets WHERE code='sparta'),$3,'platform_finance','return.vendor_finance.reconciled','return',$4,$5,$6::jsonb,$7)`, [
-      randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 24)}`, text(actor.rows[0].actor_uuid, "actor_uuid"), returnId,
+    await tx.query(`INSERT INTO audit_events(id,public_id,market_id,actor_user_id,actor_public_id,actor_role,action,entity_type,entity_id,reason,after_state,created_at)
+      VALUES($1,$2,(SELECT id FROM markets WHERE code='sparta'),$3,$4,'platform_finance','return.vendor_finance.reconciled','return',$5,$6,$7::jsonb,$8)`, [
+      randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 24)}`, text(actor.rows[0].actor_uuid, "actor_uuid"), text(actor.rows[0].actor_public_id, "actor_public_id"), returnId,
       "Customer refund vendor settlement reconciliation",
       JSON.stringify({ adjustedBeforeSettlementMinor: adjustedBeforeSettlement, postSettlementVendorReceivableMinor: vendorReceivable, missingProcurements }),
       new Date(now)

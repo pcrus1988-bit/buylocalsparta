@@ -1,0 +1,324 @@
+name: Customer Returns Lifecycle Acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+      BLS_EMAIL_DELIVERY_ENABLED: "false"
+      BLS_ACCEPTANCE_SYNTHETIC_DB: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck customer returns lifecycle acceptance
+        run: >-
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
+          --allowImportingTsExtensions --skipLibCheck
+          scripts/customer-returns-lifecycle-acceptance.ts
+      - name: Bootstrap Supabase-compatible role and Vault topology
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+          END
+          $$;
+
+          CREATE SCHEMA IF NOT EXISTS vault;
+          CREATE TABLE IF NOT EXISTS vault.secrets (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            name text UNIQUE,
+            description text,
+            secret text NOT NULL,
+            key_id uuid,
+            nonce bytea,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE OR REPLACE VIEW vault.decrypted_secrets AS
+            SELECT id, name, description, secret, secret AS decrypted_secret,
+                   key_id, nonce, created_at, updated_at
+            FROM vault.secrets;
+          CREATE OR REPLACE FUNCTION vault.create_secret(
+            new_secret text,
+            new_name text,
+            new_description text,
+            new_key_id uuid
+          ) RETURNS uuid
+          LANGUAGE plpgsql
+          AS $$
+          DECLARE
+            created_id uuid := gen_random_uuid();
+          BEGIN
+            INSERT INTO vault.secrets(id, secret, name, description, key_id)
+            VALUES(created_id, new_secret, new_name, new_description, new_key_id);
+            RETURN created_id;
+          END;
+          $$;
+          SQL
+      - name: Apply full PostgreSQL/PostGIS migration chain
+        run: npm run db:migrate
+      - name: Bind acceptance platform runtime credential
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
+      - name: Verify database readiness
+        run: npm run db:ready
+      - name: Bootstrap governed returns vendor finance fixtures
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users(email,password_hash,status,email_verified_at)
+          VALUES('ci-returns-agreement-signer@example.test','ci-only-not-a-runtime-password','active',now())
+          ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
+
+          INSERT INTO users(email,password_hash,status,email_verified_at)
+          VALUES('ci-returns-finance-checker@example.test','ci-only-not-a-runtime-password','active',now())
+          ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
+
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_returns_vendor_agreement()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          SET search_path = pg_catalog, public, bls_private
+          AS $$
+          DECLARE
+            signer_id uuid;
+            checker_id uuid;
+          BEGIN
+            IF NEW.public_id NOT LIKE 'vendor_returns_%' THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT id INTO signer_id
+            FROM public.users
+            WHERE email='ci-returns-agreement-signer@example.test'
+            LIMIT 1;
+
+            SELECT id INTO checker_id
+            FROM public.users
+            WHERE email='ci-returns-finance-checker@example.test'
+            LIMIT 1;
+
+            INSERT INTO public.vendor_commercial_agreements(
+              market_id,
+              vendor_id,
+              agreement_code,
+              agreement_version,
+              status,
+              starts_at,
+              signed_at,
+              commission_rate_bps,
+              commission_basis,
+              commission_tax_mode,
+              commission_tax_rate_bps,
+              source_document_reference,
+              terms_snapshot,
+              vendor_snapshot,
+              commercial_terms_snapshot,
+              signed_pdf_object_key,
+              signed_pdf_sha256,
+              signed_document_received_at,
+              govgr_reference,
+              govgr_verified_at,
+              govgr_verified_by,
+              activated_at,
+              activated_by
+            ) VALUES (
+              NEW.market_id,
+              NEW.id,
+              'CI-RETURNS-' || NEW.public_id,
+              1,
+              'active',
+              now() - interval '1 day',
+              now(),
+              500,
+              'merchandise_gross',
+              'included',
+              2400,
+              'ci://synthetic-governed-returns-agreement/' || NEW.public_id,
+              jsonb_build_object('fixture','customer-returns-lifecycle-acceptance'),
+              jsonb_build_object('vendorPublicId',NEW.public_id),
+              jsonb_build_object('commissionRateBps',500),
+              'ci-returns/' || NEW.public_id || '/signed.pdf',
+              repeat('a',64),
+              now(),
+              'CI-RETURNS-GOVGR-' || NEW.public_id,
+              now(),
+              signer_id,
+              now(),
+              signer_id
+            );
+
+            INSERT INTO public.vendor_payout_destinations(
+              vendor_id,
+              provider,
+              provider_reference,
+              display_label,
+              masked_account,
+              account_holder,
+              status,
+              verified_by,
+              verified_at,
+              effective_at,
+              metadata,
+              created_by,
+              created_at,
+              updated_at
+            ) VALUES (
+              NEW.id,
+              'bank_transfer',
+              'ci-returns-vault-token-' || NEW.public_id,
+              'CI returns payout destination',
+              'GR••••0002',
+              'CI Returns Vendor',
+              'verified',
+              checker_id,
+              now(),
+              now() - interval '1 minute',
+              jsonb_build_object('fixture','customer-returns-lifecycle-acceptance','makerChecker',true),
+              signer_id,
+              now(),
+              now()
+            );
+            RETURN NEW;
+          END;
+          $$;
+
+          DROP TRIGGER IF EXISTS ci_seed_returns_vendor_agreement ON public.vendor_businesses;
+          CREATE TRIGGER ci_seed_returns_vendor_agreement
+          AFTER INSERT ON public.vendor_businesses
+          FOR EACH ROW
+          WHEN (NEW.public_id LIKE 'vendor_returns_%')
+          EXECUTE FUNCTION bls_private.ci_seed_returns_vendor_agreement();
+
+          -- This acceptance never calls AADE. It models only the already-accepted
+          -- external fiscal boundary required before settlement, scoped to the
+          -- disposable vendor_returns_* fixture. Draft/preparation/transmission are
+          -- covered by the vendor billing subsystem and remain real production gates.
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_returns_accepted_commission_invoice()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          SET search_path = pg_catalog, public, bls_private
+          AS $$
+          DECLARE
+            vendor_public_id text;
+            agreement_id uuid;
+            invoice_id uuid;
+          BEGIN
+            IF NEW.status::text <> 'payable'
+               OR NEW.service_fee_minor <= 0
+               OR (TG_OP='UPDATE' AND OLD.status IS NOT DISTINCT FROM NEW.status) THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT v.public_id INTO vendor_public_id
+            FROM public.vendor_businesses v
+            WHERE v.id=NEW.vendor_id;
+            IF vendor_public_id NOT LIKE 'vendor_returns_%' THEN
+              RETURN NEW;
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM public.platform_vendor_invoice_items i
+              WHERE i.source_kind='commission' AND i.source_public_id=NEW.public_id
+            ) THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT a.id INTO agreement_id
+            FROM public.vendor_commercial_agreements a
+            WHERE a.vendor_id=NEW.vendor_id AND a.status='active'
+            ORDER BY a.starts_at DESC,a.created_at DESC
+            LIMIT 1;
+            IF agreement_id IS NULL THEN
+              RAISE EXCEPTION 'Synthetic accepted commission invoice requires active agreement';
+            END IF;
+
+            invoice_id := gen_random_uuid();
+            INSERT INTO public.platform_vendor_invoices(
+              id,public_id,market_id,vendor_id,agreement_id,
+              billing_period_start,billing_period_end,currency,
+              net_minor,tax_minor,gross_minor,settlement_offset_minor,
+              collection_method,payment_status,paid_minor,status,notes
+            ) VALUES (
+              invoice_id,
+              'pvinv_ci_returns_' || replace(invoice_id::text,'-',''),
+              NEW.market_id,NEW.vendor_id,agreement_id,
+              current_date,current_date,NEW.currency,
+              NEW.service_fee_net_minor,NEW.service_fee_tax_minor,NEW.service_fee_minor,NEW.service_fee_minor,
+              'settlement_offset','unpaid',0,'issued',
+              'Synthetic accepted AADE boundary for customer returns lifecycle acceptance only'
+            );
+
+            INSERT INTO public.platform_vendor_invoice_items(
+              invoice_id,source_kind,source_public_id,procurement_id,agreement_id,
+              service_date,description,vat_rate_bps,net_minor,tax_minor,gross_minor,
+              settlement_offset_minor,source_snapshot
+            ) VALUES (
+              invoice_id,'commission',NEW.public_id,NEW.id,agreement_id,
+              current_date,'Synthetic accepted commission prerequisite · ' || NEW.procurement_number,
+              CASE WHEN NEW.service_fee_tax_minor > 0 THEN 2400 ELSE 0 END,
+              NEW.service_fee_net_minor,NEW.service_fee_tax_minor,NEW.service_fee_minor,
+              NEW.service_fee_minor,
+              jsonb_build_object(
+                'fixture','customer-returns-lifecycle-acceptance',
+                'externalBoundary','AADE accepted invoice',
+                'networkCalled',false,
+                'procurementId',NEW.public_id
+              )
+            );
+            RETURN NEW;
+          END;
+          $$;
+
+          DROP TRIGGER IF EXISTS ci_seed_returns_accepted_commission_invoice ON public.procurements;
+          CREATE TRIGGER ci_seed_returns_accepted_commission_invoice
+          AFTER INSERT OR UPDATE OF status ON public.procurements
+          FOR EACH ROW
+          EXECUTE FUNCTION bls_private.ci_seed_returns_accepted_commission_invoice();
+          SQL
+      - name: Run customer returns lifecycle acceptance
+        run: >-
+          node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
+          scripts/customer-returns-lifecycle-acceptance.ts
+      - name: Disable returns finance fixture
+        if: always()
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER IF EXISTS ci_seed_returns_accepted_commission_invoice ON public.procurements;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_returns_accepted_commission_invoice();
+          DROP TRIGGER IF EXISTS ci_seed_returns_vendor_agreement ON public.vendor_businesses;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_returns_vendor_agreement();
+          SQL
