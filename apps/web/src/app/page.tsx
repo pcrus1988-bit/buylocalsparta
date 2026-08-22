@@ -5,13 +5,15 @@ import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
 import { HomeRegistrationCta } from "../components/HomeRegistrationCta";
-import { STOREFRONT_CATEGORIES, categoryCodeMatches } from "../lib/storefront-taxonomy";
+import { STOREFRONT_CATEGORIES } from "../lib/storefront-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { listHomepagePromoCtas } from "../lib/homepage-promo-cta-runtime";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
 import { governedStaticSeoMetadata } from "../lib/seo-metadata";
+import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
+import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
 const FEATURED_PRODUCT_LIMIT = 4;
 
@@ -20,16 +22,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const visitorKey = await getVisitorKey();
+  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
+  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
   const [featuredProducts, heroSlides, promoCtas] = await Promise.all([
-    getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
+    readOnlyCrawler
+      ? getCrawlerHomepageCatalogCards("23100", FEATURED_PRODUCT_LIMIT)
+      : getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
     listHomepageHeroSlides({ visibleOnly: true }),
     listHomepagePromoCtas({ visibleOnly: true })
   ]);
   const promoCta = promoCtas[0] ?? null;
-  const visibleCategories = STOREFRONT_CATEGORIES.filter((category) =>
-    featuredProducts.some((card) => categoryCodeMatches(card.categoryCode, category.slug))
-  );
+  const discoveryCategories = STOREFRONT_CATEGORIES;
 
   return (
     <main className={styles.home}>
@@ -112,23 +115,21 @@ export default async function Home() {
           Η τετράδα αλλάζει περιοδικά. Μόνο τα προϊόντα που φτάνουν πραγματικά στην αρχική περνούν από Fair Vendor Assignment, ώστε η προβολή να μην επιβαρύνει τεχνητά τα στατιστικά δικαιοσύνης.
         </div>
 
-        {visibleCategories.length ? (
-          <div className={styles.categoryArea}>
-            <div className={styles.categoryHeader}>
-              <div><div className="eyebrow">Από τις διαθέσιμες επιλογές τώρα</div><h3>Περιηγήσου ανά κατηγορία</h3></div>
-              <a className={styles.inlineLink} href="/shop">Όλες οι επιλογές <span>→</span></a>
-            </div>
-            <div className={styles.categoryRail} aria-label="Available product categories">
-              {visibleCategories.map((category) => (
-                <a className={styles.categoryCard} href={`/category/${category.slug}`} key={category.slug}>
-                  <span className={styles.categoryMark}>{category.mark}</span>
-                  <span className={styles.categoryCopy}><strong>{category.label}</strong><small>{category.name}</small></span>
-                  <span className={styles.categorySymbol} aria-hidden="true">{category.symbol}</span>
-                </a>
-              ))}
-            </div>
+        <div className={styles.categoryArea}>
+          <div className={styles.categoryHeader}>
+            <div><div className="eyebrow">Όλη η τοπική αγορά</div><h3>Περιηγήσου ανά κατηγορία</h3></div>
+            <a className={styles.inlineLink} href="/shop">Όλες οι επιλογές <span>→</span></a>
           </div>
-        ) : null}
+          <div className={styles.categoryRail} aria-label="Product categories">
+            {discoveryCategories.map((category) => (
+              <a className={styles.categoryCard} href={`/category/${category.slug}`} key={category.slug}>
+                <span className={styles.categoryMark}>{category.mark}</span>
+                <span className={styles.categoryCopy}><strong>{category.label}</strong><small>{category.name}</small></span>
+                <span className={styles.categorySymbol} aria-hidden="true">{category.symbol}</span>
+              </a>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className={styles.howSection} aria-labelledby="how-title">
