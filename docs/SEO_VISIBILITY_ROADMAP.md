@@ -36,6 +36,8 @@ Security and search directives are separate controls:
 
 # Phase 0 — Security and index-governance foundation (P0/P1)
 
+Implementation status: **foundation implemented on the working branch.**
+
 ## 0.1 Secret/diagnostic hardening
 
 - Remove hard-coded diagnostic credentials from repository code.
@@ -89,6 +91,8 @@ New admin subsection: `/admin/seo`
 Suggested navigation label: **SEO & Visibility** under **Περιεχόμενο**, with diagnostics/reporting available as tabs/subsections.
 
 ## 1.1 Overview dashboard
+
+Implementation status: **implemented on the working branch.**
 
 Cards/KPIs:
 
@@ -162,6 +166,8 @@ The system should prefer generated sensible defaults and use overrides only wher
 
 ## 1.4 Diagnostics
 
+Implementation status: **core diagnostics plus crawl-graph diagnostics implemented.** `/admin/seo/crawl` builds a governed internal-link model for every indexable static page, category, product, partner vendor and Research vendor and separates orphan pages from pages with only one stable discovery source.
+
 In-house checks should include:
 
 - HTTP reachability/status
@@ -185,7 +191,7 @@ Diagnostics must never store credentials, raw session cookies, private customer 
 
 ## 1.5 Reports
 
-Implementation status: **persisted reporting foundation implemented on the working branch.** Authorised Admin users can capture the current aggregate SEO inventory, route-policy counts, runtime readiness and sanitized diagnostic results as a bounded 50-snapshot history. Creation is permission/CSRF protected and append-only audited. Saved reports expose protected, private/no-store/noindex JSON and UTF-8 CSV downloads. The displayed trend compares the two latest internal health scores. Launch-checklist expansion and Search Console ingestion remain future work.
+Implementation status: **persisted reporting foundation implemented on the working branch.** Authorised Admin users can capture the current aggregate SEO inventory, route-policy counts, runtime readiness and sanitized diagnostic results as a bounded 50-snapshot history. Creation is permission/CSRF protected and append-only audited. Saved reports expose protected, private/no-store/noindex JSON and UTF-8 CSV downloads. The displayed trend compares the two latest internal health scores.
 
 Persist/read-only snapshots:
 
@@ -197,15 +203,13 @@ Persist/read-only snapshots:
 - exportable CSV/JSON diagnostic result
 - launch readiness checklist
 
-Future-ready integration boundary for Google Search Console data, without making the application depend on Search Console for core functionality.
-
 ---
 
 # Phase 2 — Research vendor local SEO (Model C)
 
 Business decision: **Research vendors are an intentional local-directory/search surface.**
 
-However, quantity must not override quality.
+Implementation status: **quality-gated indexing and sitemap admission implemented on the working branch.** Quantity does not override quality.
 
 ## 2.1 Eligibility gate
 
@@ -229,7 +233,7 @@ Recommended signals:
 - logo/photo
 - verified/reviewed timestamp
 
-Records below threshold may remain visible in internal admin/research tools but should not be indexed.
+Records below threshold may remain public for human discovery where appropriate, but are `noindex` and omitted from the XML sitemap.
 
 ## 2.2 Transparency
 
@@ -249,7 +253,7 @@ Index-eligible research vendors:
 - become sitemap candidates
 - receive canonical URL
 - receive LocalBusiness schema based only on available public/verified fields
-- have accurate `lastmod`
+- use a real reviewed/checked timestamp for `lastmod` when available
 
 ## 2.4 Duplicate prevention
 
@@ -274,32 +278,25 @@ For every public canonical product:
 - generated unique SEO title
 - meaningful description fallback
 - explicit canonical
-- Product + Offer schema
+- Product + Offer schema where the offer represents a real customer assignment
 - seller relationship
 - availability/price where valid
 - crawlable primary image
 - breadcrumbs
 
+Crawler rendering now deliberately omits personalized Offer/vendor schema because crawler traffic does not receive a Fair Vendor Assignment. This avoids advertising a crawler-only pseudo-offer merely to obtain a rich result.
+
 ## 3.2 Human-friendly URLs
 
 Do not change database/internal references.
 
-Introduce human-readable slugs only as a presentation/routing layer, with one stable canonical URL and safe fallback support for the existing ID-based route.
-
-Possible target pattern:
-
-`/product/{slug}-{short-stable-id}`
-
-or equivalent, selected only after compatibility testing.
-
-Existing URLs must continue to resolve and permanently redirect/canonicalize safely once the slug layer is introduced.
+The existing stable catalogue slug is now used as the public presentation route. Existing public-ID URLs continue to resolve the same admitted product and permanently redirect before customer personalization/fairness assignment.
 
 ## 3.3 Product quality/index eligibility
 
 Do not index products that are:
 
 - suppressed/unsafe
-- unavailable according to policy
 - effectively empty
 - duplicated without a canonical relationship
 - missing minimum public content needed for a useful search result
@@ -310,13 +307,25 @@ Implementation status: **implemented.** The public canonical admission boundary 
 
 # Phase 4 — Sitemap, canonicals and crawl graph
 
-- Sitemap becomes the authoritative registry of URLs KONTΑ ΜΟΥ actively wants indexed.
-- Add reliable `lastmod` values.
-- Keep sitemap free of authenticated/private/noindex URLs.
-- Add homepage canonical.
-- Build internal links between homepage → categories → products → vendor pages and vendors → products/categories where meaningful.
-- Avoid indexable arbitrary filter/query URL explosion.
-- Add breadcrumb links/schema consistently.
+Implementation status: **core crawl architecture implemented; lastmod enrichment and stronger vendor cross-linking remain refinement items.**
+
+Implemented:
+
+- Sitemap is governed by global settings, entity quality and explicit per-entity overrides.
+- Homepage has an explicit governed self-canonical.
+- Approved public-media paths remain crawlable while private APIs remain outside the public crawl graph.
+- Homepage links every curated category consistently rather than only categories represented in the rotating four-product selection.
+- Category pages and the public catalogue expose product links while product breadcrumbs use canonical category URLs.
+- Arbitrary `/shop?...` and `/shops?...` search/filter combinations are now `noindex,follow` with clean canonical targets, preventing query-parameter index bloat without breaking filtering UX.
+- `/admin/seo/crawl` models stable inbound discovery paths and reports orphan/weak-link indexable entities.
+- Search/social crawler requests use a dedicated read-only public catalogue projection. Crawlers can render homepage, shop, category and product content without creating `sticky_assignments`, incrementing `qualified_exposures` or writing Fair Vendor Assignment events.
+- Normal customer traffic continues to use the unchanged Fair Vendor Assignment path.
+
+Remaining refinement:
+
+- Add more accurate `lastmod` for entity types where a trustworthy content-change timestamp is available; omit it rather than manufacture a timestamp where it is not.
+- Increase meaningful category/context links into Research vendor dossiers so directory pages are not dependent on a single `/shops` inbound source.
+- Expand broken-link/reachability probes once the preview can be accessed by an automated smoke client without the Vercel SSO interstitial.
 
 ---
 
@@ -324,14 +333,29 @@ Implementation status: **implemented.** The public canonical admission boundary 
 
 ## 5.1 Google Search Console readiness
 
-Admin should expose:
+Implementation status: **optional server-only integration boundary implemented.**
 
-- sitemap URL
-- verification status/config placeholder
-- direct inventory of URLs suitable for inspection
-- clear separation between local diagnostics and external Google indexing status
+Admin route: `/admin/seo/search-console`
 
-Search Console API integration may be added later behind explicit credentials/permissions.
+Implemented:
+
+- read-only Google Search Console adapter using the `webmasters.readonly` scope
+- URL-prefix or `sc-domain:` property configuration
+- service-account JWT/OAuth authentication without an additional runtime dependency
+- credentials read exclusively from server environment variables
+- no Search Console private key/client credential stored in `system_settings`, reports, HTML or client-side code
+- aggregate Search Analytics snapshot in Admin when the integration is connected
+- readiness diagnostics for property, service-account credentials, indexing master state and public verification metadata
+- bounded URL Inspection adapter available server-side without automatic mass inspection
+
+Operational activation still required outside code:
+
+1. Enable the Search Console API in the relevant Google Cloud project.
+2. Create/use a dedicated service account.
+3. Add the service-account email as an authorized user on the Search Console property.
+4. Set the server-only Vercel environment variables documented in `.env.example`.
+5. Turn `BLS_GOOGLE_SEARCH_CONSOLE_ENABLED=true` only after the above is complete.
+6. Confirm aggregate Search Analytics succeeds before adding quota-aware URL Inspection report runs.
 
 ## 5.2 Ongoing monitoring
 
@@ -343,6 +367,8 @@ Scheduled/in-house diagnostics should detect regressions such as:
 - sitemap returning private/noindex URLs
 - public structured-data image blocked by robots/auth
 - sudden drop in index-eligible entity counts
+- sudden growth in orphan/weakly-linked indexable entities
+- Search Console API/property authorization becoming unavailable once connected
 
 ---
 
@@ -357,6 +383,7 @@ Required before merging to `main`:
 - robots tests
 - anonymous private-route access tests
 - public product/vendor crawl tests
+- crawler/fairness isolation tests
 - diagnostic tool tests
 - admin RBAC/CSRF tests
 - migration/schema verification if persistence is added
@@ -368,16 +395,17 @@ No production database migration or secret rotation should be executed implicitl
 
 # Implementation order
 
-1. P0 credential/diagnostic hardening.
-2. Central route/index visibility policy.
-3. Correct robots + approved-media crawling.
-4. `/admin/seo` read-only overview and diagnostics foundation.
-5. Persistence/settings + audited editing.
-6. Research-vendor Model C eligibility + sitemap/schema integration.
-7. Product SEO/canonical enhancements.
-8. Internal-link/crawl-graph improvements.
-9. Full diagnostic reporting/export.
-10. Preview validation, tests, review, then only after approval merge to `main`.
+1. ✅ P0 credential/diagnostic hardening.
+2. ✅ Central route/index visibility policy.
+3. ✅ Correct robots + approved-media crawling.
+4. ✅ `/admin/seo` overview and diagnostics foundation.
+5. ✅ Persistence/settings + audited editing.
+6. ✅ Research-vendor Model C eligibility + sitemap/schema integration.
+7. ✅ Product SEO/canonical/quality enhancements.
+8. ✅ Internal-link/crawl-graph foundation + query-index control + crawler/fairness isolation.
+9. ✅ Persisted diagnostic reporting/export foundation.
+10. ✅ Optional server-only Search Console integration boundary.
+11. 🟡 Full release validation, preview smoke review, remaining `lastmod`/link refinements, then only after approval merge to `main`.
 
 ---
 
