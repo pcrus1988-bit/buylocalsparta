@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AskLocalRequestView } from "../lib/ask-local-service";
+import type { CustomerAskLocalRequestView } from "../lib/customer-ask-local-view";
 import type { AskLocalClarificationMessage } from "../lib/ask-local-clarification-service";
 
 const when = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -17,7 +17,7 @@ export function AskLocalClarificationClient({
   status: string;
   csrfToken: string;
   clarificationCount?: number;
-  onRequestsChanged: (requests: readonly AskLocalRequestView[]) => void;
+  onRequestsChanged: (requests: readonly CustomerAskLocalRequestView[]) => void;
 }) {
   const [messages, setMessages] = useState<readonly AskLocalClarificationMessage[]>([]);
   const [expanded, setExpanded] = useState(status === "needs_info");
@@ -59,7 +59,7 @@ export function AskLocalClarificationClient({
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ requestId, reply })
       });
-      const payload = await response.json() as { messages?: readonly AskLocalClarificationMessage[]; requests?: readonly AskLocalRequestView[]; error?: string };
+      const payload = await response.json() as { messages?: readonly AskLocalClarificationMessage[]; requests?: readonly CustomerAskLocalRequestView[]; error?: string };
       if (!response.ok || !payload.requests) throw new Error(payload.error ?? "Η απάντηση δεν στάλθηκε.");
       setMessages(payload.messages ?? []);
       setLoaded(true);
