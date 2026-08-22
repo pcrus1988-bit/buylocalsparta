@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { localePath } from "@buy-local-sparta/core";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
 import { ACCOUNT_UTILITY_NAVIGATION, HUMAN_SITEMAP_SECTIONS } from "../../lib/site-navigation";
@@ -10,6 +11,7 @@ import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../lib/seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../lib/seo-entity-policy";
 import { researchVendorIndexEligibility } from "../../lib/seo-visibility-policy";
+import { getPublicCmsPages } from "../../lib/public-cms";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,14 @@ type VendorGroup = Readonly<{
   slug: string;
   label: string;
   vendors: readonly Readonly<{ vendor: PublicVendorDirectoryEntry; href: string }>[];
+}>;
+
+type CmsLink = Readonly<{
+  path: string;
+  href: string;
+  title: string;
+  description: string;
+  locale: "el" | "en";
 }>;
 
 async function governedVendorGroups(): Promise<readonly VendorGroup[]> {
@@ -74,9 +84,40 @@ async function governedVendorGroups(): Promise<readonly VendorGroup[]> {
     .sort((a, b) => (order.get(a.slug) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.slug) ?? Number.MAX_SAFE_INTEGER) || a.label.localeCompare(b.label, "el"));
 }
 
+async function governedCmsLinks(): Promise<readonly CmsLink[]> {
+  const [pages, { settings }, overrides] = await Promise.all([
+    getPublicCmsPages(),
+    getSeoGlobalSettingsSnapshot(),
+    getSeoEntityOverridesSnapshot()
+  ]);
+  if (!settings.indexingEnabled) return [];
+  const links: CmsLink[] = [];
+  for (const page of pages) {
+    for (const locale of ["el", "en"] as const) {
+      const translation = page.translations[locale];
+      if (!translation || translation.seo.noindex) continue;
+      const path = localePath(locale, page.slug);
+      const reference: SeoEntityReference = { kind: "static", id: path };
+      const override = findSeoEntityOverride(overrides.entries, reference);
+      const control = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible: true, defaultIndexAllowed: true, override });
+      if (!control.sitemapAllowed) continue;
+      links.push({
+        path,
+        href: new URL(override?.canonicalPath ?? path, `${settings.canonicalOrigin}/`).toString(),
+        title: translation.title,
+        description: translation.seo.description,
+        locale
+      });
+    }
+  }
+  return links.sort((a, b) => a.locale.localeCompare(b.locale) || a.title.localeCompare(b.title, a.locale === "el" ? "el" : "en"));
+}
+
 export default async function HumanSitemapPage() {
-  const vendorGroups = await governedVendorGroups();
+  const [vendorGroups, cmsLinks] = await Promise.all([governedVendorGroups(), governedCmsLinks()]);
   const vendorCount = vendorGroups.reduce((sum, group) => sum + group.vendors.length, 0);
+  const greekCmsLinks = cmsLinks.filter((item) => item.locale === "el");
+  const englishCmsLinks = cmsLinks.filter((item) => item.locale === "en");
 
   return (
     <main>
@@ -107,6 +148,14 @@ export default async function HumanSitemapPage() {
           ))}
         </div>
       </section>
+
+      {cmsLinks.length > 0 && <section className="section section-tint" aria-labelledby="sitemap-cms-title"><div className="shell route-map-section">
+        <div className="section-heading"><div><div className="eyebrow">CMS · {cmsLinks.length}</div><h2 id="sitemap-cms-title">Δημοσιευμένες σελίδες περιεχομένου</h2></div><p className="section-note">Εμφανίζονται μόνο δημοσιευμένες, index-eligible μεταφράσεις που περνούν τους ίδιους κανόνες visibility και canonical governance με το XML sitemap.</p></div>
+        <div className="route-map-grid">
+          {greekCmsLinks.length > 0 && <article className="route-map-card"><div className="eyebrow">Ελληνικά · {greekCmsLinks.length}</div><div className="route-map-links">{greekCmsLinks.map((item) => <a href={item.href} key={item.path}><strong>{item.title}</strong><span>{item.description}</span><i aria-hidden="true">→</i></a>)}</div></article>}
+          {englishCmsLinks.length > 0 && <article className="route-map-card"><div className="eyebrow">English · {englishCmsLinks.length}</div><div className="route-map-links">{englishCmsLinks.map((item) => <a href={item.href} key={item.path}><strong>{item.title}</strong><span>{item.description}</span><i aria-hidden="true">→</i></a>)}</div></article>}
+        </div>
+      </div></section>}
 
       <section className="section section-tint">
         <div className="shell route-map-split">
