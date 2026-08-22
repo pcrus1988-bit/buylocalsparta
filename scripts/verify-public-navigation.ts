@@ -34,6 +34,17 @@ function patternMatches(pattern: string, route: string): boolean {
   return patternParts.every((part, index) => /^\[[^\]]+\]$/.test(part) || part === routeParts[index]);
 }
 
+function hasRegisteredPrivateParent(route: string, registered: ReadonlySet<string>): boolean {
+  if (!route.includes("[")) return false;
+  let parent = route;
+  while (parent.includes("/")) {
+    parent = parent.slice(0, parent.lastIndexOf("/"));
+    if (!parent) break;
+    if (registered.has(parent)) return true;
+  }
+  return false;
+}
+
 const pageFiles = walk(appRoot).filter((path) => path.endsWith("/page.tsx") || path.endsWith("\\page.tsx"));
 const pageRoutes = pageFiles.map(routeFromPage).sort();
 const pageRouteSet = new Set(pageRoutes);
@@ -46,7 +57,7 @@ for (const duplicateSource of [INDEXABLE_STATIC_ROUTES.map((route) => route.href
 }
 
 for (const route of pageRoutes) {
-  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route);
+  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || hasRegisteredPrivateParent(route, nonIndexableRoutes);
   if (!classified) failures.push(`Unclassified App Router page ${route}; declare whether it is public/indexable, dynamic public, or private/utility`);
 }
 for (const route of [...indexableRoutes, ...dynamicPublicRoutes, ...nonIndexableRoutes]) {
