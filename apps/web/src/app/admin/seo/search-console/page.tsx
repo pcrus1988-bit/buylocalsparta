@@ -46,7 +46,7 @@ export default async function AdminSeoSearchConsolePage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Google</div>
         <h1>Google Search Console operations</h1>
-        <p className="lead">Server-only σύνδεση με Google Search Console για organic performance και operator-triggered URL Inspection. Τα credentials παραμένουν αποκλειστικά σε environment variables και δεν αποθηκεύονται στο browser ή στα SEO settings.</p>
+        <p className="lead">Search Console integration is now an operational workspace for organic performance and operator-triggered URL Inspection. Credentials remain server-only in environment variables and are never stored in the browser or SEO settings.</p>
       </div>
       <aside className={ready && !overview.error ? "dashboard-health-card" : "dashboard-health-card needs-attention"}>
         <span>Integration</span>
