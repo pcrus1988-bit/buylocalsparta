@@ -55,6 +55,13 @@ export function analyzeNikolaouRows(rows: readonly CsvRow[]) {
   const sourceKeys = rows.map(sourceProductKey);
   const taxonomyConfidence: Record<string, number> = {};
   const legacyPriceStatus: Record<string, number> = {};
+  const sourcePaths = rows.map(sourceTaxonomyPathForRow);
+  const sourceTaxonomyNodesByDepth: Record<string, number> = {};
+  const maxDepth = Math.max(0, ...sourcePaths.map((path) => path.length));
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const prefixes = new Set(sourcePaths.filter((path) => path.length >= depth).map((path) => sourceTaxonomyKey(path.slice(0, depth))));
+    sourceTaxonomyNodesByDepth[String(depth)] = prefixes.size;
+  }
   for (const row of rows) {
     const taxonomyKey = text(row.taxonomy_confidence).toLowerCase() || "unknown";
     taxonomyConfidence[taxonomyKey] = (taxonomyConfidence[taxonomyKey] ?? 0) + 1;
@@ -71,6 +78,8 @@ export function analyzeNikolaouRows(rows: readonly CsvRow[]) {
     priceReviewRequired: rows.filter((row) => yes(row.price_review_required)).length,
     distinctSupplierCategories: new Set(rows.map((row) => text(row.supplier_categories) || "Uncategorized")).size,
     distinctAppCategories: new Set(rows.map((row) => text(row.app_category_code)).filter(Boolean)).size,
+    sourceTaxonomyNodes: Object.values(sourceTaxonomyNodesByDepth).reduce((total, count) => total + count, 0),
+    sourceTaxonomyNodesByDepth,
     taxonomyConfidence,
     compatibilityRows: rows.filter((row) => text(row.platform) || splitPipe(row.explicit_compatible_models_all).length).length,
     rowsWithStructuredAttributes: rows.filter((row) => Object.keys(jsonObject(row.variant_attributes_json)).length || Object.keys(jsonObject(row.specifications_json)).length).length,
@@ -90,6 +99,47 @@ export function sourceTaxonomyPath(value: string): string[] {
   if (!normalized) return ["Uncategorized"];
   const parts = normalized.split(/\s*(?:>|\||\s\/\s)\s*/u).map(text).filter(Boolean);
   return parts.length ? parts : [normalized];
+}
+
+/**
+ * Nikolaou product URLs encode the supplier's real three-level hierarchy:
+ * /department/category/leaf/product. Preserve that hierarchy as source evidence while
+ * keeping supplier_categories as the authoritative human-readable leaf label.
+ */
+export function sourceTaxonomyPathForRow(row: CsvRow): string[] {
+  const fallback = sourceTaxonomyPath(row.supplier_categories);
+  const sourceUrl = text(row.source_url);
+  if (!sourceUrl) return fallback;
+  try {
+    const url = new URL(sourceUrl);
+    if (!isNikolaouHost(url.hostname)) return fallback;
+    const segments = url.pathname.split("/").filter(Boolean).map(decodePathSegment);
+    if (segments.length < 4) return fallback;
+    const categories = segments.slice(0, -1);
+    if (categories.length < 3) return fallback;
+    const path = categories.slice(0, 3).map(humanizePathSegment);
+    path[2] = text(row.supplier_categories) || path[2];
+    return path;
+  } catch {
+    return fallback;
+  }
+}
+
+export function sourceTaxonomyNodeUrl(row: CsvRow, depth: number): string {
+  const sourceUrl = text(row.source_url);
+  if (!sourceUrl || !Number.isInteger(depth) || depth < 1) return sourceUrl;
+  try {
+    const url = new URL(sourceUrl);
+    if (!isNikolaouHost(url.hostname)) return sourceUrl;
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments.length < 4 || depth > Math.min(3, segments.length - 1)) return sourceUrl;
+    url.pathname = `/${segments.slice(0, depth).join("/")}/`;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return sourceUrl;
+  }
 }
 
 export function sourceTaxonomyKey(path: readonly string[]): string {
@@ -172,6 +222,11 @@ export function slugCode(value: string): string {
 }
 export function yes(value: string): boolean { return ["yes", "true", "1", "y"].includes(text(value).toLowerCase()); }
 
+function decodePathSegment(value: string): string {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+function humanizePathSegment(value: string): string { return text(value.replace(/[-_]+/g, " ")); }
+function isNikolaouHost(hostname: string): boolean { return /(^|\.)nikolaoutools\.gr$/i.test(hostname); }
 function compact(input: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== null && value !== "" && (!Array.isArray(value) || value.length > 0) && !(typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0)));
 }
