@@ -1,5 +1,5 @@
 import { getAccountSession, requireAccountSession } from "../../../../../lib/account-session";
-import { customerAskLocalRequests } from "../../../../../lib/ask-local-service";
+import { customerAskLocalBrowserRequests } from "../../../../../lib/customer-ask-local-browser-view";
 import { askLocalClarificationMessages, customerReplyAskLocalClarification } from "../../../../../lib/ask-local-clarification-service";
 
 export async function GET(request: Request) {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     await customerReplyAskLocalClarification(principal, { requestId, reply });
     const [messages, requests] = await Promise.all([
       askLocalClarificationMessages(principal, requestId),
-      customerAskLocalRequests(principal)
+      customerAskLocalBrowserRequests(principal)
     ]);
     return Response.json({ messages, requests });
   } catch (error) {
