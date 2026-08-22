@@ -8,6 +8,14 @@ const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_URLS = 100;
 const CONCURRENCY = 6;
 
+export type SeoLiveCrawlIssueSeverity = "critical" | "warning" | "info";
+
+export type SeoLiveCrawlIssue = Readonly<{
+  code: string;
+  severity: SeoLiveCrawlIssueSeverity;
+  detail: string;
+}>;
+
 export type SeoLiveCrawlRow = Readonly<{
   route: string;
   url: string;
@@ -20,9 +28,13 @@ export type SeoLiveCrawlRow = Readonly<{
   robots?: string;
   h1Count?: number;
   issues: readonly string[];
+  issueDetails: readonly SeoLiveCrawlIssue[];
 }>;
 
 export type SeoLiveCrawlReport = Readonly<{
+  origin: string;
+  limit: number;
+  startedAt: string;
   generatedAt: string;
   requested: number;
   completed: number;
@@ -30,6 +42,10 @@ export type SeoLiveCrawlReport = Readonly<{
   withIssues: number;
   rows: readonly SeoLiveCrawlRow[];
 }>;
+
+function crawlIssue(code: string, severity: SeoLiveCrawlIssueSeverity, detail: string): SeoLiveCrawlIssue {
+  return { code, severity, detail };
+}
 
 function htmlText(source: string, expression: RegExp): string | undefined {
   const match = source.match(expression)?.[1]?.replace(/\s+/g, " ").trim();
@@ -47,6 +63,10 @@ function normalizeComparableUrl(value: string): string {
   }
 }
 
+function rowWithIssues(input: Omit<SeoLiveCrawlRow, "issues"> & { issueDetails: readonly SeoLiveCrawlIssue[] }): SeoLiveCrawlRow {
+  return { ...input, issues: input.issueDetails.map((issue) => issue.detail) };
+}
+
 async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean): Promise<SeoLiveCrawlRow> {
   const started = Date.now();
   const controller = new AbortController();
@@ -61,9 +81,17 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
     });
     const contentType = response.headers.get("content-type") ?? undefined;
     const finalUrl = response.url || expectedUrl.toString();
-    const issues: string[] = [];
-    if (response.status < 200 || response.status >= 300) issues.push(`HTTP ${response.status}`);
-    if (normalizeComparableUrl(finalUrl) !== normalizeComparableUrl(expectedUrl.toString())) issues.push("Redirected away from declared URL");
+    const issueDetails: SeoLiveCrawlIssue[] = [];
+    if (response.status < 200 || response.status >= 300) issueDetails.push(crawlIssue(
+      "http_status",
+      response.status >= 400 ? "critical" : "warning",
+      `HTTP ${response.status}`
+    ));
+    if (normalizeComparableUrl(finalUrl) !== normalizeComparableUrl(expectedUrl.toString())) issueDetails.push(crawlIssue(
+      "redirected",
+      "warning",
+      "Redirected away from declared URL"
+    ));
 
     let title: string | undefined;
     let canonical: string | undefined;
@@ -77,20 +105,36 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
       robots = htmlText(html, /<meta[^>]+name=["']robots["'][^>]+content=["']([^"']+)["'][^>]*>/i)
         ?? htmlText(html, /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']robots["'][^>]*>/i);
       h1Count = (html.match(/<h1(?:\s|>)/gi) ?? []).length;
-      if (!title) issues.push("Missing <title>");
-      if (!canonical) issues.push("Missing canonical");
+      if (!title) issueDetails.push(crawlIssue("missing_title", "warning", "Missing <title>"));
+      if (!canonical) issueDetails.push(crawlIssue("missing_canonical", "warning", "Missing canonical"));
       else {
         const resolvedCanonical = new URL(canonical, expectedUrl).toString();
-        if (normalizeComparableUrl(resolvedCanonical) !== normalizeComparableUrl(expectedUrl.toString())) issues.push("Canonical differs from declared URL");
+        if (normalizeComparableUrl(resolvedCanonical) !== normalizeComparableUrl(expectedUrl.toString())) issueDetails.push(crawlIssue(
+          "canonical_mismatch",
+          "warning",
+          "Canonical differs from declared URL"
+        ));
       }
-      if (indexAllowed && robots?.toLowerCase().includes("noindex")) issues.push("Unexpected noindex");
-      if (!h1Count) issues.push("Missing H1");
-      if (typeof h1Count === "number" && h1Count > 1) issues.push(`Multiple H1 (${h1Count})`);
+      if (indexAllowed && robots?.toLowerCase().includes("noindex")) issueDetails.push(crawlIssue(
+        "unexpected_noindex",
+        "critical",
+        "Unexpected noindex"
+      ));
+      if (!h1Count) issueDetails.push(crawlIssue("missing_h1", "warning", "Missing H1"));
+      if (typeof h1Count === "number" && h1Count > 1) issueDetails.push(crawlIssue(
+        "multiple_h1",
+        "info",
+        `Multiple H1 (${h1Count})`
+      ));
     } else {
-      issues.push(`Unexpected content type${contentType ? `: ${contentType}` : ""}`);
+      issueDetails.push(crawlIssue(
+        "unexpected_content_type",
+        "warning",
+        `Unexpected content type${contentType ? `: ${contentType}` : ""}`
+      ));
     }
 
-    return {
+    return rowWithIssues({
       route,
       url: expectedUrl.toString(),
       status: response.status,
@@ -101,21 +145,23 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
       canonical,
       robots,
       h1Count,
-      issues
-    };
+      issueDetails
+    });
   } catch (error) {
-    return {
+    const detail = error instanceof Error ? error.message : "HTTP crawl failed";
+    return rowWithIssues({
       route,
       url: expectedUrl.toString(),
       responseTimeMs: Date.now() - started,
-      issues: [error instanceof Error ? error.message : "HTTP crawl failed"]
-    };
+      issueDetails: [crawlIssue("request_failed", "critical", detail)]
+    });
   } finally {
     clearTimeout(timeout);
   }
 }
 
 export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimit = 40): Promise<SeoLiveCrawlReport> {
+  const startedAt = new Date().toISOString();
   const [{ settings }, graph] = await Promise.all([getSeoGlobalSettingsSnapshot(), adminSeoCrawlGraph(principal)]);
   const origin = new URL(settings.canonicalOrigin);
   const limit = Math.max(1, Math.min(MAX_URLS, Math.floor(requestedLimit)));
@@ -132,8 +178,11 @@ export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimi
     rows.push(...inspected);
   }
 
-  const healthy = rows.filter((row) => row.issues.length === 0).length;
+  const healthy = rows.filter((row) => row.issueDetails.length === 0).length;
   return {
+    origin: origin.origin,
+    limit,
+    startedAt,
     generatedAt: new Date().toISOString(),
     requested: targets.length,
     completed: rows.length,

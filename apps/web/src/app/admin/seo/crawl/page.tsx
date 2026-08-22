@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminSeoCrawlHistory } from "../../../../components/AdminSeoCrawlHistory";
 import { AdminSeoLiveCrawler } from "../../../../components/AdminSeoLiveCrawler";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
+import { getSeoCrawlHistorySnapshot } from "../../../../lib/seo-crawl-history";
 import { adminSeoCrawlGraph } from "../../../../lib/seo-crawl-graph";
 
 export const metadata: Metadata = {
@@ -25,8 +27,12 @@ export default async function AdminSeoCrawlPage() {
   if (!principal) redirect("/admin/login");
 
   let data;
+  let history;
   try {
-    data = await adminSeoCrawlGraph(principal);
+    [data, history] = await Promise.all([
+      adminSeoCrawlGraph(principal),
+      getSeoCrawlHistorySnapshot(principal)
+    ]);
   } catch {
     redirect("/admin/seo");
   }
@@ -39,11 +45,11 @@ export default async function AdminSeoCrawlPage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Crawl</div>
         <h1>Crawl architecture & live verification</h1>
-        <p className="lead">Internal linking & orphan diagnostics now combine two evidence layers: the Declared Site Graph shows how KONTΑ ΜΟΥ expects indexable pages to connect, while Live HTTP Verification checks what the production origin actually returns.</p>
+        <p className="lead">Internal linking & orphan diagnostics now combine declared discovery, real HTTP evidence and durable issue history in one workspace. The graph models intended internal linking; live crawls verify production responses; persisted issues show what is open, recurring, ignored or resolved.</p>
       </div>
-      <aside className={data.metrics.orphan ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
-        <span>Declared graph</span>
-        <strong>{data.metrics.orphan ? `${data.metrics.orphan} orphan` : `${data.metrics.weak} weak`}</strong>
+      <aside className={history.metrics.criticalOpen || data.metrics.orphan ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
+        <span>SEO crawl state</span>
+        <strong>{history.metrics.criticalOpen ? `${history.metrics.criticalOpen} critical` : history.metrics.open ? `${history.metrics.open} open` : `${data.metrics.weak} weak`}</strong>
         <p>{new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(data.generatedAt))}</p>
       </aside>
     </section>
@@ -52,7 +58,9 @@ export default async function AdminSeoCrawlPage() {
       <nav className="admin-local-tabs" aria-label="Crawl workspace sections">
         <a href="#crawl-declared">Declared site graph</a>
         <a href="#crawl-live">Live HTTP verification</a>
-        <a href="#crawl-priority">Priority queue</a>
+        <a href="#crawl-history">Crawl history</a>
+        <Link href="/admin/seo/issues">Issues</Link>
+        <a href="#crawl-priority">Link priority queue</a>
         <Link href="/admin/seo/search-console">Google Search Console</Link>
         <Link href="/admin/seo">SEO overview</Link>
       </nav>
@@ -66,7 +74,7 @@ export default async function AdminSeoCrawlPage() {
     ]} />
 
     <section id="crawl-declared" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="Declared Site Graph" title="Intended internal linking architecture" note="This is a model of stable public discovery relationships. It is intentionally distinct from the live HTTP crawler below, backlinks and Google index status." />
+      <WorkspaceSectionHeading eyebrow="Declared Site Graph" title="Intended internal linking architecture" note="This is a model of stable public discovery relationships. It is intentionally distinct from live HTTP evidence, backlinks and Google index status." />
       <div className="admin-domain-card-grid">
         <article className="admin-domain-card"><span>Strong</span><strong>2+ inbound paths</strong><p>Examples: categories linked from the homepage and sibling category pages; products linked from catalogue and category.</p><b>{data.metrics.strong}</b><i>Healthy</i></article>
         <article className="admin-domain-card"><span>Weak</span><strong>1 inbound path</strong><p>Discoverable, but overly dependent on one directory or navigation surface. Research vendor dossiers and new CMS pages may start here.</p><b>{data.metrics.weak}</b><i>Opportunity</i></article>
@@ -77,12 +85,14 @@ export default async function AdminSeoCrawlPage() {
 
     <section id="crawl-live" className="vendor-section section-tint admin-anchor-section"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Actual Crawl" title="Live HTTP verification" note="Operator-triggered bounded crawl of up to 100 governed indexable URLs. It checks production response evidence without permitting arbitrary external targets or changing public data." />
-      <AdminSeoLiveCrawler csrfToken={data.csrfToken} enabled={canRunLiveCrawl} />
-      <p style={{ marginTop: 12 }}>Current live verification is intentionally bounded and synchronous. Persisted crawl history, deployment-to-deployment comparison and full-link extraction are the next crawler layer.</p>
+      <AdminSeoLiveCrawler csrfToken={data.csrfToken} enabled={canRunLiveCrawl} persistenceAvailable={history.persistenceAvailable} />
+      <p style={{ marginTop: 12 }}>Successful runs are persisted as immutable evidence. Stable issue fingerprints are reconciled from each result so recurring problems accumulate history instead of creating duplicate tickets.</p>
     </div></section>
 
+    <AdminSeoCrawlHistory history={history} csrfToken={data.csrfToken} canWrite={canRunLiveCrawl} />
+
     <section id="crawl-priority" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="Declared graph priority queue" title="Orphan and weakly-linked indexable pages" note="Orphans appear first, followed by pages with only one stable inbound discovery source." />
+      <WorkspaceSectionHeading eyebrow="Declared graph priority queue" title="Orphan and weakly-linked indexable pages" note="Orphans appear first, followed by pages with only one stable inbound discovery source. This graph queue is separate from the persisted HTTP issue lifecycle above." />
       {data.orphan.length === 0 && data.weak.length === 0
         ? <div className="workspace-empty-state"><strong>No crawl-graph gaps detected.</strong><span>Every indexable entity has at least two declared discovery sources or is the root entry point.</span></div>
         : <div className="workspace-queue-list">
