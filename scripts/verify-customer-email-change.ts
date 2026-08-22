@@ -47,7 +47,7 @@ for (const contract of ["requireAccountSession(request, true)", "requestCustomer
 }
 if (!requestRoute.includes("DELETE") || !requestRoute.includes("cancelCustomerEmailChange")) failures.push("Email-change request API must expose authenticated cancellation");
 if (confirmRoute.includes("requireAccountSession")) failures.push("Possession-based email confirmation must not require the old authenticated session");
-for (const contract of ["confirmCustomerEmailChange", "token.length > 512", 'Cache-Control\": \"no-store\"']) {
+for (const contract of ["confirmCustomerEmailChange", "token.length > 512", 'Cache-Control": "no-store"']) {
   if (!confirmRoute.includes(contract)) failures.push(`Email-change confirmation API is missing ${contract}`);
 }
 
