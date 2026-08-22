@@ -15,7 +15,7 @@ import { marketplaceReferenceMap } from "./public-reference-service";
 import { requireCustomerOrderReference } from "./customer-order-reference";
 
 function browserNotificationPayload(payload: Record<string, unknown>): Record<string, unknown> {
-  const { orderId: _internalOrderId, returnId: _internalReturnId, ...safe } = payload;
+  const { orderId: _internalOrderId, returnId: _internalReturnId, requestId: _internalAskLocalRequestId, ...safe } = payload;
   return safe;
 }
 
