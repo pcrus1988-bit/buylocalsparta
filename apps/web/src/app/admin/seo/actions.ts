@@ -10,6 +10,7 @@ import { INDEXABLE_STATIC_ROUTES } from "../../../lib/site-navigation";
 import { updateSeoEntityOverride } from "../../../lib/seo-entity-overrides";
 import { createSeoDiagnosticReport } from "../../../lib/seo-diagnostic-reports";
 import { isSeoEntityKind, routeForSeoEntity, type SeoEntityKind } from "../../../lib/seo-entity-policy";
+import { productPublicPath } from "../../../lib/product-url";
 import { updateSeoGlobalSettings } from "../../../lib/seo-settings";
 import { storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
@@ -33,23 +34,25 @@ function keywords(formData: FormData): readonly string[] {
   return field(formData, "keywords").split(/[\n,]+/).map((value) => value.trim()).filter(Boolean);
 }
 
-async function assertSeoEntityExists(kind: SeoEntityKind, id: string): Promise<void> {
+async function assertSeoEntityExists(kind: SeoEntityKind, id: string): Promise<string> {
   if (kind === "static") {
     if (!INDEXABLE_STATIC_ROUTES.some((route) => route.href === id)) throw new Error("The selected static page is not in the governed public registry.");
-    return;
+    return id;
   }
   if (kind === "category") {
     if (!storefrontCategoryBySlug(id)) throw new Error("The selected public category no longer exists.");
-    return;
+    return routeForSeoEntity({ kind, id });
   }
   if (kind === "product") {
-    if (!await getCanonicalProductSummary(id)) throw new Error("The selected canonical product is not publicly admitted.");
-    return;
+    const product = await getCanonicalProductSummary(id);
+    if (!product) throw new Error("The selected canonical product is not publicly admitted.");
+    return productPublicPath(product);
   }
   const vendor = await getPublicVendorDirectoryEntry(id);
   if (!vendor) throw new Error("The selected public vendor dossier no longer exists.");
   const expected = vendor.directoryStatus === "partner" ? "partner_vendor" : "research_vendor";
   if (kind !== expected) throw new Error("The selected vendor classification changed. Refresh the registry before saving.");
+  return routeForSeoEntity({ kind, id });
 }
 
 export async function updateSeoGlobalSettingsAction(
@@ -114,7 +117,12 @@ export async function updateSeoEntityOverrideAction(
     if (!isSeoEntityKind(kindValue)) throw new Error("SEO entity kind is invalid.");
     const id = field(formData, "entityId");
     const deleting = field(formData, "intent") === "delete";
-    if (!deleting) await assertSeoEntityExists(kindValue, id);
+    let publicRoute = routeForSeoEntity({ kind: kindValue, id });
+    if (!deleting) publicRoute = await assertSeoEntityExists(kindValue, id);
+    else if (kindValue === "product") {
+      const product = await getCanonicalProductSummary(id);
+      if (product) publicRoute = productPublicPath(product);
+    }
 
     await updateSeoEntityOverride({
       principal,
@@ -139,8 +147,8 @@ export async function updateSeoEntityOverrideAction(
       }
     });
 
-    const route = routeForSeoEntity({ kind: kindValue, id });
-    revalidatePath(route);
+    revalidatePath(publicRoute);
+    if (publicRoute !== routeForSeoEntity({ kind: kindValue, id })) revalidatePath(routeForSeoEntity({ kind: kindValue, id }));
     revalidatePath("/sitemap.xml");
     revalidatePath("/admin/seo");
     return { status: "success", message: deleting ? "SEO entity override deleted; generated defaults are authoritative again." : "SEO entity override saved and audit evidence recorded." };

@@ -23,6 +23,7 @@ export type SeoDiagnosticReportMetrics = Readonly<{
   staticIndexable: number;
   categories: number;
   products: number;
+  productIndexEligible: number;
   partners: number;
   research: number;
   researchIndexEligible: number;
@@ -106,10 +107,11 @@ function validIsoDate(value: unknown): string | undefined {
 
 function normalizeMetrics(value: unknown): SeoDiagnosticReportMetrics | undefined {
   const input = object(value);
-  const keys: readonly (keyof SeoDiagnosticReportMetrics)[] = [
+  const productCount = finiteCount(input.products);
+  if (productCount === undefined) return undefined;
+  const keys: readonly Exclude<keyof SeoDiagnosticReportMetrics, "products" | "productIndexEligible">[] = [
     "staticIndexable",
     "categories",
-    "products",
     "partners",
     "research",
     "researchIndexEligible",
@@ -120,7 +122,10 @@ function normalizeMetrics(value: unknown): SeoDiagnosticReportMetrics | undefine
     "knownNonIndexablePages",
     "entityOverrides"
   ];
-  const normalized = {} as Record<keyof SeoDiagnosticReportMetrics, number>;
+  const normalized = {
+    products: productCount,
+    productIndexEligible: finiteCount(input.productIndexEligible) ?? productCount
+  } as Record<keyof SeoDiagnosticReportMetrics, number>;
   for (const key of keys) {
     const count = finiteCount(input[key]);
     if (count === undefined) return undefined;

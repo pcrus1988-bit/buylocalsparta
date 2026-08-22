@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound, permanentRedirect } from "next/navigation";
-import { getCanonicalProductSummary, getCatalogCard, getPublicProductSeoSummary } from "../../../lib/catalog-view";
+import { getCatalogCard, getPublicProductSeoSummary } from "../../../lib/catalog-view";
 import { getVisitorKey } from "../../../lib/visitor";
 import { AddToCartButton } from "../../../components/AddToCartButton";
 import { SiteHeader } from "../../../components/SiteHeader";
@@ -13,6 +13,7 @@ import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { productPublicPath } from "../../../lib/product-url";
+import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -48,6 +49,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     getSeoEntityOverridesSnapshot()
   ]);
   if (!product) return { title: "Προϊόν" };
+  const quality = productIndexEligibility(product);
   const description = productSeoDescription(product);
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
@@ -60,14 +62,14 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       canonicalPath: productPublicPath(product),
       openGraphImage: product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined
     },
-    entityEligible: true,
-    defaultIndexAllowed: true
+    entityEligible: quality.blockingReasons.length === 0,
+    defaultIndexAllowed: quality.eligible
   });
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id: routeKey } = await params;
-  const summary = await getCanonicalProductSummary(routeKey);
+  const summary = await getPublicProductSeoSummary(routeKey);
   if (!summary) notFound();
   if (routeKey !== summary.slug) permanentRedirect(productPublicPath(summary));
 
@@ -76,7 +78,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
-  const seoControl = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible: true, defaultIndexAllowed: true, defaultSchemaAllowed: true, override });
+  const quality = productIndexEligibility(summary);
+  const seoControl = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible: quality.blockingReasons.length === 0, defaultIndexAllowed: quality.eligible, defaultSchemaAllowed: true, override });
   const category = storefrontCategoryForCode(product.categoryCode);
   const origin = settings.canonicalOrigin;
   const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();

@@ -1,11 +1,11 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
-import { getPublicCatalogProducts } from "./catalog-view";
-import { approvedCatalogImages, governedPublicMediaEnabled } from "./public-media-service";
+import { getPublicProductSeoInventory } from "./catalog-view";
+import { governedPublicMediaEnabled } from "./public-media-service";
 import { getPublicVendorDirectory } from "./public-vendor-directory";
 import { publicOrigin } from "./public-origin";
 import { INDEXABLE_STATIC_ROUTES, NON_INDEXABLE_PAGE_ROUTES } from "./site-navigation";
-import { researchVendorIndexEligibility, SEO_ROUTE_POLICIES, type SeoVisibilityClass } from "./seo-visibility-policy";
+import { productIndexEligibility, researchVendorIndexEligibility, SEO_ROUTE_POLICIES, type SeoVisibilityClass } from "./seo-visibility-policy";
 import { getSeoGlobalSettingsSnapshot, getSeoSettingsAuditHistory } from "./seo-settings";
 import { STOREFRONT_CATEGORIES } from "./storefront-taxonomy";
 import { productPublicPath } from "./product-url";
@@ -40,6 +40,18 @@ export type AdminSeoResearchVendorRow = Readonly<{
   overrideDecision?: string;
 }>;
 
+export type AdminSeoProductRow = Readonly<{
+  id: string;
+  slug: string;
+  title: string;
+  eligible: boolean;
+  score: number;
+  minimumScore: number;
+  reasons: readonly string[];
+  blockingReasons: readonly string[];
+  overrideDecision?: string;
+}>;
+
 export type AdminSeoEntityCandidate = Readonly<{
   key: string;
   kind: SeoEntityKind;
@@ -64,22 +76,11 @@ function duplicateValues(values: readonly string[]): readonly string[] {
   return [...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value);
 }
 
-async function approvedCatalogImageIds(productIds: readonly string[]): Promise<ReadonlySet<string>> {
-  if (!governedPublicMediaEnabled() || productIds.length === 0) return new Set();
-  const mediaIds = new Set<string>();
-  for (let index = 0; index < productIds.length; index += 250) {
-    const batch = productIds.slice(index, index + 250).map((canonicalVariantId) => ({ canonicalVariantId }));
-    const images = await approvedCatalogImages(batch);
-    for (const image of images) mediaIds.add(image.canonicalVariantId);
-  }
-  return mediaIds;
-}
-
 export async function adminSeoWorkspace(principal: SessionPrincipal) {
   assertAdminPermission(principal, "content.read");
 
   const [inventory, settingsSnapshot, settingsAudit, entityOverrides, entityAudit, reports] = await Promise.all([
-    Promise.allSettled([getPublicCatalogProducts(), getPublicVendorDirectory()]),
+    Promise.allSettled([getPublicProductSeoInventory(), getPublicVendorDirectory()]),
     getSeoGlobalSettingsSnapshot(),
     getSeoSettingsAuditHistory(),
     getSeoEntityOverridesSnapshot(),
@@ -88,7 +89,8 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
   ]);
   const [productsResult, vendorsResult] = inventory;
   const settings = settingsSnapshot.settings;
-  const products = productsResult.status === "fulfilled" ? productsResult.value : [];
+  const productInventory = productsResult.status === "fulfilled" ? productsResult.value : { products: [], mediaProjectionAvailable: false };
+  const products = productInventory.products;
   const vendors = vendorsResult.status === "fulfilled" ? vendorsResult.value : [];
   const partners = vendors.filter((vendor) => vendor.directoryStatus === "partner");
   const research = vendors.filter((vendor) => vendor.directoryStatus === "research");
@@ -145,16 +147,19 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
     entityEligible: true,
     defaultIndexAllowed: true
   });
-  for (const product of products) addCandidate({
-    reference: { kind: "product", id: product.id },
-    route: productPublicPath(product),
-    label: `Product · ${product.title}`,
-    generatedTitle: product.title,
-    generatedDescription: `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και μία καθαρή εμπειρία αγοράς.`,
-    entityEligible: true,
-    defaultIndexAllowed: true,
-    defaultSchemaAllowed: true
-  });
+  for (const product of products) {
+    const quality = productIndexEligibility(product);
+    addCandidate({
+      reference: { kind: "product", id: product.id },
+      route: productPublicPath(product),
+      label: `Product · ${product.title}`,
+      generatedTitle: product.title,
+      generatedDescription: product.description ?? `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και μία καθαρή εμπειρία αγοράς.`,
+      entityEligible: quality.blockingReasons.length === 0,
+      defaultIndexAllowed: quality.eligible,
+      defaultSchemaAllowed: true
+    });
+  }
   for (const vendor of vendors) {
     const reference: SeoEntityReference = { kind: vendor.directoryStatus === "partner" ? "partner_vendor" : "research_vendor", id: vendor.id };
     const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
@@ -186,6 +191,24 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
   }
   candidates.sort((left, right) => left.label.localeCompare(right.label, "el"));
   const candidateByKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
+  const productRows: readonly AdminSeoProductRow[] = products.map((product) => {
+    const eligibility = productIndexEligibility(product);
+    const reference: SeoEntityReference = { kind: "product", id: product.id };
+    const override = findSeoEntityOverride(entityOverrides.entries, reference);
+    return {
+      id: product.id,
+      slug: product.slug,
+      title: product.title,
+      eligible: candidateByKey.get(seoEntityKey(reference))?.indexAllowed ?? false,
+      score: eligibility.score,
+      minimumScore: eligibility.minimumScore,
+      reasons: eligibility.reasons,
+      blockingReasons: eligibility.blockingReasons,
+      overrideDecision: override && (override.indexDecision !== "inherit" || override.qualityStatus !== "unreviewed")
+        ? `${override.indexDecision} · ${override.qualityStatus}`
+        : undefined
+    };
+  });
   const researchRows: readonly AdminSeoResearchVendorRow[] = research.map((vendor) => {
     const eligibility = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
     const reference: SeoEntityReference = { kind: "research_vendor", id: vendor.id };
@@ -205,21 +228,16 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
     };
   });
 
+  const eligibleProducts = productRows.filter((product) => product.eligible).length;
+  const productsBelowQualityBaseline = products.filter((product) => !productIndexEligibility(product).eligible).length;
   const eligibleResearch = researchRows.filter((vendor) => vendor.eligible).length;
   const eligibleVendors = candidates.filter((candidate) => (candidate.kind === "partner_vendor" || candidate.kind === "research_vendor") && candidate.indexAllowed).length;
   const duplicateProductTitles = duplicateValues(products.map((product) => product.title));
   const missingProductTitles = products.filter((product) => !product.title.trim()).length;
   const missingProductCategories = products.filter((product) => !product.categoryCode.trim()).length;
 
-  let productsWithApprovedImage = 0;
-  let imageProjectionFailed = false;
-  if (products.length > 0 && governedPublicMediaEnabled()) {
-    try {
-      productsWithApprovedImage = (await approvedCatalogImageIds(products.map((product) => product.id))).size;
-    } catch {
-      imageProjectionFailed = true;
-    }
-  }
+  const productsWithApprovedImage = products.filter((product) => Boolean(product.mediaId)).length;
+  const imageProjectionFailed = productsResult.status === "fulfilled" && !productInventory.mediaProjectionAvailable;
   const productsMissingApprovedImage = governedPublicMediaEnabled() ? Math.max(0, products.length - productsWithApprovedImage) : products.length;
 
   const routeClassCounts = SEO_ROUTE_POLICIES.reduce<Record<SeoVisibilityClass, number>>((counts, policy) => {
@@ -248,6 +266,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
   if (productsMissingApprovedImage > 0 && governedPublicMediaEnabled()) diagnostics.push({ id: "product-images", severity: "warning", title: "Products without approved public image", detail: "Public products should have an approved crawlable image before being treated as fully SEO-ready.", count: productsMissingApprovedImage });
   if (duplicateProductTitles.length > 0) diagnostics.push({ id: "duplicate-product-titles", severity: "warning", title: "Duplicate product titles", detail: "Duplicate titles weaken page differentiation and should be reviewed before catalogue scale-up.", count: duplicateProductTitles.length });
   if (missingProductTitles > 0 || missingProductCategories > 0) diagnostics.push({ id: "product-core-fields", severity: "critical", title: "Products missing core SEO fields", detail: `${missingProductTitles} missing title · ${missingProductCategories} missing category.`, count: missingProductTitles + missingProductCategories });
+  if (productsBelowQualityBaseline > 0) diagnostics.push({ id: "product-quality", severity: "info", title: "Products below the quality baseline", detail: "These public catalogue records do not inherit index/sitemap admission. Non-blocking score shortfalls can be reviewed through an audited entity override; hard content or duplicate-identity blockers cannot be bypassed.", count: productsBelowQualityBaseline });
   if (research.length > eligibleResearch) diagnostics.push({ id: "research-quality", severity: "info", title: "Research vendors held back by quality gate", detail: "Model C is active, but records below the minimum local-search quality threshold are intentionally excluded from the sitemap.", count: research.length - eligibleResearch });
   const suppressedOverrides = entityOverrides.entries.filter((entry) => entry.qualityStatus === "suppressed").length;
   if (suppressedOverrides > 0) diagnostics.push({ id: "entity-suppression", severity: "info", title: "Entities intentionally suppressed", detail: "Governed entity overrides are actively keeping these public records out of indexing, sitemap promotion and schema output.", count: suppressedOverrides });
@@ -270,6 +289,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
       staticIndexable: INDEXABLE_STATIC_ROUTES.length,
       categories: STOREFRONT_CATEGORIES.length,
       products: products.length,
+      productIndexEligible: eligibleProducts,
       partners: partners.length,
       research: research.length,
       researchIndexEligible: eligibleResearch,
@@ -281,6 +301,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
       entityOverrides: entityOverrides.entries.length
     },
     routeClassCounts,
+    products: [...productRows].sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.score - a.score || a.title.localeCompare(b.title, "el")),
     researchVendors: [...researchRows].sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.score - a.score || a.name.localeCompare(b.name, "el")),
     diagnostics,
     duplicateProductTitles,

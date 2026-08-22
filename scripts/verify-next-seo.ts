@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { INDEXABLE_STATIC_ROUTES } from "../apps/web/src/lib/site-navigation.ts";
 import {
+  productIndexEligibility,
   researchVendorIndexEligibility,
   seoVisibilityForPath,
   vendorIndexEligible
@@ -34,7 +35,7 @@ const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts
 const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
 
 for (const required of [
-  "getPublicCatalogProducts()",
+  "getPublicProductSeoInventory()",
   "getPublicVendorDirectory()",
   "STOREFRONT_CATEGORIES",
   "Promise.allSettled",
@@ -44,6 +45,7 @@ for (const required of [
   "resolveSeoEntityControl",
   "absoluteSeoCanonical",
   "productPublicPath(product)",
+  "productIndexEligibility(product)",
   "researchVendorIndexEligibility"
 ]) {
   if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
@@ -111,6 +113,18 @@ const closedResearchVendor = {
 if (researchVendorIndexEligibility(closedResearchVendor as never).eligible) failures.push("Closed Research vendors must stay out of the index");
 if (!vendorIndexEligible({ ...strongResearchVendor, directoryStatus: "partner" } as never, { enabled: false, minimumScore: 7 })) failures.push("Active partner profiles must remain independent of the Research-only switch");
 
+const strongProduct = {
+  title: "Nike Air Max 90",
+  categoryCode: "shoes",
+  description: "Αναλυτική δημόσια περιγραφή προϊόντος με αρκετές χρήσιμες πληροφορίες για τον πελάτη και την επιλογή του.",
+  brand: "Nike",
+  mediaId: "media_approved_product",
+  duplicateTitleCount: 1
+} as const;
+if (!productIndexEligibility(strongProduct).eligible) failures.push("Useful admitted products must pass the product SEO quality gate");
+if (productIndexEligibility({ title: "Product", categoryCode: "", duplicateTitleCount: 1 }).eligible) failures.push("Placeholder products without classification/content must stay out of the index");
+if (!productIndexEligibility({ ...strongProduct, description: undefined, mediaId: undefined, brand: undefined, duplicateTitleCount: 2 }).blockingReasons.some((reason) => reason.includes("duplicate title"))) failures.push("Undifferentiated duplicate product titles must be a hard index blocker");
+
 if (!rootLayout.includes("metadataBase: new URL(settings.canonicalOrigin)")) failures.push("Root metadata must use the governed canonical origin");
 if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title and description defaults");
 if (!rootLayout.includes("robots: settings.indexingEnabled")) failures.push("Root metadata must publish the emergency global noindex signal");
@@ -132,6 +146,7 @@ for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (produ
 if (!product.includes("settings.canonicalOrigin")) failures.push("Product structured data must use the governed canonical origin");
 if (!product.includes("buildGovernedSeoMetadata") || !product.includes("productPublicPath(product)")) failures.push("Product metadata and schema must publish the governed friendly canonical URL");
 if (!product.includes("seoControl.schemaAllowed ? <script")) failures.push("Product structured data must honor the governed schema decision");
+if (!product.includes("productIndexEligibility") || !product.includes("quality.blockingReasons.length === 0") || !product.includes("defaultIndexAllowed: quality.eligible")) failures.push("Product metadata/schema must honor the product quality/index gate");
 if (product.includes("vendorPrice") || product.includes("supplierPrice")) failures.push("Product structured data must not expose hidden supplier pricing");
 if (!product.includes("permanentRedirect(productPublicPath(summary))") || !product.includes("getCatalogCard(summary.id, visitorKey)")) failures.push("Legacy product-ID URLs must redirect before commerce resolves the unchanged canonical product ID");
 if (product.includes("sku: product.mpn ?? product.id")) failures.push("Product schema must not fall back to exposing the canonical product ID as a public SKU");
@@ -143,7 +158,7 @@ if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") fai
 for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) {
   if (!commerceRuntime.includes(contract)) failures.push(`Public catalogue slug projection is missing ${contract}`);
 }
-for (const contract of ["getPublicProductSeoSummary", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages"]) {
+for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount"]) {
   if (!catalogRuntime.includes(contract)) failures.push(`Public product SEO projection is missing ${contract}`);
 }
 if (!catalogCard.includes("productPublicPath(product)")) failures.push("Public catalogue cards must link to the preferred friendly product URL");
@@ -196,6 +211,9 @@ for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "co
 for (const contract of ["Persisted diagnostic reports", "scoreDelta", "?format=json", "?format=csv"]) {
   if (!adminSeoPage.includes(contract)) failures.push(`Admin SEO report history UI is missing ${contract}`);
 }
+for (const contract of ["Product index eligibility", "productIndexEligible", "Why this product is held back", "Open public product"]) {
+  if (!adminSeoPage.includes(contract)) failures.push(`Admin product SEO quality UI is missing ${contract}`);
+}
 
 const entitySettings = {
   indexingEnabled: true,
@@ -221,4 +239,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed global/entity/product metadata, friendly legacy-compatible product URLs, audited overrides/reports, protected exports, quality-gated Research vendors, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");
+console.log("Next SEO checks passed: governed global/entity/product metadata, friendly legacy-compatible product URLs, product and Research quality gates, audited overrides/reports, protected exports, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");

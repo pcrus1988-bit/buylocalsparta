@@ -9,6 +9,7 @@ import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../componen
 import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { adminSeoWorkspace } from "../../../lib/admin-seo-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
+import { productPublicPath } from "../../../lib/product-url";
 
 export const metadata: Metadata = {
   title: "SEO & Visibility · Admin",
@@ -35,6 +36,7 @@ export default async function AdminSeoPage() {
 
   const critical = data.diagnostics.filter((item) => item.severity === "critical").length;
   const warnings = data.diagnostics.filter((item) => item.severity === "warning").length;
+  const blockedProducts = data.metrics.products - data.metrics.productIndexEligible;
   const blockedResearch = data.metrics.research - data.metrics.researchIndexEligible;
   const canEdit = hasAdminPermission(principal, "content.write");
   const latestReport = data.reports.reports[0];
@@ -64,6 +66,7 @@ export default async function AdminSeoPage() {
         <a href="#seo-entities">Entity registry</a>
         <a href="#seo-reports">Reports</a>
         <a href="#seo-diagnostics">Diagnostics</a>
+        <a href="#seo-products">Products</a>
         <a href="#seo-research-vendors">Research vendors</a>
         <a href="#seo-audit">Audit</a>
         <a href="#seo-policy">Policy</a>
@@ -72,7 +75,7 @@ export default async function AdminSeoPage() {
 
     <WorkspaceMetricStrip items={[
       { label: "Sitemap (estimated)", value: data.metrics.sitemapEstimatedCount, tone: data.settings.settings.indexingEnabled ? "positive" : "attention", hint: data.settings.settings.indexingEnabled ? data.sitemapUrl : "global indexing disabled" },
-      { label: "Products", value: data.metrics.products, hint: `${data.metrics.productsWithApprovedImage} with approved image` },
+      { label: "Products indexed", value: data.metrics.productIndexEligible, tone: blockedProducts ? "attention" : "positive", hint: `${blockedProducts} held · ${data.metrics.productsWithApprovedImage} with image` },
       { label: "Research indexed", value: data.metrics.researchIndexEligible, tone: blockedResearch ? "attention" : "positive", hint: `${blockedResearch} held by quality gate` },
       { label: "Overrides", value: data.metrics.entityOverrides, tone: data.metrics.entityOverrides ? "attention" : undefined, hint: `${data.entityCandidates.length} governed entities` }
     ]} />
@@ -82,7 +85,7 @@ export default async function AdminSeoPage() {
       <div className="admin-domain-card-grid">
         <article className="admin-domain-card"><span>Static</span><strong>Public pages</strong><p>Homepage, discovery, trust/help and other curated public routes.</p><b>{data.metrics.staticIndexable}</b><i>Indexable</i></article>
         <article className="admin-domain-card"><span>Taxonomy</span><strong>Categories</strong><p>Curated category landing pages in the public crawl graph.</p><b>{data.metrics.categories}</b><i>Indexable</i></article>
-        <article className="admin-domain-card"><span>Commerce</span><strong>Canonical products</strong><p>Only products admitted by the existing public canonical safety boundary.</p><b>{data.metrics.products}</b><i>Public</i></article>
+        <article className="admin-domain-card"><span>Commerce</span><strong>Canonical products</strong><p>{data.metrics.products} public canonicals; only records passing the content-quality gate are promoted to search.</p><b>{data.metrics.productIndexEligible}</b><i>Sitemap eligible</i></article>
         <article className="admin-domain-card"><span>Local SEO</span><strong>Vendor dossiers</strong><p>{data.metrics.partners} partners + {data.metrics.researchIndexEligible} quality-gated research businesses.</p><b>{data.metrics.vendorIndexEligible}</b><i>Sitemap eligible</i></article>
       </div>
       <p style={{ marginTop: 16 }}>Public origin: <code>{data.origin}</code> · <a className="text-link" href={data.sitemapUrl} target="_blank" rel="noreferrer">Sitemap ↗</a> · <a className="text-link" href={data.robotsUrl} target="_blank" rel="noreferrer">robots.txt ↗</a></p>
@@ -96,7 +99,7 @@ export default async function AdminSeoPage() {
     </div></section>
 
     <section id="seo-entities" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="Phase 1.3 · Governed overrides" title="Page and entity SEO registry" note="Generated metadata remains the default. Overrides are intentional, version-checked and auditable; they cannot bypass global shutdown, private-route policy, public admission or hard Research quality blockers." />
+      <WorkspaceSectionHeading eyebrow="Phase 1.3 · Governed overrides" title="Page and entity SEO registry" note="Generated metadata remains the default. Overrides are intentional, version-checked and auditable; they cannot bypass global shutdown, private-route policy, public admission or hard entity-quality blockers." />
       {canEdit
         ? <AdminSeoEntityOverrideEditor key={data.entityOverrides.version} candidates={data.entityCandidates} snapshot={data.entityOverrides} csrfToken={data.csrfToken} />
         : <div className="workspace-empty-state"><strong>Read-only SEO registry.</strong><span>Your Admin role can inspect effective entity decisions, but content.write permission is required to create or remove overrides.</span></div>}
@@ -141,6 +144,22 @@ export default async function AdminSeoPage() {
           </div>
         </article>)}
       </div>
+    </section>
+
+    <section id="seo-products" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="Phase 3.3 · Product SEO" title="Product index eligibility" note="Public admission still blocks inactive, suppressed, recalled or unsafe canonicals first. This second gate holds thin or indistinguishable products out of indexing and the sitemap without changing their commerce identity or human-facing availability." />
+      <div className="workspace-queue-list">
+        {data.products.length === 0 ? <div className="workspace-empty-state"><strong>No products in the public catalogue projection.</strong><span>The quality gate will populate automatically when admitted canonical products are available.</span></div> : data.products.slice(0, 100).map((product) => <article className="workspace-queue-card" key={product.id}>
+          <div className="workspace-queue-head">
+            <div><strong>{product.title}</strong><small>Quality score {product.score}/{product.minimumScore}{product.overrideDecision ? ` · override ${product.overrideDecision}` : ""}</small></div>
+            <span className="status-pill">{product.eligible ? "Index eligible" : "Held back"}</span>
+          </div>
+          <div className="workspace-queue-primary"><span>{product.reasons.join(" · ") || "No positive quality signals recorded"}</span></div>
+          {product.blockingReasons.length > 0 && <details className="workspace-tool-panel" style={{ marginTop: 12 }}><summary><span><strong>Why this product is held back</strong><small>{product.blockingReasons.join(" · ")}</small></span></summary><div className="workspace-tool-body"><p>{product.blockingReasons.join(" · ")}</p></div></details>}
+          <div className="workspace-action-bar"><span>Canonical public ID: <strong>{product.id}</strong></span><div className="workspace-action-buttons"><Link className="text-link" href={productPublicPath(product)} target="_blank">Open public product ↗</Link><a className="text-link" href="#seo-entities">Review governed override ↑</a></div></div>
+        </article>)}
+      </div>
+      {data.products.length > 100 && <p style={{ marginTop: 16 }}>Showing the first 100 ordered by eligibility and quality; governed report exports retain aggregate counts for the full inventory.</p>}
     </section>
 
     <section id="seo-research-vendors" className="shell vendor-section admin-anchor-section">

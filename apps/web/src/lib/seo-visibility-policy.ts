@@ -145,6 +145,27 @@ export type ResearchVendorIndexEligibility = Readonly<{
   blockingReasons: readonly string[];
 }>;
 
+export type ProductIndexCandidate = Readonly<{
+  title: string;
+  categoryCode: string;
+  description?: string;
+  brand?: string;
+  gtin?: string;
+  mpn?: string;
+  mediaId?: string;
+  color?: string;
+  sizes?: readonly string[];
+  duplicateTitleCount?: number;
+}>;
+
+export type ProductIndexEligibility = Readonly<{
+  eligible: boolean;
+  score: number;
+  minimumScore: number;
+  reasons: readonly string[];
+  blockingReasons: readonly string[];
+}>;
+
 export const DEFAULT_RESEARCH_VENDOR_INDEX_SCORE = 5;
 export type ResearchVendorIndexPolicy = Readonly<{
   enabled?: boolean;
@@ -152,6 +173,7 @@ export type ResearchVendorIndexPolicy = Readonly<{
 }>;
 const PLACEHOLDER_NAME_PATTERN = /^(unknown|unnamed|χωρίς όνομα|χωρις ονομα|n\/a|test|demo)$/i;
 const CLOSED_STATUS_PATTERN = /(permanently[_ -]?closed|closed|inactive|out[_ -]?of[_ -]?scope|κλειστ|έκλεισ)/i;
+const PLACEHOLDER_PRODUCT_TITLE_PATTERN = /^(unknown|unnamed|product|προϊόν|προιον|χωρίς όνομα|χωρις ονομα|n\/a|test|demo)$/i;
 
 function usefulText(value: string | undefined, minimum = 2): boolean {
   return Boolean(value && value.trim().length >= minimum);
@@ -223,4 +245,75 @@ export function researchVendorIndexEligibility(vendor: PublicVendorDirectoryEntr
 
 export function vendorIndexEligible(vendor: PublicVendorDirectoryEntry, policy: ResearchVendorIndexPolicy = {}): boolean {
   return vendor.directoryStatus === "partner" || researchVendorIndexEligibility(vendor, policy).eligible;
+}
+
+export const DEFAULT_PRODUCT_INDEX_SCORE = 5;
+
+/**
+ * Search-quality gate layered above the existing public canonical admission rule.
+ * Suppressed, recalled, inactive and otherwise unsafe products never reach this
+ * function; this gate prevents admitted-but-thin records from sitemap/index
+ * promotion while keeping the public page usable for people.
+ */
+export function productIndexEligibility(
+  product: ProductIndexCandidate,
+  policy: Readonly<{ minimumScore?: number }> = {}
+): ProductIndexEligibility {
+  const minimumScore = Number.isSafeInteger(policy.minimumScore) && Number(policy.minimumScore) >= 4 && Number(policy.minimumScore) <= 7
+    ? Number(policy.minimumScore)
+    : DEFAULT_PRODUCT_INDEX_SCORE;
+  let score = 0;
+  const reasons: string[] = [];
+  const blockingReasons: string[] = [];
+  const title = product.title.trim();
+  const hasDescription = usefulText(product.description, 60);
+  const hasImage = usefulText(product.mediaId, 8);
+  const hasIdentity = usefulText(product.gtin, 8) || usefulText(product.mpn, 2) || usefulText(product.brand, 2);
+  const hasStrongDifferentiator = usefulText(product.gtin, 8) || usefulText(product.mpn, 2) || usefulText(product.color, 2) || Boolean(product.sizes?.some((size) => usefulText(size, 1)));
+
+  if (usefulText(title, 3) && !PLACEHOLDER_PRODUCT_TITLE_PATTERN.test(title)) {
+    score += 2;
+    reasons.push("meaningful product title");
+  } else {
+    blockingReasons.push("missing or placeholder product title");
+  }
+
+  if (usefulText(product.categoryCode, 2)) {
+    score += 1;
+    reasons.push("governed category classification");
+  } else {
+    blockingReasons.push("missing category classification");
+  }
+
+  if (hasDescription) {
+    score += 2;
+    reasons.push("meaningful public description");
+  }
+  if (hasImage) {
+    score += 1;
+    reasons.push("approved public image");
+  }
+  if (hasIdentity) {
+    score += 1;
+    reasons.push("brand or public product identifier");
+  }
+  if (hasStrongDifferentiator && !hasIdentity) {
+    score += 1;
+    reasons.push("public variant differentiator");
+  }
+
+  if (!hasDescription && !hasImage && !hasIdentity && !hasStrongDifferentiator) {
+    blockingReasons.push("insufficient public product content");
+  }
+  if (Number(product.duplicateTitleCount) > 1 && !hasStrongDifferentiator) {
+    blockingReasons.push("duplicate title without a public identifier or variant differentiator");
+  }
+
+  return {
+    eligible: blockingReasons.length === 0 && score >= minimumScore,
+    score,
+    minimumScore,
+    reasons,
+    blockingReasons
+  };
 }

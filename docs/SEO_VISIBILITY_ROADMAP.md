@@ -265,7 +265,7 @@ Before indexing:
 
 Internal canonical IDs remain authoritative and unchanged.
 
-Implementation status: **metadata/media and friendly-URL foundation implemented on the working branch.** The existing market-unique `canonical_variants.slug` is now exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata also consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. Product quality/index eligibility remains Phase 3.3 work.
+Implementation status: **metadata/media, friendly URLs and the product quality/index gate are implemented on the working branch.** The existing market-unique `canonical_variants.slug` is exposed only through the public catalogue projection and used as the preferred presentation URL. Legacy `/product/{public-id}` requests resolve the same admitted canonical product and permanently redirect to `/product/{slug}` before personalised offer assignment. Carts, fairness, inventory, checkout, orders, tax and finance continue to receive the unchanged canonical product ID. Sitemap, catalogue cards, customer saved/recent/recommended product links, order-detail links, canonical metadata and Product/Offer schema now use the friendly route. Product metadata also consumes approved public imagery and catalogue descriptions, publishes Twitter/X card fallbacks, and enriches schema with governed GTIN/condition data without using the internal canonical ID as a fallback SKU. A second gate above the existing public safety/admission projection now scores meaningful title, classification, description, approved image, public identifier/brand and variant differentiation. Thin or unresolved duplicate records remain human-visible but are `noindex`, excluded from the sitemap and visible in Admin diagnostics; eligible records can still be narrowed through audited entity overrides, while hard content/identity blockers cannot be bypassed.
 
 ## 3.1 Metadata and schema
 
@@ -303,6 +303,8 @@ Do not index products that are:
 - effectively empty
 - duplicated without a canonical relationship
 - missing minimum public content needed for a useful search result
+
+Implementation status: **implemented.** The public canonical admission boundary remains authoritative for inactive, suppressed, recalled and unsafe products. The quality gate does not deindex merely because stock is temporarily unavailable; stable content/entity quality is assessed separately from live offer availability.
 
 ---
 

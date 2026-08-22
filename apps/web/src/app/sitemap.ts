@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
-import { getPublicCatalogProducts } from "../lib/catalog-view";
+import { getPublicProductSeoInventory } from "../lib/catalog-view";
 import { INDEXABLE_STATIC_ROUTES } from "../lib/site-navigation";
 import { getPublicVendorDirectory } from "../lib/public-vendor-directory";
-import { researchVendorIndexEligibility } from "../lib/seo-visibility-policy";
+import { productIndexEligibility, researchVendorIndexEligibility } from "../lib/seo-visibility-policy";
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../lib/seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../lib/seo-entity-policy";
@@ -52,15 +52,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   ];
 
-  const [products, vendors] = await Promise.allSettled([getPublicCatalogProducts(), getPublicVendorDirectory()]);
+  const [products, vendors] = await Promise.allSettled([getPublicProductSeoInventory(), getPublicVendorDirectory()]);
   if (products.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_products_failed", message: String(products.reason) }));
   if (vendors.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(vendors.reason) }));
 
   const entries: MetadataRoute.Sitemap = [
     ...fixed,
-    ...(products.status === "fulfilled" ? products.value.flatMap((product) => {
+    ...(products.status === "fulfilled" ? products.value.products.flatMap((product) => {
       const reference: SeoEntityReference = { kind: "product", id: product.id };
-      const { override, control } = governed(reference, true, true);
+      const quality = productIndexEligibility(product);
+      const { override, control } = governed(reference, quality.blockingReasons.length === 0, quality.eligible);
       return control.sitemapAllowed ? [{
         url: new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString(),
         changeFrequency: "daily" as const,
