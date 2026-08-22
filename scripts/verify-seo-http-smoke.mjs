@@ -4,6 +4,7 @@ const host = "127.0.0.1";
 const port = Number(process.env.SEO_HTTP_SMOKE_PORT ?? "3117");
 const origin = `http://${host}:${port}`;
 const failures = [];
+const useProcessGroup = process.platform !== "win32";
 let serverOutput = "";
 
 function recordOutput(chunk) {
@@ -63,6 +64,7 @@ const server = spawn(
   process.platform === "win32" ? "npm.cmd" : "npm",
   ["--workspace", "@buy-local-sparta/web", "run", "start", "--", "-H", host, "-p", String(port)],
   {
+    detached: useProcessGroup,
     env: {
       ...process.env,
       APP_URL: origin,
@@ -74,6 +76,35 @@ const server = spawn(
 );
 server.stdout.on("data", recordOutput);
 server.stderr.on("data", recordOutput);
+
+function signalServer(signal) {
+  if (server.exitCode !== null) return;
+  try {
+    if (useProcessGroup && server.pid) process.kill(-server.pid, signal);
+    else server.kill(signal);
+  } catch {
+    // The process may already have exited between the state check and the signal.
+  }
+}
+
+async function stopServer() {
+  if (server.exitCode === null) {
+    signalServer("SIGTERM");
+    await Promise.race([
+      new Promise((resolve) => server.once("exit", resolve)),
+      sleep(4_000)
+    ]);
+  }
+  if (server.exitCode === null) {
+    signalServer("SIGKILL");
+    await Promise.race([
+      new Promise((resolve) => server.once("exit", resolve)),
+      sleep(2_000)
+    ]);
+  }
+  server.stdout.destroy();
+  server.stderr.destroy();
+}
 
 async function waitForServer() {
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -152,13 +183,7 @@ try {
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 } finally {
-  if (server.exitCode === null) server.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => server.once("exit", resolve)),
-    sleep(5_000).then(() => {
-      if (server.exitCode === null) server.kill("SIGKILL");
-    })
-  ]);
+  await stopServer();
 }
 
 if (failures.length) {
