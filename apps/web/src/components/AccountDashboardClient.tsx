@@ -8,7 +8,7 @@ import { CustomerActionCard, CustomerHowItWorks, CustomerLifecycle, customerOrde
 import { WorkspaceQuickLinks } from "./WorkspaceQuickLinks";
 
 type Dashboard = {
-  account: { userId: string; email: string };
+  account: { email: string };
   csrfToken: string;
   savedProducts: ReadonlyArray<{ canonicalVariantId: string; title?: string; price?: string; available?: boolean; unavailable?: boolean }>;
   savedSearches: ReadonlyArray<{ id: string; name: string; alertsEnabled: boolean; lastObservedCount: number }>;

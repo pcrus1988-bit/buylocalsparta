@@ -8,7 +8,7 @@ type Address = Readonly<{
   id: string; label: string; fullName: string; companyName?: string; vatNumber?: string; line1: string; line2?: string;
   locality: string; region?: string; postcode: string; countryCode: string; phone?: string; isDefaultBilling: boolean; isDefaultDelivery: boolean;
 }>;
-type Profile = Readonly<{ customerId: string; fullName: string; addresses: readonly Address[] }>;
+type Profile = Readonly<{ fullName: string; addresses: readonly Address[] }>;
 type AccountProfile = Readonly<{ email: string; emailVerified: boolean; firstName: string; lastName: string; phone: string; preferredLocale: "el" | "en" }>;
 type Draft = {
   id?: string; label: string; fullName: string; companyName: string; vatNumber: string; line1: string; line2: string;

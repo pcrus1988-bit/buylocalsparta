@@ -14,11 +14,14 @@ import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerP
 import { marketplaceReferenceMap } from "./public-reference-service";
 import { requireCustomerOrderReference } from "./customer-order-reference";
 import { customerOrderLineActionToken, requireCustomerOrderLineInternalId } from "./customer-order-line-action-token";
-
-function browserNotificationPayload(payload: Record<string, unknown>): Record<string, unknown> {
-  const { orderId: _internalOrderId, returnId: _internalReturnId, requestId: _internalAskLocalRequestId, privateOfferId: _internalPrivateOfferId, ...safe } = payload;
-  return safe;
-}
+import {
+  customerBrowserNotification,
+  customerBrowserPreferences,
+  customerBrowserPrivacyRequest,
+  customerBrowserRecentlyViewed,
+  customerBrowserSavedProductAlert,
+  customerBrowserSavedSearch
+} from "./customer-account-browser-view";
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -29,13 +32,24 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
   const catalogMap = new Map(catalog.map((product) => [product.id, product]));
   const savedProducts = await Promise.all(state.savedProducts.map(async (saved) => {
     const product = catalogMap.get(saved.canonicalVariantId);
-    if (!product) return { ...saved, unavailable: true as const };
+    const alert = state.savedProductAlerts.find((item) => item.canonicalVariantId === saved.canonicalVariantId);
+    if (!product) return {
+      canonicalVariantId: saved.canonicalVariantId,
+      unavailable: true as const,
+      alert: alert ? customerBrowserSavedProductAlert(alert) : null
+    };
     const availability = await getCanonicalAvailability(product.id);
-    return { ...saved, title: product.title, price: product.price, available: availability?.available ?? false, alert: state.savedProductAlerts.find((item) => item.canonicalVariantId === product.id) ?? null };
+    return {
+      canonicalVariantId: saved.canonicalVariantId,
+      title: product.title,
+      price: product.price,
+      available: availability?.available ?? false,
+      alert: alert ? customerBrowserSavedProductAlert(alert) : null
+    };
   }));
   const recentlyViewed = state.recentlyViewed.flatMap((view) => {
     const product = catalogMap.get(view.canonicalVariantId);
-    return product ? [{ ...view, title: product.title, price: product.price }] : [];
+    return product ? [{ ...customerBrowserRecentlyViewed(view), title: product.title, price: product.price }] : [];
   });
   const recommendationSignals = (ids: readonly { canonicalVariantId: string; viewedAt?: number }[]) => ids.flatMap((item) => {
     const product = catalogMap.get(item.canonicalVariantId);
@@ -68,16 +82,16 @@ export async function accountDashboard(principal: SessionPrincipal, now = Date.n
     };
   });
   return {
-    account: { userId: principal.userId, email: principal.email },
+    account: { email: principal.email },
     csrfToken: principal.csrfToken,
     savedProducts,
-    savedSearches: state.savedSearches,
-    notifications: state.notifications.map((item) => ({ ...item, payload: browserNotificationPayload(item.payload) })),
+    savedSearches: state.savedSearches.map(customerBrowserSavedSearch),
+    notifications: state.notifications.map(customerBrowserNotification),
     unreadNotifications: state.unreadNotifications,
     recentlyViewed,
-    preferences: state.preferences,
+    preferences: customerBrowserPreferences(state.preferences),
     recommendations,
-    privacyRequests: state.privacyRequests,
+    privacyRequests: state.privacyRequests.map(customerBrowserPrivacyRequest),
     retention: defaultCustomerRetentionSnapshot(now),
     orders
   };

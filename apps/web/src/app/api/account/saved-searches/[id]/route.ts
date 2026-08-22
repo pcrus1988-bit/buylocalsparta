@@ -1,5 +1,6 @@
 import { requireAccountSession } from "../../../../../lib/account-session";
 import { configureCustomerSavedSearchAlerts, removeCustomerSavedSearch, updateCustomerSavedSearch } from "../../../../../lib/customer-saved-search-actions";
+import { customerBrowserSavedSearch } from "../../../../../lib/customer-account-browser-view";
 
 const availability = (value: unknown): "any" | "in_stock" => value === "in_stock" || value === "pickup_today" ? "in_stock" : "any";
 
@@ -12,7 +13,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (body.action === "alerts") {
       if (typeof body.alertsEnabled !== "boolean") throw new Error("Χρειάζεται έγκυρη επιλογή ειδοποιήσεων.");
       const search = await configureCustomerSavedSearchAlerts(principal, { searchId: id, alertsEnabled: body.alertsEnabled });
-      return Response.json({ search });
+      return Response.json({ search: customerBrowserSavedSearch(search) });
     }
 
     if (body.action === "edit") {
@@ -23,7 +24,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         name: body.name,
         query: { q: body.q, categoryCode, availability: availability(body.availability) }
       });
-      return Response.json({ search });
+      return Response.json({ search: customerBrowserSavedSearch(search) });
     }
 
     throw new Error("Μη έγκυρη ενέργεια αποθηκευμένης αναζήτησης.");

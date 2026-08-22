@@ -2,6 +2,7 @@ import { getCanonicalAvailability, getCanonicalProductSummary } from "../../../.
 import { requireAccountSession } from "../../../../../lib/account-session";
 import { configureCustomerSavedProductAlert } from "../../../../../lib/customer-saved-product-alert-actions";
 import { removeCustomerProduct, saveCustomerProduct } from "../../../../../lib/customer-state-runtime";
+import { customerBrowserSavedProductAlert } from "../../../../../lib/customer-account-browser-view";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -14,7 +15,7 @@ export async function POST(request: Request, context: Context) {
     const now = Date.now();
     const availability = await getCanonicalAvailability(id);
     const result = await saveCustomerProduct({ userId: principal.userId, canonicalVariantId: id, available: availability?.available ?? false, priceMinor: product.priceMinor, now });
-    return Response.json({ saved: result.saved, alert: result.alert }, { status: 201 });
+    return Response.json({ saved: { canonicalVariantId: result.saved.canonicalVariantId }, alert: customerBrowserSavedProductAlert(result.alert) }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "save_failed";
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
@@ -36,7 +37,7 @@ export async function PATCH(request: Request, context: Context) {
       priceDropEnabled,
       minimumPriceDropMinor
     });
-    return Response.json({ alert });
+    return Response.json({ alert: customerBrowserSavedProductAlert(alert) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "alert_update_failed";
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });

@@ -1,5 +1,6 @@
 import { getAccountSession, requireAccountSession } from "../../../../lib/account-session";
 import { persistentCustomerCart, syncPersistentCustomerCart } from "../../../../lib/customer-commerce-runtime";
+import { customerBrowserCart } from "../../../../lib/customer-account-browser-view";
 import { getVisitorKey } from "../../../../lib/visitor";
 
 function postcodeFrom(request: Request): string {
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     const principal = await getAccountSession();
     if (!principal) return Response.json({ authenticated: false, cart: null }, { status: 200 });
     const cart = await persistentCustomerCart(principal, await getVisitorKey(), postcodeFrom(request));
-    return Response.json({ authenticated: true, persistent: cart !== undefined, csrfToken: cart ? principal.csrfToken : undefined, cart });
+    return Response.json({ authenticated: true, persistent: cart !== undefined, csrfToken: cart ? principal.csrfToken : undefined, cart: customerBrowserCart(cart) });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "cart_load_failed" }, { status: 500 });
   }
@@ -32,7 +33,7 @@ export async function PUT(request: Request) {
     });
     await syncPersistentCustomerCart(principal, items);
     const cart = await persistentCustomerCart(principal, await getVisitorKey(), postcodeFrom(request));
-    return Response.json({ cart });
+    return Response.json({ cart: customerBrowserCart(cart) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "cart_sync_failed";
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });

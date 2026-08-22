@@ -36,7 +36,6 @@ export type CustomerAddressInput = Readonly<{
 }>;
 
 export type CustomerCheckoutProfile = Readonly<{
-  customerId: string;
   fullName: string;
   addresses: readonly CustomerSavedAddress[];
 }>;
@@ -169,7 +168,6 @@ export class PostgresCustomerAddressService {
         ORDER BY is_default_billing DESC,is_default_delivery DESC,updated_at DESC,created_at DESC,public_id
       `, [userUuid]);
       return {
-        customerId,
         fullName: [first, last].filter(Boolean).join(" "),
         addresses: addresses.rows.map(savedAddress)
       };

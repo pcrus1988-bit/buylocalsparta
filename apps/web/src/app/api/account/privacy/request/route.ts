@@ -1,6 +1,7 @@
 import { requireAccountSession } from "../../../../../lib/account-session";
 import { createCustomerNotification } from "../../../../../lib/customer-state-runtime";
 import { isCustomerPrivacyRequestType, submitCustomerPrivacyRequest } from "../../../../../lib/customer-privacy-request-service";
+import { customerBrowserPrivacyRequest } from "../../../../../lib/customer-account-browser-view";
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       dedupeKey: `privacy-request:${item.id}`,
       now
     });
-    return Response.json({ request: item }, { status: 201 });
+    return Response.json({ request: customerBrowserPrivacyRequest(item) }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "privacy_request_failed";
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
