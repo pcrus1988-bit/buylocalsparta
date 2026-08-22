@@ -62,6 +62,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const reference: SeoEntityReference = { kind: "product", id: product.id };
       const quality = productIndexEligibility(product);
       const { override, control } = governed(reference, quality.blockingReasons.length === 0, quality.eligible);
+      // Product content spans canonical_variants, translations and approved media. The
+      // current schema does not expose one trustworthy public-content update clock across
+      // all three, so do not manufacture freshness from Date.now(), deployment time or
+      // canonical_variants.updated_at alone. An explicit governed review date is honest.
       return control.sitemapAllowed ? [{
         url: new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString(),
         changeFrequency: "daily" as const,
