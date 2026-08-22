@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { CustomerPrivateOfferCheckoutPreview } from "../lib/private-offer-checkout-service";
+import type { CustomerPrivateOfferCheckoutView } from "../lib/customer-private-offer-checkout-view";
 
 type Address = Readonly<{ id: string; label: string; fullName: string; line1: string; line2?: string; postcode: string; locality: string; region?: string; isDefaultBilling: boolean }>;
 
@@ -19,7 +19,7 @@ export function PrivateOfferCheckoutClient({
   csrfToken,
   checkoutEnabled
 }: {
-  offer: CustomerPrivateOfferCheckoutPreview;
+  offer: CustomerPrivateOfferCheckoutView;
   addresses: readonly Address[];
   csrfToken: string;
   checkoutEnabled: boolean;
@@ -29,8 +29,8 @@ export function PrivateOfferCheckoutClient({
   const [checkoutKey, setCheckoutKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [createdOrderId, setCreatedOrderId] = useState<string>();
-  const fingerprint = useMemo(() => `${offer.offerId}:${billingAddressId}:pickup`, [offer.offerId, billingAddressId]);
+  const [createdOrderReference, setCreatedOrderReference] = useState<string>();
+  const fingerprint = useMemo(() => `${offer.actionReference}:${billingAddressId}:pickup`, [offer.actionReference, billingAddressId]);
 
   useEffect(() => {
     if (!billingAddressId) return;
@@ -54,19 +54,19 @@ export function PrivateOfferCheckoutClient({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/account/ask-local/offers/${encodeURIComponent(offer.offerId)}/checkout`, {
+      const response = await fetch(`/api/account/ask-local/offers/${encodeURIComponent(offer.actionReference)}/checkout`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ checkoutKey, billingAddressId })
       });
-      const payload = await response.json() as { id?: string; orderId?: string; error?: string; payment?: { provider?: string; redirectUrl?: string } };
+      const payload = await response.json() as { id?: string; referenceNumber?: string; error?: string; payment?: { provider?: string; redirectUrl?: string } };
       if (!response.ok) throw new Error(payload.error ?? "Η αγορά της ιδιωτικής προσφοράς δεν ολοκληρώθηκε.");
-      const orderId = payload.id ?? payload.orderId;
+      const orderReference = payload.referenceNumber ?? payload.id;
       if (payload.payment?.provider === "viva" && payload.payment.redirectUrl) {
         window.location.assign(payload.payment.redirectUrl);
         return;
       }
-      if (orderId) setCreatedOrderId(orderId);
+      if (orderReference) setCreatedOrderReference(orderReference);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η αγορά της ιδιωτικής προσφοράς δεν ολοκληρώθηκε.");
     } finally {
@@ -74,9 +74,9 @@ export function PrivateOfferCheckoutClient({
     }
   }
 
-  if (createdOrderId) return <section className="checkout-form">
+  if (createdOrderReference) return <section className="checkout-form">
     <div className="checkout-result success" role="status"><strong>Η παραγγελία δημιουργήθηκε.</strong><p>Η αποδεκτή ιδιωτική προσφορά έχει δεσμευτεί στη συγκεκριμένη παραγγελία.</p></div>
-    <Link className="button" href={`/account/orders/${encodeURIComponent(createdOrderId)}`}>Προβολή παραγγελίας</Link>
+    <Link className="button" href={`/account/orders/${encodeURIComponent(createdOrderReference)}`}>Προβολή παραγγελίας</Link>
   </section>;
 
   return <div className="checkout-layout">
@@ -98,7 +98,7 @@ export function PrivateOfferCheckoutClient({
       <div className="checkout-item"><span>Κατάστημα</span><strong>{offer.vendorName}</strong></div>
       <div className="checkout-item"><span>Τιμή ανά τεμάχιο</span><strong>{money(offer.unitPriceMinor)}</strong></div>
       <div className="checkout-total"><span>Σύνολο προϊόντων</span><strong>{money(offer.totalMinor)}</strong></div>
-      <p>Ask Local {offer.requestId} · ισχύει έως {new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(offer.expiresAt))}</p>
+      <p>Ask Local {offer.requestReference} · ισχύει έως {new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(offer.expiresAt))}</p>
     </aside>
   </div>;
 }
