@@ -7,18 +7,29 @@ import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
-
-export function generateMetadata(): Promise<Metadata> {
-  return governedStaticSeoMetadata("/shop", {
-  title: "Προϊόντα",
-  description: "Ανακάλυψε προϊόντα διαθέσιμα από τοπικά καταστήματα της Σπάρτης."
-  });
-}
+import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
+import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 
 function valueOf(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export async function generateMetadata({ searchParams }: ShopProps): Promise<Metadata> {
+  const base = await governedStaticSeoMetadata("/shop", {
+    title: "Προϊόντα",
+    description: "Ανακάλυψε προϊόντα διαθέσιμα από τοπικά καταστήματα της Σπάρτης."
+  });
+  const params = await searchParams;
+  const hasQueryState = Object.values(params).some((value) => valueOf(value).trim().length > 0);
+  if (!hasQueryState) return base;
+  const category = storefrontCategoryBySlug(valueOf(params.category));
+  return {
+    ...base,
+    alternates: { canonical: category ? `/category/${category.slug}` : "/shop" },
+    robots: { index: false, follow: true }
+  };
 }
 
 export default async function ShopPage({ searchParams }: ShopProps) {
@@ -33,11 +44,14 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const size = valueOf(params.size);
   const fit = valueOf(params.fit);
   const categoryView = storefrontCategoryBySlug(category);
-  const visitorKey = await getVisitorKey();
+  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
+  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
   const facets = await getCatalogFacets(category, query);
-  let products = [...await getCatalogCards(visitorKey, "23100", query, category, { subcategory, brand, color, size })];
+  let products = readOnlyCrawler
+    ? [...await getCrawlerCatalogCards("23100", query, category, { subcategory, brand, color, size, fit })]
+    : [...await getCatalogCards(visitorKey, "23100", query, category, { subcategory, brand, color, size })];
   const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
-  if (fit) products = products.filter((product) => product.fit === fit);
+  if (fit && !readOnlyCrawler) products = products.filter((product) => product.fit === fit);
   if (availability === "available") products = products.filter((product) => product.available);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
