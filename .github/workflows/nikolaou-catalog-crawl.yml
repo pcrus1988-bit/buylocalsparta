@@ -20,20 +20,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Probe Nikolaou endpoints
+      - name: Probe reader proxy
         shell: bash
         run: |
           set -u
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
           probe() {
             label="$1"; url="$2"
             echo "=== $label ==="
-            curl -L --max-time 25 -sS -A "$UA" -H 'Accept: text/html,application/xhtml+xml' -H 'Accept-Language: el-GR,el;q=0.9,en;q=0.7' -o "/tmp/$label.html" -w 'status=%{http_code} final=%{url_effective} size=%{size_download}\n' "$url" || true
-            head -c 180 "/tmp/$label.html" 2>/dev/null | tr '\n' ' ' || true
+            curl -L --max-time 45 -sS -o "/tmp/$label.txt" -w 'status=%{http_code} final=%{url_effective} size=%{size_download}\n' "$url" || true
+            head -c 1000 "/tmp/$label.txt" 2>/dev/null || true
             echo
           }
-          probe home 'https://www.nikolaoutools.gr/'
-          probe pretty_search 'https://www.nikolaoutools.gr/search/GB6500M'
-          probe oc_search 'https://www.nikolaoutools.gr/index.php?route=product/search&search=GB6500M'
-          probe oc_filter 'https://www.nikolaoutools.gr/index.php?route=product/search&filter_name=GB6500M'
-          probe direct 'https://www.nikolaoutools.gr/kumatsugen-gb6500m-%CE%B3%CE%B5%CE%BD%CE%BD%CE%AE%CF%84%CF%81%CE%B9%CE%B1-%CE%B2%CE%B5%CE%BD%CE%B6%CE%AF%CE%BD%CE%B7%CF%82-avr-7-5kva-13hp-GB6500M/'
+          probe proxy_search 'https://r.jina.ai/http://https://www.nikolaoutools.gr/search/GB6500M'
+          probe proxy_direct 'https://r.jina.ai/http://https://www.nikolaoutools.gr/kumatsugen-gb6500m-%CE%B3%CE%B5%CE%BD%CE%BD%CE%AE%CF%84%CF%81%CE%B9%CE%B1-%CE%B2%CE%B5%CE%BD%CE%B6%CE%AF%CE%BD%CE%B7%CF%82-avr-7-5kva-13hp-GB6500M/'
