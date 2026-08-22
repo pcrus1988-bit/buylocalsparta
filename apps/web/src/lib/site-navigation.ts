@@ -146,6 +146,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/ask-local",
   "/admin/categories",
   "/admin/content",
+  "/admin/seo",
   "/admin/hero",
   "/admin/customers",
   "/admin/customers/[customerId]",
@@ -184,8 +185,8 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/work"
 ] as const;
 
-// Keep /vendor itself out of robots.txt because /vendor/[id] is the public merchant-profile namespace.
-// Private vendor pages are listed explicitly instead.
+// Legacy compatibility registry. robots.ts now uses the centralized visibility policy
+// and keeps private HTML crawlable so crawlers can process explicit noindex signals.
 export const ROBOTS_DISALLOW_PATHS = [
   "/account",
   "/admin",
