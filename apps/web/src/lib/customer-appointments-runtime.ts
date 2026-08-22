@@ -378,7 +378,13 @@ async function notifyVendor(tx: SqlExecutor, vendorUuid: string, input: {
     INSERT INTO notifications(id,public_id,user_id,vendor_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
     SELECT gen_random_uuid(),'notification_' || replace(gen_random_uuid()::text,'-',''),vu.user_id,$1::uuid,'in_app','transactional',$2,'appointments-v1','el',$3,$4,$5::jsonb,'queued',$6 || ':' || u.public_id,$7
     FROM vendor_users vu JOIN users u ON u.id=vu.user_id
-    WHERE vu.vendor_id=$1::uuid AND vu.active=true AND u.status='active'
+    WHERE vu.vendor_id=$1::uuid
+      AND vu.active=true
+      AND u.status='active'
+      AND EXISTS (
+        SELECT 1 FROM vendor_user_roles vur
+        WHERE vur.vendor_user_id=vu.id AND vur.role IN ('vendor_owner','vendor_adviser')
+      )
     ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
   `, [vendorUuid, input.eventType, input.title, input.body, JSON.stringify({ title: input.title, body: input.body, appointmentId: input.appointmentId, vendorId: input.vendorId }), input.dedupeKey, input.now]);
 }
