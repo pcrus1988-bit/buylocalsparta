@@ -7,6 +7,7 @@ const TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const SEARCH_ANALYTICS_BASE = "https://www.googleapis.com/webmasters/v3";
 const URL_INSPECTION_ENDPOINT = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 const REQUEST_TIMEOUT_MS = 10_000;
+const MAX_BREAKDOWN_ROWS = 250;
 
 type TokenCache = Readonly<{ accessToken: string; expiresAt: number }>;
 const tokenCacheKey = "__buyLocalSpartaSearchConsoleToken" as const;
@@ -36,6 +37,22 @@ export type SearchConsoleOverview = Readonly<{
   error?: string;
 }>;
 
+export type SearchConsolePerformanceRow = Readonly<{
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}>;
+
+export type SearchConsoleBreakdown = Readonly<{
+  startDate: string;
+  endDate: string;
+  queries: readonly SearchConsolePerformanceRow[];
+  pages: readonly SearchConsolePerformanceRow[];
+  error?: string;
+}>;
+
 export type SearchConsoleUrlInspection = Readonly<{
   inspectionUrl: string;
   verdict?: string;
@@ -44,12 +61,21 @@ export type SearchConsoleUrlInspection = Readonly<{
   indexingState?: string;
   lastCrawlTime?: string;
   pageFetchState?: string;
+  crawledAs?: string;
   googleCanonical?: string;
   userCanonical?: string;
+  sitemaps: readonly string[];
+  referringUrls: readonly string[];
 }>;
 
 type SearchAnalyticsResponse = Readonly<{
-  rows?: readonly Readonly<{ clicks?: number; impressions?: number; ctr?: number; position?: number }>[];
+  rows?: readonly Readonly<{
+    keys?: readonly string[];
+    clicks?: number;
+    impressions?: number;
+    ctr?: number;
+    position?: number;
+  }>[];
 }>;
 
 type UrlInspectionResponse = Readonly<{
@@ -61,8 +87,11 @@ type UrlInspectionResponse = Readonly<{
       indexingState?: string;
       lastCrawlTime?: string;
       pageFetchState?: string;
+      crawledAs?: string;
       googleCanonical?: string;
       userCanonical?: string;
+      sitemap?: readonly string[];
+      referringUrls?: readonly string[];
     }>;
   }>;
 }>;
@@ -192,14 +221,27 @@ function pacificDate(daysAgo: number): string {
   return `${byType.get("year")}-${byType.get("month")}-${byType.get("day")}`;
 }
 
+async function searchAnalytics(siteUrl: string, body: Record<string, unknown>): Promise<SearchAnalyticsResponse> {
+  return googlePost<SearchAnalyticsResponse>(`${SEARCH_ANALYTICS_BASE}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`, body);
+}
+
+function toPerformanceRows(response: SearchAnalyticsResponse): SearchConsolePerformanceRow[] {
+  return (response.rows ?? []).map((row) => ({
+    key: String(row.keys?.[0] ?? ""),
+    clicks: Number(row.clicks ?? 0),
+    impressions: Number(row.impressions ?? 0),
+    ctr: Number(row.ctr ?? 0),
+    position: Number(row.position ?? 0)
+  })).filter((row) => Boolean(row.key));
+}
+
 export async function getSearchConsoleOverview(): Promise<SearchConsoleOverview> {
   const readiness = searchConsoleReadiness();
   if (!readiness.ready || !readiness.siteUrl) return { readiness };
   const startDate = pacificDate(30);
   const endDate = pacificDate(2);
   try {
-    const encodedSite = encodeURIComponent(readiness.siteUrl);
-    const response = await googlePost<SearchAnalyticsResponse>(`${SEARCH_ANALYTICS_BASE}/sites/${encodedSite}/searchAnalytics/query`, {
+    const response = await searchAnalytics(readiness.siteUrl, {
       startDate,
       endDate,
       rowLimit: 1,
@@ -222,6 +264,38 @@ export async function getSearchConsoleOverview(): Promise<SearchConsoleOverview>
   }
 }
 
+export async function getSearchConsoleBreakdown(rowLimit = 25): Promise<SearchConsoleBreakdown> {
+  const readiness = searchConsoleReadiness();
+  const startDate = pacificDate(30);
+  const endDate = pacificDate(2);
+  if (!readiness.ready || !readiness.siteUrl) return { startDate, endDate, queries: [], pages: [] };
+  const boundedLimit = Math.max(1, Math.min(MAX_BREAKDOWN_ROWS, Math.floor(rowLimit)));
+  try {
+    const [queries, pages] = await Promise.all([
+      searchAnalytics(readiness.siteUrl, { startDate, endDate, dimensions: ["query"], rowLimit: boundedLimit, dataState: "final" }),
+      searchAnalytics(readiness.siteUrl, { startDate, endDate, dimensions: ["page"], rowLimit: boundedLimit, dataState: "final" })
+    ]);
+    return { startDate, endDate, queries: toPerformanceRows(queries), pages: toPerformanceRows(pages) };
+  } catch (error) {
+    return {
+      startDate,
+      endDate,
+      queries: [],
+      pages: [],
+      error: error instanceof Error ? error.message : "Search Console breakdown request failed."
+    };
+  }
+}
+
+function inspectionBelongsToProperty(url: URL, siteUrl: string): boolean {
+  if (siteUrl.startsWith("sc-domain:")) {
+    const domain = siteUrl.slice("sc-domain:".length).toLowerCase();
+    const hostname = url.hostname.toLowerCase();
+    return hostname === domain || hostname.endsWith(`.${domain}`);
+  }
+  return url.toString().startsWith(siteUrl);
+}
+
 export async function inspectSearchConsoleUrl(inspectionUrl: string): Promise<SearchConsoleUrlInspection> {
   const readiness = searchConsoleReadiness();
   if (!readiness.ready || !readiness.siteUrl) throw new Error("Search Console integration is not ready.");
@@ -232,6 +306,7 @@ export async function inspectSearchConsoleUrl(inspectionUrl: string): Promise<Se
     throw new Error("Inspection URL is invalid.");
   }
   if (url.protocol !== "https:" || url.username || url.password) throw new Error("Inspection URL must be a public HTTPS URL.");
+  if (!inspectionBelongsToProperty(url, readiness.siteUrl)) throw new Error("Inspection URL does not belong to the configured Search Console property.");
   const response = await googlePost<UrlInspectionResponse>(URL_INSPECTION_ENDPOINT, {
     inspectionUrl: url.toString(),
     siteUrl: readiness.siteUrl,
@@ -246,7 +321,10 @@ export async function inspectSearchConsoleUrl(inspectionUrl: string): Promise<Se
     indexingState: status?.indexingState,
     lastCrawlTime: status?.lastCrawlTime,
     pageFetchState: status?.pageFetchState,
+    crawledAs: status?.crawledAs,
     googleCanonical: status?.googleCanonical,
-    userCanonical: status?.userCanonical
+    userCanonical: status?.userCanonical,
+    sitemaps: [...(status?.sitemap ?? [])],
+    referringUrls: [...(status?.referringUrls ?? [])]
   };
 }
