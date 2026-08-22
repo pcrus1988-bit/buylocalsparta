@@ -48,21 +48,24 @@ test("structured source attributes keep researched specs distinct from parsed va
   ]);
 });
 
-test("price state never promotes improved candidate evidence to matched", () => {
+test("price state preserves legacy conflicts and never promotes improved evidence to matched", () => {
+  assert.equal(priceState({ price_status: "conflict", recommended_price_minor: "", improved_price_candidate_minor: "2500", price_review_required: "yes" }), "conflict");
   assert.equal(priceState({ price_status: "unpriced", recommended_price_minor: "", improved_price_candidate_minor: "48900", price_review_required: "yes" }), "review_required");
   assert.equal(priceState({ price_status: "matched", recommended_price_minor: "47900", improved_price_candidate_minor: "47900", price_review_required: "no" }), "matched");
   assert.equal(priceState({ price_status: "unpriced", recommended_price_minor: "", improved_price_candidate_minor: "", price_review_required: "no" }), "unpriced");
 });
 
-test("analysis detects duplicate source keys and preserves legacy unpriced state", () => {
+test("analysis separates unpriced and conflict legacy states", () => {
   const rows: CsvRow[] = [
-    { disambiguation_key: "same", supplier_categories: "Αντλίες", app_category_code: "irrigation-watering", taxonomy_confidence: "medium", price_status: "unpriced", recommended_price_minor: "", improved_price_candidate_minor: "48900", price_review_required: "yes", platform: "", explicit_compatible_models_all: "", variant_attributes_json: '{}', specifications_json: '{}' },
-    { disambiguation_key: "same", supplier_categories: "Αντλίες", app_category_code: "irrigation-watering", taxonomy_confidence: "medium", price_status: "matched", recommended_price_minor: "47900", improved_price_candidate_minor: "47900", price_review_required: "no", platform: "18V", explicit_compatible_models_all: "BCD2300|BCD2330", variant_attributes_json: '{"voltage_v":18}', specifications_json: '{}' }
+    { disambiguation_key: "unpriced", supplier_categories: "Αντλίες", app_category_code: "irrigation-watering", taxonomy_confidence: "medium", price_status: "unpriced", recommended_price_minor: "", improved_price_candidate_minor: "48900", price_review_required: "yes", platform: "", explicit_compatible_models_all: "", variant_attributes_json: '{}', specifications_json: '{}' },
+    { disambiguation_key: "matched", supplier_categories: "Αντλίες", app_category_code: "irrigation-watering", taxonomy_confidence: "medium", price_status: "matched", recommended_price_minor: "47900", improved_price_candidate_minor: "47900", price_review_required: "no", platform: "18V", explicit_compatible_models_all: "BCD2300|BCD2330", variant_attributes_json: '{"voltage_v":18}', specifications_json: '{}' },
+    { disambiguation_key: "conflict", supplier_categories: "Αντλίες", app_category_code: "irrigation-watering", taxonomy_confidence: "low", price_status: "conflict", recommended_price_minor: "", improved_price_candidate_minor: "2500", price_review_required: "yes", platform: "", explicit_compatible_models_all: "", variant_attributes_json: '{}', specifications_json: '{}' }
   ];
   const analysis = analyzeNikolaouRows(rows);
-  assert.equal(analysis.rowCount, 2);
+  assert.equal(analysis.rowCount, 3);
   assert.equal(analysis.unpricedLegacy, 1);
+  assert.equal(analysis.conflictLegacy, 1);
   assert.equal(analysis.pricedLegacy, 1);
-  assert.deepEqual(analysis.duplicateSourceKeys, ["same"]);
+  assert.deepEqual(analysis.legacyPriceStatus, { unpriced: 1, matched: 1, conflict: 1 });
   assert.equal(analysis.compatibilityRows, 1);
 });

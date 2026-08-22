@@ -54,14 +54,19 @@ export function assertNikolaouHeaders(headers: readonly string[]): void {
 export function analyzeNikolaouRows(rows: readonly CsvRow[]) {
   const sourceKeys = rows.map(sourceProductKey);
   const taxonomyConfidence: Record<string, number> = {};
+  const legacyPriceStatus: Record<string, number> = {};
   for (const row of rows) {
-    const key = text(row.taxonomy_confidence).toLowerCase() || "unknown";
-    taxonomyConfidence[key] = (taxonomyConfidence[key] ?? 0) + 1;
+    const taxonomyKey = text(row.taxonomy_confidence).toLowerCase() || "unknown";
+    taxonomyConfidence[taxonomyKey] = (taxonomyConfidence[taxonomyKey] ?? 0) + 1;
+    const priceKey = text(row.price_status).toLowerCase() || "unknown";
+    legacyPriceStatus[priceKey] = (legacyPriceStatus[priceKey] ?? 0) + 1;
   }
   return {
     rowCount: rows.length,
     pricedLegacy: rows.filter(hasLegacyPrice).length,
-    unpricedLegacy: rows.filter((row) => !hasLegacyPrice(row)).length,
+    unpricedLegacy: rows.filter((row) => text(row.price_status).toLowerCase() === "unpriced").length,
+    conflictLegacy: rows.filter((row) => text(row.price_status).toLowerCase() === "conflict").length,
+    legacyPriceStatus,
     improvedPriceCandidates: rows.filter((row) => minor(row.improved_price_candidate_minor) !== undefined).length,
     priceReviewRequired: rows.filter((row) => yes(row.price_review_required)).length,
     distinctSupplierCategories: new Set(rows.map((row) => text(row.supplier_categories) || "Uncategorized")).size,
@@ -128,7 +133,7 @@ export function minor(value: string): number | undefined {
 }
 
 export function hasLegacyPrice(row: CsvRow): boolean {
-  return text(row.price_status).toLowerCase() !== "unpriced" && minor(row.recommended_price_minor) !== undefined;
+  return text(row.price_status).toLowerCase() === "matched" && minor(row.recommended_price_minor) !== undefined;
 }
 
 export function normalizedSourceProduct(row: CsvRow): Record<string, unknown> {
@@ -151,7 +156,9 @@ export function qualityPayload(row: CsvRow): Record<string, unknown> {
   });
 }
 
-export function priceState(row: CsvRow): "unpriced" | "matched" | "review_required" {
+export function priceState(row: CsvRow): "unpriced" | "matched" | "conflict" | "review_required" {
+  const legacyStatus = text(row.price_status).toLowerCase();
+  if (legacyStatus === "conflict") return "conflict";
   if (yes(row.price_review_required)) return "review_required";
   if (hasLegacyPrice(row)) return "matched";
   if (minor(row.improved_price_candidate_minor) !== undefined) return "review_required";
