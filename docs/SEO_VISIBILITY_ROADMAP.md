@@ -109,7 +109,7 @@ Cards/KPIs:
 
 ## 1.2 Global SEO settings
 
-Implementation status: **editable governed foundation implemented on the working branch.** Settings are stored in the existing market-scoped `system_settings` registry with optimistic version checks and append-only `audit_events` evidence. The current UI controls canonical/default metadata, the guarded global indexing switch, Research-vendor indexing/threshold, sitemap entity families, public-media crawler policy and Google verification. Entity-specific overrides remain Phase 1.3 work.
+Implementation status: **editable governed foundation implemented on the working branch.** Settings are stored in the existing market-scoped `system_settings` registry with optimistic version checks and append-only `audit_events` evidence. The current UI controls canonical/default metadata, the guarded global indexing switch, Research-vendor indexing/threshold, sitemap entity families, public-media crawler policy and Google verification. Entity-specific overrides are implemented in Phase 1.3 below.
 
 Manageable fields:
 
@@ -184,6 +184,8 @@ In-house checks should include:
 Diagnostics must never store credentials, raw session cookies, private customer data or document contents.
 
 ## 1.5 Reports
+
+Implementation status: **persisted reporting foundation implemented on the working branch.** Authorised Admin users can capture the current aggregate SEO inventory, route-policy counts, runtime readiness and sanitized diagnostic results as a bounded 50-snapshot history. Creation is permission/CSRF protected and append-only audited. Saved reports expose protected, private/no-store/noindex JSON and UTF-8 CSV downloads. The displayed trend compares the two latest internal health scores. Launch-checklist expansion and Search Console ingestion remain future work.
 
 Persist/read-only snapshots:
 

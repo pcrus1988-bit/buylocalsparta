@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { AdminSeoEntityOverrideEditor } from "../../../components/AdminSeoEntityOverrideEditor";
+import { AdminSeoReportRunner } from "../../../components/AdminSeoReportRunner";
 import { AdminSeoSettingsEditor } from "../../../components/AdminSeoSettingsEditor";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
@@ -36,6 +37,9 @@ export default async function AdminSeoPage() {
   const warnings = data.diagnostics.filter((item) => item.severity === "warning").length;
   const blockedResearch = data.metrics.research - data.metrics.researchIndexEligible;
   const canEdit = hasAdminPermission(principal, "content.write");
+  const latestReport = data.reports.reports[0];
+  const previousReport = data.reports.reports[1];
+  const scoreDelta = latestReport && previousReport ? latestReport.score - previousReport.score : undefined;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
@@ -58,6 +62,7 @@ export default async function AdminSeoPage() {
         <a href="#seo-overview">Overview</a>
         <a href="#seo-settings">Settings</a>
         <a href="#seo-entities">Entity registry</a>
+        <a href="#seo-reports">Reports</a>
         <a href="#seo-diagnostics">Diagnostics</a>
         <a href="#seo-research-vendors">Research vendors</a>
         <a href="#seo-audit">Audit</a>
@@ -96,6 +101,35 @@ export default async function AdminSeoPage() {
         ? <AdminSeoEntityOverrideEditor key={data.entityOverrides.version} candidates={data.entityCandidates} snapshot={data.entityOverrides} csrfToken={data.csrfToken} />
         : <div className="workspace-empty-state"><strong>Read-only SEO registry.</strong><span>Your Admin role can inspect effective entity decisions, but content.write permission is required to create or remove overrides.</span></div>}
     </section>
+
+    <section id="seo-reports" className="vendor-section section-tint admin-anchor-section"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Phase 5 · Visibility reporting" title="Persisted diagnostic reports" note="Capture the current governed SEO projection as an immutable operational checkpoint. The bounded history contains aggregate public inventory, policy states and diagnostics only—never session cookies, customer records or credentials." />
+      <div className="admin-domain-card-grid" style={{ marginBottom: 20 }}>
+        <article className="admin-domain-card"><span>Latest health</span><strong>{latestReport ? `${latestReport.score}/100` : "No baseline"}</strong><p>Internal readiness score derived from critical, warning and informational diagnostics—not a search-engine ranking score.</p><b>{latestReport ? latestReport.severityCounts.critical : critical}</b><i>Critical checks</i></article>
+        <article className="admin-domain-card"><span>Trend</span><strong>{scoreDelta === undefined ? "Awaiting history" : scoreDelta === 0 ? "No change" : `${scoreDelta > 0 ? "+" : ""}${scoreDelta} points`}</strong><p>Difference between the two latest persisted snapshots.</p><b>{data.reports.reports.length}</b><i>Saved snapshots</i></article>
+      </div>
+      {canEdit
+        ? <AdminSeoReportRunner csrfToken={data.csrfToken} persistenceAvailable={data.reports.persistenceAvailable} />
+        : <div className="workspace-empty-state"><strong>Read-only report access.</strong><span>Your Admin role can inspect and export saved reports, but content.write permission is required to create a new audited snapshot.</span></div>}
+
+      <h3 style={{ marginTop: 28 }}>Report history</h3>
+      <div className="workspace-queue-list" style={{ marginTop: 12 }}>
+        {data.reports.reports.length === 0
+          ? <div className="workspace-empty-state"><strong>No persisted diagnostic reports yet.</strong><span>Run the first report to establish a dated baseline for release review and later trend comparison.</span></div>
+          : data.reports.reports.slice(0, 20).map((report) => <article className="workspace-queue-card" key={report.id}>
+            <div className="workspace-queue-head">
+              <div><strong>{report.reason}</strong><small>{new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(report.createdAt))} · actor {report.actorId} · {report.metrics.sitemapEstimatedCount} estimated sitemap URLs</small></div>
+              <span className="status-pill">Health {report.score}/100</span>
+            </div>
+            <div className="workspace-queue-primary"><span>{report.severityCounts.critical} critical · {report.severityCounts.warning} warnings · {report.severityCounts.info} informational · {report.severityCounts.good} good</span></div>
+            <div className="workspace-action-bar">
+              <span>Report ID: <strong>{report.id}</strong></span>
+              <div className="workspace-action-buttons"><a className="text-link" href={`/api/admin/seo/reports/${report.id}?format=json`}>JSON ↓</a><a className="text-link" href={`/api/admin/seo/reports/${report.id}?format=csv`}>CSV ↓</a></div>
+            </div>
+          </article>)}
+      </div>
+      {data.reports.reports.length > 20 && <p style={{ marginTop: 16 }}>Showing the latest 20 of {data.reports.reports.length} retained snapshots.</p>}
+    </div></section>
 
     <section id="seo-diagnostics" className="shell vendor-section admin-anchor-section">
       <WorkspaceSectionHeading eyebrow="In-house diagnostics" title="Search & privacy checks" note="These checks use only public/read-only projections and configuration state. They do not store session cookies, customer data or credentials." />

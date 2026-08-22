@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { assertAdminCsrf, assertAdminPermission } from "../../../lib/admin-runtime";
+import { adminSeoWorkspace } from "../../../lib/admin-seo-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { getCanonicalProductSummary } from "../../../lib/catalog-view";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { INDEXABLE_STATIC_ROUTES } from "../../../lib/site-navigation";
 import { updateSeoEntityOverride } from "../../../lib/seo-entity-overrides";
+import { createSeoDiagnosticReport } from "../../../lib/seo-diagnostic-reports";
 import { isSeoEntityKind, routeForSeoEntity, type SeoEntityKind } from "../../../lib/seo-entity-policy";
 import { updateSeoGlobalSettings } from "../../../lib/seo-settings";
 import { storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
@@ -17,6 +19,7 @@ export type SeoSettingsActionState = Readonly<{
 }>;
 
 export type SeoEntityOverrideActionState = SeoSettingsActionState;
+export type SeoDiagnosticReportActionState = SeoSettingsActionState;
 
 function field(formData: FormData, name: string): string {
   return String(formData.get(name) ?? "").trim();
@@ -143,5 +146,34 @@ export async function updateSeoEntityOverrideAction(
     return { status: "success", message: deleting ? "SEO entity override deleted; generated defaults are authoritative again." : "SEO entity override saved and audit evidence recorded." };
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : "Unable to save the SEO entity override." };
+  }
+}
+
+export async function createSeoDiagnosticReportAction(
+  _previous: SeoDiagnosticReportActionState,
+  formData: FormData
+): Promise<SeoDiagnosticReportActionState> {
+  try {
+    const principal = await getAdminSession();
+    if (!principal) throw new Error("ADMIN_AUTH_REQUIRED");
+    assertAdminPermission(principal, "content.write");
+    assertAdminCsrf(principal, field(formData, "csrfToken"));
+
+    const workspace = await adminSeoWorkspace(principal);
+    const report = await createSeoDiagnosticReport({
+      principal,
+      reason: field(formData, "reason"),
+      sourceGeneratedAt: workspace.generatedAt,
+      origin: workspace.origin,
+      metrics: workspace.metrics,
+      routeClassCounts: workspace.routeClassCounts,
+      runtime: workspace.runtime,
+      diagnostics: workspace.diagnostics
+    });
+
+    revalidatePath("/admin/seo");
+    return { status: "success", message: `SEO diagnostic report ${report.id} saved and audit evidence recorded.` };
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : "Unable to save the SEO diagnostic report." };
   }
 }

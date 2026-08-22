@@ -24,6 +24,10 @@ const settingsAction = read("apps/web/src/app/admin/seo/actions.ts");
 const entityRuntime = read("apps/web/src/lib/seo-entity-overrides.ts");
 const entityMetadata = read("apps/web/src/lib/seo-metadata.ts");
 const entityEditor = read("apps/web/src/components/AdminSeoEntityOverrideEditor.tsx");
+const reportRuntime = read("apps/web/src/lib/seo-diagnostic-reports.ts");
+const reportRunner = read("apps/web/src/components/AdminSeoReportRunner.tsx");
+const reportExportRoute = read("apps/web/src/app/api/admin/seo/reports/[id]/route.ts");
+const adminSeoPage = read("apps/web/src/app/admin/seo/page.tsx");
 
 for (const required of [
   "getPublicCatalogProducts()",
@@ -155,6 +159,25 @@ for (const contract of ["Search snippet", "Canonical override", "Quality status"
   if (!entityEditor.includes(contract)) failures.push(`SEO entity editor is missing ${contract}`);
 }
 
+for (const contract of ["seo.visibility.reports.v1", "SEO_DIAGNOSTIC_REPORT_LIMIT = 50", "pg_advisory_xact_lock", "seo.diagnostic_report_created", "after_state", "seoDiagnosticHealthScore", "seoDiagnosticReportCsv", "/^[=+\\-@\\t\\r]/"]) {
+  if (!reportRuntime.includes(contract)) failures.push(`Persisted SEO reporting is missing ${contract}`);
+}
+for (const forbidden of ["cookie", "password", "credential", "customer"]) {
+  if (reportRuntime.includes(`${forbidden}: input.`)) failures.push(`SEO report snapshots must not persist ${forbidden} fields`);
+}
+for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) {
+  if (!settingsAction.includes(contract)) failures.push(`SEO report Server Action is missing ${contract}`);
+}
+for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) {
+  if (!reportRunner.includes(contract)) failures.push(`SEO report runner is missing ${contract}`);
+}
+for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) {
+  if (!reportExportRoute.includes(contract)) failures.push(`Protected SEO report export is missing ${contract}`);
+}
+for (const contract of ["Persisted diagnostic reports", "scoreDelta", "?format=json", "?format=csv"]) {
+  if (!adminSeoPage.includes(contract)) failures.push(`Admin SEO report history UI is missing ${contract}`);
+}
+
 const entitySettings = {
   indexingEnabled: true,
   sitemap: { staticPages: true, categories: true, products: true, partnerVendors: true, researchVendors: true }
@@ -179,4 +202,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed global/entity metadata, audited overrides, quality-gated Research vendors, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");
+console.log("Next SEO checks passed: governed global/entity metadata, audited overrides/reports, protected exports, quality-gated Research vendors, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");

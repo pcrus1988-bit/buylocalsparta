@@ -9,6 +9,7 @@ import { researchVendorIndexEligibility, SEO_ROUTE_POLICIES, type SeoVisibilityC
 import { getSeoGlobalSettingsSnapshot, getSeoSettingsAuditHistory } from "./seo-settings";
 import { STOREFRONT_CATEGORIES } from "./storefront-taxonomy";
 import { getSeoEntityOverrideAuditHistory, getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
+import { getSeoDiagnosticReportsSnapshot } from "./seo-diagnostic-reports";
 import {
   findSeoEntityOverride,
   resolveSeoEntityControl,
@@ -76,12 +77,13 @@ async function approvedCatalogImageIds(productIds: readonly string[]): Promise<R
 export async function adminSeoWorkspace(principal: SessionPrincipal) {
   assertAdminPermission(principal, "content.read");
 
-  const [inventory, settingsSnapshot, settingsAudit, entityOverrides, entityAudit] = await Promise.all([
+  const [inventory, settingsSnapshot, settingsAudit, entityOverrides, entityAudit, reports] = await Promise.all([
     Promise.allSettled([getPublicCatalogProducts(), getPublicVendorDirectory()]),
     getSeoGlobalSettingsSnapshot(),
     getSeoSettingsAuditHistory(),
     getSeoEntityOverridesSnapshot(),
-    getSeoEntityOverrideAuditHistory()
+    getSeoEntityOverrideAuditHistory(),
+    getSeoDiagnosticReportsSnapshot()
   ]);
   const [productsResult, vendorsResult] = inventory;
   const settings = settingsSnapshot.settings;
@@ -233,6 +235,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
   if (!settings.indexingEnabled) diagnostics.push({ id: "global-indexing-disabled", severity: "critical", title: "Site-wide indexing is disabled", detail: "The emergency master switch removes sitemap promotion and publishes a global noindex signal. Public HTML remains crawlable so search engines can process that directive." });
   if (!settingsSnapshot.persistenceAvailable) diagnostics.push({ id: "seo-settings-persistence", severity: "warning", title: "SEO settings are using safe defaults", detail: "The settings store is unavailable in this runtime. Reads remain safe, but edits cannot be persisted here." });
   if (!entityOverrides.persistenceAvailable) diagnostics.push({ id: "seo-entity-persistence", severity: "warning", title: "SEO entity registry is using safe defaults", detail: "Page/entity overrides cannot be persisted in this runtime; generated metadata remains authoritative." });
+  if (!reports.persistenceAvailable) diagnostics.push({ id: "seo-report-persistence", severity: "warning", title: "SEO report history is unavailable", detail: "Live diagnostics remain visible, but snapshots and governed exports cannot be persisted in this runtime." });
   if (!settings.researchVendorIndexingEnabled) diagnostics.push({ id: "research-indexing-disabled", severity: "info", title: "Research-vendor indexing disabled", detail: "Research dossiers can remain public for people, but global policy currently keeps them out of index eligibility." });
   if (productsResult.status === "rejected") diagnostics.push({ id: "products-unavailable", severity: "critical", title: "Product SEO inventory unavailable", detail: "The public canonical-product projection could not be read. Sitemap/product diagnostics are degraded." });
   if (vendorsResult.status === "rejected") diagnostics.push({ id: "vendors-unavailable", severity: "critical", title: "Vendor SEO inventory unavailable", detail: "The public vendor-directory projection could not be read. LocalBusiness diagnostics are degraded." });
@@ -258,6 +261,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
     settingsAudit,
     entityOverrides,
     entityAudit,
+    reports,
     entityCandidates: candidates,
     metrics: {
       staticIndexable: INDEXABLE_STATIC_ROUTES.length,
