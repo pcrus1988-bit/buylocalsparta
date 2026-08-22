@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "prebuild": "node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs"
+    "prebuild": "node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs && node --experimental-strip-types ../../scripts/verify-production-schema-head.ts --vercel-production-only"
   },
   "dependencies": {
     "@buy-local-sparta/core": "0.24.0",
