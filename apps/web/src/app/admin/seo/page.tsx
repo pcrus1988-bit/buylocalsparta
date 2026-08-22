@@ -22,7 +22,7 @@ export default async function AdminSeoPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
 
-  let data;
+  let data: Awaited<ReturnType<typeof adminSeoWorkspace>>;
   try {
     data = await adminSeoWorkspace(principal);
   } catch {
