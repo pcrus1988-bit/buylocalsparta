@@ -21,6 +21,14 @@ Why: `apps/web` imports private workspace packages from `/packages/*`. A Vercel 
 
 The web deployment is request/response compute only. It may perform short provider calls from route handlers and may generate lightweight reports inline, but it must not host polling loops.
 
+### Hard production schema gate
+
+Every Vercel production build runs `scripts/verify-production-schema-head.ts` before `next build`. The production schema gate reads the immutable repository migration manifest and the live `public.schema_migrations` ledger through `DATABASE_URL`, then requires an exact match for every migration version, filename and SHA-256 checksum. A missing production migration, an unexpected production-only migration, or a checksum/filename mismatch fails the build before a new application deployment can become READY.
+
+This gate is intentionally read-only. Schema changes must be applied as a separate one-off release action before the matching application commit is promoted. Preview and non-production Vercel builds skip this live-production comparison; CI still validates the full migration chain against an isolated PostGIS database.
+
+If the gate reports drift, do not bypass it. Apply the repository migrations to production first and redeploy the exact same commit. This ordering prevents application code from reaching production ahead of the schema it expects.
+
 ## Worker processes: long-lived container runtime
 
 The following are deliberately **not Vercel Functions**:
@@ -65,11 +73,12 @@ Do not enable async mode unless at least one healthy `reports` worker is running
 
 1. Build/test source in CI from the committed `package-lock.json`.
 2. Apply PostgreSQL migrations as a one-off release command.
-3. Deploy/update worker roles from the same locked dependency graph.
-4. Deploy Vercel web from the same locked dependency graph.
-5. Verify `/api/health/ready` reports the exact release build/schema.
-6. Run `stage:preflight -- --record` for staging.
-7. Execute and record provider scenarios before production promotion.
+3. Verify production `public.schema_migrations` matches the repository migration head and checksums.
+4. Deploy/update worker roles from the same locked dependency graph.
+5. Deploy Vercel web from the same locked dependency graph; the production prebuild independently repeats the schema-head verification and blocks on drift.
+6. Verify `/api/health/ready` reports the exact release build/schema.
+7. Run `stage:preflight -- --record` for staging.
+8. Execute and record provider scenarios before production promotion.
 
 For schema changes used by reporting, deploy the migration before enabling `BLS_REPORT_ASYNC_ENABLED`; both web and report worker refuse an unexpected application schema version.
 
