@@ -5,6 +5,9 @@ const port = Number(process.env.SEO_HTTP_SMOKE_PORT ?? "3117");
 const origin = `http://${host}:${port}`;
 const failures = [];
 const useProcessGroup = process.platform !== "win32";
+const googlebotHeaders = {
+  "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+};
 let serverOutput = "";
 
 function recordOutput(chunk) {
@@ -48,6 +51,10 @@ function robotsMeta(html) {
   if (nameFirst) return nameFirst[1].toLowerCase();
   const contentFirst = html.match(/<meta\b[^>]*\bcontent=["']([^"']+)["'][^>]*\bname=["']robots["'][^>]*>/i);
   return contentFirst?.[1].toLowerCase();
+}
+
+function sitemapLocations(xml) {
+  return [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((match) => match[1].trim()).filter(Boolean);
 }
 
 function assertPrivateHeaders(response, label) {
@@ -150,6 +157,13 @@ async function run() {
     assert(canonical.pathname === "/" && !canonical.search && !canonical.hash, `Homepage canonical must target /, received ${canonical.toString()}`);
   }
 
+  const crawlerHomeResponse = await request("/", { headers: googlebotHeaders });
+  const crawlerHome = await crawlerHomeResponse.text();
+  assert(crawlerHomeResponse.status === 200, `Googlebot homepage rendering returned ${crawlerHomeResponse.status}, expected 200`);
+  assert(!(crawlerHomeResponse.headers.get("x-robots-tag") ?? "").toLowerCase().includes("noindex"), "Googlebot homepage rendering must remain indexable");
+  const crawlerHomeCanonical = canonicalHref(crawlerHome);
+  assert(Boolean(crawlerHomeCanonical), "Googlebot homepage rendering must retain the governed canonical link");
+
   const filteredShopResponse = await request("/shop?q=seo-ci-smoke");
   const filteredShop = await filteredShopResponse.text();
   assert(filteredShopResponse.status === 200, `Filtered shop returned ${filteredShopResponse.status}, expected 200`);
@@ -161,6 +175,29 @@ async function run() {
   if (filteredCanonical) {
     const canonical = new URL(filteredCanonical, origin);
     assert(canonical.pathname === "/shop" && !canonical.search && !canonical.hash, `Filtered shop canonical must collapse to /shop, received ${canonical.toString()}`);
+  }
+
+  const crawlerShopResponse = await request("/shop", { headers: googlebotHeaders });
+  assert(crawlerShopResponse.status === 200, `Googlebot catalogue rendering returned ${crawlerShopResponse.status}, expected 200`);
+
+  const productLocation = sitemapLocations(sitemap).find((location) => {
+    try {
+      return new URL(location, origin).pathname.startsWith("/product/");
+    } catch {
+      return false;
+    }
+  });
+  if (productLocation) {
+    const productUrl = new URL(productLocation, origin);
+    const productPath = `${productUrl.pathname}${productUrl.search}`;
+    const crawlerProductResponse = await request(productPath, { headers: googlebotHeaders });
+    const crawlerProduct = await crawlerProductResponse.text();
+    assert(crawlerProductResponse.status === 200, `Googlebot product rendering returned ${crawlerProductResponse.status}, expected 200 for ${productPath}`);
+    assert(!(crawlerProductResponse.headers.get("x-robots-tag") ?? "").toLowerCase().includes("noindex"), `Sitemap-admitted Googlebot product must not receive a noindex response header: ${productPath}`);
+    const crawlerProductCanonical = canonicalHref(crawlerProduct);
+    assert(Boolean(crawlerProductCanonical), `Googlebot product rendering must retain a canonical link: ${productPath}`);
+    assert(crawlerProduct.includes('"@type":"Product"'), `Googlebot product rendering must include Product JSON-LD: ${productPath}`);
+    assert(crawlerProduct.includes('"@type":"Offer"'), `Googlebot product rendering must include the real read-only Offer JSON-LD: ${productPath}`);
   }
 
   const registerResponse = await request("/register");
@@ -192,4 +229,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("SEO HTTP smoke passed: rendered robots/sitemap/canonical/filter directives and private-route response headers verified against the built Next.js application.");
+console.log("SEO HTTP smoke passed: rendered robots/sitemap/canonical/filter/private-route contracts and Googlebot read-only public rendering verified against the built Next.js application.");
