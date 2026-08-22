@@ -8,6 +8,7 @@ import {
 } from "../apps/web/src/lib/seo-visibility-policy.ts";
 import { resolveSeoEntityControl, routeForSeoEntity, seoEntityKey } from "../apps/web/src/lib/seo-entity-policy.ts";
 import { productPublicPath } from "../apps/web/src/lib/product-url.ts";
+import { seoDiagnosticRegressionSignals } from "../apps/web/src/lib/seo-diagnostic-monitoring.ts";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const failures: string[] = [];
@@ -34,6 +35,7 @@ const entityRuntime = read("apps/web/src/lib/seo-entity-overrides.ts");
 const entityMetadata = read("apps/web/src/lib/seo-metadata.ts");
 const entityEditor = read("apps/web/src/components/AdminSeoEntityOverrideEditor.tsx");
 const reportRuntime = read("apps/web/src/lib/seo-diagnostic-reports.ts");
+const monitoringRuntime = read("apps/web/src/lib/seo-diagnostic-monitoring.ts");
 const reportRunner = read("apps/web/src/components/AdminSeoReportRunner.tsx");
 const reportExportRoute = read("apps/web/src/app/api/admin/seo/reports/[id]/route.ts");
 const adminSeoPage = read("apps/web/src/app/admin/seo/page.tsx");
@@ -235,7 +237,45 @@ for (const forbidden of ["cookie", "password", "credential", "customer"]) if (re
 for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) requireText(settingsAction, contract, `SEO report Server Action is missing ${contract}`);
 for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) requireText(reportRunner, contract, `SEO report runner is missing ${contract}`);
 for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) requireText(reportExportRoute, contract, `Protected SEO report export is missing ${contract}`);
-for (const contract of ["Persisted diagnostic reports", "scoreDelta", "?format=json", "?format=csv", "Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO UI is missing ${contract}`);
+for (const contract of ["Persisted diagnostic reports", "scoreDelta", "Changed since last run", "regressionSignals", "?format=json", "?format=csv", "Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO UI is missing ${contract}`);
+for (const contract of ["critical-check-growth", "health-score-drop", "product-runtime-loss", "vendor-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change", "materialDrop", "materialWeakGrowth"]) requireText(monitoringRuntime, contract, `SEO regression monitoring is missing ${contract}`);
+
+const baselineReport = {
+  score: 94,
+  severityCounts: { critical: 0, warning: 0, info: 3, good: 5 },
+  metrics: {
+    sitemapEstimatedCount: 400,
+    productIndexEligible: 120,
+    vendorIndexEligible: 300,
+    crawlOrphans: 0,
+    crawlWeak: 10
+  },
+  routeClassCounts: { PUBLIC_INDEXABLE: 20, PUBLIC_NOINDEX: 10, AUTHENTICATED_PRIVATE: 5, INTERNAL_SYSTEM: 5 },
+  runtime: { databaseProductsAvailable: true, databaseVendorsAvailable: true, governedPublicMediaEnabled: true }
+};
+const regressedReport = {
+  score: 61,
+  severityCounts: { critical: 1, warning: 2, info: 4, good: 3 },
+  metrics: {
+    sitemapEstimatedCount: 350,
+    productIndexEligible: 100,
+    vendorIndexEligible: 260,
+    crawlOrphans: 4,
+    crawlWeak: 14
+  },
+  routeClassCounts: { PUBLIC_INDEXABLE: 21, PUBLIC_NOINDEX: 10, AUTHENTICATED_PRIVATE: 5, INTERNAL_SYSTEM: 5 },
+  runtime: { databaseProductsAvailable: false, databaseVendorsAvailable: true, governedPublicMediaEnabled: false }
+};
+const regressionIds = new Set(seoDiagnosticRegressionSignals(regressedReport as never, baselineReport as never).map((signal) => signal.id));
+for (const expected of ["critical-check-growth", "health-score-drop", "product-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change"]) {
+  if (!regressionIds.has(expected)) failures.push(`SEO regression comparison did not detect ${expected}`);
+}
+const withinNoise = seoDiagnosticRegressionSignals({
+  ...baselineReport,
+  score: 92,
+  metrics: { ...baselineReport.metrics, sitemapEstimatedCount: 398, productIndexEligible: 118, vendorIndexEligible: 298, crawlWeak: 12 }
+} as never, baselineReport as never);
+if (withinNoise.length !== 0) failures.push("SEO regression comparison must ignore bounded inventory and weak-link noise");
 
 // Optional server-only Google Search Console boundary.
 for (const contract of [

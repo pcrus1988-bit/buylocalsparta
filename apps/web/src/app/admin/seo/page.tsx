@@ -10,6 +10,7 @@ import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { adminSeoWorkspace } from "../../../lib/admin-seo-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { productPublicPath } from "../../../lib/product-url";
+import { seoDiagnosticRegressionSignals } from "../../../lib/seo-diagnostic-monitoring";
 
 export const metadata: Metadata = {
   title: "SEO & Visibility · Admin",
@@ -42,6 +43,8 @@ export default async function AdminSeoPage() {
   const latestReport = data.reports.reports[0];
   const previousReport = data.reports.reports[1];
   const scoreDelta = latestReport && previousReport ? latestReport.score - previousReport.score : undefined;
+  const regressionSignals = seoDiagnosticRegressionSignals(latestReport, previousReport);
+  const blockingRegressions = regressionSignals.filter((signal) => signal.severity === "critical").length;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
@@ -110,10 +113,26 @@ export default async function AdminSeoPage() {
       <div className="admin-domain-card-grid" style={{ marginBottom: 20 }}>
         <article className="admin-domain-card"><span>Latest health</span><strong>{latestReport ? `${latestReport.score}/100` : "No baseline"}</strong><p>Internal readiness score derived from critical, warning and informational diagnostics—not a search-engine ranking score.</p><b>{latestReport ? latestReport.severityCounts.critical : critical}</b><i>Critical checks</i></article>
         <article className="admin-domain-card"><span>Trend</span><strong>{scoreDelta === undefined ? "Awaiting history" : scoreDelta === 0 ? "No change" : `${scoreDelta > 0 ? "+" : ""}${scoreDelta} points`}</strong><p>Difference between the two latest persisted snapshots.</p><b>{data.reports.reports.length}</b><i>Saved snapshots</i></article>
+        <article className="admin-domain-card"><span>Regression watch</span><strong>{!latestReport || !previousReport ? "Awaiting baseline" : blockingRegressions ? `${blockingRegressions} critical` : regressionSignals.length ? `${regressionSignals.length} signals` : "Stable"}</strong><p>Material inventory, runtime and crawl-graph changes between the two latest immutable snapshots.</p><b>{regressionSignals.filter((signal) => signal.severity === "warning").length}</b><i>Warnings</i></article>
       </div>
       {canEdit
         ? <AdminSeoReportRunner csrfToken={data.csrfToken} persistenceAvailable={data.reports.persistenceAvailable} />
         : <div className="workspace-empty-state"><strong>Read-only report access.</strong><span>Your Admin role can inspect and export saved reports, but content.write permission is required to create a new audited snapshot.</span></div>}
+
+      <h3 style={{ marginTop: 28 }}>Changed since last run</h3>
+      <div className="workspace-queue-list" style={{ marginTop: 12 }}>
+        {!latestReport || !previousReport
+          ? <div className="workspace-empty-state"><strong>Two snapshots are required.</strong><span>Run and save another diagnostic report to establish the first comparable visibility baseline.</span></div>
+          : regressionSignals.length === 0
+            ? <div className="workspace-empty-state"><strong>No material regression detected.</strong><span>Health, public inventory, runtime availability and crawl-graph counts remain within the governed noise thresholds.</span></div>
+            : regressionSignals.map((signal) => <article className="workspace-queue-card" key={signal.id}>
+              <div className="workspace-queue-head">
+                <div><strong>{signal.title}</strong><small>{signal.detail}</small></div>
+                <span className="status-pill">{severityLabel(signal.severity)}</span>
+              </div>
+              <div className="workspace-queue-primary"><span>Previous {signal.previous} · current {signal.current} · delta {signal.delta > 0 ? "+" : ""}{signal.delta}</span></div>
+            </article>)}
+      </div>
 
       <h3 style={{ marginTop: 28 }}>Report history</h3>
       <div className="workspace-queue-list" style={{ marginTop: 12 }}>

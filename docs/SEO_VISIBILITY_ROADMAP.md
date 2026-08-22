@@ -362,6 +362,8 @@ Operational activation still required outside code:
 
 ## 5.2 Ongoing monitoring
 
+Implementation status: **in-house snapshot regression watch implemented.** The Admin report history now compares the two latest immutable snapshots using governed noise thresholds and surfaces new critical diagnostics, material health/inventory drops, runtime availability loss, orphan growth, weak-link growth and route-policy inventory changes. The comparison is derived at read time, so older snapshots remain compatible and no new sensitive data or migration is introduced.
+
 Scheduled/in-house diagnostics should detect regressions such as:
 
 - newly public admin/account route
