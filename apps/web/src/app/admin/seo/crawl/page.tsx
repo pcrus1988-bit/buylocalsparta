@@ -59,7 +59,7 @@ export default async function AdminSeoCrawlPage() {
         <a href="#crawl-declared">Declared site graph</a>
         <a href="#crawl-live">Live HTTP verification</a>
         <a href="#crawl-history">Crawl history</a>
-        <a href="#crawl-issues">Issue lifecycle</a>
+        <Link href="/admin/seo/issues">Issues</Link>
         <a href="#crawl-priority">Link priority queue</a>
         <Link href="/admin/seo/search-console">Google Search Console</Link>
         <Link href="/admin/seo">SEO overview</Link>
