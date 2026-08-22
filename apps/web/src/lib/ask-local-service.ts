@@ -37,7 +37,6 @@ export async function submitAskLocal(principal: SessionPrincipal, raw: AskLocalS
       FROM vendor_businesses v
       WHERE (v.public_id=$1 OR v.id::text=$1)
         AND v.status='active'
-        AND v.public_directory_visible=true
         AND EXISTS (SELECT 1 FROM vendor_locations vl WHERE vl.vendor_id=v.id AND vl.active=true)
       LIMIT 1`, [assignedVendorId]) : undefined;
     const assigned = Boolean(vendor?.rowCount);
