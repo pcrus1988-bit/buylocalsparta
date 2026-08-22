@@ -45,7 +45,7 @@ export default async function AdminSeoCrawlPage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Crawl</div>
         <h1>Crawl architecture & live verification</h1>
-        <p className="lead">Declared discovery, real HTTP evidence and durable issue history now live in one workspace. The graph models intended internal linking; live crawls verify production responses; persisted issues show what is open, recurring, ignored or resolved.</p>
+        <p className="lead">Internal linking & orphan diagnostics now combine declared discovery, real HTTP evidence and durable issue history in one workspace. The graph models intended internal linking; live crawls verify production responses; persisted issues show what is open, recurring, ignored or resolved.</p>
       </div>
       <aside className={history.metrics.criticalOpen || data.metrics.orphan ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
         <span>SEO crawl state</span>
