@@ -1,6 +1,7 @@
 import { getAccountSession, requireAccountSession } from "../../../../../lib/account-session";
 import { customerAskLocalRequests } from "../../../../../lib/ask-local-service";
 import { askLocalClarificationMessages, customerReplyAskLocalClarification } from "../../../../../lib/ask-local-clarification-service";
+import { customerAskLocalRequestViews } from "../../../../../lib/customer-ask-local-view";
 
 export async function GET(request: Request) {
   try {
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       askLocalClarificationMessages(principal, requestId),
       customerAskLocalRequests(principal)
     ]);
-    return Response.json({ messages, requests });
+    return Response.json({ messages, requests: customerAskLocalRequestViews(requests) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "ask_local_clarification_reply_failed";
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
