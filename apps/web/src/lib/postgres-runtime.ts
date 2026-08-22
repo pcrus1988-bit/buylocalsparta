@@ -33,7 +33,8 @@ if (process.env.RESEND_API_KEY?.trim() && !process.env.BLS_EMAIL_DELIVERY_ENABLE
  * of ten connections per instance can multiply into a much larger database connection
  * footprint. Keep the web runtime deliberately small and release idle clients quickly;
  * operators can still override either setting explicitly for a dedicated/pooler-backed DB.
- * Production builds remain schema-gated through EXPECTED_SCHEMA_VERSION before serving traffic.
+ * Production builds remain schema-gated through EXPECTED_SCHEMA_VERSION and the migration
+ * ledger fingerprint before serving traffic.
  */
 export function buildWebPostgresRuntimeEnv(sourceEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const connectionString = resolveDatabaseUrlFromEnv(sourceEnv);
