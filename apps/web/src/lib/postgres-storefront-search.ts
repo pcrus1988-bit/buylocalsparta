@@ -115,7 +115,7 @@ async function loadProjection(): Promise<readonly SearchProjectionRow[]> {
       details?.mpn,
       details?.gtin,
       details?.categoryLabel,
-      ...details?.sizes ?? []
+      ...(details?.sizes ?? [])
     ];
     return {
       id: product.id,
