@@ -7,6 +7,7 @@ import { AddToCartButton } from "../../../components/AddToCartButton";
 import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTracker";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
+import { PublicProductReviews } from "../../../components/PublicProductReviews";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -17,6 +18,7 @@ import { productPublicPath } from "../../../lib/product-url";
 import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
+import { publicProductReviews } from "../../../lib/public-reviews-runtime";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -82,6 +84,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? await getCrawlerCatalogCard(summary.id)
     : await getCatalogCard(summary.id, await getVisitorKey());
   if (!product) notFound();
+  const reviews = await publicProductReviews(product.id);
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
   const quality = productIndexEligibility(summary);
@@ -126,7 +129,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
         color: product.color,
         size: product.sizes.length ? product.sizes.join(", ") : undefined,
         itemCondition: "https://schema.org/NewCondition",
-        offers: offerData
+        offers: offerData,
+        aggregateRating: reviews.count > 0 ? {
+          "@type": "AggregateRating",
+          ratingValue: reviews.average.toFixed(1),
+          reviewCount: reviews.count,
+          bestRating: "5",
+          worstRating: "1"
+        } : undefined
       },
       {
         "@type": "BreadcrumbList",
@@ -178,6 +188,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="detail-assurances"><div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div><div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div><div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div></div>
         </div>
       </section>
+      <PublicProductReviews summary={reviews} />
       <SiteFooter />
     </main>
   );
