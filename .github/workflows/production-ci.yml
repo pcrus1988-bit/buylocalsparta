@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: 24
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
       - name: Verify dependency-free domain/runtime suite
         run: npm run check
       - name: Typecheck Core
@@ -264,3 +264,5 @@ jobs:
         run: docker build -f deploy/worker.Dockerfile -t buy-local-sparta-worker:ci .
       - name: Build production Next.js application
         run: npm run check:web
+      - name: Smoke built Next.js SEO and privacy contracts
+        run: node scripts/verify-seo-http-smoke.mjs

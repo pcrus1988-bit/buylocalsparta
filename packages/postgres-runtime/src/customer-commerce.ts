@@ -37,6 +37,7 @@ export type PersistentCartSnapshot = Readonly<{
 
 export type PublicCatalogRecord = Readonly<{
   id: string;
+  slug: string;
   title: string;
   categoryCode: string;
   priceMinor: number;
@@ -74,6 +75,7 @@ export type PostgresCheckoutInput = Readonly<{
 type CanonicalRow = SqlRow & {
   canonical_uuid: string;
   canonical_public_id: string;
+  slug: string;
   market_uuid: string;
   market_code: string;
   category_code: string;
@@ -164,7 +166,7 @@ export class PostgresCustomerCommerceService {
 
   async publicCanonicals(marketId = "sparta"): Promise<readonly PublicCatalogRecord[]> {
     const result = await this.#uow.withTransaction({ marketId, platformAccess: true }, (tx) => tx.query<CanonicalRow>(`
-      SELECT cv.id::text AS canonical_uuid, cv.public_id AS canonical_public_id,
+      SELECT cv.id::text AS canonical_uuid, cv.public_id AS canonical_public_id, cv.slug,
              m.id::text AS market_uuid, m.code AS market_code, c.code AS category_code,
              COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
              cv.platform_price_minor, cv.currency, cv.tax_rate_bps
@@ -637,7 +639,7 @@ export class PostgresCustomerCommerceService {
       if (!vendor) return [];
       const vendorUuid = text(vendor.vendor_uuid, "vendor_uuid");
       const rows = await tx.query<CanonicalRow & SqlRow & { available_to_sell: number | string }>(`
-        SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,m.id::text AS market_uuid,m.code AS market_code,c.code AS category_code,
+        SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,cv.slug,m.id::text AS market_uuid,m.code AS market_code,c.code AS category_code,
                COALESCE(el.title,en.title,cv.model,cv.slug) AS title,cv.platform_price_minor,cv.currency,cv.tax_rate_bps,
                MAX(GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)) AS available_to_sell
         FROM vendor_offers vo JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id JOIN markets m ON m.id=cv.market_id JOIN categories c ON c.id=cv.category_id
@@ -646,7 +648,7 @@ export class PostgresCustomerCommerceService {
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         WHERE vo.vendor_id=$1 AND vo.status='approved' AND l.active=true AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
           AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds) > $2
-        GROUP BY cv.id,cv.public_id,m.id,m.code,c.code,el.title,en.title
+        GROUP BY cv.id,cv.public_id,cv.slug,m.id,m.code,c.code,el.title,en.title
         ORDER BY cv.public_id`, [vendorUuid, new Date(now)]);
       const adviser = await this.#adviserName(tx, vendorUuid);
       return rows.rows.map((row) => ({ ...this.#canonicalRecord(row), available: asInt(row.available_to_sell, "available_to_sell") > 0, availableToSell: asInt(row.available_to_sell, "available_to_sell"), vendorId: text(vendor.public_id, "vendor.public_id"), vendorName: text(vendor.trading_name, "vendor.trading_name"), adviser }));
@@ -655,7 +657,7 @@ export class PostgresCustomerCommerceService {
 
   async #canonical(tx: SqlExecutor, canonicalVariantId: string, marketId: string): Promise<CanonicalRow | undefined> {
     const result = await tx.query<CanonicalRow>(`
-      SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,m.id::text AS market_uuid,m.code AS market_code,c.code AS category_code,
+      SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,cv.slug,m.id::text AS market_uuid,m.code AS market_code,c.code AS category_code,
              COALESCE(el.title,en.title,cv.model,cv.slug) AS title,cv.platform_price_minor,cv.currency,cv.tax_rate_bps
       FROM canonical_variants cv JOIN markets m ON m.id=cv.market_id JOIN categories c ON c.id=cv.category_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
@@ -668,7 +670,7 @@ export class PostgresCustomerCommerceService {
 
   #canonicalRecord(row: CanonicalRow): PublicCatalogRecord {
     return {
-      id: text(row.canonical_public_id, "canonical_public_id"), title: text(row.title, "title"), categoryCode: text(row.category_code, "category_code"),
+      id: text(row.canonical_public_id, "canonical_public_id"), slug: text(row.slug, "slug"), title: text(row.title, "title"), categoryCode: text(row.category_code, "category_code"),
       priceMinor: asInt(row.platform_price_minor, "platform_price_minor"), currency: "EUR", taxRateBps: asInt(row.tax_rate_bps, "tax_rate_bps")
     };
   }

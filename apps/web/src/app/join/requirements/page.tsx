@@ -3,12 +3,14 @@ import Link from "next/link";
 import { PartnerReadinessChecklist } from "../../../components/PartnerReadinessChecklist";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/join/requirements", {
   title: "Προϋποθέσεις συνεργάτη",
-  description: "Διαδραστικός έλεγχος επιχειρησιακής ετοιμότητας για καταστήματα που θέλουν να συμμετέχουν στο ΚΟΝΤΑ ΜΟΥ Sparta.",
-  alternates: { canonical: "/join/requirements" }
-};
+  description: "Διαδραστικός έλεγχος επιχειρησιακής ετοιμότητας για καταστήματα που θέλουν να συμμετέχουν στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  });
+}
 
 export default function PartnerRequirementsPage() {
   return <main>

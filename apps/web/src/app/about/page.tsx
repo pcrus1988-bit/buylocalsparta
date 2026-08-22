@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/about", {
   title: "Η ιδέα του ΚΟΝΤΑ ΜΟΥ Sparta",
-  description: "Γιατί δημιουργείται μια ανθρώπινη ψηφιακή αγορά για τα μη διατροφικά καταστήματα της Σπάρτης και της γύρω περιοχής.",
-  alternates: { canonical: "/about" }
-};
+  description: "Γιατί δημιουργείται μια ανθρώπινη ψηφιακή αγορά για τα μη διατροφικά καταστήματα της Σπάρτης και της γύρω περιοχής."
+  });
+}
 
 export default function AboutPage() {
   return <main>

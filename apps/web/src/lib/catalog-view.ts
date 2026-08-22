@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { formatMoney, money, normalizeSearchText } from "@buy-local-sparta/core";
+import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
@@ -7,11 +8,13 @@ import { categoryCodeMatches } from "./storefront-taxonomy";
 
 export type CatalogCard = Readonly<{
   id: string;
+  slug: string;
   title: string;
   price: string;
   priceMinor: number;
   categoryCode: string;
   categoryLabel?: string;
+  gtin?: string;
   mpn?: string;
   description?: string;
   brand?: string;
@@ -27,6 +30,33 @@ export type CatalogCard = Readonly<{
   mediaAlt?: string;
   availableToSell: number;
   available: boolean;
+}>;
+
+export type PublicCatalogProduct = Readonly<{
+  id: string;
+  slug: string;
+  title: string;
+  priceMinor: number;
+  price: string;
+  categoryCode: string;
+}>;
+
+export type PublicProductSeoRecord = PublicCatalogProduct & Readonly<{
+  description?: string;
+  brand?: string;
+  gtin?: string;
+  mpn?: string;
+  categoryLabel?: string;
+  color?: string;
+  sizes: readonly string[];
+  mediaId?: string;
+  mediaAlt?: string;
+  duplicateTitleCount: number;
+}>;
+
+export type PublicProductSeoInventory = Readonly<{
+  products: readonly PublicProductSeoRecord[];
+  mediaProjectionAvailable: boolean;
 }>;
 
 export type CatalogFilters = Readonly<{
@@ -47,6 +77,7 @@ export type CatalogFacets = Readonly<{
 export type PublicVendorView = Readonly<{ id: string; name: string; adviser?: string }>;
 type DatabaseCatalogRecord = Readonly<{
   id: string;
+  slug: string;
   title: string;
   categoryCode: string;
   priceMinor: number;
@@ -60,9 +91,11 @@ type DatabaseCatalogRecord = Readonly<{
 function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage, metadata?: CatalogMetadata): CatalogCard {
   return {
     id: record.id,
+    slug: record.slug,
     title: record.title,
     categoryCode: record.categoryCode,
     categoryLabel: metadata?.categoryLabel,
+    gtin: metadata?.gtin,
     mpn: metadata?.mpn,
     description: metadata?.description,
     brand: metadata?.brand,
@@ -202,11 +235,38 @@ async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<b
  * Metadata-only helper retained for internal callers. Customer-facing purchasable
  * surfaces still resolve their price from an assigned vendor offer.
  */
-export async function getCanonicalProductSummary(id: string): Promise<Readonly<{ id: string; title: string; price: string; priceMinor: number }> | undefined> {
-  if (!productionDatabaseConfigured()) return undefined;
-  const product = (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).find((entry) => entry.id === id);
-  return product ? { id: product.id, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)) } : undefined;
-}
+export const getCanonicalProductSummary = cache(async (routeKey: string): Promise<Readonly<{ id: string; slug: string; title: string; price: string; priceMinor: number; categoryCode: string }> | undefined> => {
+  const products = await getPublicCatalogProducts();
+  const product = products.find((entry) => entry.id === routeKey) ?? products.find((entry) => entry.slug === routeKey);
+  return product ? { id: product.id, slug: product.slug, title: product.title, priceMinor: product.priceMinor, price: product.price, categoryCode: product.categoryCode } : undefined;
+});
+
+export const getPublicProductSeoSummary = cache(async (routeKey: string) => {
+  const product = await getCanonicalProductSummary(routeKey);
+  if (!product) return undefined;
+  const metadata = (await loadCatalogMetadata([product.id])).get(product.id);
+  const titleKey = product.title.trim().toLocaleLowerCase("el");
+  const duplicateTitleCount = (await getPublicCatalogProducts()).filter((entry) => entry.title.trim().toLocaleLowerCase("el") === titleKey).length;
+  let image: ApprovedCatalogImage | undefined;
+  try {
+    image = (await approvedCatalogImages([{ canonicalVariantId: product.id }]))[0];
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", event: "seo.product_media_projection_failed", canonicalVariantId: product.id, message: error instanceof Error ? error.message : String(error) }));
+  }
+  return {
+    ...product,
+    description: metadata?.description,
+    brand: metadata?.brand,
+    gtin: metadata?.gtin,
+    mpn: metadata?.mpn,
+    categoryLabel: metadata?.categoryLabel,
+    color: metadata?.color,
+    sizes: metadata?.sizes ?? [],
+    mediaId: image?.mediaId,
+    mediaAlt: image?.altText,
+    duplicateTitleCount
+  } as const;
+});
 
 export async function getCatalogFacets(category = "", query = ""): Promise<CatalogFacets> {
   if (!productionDatabaseConfigured()) return { subcategories: [], brands: [], colors: [], sizes: [] };
@@ -331,7 +391,55 @@ export async function getCanonicalAvailability(id: string, postcode = "23100"): 
  * Internal/non-personalized projection only. Do not use this helper as the price
  * source for a purchasable customer flow; live prices come from assigned offers.
  */
-export async function getPublicCatalogProducts(): Promise<readonly Readonly<{ id: string; title: string; priceMinor: number; price: string; categoryCode: string }>[] > {
+async function readPublicCatalogProducts(): Promise<readonly PublicCatalogProduct[]> {
   if (!productionDatabaseConfigured()) return [];
-  return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).map((product) => ({ id: product.id, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)), categoryCode: product.categoryCode }));
+  return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).map((product) => ({ id: product.id, slug: product.slug, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)), categoryCode: product.categoryCode }));
 }
+
+export const getPublicCatalogProducts = cache(readPublicCatalogProducts);
+
+async function readPublicProductSeoInventory(): Promise<PublicProductSeoInventory> {
+  const products = await getPublicCatalogProducts();
+  if (products.length === 0) return { products: [], mediaProjectionAvailable: true };
+  const metadata = await loadCatalogMetadata(products.map((product) => product.id));
+  const titleCounts = new Map<string, number>();
+  for (const product of products) {
+    const key = product.title.trim().toLocaleLowerCase("el");
+    titleCounts.set(key, (titleCounts.get(key) ?? 0) + 1);
+  }
+
+  const images: ApprovedCatalogImage[] = [];
+  let mediaProjectionAvailable = true;
+  try {
+    for (let index = 0; index < products.length; index += 250) {
+      images.push(...await approvedCatalogImages(products.slice(index, index + 250).map((product) => ({ canonicalVariantId: product.id }))));
+    }
+  } catch (error) {
+    mediaProjectionAvailable = false;
+    console.error(JSON.stringify({ level: "error", event: "seo.product_media_inventory_failed", message: error instanceof Error ? error.message : String(error) }));
+  }
+  const imageByProduct = new Map(images.map((image) => [image.canonicalVariantId, image]));
+
+  return {
+    mediaProjectionAvailable,
+    products: products.map((product) => {
+      const details = metadata.get(product.id);
+      const image = imageByProduct.get(product.id);
+      return {
+        ...product,
+        description: details?.description,
+        brand: details?.brand,
+        gtin: details?.gtin,
+        mpn: details?.mpn,
+        categoryLabel: details?.categoryLabel,
+        color: details?.color,
+        sizes: details?.sizes ?? [],
+        mediaId: image?.mediaId,
+        mediaAlt: image?.altText,
+        duplicateTitleCount: titleCounts.get(product.title.trim().toLocaleLowerCase("el")) ?? 1
+      };
+    })
+  };
+}
+
+export const getPublicProductSeoInventory = cache(readPublicProductSeoInventory);

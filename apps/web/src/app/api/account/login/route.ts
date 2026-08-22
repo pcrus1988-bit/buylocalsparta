@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       path: "/",
       expires: new Date(result.expiresAt)
     });
-    return Response.json({ account: { userId: result.principal.userId, email: result.principal.email }, csrfToken: result.principal.csrfToken });
+    return Response.json({ authenticated: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "login_failed" }, { status: 401 });
   }

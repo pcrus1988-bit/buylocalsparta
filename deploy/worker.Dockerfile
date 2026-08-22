@@ -7,7 +7,7 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/aade-mydata/package.json packages/aade-mydata/package.json
 COPY packages/boxnow-shipping/package.json packages/boxnow-shipping/package.json
@@ -19,7 +19,7 @@ COPY packages/postgres-runtime/package.json packages/postgres-runtime/package.js
 COPY packages/resend-notifications/package.json packages/resend-notifications/package.json
 COPY packages/viva-payments/package.json packages/viva-payments/package.json
 
-RUN npm install --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY --chown=node:node packages ./packages
 COPY --chown=node:node apps/web/src/lib ./apps/web/src/lib

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/help", {
   title: "Κέντρο βοήθειας",
-  description: "Βρες τη σωστή διαδρομή για προϊόντα, Ask Local, παραγγελίες, παράδοση, λογαριασμό και συμμετοχή καταστήματος.",
-  alternates: { canonical: "/help" }
-};
+  description: "Βρες τη σωστή διαδρομή για προϊόντα, Ask Local, παραγγελίες, παράδοση, λογαριασμό και συμμετοχή καταστήματος."
+  });
+}
 
 const helpPaths = [
   ["Ψάχνω προϊόν", "Χρησιμοποίησε τον κατάλογο και τα φίλτρα ή πέρασε κατευθείαν σε κατηγορία.", "/shop", "Άνοιξε τον κατάλογο"],

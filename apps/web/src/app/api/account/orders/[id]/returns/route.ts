@@ -1,6 +1,6 @@
 import { requireAccountSession } from "../../../../../../lib/account-session";
 import { requestCustomerReturn } from "../../../../../../lib/account-view";
-import { CUSTOMER_RETURN_REASONS, type CustomerReturnReason } from "../../../../../../lib/customer-returns-service";
+import { CUSTOMER_RETURN_REASONS, CUSTOMER_RETURN_REMEDIES, type CustomerReturnReason, type CustomerReturnRemedy } from "../../../../../../lib/customer-returns-service";
 import { sendTransactionalEmailBestEffort } from "../../../../../../lib/transactional-email";
 
 type Context = Readonly<{ params: Promise<{ id: string }> }>;
@@ -18,17 +18,18 @@ export async function POST(request: Request, { params }: Context) {
     if (!orderLineId) throw new Error("Order line is required");
     if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error("Return quantity must be a positive integer");
     if (!CUSTOMER_RETURN_REASONS.includes(reason as CustomerReturnReason)) throw new Error("Choose a valid return reason");
-    if (requestedRemedy !== "refund") throw new Error("Customer self-service currently supports refund requests only");
+    if (!CUSTOMER_RETURN_REMEDIES.includes(requestedRemedy as CustomerReturnRemedy)) throw new Error("Choose a valid preferred remedy");
     const result = await requestCustomerReturn(principal, {
       orderId: id,
       orderLineId,
       quantity,
       reason: reason as CustomerReturnReason,
-      requestedRemedy: "refund",
+      requestedRemedy: requestedRemedy as CustomerReturnRemedy,
       note
     });
     const latestReturn = result.returns[0];
-    const reference = latestReturn?.returnNumber ?? latestReturn?.id ?? id;
+    const reference = latestReturn?.returnNumber ?? result.referenceNumber;
+    const remedyLabel = requestedRemedy === "replacement" ? "Αντικατάσταση" : requestedRemedy === "repair" ? "Επισκευή" : "Επιστροφή χρημάτων";
     await sendTransactionalEmailBestEffort({
       to: principal.email,
       subject: `Λάβαμε το αίτημα επιστροφής · ${reference}`,
@@ -37,16 +38,17 @@ export async function POST(request: Request, { params }: Context) {
         "",
         `Αριθμός αιτήματος: ${reference}`,
         `Ποσότητα: ${quantity}`,
+        `Προτιμώμενη λύση: ${remedyLabel}`,
         "",
-        "Η ομάδα KONTA MOY θα ελέγξει την επιλεξιμότητα και θα σε ενημερώσει για τα επόμενα βήματα. Μην αποστείλεις το προϊόν πριν λάβεις οδηγίες επιστροφής."
+        "Η ομάδα KONTA MOY θα ελέγξει την επιλεξιμότητα και τη διαθέσιμη λύση και θα σε ενημερώσει για τα επόμενα βήματα. Μην αποστείλεις το προϊόν πριν λάβεις οδηγίες επιστροφής."
       ].join("\n"),
       eventType: "return.requested",
-      idempotencyKey: `customer-return-requested:${latestReturn?.id ?? `${id}:${orderLineId}:${reference}`}`,
+      idempotencyKey: `customer-return-requested:${reference}:${orderLineId}`,
       payload: {
-        orderId: id,
-        returnId: latestReturn?.id,
+        orderReference: result.referenceNumber,
         returnReference: reference,
-        ctaPath: `/account/orders/${encodeURIComponent(id)}`,
+        requestedRemedy,
+        ctaPath: `/account/orders/${encodeURIComponent(result.referenceNumber)}`,
         ctaLabel: "Προβολή αιτήματος"
       }
     });

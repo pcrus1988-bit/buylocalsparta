@@ -3,13 +3,15 @@ import Link from "next/link";
 import { CookieSettingsButton } from "../../components/CookieSettingsButton";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { DATA_ACCESS_EXAMPLES } from "../../lib/legal-transparency";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/privacy-controls", {
   title: "Έλεγχοι ιδιωτικότητας λογαριασμού",
-  description: "Ρυθμίσεις προσωποποίησης, cookies, δικαιώματα δεδομένων και σαφής εικόνα για το ποιος βλέπει τι στο ΚΟΝΤΑ ΜΟΥ Sparta.",
-  alternates: { canonical: "/privacy-controls" }
-};
+  description: "Ρυθμίσεις προσωποποίησης, cookies, δικαιώματα δεδομένων και σαφής εικόνα για το ποιος βλέπει τι στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  });
+}
 
 export default function PrivacyControlsPage() {
   return <main>

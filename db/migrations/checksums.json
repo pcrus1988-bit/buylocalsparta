@@ -108,5 +108,8 @@
   "0109_vendor_finance_void_billing_audit.sql": "d4db4071424dbc142df3b88b6317ed195583b911f441a27a485024d224ab410d",
   "0110_vendor_finance_payout_token_isolation.sql": "ba3b1ba08321c99564dcebd810a1d61f4f00dc3cea9850135a7608f74cdef25e",
   "0111_vendor_finance_collection_state_guards.sql": "904c2544f2bc8574665f901470315058283a1a8662a92bc09aaa6f979345138a",
-  "0112_vendor_finance_realized_settlement_offsets.sql": "5bd95999631c11b0415ad77fdd4324451e6ac237111a0821de59a5440d1907ce"
+  "0112_vendor_finance_realized_settlement_offsets.sql": "5bd95999631c11b0415ad77fdd4324451e6ac237111a0821de59a5440d1907ce",
+  "0113_product_identity_matching.sql": "a2e2a257cc1ec18a193b07f55b5116029db0585f647065f04237b3662728b965",
+  "0114_customer_verified_email_change.sql": "05867456e39ac0e8bdba8c3a724cacb1de6379864d8ea9a946af56887a0262f6",
+  "0115_customer_contextual_support.sql": "199645946d2c0fe751c79c6e2200f7926d9c6291b3ede288d92a3b5dc3a81d23"
 }

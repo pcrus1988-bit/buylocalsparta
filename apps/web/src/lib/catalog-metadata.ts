@@ -2,6 +2,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 export type CatalogMetadata = Readonly<{
   id: string;
+  gtin?: string;
   mpn?: string;
   description?: string;
   brand?: string;
@@ -15,6 +16,7 @@ export type CatalogMetadata = Readonly<{
 
 type MetadataRow = Readonly<{
   id: string;
+  gtin: string | null;
   mpn: string | null;
   description: string | null;
   brand: string | null;
@@ -39,6 +41,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
   if (!productionDatabaseConfigured() || ids.length === 0) return new Map();
   const result = await getProductionPostgresRuntime().nativePool.query<MetadataRow>(`
     SELECT cv.public_id AS id,
+           cv.gtin,
            cv.mpn,
            COALESCE(el.description,en.description) AS description,
            b.name AS brand,
@@ -62,6 +65,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
     const sizes = stringArray(specifications.sizes).length ? stringArray(specifications.sizes) : stringArray(attributes.sizes_observed);
     return [row.id, {
       id: row.id,
+      gtin: textValue(row.gtin),
       mpn: textValue(row.mpn),
       description: textValue(row.description),
       brand: textValue(row.brand) ?? textValue(specifications.brand),

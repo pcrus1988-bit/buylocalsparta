@@ -1,0 +1,11 @@
+.customer-notification-filters{margin-top:14px;padding-top:2px}
+.customer-notification-filters button{min-height:40px;display:inline-flex;align-items:center;justify-content:center;padding:0 12px;border:1px solid var(--dash-line);border-radius:999px;background:#fff;color:var(--dash-muted);font:inherit;font-size:13px;font-weight:800;white-space:nowrap;cursor:pointer}
+.customer-notification-filters button:hover{border-color:var(--dash-navy);color:var(--dash-navy)}
+.customer-notification-filters button.is-active{border-color:var(--dash-navy);background:var(--dash-navy);color:#fff}
+.customer-notification-filters button:focus-visible,.customer-notification-actions a:focus-visible,.customer-notification-actions button:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+.customer-notification-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;max-width:330px}
+.customer-notification-actions .button{min-height:40px;padding-inline:13px;white-space:nowrap}
+.customer-notification-actions .text-button,.customer-notification-actions .text-link{min-height:40px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.customer-notification-actions button:disabled{cursor:not-allowed;opacity:.58}
+@media(max-width:760px){.customer-notification-item{grid-template-columns:12px minmax(0,1fr)}.customer-notification-actions{grid-column:2;justify-content:flex-start;max-width:none;margin-top:2px}.customer-notification-actions .button,.customer-notification-actions .text-button,.customer-notification-actions .text-link{min-height:44px}.customer-notification-filters{margin-inline:-2px}}
+@media(max-width:480px){.customer-notification-actions{display:grid;grid-template-columns:1fr 1fr}.customer-notification-actions .button,.customer-notification-actions .text-link{grid-column:1/-1}.customer-notification-actions .text-button{width:100%}}

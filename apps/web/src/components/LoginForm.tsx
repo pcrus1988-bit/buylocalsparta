@@ -12,6 +12,7 @@ export function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const verified = searchParams.get("verified") === "1";
   const reset = searchParams.get("reset") === "1";
+  const emailChanged = searchParams.get("emailChanged") === "1";
   const requestedNext = searchParams.get("next");
   const safeNext = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : undefined;
   const registerHref = safeNext ? `/register?next=${encodeURIComponent(safeNext)}` : "/register";
@@ -37,6 +38,7 @@ export function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
   return <form className="login-form" onSubmit={submit}>
     {verified && <div className="account-gate" role="status"><strong>Το email επιβεβαιώθηκε.</strong><p>Συνδέσου για να συνεχίσεις.</p></div>}
     {reset && <div className="account-gate" role="status"><strong>Ο κωδικός άλλαξε.</strong><p>Συνδέσου τώρα με τον νέο κωδικό σου.</p></div>}
+    {emailChanged && <div className="account-gate" role="status"><strong>Το email σύνδεσης άλλαξε.</strong><p>Συνδέσου με τη νέα διεύθυνση email και τον υπάρχοντα κωδικό σου.</p></div>}
     <label htmlFor="login-email">Email</label>
     <input id="login-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
     <label htmlFor="login-password">Κωδικός</label>

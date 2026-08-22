@@ -6,7 +6,7 @@ function validateMinor(value: number | undefined, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must use non-negative integer minor units`);
 }
 
-function normalizeQuery(query: SavedSearchQuery): SavedSearchQuery {
+export function normalizeSavedSearchQuery(query: SavedSearchQuery): SavedSearchQuery {
   validateMinor(query.minPriceMinor, "Minimum saved-search price");
   validateMinor(query.maxPriceMinor, "Maximum saved-search price");
   if (query.minPriceMinor !== undefined && query.maxPriceMinor !== undefined && query.minPriceMinor > query.maxPriceMinor) {
@@ -58,7 +58,7 @@ export class SavedSearchService {
     now: number;
   }): SavedSearch {
     if (!input.userId.trim() || !input.marketId.trim()) throw new Error("Saved search requires user and market");
-    const query = normalizeQuery(input.query);
+    const query = normalizeSavedSearchQuery(input.query);
     const defaultName = query.q || query.categoryCode || "Saved local search";
     const item: SavedSearch = Object.freeze({
       id: id("saved-search"),
@@ -99,6 +99,27 @@ export class SavedSearchService {
       alertsEnabled: input.alertsEnabled,
       // Re-baseline on preference change. Enabling alerts should not fire historical matches.
       seenCanonicalVariantIds: Object.freeze([...new Set([...current.seenCanonicalVariantIds, ...baseline])].slice(-500)),
+      lastObservedCount: baseline.length,
+      lastObservedAt: input.now,
+      updatedAt: input.now
+    });
+    this.#searches.set(current.id, next);
+    return structuredClone(next);
+  }
+
+  update(input: { searchId: string; userId: string; name: string; query: SavedSearchQuery; currentCanonicalVariantIds: readonly string[]; now: number }): SavedSearch {
+    const current = this.#required(input.searchId);
+    if (current.userId !== input.userId) throw new Error("Saved-search ownership violation");
+    const name = input.name.trim().replace(/\s+/g, " ").slice(0, 100);
+    if (!name) throw new Error("Saved-search name is required");
+    const query = normalizeSavedSearchQuery(input.query);
+    const baseline = uniqueIds(input.currentCanonicalVariantIds);
+    const next: SavedSearch = Object.freeze({
+      ...current,
+      name,
+      query,
+      // Editing criteria establishes a fresh observation baseline. Existing results are not new alerts.
+      seenCanonicalVariantIds: Object.freeze(baseline),
       lastObservedCount: baseline.length,
       lastObservedAt: input.now,
       updatedAt: input.now

@@ -33,6 +33,48 @@ const SECURITY_HEADERS = [
   { key: "X-DNS-Prefetch-Control", value: "off" }
 ] as const;
 
+const SEARCH_EXCLUDED_HEADERS = [
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+  { key: "Cache-Control", value: "private, no-store, max-age=0" }
+] as const;
+
+// Central search-engine exclusion is deliberately separate from authentication.
+// Route handlers/pages still enforce identity, ownership and RBAC. These headers
+// ensure a newly discovered private URL cannot become a useful search result even
+// if a page-specific Metadata export is accidentally omitted in the future.
+const SEARCH_EXCLUDED_SOURCES = [
+  "/account/:path*",
+  "/admin/:path*",
+  "/daily/:path*",
+  "/cart",
+  "/checkout/:path*",
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+  "/join/apply",
+  "/vendor/login/:path*",
+  "/vendor/advice/:path*",
+  "/vendor/analytics/:path*",
+  "/vendor/catalog/:path*",
+  "/vendor/daily-access/:path*",
+  "/vendor/finance/:path*",
+  "/vendor/notifications/:path*",
+  "/vendor/orders/:path*",
+  "/vendor/pickup/:path*",
+  "/vendor/reports/:path*",
+  "/vendor/returns/:path*",
+  "/vendor/shipping/:path*",
+  "/vendor/storefront/:path*",
+  "/vendor/trust/:path*",
+  "/api/account/:path*",
+  "/api/admin/:path*",
+  "/api/daily/:path*",
+  "/api/internal/:path*",
+  "/api/vendor/:path*"
+] as const;
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: MONOREPO_ROOT,
@@ -44,7 +86,8 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [...SECURITY_HEADERS]
-      }
+      },
+      ...SEARCH_EXCLUDED_SOURCES.map((source) => ({ source, headers: [...SEARCH_EXCLUDED_HEADERS] }))
     ];
   }
 };

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/fairness", {
   title: "Δίκαιη ανάθεση καταστημάτων",
-  description: "Πώς το ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζει ένα προϊόν μία φορά και αναθέτει δίκαια την εκπλήρωση σε επιλέξιμο τοπικό κατάστημα.",
-  alternates: { canonical: "/fairness" }
-};
+  description: "Πώς το ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζει ένα προϊόν μία φορά και αναθέτει δίκαια την εκπλήρωση σε επιλέξιμο τοπικό κατάστημα."
+  });
+}
 
 const rules = [
   ["Επιλεξιμότητα πρώτα", "Ενεργό κατάστημα, εγκεκριμένη προσφορά, κατάλληλη τοποθεσία, διαθέσιμο απόθεμα και ολοκληρωμένοι έλεγχοι."],

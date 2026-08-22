@@ -1,6 +1,7 @@
 import { currentSavedSearchMatches } from "../../../../lib/account-runtime";
 import { requireAccountSession } from "../../../../lib/account-session";
 import { createCustomerSavedSearch } from "../../../../lib/customer-state-runtime";
+import { customerBrowserSavedSearch } from "../../../../lib/customer-account-browser-view";
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       currentCanonicalVariantIds: await currentSavedSearchMatches(query),
       now: Date.now()
     });
-    return Response.json({ saved }, { status: 201 });
+    return Response.json({ saved: customerBrowserSavedSearch(saved) }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "saved_search_failed";
     return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });

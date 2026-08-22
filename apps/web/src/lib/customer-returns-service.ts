@@ -10,7 +10,6 @@ export type CustomerReturnRemedy = typeof CUSTOMER_RETURN_REMEDIES[number];
 export type CustomerReturnCase = Readonly<{
   id: string;
   returnNumber: string;
-  orderId: string;
   status: string;
   reason: CustomerReturnReason | string;
   requestedRemedy?: string;
@@ -82,14 +81,14 @@ export async function customerReturnsSnapshot(principal: SessionPrincipal, order
       ORDER BY r.created_at DESC,ol.public_id`, [orderUuid, principal.userId]);
     const cases = new Map<string, { base: Omit<CustomerReturnCase, "lines">; lines: Array<{ orderLineId: string; quantity: number }> }>();
     for (const row of rows.rows) {
-      const id = text(row.public_id, "return.public_id");
-      let entry = cases.get(id);
+      const internalId = text(row.public_id, "return.public_id");
+      let entry = cases.get(internalId);
       if (!entry) {
+        const referenceNumber = text(row.return_number, "return.return_number");
         entry = {
           base: {
-            id,
-            returnNumber: text(row.return_number, "return.return_number"),
-            orderId,
+            id: referenceNumber,
+            returnNumber: referenceNumber,
             status: text(row.status, "return.status"),
             reason: text(row.reason_type, "return.reason_type"),
             requestedRemedy: optionalText(row.requested_remedy),
@@ -105,7 +104,7 @@ export async function customerReturnsSnapshot(principal: SessionPrincipal, order
           },
           lines: []
         };
-        cases.set(id, entry);
+        cases.set(internalId, entry);
       }
       entry.lines.push({ orderLineId: text(row.order_line_id, "return.order_line_id"), quantity: integer(row.quantity, "return.quantity") });
     }

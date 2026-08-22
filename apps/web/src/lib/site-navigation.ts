@@ -103,17 +103,26 @@ export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]
 export const NON_INDEXABLE_PAGE_ROUTES = [
   "/cart",
   "/checkout",
+  "/checkout/private-offer/[id]",
   "/checkout/failure",
   "/checkout/success",
   "/login",
   "/register",
   "/verify-email",
+  "/confirm-email-change",
   "/forgot-password",
   "/reset-password",
   "/join/apply",
   "/account",
-  "/account/privacy",
+  "/account/ask-local",
+  "/account/notifications",
+  "/account/orders",
   "/account/orders/[id]",
+  "/account/privacy",
+  "/account/profile",
+  "/account/security",
+  "/account/saved",
+  "/account/support",
   "/daily",
   "/daily/ask-local",
   "/daily/login",
@@ -146,6 +155,9 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/ask-local",
   "/admin/categories",
   "/admin/content",
+  "/admin/seo",
+  "/admin/seo/crawl",
+  "/admin/seo/search-console",
   "/admin/hero",
   "/admin/customers",
   "/admin/customers/[customerId]",
@@ -184,8 +196,8 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/work"
 ] as const;
 
-// Keep /vendor itself out of robots.txt because /vendor/[id] is the public merchant-profile namespace.
-// Private vendor pages are listed explicitly instead.
+// Legacy compatibility registry. robots.ts now uses the centralized visibility policy
+// and keeps private HTML crawlable so crawlers can process explicit noindex signals.
 export const ROBOTS_DISALLOW_PATHS = [
   "/account",
   "/admin",
@@ -196,6 +208,7 @@ export const ROBOTS_DISALLOW_PATHS = [
   "/login",
   "/register",
   "/verify-email",
+  "/confirm-email-change",
   "/forgot-password",
   "/reset-password",
   "/join/apply",

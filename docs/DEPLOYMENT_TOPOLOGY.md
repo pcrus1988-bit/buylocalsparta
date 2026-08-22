@@ -9,11 +9,13 @@ Required Vercel settings:
 - Framework Preset: Next.js
 - Root Directory: leave blank / repository root
 - Node.js: 24.x
-- Install Command: `npm install --ignore-scripts`
-- Build Command: `npm --workspace @buy-local-sparta/web run build`
+- Install Command: `npm ci --ignore-scripts`
+- Build Command: `npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build`
 - Output Directory: `apps/web/.next`
 
-The same settings are committed in `/vercel.json` so dashboard drift is visible in source control.
+The same settings are committed in `/vercel.json` so dashboard drift is visible in source control. The repository-root `package-lock.json` is authoritative for CI, staging, Vercel and worker image dependency resolution; release paths must use `npm ci`, not `npm install`, so the tested graph is reproduced instead of re-resolved.
+
+The current Vercel project has an observed dashboard Install Command override that still performs a preliminary `npm install --ignore-scripts` before the source-controlled build command. The connected Vercel integration available to this project does not expose a project-setting write action. Until that dashboard override is removed, the source-controlled Build Command intentionally runs `npm ci --ignore-scripts` again before `next build`; this clean reinstall is the authoritative dependency graph used by the actual web build. Removing the dashboard Install Command override later will eliminate the redundant preliminary install without changing the locked build result.
 
 Why: `apps/web` imports private workspace packages from `/packages/*`. A Vercel Root Directory that isolates `apps/web` can make those files unavailable or cause npm to resolve unpublished `@buy-local-sparta/*` packages from the registry instead of the workspace.
 
@@ -34,6 +36,8 @@ Build the shared worker image:
 ```sh
 docker build -f deploy/worker.Dockerfile -t buy-local-sparta-worker .
 ```
+
+The worker image copies the repository-root lockfile before running `npm ci --omit=dev --ignore-scripts`, so worker dependencies are the same locked production graph validated by CI.
 
 Run one independently scalable process per role:
 
@@ -59,10 +63,10 @@ Do not enable async mode unless at least one healthy `reports` worker is running
 
 ## Release order
 
-1. Build/test source in CI.
+1. Build/test source in CI from the committed `package-lock.json`.
 2. Apply PostgreSQL migrations as a one-off release command.
-3. Deploy/update worker roles.
-4. Deploy Vercel web.
+3. Deploy/update worker roles from the same locked dependency graph.
+4. Deploy Vercel web from the same locked dependency graph.
 5. Verify `/api/health/ready` reports the exact release build/schema.
 6. Run `stage:preflight -- --record` for staging.
 7. Execute and record provider scenarios before production promotion.
