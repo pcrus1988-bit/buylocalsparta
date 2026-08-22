@@ -42,7 +42,6 @@ export async function getPublicCmsPages(now = Date.now()): Promise<readonly Cont
     WHERE m.code=$1
       AND (p.status='published' OR (p.status='scheduled' AND p.scheduled_at <= $2))
     ORDER BY p.updated_at DESC
-    LIMIT 500
   `, [MARKET_ID, new Date(now)]), { readOnly: true });
   const pages = await Promise.all(ids.rows.map((row) => runtime.persistence.content.page(String(row.public_id))));
   return pages.filter((page): page is ContentPage => Boolean(page));
