@@ -22,6 +22,12 @@ import {
   adminCustomerSupportCaseAction,
 } from "../apps/web/src/lib/admin-customer-support.ts";
 
+if (process.env.BLS_ACCEPTANCE_SYNTHETIC_DB !== "true") {
+  throw new Error(
+    "Customer security/support acceptance is destructive synthetic testing and requires BLS_ACCEPTANCE_SYNTHETIC_DB=true on a disposable database.",
+  );
+}
+
 const previousNodeEnv = process.env.NODE_ENV;
 const previousDelivery = process.env.BLS_EMAIL_DELIVERY_ENABLED;
 const previousAppUrl = process.env.APP_URL;
@@ -35,9 +41,6 @@ const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const requestId = `customer-acceptance-${suffix}`;
 const startedAt = Date.now();
 const password = "CustomerAcceptance!123";
-const seededPublicIds: string[] = [];
-const supportCasePublicIds: string[] = [];
-const orderPublicIds: string[] = [];
 
 try {
   const customerAuth = new PostgresCustomerAuthService({ identity: runtime.persistence.identity, secret });
@@ -76,11 +79,10 @@ try {
   await verifyDuplicateTargetEmail(duplicate, duplicateTargetEmail);
   await verifyContextualSupportFlow(support.principal, other.principal, adminLogin.principal);
 
-  console.log("Customer security/support acceptance OK: verified email-change confirmation, expiry, cancellation, duplicate-target rejection, session revocation, contextual order support ownership, internal-note isolation, admin reply visibility and customer reply lifecycle.");
+  console.log(
+    "Customer security/support acceptance OK: verified email-change confirmation, expiry, cancellation, duplicate-target rejection, session revocation, contextual order support ownership, canonical public reference normalization, internal-note isolation, admin reply visibility and customer reply lifecycle.",
+  );
 } finally {
-  await cleanup().catch((error) => {
-    console.error("Customer security/support acceptance cleanup failed", error);
-  });
   await runtime.close();
   restoreEnv("NODE_ENV", previousNodeEnv);
   restoreEnv("BLS_EMAIL_DELIVERY_ENABLED", previousDelivery);
@@ -96,7 +98,6 @@ async function seedAndLoginCustomer(label: string, auth: PostgresCustomerAuthSer
 }
 
 async function seedAccount(input: { publicId: string; email: string; roles: Role[]; password: string; now: number }) {
-  seededPublicIds.push(input.publicId);
   await runtime.persistence.identity.saveAccount({
     scope: { marketId: "sparta", platformAccess: true, requestId },
     account: {
@@ -123,25 +124,36 @@ async function verifyHappyEmailChange(
     currentPassword: password,
     now: now + 2,
   });
-  if (requested.delivered || !requested.verificationUrl) throw new Error("Development email-change request did not return a verification URL");
+  if (requested.delivered || !requested.verificationUrl) {
+    throw new Error("Development email-change request did not return a verification URL");
+  }
   const pending = await customerPendingEmailChange(customer.principal, now + 3);
   if (!pending || pending.email !== newEmail) throw new Error("Pending email-change target was not persisted");
 
   const token = tokenFrom(requested.verificationUrl);
   const confirmed = await confirmCustomerEmailChange({ token, now: now + 4 });
-  if (confirmed.userId !== customer.publicId || confirmed.newEmail !== newEmail) throw new Error("Email-change confirmation returned the wrong customer/email");
-  if (await customerPendingEmailChange(customer.principal, now + 5)) throw new Error("Consumed email-change request remained pending");
+  if (confirmed.userId !== customer.publicId || confirmed.newEmail !== newEmail) {
+    throw new Error("Email-change confirmation returned the wrong customer/email");
+  }
+  if (await customerPendingEmailChange(customer.principal, now + 5)) {
+    throw new Error("Consumed email-change request remained pending");
+  }
 
   const firstSessionStillValid = await auth.session(customer.login.token, now + 6);
   const secondSessionStillValid = await auth.session(secondSession.token, now + 7);
-  if (firstSessionStillValid || secondSessionStillValid) throw new Error("Email change did not revoke all existing customer sessions");
+  if (firstSessionStillValid || secondSessionStillValid) {
+    throw new Error("Email change did not revoke all existing customer sessions");
+  }
 
   const persisted = await runtime.sqlPool.query("SELECT email::text AS email FROM users WHERE public_id=$1", [customer.publicId]);
-  if (String(persisted.rows[0]?.email ?? "") !== newEmail) throw new Error("Confirmed login email was not persisted");
-  const notice = await runtime.sqlPool.query(`
-    SELECT 1 AS present FROM notifications n JOIN users u ON u.id=n.user_id
-    WHERE u.public_id=$1 AND n.event_type='account.email_changed' LIMIT 1
-  `, [customer.publicId]);
+  if (String(persisted.rows[0]?.email ?? "") !== newEmail) {
+    throw new Error("Confirmed login email was not persisted");
+  }
+  const notice = await runtime.sqlPool.query(
+    `SELECT 1 AS present FROM notifications n JOIN users u ON u.id=n.user_id
+     WHERE u.public_id=$1 AND n.event_type='account.email_changed' LIMIT 1`,
+    [customer.publicId],
+  );
   if (!notice.rowCount) throw new Error("Successful email change did not create the account security notification");
 }
 
@@ -166,44 +178,72 @@ async function verifyExpiredEmailChange(customer: Awaited<ReturnType<typeof seed
     now,
   });
   const token = tokenFrom(requiredVerificationUrl(requested));
-  await expectReject("expired email-change token", () => confirmCustomerEmailChange({ token, now: requested.expiresAt + 1 }));
+  await expectReject("expired email-change token", () =>
+    confirmCustomerEmailChange({ token, now: requested.expiresAt + 1 }),
+  );
 }
 
-async function verifyDuplicateTargetEmail(customer: Awaited<ReturnType<typeof seedAndLoginCustomer>>, claimedEmail: string) {
-  await expectReject("already-claimed target email", () => requestCustomerEmailChange(customer.principal, {
-    newEmail: claimedEmail,
-    currentPassword: password,
-    now: startedAt + 40_000,
-  }));
+async function verifyDuplicateTargetEmail(
+  customer: Awaited<ReturnType<typeof seedAndLoginCustomer>>,
+  claimedEmail: string,
+) {
+  await expectReject("already-claimed target email", () =>
+    requestCustomerEmailChange(customer.principal, {
+      newEmail: claimedEmail,
+      currentPassword: password,
+      now: startedAt + 40_000,
+    }),
+  );
   const pending = await customerPendingEmailChange(customer.principal, startedAt + 40_001);
   if (pending) throw new Error("Rejected duplicate target email left an active pending email-change token");
 }
 
-async function verifyContextualSupportFlow(customer: SessionPrincipal, otherCustomer: SessionPrincipal, admin: SessionPrincipal) {
+async function verifyContextualSupportFlow(
+  customer: SessionPrincipal,
+  otherCustomer: SessionPrincipal,
+  admin: SessionPrincipal,
+) {
   const now = startedAt + 50_000;
   const orderPublicId = `order_customer_accept_${suffix}`;
-  const orderNumber = `ACCEPT-${suffix.toUpperCase()}`;
-  orderPublicIds.push(orderPublicId);
-  const seededOrder = await runtime.sqlPool.query(`
-    INSERT INTO customer_orders(
-      order_number,market_id,user_id,checkout_key,status,subtotal_minor,tax_minor,total_minor,
-      billing_address_snapshot,fulfilment_preference,terms_version,public_id,checkout_fingerprint,confirmed_at
-    )
-    SELECT $1,m.id,u.id,$2,'confirmed',1000,240,1240,'{}'::jsonb,'pickup','customer-acceptance-v1',$3,$4,$5
-    FROM markets m,users u
-    WHERE m.code='sparta' AND u.public_id=$6
-    RETURNING id::text AS id
-  `, [orderNumber, `checkout-${suffix}`, orderPublicId, `fingerprint-${suffix}`, new Date(now), customer.userId]);
+  const suppliedLegacyOrderNumber = `ACCEPT-${suffix.toUpperCase()}`;
+  const seededOrder = await runtime.sqlPool.query(
+    `INSERT INTO customer_orders(
+       order_number,market_id,user_id,checkout_key,status,subtotal_minor,tax_minor,total_minor,
+       billing_address_snapshot,fulfilment_preference,terms_version,public_id,checkout_fingerprint,confirmed_at
+     )
+     SELECT $1,m.id,u.id,$2,'confirmed',1000,240,1240,'{}'::jsonb,'pickup','customer-acceptance-v1',$3,$4,$5
+     FROM markets m,users u
+     WHERE m.code='sparta' AND u.public_id=$6
+     RETURNING id::text AS id,order_number::text AS order_number,legacy_order_number::text AS legacy_order_number`,
+    [
+      suppliedLegacyOrderNumber,
+      `checkout-${suffix}`,
+      orderPublicId,
+      `fingerprint-${suffix}`,
+      new Date(now),
+      customer.userId,
+    ],
+  );
   if (seededOrder.rowCount !== 1) throw new Error("Failed to seed contextual-support order");
+  const canonicalOrderNumber = String(seededOrder.rows[0]?.order_number ?? "");
+  const legacyOrderNumber = String(seededOrder.rows[0]?.legacy_order_number ?? "");
+  if (!/^ORD-[0-9]{5,}$/.test(canonicalOrderNumber)) {
+    throw new Error(`Order public-reference trigger did not produce a canonical order number: ${canonicalOrderNumber}`);
+  }
+  if (legacyOrderNumber !== suppliedLegacyOrderNumber) {
+    throw new Error("Order public-reference trigger did not preserve the supplied legacy order number");
+  }
 
-  await expectReject("cross-customer order context", () => createCustomerSupportCase(otherCustomer, {
-    subject: "Order ownership rejection",
-    category: "order",
-    message: "This customer must not be able to attach another customer's order.",
-    contextType: "order",
-    contextId: orderPublicId,
-    now: now + 1,
-  }));
+  await expectReject("cross-customer order context", () =>
+    createCustomerSupportCase(otherCustomer, {
+      subject: "Order ownership rejection",
+      category: "order",
+      message: "This customer must not be able to attach another customer's order.",
+      contextType: "order",
+      contextId: orderPublicId,
+      now: now + 1,
+    }),
+  );
 
   const subject = `Order support ${suffix}`;
   const createdCases = await createCustomerSupportCase(customer, {
@@ -215,16 +255,20 @@ async function verifyContextualSupportFlow(customer: SessionPrincipal, otherCust
     now: now + 2,
   });
   const created = createdCases.find((item) => item.subject === subject);
-  if (!created || created.contextType !== "order" || created.contextReference !== orderNumber) {
-    throw new Error("Customer support case did not retain the validated customer-owned order context");
+  if (!created || created.contextType !== "order" || created.contextReference !== canonicalOrderNumber) {
+    throw new Error(
+      `Customer support case did not retain the validated canonical order context: expected=${canonicalOrderNumber}, actual=${created?.contextReference ?? "missing"}, type=${created?.contextType ?? "missing"}`,
+    );
   }
 
-  const internal = await runtime.sqlPool.query(`
-    SELECT public_id FROM customer_support_cases WHERE reference_number=$1 LIMIT 1
-  `, [created.referenceNumber]);
+  const internal = await runtime.sqlPool.query(
+    "SELECT public_id FROM customer_support_cases WHERE reference_number=$1 LIMIT 1",
+    [created.referenceNumber],
+  );
   const casePublicId = String(internal.rows[0]?.public_id ?? "");
-  if (!casePublicId) throw new Error("Created support case could not be resolved to its private public id for admin acceptance");
-  supportCasePublicIds.push(casePublicId);
+  if (!casePublicId) {
+    throw new Error("Created support case could not be resolved to its private public id for admin acceptance");
+  }
 
   const internalNote = "Internal diagnosis: verify fulfilment state before replying.";
   await adminCustomerSupportCaseAction(admin, {
@@ -234,22 +278,36 @@ async function verifyContextualSupportFlow(customer: SessionPrincipal, otherCust
   });
   const adminVisible = await adminCustomer360(admin, customer.userId);
   const adminCase = adminVisible.supportCases.find((item) => item.id === casePublicId);
-  if (!adminCase?.events.some((event) => event.note === internalNote)) throw new Error("Admin internal support note was not persisted for staff");
+  if (!adminCase?.events.some((event) => event.note === internalNote)) {
+    throw new Error("Admin internal support note was not persisted for staff");
+  }
 
   const visibleReply = "Customer-visible support reply: your order context is confirmed.";
-  await adminReplyToCustomerSupportCase(admin, { caseId: created.referenceNumber, message: visibleReply, now: now + 3 });
+  await adminReplyToCustomerSupportCase(admin, {
+    caseId: created.referenceNumber,
+    message: visibleReply,
+    now: now + 3,
+  });
   let customerCases = await customerSupportCases(customer);
   let customerCase = customerCases.find((item) => item.referenceNumber === created.referenceNumber);
   if (!customerCase) throw new Error("Customer could not read their support case after admin reply");
-  if (customerCase.status !== "waiting_customer") throw new Error("Admin customer-visible reply did not move the case to waiting_customer");
-  if (customerCase.messages.some((message) => message.body === internalNote)) throw new Error("Internal admin note leaked into the customer support timeline");
-  if (!customerCase.messages.some((message) => message.body === visibleReply && message.sender === "support")) throw new Error("Explicit admin reply was not customer-visible");
+  if (customerCase.status !== "waiting_customer") {
+    throw new Error("Admin customer-visible reply did not move the case to waiting_customer");
+  }
+  if (customerCase.messages.some((message) => message.body === internalNote)) {
+    throw new Error("Internal admin note leaked into the customer support timeline");
+  }
+  if (!customerCase.messages.some((message) => message.body === visibleReply && message.sender === "support")) {
+    throw new Error("Explicit admin reply was not customer-visible");
+  }
 
-  await expectReject("cross-customer support reply", () => replyCustomerSupportCase(otherCustomer, {
-    caseId: created.referenceNumber,
-    message: "This reply must be rejected by ownership isolation.",
-    now: now + 4,
-  }));
+  await expectReject("cross-customer support reply", () =>
+    replyCustomerSupportCase(otherCustomer, {
+      caseId: created.referenceNumber,
+      message: "This reply must be rejected by ownership isolation.",
+      now: now + 4,
+    }),
+  );
 
   const customerReply = "Customer reply after support response.";
   customerCases = await replyCustomerSupportCase(customer, {
@@ -258,17 +316,24 @@ async function verifyContextualSupportFlow(customer: SessionPrincipal, otherCust
     now: now + 5,
   });
   customerCase = customerCases.find((item) => item.referenceNumber === created.referenceNumber);
-  if (!customerCase || customerCase.status !== "waiting_internal") throw new Error("Customer reply did not move support lifecycle to waiting_internal");
-  if (!customerCase.messages.some((message) => message.body === customerReply && message.sender === "customer")) throw new Error("Customer support reply was not persisted in the visible timeline");
-  if (customerCase.messages.some((message) => message.body === internalNote)) throw new Error("Internal admin note became visible after customer reply");
+  if (!customerCase || customerCase.status !== "waiting_internal") {
+    throw new Error("Customer reply did not move support lifecycle to waiting_internal");
+  }
+  if (!customerCase.messages.some((message) => message.body === customerReply && message.sender === "customer")) {
+    throw new Error("Customer support reply was not persisted in the visible timeline");
+  }
+  if (customerCase.messages.some((message) => message.body === internalNote)) {
+    throw new Error("Internal admin note became visible after customer reply");
+  }
 
-  const visibility = await runtime.sqlPool.query(`
-    SELECT count(*) FILTER (WHERE customer_visible=true)::int AS visible,
-           count(*) FILTER (WHERE customer_visible=false)::int AS internal
-    FROM customer_support_case_events e
-    JOIN customer_support_cases sc ON sc.id=e.case_id
-    WHERE sc.public_id=$1
-  `, [casePublicId]);
+  const visibility = await runtime.sqlPool.query(
+    `SELECT count(*) FILTER (WHERE customer_visible=true)::int AS visible,
+            count(*) FILTER (WHERE customer_visible=false)::int AS internal
+     FROM customer_support_case_events e
+     JOIN customer_support_cases sc ON sc.id=e.case_id
+     WHERE sc.public_id=$1`,
+    [casePublicId],
+  );
   if (Number(visibility.rows[0]?.visible ?? 0) < 3 || Number(visibility.rows[0]?.internal ?? 0) < 1) {
     throw new Error("Support event visibility flags did not preserve customer-visible/internal separation");
   }
@@ -293,20 +358,6 @@ async function expectReject(label: string, operation: () => Promise<unknown>) {
     rejected = true;
   }
   if (!rejected) throw new Error(`Expected ${label} to be rejected`);
-}
-
-async function cleanup() {
-  if (!seededPublicIds.length) return;
-  await runtime.sqlPool.query(`DELETE FROM audit_events WHERE actor_public_id = ANY($1::text[]) OR (entity_type='customer_support_case' AND entity_id = ANY($2::text[]))`, [seededPublicIds, supportCasePublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE public_id = ANY($1::text[]))`, [seededPublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM customer_support_case_events WHERE case_id IN (SELECT id FROM customer_support_cases WHERE public_id = ANY($1::text[]))`, [supportCasePublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM customer_support_cases WHERE public_id = ANY($1::text[])`, [supportCasePublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM customer_orders WHERE public_id = ANY($1::text[])`, [orderPublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM customer_email_change_tokens WHERE user_id IN (SELECT id FROM users WHERE public_id = ANY($1::text[]))`, [seededPublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE public_id = ANY($1::text[]))`, [seededPublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM user_sessions WHERE user_id IN (SELECT id FROM users WHERE public_id = ANY($1::text[]))`, [seededPublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM platform_user_roles WHERE user_id IN (SELECT id FROM users WHERE public_id = ANY($1::text[]))`, [seededPublicIds]);
-  await runtime.sqlPool.query(`DELETE FROM users WHERE public_id = ANY($1::text[])`, [seededPublicIds]);
 }
 
 function restoreEnv(name: string, value: string | undefined) {
