@@ -5,6 +5,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { vivaPaymentsProviderReadiness } from "./viva-runtime";
 import { myDataConnectivityCheck, myDataReadiness } from "./mydata-runtime";
 import { mediaPipelineReadiness } from "./media-upload-service";
+import { postgresStorefrontSearchReadiness } from "./postgres-storefront-search";
 import { WEB_BUILD_VERSION } from "./build";
 
 export type ProductionActivationCheck = Readonly<{
@@ -166,20 +167,73 @@ async function emailCheck(): Promise<ProductionActivationCheck> {
 }
 
 async function searchCheck(): Promise<ProductionActivationCheck> {
-  if (process.env.BLS_SEARCH_ENABLED !== "true") return skipped("search", "production", "meilisearch-health", "Search provider is intentionally disabled");
-  try {
-    const result = await getProductionPostgresRuntime().search?.readiness();
-    if (!result) return failed("search", "production", "meilisearch-health", new Error("Search runtime is not configured"));
+  const fallback = await postgresStorefrontSearchReadiness();
+  if (process.env.BLS_SEARCH_ENABLED !== "true") {
     return {
       provider: "search",
       environment: "production",
-      checkName: "meilisearch-health",
+      checkName: "postgres-storefront-search",
       checkKind: "connectivity",
-      status: result.ok ? "passed" : "failed",
-      details: { status: result.status ?? "unknown", message: result.ok ? "Meilisearch health passed" : "Meilisearch health failed" }
+      status: fallback.ready ? "passed" : "failed",
+      details: {
+        provider: fallback.provider,
+        mode: fallback.mode,
+        visibleProducts: fallback.visibleProducts,
+        accelerator: "disabled",
+        message: fallback.message
+      }
+    };
+  }
+
+  try {
+    const result = await getProductionPostgresRuntime().search?.readiness();
+    if (result?.ok) {
+      return {
+        provider: "search",
+        environment: "production",
+        checkName: "meilisearch-health",
+        checkKind: "connectivity",
+        status: "passed",
+        details: {
+          status: result.status ?? "unknown",
+          accelerator: "meilisearch",
+          fallbackReady: fallback.ready,
+          fallbackVisibleProducts: fallback.visibleProducts,
+          message: "Meilisearch accelerator is healthy; PostgreSQL fallback is also checked"
+        }
+      };
+    }
+    return {
+      provider: "search",
+      environment: "production",
+      checkName: "postgres-storefront-search-fallback",
+      checkKind: "connectivity",
+      status: fallback.ready ? "passed" : "failed",
+      details: {
+        provider: fallback.provider,
+        mode: fallback.mode,
+        visibleProducts: fallback.visibleProducts,
+        accelerator: "meilisearch",
+        acceleratorReady: false,
+        message: fallback.ready ? "Meilisearch accelerator is unavailable; PostgreSQL fallback is healthy" : "Both search paths are unavailable"
+      }
     };
   } catch (error) {
-    return failed("search", "production", "meilisearch-health", error);
+    return {
+      provider: "search",
+      environment: "production",
+      checkName: "postgres-storefront-search-fallback",
+      checkKind: "connectivity",
+      status: fallback.ready ? "passed" : "failed",
+      details: {
+        provider: fallback.provider,
+        mode: fallback.mode,
+        visibleProducts: fallback.visibleProducts,
+        accelerator: "meilisearch",
+        acceleratorReady: false,
+        message: fallback.ready ? `PostgreSQL fallback healthy; accelerator check failed: ${safeError(error)}` : safeError(error)
+      }
+    };
   }
 }
 
