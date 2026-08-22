@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
+import { can, PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { vendorScope } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
@@ -7,6 +7,7 @@ export type VendorAppointmentAction = "complete" | "cancel" | "no_show";
 
 function requireVendor(principal: SessionPrincipal): string {
   if (!principal.vendorId || !principal.roles.some((role) => role.startsWith("vendor_"))) throw new Error("VENDOR_AUTH_REQUIRED");
+  if (!principal.roles.some((role) => can(role, "advice.write"))) throw new Error("VENDOR_ADVICE_FORBIDDEN");
   return principal.vendorId;
 }
 
