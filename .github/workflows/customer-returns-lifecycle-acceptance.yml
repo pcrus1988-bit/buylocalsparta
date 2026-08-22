@@ -95,7 +95,141 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
         run: npm run db:ready
+      - name: Bootstrap governed returns vendor finance fixtures
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users(email,password_hash,status,email_verified_at)
+          VALUES('ci-returns-agreement-signer@example.test','ci-only-not-a-runtime-password','active',now())
+          ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
+
+          INSERT INTO users(email,password_hash,status,email_verified_at)
+          VALUES('ci-returns-finance-checker@example.test','ci-only-not-a-runtime-password','active',now())
+          ON CONFLICT (email) DO UPDATE SET status='active',email_verified_at=now();
+
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_returns_vendor_agreement()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          SET search_path = pg_catalog, public, bls_private
+          AS $$
+          DECLARE
+            signer_id uuid;
+            checker_id uuid;
+          BEGIN
+            IF NEW.public_id NOT LIKE 'vendor_returns_%' THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT id INTO signer_id
+            FROM public.users
+            WHERE email='ci-returns-agreement-signer@example.test'
+            LIMIT 1;
+
+            SELECT id INTO checker_id
+            FROM public.users
+            WHERE email='ci-returns-finance-checker@example.test'
+            LIMIT 1;
+
+            INSERT INTO public.vendor_commercial_agreements(
+              market_id,
+              vendor_id,
+              agreement_code,
+              agreement_version,
+              status,
+              starts_at,
+              signed_at,
+              commission_rate_bps,
+              commission_basis,
+              commission_tax_mode,
+              commission_tax_rate_bps,
+              source_document_reference,
+              terms_snapshot,
+              vendor_snapshot,
+              commercial_terms_snapshot,
+              signed_pdf_object_key,
+              signed_pdf_sha256,
+              signed_document_received_at,
+              govgr_reference,
+              govgr_verified_at,
+              govgr_verified_by,
+              activated_at,
+              activated_by
+            ) VALUES (
+              NEW.market_id,
+              NEW.id,
+              'CI-RETURNS-' || NEW.public_id,
+              1,
+              'active',
+              now() - interval '1 day',
+              now(),
+              500,
+              'merchandise_gross',
+              'included',
+              2400,
+              'ci://synthetic-governed-returns-agreement/' || NEW.public_id,
+              jsonb_build_object('fixture','customer-returns-lifecycle-acceptance'),
+              jsonb_build_object('vendorPublicId',NEW.public_id),
+              jsonb_build_object('commissionRateBps',500),
+              'ci-returns/' || NEW.public_id || '/signed.pdf',
+              repeat('a',64),
+              now(),
+              'CI-RETURNS-GOVGR-' || NEW.public_id,
+              now(),
+              signer_id,
+              now(),
+              signer_id
+            );
+
+            INSERT INTO public.vendor_payout_destinations(
+              vendor_id,
+              provider,
+              provider_reference,
+              display_label,
+              masked_account,
+              account_holder,
+              status,
+              verified_by,
+              verified_at,
+              effective_at,
+              metadata,
+              created_by,
+              created_at,
+              updated_at
+            ) VALUES (
+              NEW.id,
+              'bank_transfer',
+              'ci-returns-vault-token-' || NEW.public_id,
+              'CI returns payout destination',
+              'GR••••0002',
+              'CI Returns Vendor',
+              'verified',
+              checker_id,
+              now(),
+              now() - interval '1 minute',
+              jsonb_build_object('fixture','customer-returns-lifecycle-acceptance','makerChecker',true),
+              signer_id,
+              now(),
+              now()
+            );
+            RETURN NEW;
+          END;
+          $$;
+
+          DROP TRIGGER IF EXISTS ci_seed_returns_vendor_agreement ON public.vendor_businesses;
+          CREATE TRIGGER ci_seed_returns_vendor_agreement
+          AFTER INSERT ON public.vendor_businesses
+          FOR EACH ROW
+          WHEN (NEW.public_id LIKE 'vendor_returns_%')
+          EXECUTE FUNCTION bls_private.ci_seed_returns_vendor_agreement();
+          SQL
       - name: Run customer returns lifecycle acceptance
         run: >-
           node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
           scripts/customer-returns-lifecycle-acceptance.ts
+      - name: Disable returns finance fixture
+        if: always()
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER IF EXISTS ci_seed_returns_vendor_agreement ON public.vendor_businesses;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_returns_vendor_agreement();
+          SQL
