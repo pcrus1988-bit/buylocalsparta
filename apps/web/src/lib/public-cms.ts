@@ -12,6 +12,7 @@ import {
 } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
+export const PUBLIC_CMS_ROUTE_PATTERN = "/[...cmsPath]";
 const MARKET_ID = "sparta";
 const REDIRECT_CACHE_MS = 30_000;
 
@@ -75,7 +76,11 @@ export async function getPublicCmsPages(now = Date.now()): Promise<readonly Cont
 }
 
 export async function getPublicCmsSitemapEntries(now = Date.now()) {
-  return contentSitemap({ pages: await getPublicCmsPages(now), now });
+  const pages = (await getPublicCmsPages(now)).map((page): ContentPage => {
+    if (page.status !== "scheduled" || page.scheduledAt === undefined || page.scheduledAt > now) return page;
+    return { ...page, status: "published", publishedAt: page.publishedAt ?? page.scheduledAt };
+  });
+  return contentSitemap({ pages, now });
 }
 
 export async function getPublicCmsSeo(locale: ContentLocale, slug: string, origin: string, now = Date.now()) {
@@ -103,7 +108,7 @@ async function loadActiveRedirects(now = Date.now()): Promise<Map<string, Conten
   for (const row of rows.rows) {
     const fromPath = normalizePublicPath(String(row.from_path));
     const toPath = normalizePublicPath(String(row.to_path));
-    if (fromPath === "/" || toPath === "/" || fromPath === toPath) continue;
+    if (fromPath === "/" || fromPath === toPath) continue;
     items.set(fromPath, {
       id: String(row.public_id),
       marketId: MARKET_ID,
