@@ -10,6 +10,7 @@ const nextConfig = await readFile(new URL("../apps/web/next.config.ts", import.m
 const productionCi = await readFile(new URL("../.github/workflows/production-ci.yml", import.meta.url), "utf8");
 const stagingActivation = await readFile(new URL("../.github/workflows/staging-activation.yml", import.meta.url), "utf8");
 const stagingEvidence = await readFile(new URL("../.github/workflows/staging-scenario-evidence.yml", import.meta.url), "utf8");
+const productionSchemaGate = await readFile(new URL("./verify-production-schema-head.ts", import.meta.url), "utf8");
 
 assert(root.packageManager === "npm@10.9.2", "root packageManager must stay pinned for Vercel workspace detection");
 assert(root.engines?.node === ">=24 <25", "root must require Node 24");
@@ -20,6 +21,13 @@ assert(vercel.installCommand === "npm ci --ignore-scripts", "source-controlled V
 assert(vercel.buildCommand === "npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build", "Vercel build must reassert the locked graph before building the web workspace");
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
 assert(!("crons" in vercel), "long-running BLS workers must not be disguised as Vercel cron jobs");
+assert(
+  web.scripts?.prebuild?.includes("verify-production-schema-head.ts --vercel-production-only"),
+  "production Vercel prebuild must enforce the repository/production migration head gate",
+);
+assert(productionSchemaGate.includes("public.schema_migrations"), "production schema gate must read the migration ledger");
+assert(productionSchemaGate.includes("sha256"), "production schema gate must compare immutable migration checksums");
+assert(productionSchemaGate.includes("deployment is blocked"), "production schema gate must fail closed on drift");
 for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
   assert(workflow.includes("npm ci --ignore-scripts"), "release/staging workflows must consume the committed npm lockfile");
   assert(!workflow.includes("npm install --ignore-scripts"), "release/staging workflows must not re-resolve dependencies with npm install");
@@ -33,6 +41,7 @@ assert(!dockerfile.includes("npm install --omit=dev --ignore-scripts"), "worker 
 assert(docs.includes("repository root") && docs.includes("not `apps/web`"), "deployment runbook must document canonical Vercel root");
 assert(docs.includes("npm ci --ignore-scripts"), "deployment runbook must document deterministic locked Vercel installs");
 assert(docs.includes("dashboard Install Command override"), "deployment runbook must document the observed Vercel dashboard override and build-time lockfile guard");
+assert(docs.includes("production schema gate"), "deployment runbook must document the hard production schema gate");
 assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports"), "deployment runbook must document independent worker roles");
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
 
@@ -46,6 +55,6 @@ assert(envMatrix.includes("BLS_REPORT_ASYNC_ENABLED") && envMatrix.includes("rep
 for (const path of ["../workers/postgres-worker.ts", "../workers/search-worker.ts", "../workers/notification-worker.ts", "../workers/media-worker.ts", "../workers/report-worker.ts"]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, Vercel web build and five isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, hard production schema gate, Vercel web build and five isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
