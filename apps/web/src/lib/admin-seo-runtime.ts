@@ -134,7 +134,7 @@ export async function adminSeoWorkspace(principal: SessionPrincipal) {
       knownNonIndexablePages: NON_INDEXABLE_PAGE_ROUTES.length
     },
     routeClassCounts,
-    researchVendors: researchRows.sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.score - a.score || a.name.localeCompare(b.name, "el")),
+    researchVendors: [...researchRows].sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.score - a.score || a.name.localeCompare(b.name, "el")),
     diagnostics,
     duplicateProductTitles,
     runtime: {
