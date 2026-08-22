@@ -47,7 +47,7 @@ for (const contract of ["requireAccountSession(request, true)", "requestCustomer
 }
 if (!requestRoute.includes("DELETE") || !requestRoute.includes("cancelCustomerEmailChange")) failures.push("Email-change request API must expose authenticated cancellation");
 if (confirmRoute.includes("requireAccountSession")) failures.push("Possession-based email confirmation must not require the old authenticated session");
-for (const contract of ["confirmCustomerEmailChange", "token.length > 512", 'Cache-Control": "no-store"']) {
+for (const contract of ["confirmCustomerEmailChange", "token.length > 512", 'Cache-Control\": \"no-store\"']) {
   if (!confirmRoute.includes(contract)) failures.push(`Email-change confirmation API is missing ${contract}`);
 }
 
@@ -93,7 +93,7 @@ for (const contract of [
   if (!migration.includes(contract)) failures.push(`Email-change migration is missing ${contract}`);
 }
 if (migration.includes("token text") || migration.includes("verification_token text")) failures.push("Email-change migration must never persist the raw verification token");
-if (!postgresRuntime.includes("EXPECTED_SCHEMA_VERSION = 117")) failures.push("PostgreSQL readiness must expect schema version 117");
+if (!postgresRuntime.includes("EXPECTED_SCHEMA_VERSION = 118")) failures.push("PostgreSQL readiness must expect schema version 118");
 if (!navigation.includes('"/confirm-email-change"')) failures.push("Email-change confirmation route must be explicitly classified as non-indexable/private utility");
 const confirmOccurrences = navigation.split('"/confirm-email-change"').length - 1;
 if (confirmOccurrences < 2) failures.push("Email-change confirmation route must also be disallowed from robots crawling");
