@@ -1,4 +1,4 @@
-import type { SessionPrincipal } from "@buy-local-sparta/core";
+import { localePath, type SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getPublicProductSeoInventory } from "./catalog-view";
 import { getPublicVendorDirectory } from "./public-vendor-directory";
@@ -9,10 +9,11 @@ import { productPublicPath } from "./product-url";
 import { productIndexEligibility, researchVendorIndexEligibility } from "./seo-visibility-policy";
 import { FOOTER_NAVIGATION, HUMAN_SITEMAP_SECTIONS, INDEXABLE_STATIC_ROUTES, PRIMARY_NAVIGATION } from "./site-navigation";
 import { STOREFRONT_CATEGORIES, storefrontCategoryForCode } from "./storefront-taxonomy";
+import { getPublicCmsPages } from "./public-cms";
 
 export type SeoCrawlGraphNode = Readonly<{
   key: string;
-  kind: "static" | "category" | "product" | "partner_vendor" | "research_vendor";
+  kind: "static" | "cms" | "category" | "product" | "partner_vendor" | "research_vendor";
   label: string;
   route: string;
   indexAllowed: boolean;
@@ -34,13 +35,14 @@ function staticInboundSources(href: string): readonly string[] {
 
 export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
   assertAdminPermission(principal, "content.read");
-  const [[productResult, vendorResult], { settings }, overrides] = await Promise.all([
-    Promise.allSettled([getPublicProductSeoInventory(), getPublicVendorDirectory()]),
+  const [[productResult, vendorResult, cmsResult], { settings }, overrides] = await Promise.all([
+    Promise.allSettled([getPublicProductSeoInventory(), getPublicVendorDirectory(), getPublicCmsPages()]),
     getSeoGlobalSettingsSnapshot(),
     getSeoEntityOverridesSnapshot()
   ]);
   const products = productResult.status === "fulfilled" ? productResult.value.products : [];
   const vendors = vendorResult.status === "fulfilled" ? vendorResult.value : [];
+  const cmsPages = cmsResult.status === "fulfilled" ? cmsResult.value : [];
   const nodes: SeoCrawlGraphNode[] = [];
 
   const controlled = (reference: SeoEntityReference, entityEligible: boolean, defaultIndexAllowed: boolean) => {
@@ -58,6 +60,24 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
       indexAllowed: controlled(reference, true, true).indexAllowed,
       inboundSources: staticInboundSources(route.href)
     });
+  }
+
+  for (const page of cmsPages) {
+    for (const locale of ["el", "en"] as const) {
+      const translation = page.translations[locale];
+      if (!translation) continue;
+      const route = localePath(locale, page.slug);
+      const reference: SeoEntityReference = { kind: "static", id: route };
+      const control = controlled(reference, true, !translation.seo.noindex);
+      nodes.push({
+        key: `cms:${page.id}:${locale}`,
+        kind: "cms",
+        label: translation.title,
+        route,
+        indexAllowed: control.indexAllowed,
+        inboundSources: control.sitemapAllowed ? ["/sitemap governed CMS directory"] : []
+      });
+    }
   }
 
   for (const category of STOREFRONT_CATEGORIES) {
@@ -130,7 +150,8 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
     },
     runtime: {
       productsAvailable: productResult.status === "fulfilled",
-      vendorsAvailable: vendorResult.status === "fulfilled"
+      vendorsAvailable: vendorResult.status === "fulfilled",
+      cmsAvailable: cmsResult.status === "fulfilled"
     }
   } as const;
 }

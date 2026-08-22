@@ -8,11 +8,17 @@ import { getSeoEntityOverridesSnapshot } from "../lib/seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../lib/seo-entity-policy";
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { productPublicPath } from "../lib/product-url";
+import { getPublicCmsSitemapEntries } from "../lib/public-cms";
 
 export const dynamic = "force-dynamic";
 
 function safeLastModified(value: string | undefined): Date | undefined {
   if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function cmsLastModified(value: number): Date | undefined {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
@@ -23,10 +29,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     getSeoEntityOverridesSnapshot()
   ]);
   if (!settings.indexingEnabled) return [];
-  const categories = await getAvailableStorefrontCategories("23100").catch((error) => {
-    console.error(JSON.stringify({ level: "error", event: "seo.sitemap_categories_failed", message: String(error) }));
-    return [];
-  });
+  const [categories, cmsEntries] = await Promise.all([
+    getAvailableStorefrontCategories("23100").catch((error) => {
+      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_categories_failed", message: String(error) }));
+      return [];
+    }),
+    getPublicCmsSitemapEntries().catch((error) => {
+      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_cms_failed", message: String(error) }));
+      return [];
+    })
+  ]);
   const origin = settings.canonicalOrigin;
   const governed = (reference: SeoEntityReference, entityEligible: boolean, defaultIndexAllowed: boolean) => {
     const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
@@ -53,6 +65,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
         lastModified: safeLastModified(override?.lastReviewedAt)
       }] : [];
+    }),
+    ...cmsEntries.flatMap((entry) => {
+      const reference: SeoEntityReference = { kind: "static", id: entry.path };
+      const { override, control } = governed(reference, true, true);
+      if (!control.sitemapAllowed) return [];
+      const languages = entry.alternates
+        ? Object.fromEntries(Object.entries(entry.alternates).map(([locale, path]) => [locale, new URL(path!, `${origin}/`).toString()]))
+        : undefined;
+      return [{
+        url: new URL(override?.canonicalPath ?? entry.path, `${origin}/`).toString(),
+        changeFrequency: entry.changeFrequency,
+        priority: entry.priority,
+        lastModified: safeLastModified(override?.lastReviewedAt) ?? cmsLastModified(entry.lastModified),
+        alternates: languages && Object.keys(languages).length ? { languages } : undefined
+      }];
     })
   ];
 

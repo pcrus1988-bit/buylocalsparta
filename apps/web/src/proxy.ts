@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
 const VISITOR_HEADER = "x-bls-visitor";
 const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
+
+const REDIRECT_PROTECTED_ROOTS = [
+  "/api", "/admin", "/account", "/daily", "/checkout", "/cart",
+  "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password", "/join/apply",
+  "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance",
+  "/vendor/notifications", "/vendor/orders", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping",
+  "/vendor/storefront", "/vendor/trust"
+] as const;
 
 function validVisitor(value: string | undefined): string | undefined {
   return value && SAFE_VISITOR_KEY.test(value) ? value : undefined;
@@ -29,7 +38,30 @@ function needsSessionContinuity(pathname: string): boolean {
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
-export function proxy(request: NextRequest) {
+function allowsContentRedirect(request: NextRequest): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  const pathname = request.nextUrl.pathname;
+  if (pathname === "/") return false;
+  return !REDIRECT_PROTECTED_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
+}
+
+async function contentRedirectResponse(request: NextRequest): Promise<NextResponse | undefined> {
+  if (!allowsContentRedirect(request)) return undefined;
+  try {
+    const rule = await getActivePublicCmsRedirect(request.nextUrl.pathname);
+    if (!rule) return undefined;
+    const destination = new URL(rule.toPath, request.url);
+    return NextResponse.redirect(destination, rule.statusCode);
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", event: "cms.redirect_lookup_failed", path: request.nextUrl.pathname, message: error instanceof Error ? error.message : String(error) }));
+    return undefined;
+  }
+}
+
+export async function proxy(request: NextRequest) {
+  const redirected = await contentRedirectResponse(request);
+  if (redirected) return redirected;
+
   const current = validVisitor(request.cookies.get(MARKETPLACE_COOKIE)?.value);
   const legacy = validVisitor(request.cookies.get(LEGACY_VISITOR_COOKIE)?.value);
   const visitorKey = current ?? legacy ?? crypto.randomUUID();
