@@ -10,6 +10,8 @@ import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
 import { findSeoEntityOverride, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
+import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
+import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -42,8 +44,11 @@ export default async function CategoryPage({ params }: Props) {
   const category = storefrontCategoryBySlug(slug);
   if (!category) notFound();
 
-  const visitorKey = await getVisitorKey();
-  const products = await getCatalogCards(visitorKey, "23100", "", category.slug);
+  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
+  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
+  const products = readOnlyCrawler
+    ? await getCrawlerCatalogCards("23100", "", category.slug)
+    : await getCatalogCards(visitorKey, "23100", "", category.slug);
   const siblings = STOREFRONT_CATEGORIES.filter((item) => item.slug !== category.slug);
 
   return (
