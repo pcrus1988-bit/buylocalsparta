@@ -104,7 +104,7 @@ export async function vendorRequestAskLocalClarification(
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
   await uow.withTransaction({ actorUserId: principal.userId, vendorId: principal.vendorId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const found = await tx.query<SqlRow>(`
-      SELECT cr.id::text AS request_uuid,cr.public_id,cr.status::text,cr.customer_user_id::text AS customer_uuid,
+      SELECT cr.id::text AS request_uuid,cr.public_id,cr.reference_number,cr.status::text,cr.customer_user_id::text AS customer_uuid,
              cr.source_metadata,v.id::text AS vendor_uuid
       FROM counteroffer_requests cr
       JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
@@ -129,7 +129,7 @@ export async function vendorRequestAskLocalClarification(
       VALUES($1,$2,$3::uuid,'in_app','transactional','counteroffer.needs_info','ask-local-clarification-v1','el','Χρειάζεται μία διευκρίνιση',$4,$5::jsonb,'sent',$6,$7)
       ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [
       randomUUID(), `notification_${randomUUID()}`, row.customer_uuid, question.slice(0, 240),
-      JSON.stringify({ requestId, vendorId: principal.vendorId }), `ask-local-needs-info:${requestId}:${now}`, new Date(now)
+      JSON.stringify({ requestReference: String(row.reference_number), vendorId: principal.vendorId }), `ask-local-needs-info:${requestId}:${now}`, new Date(now)
     ]);
   }, { isolation: "serializable" });
 }
@@ -153,12 +153,12 @@ export async function customerReplyAskLocalClarification(
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
   await uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const found = await tx.query<SqlRow>(`
-      SELECT cr.id::text AS request_uuid,cr.status::text,cr.assigned_vendor_id::text AS vendor_uuid,
+      SELECT cr.id::text AS request_uuid,cr.public_id AS request_public_id,cr.reference_number,cr.status::text,cr.assigned_vendor_id::text AS vendor_uuid,
              cr.source_metadata,u.id::text AS customer_uuid
       FROM counteroffer_requests cr
       JOIN users u ON u.id=cr.customer_user_id
       JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
-      WHERE cr.public_id=$1 AND u.public_id=$2 AND cr.workflow_owner_kind='vendor'
+      WHERE (cr.reference_number=$1 OR cr.public_id=$1) AND u.public_id=$2 AND cr.workflow_owner_kind='vendor'
       FOR UPDATE OF cr
     `, [requestId, principal.userId]);
     if (!found.rowCount) throw new Error("Το Ask Local αίτημα δεν βρέθηκε στον λογαριασμό σου.");
@@ -183,8 +183,8 @@ export async function customerReplyAskLocalClarification(
       VALUES($1,$2,$3::uuid,'in_app','transactional','counteroffer.customer_replied','ask-local-clarification-v1','el','Ο πελάτης απάντησε στο Ask Local',$4,$5::jsonb,'sent',$6,$7)
       ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [
       randomUUID(), `notification_${randomUUID()}`, row.vendor_uuid, reply.slice(0, 240),
-      JSON.stringify({ requestId, responseDueAt: dueAt.getTime(), customerId: principal.userId }),
-      `ask-local-customer-replied:${requestId}:${now}`, new Date(now)
+      JSON.stringify({ requestId: String(row.request_public_id), requestReference: String(row.reference_number), responseDueAt: dueAt.getTime(), customerId: principal.userId }),
+      `ask-local-customer-replied:${String(row.request_public_id)}:${now}`, new Date(now)
     ]);
   }, { isolation: "serializable" });
 }
@@ -208,7 +208,7 @@ export async function askLocalClarificationMessages(
       SELECT cr.source_metadata
       FROM counteroffer_requests cr
       JOIN users u ON u.id=cr.customer_user_id
-      WHERE cr.public_id=$1 AND u.public_id=$2
+      WHERE (cr.reference_number=$1 OR cr.public_id=$1) AND u.public_id=$2
       LIMIT 1
     `, [requestId, principal.userId]);
     if (!result.rowCount) throw new Error("Η συζήτηση διευκρίνισης δεν βρέθηκε.");
