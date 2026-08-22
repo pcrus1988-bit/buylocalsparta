@@ -38,7 +38,7 @@ export default async function AdminSeoCrawlPage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Crawl</div>
         <h1>Crawl architecture & live verification</h1>
-        <p className="lead">Δύο διαφορετικά evidence layers: το Declared Site Graph δείχνει πώς το KONTΑ ΜΟΥ πιστεύει ότι συνδέονται οι indexable σελίδες, ενώ το Live HTTP Verification ελέγχει τι επιστρέφει πραγματικά το production origin.</p>
+        <p className="lead">Internal linking & orphan diagnostics now combine two evidence layers: the Declared Site Graph shows how KONTΑ ΜΟΥ expects indexable pages to connect, while Live HTTP Verification checks what the production origin actually returns.</p>
       </div>
       <aside className={data.metrics.orphan ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
         <span>Declared graph</span>
