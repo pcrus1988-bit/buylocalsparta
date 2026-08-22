@@ -45,7 +45,8 @@ for (const contract of [
   "fulfilments: order.fulfilments.filter",
   "vendorName: vendorNames.get(fulfilment.vendorId)",
   "deliveryCharge: formatMoney(fulfilment.deliveryCharge)",
-  "lineIds: fulfilment.lineIds"
+  "lineIds: fulfilment.lineIds.flatMap",
+  "lineTokens.get(lineId)"
 ]) expect(accountView.includes(contract), `Customer order projection is missing governed fulfilment field ${contract}`);
 
 for (const contract of [
