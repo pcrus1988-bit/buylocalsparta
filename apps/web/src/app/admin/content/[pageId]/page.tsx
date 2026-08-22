@@ -23,11 +23,12 @@ export default async function AdminContentEditorPage({ params }: { params: Promi
   const page = workspace.page;
   const canWrite = hasAdminPermission(principal, "content.write");
   const publicHref = page.slug ? `/${page.slug}` : "/";
+  const entityLabel = page.translations.el?.title ?? `/${page.slug}`;
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={workspace.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={workspace.csrfToken} entityLabel={entityLabel} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Content · CMS · Version {page.version}</div><h1>{page.translations.el?.title ?? page.slug}</h1><p className="lead">Edit content, search metadata, Open Graph presentation and validated CMS blocks. Every save creates an immutable revision.</p></div>
+      <div><div className="eyebrow">Content · CMS · Version {page.version}</div><h1>{entityLabel}</h1><p className="lead">Edit content, search metadata, Open Graph presentation and validated CMS blocks. Every save creates an immutable revision.</p></div>
       <aside className={page.status === "published" ? "dashboard-health-card" : "dashboard-health-card needs-attention"}><span>Publication</span><strong>{page.status}</strong><p>/{page.slug}</p></aside>
     </section>
 
