@@ -145,7 +145,11 @@ export type ResearchVendorIndexEligibility = Readonly<{
   blockingReasons: readonly string[];
 }>;
 
-const MIN_RESEARCH_VENDOR_INDEX_SCORE = 5;
+export const DEFAULT_RESEARCH_VENDOR_INDEX_SCORE = 5;
+export type ResearchVendorIndexPolicy = Readonly<{
+  enabled?: boolean;
+  minimumScore?: number;
+}>;
 const PLACEHOLDER_NAME_PATTERN = /^(unknown|unnamed|χωρίς όνομα|χωρις ονομα|n\/a|test|demo)$/i;
 const CLOSED_STATUS_PATTERN = /(permanently[_ -]?closed|closed|inactive|out[_ -]?of[_ -]?scope|κλειστ|έκλεισ)/i;
 
@@ -160,14 +164,18 @@ function usefulText(value: string | undefined, minimum = 2): boolean {
  * boundary. This function only decides whether a visible research record is strong
  * enough to be actively indexed/sitemapped. It intentionally does not invent data.
  */
-export function researchVendorIndexEligibility(vendor: PublicVendorDirectoryEntry): ResearchVendorIndexEligibility {
+export function researchVendorIndexEligibility(vendor: PublicVendorDirectoryEntry, policy: ResearchVendorIndexPolicy = {}): ResearchVendorIndexEligibility {
   if (vendor.directoryStatus !== "research") {
     return { eligible: true, score: 100, minimumScore: 0, reasons: ["active partner profile"], blockingReasons: [] };
   }
 
+  const minimumScore = Number.isSafeInteger(policy.minimumScore) && Number(policy.minimumScore) >= 3 && Number(policy.minimumScore) <= 7
+    ? Number(policy.minimumScore)
+    : DEFAULT_RESEARCH_VENDOR_INDEX_SCORE;
   let score = 0;
   const reasons: string[] = [];
   const blockingReasons: string[] = [];
+  if (policy.enabled === false) blockingReasons.push("research-vendor indexing disabled by global policy");
   const name = vendor.name?.trim();
 
   if (usefulText(name, 3) && !PLACEHOLDER_NAME_PATTERN.test(name)) {
@@ -205,14 +213,14 @@ export function researchVendorIndexEligibility(vendor: PublicVendorDirectoryEntr
   if (statusText && CLOSED_STATUS_PATTERN.test(statusText)) blockingReasons.push("record indicates closed/inactive/out-of-scope status");
 
   return {
-    eligible: blockingReasons.length === 0 && score >= MIN_RESEARCH_VENDOR_INDEX_SCORE,
+    eligible: blockingReasons.length === 0 && score >= minimumScore,
     score,
-    minimumScore: MIN_RESEARCH_VENDOR_INDEX_SCORE,
+    minimumScore,
     reasons,
     blockingReasons
   };
 }
 
-export function vendorIndexEligible(vendor: PublicVendorDirectoryEntry): boolean {
-  return vendor.directoryStatus === "partner" || researchVendorIndexEligibility(vendor).eligible;
+export function vendorIndexEligible(vendor: PublicVendorDirectoryEntry, policy: ResearchVendorIndexPolicy = {}): boolean {
+  return vendor.directoryStatus === "partner" || researchVendorIndexEligibility(vendor, policy).eligible;
 }

@@ -1,8 +1,11 @@
 import type { MetadataRoute } from "next";
-import { publicOrigin } from "../lib/public-origin";
+import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 
-export default function robots(): MetadataRoute.Robots {
-  const origin = publicOrigin();
+export const dynamic = "force-dynamic";
+
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const origin = settings.canonicalOrigin;
   return {
     rules: {
       userAgent: "*",
@@ -10,12 +13,15 @@ export default function robots(): MetadataRoute.Robots {
       // noindex directives/headers. Let crawlers reach those responses so the
       // noindex signal can actually be processed instead of relying on robots.txt
       // as a privacy mechanism.
-      allow: ["/", "/api/media/"],
+      allow: settings.publicMediaCrawlEnabled ? ["/", "/api/media/"] : "/",
       // Keep system/API surfaces out of the crawl graph while explicitly allowing
       // approved public media used by Product/LocalBusiness structured data.
       disallow: ["/api/"]
     },
-    sitemap: `${origin}/sitemap.xml`,
+    // When the emergency indexing switch is off, crawlers must still be able to
+    // fetch public HTML and process its global noindex signal. We therefore remove
+    // sitemap promotion but do not hide those pages behind a site-wide Disallow.
+    sitemap: settings.indexingEnabled ? `${origin}/sitemap.xml` : undefined,
     host: origin
   };
 }

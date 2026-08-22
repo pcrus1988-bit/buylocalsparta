@@ -40,17 +40,30 @@ import { CartProvider } from "../components/CartProvider";
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
-import { publicOrigin } from "../lib/public-origin";
+import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(publicOrigin()),
-  title: { default: "ΚΟΝΤΑ ΜΟΥ Sparta | Η τοπική αγορά της Σπάρτης online", template: "%s | ΚΟΝΤΑ ΜΟΥ Sparta" },
-  description: "Ανακάλυψε προϊόντα από καταστήματα της Σπάρτης, πάρε πραγματική συμβουλή από τοπικούς επαγγελματίες και αγόρασε με μία ενιαία εμπειρία checkout.",
-  keywords: ["Σπάρτη", "τοπικά καταστήματα", "ΚΟΝΤΑ ΜΟΥ", "marketplace", "Λακωνία", "online αγορές"],
-  openGraph: { title: "ΚΟΝΤΑ ΜΟΥ Sparta", description: "ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου", locale: "el_GR", type: "website", url: "/" }
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  return {
+    metadataBase: new URL(settings.canonicalOrigin),
+    title: { default: settings.defaultTitle, template: settings.titleTemplate },
+    description: settings.defaultDescription,
+    keywords: ["Σπάρτη", "τοπικά καταστήματα", "ΚΟΝΤΑ ΜΟΥ", "marketplace", "Λακωνία", "online αγορές"],
+    openGraph: {
+      title: settings.defaultOpenGraphTitle,
+      description: settings.defaultOpenGraphDescription,
+      images: settings.defaultOpenGraphImage ? [settings.defaultOpenGraphImage] : undefined,
+      siteName: settings.siteName,
+      locale: "el_GR",
+      type: "website",
+      url: "/"
+    },
+    verification: settings.googleSiteVerification ? { google: settings.googleSiteVerification } : undefined,
+    robots: settings.indexingEnabled ? undefined : { index: false, follow: false, noarchive: true, nosnippet: true }
+  };
+}
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="el" className={comfortaa.variable}>

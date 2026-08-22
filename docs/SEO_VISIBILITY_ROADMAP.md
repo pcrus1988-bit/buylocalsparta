@@ -109,6 +109,8 @@ Cards/KPIs:
 
 ## 1.2 Global SEO settings
 
+Implementation status: **editable governed foundation implemented on the working branch.** Settings are stored in the existing market-scoped `system_settings` registry with optimistic version checks and append-only `audit_events` evidence. The current UI controls canonical/default metadata, the guarded global indexing switch, Research-vendor indexing/threshold, sitemap entity families, public-media crawler policy and Google verification. Entity-specific overrides remain Phase 1.3 work.
+
 Manageable fields:
 
 - canonical site origin

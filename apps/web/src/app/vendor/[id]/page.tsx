@@ -11,7 +11,7 @@ import { getAccountSession } from "../../../lib/account-session";
 import { getVendorCatalogCards } from "../../../lib/catalog-view";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
-import { publicOrigin } from "../../../lib/public-origin";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -51,8 +51,8 @@ function firstRole(media: readonly ApprovedVendorProfileMedia[], role: ApprovedV
   return media.find((item) => item.role === role);
 }
 
-function absolutePublicMedia(url: string): string {
-  return /^https?:\/\//.test(url) ? url : `${publicOrigin()}${url}`;
+function absolutePublicMedia(url: string, origin: string): string {
+  return /^https?:\/\//.test(url) ? url : `${origin}${url}`;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -84,7 +84,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function VendorPage({ params }: Props) {
   const { id } = await params;
-  const vendor = await getPublicVendorDirectoryEntry(id);
+  const [vendor, { settings }] = await Promise.all([
+    getPublicVendorDirectoryEntry(id),
+    getSeoGlobalSettingsSnapshot()
+  ]);
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
@@ -102,14 +105,14 @@ export default async function VendorPage({ params }: Props) {
   const teamUrl = mediaPath(teamMedia);
   const website = safeHttpUrl(vendor.research?.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.research?.directoryProfileUrl);
-  const vendorUrl = `${publicOrigin()}/vendor/${encodeURIComponent(vendor.id)}`;
+  const vendorUrl = `${settings.canonicalOrigin}/vendor/${encodeURIComponent(vendor.id)}`;
   const fullAddress = addressText(location);
   const mapHref = `/shops/map?vendor=${encodeURIComponent(vendor.id)}`;
   const adviserName = vendor.adviser ?? "Η ομάδα του καταστήματος";
   const intro = isResearch
     ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το ΚΟΝΤΑ ΜΟΥ Sparta δεν έχει ακόμη ενεργοποιηθεί.`
     : (vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
-  const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map(absolutePublicMedia);
+  const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -119,7 +122,7 @@ export default async function VendorPage({ params }: Props) {
     url: vendorUrl,
     description: vendor.story?.excerpt ?? (isResearch ? "Χαρτογραφημένη τοπική επιχείρηση από δημόσιες επιχειρηματικές πηγές." : undefined),
     image: structuredImages.length ? structuredImages : undefined,
-    logo: logoUrl ? absolutePublicMedia(logoUrl) : undefined,
+    logo: logoUrl ? absolutePublicMedia(logoUrl, settings.canonicalOrigin) : undefined,
     telephone: location?.phone,
     email: location?.publicEmail,
     sameAs: [website, directoryProfile].filter(Boolean),

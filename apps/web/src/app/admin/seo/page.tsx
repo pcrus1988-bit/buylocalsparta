@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { AdminSeoSettingsEditor } from "../../../components/AdminSeoSettingsEditor";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { adminSeoWorkspace } from "../../../lib/admin-seo-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
@@ -32,6 +34,7 @@ export default async function AdminSeoPage() {
   const critical = data.diagnostics.filter((item) => item.severity === "critical").length;
   const warnings = data.diagnostics.filter((item) => item.severity === "warning").length;
   const blockedResearch = data.metrics.research - data.metrics.researchIndexEligible;
+  const canEdit = hasAdminPermission(principal, "content.write");
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
@@ -52,14 +55,16 @@ export default async function AdminSeoPage() {
     <section className="shell admin-local-tabs-shell">
       <nav className="admin-local-tabs" aria-label="SEO workspace sections">
         <a href="#seo-overview">Overview</a>
+        <a href="#seo-settings">Settings</a>
         <a href="#seo-diagnostics">Diagnostics</a>
         <a href="#seo-research-vendors">Research vendors</a>
+        <a href="#seo-audit">Audit</a>
         <a href="#seo-policy">Policy</a>
       </nav>
     </section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Sitemap (estimated)", value: data.metrics.sitemapEstimatedCount, tone: "positive", hint: data.sitemapUrl },
+      { label: "Sitemap (estimated)", value: data.metrics.sitemapEstimatedCount, tone: data.settings.settings.indexingEnabled ? "positive" : "attention", hint: data.settings.settings.indexingEnabled ? data.sitemapUrl : "global indexing disabled" },
       { label: "Products", value: data.metrics.products, hint: `${data.metrics.productsWithApprovedImage} with approved image` },
       { label: "Research indexed", value: data.metrics.researchIndexEligible, tone: blockedResearch ? "attention" : "positive", hint: `${blockedResearch} held by quality gate` },
       { label: "Private/noindex", value: data.metrics.knownNonIndexablePages, hint: "known page routes" }
@@ -73,10 +78,17 @@ export default async function AdminSeoPage() {
         <article className="admin-domain-card"><span>Commerce</span><strong>Canonical products</strong><p>Only products admitted by the existing public canonical safety boundary.</p><b>{data.metrics.products}</b><i>Public</i></article>
         <article className="admin-domain-card"><span>Local SEO</span><strong>Vendor dossiers</strong><p>{data.metrics.partners} partners + {data.metrics.researchIndexEligible} quality-gated research businesses.</p><b>{data.metrics.vendorIndexEligible}</b><i>Sitemap eligible</i></article>
       </div>
-      <p style={{ marginTop: 16 }}>Public origin: <code>{data.origin}</code> · <Link className="text-link" href="/sitemap.xml" target="_blank">Sitemap ↗</Link> · <Link className="text-link" href="/robots.txt" target="_blank">robots.txt ↗</Link></p>
+      <p style={{ marginTop: 16 }}>Public origin: <code>{data.origin}</code> · <a className="text-link" href={data.sitemapUrl} target="_blank" rel="noreferrer">Sitemap ↗</a> · <a className="text-link" href={data.robotsUrl} target="_blank" rel="noreferrer">robots.txt ↗</a></p>
     </section>
 
-    <section id="seo-diagnostics" className="vendor-section section-tint admin-anchor-section"><div className="shell">
+    <section id="seo-settings" className="vendor-section section-tint admin-anchor-section"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Governed configuration" title="Global SEO settings" note="Generated defaults remain safe when persistence is unavailable. Authorised edits use optimistic version checks, explicit CSRF validation and immutable audit evidence." />
+      {canEdit
+        ? <AdminSeoSettingsEditor key={data.settings.version} snapshot={data.settings} csrfToken={data.csrfToken} />
+        : <div className="workspace-empty-state"><strong>Read-only SEO access.</strong><span>Your Admin role can inspect diagnostics and policy, but content.write permission is required to change search settings.</span></div>}
+    </div></section>
+
+    <section id="seo-diagnostics" className="shell vendor-section admin-anchor-section">
       <WorkspaceSectionHeading eyebrow="In-house diagnostics" title="Search & privacy checks" note="These checks use only public/read-only projections and configuration state. They do not store session cookies, customer data or credentials." />
       <div className="workspace-queue-list">
         {data.diagnostics.map((item) => <article className="workspace-queue-card" key={item.id}>
@@ -86,7 +98,7 @@ export default async function AdminSeoPage() {
           </div>
         </article>)}
       </div>
-    </div></section>
+    </section>
 
     <section id="seo-research-vendors" className="shell vendor-section admin-anchor-section">
       <WorkspaceSectionHeading eyebrow="Model C · Local directory SEO" title="Research vendor index eligibility" note="Research pages are an intentional search surface, but only records with a meaningful name, usable local address, category and sufficient quality signals enter the sitemap." />
@@ -102,6 +114,21 @@ export default async function AdminSeoPage() {
         </article>)}
       </div>
       {data.researchVendors.length > 100 && <p style={{ marginTop: 16 }}>Showing the first 100 ordered by eligibility/quality. Full filtering, override editing and exports are part of the settings/report layer in this branch roadmap.</p>}
+    </section>
+
+    <section id="seo-audit" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="Accountability" title="SEO settings audit history" note="Each persisted change records the actor, timestamp, reason and the complete before/after state. This view highlights the fields that changed." />
+      <div className="workspace-queue-list">
+        {data.settingsAudit.length === 0
+          ? <div className="workspace-empty-state"><strong>No persisted SEO settings changes yet.</strong><span>The first authorised save will create the initial immutable audit record.</span></div>
+          : data.settingsAudit.map((entry) => <article className="workspace-queue-card" key={entry.id}>
+            <div className="workspace-queue-head">
+              <div><strong>{entry.reason ?? "SEO settings updated"}</strong><small>{new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(entry.createdAt))} · actor {entry.actorId}</small></div>
+              <span className="status-pill">{entry.actorRole ?? "admin"}</span>
+            </div>
+            <div className="workspace-queue-primary"><span>{entry.changedKeys.length ? entry.changedKeys.join(" · ") : "No normalized field difference detected"}</span></div>
+          </article>)}
+      </div>
     </section>
 
     <section id="seo-policy" className="vendor-section section-tint admin-anchor-section"><div className="shell">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { vendorIndexEligible } from "../../../lib/seo-visibility-policy";
 
 type Props = Readonly<{
@@ -18,8 +19,14 @@ type Props = Readonly<{
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const vendor = await getPublicVendorDirectoryEntry(id);
-  const index = Boolean(vendor && vendorIndexEligible(vendor));
+  const [vendor, { settings }] = await Promise.all([
+    getPublicVendorDirectoryEntry(id),
+    getSeoGlobalSettingsSnapshot()
+  ]);
+  const index = Boolean(settings.indexingEnabled && vendor && vendorIndexEligible(vendor, {
+    enabled: settings.researchVendorIndexingEnabled,
+    minimumScore: settings.researchVendorMinimumScore
+  }));
 
   return {
     robots: index

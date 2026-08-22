@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getHomepageCatalogCards } from "../lib/home-catalog";
 import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
@@ -10,8 +11,17 @@ import { listHomepagePromoCtas } from "../lib/homepage-promo-cta-runtime";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
+import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 
 const FEATURED_PRODUCT_LIMIT = 4;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  return {
+    alternates: { canonical: "/" },
+    robots: settings.indexingEnabled ? undefined : { index: false, follow: false, noarchive: true, nosnippet: true }
+  };
+}
 
 export default async function Home() {
   const visitorKey = await getVisitorKey();

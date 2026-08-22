@@ -6,8 +6,8 @@ import { AddToCartButton } from "../../../components/AddToCartButton";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
-import { publicOrigin } from "../../../lib/public-origin";
 import { SiteFooter } from "../../../components/SiteFooter";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -35,11 +35,11 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params;
-  const visitorKey = await getVisitorKey();
+  const [visitorKey, { settings }] = await Promise.all([getVisitorKey(), getSeoGlobalSettingsSnapshot()]);
   const product = await getCatalogCard(id, visitorKey);
   if (!product) notFound();
   const category = storefrontCategoryForCode(product.categoryCode);
-  const origin = publicOrigin();
+  const origin = settings.canonicalOrigin;
   const productUrl = `${origin}/product/${encodeURIComponent(product.id)}`;
   const categoryUrl = `${origin}/category/${category.slug}`;
   const sellerOfRecord = {
