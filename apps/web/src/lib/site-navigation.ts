@@ -69,22 +69,10 @@ export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
 ];
 
 export const FOOTER_NAVIGATION = [
-  {
-    title: "Ανακάλυψε",
-    links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal]
-  },
-  {
-    title: "Αγορά με σιγουριά",
-    links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns]
-  },
-  {
-    title: "ΚΟΝΤΑ ΜΟΥ Sparta",
-    links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap]
-  },
-  {
-    title: "Ιδιωτικότητα & πρόσβαση",
-    links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility]
-  }
+  { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
+  { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
+  { title: "ΚΟΝΤΑ ΜΟΥ Sparta", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] },
+  { title: "Ιδιωτικότητα & πρόσβαση", links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
 ] as const;
 
 export const HUMAN_SITEMAP_SECTIONS = [
@@ -158,6 +146,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/content",
   "/admin/seo",
   "/admin/seo/crawl",
+  "/admin/seo/issues",
   "/admin/seo/search-console",
   "/admin/hero",
   "/admin/customers",
