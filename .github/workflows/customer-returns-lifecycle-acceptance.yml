@@ -221,6 +221,93 @@ jobs:
           FOR EACH ROW
           WHEN (NEW.public_id LIKE 'vendor_returns_%')
           EXECUTE FUNCTION bls_private.ci_seed_returns_vendor_agreement();
+
+          -- This acceptance never calls AADE. It models only the already-accepted
+          -- external fiscal boundary required before settlement, scoped to the
+          -- disposable vendor_returns_* fixture. Draft/preparation/transmission are
+          -- covered by the vendor billing subsystem and remain real production gates.
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_returns_accepted_commission_invoice()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          SET search_path = pg_catalog, public, bls_private
+          AS $$
+          DECLARE
+            vendor_public_id text;
+            agreement_id uuid;
+            invoice_id uuid;
+          BEGIN
+            IF NEW.status::text <> 'payable'
+               OR NEW.service_fee_minor <= 0
+               OR (TG_OP='UPDATE' AND OLD.status IS NOT DISTINCT FROM NEW.status) THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT v.public_id INTO vendor_public_id
+            FROM public.vendor_businesses v
+            WHERE v.id=NEW.vendor_id;
+            IF vendor_public_id NOT LIKE 'vendor_returns_%' THEN
+              RETURN NEW;
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM public.platform_vendor_invoice_items i
+              WHERE i.source_kind='commission' AND i.source_public_id=NEW.public_id
+            ) THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT a.id INTO agreement_id
+            FROM public.vendor_commercial_agreements a
+            WHERE a.vendor_id=NEW.vendor_id AND a.status='active'
+            ORDER BY a.starts_at DESC,a.created_at DESC
+            LIMIT 1;
+            IF agreement_id IS NULL THEN
+              RAISE EXCEPTION 'Synthetic accepted commission invoice requires active agreement';
+            END IF;
+
+            invoice_id := gen_random_uuid();
+            INSERT INTO public.platform_vendor_invoices(
+              id,public_id,market_id,vendor_id,agreement_id,
+              billing_period_start,billing_period_end,currency,
+              net_minor,tax_minor,gross_minor,settlement_offset_minor,
+              collection_method,payment_status,paid_minor,status,notes
+            ) VALUES (
+              invoice_id,
+              'pvinv_ci_returns_' || replace(invoice_id::text,'-',''),
+              NEW.market_id,NEW.vendor_id,agreement_id,
+              current_date,current_date,NEW.currency,
+              NEW.service_fee_net_minor,NEW.service_fee_tax_minor,NEW.service_fee_minor,NEW.service_fee_minor,
+              'settlement_offset','unpaid',0,'issued',
+              'Synthetic accepted AADE boundary for customer returns lifecycle acceptance only'
+            );
+
+            INSERT INTO public.platform_vendor_invoice_items(
+              invoice_id,source_kind,source_public_id,procurement_id,agreement_id,
+              service_date,description,vat_rate_bps,net_minor,tax_minor,gross_minor,
+              settlement_offset_minor,source_snapshot
+            ) VALUES (
+              invoice_id,'commission',NEW.public_id,NEW.id,agreement_id,
+              current_date,'Synthetic accepted commission prerequisite · ' || NEW.procurement_number,
+              CASE WHEN NEW.service_fee_tax_minor > 0 THEN 2400 ELSE 0 END,
+              NEW.service_fee_net_minor,NEW.service_fee_tax_minor,NEW.service_fee_minor,
+              NEW.service_fee_minor,
+              jsonb_build_object(
+                'fixture','customer-returns-lifecycle-acceptance',
+                'externalBoundary','AADE accepted invoice',
+                'networkCalled',false,
+                'procurementId',NEW.public_id
+              )
+            );
+            RETURN NEW;
+          END;
+          $$;
+
+          DROP TRIGGER IF EXISTS ci_seed_returns_accepted_commission_invoice ON public.procurements;
+          CREATE TRIGGER ci_seed_returns_accepted_commission_invoice
+          AFTER INSERT OR UPDATE OF status ON public.procurements
+          FOR EACH ROW
+          EXECUTE FUNCTION bls_private.ci_seed_returns_accepted_commission_invoice();
           SQL
       - name: Run customer returns lifecycle acceptance
         run: >-
@@ -230,6 +317,8 @@ jobs:
         if: always()
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER IF EXISTS ci_seed_returns_accepted_commission_invoice ON public.procurements;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_returns_accepted_commission_invoice();
           DROP TRIGGER IF EXISTS ci_seed_returns_vendor_agreement ON public.vendor_businesses;
           DROP FUNCTION IF EXISTS bls_private.ci_seed_returns_vendor_agreement();
           SQL
