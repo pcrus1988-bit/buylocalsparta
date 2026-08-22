@@ -35,11 +35,11 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Typecheck appointments lifecycle acceptance
+      - name: Typecheck appointments acceptance
         run: >-
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
           --allowImportingTsExtensions --skipLibCheck
-          scripts/appointments-lifecycle-acceptance.ts
+          scripts/appointments-lifecycle-acceptance.ts scripts/appointments-authorization-acceptance.ts
       - name: Bootstrap Supabase-compatible role and Vault topology
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -95,6 +95,10 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
         run: npm run db:ready
+      - name: Run appointment authorization and privacy acceptance
+        run: >-
+          node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
+          scripts/appointments-authorization-acceptance.ts
       - name: Run appointments lifecycle acceptance
         run: >-
           node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
