@@ -108,13 +108,13 @@ try {
 
   await runtime.sqlPool.query(`
     WITH market AS (SELECT id FROM markets WHERE code='sparta')
-    INSERT INTO vendor_businesses (public_id,market_id,legal_name,trading_name,status,public_directory_visible,verification_completed_at,contract_started_at)
-    SELECT $1,market.id,$2,$2,'active',true,$3,$3 FROM market
+    INSERT INTO vendor_businesses (public_id,market_id,legal_name,trading_name,status,verification_completed_at,contract_started_at)
+    SELECT $1,market.id,$2,$2,'active',$3,$3 FROM market
   `, [vendorId, `Ask Local Acceptance Vendor ${suffix}`, new Date(now)]);
   await runtime.sqlPool.query(`
     WITH market AS (SELECT id FROM markets WHERE code='sparta')
-    INSERT INTO vendor_businesses (public_id,market_id,legal_name,trading_name,status,public_directory_visible,verification_completed_at,contract_started_at)
-    SELECT $1,market.id,$2,$2,'active',true,$3,$3 FROM market
+    INSERT INTO vendor_businesses (public_id,market_id,legal_name,trading_name,status,verification_completed_at,contract_started_at)
+    SELECT $1,market.id,$2,$2,'active',$3,$3 FROM market
   `, [otherVendorId, `Ask Local Isolation Vendor ${suffix}`, new Date(now)]);
 
   await runtime.sqlPool.query(`
