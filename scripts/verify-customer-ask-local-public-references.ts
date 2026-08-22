@@ -5,6 +5,7 @@ const service = read("apps/web/src/lib/ask-local-service.ts");
 const clarification = read("apps/web/src/lib/ask-local-clarification-service.ts");
 const client = read("apps/web/src/components/AskLocalClient.tsx");
 const accountView = read("apps/web/src/lib/account-view.ts");
+const accountBrowserView = read("apps/web/src/lib/customer-account-browser-view.ts");
 const failures: string[] = [];
 const expect = (condition: boolean, message: string) => { if (!condition) failures.push(message); };
 
@@ -38,7 +39,9 @@ for (const contract of [
 ]) expect(client.includes(contract), `Customer Ask Local UI is missing human-reference action contract: ${contract}`);
 expect(!client.includes("requestId={request.id}"), "Customer clarification UI must not send a generic/internal request id");
 
-expect(accountView.includes("requestId: _internalAskLocalRequestId"), "Customer notification projection must strip legacy Ask Local requestId payload fields");
+expect(accountView.includes("state.notifications.map(customerBrowserNotification)"), "Account dashboard must use the explicit customer notification browser projection");
+expect(accountBrowserView.includes('"requestReference"'), "Customer notification payload allowlist must retain public Ask Local references");
+expect(!accountBrowserView.includes('"requestId"'), "Customer notification payload allowlist must not expose technical Ask Local request ids");
 
 if (failures.length) {
   console.error("Customer Ask Local public-reference checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));

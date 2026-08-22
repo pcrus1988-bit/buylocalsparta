@@ -34,12 +34,13 @@ for (const contract of [
   "backInStockEnabled",
   "priceDropEnabled",
   "minimumPriceDropMinor",
-  "return Response.json({ alert })"
+  "customerBrowserSavedProductAlert(alert)"
 ]) if (!route.includes(contract)) failures.push(`Saved-product alert API is missing contract: ${contract}`);
-if (!route.includes("return Response.json({ saved: result.saved, alert: result.alert }")) failures.push("Saving a product should return its alert baseline preference.");
+if (!route.includes("saved: { canonicalVariantId: result.saved.canonicalVariantId }") || !route.includes("alert: customerBrowserSavedProductAlert(result.alert)")) failures.push("Saving a product should return a minimized saved-product identity and its alert baseline preference.");
 
 for (const contract of [
-  "alert: state.savedProductAlerts.find",
+  "const alert = state.savedProductAlerts.find",
+  "customerBrowserSavedProductAlert(alert)",
   "type ProductAlert",
   "backInStockEnabled",
   "priceDropEnabled",

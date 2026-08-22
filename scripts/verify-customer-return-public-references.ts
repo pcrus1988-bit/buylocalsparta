@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/customer-returns-service.ts");
 const accountView = read("apps/web/src/lib/account-view.ts");
+const accountBrowserView = read("apps/web/src/lib/customer-account-browser-view.ts");
 const route = read("apps/web/src/app/api/account/orders/[id]/returns/route.ts");
 const panel = read("apps/web/src/components/CustomerReturnsPanel.tsx");
 const failures: string[] = [];
@@ -24,10 +25,12 @@ if (service.includes("id: id,") || service.includes("orderId,\n            statu
 }
 
 for (const contract of [
-  "returnId: _internalReturnId",
+  "state.notifications.map(customerBrowserNotification)",
   "payload: { orderReference: resolved.referenceNumber, returnNumber: created.returnNumber, returnReference: created.returnNumber }",
   "dedupeKey: `return:${created.returnId}:requested`"
 ]) if (!accountView.includes(contract)) failures.push(`Account return handling is missing browser/server identifier separation: ${contract}`);
+if (!accountBrowserView.includes('"returnNumber"') || !accountBrowserView.includes('"returnReference"')) failures.push("Customer notification payload allowlist must retain public return references");
+if (accountBrowserView.includes('"returnId"')) failures.push("Customer notification payload allowlist must not expose internal return ids");
 if (accountView.includes("payload: { orderReference: resolved.referenceNumber, returnId:")) failures.push("Customer in-app return notification payload must not expose returnId");
 
 for (const contract of [

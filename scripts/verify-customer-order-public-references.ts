@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const resolver = read("apps/web/src/lib/customer-order-reference.ts");
 const accountView = read("apps/web/src/lib/account-view.ts");
+const accountBrowserView = read("apps/web/src/lib/customer-account-browser-view.ts");
 const dashboard = read("apps/web/src/components/AccountDashboardClient.tsx");
 const orders = read("apps/web/src/app/account/orders/page.tsx");
 const detailPage = read("apps/web/src/app/account/orders/[id]/page.tsx");
@@ -29,9 +30,11 @@ for (const contract of [
   "requireCustomerOrderReference(principal, orderIdentifier)",
   "const orderId = resolved.internalId",
   "downloadUrl: `/api/account/orders/${encodeURIComponent(resolved.referenceNumber)}/invoice`",
-  "orderId: _internalOrderId",
+  "state.notifications.map(customerBrowserNotification)",
   "payload: { orderReference: resolved.referenceNumber }"
 ]) if (!accountView.includes(contract)) failures.push(`Customer order projection still lacks public-reference contract: ${contract}`);
+if (!accountBrowserView.includes('"orderReference"')) failures.push("Customer notification payload allowlist must retain public order references");
+if (accountBrowserView.includes('"orderId"')) failures.push("Customer notification payload allowlist must not expose internal order ids");
 
 if (accountView.includes("id: order.id,")) failures.push("Customer dashboard must not serialize the internal order id as its visible order identifier");
 if (accountView.includes("downloadUrl: `/api/account/orders/${encodeURIComponent(orderId)}/invoice`")) failures.push("Invoice download URL must not expose the internal order id");

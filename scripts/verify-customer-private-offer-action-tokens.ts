@@ -11,6 +11,7 @@ const checkoutPage = read("apps/web/src/app/checkout/private-offer/[id]/page.tsx
 const checkoutRoute = read("apps/web/src/app/api/account/ask-local/offers/[id]/checkout/route.ts");
 const client = read("apps/web/src/components/PrivateOfferCheckoutClient.tsx");
 const accountView = read("apps/web/src/lib/account-view.ts");
+const accountBrowserView = read("apps/web/src/lib/customer-account-browser-view.ts");
 const failures: string[] = [];
 
 for (const contract of [
@@ -71,12 +72,10 @@ for (const contract of [
 ]) if (!client.includes(contract)) failures.push(`Private-offer checkout client is missing public token/reference action wiring: ${contract}`);
 if (client.includes("poffer_")) failures.push("Private-offer checkout client must not embed poffer_ identifiers");
 
-for (const contract of [
-  "privateOfferId: _internalPrivateOfferId",
-  "requestId: _internalAskLocalRequestId",
-  "orderId: _internalOrderId",
-  "returnId: _internalReturnId"
-]) if (!accountView.includes(contract)) failures.push(`Customer notification sanitizer is missing ${contract}`);
+if (!accountView.includes("state.notifications.map(customerBrowserNotification)")) failures.push("Account dashboard must use the explicit customer notification browser projection");
+for (const forbidden of ["privateOfferId", "requestId", "orderId", "returnId"]) {
+  if (accountBrowserView.includes(`"${forbidden}"`)) failures.push(`Customer notification payload allowlist must not include ${forbidden}`);
+}
 
 if (failures.length) {
   console.error("Customer private-offer action-token checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
