@@ -65,9 +65,10 @@ async function readOnlyOfferPreview(canonicalVariantId: string, postcode: string
     JOIN vendor_locations l ON l.id=vo.location_id
     JOIN inventory_balances ib ON ib.offer_id=vo.id
     LEFT JOIN LATERAL (
-      SELECT COALESCE(NULLIF(ap.display_name,''),NULLIF(ap.job_title,''),'Local adviser') AS name
+      SELECT COALESCE(NULLIF(ap.display_name,''),'Local adviser') AS name
       FROM adviser_profiles ap
-      WHERE ap.vendor_id=v.id AND ap.active=true
+      JOIN vendor_users vu ON vu.id=ap.vendor_user_id
+      WHERE vu.vendor_id=v.id AND vu.active=true AND ap.active=true
       ORDER BY ap.created_at,ap.public_id
       LIMIT 1
     ) adviser ON true
