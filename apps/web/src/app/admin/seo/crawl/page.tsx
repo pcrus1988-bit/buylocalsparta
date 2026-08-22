@@ -13,9 +13,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true }
 };
 
-function kindLabel(kind: "static" | "category" | "product" | "partner_vendor" | "research_vendor") {
+function kindLabel(kind: "static" | "cms" | "category" | "product" | "partner_vendor" | "research_vendor") {
   if (kind === "partner_vendor") return "Partner vendor";
   if (kind === "research_vendor") return "Research vendor";
+  if (kind === "cms") return "CMS page";
   return kind[0].toUpperCase() + kind.slice(1);
 }
 
@@ -68,9 +69,9 @@ export default async function AdminSeoCrawlPage() {
       <WorkspaceSectionHeading eyebrow="Declared Site Graph" title="Intended internal linking architecture" note="This is a model of stable public discovery relationships. It is intentionally distinct from the live HTTP crawler below, backlinks and Google index status." />
       <div className="admin-domain-card-grid">
         <article className="admin-domain-card"><span>Strong</span><strong>2+ inbound paths</strong><p>Examples: categories linked from the homepage and sibling category pages; products linked from catalogue and category.</p><b>{data.metrics.strong}</b><i>Healthy</i></article>
-        <article className="admin-domain-card"><span>Weak</span><strong>1 inbound path</strong><p>Discoverable, but overly dependent on one directory or navigation surface. Research vendor dossiers will commonly start here.</p><b>{data.metrics.weak}</b><i>Opportunity</i></article>
-        <article className="admin-domain-card"><span>Orphan</span><strong>No known inbound path</strong><p>An indexable URL should not rely on sitemap submission alone. These require a public discovery link or a deliberate noindex decision.</p><b>{data.metrics.orphan}</b><i>Action</i></article>
-        <article className="admin-domain-card"><span>Runtime</span><strong>Projection availability</strong><p>Products: {data.runtime.productsAvailable ? "available" : "degraded"} · Vendors: {data.runtime.vendorsAvailable ? "available" : "degraded"}.</p><b>{data.metrics.total}</b><i>Total governed nodes</i></article>
+        <article className="admin-domain-card"><span>Weak</span><strong>1 inbound path</strong><p>Discoverable, but overly dependent on one directory or navigation surface. Research vendor dossiers and new CMS pages may start here.</p><b>{data.metrics.weak}</b><i>Opportunity</i></article>
+        <article className="admin-domain-card"><span>Orphan</span><strong>No known inbound path</strong><p>An indexable URL should not rely on XML sitemap submission alone. These require a public discovery link or a deliberate noindex decision.</p><b>{data.metrics.orphan}</b><i>Action</i></article>
+        <article className="admin-domain-card"><span>Runtime</span><strong>Projection availability</strong><p>Products: {data.runtime.productsAvailable ? "available" : "degraded"} · Vendors: {data.runtime.vendorsAvailable ? "available" : "degraded"} · CMS: {data.runtime.cmsAvailable ? "available" : "degraded"}.</p><b>{data.metrics.total}</b><i>Total governed nodes</i></article>
       </div>
     </section>
 
