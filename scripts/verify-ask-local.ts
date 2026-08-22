@@ -38,7 +38,8 @@ for (const contract of [
   "counteroffer.customer_replied"
 ]) if (!clarificationService.includes(contract)) failures.push(`Ask Local clarification governance is missing ${contract}`);
 if (clarificationService.includes("c.context") || clarificationService.includes("INSERT INTO conversations")) failures.push("Ask Local clarification must not depend on a non-existent conversations.context schema bridge");
-for (const contract of ["getAccountSession()", "requireAccountSession(request, true)", "askLocalClarificationMessages", "customerReplyAskLocalClarification", "customerAskLocalRequests"]) if (!clarificationRoute.includes(contract)) failures.push(`Customer clarification API is missing ${contract}`);
+for (const contract of ["getAccountSession()", "requireAccountSession(request, true)", "askLocalClarificationMessages", "customerReplyAskLocalClarification", "customerAskLocalBrowserRequests"]) if (!clarificationRoute.includes(contract)) failures.push(`Customer clarification API is missing ${contract}`);
+if (clarificationRoute.includes("customerAskLocalRequests(principal)")) failures.push("Customer clarification API must not re-serialize technical private-offer identifiers");
 for (const contract of ["requireDailySession(request, true)", "vendorRequestAskLocalClarification", "vendorAdviceWorkspace"]) if (!dailyClarificationRoute.includes(contract)) failures.push(`Vendor clarification API is missing ${contract}`);
 for (const contract of ["/api/account/ask-local/clarifications", "x-csrf-token", "requestId, reply", "νέα 24ωρη προθεσμία"]) if (!clarificationClient.includes(contract)) failures.push(`Customer clarification UI is missing ${contract}`);
 if (!client.includes("AskLocalClarificationClient") || !client.includes('request.status === "needs_info"')) failures.push("Customer Ask Local cards must expose clarification reply only when customer action is required");
