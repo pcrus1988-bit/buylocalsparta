@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertAdminCsrf, assertAdminPermission } from "../../../lib/admin-runtime";
 import { adminSeoWorkspace } from "../../../lib/admin-seo-runtime";
+import { adminSeoCrawlGraph } from "../../../lib/seo-crawl-graph";
 import { getAdminSession } from "../../../lib/admin-session";
 import { getCanonicalProductSummary } from "../../../lib/catalog-view";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
@@ -167,20 +168,51 @@ export async function createSeoDiagnosticReportAction(
     assertAdminPermission(principal, "content.write");
     assertAdminCsrf(principal, field(formData, "csrfToken"));
 
-    const workspace = await adminSeoWorkspace(principal);
+    const [workspace, crawl] = await Promise.all([
+      adminSeoWorkspace(principal),
+      adminSeoCrawlGraph(principal)
+    ]);
+    const crawlDiagnostics = [
+      ...(crawl.metrics.orphan > 0 ? [{
+        id: "crawl-orphans",
+        severity: "warning" as const,
+        title: "Indexable orphan pages detected",
+        detail: "These governed indexable pages currently have no stable internal discovery source in the crawl graph. Add a meaningful internal link or intentionally remove index eligibility.",
+        count: crawl.metrics.orphan
+      }] : []),
+      ...(crawl.metrics.weak > 0 ? [{
+        id: "crawl-weak-links",
+        severity: "info" as const,
+        title: "Weakly linked indexable pages detected",
+        detail: "These indexable pages currently depend on only one stable internal discovery source. Strengthening contextual internal links can improve crawl resilience.",
+        count: crawl.metrics.weak
+      }] : []),
+      ...(crawl.metrics.orphan === 0 && crawl.metrics.weak === 0 ? [{
+        id: "crawl-link-health",
+        severity: "good" as const,
+        title: "Indexable crawl graph has resilient internal links",
+        detail: "No governed indexable page is currently orphaned or dependent on a single stable internal discovery source."
+      }] : [])
+    ];
     const report = await createSeoDiagnosticReport({
       principal,
       reason: field(formData, "reason"),
       sourceGeneratedAt: workspace.generatedAt,
       origin: workspace.origin,
-      metrics: workspace.metrics,
+      metrics: {
+        ...workspace.metrics,
+        crawlIndexable: crawl.metrics.indexable,
+        crawlOrphans: crawl.metrics.orphan,
+        crawlWeak: crawl.metrics.weak
+      },
       routeClassCounts: workspace.routeClassCounts,
       runtime: workspace.runtime,
-      diagnostics: workspace.diagnostics
+      diagnostics: [...workspace.diagnostics, ...crawlDiagnostics]
     });
 
     revalidatePath("/admin/seo");
-    return { status: "success", message: `SEO diagnostic report ${report.id} saved and audit evidence recorded.` };
+    revalidatePath("/admin/seo/crawl");
+    return { status: "success", message: `SEO diagnostic report ${report.id} saved with crawl-graph health and audit evidence recorded.` };
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : "Unable to save the SEO diagnostic report." };
   }
