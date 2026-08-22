@@ -1,0 +1,100 @@
+name: Customer Security and Support Acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+      BLS_EMAIL_DELIVERY_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck customer security/support acceptance
+        run: >-
+          npx tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext
+          --allowImportingTsExtensions --skipLibCheck
+          scripts/customer-security-support-integration-smoke.ts
+      - name: Bootstrap Supabase-compatible role and Vault topology
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+          END
+          $$;
+
+          CREATE SCHEMA IF NOT EXISTS vault;
+          CREATE TABLE IF NOT EXISTS vault.secrets (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            name text UNIQUE,
+            description text,
+            secret text NOT NULL,
+            key_id uuid,
+            nonce bytea,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE OR REPLACE VIEW vault.decrypted_secrets AS
+            SELECT id, name, description, secret, secret AS decrypted_secret,
+                   key_id, nonce, created_at, updated_at
+            FROM vault.secrets;
+          CREATE OR REPLACE FUNCTION vault.create_secret(
+            new_secret text,
+            new_name text,
+            new_description text,
+            new_key_id uuid
+          ) RETURNS uuid
+          LANGUAGE plpgsql
+          AS $$
+          DECLARE
+            created_id uuid := gen_random_uuid();
+          BEGIN
+            INSERT INTO vault.secrets(id, secret, name, description, key_id)
+            VALUES(created_id, new_secret, new_name, new_description, new_key_id);
+            RETURN created_id;
+          END;
+          $$;
+          SQL
+      - name: Apply full PostgreSQL/PostGIS migration chain
+        run: npm run db:migrate
+      - name: Bind acceptance platform runtime credential
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
+      - name: Verify database readiness
+        run: npm run db:ready
+      - name: Run customer security/support acceptance
+        run: >-
+          node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
+          scripts/customer-security-support-integration-smoke.ts
