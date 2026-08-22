@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminSearchConsoleUrlInspector } from "../../../../components/AdminSearchConsoleUrlInspector";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
+import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
-import { getSearchConsoleOverview } from "../../../../lib/seo-search-console";
+import { getSearchConsoleBreakdown, getSearchConsoleOverview } from "../../../../lib/seo-search-console";
 import { getSeoGlobalSettingsSnapshot } from "../../../../lib/seo-settings";
 
 export const metadata: Metadata = {
@@ -12,16 +14,30 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true }
 };
 
+function metric(value: number) {
+  return new Intl.NumberFormat("el-GR", { maximumFractionDigits: 0 }).format(value);
+}
+
+function performanceRows(rows: Awaited<ReturnType<typeof getSearchConsoleBreakdown>>["queries"], empty: string) {
+  if (!rows.length) return <div className="workspace-empty-state"><strong>{empty}</strong><span>Search Console may not have final data for this window yet.</span></div>;
+  return <div className="workspace-queue-list">{rows.map((row) => <article className="workspace-queue-card" key={row.key}>
+    <div className="workspace-queue-head"><div><strong>{row.key}</strong><small>{metric(row.impressions)} impressions · {metric(row.clicks)} clicks</small></div><span className="status-pill">{row.position ? `Position ${row.position.toFixed(1)}` : "No position"}</span></div>
+    <div className="workspace-queue-primary"><span>CTR {(row.ctr * 100).toFixed(1)}% · {metric(row.impressions)} impressions · {metric(row.clicks)} clicks</span></div>
+  </article>)}</div>;
+}
+
 export default async function AdminSeoSearchConsolePage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
 
-  const [overview, seo] = await Promise.all([
+  const [overview, seo, breakdown] = await Promise.all([
     getSearchConsoleOverview(),
-    getSeoGlobalSettingsSnapshot()
+    getSeoGlobalSettingsSnapshot(),
+    getSearchConsoleBreakdown(25)
   ]);
   const ready = overview.readiness.ready;
   const performance = overview.performance;
+  const canInspect = hasAdminPermission(principal, "content.write");
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
@@ -29,14 +45,26 @@ export default async function AdminSeoSearchConsolePage() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Google</div>
-        <h1>Search Console integration</h1>
-        <p className="lead">Server-only, read-only σύνδεση με Google Search Console. Τα credentials παραμένουν αποκλειστικά σε environment variables και δεν αποθηκεύονται στο SEO settings registry, στα reports ή στο browser.</p>
+        <h1>Google Search Console operations</h1>
+        <p className="lead">Search Console integration is now an operational workspace for organic performance and operator-triggered URL Inspection. Credentials remain server-only in environment variables and are never stored in the browser or SEO settings.</p>
       </div>
       <aside className={ready && !overview.error ? "dashboard-health-card" : "dashboard-health-card needs-attention"}>
         <span>Integration</span>
         <strong>{ready ? overview.error ? "API error" : "Ready" : overview.readiness.enabled ? "Incomplete" : "Disabled"}</strong>
         <p>{overview.readiness.siteUrl ?? "No Search Console property configured"}</p>
       </aside>
+    </section>
+
+    <section className="shell admin-local-tabs-shell">
+      <nav className="admin-local-tabs" aria-label="Search Console sections">
+        <a href="#gsc-performance">Performance</a>
+        <a href="#gsc-queries">Queries</a>
+        <a href="#gsc-pages">Pages</a>
+        <a href="#gsc-inspection">URL Inspection</a>
+        <a href="#gsc-readiness">Connection</a>
+        <Link href="/admin/seo/crawl">Declared site graph</Link>
+        <Link href="/admin/seo">SEO overview</Link>
+      </nav>
     </section>
 
     <WorkspaceMetricStrip items={[
@@ -46,17 +74,33 @@ export default async function AdminSeoSearchConsolePage() {
       { label: "Indexing master", value: seo.settings.indexingEnabled ? "On" : "Off", tone: seo.settings.indexingEnabled ? "positive" : "attention" }
     ]} />
 
-    {performance ? <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Google organic performance" title="Search Analytics snapshot" note={`Read-only aggregate for ${performance.startDate} → ${performance.endDate}. Search Console data can lag behind real time.`} />
+    {performance ? <section id="gsc-performance" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="Google organic performance" title="Search Analytics snapshot" note={`Final aggregate for ${performance.startDate} → ${performance.endDate}. Search Console data can lag behind real time.`} />
       <div className="admin-domain-card-grid">
-        <article className="admin-domain-card"><span>Search</span><strong>Clicks</strong><p>Clicks from Google Search in the selected API window.</p><b>{Math.round(performance.clicks)}</b><i>Organic</i></article>
-        <article className="admin-domain-card"><span>Search</span><strong>Impressions</strong><p>How often KONTΑ ΜΟΥ appeared in Google Search results.</p><b>{Math.round(performance.impressions)}</b><i>Visibility</i></article>
+        <article className="admin-domain-card"><span>Search</span><strong>Clicks</strong><p>Clicks from Google Search in the selected API window.</p><b>{metric(performance.clicks)}</b><i>Organic</i></article>
+        <article className="admin-domain-card"><span>Search</span><strong>Impressions</strong><p>How often KONTΑ ΜΟΥ appeared in Google Search results.</p><b>{metric(performance.impressions)}</b><i>Visibility</i></article>
         <article className="admin-domain-card"><span>Search</span><strong>CTR</strong><p>Clicks divided by impressions for the aggregate property view.</p><b>{(performance.ctr * 100).toFixed(1)}%</b><i>Engagement</i></article>
         <article className="admin-domain-card"><span>Search</span><strong>Avg. position</strong><p>Average result position reported by Search Console.</p><b>{performance.position ? performance.position.toFixed(1) : "—"}</b><i>Ranking</i></article>
       </div>
     </section> : null}
 
-    <section className="vendor-section section-tint"><div className="shell">
+    <section id="gsc-queries" className="vendor-section section-tint admin-anchor-section"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Search demand" title="Top Google queries" note={`Top 25 query rows for ${breakdown.startDate} → ${breakdown.endDate}. Use these to identify high-impression/low-CTR terms and near-page-one ranking opportunities.`} />
+      {breakdown.error ? <div className="workspace-empty-state"><strong>Query/page breakdown unavailable.</strong><span>{breakdown.error}</span></div> : performanceRows(breakdown.queries, "No query rows returned.")}
+    </div></section>
+
+    <section id="gsc-pages" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="Landing pages" title="Top Google pages" note="Page-level clicks, impressions, CTR and average position show which public URLs Google is actually surfacing." />
+      {breakdown.error ? <div className="workspace-empty-state"><strong>Page breakdown unavailable.</strong><span>{breakdown.error}</span></div> : performanceRows(breakdown.pages, "No page rows returned.")}
+    </section>
+
+    <section id="gsc-inspection" className="vendor-section section-tint admin-anchor-section"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="URL Inspection" title="Inspect one public URL with Google" note="Operator-triggered and quota-aware. The server rejects URLs outside the configured Search Console property and never exposes credentials to the browser." />
+      <AdminSearchConsoleUrlInspector csrfToken={principal.csrfToken} defaultUrl={seo.settings.canonicalOrigin} enabled={ready && canInspect} />
+      {!canInspect && <p style={{ marginTop: 12 }}>Read-only Admin access can view Search Console evidence, but <code>content.write</code> permission is required to spend URL Inspection quota.</p>}
+    </div></section>
+
+    <section id="gsc-readiness" className="shell vendor-section admin-anchor-section">
       <WorkspaceSectionHeading eyebrow="Readiness" title="Connection checklist" note="The adapter never prints or returns the private key. A service account must separately be granted access to the Search Console property in Google." />
       <div className="workspace-queue-list">
         <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Search Console API switch</strong><small>Set BLS_GOOGLE_SEARCH_CONSOLE_ENABLED=true only after property access and credentials are ready.</small></div><span className="status-pill">{overview.readiness.enabled ? "Enabled" : "Disabled"}</span></div></article>
@@ -65,12 +109,6 @@ export default async function AdminSeoSearchConsolePage() {
         <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>Google verification metadata</strong><small>The public verification tag is separately managed in SEO & Visibility settings; it is not an API credential.</small></div><span className="status-pill">{seo.settings.googleSiteVerification ? "Configured" : "Optional"}</span></div></article>
         {overview.error ? <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>API diagnostic</strong><small>{overview.error}</small></div><span className="status-pill">Needs attention</span></div></article> : null}
       </div>
-    </div></section>
-
-    <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="URL Inspection" title="Designed for bounded diagnostics" note="The server adapter supports URL Inspection, but this page intentionally does not mass-inspect every sitemap URL. Inspection should be operator-triggered and quota-aware once the property is connected." />
-      <p>The in-house crawl graph remains the first-line structural diagnostic. Search Console then supplies Google-specific indexing evidence after the service account is connected.</p>
-      <div className="workspace-action-bar"><span>Next: connect property → verify aggregate API → enable bounded URL inspection reports.</span><div className="workspace-action-buttons"><Link className="text-link" href="/admin/seo/crawl">Crawl graph →</Link><Link className="text-link" href="/admin/seo">SEO Control Centre →</Link></div></div>
     </section>
   </main>;
 }
