@@ -6,6 +6,10 @@ import { SiteHeader } from "../../../components/SiteHeader";
 import { getCatalogCards } from "../../../lib/catalog-view";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 import { getVisitorKey } from "../../../lib/visitor";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
+import { findSeoEntityOverride, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -17,11 +21,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const category = storefrontCategoryBySlug(slug);
   if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
-  return {
-    title: category.label,
-    description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`,
-    alternates: { canonical: `/category/${category.slug}` }
-  };
+  const reference: SeoEntityReference = { kind: "category", id: category.slug };
+  const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  return buildGovernedSeoMetadata({
+    reference,
+    settings,
+    override: findSeoEntityOverride(overrides.entries, reference),
+    defaults: {
+      title: category.label,
+      description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`,
+      canonicalPath: `/category/${category.slug}`
+    },
+    entityEligible: true,
+    defaultIndexAllowed: true
+  });
 }
 
 export default async function CategoryPage({ params }: Props) {

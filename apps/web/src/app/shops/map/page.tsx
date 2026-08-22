@@ -3,16 +3,18 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorMapDirectory, type VendorMapEntry, type VendorMapFacet } from "../../../components/VendorMapDirectory";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
+import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 
 type Props = Readonly<{ searchParams: Promise<{ vendor?: string }> }>;
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/shops/map", {
   title: "Χάρτης καταστημάτων",
-  description: "Βρες τοπικά καταστήματα στη Σπάρτη πάνω στον χάρτη, φιλτράρισε ανά κατηγορία, υποκατηγορία και απόσταση και άνοιξε απευθείας το δημόσιο dossier κάθε επιχείρησης.",
-  alternates: { canonical: "/shops/map" }
-};
+  description: "Βρες τοπικά καταστήματα στη Σπάρτη πάνω στον χάρτη, φιλτράρισε ανά κατηγορία, υποκατηγορία και απόσταση και άνοιξε απευθείας το δημόσιο dossier κάθε επιχείρησης."
+  });
+}
 
 function facetsFor(vendor: PublicVendorDirectoryEntry): readonly VendorMapFacet[] {
   const facets = new Map<string, VendorMapFacet>();

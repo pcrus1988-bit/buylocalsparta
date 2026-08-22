@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/how-it-works", {
   title: "Πώς λειτουργεί",
-  description: "Από την αναζήτηση και την τοπική συμβουλή μέχρι την πληρωμή, την εκπλήρωση και την παρακολούθηση της παραγγελίας.",
-  alternates: { canonical: "/how-it-works" }
-};
+  description: "Από την αναζήτηση και την τοπική συμβουλή μέχρι την πληρωμή, την εκπλήρωση και την παρακολούθηση της παραγγελίας."
+  });
+}
 
 const journey = [
   ["01", "Βρίσκεις αυτό που χρειάζεσαι", "Αναζήτησε προϊόν, κατηγορία ή κατάστημα. Τα ίδια προϊόντα ενοποιούνται ώστε να βλέπεις ένα καθαρό αποτέλεσμα."],

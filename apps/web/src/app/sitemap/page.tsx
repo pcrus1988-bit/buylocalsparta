@@ -4,12 +4,14 @@ import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
 import { ACCOUNT_UTILITY_NAVIGATION, HUMAN_SITEMAP_SECTIONS } from "../../lib/site-navigation";
 import { STOREFRONT_CATEGORIES } from "../../lib/storefront-taxonomy";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/sitemap", {
   title: "Χάρτης ιστοτόπου",
-  description: "Οι πραγματικές δημόσιες διαδρομές του Buy Local Sparta, οργανωμένες χωρίς διπλές ή παραπλανητικές επιλογές.",
-  alternates: { canonical: "/sitemap" }
-};
+  description: "Οι πραγματικές δημόσιες διαδρομές του Buy Local Sparta, οργανωμένες χωρίς διπλές ή παραπλανητικές επιλογές."
+  });
+}
 
 export default function HumanSitemapPage() {
   return (

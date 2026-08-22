@@ -6,11 +6,14 @@ import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/shop", {
   title: "Προϊόντα",
   description: "Ανακάλυψε προϊόντα διαθέσιμα από τοπικά καταστήματα της Σπάρτης."
-};
+  });
+}
 
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 

@@ -3,13 +3,15 @@ import Link from "next/link";
 import { CookieSettingsButton } from "../../components/CookieSettingsButton";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { COOKIE_REGISTRY, LEGAL_LAST_UPDATED, TRACKER_REGISTRY } from "../../lib/legal-transparency";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/cookies", {
   title: "Πολιτική Cookies",
-  description: "Τα cookies και first-party identifiers του ΚΟΝΤΑ ΜΟΥ, ο σκοπός, η διάρκεια και ο τρόπος διαχείρισης της συγκατάθεσης.",
-  alternates: { canonical: "/cookies" }
-};
+  description: "Τα cookies και first-party identifiers του ΚΟΝΤΑ ΜΟΥ, ο σκοπός, η διάρκεια και ο τρόπος διαχείρισης της συγκατάθεσης."
+  });
+}
 
 const categoryLabel = {
   necessary: "Απαραίτητα",

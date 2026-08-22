@@ -5,6 +5,7 @@ import {
   seoVisibilityForPath,
   vendorIndexEligible
 } from "../apps/web/src/lib/seo-visibility-policy.ts";
+import { resolveSeoEntityControl, routeForSeoEntity, seoEntityKey } from "../apps/web/src/lib/seo-entity-policy.ts";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const failures: string[] = [];
@@ -20,6 +21,9 @@ const nextConfig = read("apps/web/next.config.ts");
 const diagnosticRoute = read("apps/web/src/app/api/internal/research-seed-diagnostic/route.ts");
 const settingsRuntime = read("apps/web/src/lib/seo-settings.ts");
 const settingsAction = read("apps/web/src/app/admin/seo/actions.ts");
+const entityRuntime = read("apps/web/src/lib/seo-entity-overrides.ts");
+const entityMetadata = read("apps/web/src/lib/seo-metadata.ts");
+const entityEditor = read("apps/web/src/components/AdminSeoEntityOverrideEditor.tsx");
 
 for (const required of [
   "getPublicCatalogProducts()",
@@ -28,14 +32,16 @@ for (const required of [
   "Promise.allSettled",
   "INDEXABLE_STATIC_ROUTES",
   "getSeoGlobalSettingsSnapshot()",
-  "settings.sitemap",
-  "vendorIndexEligible(vendor, researchPolicy)"
+  "getSeoEntityOverridesSnapshot()",
+  "resolveSeoEntityControl",
+  "absoluteSeoCanonical",
+  "researchVendorIndexEligibility"
 ]) {
   if (!sitemap.includes(required)) failures.push(`Sitemap is missing ${required}`);
 }
 if (!sitemap.includes("if (!settings.indexingEnabled) return []")) failures.push("Sitemap must fail closed when the global indexing master switch is off");
 if (!sitemap.includes('vendor.directoryStatus === "partner"')) failures.push("Sitemap must independently control partner and Research vendor admission");
-if (!sitemap.includes("safeLastModified(vendor.research?.checkedAt)")) failures.push("Research-vendor sitemap entries must preserve a safe freshness signal");
+if (!sitemap.includes("override?.lastReviewedAt ?? vendor.research?.checkedAt")) failures.push("Vendor sitemap entries must preserve governed review/research freshness");
 
 for (const required of [
   "getSeoGlobalSettingsSnapshot()",
@@ -99,22 +105,24 @@ if (!vendorIndexEligible({ ...strongResearchVendor, directoryStatus: "partner" }
 if (!rootLayout.includes("metadataBase: new URL(settings.canonicalOrigin)")) failures.push("Root metadata must use the governed canonical origin");
 if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title and description defaults");
 if (!rootLayout.includes("robots: settings.indexingEnabled")) failures.push("Root metadata must publish the emergency global noindex signal");
-if (!homepage.includes('alternates: { canonical: "/" }')) failures.push("Homepage must publish an explicit self-canonical URL");
+if (!homepage.includes('governedStaticSeoMetadata("/"')) failures.push("Homepage must consume governed entity metadata and publish a self-canonical URL");
 if (!category.includes("title: category.label")) failures.push("Category metadata must rely on the root title template rather than duplicating the brand");
-if (!category.includes('alternates: { canonical: `/category/${category.slug}` }')) failures.push("Category pages must publish self-canonical URLs");
+if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
 if (category.includes('title: `${category.label} · Buy Local Sparta`')) failures.push("Category title must not duplicate the root title template");
 
-if (!vendorLayout.includes("vendorIndexEligible(vendor") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("settings.indexingEnabled")) failures.push("Vendor metadata layout must combine the global switch with Model C entity eligibility");
+if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
 if (!vendor.includes('replaceAll("<", "\\\\u003c")')) failures.push("Structured data must escape HTML-opening characters");
-const vendorPublishesCanonical = vendor.includes('alternates: vendor ? { canonical:') || vendor.includes('alternates: { canonical: `/vendor/${encodeURIComponent(vendor.id)}` }');
+const vendorPublishesCanonical = vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`');
 if (!vendorPublishesCanonical) failures.push("Vendor metadata must publish a canonical URL");
+if (!vendor.includes("seoControl.schemaAllowed ? <script")) failures.push("Vendor structured data must honor the governed schema decision");
 
 for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', "availableAtOrFrom:", '"@type": "BreadcrumbList"']) {
   if (!product.includes(contract)) failures.push(`Product SEO contract is missing ${contract}`);
 }
 if (!product.includes("settings.canonicalOrigin")) failures.push("Product structured data must use the governed canonical origin");
-if (!product.includes('alternates: { canonical:')) failures.push("Product metadata must publish a canonical URL");
+if (!product.includes("buildGovernedSeoMetadata") || !product.includes("absoluteSeoCanonical")) failures.push("Product metadata and schema must publish the governed canonical URL");
+if (!product.includes("seoControl.schemaAllowed ? <script")) failures.push("Product structured data must honor the governed schema decision");
 if (product.includes("vendorPrice") || product.includes("supplierPrice")) failures.push("Product structured data must not expose hidden supplier pricing");
 
 for (const privateSource of ["/account/:path*", "/admin/:path*", "/daily/:path*", "/vendor/finance/:path*", "/api/internal/:path*"]) {
@@ -134,12 +142,41 @@ for (const contract of ['assertAdminPermission(principal, "content.write")', "as
   if (!settingsAction.includes(contract)) failures.push(`SEO settings Server Action is missing ${contract}`);
 }
 
+for (const contract of ["seo.visibility.entities.v1", "expectedVersion", "pg_advisory_xact_lock", "seo.entity_override_upserted", "seo.entity_override_deleted", "before_state", "after_state"]) {
+  if (!entityRuntime.includes(contract)) failures.push(`Governed SEO entity persistence is missing ${contract}`);
+}
+for (const contract of ["buildGovernedSeoMetadata", "findSeoEntityOverride", "resolveSeoEntityControl", "noarchive", "nosnippet"]) {
+  if (!entityMetadata.includes(contract)) failures.push(`Governed SEO entity metadata is missing ${contract}`);
+}
+for (const contract of ["updateSeoEntityOverrideAction", "assertSeoEntityExists", "assertAdminCsrf", 'revalidatePath("/sitemap.xml")']) {
+  if (!settingsAction.includes(contract)) failures.push(`SEO entity Server Action is missing ${contract}`);
+}
+for (const contract of ["Search snippet", "Canonical override", "Quality status", "Delete override", "Reason for this entity change"]) {
+  if (!entityEditor.includes(contract)) failures.push(`SEO entity editor is missing ${contract}`);
+}
+
+const entitySettings = {
+  indexingEnabled: true,
+  sitemap: { staticPages: true, categories: true, products: true, partnerVendors: true, researchVendors: true }
+} as never;
+const allowedEntity = resolveSeoEntityControl({ settings: entitySettings, kind: "product", entityEligible: true, defaultIndexAllowed: true, defaultSchemaAllowed: true });
+if (!allowedEntity.indexAllowed || !allowedEntity.sitemapAllowed || !allowedEntity.schemaAllowed) failures.push("Eligible entities must inherit index, sitemap and schema admission");
+const deniedEntity = resolveSeoEntityControl({ settings: entitySettings, kind: "product", entityEligible: true, defaultIndexAllowed: true, defaultSchemaAllowed: true, override: { indexDecision: "deny", sitemapDecision: "allow", schemaDecision: "allow", qualityStatus: "approved" } as never });
+if (deniedEntity.indexAllowed || deniedEntity.sitemapAllowed || deniedEntity.schemaAllowed) failures.push("Entity noindex must also prevent sitemap and schema admission");
+const blockedAllow = resolveSeoEntityControl({ settings: entitySettings, kind: "research_vendor", entityEligible: false, defaultIndexAllowed: false, override: { indexDecision: "allow", sitemapDecision: "allow", schemaDecision: "allow", qualityStatus: "approved" } as never });
+if (blockedAllow.indexAllowed) failures.push("Entity overrides must not bypass hard public-admission blockers");
+const globalOff = resolveSeoEntityControl({ settings: { ...entitySettings, indexingEnabled: false } as never, kind: "product", entityEligible: true, defaultIndexAllowed: true, override: { indexDecision: "allow", sitemapDecision: "allow", schemaDecision: "allow", qualityStatus: "approved" } as never });
+if (globalOff.indexAllowed || globalOff.sitemapAllowed) failures.push("Entity overrides must not bypass the global indexing master switch");
+if (seoEntityKey({ kind: "static", id: "/about" }) !== "static:/about" || routeForSeoEntity({ kind: "product", id: "cv_1" }) !== "/product/cv_1") failures.push("SEO entity keys/routes must remain stable and public-ID based");
+
 for (const route of INDEXABLE_STATIC_ROUTES) {
   if (seoVisibilityForPath(route.href).visibility !== "PUBLIC_INDEXABLE") failures.push(`Curated sitemap route ${route.href} conflicts with the central visibility policy`);
+  const pagePath = route.href === "/" ? "apps/web/src/app/page.tsx" : `apps/web/src/app${route.href}/page.tsx`;
+  if (!read(pagePath).includes("governedStaticSeoMetadata")) failures.push(`Curated static page ${route.href} is not connected to the governed entity registry`);
 }
 
 if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed metadata/settings, quality-gated Research vendors, sitemap controls, crawler/media policy, private-route headers, structured data and diagnostic hardening verified.");
+console.log("Next SEO checks passed: governed global/entity metadata, audited overrides, quality-gated Research vendors, sitemap/schema controls, crawler/media policy, private-route headers and diagnostic hardening verified.");

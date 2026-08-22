@@ -8,6 +8,9 @@ import { ProductAccountActions } from "../../../components/ProductAccountActions
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
+import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -22,25 +25,35 @@ const productImageStyle = {
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { id } = await params;
-  const product = await getCanonicalProductSummary(id);
+  const [product, { settings }, overrides] = await Promise.all([
+    getCanonicalProductSummary(id),
+    getSeoGlobalSettingsSnapshot(),
+    getSeoEntityOverridesSnapshot()
+  ]);
   if (!product) return { title: "Προϊόν" };
   const description = `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και μία καθαρή εμπειρία αγοράς.`;
-  return {
-    title: product.title,
-    description,
-    alternates: { canonical: `/product/${encodeURIComponent(product.id)}` },
-    openGraph: { title: product.title, description, url: `/product/${encodeURIComponent(product.id)}`, type: "website" }
-  };
+  const reference: SeoEntityReference = { kind: "product", id: product.id };
+  return buildGovernedSeoMetadata({
+    reference,
+    settings,
+    override: findSeoEntityOverride(overrides.entries, reference),
+    defaults: { title: product.title, description, canonicalPath: `/product/${encodeURIComponent(product.id)}` },
+    entityEligible: true,
+    defaultIndexAllowed: true
+  });
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params;
-  const [visitorKey, { settings }] = await Promise.all([getVisitorKey(), getSeoGlobalSettingsSnapshot()]);
+  const [visitorKey, { settings }, overrides] = await Promise.all([getVisitorKey(), getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
   const product = await getCatalogCard(id, visitorKey);
   if (!product) notFound();
+  const reference: SeoEntityReference = { kind: "product", id: product.id };
+  const override = findSeoEntityOverride(overrides.entries, reference);
+  const seoControl = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible: true, defaultIndexAllowed: true, defaultSchemaAllowed: true, override });
   const category = storefrontCategoryForCode(product.categoryCode);
   const origin = settings.canonicalOrigin;
-  const productUrl = `${origin}/product/${encodeURIComponent(product.id)}`;
+  const productUrl = absoluteSeoCanonical(origin, reference, override);
   const categoryUrl = `${origin}/category/${category.slug}`;
   const sellerOfRecord = {
     "@type": "Organization",
@@ -88,7 +101,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <main>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
+      {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} /> : null}
       <div className="announcement">ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</div>
       <SiteHeader compact />
 

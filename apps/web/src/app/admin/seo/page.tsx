@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { AdminSeoEntityOverrideEditor } from "../../../components/AdminSeoEntityOverrideEditor";
 import { AdminSeoSettingsEditor } from "../../../components/AdminSeoSettingsEditor";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
@@ -56,6 +57,7 @@ export default async function AdminSeoPage() {
       <nav className="admin-local-tabs" aria-label="SEO workspace sections">
         <a href="#seo-overview">Overview</a>
         <a href="#seo-settings">Settings</a>
+        <a href="#seo-entities">Entity registry</a>
         <a href="#seo-diagnostics">Diagnostics</a>
         <a href="#seo-research-vendors">Research vendors</a>
         <a href="#seo-audit">Audit</a>
@@ -67,7 +69,7 @@ export default async function AdminSeoPage() {
       { label: "Sitemap (estimated)", value: data.metrics.sitemapEstimatedCount, tone: data.settings.settings.indexingEnabled ? "positive" : "attention", hint: data.settings.settings.indexingEnabled ? data.sitemapUrl : "global indexing disabled" },
       { label: "Products", value: data.metrics.products, hint: `${data.metrics.productsWithApprovedImage} with approved image` },
       { label: "Research indexed", value: data.metrics.researchIndexEligible, tone: blockedResearch ? "attention" : "positive", hint: `${blockedResearch} held by quality gate` },
-      { label: "Private/noindex", value: data.metrics.knownNonIndexablePages, hint: "known page routes" }
+      { label: "Overrides", value: data.metrics.entityOverrides, tone: data.metrics.entityOverrides ? "attention" : undefined, hint: `${data.entityCandidates.length} governed entities` }
     ]} />
 
     <section className="shell vendor-section">
@@ -88,6 +90,13 @@ export default async function AdminSeoPage() {
         : <div className="workspace-empty-state"><strong>Read-only SEO access.</strong><span>Your Admin role can inspect diagnostics and policy, but content.write permission is required to change search settings.</span></div>}
     </div></section>
 
+    <section id="seo-entities" className="shell vendor-section admin-anchor-section">
+      <WorkspaceSectionHeading eyebrow="Phase 1.3 · Governed overrides" title="Page and entity SEO registry" note="Generated metadata remains the default. Overrides are intentional, version-checked and auditable; they cannot bypass global shutdown, private-route policy, public admission or hard Research quality blockers." />
+      {canEdit
+        ? <AdminSeoEntityOverrideEditor key={data.entityOverrides.version} candidates={data.entityCandidates} snapshot={data.entityOverrides} csrfToken={data.csrfToken} />
+        : <div className="workspace-empty-state"><strong>Read-only SEO registry.</strong><span>Your Admin role can inspect effective entity decisions, but content.write permission is required to create or remove overrides.</span></div>}
+    </section>
+
     <section id="seo-diagnostics" className="shell vendor-section admin-anchor-section">
       <WorkspaceSectionHeading eyebrow="In-house diagnostics" title="Search & privacy checks" note="These checks use only public/read-only projections and configuration state. They do not store session cookies, customer data or credentials." />
       <div className="workspace-queue-list">
@@ -105,7 +114,7 @@ export default async function AdminSeoPage() {
       <div className="workspace-queue-list">
         {data.researchVendors.length === 0 ? <div className="workspace-empty-state"><strong>No research vendors in the public directory projection.</strong><span>The quality gate will populate automatically when public research records are available.</span></div> : data.researchVendors.slice(0, 100).map((vendor) => <article className="workspace-queue-card" key={vendor.id}>
           <div className="workspace-queue-head">
-            <div><strong>{vendor.name}</strong><small>Quality score {vendor.score}/{vendor.minimumScore}{vendor.checkedAt ? ` · checked ${vendor.checkedAt}` : ""}</small></div>
+            <div><strong>{vendor.name}</strong><small>Quality score {vendor.score}/{vendor.minimumScore}{vendor.checkedAt ? ` · checked ${vendor.checkedAt}` : ""}{vendor.overrideDecision ? ` · override ${vendor.overrideDecision}` : ""}</small></div>
             <span className="status-pill">{vendor.eligible ? "Index eligible" : "Held back"}</span>
           </div>
           <div className="workspace-queue-primary"><span>{vendor.reasons.join(" · ") || "No positive quality signals recorded"}</span></div>
@@ -117,7 +126,20 @@ export default async function AdminSeoPage() {
     </section>
 
     <section id="seo-audit" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="Accountability" title="SEO settings audit history" note="Each persisted change records the actor, timestamp, reason and the complete before/after state. This view highlights the fields that changed." />
+      <WorkspaceSectionHeading eyebrow="Accountability" title="SEO audit history" note="Each global or entity-level change records the actor, timestamp, reason and before/after state. Entity deletions are retained as immutable evidence." />
+      <h3>Entity overrides</h3>
+      <div className="workspace-queue-list" style={{ marginTop: 12 }}>
+        {data.entityAudit.length === 0
+          ? <div className="workspace-empty-state"><strong>No entity override history yet.</strong><span>The first authorised entity save or deletion will create immutable audit evidence.</span></div>
+          : data.entityAudit.map((entry) => <article className="workspace-queue-card" key={entry.id}>
+            <div className="workspace-queue-head">
+              <div><strong>{entry.reason ?? `SEO entity override ${entry.action}`}</strong><small>{entry.entityKey} · {new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(entry.createdAt))} · actor {entry.actorId}</small></div>
+              <span className="status-pill">{entry.action}</span>
+            </div>
+            <div className="workspace-queue-primary"><span>{entry.changedKeys.length ? entry.changedKeys.join(" · ") : "No normalized field difference detected"}</span></div>
+          </article>)}
+      </div>
+      <h3 style={{ marginTop: 28 }}>Global settings</h3>
       <div className="workspace-queue-list">
         {data.settingsAudit.length === 0
           ? <div className="workspace-empty-state"><strong>No persisted SEO settings changes yet.</strong><span>The first authorised save will create the initial immutable audit record.</span></div>

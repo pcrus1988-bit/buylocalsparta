@@ -3,13 +3,15 @@ import Link from "next/link";
 import { AccessibilityReportForm } from "../../components/AccessibilityReportForm";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { CONTROLLER, LEGAL_LAST_UPDATED } from "../../lib/legal-transparency";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/accessibility", {
   title: "Δήλωση Προσβασιμότητας",
-  description: "Ο στόχος WCAG 2.2 AA του ΚΟΝΤΑ ΜΟΥ, τρόποι χρήσης, γνωστές περιοχές υπό έλεγχο και τρόπος αναφοράς εμποδίου προσβασιμότητας.",
-  alternates: { canonical: "/accessibility" }
-};
+  description: "Ο στόχος WCAG 2.2 AA του ΚΟΝΤΑ ΜΟΥ, τρόποι χρήσης, γνωστές περιοχές υπό έλεγχο και τρόπος αναφοράς εμποδίου προσβασιμότητας."
+  });
+}
 
 const principles = [
   ["Αντιληπτό", "Επαρκής αντίθεση, κείμενο που μεγεθύνεται, εναλλακτικό κείμενο για ουσιαστικές εικόνες και πληροφορία που δεν βασίζεται μόνο στο χρώμα."],

@@ -3,6 +3,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../lib/public-vendor-directory";
 import { PUBLIC_VENDOR_CATEGORIES } from "../../lib/public-vendor-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
 type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string; subcategory?: string; status?: string }> }>;
 
@@ -14,10 +15,12 @@ type ResearchVendorGroup = Readonly<{
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/shops", {
   title: "Καταστήματα & άνθρωποι",
   description: "Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
-};
+  });
+}
 
 function normalizedSearch(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");

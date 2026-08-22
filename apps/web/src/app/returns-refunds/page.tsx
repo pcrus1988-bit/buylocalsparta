@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/returns-refunds", {
   title: "Επιστροφές & επιστροφές χρημάτων",
-  description: "Η πραγματική διαδρομή ακύρωσης, επιστροφής, ελέγχου και αποκατάστασης μιας παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Sparta.",
-  alternates: { canonical: "/returns-refunds" }
-};
+  description: "Η πραγματική διαδρομή ακύρωσης, επιστροφής, ελέγχου και αποκατάστασης μιας παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  });
+}
 
 const stages = [
   ["01", "Άνοιξε τη συγκεκριμένη παραγγελία", "Ο λογαριασμός είναι η πηγή αλήθειας για κατάσταση, γραμμές προϊόντων και επιτρεπόμενες ενέργειες. Ξεκίνα πάντα από εκεί, όχι από μια γενική φόρμα."],

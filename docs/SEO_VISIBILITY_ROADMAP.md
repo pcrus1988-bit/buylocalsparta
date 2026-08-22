@@ -134,6 +134,8 @@ All writes:
 
 ## 1.3 Page/entity SEO registry
 
+Implementation status: **governed override registry implemented on the working branch.** Static pages, curated categories, public canonical products, partner vendors and Research vendors now resolve through one market-scoped registry. Generated metadata remains the default; intentional overrides are permission/CSRF protected, optimistic-version checked and append-only audited. Global indexing, public entity admission, sitemap-family controls and hard Research quality blockers remain authoritative. Persisted override fields now drive page metadata, canonical URLs, index/noindex, XML sitemap admission and Product/LocalBusiness schema eligibility.
+
 Manage SEO for:
 
 - static public pages
