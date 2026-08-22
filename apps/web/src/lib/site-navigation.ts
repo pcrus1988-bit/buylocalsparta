@@ -115,6 +115,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/join/apply",
   "/account",
   "/account/ask-local",
+  "/account/appointments",
   "/account/notifications",
   "/account/orders",
   "/account/orders/[id]",
