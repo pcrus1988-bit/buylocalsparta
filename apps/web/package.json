@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "prebuild": "node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs && node --experimental-strip-types ../../scripts/verify-production-schema-head.ts --vercel-production-only && if [ \"$VERCEL_GIT_COMMIT_REF\" = \"agent/nikolaou-master-crawl-20260822\" ]; then python -m pip install --disable-pip-version-check requests beautifulsoup4 lxml 'psycopg[binary]' && NIKOLAOU_CRAWL_RUN_ID=nikolaou_master_20260823_001 python ../../scripts/crawl-nikolaou-to-postgres.py; fi"
+    "prebuild": "node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs && node --experimental-strip-types ../../scripts/verify-production-schema-head.ts --vercel-production-only && if [ \"$VERCEL_GIT_COMMIT_REF\" = \"agent/nikolaou-master-crawl-20260822\" ]; then python -m pip install --break-system-packages --disable-pip-version-check requests beautifulsoup4 lxml 'psycopg[binary]' && NIKOLAOU_CRAWL_RUN_ID=nikolaou_master_20260823_001 python ../../scripts/crawl-nikolaou-to-postgres.py; fi"
   },
   "dependencies": {
     "@buy-local-sparta/core": "0.24.0",
