@@ -27,6 +27,7 @@ jobs:
       BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       BLS_ENABLE_DEMO_ACCOUNTS: "false"
       BLS_EMAIL_DELIVERY_ENABLED: "false"
+      BLS_ACCEPTANCE_SYNTHETIC_DB: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
