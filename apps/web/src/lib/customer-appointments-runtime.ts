@@ -71,7 +71,6 @@ function optionalText(value: unknown): string | undefined { const valueText = ty
 function epoch(value: unknown): number { if (!value) return 0; const parsed = value instanceof Date ? value.getTime() : new Date(String(value)).getTime(); return Number.isFinite(parsed) ? parsed : 0; }
 function appointmentPublicId(): string { return `appointment_${randomUUID().replaceAll("-", "")}`; }
 function auditPublicId(): string { return `audit_${randomUUID().replaceAll("-", "")}`; }
-function notificationPublicId(): string { return `notification_${randomUUID().replaceAll("-", "")}`; }
 
 export function customerAppointmentsReadiness(): { ready: boolean; message: string } {
   return productionDatabaseConfigured()
@@ -377,11 +376,11 @@ async function notifyVendor(tx: SqlExecutor, vendorUuid: string, input: {
 }): Promise<void> {
   await tx.query(`
     INSERT INTO notifications(id,public_id,user_id,vendor_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
-    SELECT gen_random_uuid(),$1,vu.user_id,$2::uuid,'in_app','transactional',$3,'appointments-v1','el',$4,$5,$6::jsonb,'queued',$7 || ':' || u.public_id,$8
+    SELECT gen_random_uuid(),'notification_' || replace(gen_random_uuid()::text,'-',''),vu.user_id,$1::uuid,'in_app','transactional',$2,'appointments-v1','el',$3,$4,$5::jsonb,'queued',$6 || ':' || u.public_id,$7
     FROM vendor_users vu JOIN users u ON u.id=vu.user_id
-    WHERE vu.vendor_id=$2::uuid AND vu.active=true AND u.status='active'
+    WHERE vu.vendor_id=$1::uuid AND vu.active=true AND u.status='active'
     ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
-  `, [notificationPublicId(), vendorUuid, input.eventType, input.title, input.body, JSON.stringify({ title: input.title, body: input.body, appointmentId: input.appointmentId, vendorId: input.vendorId }), input.dedupeKey, input.now]);
+  `, [vendorUuid, input.eventType, input.title, input.body, JSON.stringify({ title: input.title, body: input.body, appointmentId: input.appointmentId, vendorId: input.vendorId }), input.dedupeKey, input.now]);
 }
 
 function formatAthens(value: Date): string {
