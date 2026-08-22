@@ -17,12 +17,21 @@ const redirectCache = globalThis as typeof globalThis & {
   __blsPublicCmsRedirectCache?: { expiresAt: number; items: Map<string, ContentRedirect> };
 };
 
-function normalizePublicPath(value: string): string {
+function normalizeLookupPath(value: string): string {
   const raw = value.trim();
   if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
   const [pathname] = raw.split(/[?#]/, 1);
   const collapsed = (pathname || "/").replace(/\/{2,}/g, "/");
   return collapsed.length > 1 && collapsed.endsWith("/") ? collapsed.slice(0, -1) : collapsed;
+}
+
+function normalizeTargetPath(value: string): string | undefined {
+  const raw = value.trim();
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || /[\r\n]/.test(raw)) return undefined;
+  const match = raw.match(/^([^?#]*)(.*)$/s);
+  const pathname = normalizeLookupPath(match?.[1] ?? raw);
+  const suffix = match?.[2] ?? "";
+  return `${pathname}${suffix}`;
 }
 
 function epoch(value: unknown): number {
@@ -52,9 +61,9 @@ async function loadActiveRedirects(now = Date.now()): Promise<Map<string, Conten
   `, [MARKET_ID]), { readOnly: true });
   const items = new Map<string, ContentRedirect>();
   for (const row of rows.rows) {
-    const fromPath = normalizePublicPath(String(row.from_path));
-    const toPath = normalizePublicPath(String(row.to_path));
-    if (fromPath === "/" || fromPath === toPath) continue;
+    const fromPath = normalizeLookupPath(String(row.from_path));
+    const toPath = normalizeTargetPath(String(row.to_path));
+    if (!toPath || fromPath === "/" || fromPath === normalizeLookupPath(toPath)) continue;
     items.set(fromPath, {
       id: String(row.public_id),
       marketId: MARKET_ID,
@@ -71,7 +80,7 @@ async function loadActiveRedirects(now = Date.now()): Promise<Map<string, Conten
 }
 
 export async function getActivePublicCmsRedirect(pathname: string): Promise<ContentRedirect | undefined> {
-  const normalized = normalizePublicPath(pathname);
+  const normalized = normalizeLookupPath(pathname);
   if (normalized === "/") return undefined;
   return (await loadActiveRedirects()).get(normalized);
 }
