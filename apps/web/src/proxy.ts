@@ -9,8 +9,11 @@ const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
 
 const REDIRECT_PROTECTED_ROOTS = [
-  "/api", "/admin", "/account", "/vendor", "/daily", "/checkout", "/cart",
-  "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password"
+  "/api", "/admin", "/account", "/daily", "/checkout", "/cart",
+  "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password", "/join/apply",
+  "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance",
+  "/vendor/notifications", "/vendor/orders", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping",
+  "/vendor/storefront", "/vendor/trust"
 ] as const;
 
 function validVisitor(value: string | undefined): string | undefined {
