@@ -62,7 +62,7 @@ expect(!customerRuntime.includes("body: message,"), "Support-team notification b
 
 for (const route of [customerRoute, customerMessageRoute]) {
   expect(route.includes("requireAccountSession(request, true)"), "Customer support mutation route must require authenticated CSRF-protected account session");
-  expect(route.includes('Cache-Control\": \"no-store\"'), "Customer support route must disable response caching");
+  expect(route.includes('Cache-Control": "no-store"'), "Customer support route must disable response caching");
 }
 expect(customerRoute.includes("createCustomerSupportCase"), "Customer support collection API must create cases through the governed runtime");
 expect(customerMessageRoute.includes("replyCustomerSupportCase"), "Customer support message API must reply through the governed runtime");
