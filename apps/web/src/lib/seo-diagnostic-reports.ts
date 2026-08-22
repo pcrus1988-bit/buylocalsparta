@@ -33,6 +33,9 @@ export type SeoDiagnosticReportMetrics = Readonly<{
   productsMissingApprovedImage: number;
   knownNonIndexablePages: number;
   entityOverrides: number;
+  crawlIndexable: number;
+  crawlOrphans: number;
+  crawlWeak: number;
 }>;
 
 export type SeoDiagnosticReportRouteClasses = Readonly<{
@@ -109,7 +112,7 @@ function normalizeMetrics(value: unknown): SeoDiagnosticReportMetrics | undefine
   const input = object(value);
   const productCount = finiteCount(input.products);
   if (productCount === undefined) return undefined;
-  const keys: readonly Exclude<keyof SeoDiagnosticReportMetrics, "products" | "productIndexEligible">[] = [
+  const keys: readonly Exclude<keyof SeoDiagnosticReportMetrics, "products" | "productIndexEligible" | "crawlIndexable" | "crawlOrphans" | "crawlWeak">[] = [
     "staticIndexable",
     "categories",
     "partners",
@@ -122,9 +125,15 @@ function normalizeMetrics(value: unknown): SeoDiagnosticReportMetrics | undefine
     "knownNonIndexablePages",
     "entityOverrides"
   ];
+  // Crawl-graph metrics were added after the first report format. Defaulting the
+  // three new counts to zero keeps older bounded snapshots readable without a data
+  // migration while every newly-created report supplies the real live graph counts.
   const normalized = {
     products: productCount,
-    productIndexEligible: finiteCount(input.productIndexEligible) ?? productCount
+    productIndexEligible: finiteCount(input.productIndexEligible) ?? productCount,
+    crawlIndexable: finiteCount(input.crawlIndexable) ?? 0,
+    crawlOrphans: finiteCount(input.crawlOrphans) ?? 0,
+    crawlWeak: finiteCount(input.crawlWeak) ?? 0
   } as Record<keyof SeoDiagnosticReportMetrics, number>;
   for (const key of keys) {
     const count = finiteCount(input[key]);
