@@ -144,6 +144,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/ask-local",
   "/admin/categories",
   "/admin/catalogue-intake",
+  "/admin/catalogue-intake/import",
   "/admin/content",
   "/admin/seo",
   "/admin/seo/crawl",
