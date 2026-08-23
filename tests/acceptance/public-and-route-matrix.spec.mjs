@@ -23,6 +23,29 @@ const STATIC_ROUTE_MATRIX = [
   "/admin/privacy", "/admin/accessibility", "/admin/trust", "/admin/ask-local"
 ];
 
+async function visibleHomepageLink(page, href) {
+  let link = page.locator(`a[href="${href}"]:visible`).first();
+  if (await link.count()) return link;
+
+  const menuToggle = page.getByRole("button", { name: /^Μενού$/ });
+  if (await menuToggle.isVisible().catch(() => false)) {
+    await menuToggle.click();
+    link = page.locator(`a[href="${href}"]:visible`).first();
+  }
+  return link;
+}
+
+async function showLegacyHomepageHero(page) {
+  const input = page.locator("#home-search");
+  if (await input.isVisible().catch(() => false)) return input;
+
+  const legacyHeroTab = page.locator('button[role="tab"][aria-label^="Banner 2 από"]').first();
+  await expect(legacyHeroTab, "managed hero should expose a control for the search hero").toBeVisible();
+  await legacyHeroTab.click();
+  await expect(input).toBeVisible();
+  return input;
+}
+
 test("all fixed public/private route entry points avoid server errors", async ({ request }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "route inventory only needs one HTTP pass");
   const failures = [];
@@ -39,8 +62,8 @@ test("homepage primary navigation works through real browser clicks", async ({ p
 
   for (const href of ["/shop", "/shops", "/advice", "/ask-local", "/cart"]) {
     await page.goto("/");
-    const link = page.locator(`a[href="${href}"]`).first();
-    await expect(link, `missing homepage link ${href}`).toBeVisible();
+    const link = await visibleHomepageLink(page, href);
+    await expect(link, `missing visible homepage link ${href}`).toBeVisible();
     await link.click();
     await expect(page).toHaveURL(new RegExp(`${href.replaceAll("/", "\\/")}(?:[?#].*)?$`));
   }
@@ -48,13 +71,12 @@ test("homepage primary navigation works through real browser clicks", async ({ p
 
 test("homepage search submits into governed shop search", async ({ page }) => {
   await page.goto("/");
-  const input = page.locator('input[name="q"]').first();
-  await expect(input).toBeVisible();
+  const input = await showLegacyHomepageHero(page);
   await input.fill("Bormann");
   const form = input.locator("xpath=ancestor::form");
   await Promise.all([
     page.waitForURL(/\/shop(?:\?|$)/),
-    form.locator('button[type="submit"], input[type="submit"]').first().click()
+    form.getByRole("button", { name: /Αναζήτηση/ }).click()
   ]);
   expect(new URL(page.url()).searchParams.get("q")).toBe("Bormann");
 });
