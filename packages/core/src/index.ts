@@ -1,5 +1,6 @@
 export * from "./common/index.ts";
 export * from "./catalog/index.ts";
+export * from "./ingestion/index.ts";
 export * from "./fairness/index.ts";
 export * from "./inventory/index.ts";
 export * from "./commerce/index.ts";
