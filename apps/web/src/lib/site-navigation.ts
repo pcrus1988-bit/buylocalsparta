@@ -153,6 +153,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/seo/reports",
   "/admin/seo/schema",
   "/admin/seo/search-console",
+  "/admin/seo/search-console/index-coverage",
   "/admin/seo/sitemaps",
   "/admin/hero",
   "/admin/customers",

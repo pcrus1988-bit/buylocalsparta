@@ -6,16 +6,20 @@ on:
       - "apps/web/src/app/admin/seo/pages/**"
       - "apps/web/src/app/admin/seo/search-console/**"
       - "apps/web/src/app/api/admin/seo/search-console/**"
+      - "apps/web/src/components/AdminSearchConsoleCoverageSample.tsx"
       - "apps/web/src/components/AdminSearchConsoleSitemap.tsx"
       - "apps/web/src/components/AdminSearchConsoleSync.tsx"
       - "apps/web/src/lib/seo-gsc-history.ts"
+      - "apps/web/src/lib/seo-gsc-index-coverage.ts"
       - "apps/web/src/lib/seo-gsc-sitemap.ts"
       - "apps/web/src/lib/seo-page-detail.ts"
       - "apps/web/src/lib/seo-search-console.ts"
+      - "apps/web/src/lib/site-navigation.ts"
       - "db/migrations/0121_seo_gsc_history.sql"
       - "db/migrations/checksums.json"
       - "packages/postgres-runtime/src/index.ts"
       - "scripts/verify-seo-gsc-history.ts"
+      - "scripts/verify-seo-gsc-index-coverage.ts"
       - ".github/workflows/seo-gsc-history.yml"
 
 permissions:
@@ -33,3 +37,5 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify Search Console history contracts
         run: node --experimental-strip-types scripts/verify-seo-gsc-history.ts
+      - name: Verify Google index coverage contracts
+        run: node --experimental-strip-types scripts/verify-seo-gsc-index-coverage.ts
