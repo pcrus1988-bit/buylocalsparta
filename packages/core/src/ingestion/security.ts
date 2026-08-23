@@ -165,7 +165,7 @@ function isHextet(value: string): boolean {
 }
 
 function normalizeHostname(value: string): string {
-  return value.trim().toLowerCase().replace(/\.$/, "");
+  return value.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
 }
 
 function reject(reason: string): CrawlUrlValidation {
