@@ -18,6 +18,8 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: polo-catalogue-crawl-${{ github.event_name }}-${{ github.ref }}
@@ -39,9 +41,15 @@ jobs:
           node-version: 22
 
       - name: Crawl POLO public catalogue
-        run: node scripts/catalogue/crawl-polo.mjs
+        id: crawl
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/crawl-polo.mjs 2>&1 | tee /tmp/polo-crawl.log
 
       - name: Upload crawl dataset
+        if: steps.crawl.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: polo-catalogue-${{ github.run_id }}
@@ -49,8 +57,43 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Upload crawl log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: polo-crawl-log-${{ github.run_id }}
+          path: /tmp/polo-crawl.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Report crawl result on PR
+        if: github.event_name == 'pull_request' && always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "### POLO catalogue crawl — run ${{ github.run_id }}"
+            echo
+            if [[ "${{ steps.crawl.outcome }}" == "success" && -f data/imports/polo/polo-crawl-summary.json ]]; then
+              echo "Crawl completed successfully. Import/QA files were generated in the workflow artifact."
+              echo
+              echo '```json'
+              cat data/imports/polo/polo-crawl-summary.json
+              echo '```'
+            else
+              echo "Crawl outcome: **${{ steps.crawl.outcome }}**"
+              echo
+              echo '```text'
+              tail -n 100 /tmp/polo-crawl.log 2>/dev/null || true
+              echo '```'
+            fi
+          } > /tmp/polo-pr-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/polo-pr-comment.md
+
       - name: Commit crawl output to branch
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.crawl.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
@@ -63,3 +106,7 @@ jobs:
           fi
           git commit -m "data: refresh POLO catalogue crawl [skip ci]"
           git push origin HEAD:chore/polo-catalogue-crawl
+
+      - name: Fail workflow when crawler failed
+        if: steps.crawl.outcome != 'success'
+        run: exit 1
