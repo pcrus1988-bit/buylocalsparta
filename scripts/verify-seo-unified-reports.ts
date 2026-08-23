@@ -36,10 +36,13 @@ for (const contract of [
   'robots: { index: false, follow: false, nocache: true }',
   'href="/admin/seo/schema"',
   'href="/admin/seo/reports"',
-  "/api/admin/seo/reports/current?format=json",
-  "/api/admin/seo/reports/current?format=csv",
+  "currentJsonExport",
+  "currentCsvExport",
+  'new URLSearchParams({ format: "json" })',
+  'new URLSearchParams({ format: "csv" })',
   "AdminSeoReportRunner"
 ]) expect(page.includes(contract), `Unified SEO reports Admin page is missing ${contract}`);
+expect(!page.includes('href="/api/admin/seo/reports/current?'), "Live API downloads must not be represented as static Next page links");
 
 for (const contract of [
   "getAdminSession()",
