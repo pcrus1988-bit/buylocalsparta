@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/web/src/app/admin/seo/reports/**"
       - "apps/web/src/app/api/admin/seo/reports/**"
+      - "apps/web/src/components/AdminSeoEvidenceRefresh.tsx"
       - "apps/web/src/lib/seo-unified-report.ts"
       - "apps/web/src/lib/site-navigation.ts"
       - "apps/web/src/lib/workspace-navigation.ts"
