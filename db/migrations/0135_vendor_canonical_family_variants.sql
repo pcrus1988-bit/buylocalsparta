@@ -102,6 +102,42 @@ BEGIN
     RAISE EXCEPTION 'vendor submission variant attributes do not match resolver input';
   END IF;
 
+  -- Defense in depth: the definer function accepts only axes governed by the selected
+  -- Product Type. Required variant-defining axes must be present even if a caller bypasses
+  -- the TypeScript form/service validator.
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_object_keys(COALESCE(p_variant_attributes,'{}'::jsonb)) supplied(attribute_code)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM public.product_type_attributes pta
+      JOIN public.attribute_definitions ad ON ad.id=pta.attribute_id AND ad.active=true
+      WHERE pta.product_type_id=v_product_type_id
+        AND pta.variant_defining=true
+        AND pta.value_level='variant'
+        AND ad.code=supplied.attribute_code
+    )
+  ) THEN
+    RAISE EXCEPTION 'variant attributes contain an ungoverned Product Type axis';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.product_type_attributes pta
+    JOIN public.attribute_definitions ad ON ad.id=pta.attribute_id AND ad.active=true
+    WHERE pta.product_type_id=v_product_type_id
+      AND pta.variant_defining=true
+      AND pta.value_level='variant'
+      AND pta.requirement_level='required'
+      AND (
+        NOT (COALESCE(p_variant_attributes,'{}'::jsonb) ? ad.code)
+        OR COALESCE(p_variant_attributes->ad.code,'null'::jsonb)='null'::jsonb
+        OR (jsonb_typeof(p_variant_attributes->ad.code)='string' AND btrim(p_variant_attributes->>ad.code)='')
+      )
+  ) THEN
+    RAISE EXCEPTION 'required governed variant identity is missing';
+  END IF;
+
   -- Attach a legacy ungrouped canonical to a family exactly once. Family creation is a
   -- grouping operation only; the sibling created later remains inactive regardless of
   -- anchor state.
