@@ -85,12 +85,16 @@ function canonicalComparable(value: string | undefined): string | undefined {
 function rowState(registry: SeoUrlRegistryRow, inspection: InspectionRow | undefined, nowMs: number): SeoGscCoverageRow {
   const capturedAt = inspection ? iso(inspection.captured_at) : undefined;
   const capturedMs = capturedAt ? Date.parse(capturedAt) : Number.NaN;
-  const stale = !capturedAt || !Number.isFinite(capturedMs) || nowMs - capturedMs > COVERAGE_MAX_AGE_HOURS * 3_600_000;
+  const stale = Boolean(capturedAt && (!Number.isFinite(capturedMs) || nowMs - capturedMs > COVERAGE_MAX_AGE_HOURS * 3_600_000));
   const googleCanonical = text(inspection?.google_canonical);
   const expectedCanonical = canonicalComparable(registry.canonicalUrl);
   const canonicalMismatch = Boolean(googleCanonical && expectedCanonical && canonicalComparable(googleCanonical) !== expectedCanonical);
   const verdict = text(inspection?.verdict);
-  const healthy = Boolean(inspection && !stale && verdict === "PASS" && !canonicalMismatch);
+  const indexingState = text(inspection?.indexing_state);
+  const pageFetchState = text(inspection?.page_fetch_state);
+  const indexingAllowed = !indexingState || indexingState === "INDEXING_ALLOWED";
+  const fetchHealthy = !pageFetchState || pageFetchState === "SUCCESSFUL";
+  const healthy = Boolean(inspection && !stale && verdict === "PASS" && !canonicalMismatch && indexingAllowed && fetchHealthy);
   return {
     id: registry.id,
     route: registry.route,
@@ -102,8 +106,8 @@ function rowState(registry: SeoUrlRegistryRow, inspection: InspectionRow | undef
     canonicalMismatch,
     verdict,
     coverageState: text(inspection?.coverage_state),
-    indexingState: text(inspection?.indexing_state),
-    pageFetchState: text(inspection?.page_fetch_state),
+    indexingState,
+    pageFetchState,
     googleCanonical,
     userCanonical: text(inspection?.user_canonical),
     lastCrawlTime: iso(inspection?.last_crawl_time),
@@ -126,7 +130,7 @@ export async function getSeoGscIndexCoverageWorkspace(principal: SessionPrincipa
     return {
       persistenceAvailable: false,
       rows: targets.map((row) => rowState(row, undefined, Date.now())),
-      metrics: { governedIndexable: targets.length, inspected: 0, healthy: 0, attention: 0, missing: targets.length, stale: targets.length, canonicalMismatch: 0 },
+      metrics: { governedIndexable: targets.length, inspected: 0, healthy: 0, attention: 0, missing: targets.length, stale: 0, canonicalMismatch: 0 },
       maxAgeHours: COVERAGE_MAX_AGE_HOURS
     };
   }
