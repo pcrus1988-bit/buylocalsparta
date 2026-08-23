@@ -15,7 +15,18 @@ const EXPECTED_COMPRESSED_SHA = "036659754afe49d29b97fffc4d472d00a885d6db67831cb
 const EXPECTED_ROWS = 3_165;
 
 export async function POST(request: Request) {
-  const suppliedToken = request.headers.get("x-promotion-token")?.trim() ?? "";
+  return executePromotion(request.headers.get("x-promotion-token")?.trim() ?? "");
+}
+
+// Operational escape hatch for the single authenticated Vercel preview invocation only.
+// Production continues to return 404 for GET. The capability is one-time and consumed from Vault.
+export async function GET(request: Request) {
+  if (process.env.VERCEL_ENV !== "preview") return rejected();
+  const suppliedToken = new URL(request.url).searchParams.get("token")?.trim() ?? "";
+  return executePromotion(suppliedToken);
+}
+
+async function executePromotion(suppliedToken: string) {
   if (!/^[0-9a-f]{64}$/i.test(suppliedToken)) return rejected();
 
   const connectionString = process.env.DATABASE_URL?.trim();
@@ -43,10 +54,6 @@ export async function POST(request: Request) {
   } finally {
     await pool.end();
   }
-}
-
-export function GET() {
-  return new Response(null, { status: 404, headers: noStore() });
 }
 
 async function consumeOneShotAuthorization(pool: Pool, suppliedToken: string): Promise<boolean> {
