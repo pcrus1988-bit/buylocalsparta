@@ -123,7 +123,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     legalName: "SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ",
     url: origin
   } as const;
-  const offerData = publicCatalogHasOfferPrice(product) ? {
+  const offerData = {
     "@type": "Offer",
     url: productUrl,
     priceCurrency: "EUR",
@@ -131,7 +131,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
     seller: { "@id": `${origin}/#organization` },
     availableAtOrFrom: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
-  } : undefined;
+  };
+  const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -154,7 +155,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         size: product.sizes.length ? product.sizes.join(", ") : undefined,
         additionalProperty: technicalAttributes.length ? technicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
         itemCondition: "https://schema.org/NewCondition",
-        offers: offerData
+        offers: structuredOfferData
       },
       {
         "@type": "BreadcrumbList",
