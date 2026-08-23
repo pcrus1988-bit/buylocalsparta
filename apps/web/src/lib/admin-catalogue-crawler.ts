@@ -11,7 +11,7 @@ export type AdminCrawlerProfile = Readonly<{
 }>;
 export type AdminCrawlerSource = Readonly<{ id: string; code: string; name: string; website?: string }>;
 export type AdminCrawlerJob = Readonly<{
-  id: string; sourceName: string; profileCode: string; crawlMode: string; seedUrl?: string; status: string;
+  id: string; profileId: string; sourceName: string; profileCode: string; rootUrl: string; crawlMode: string; seedUrl?: string; status: string;
   attemptCount: number; discovered: number; fetched: number; skipped: number; failed: number; extracted: number; review: number; promoted: number;
   claimedBy?: string; leaseExpiresAt?: number; lastHeartbeatAt?: number; cancelRequestedAt?: number; createdAt: number; completedAt?: number; failureReason?: string;
 }>;
@@ -32,13 +32,33 @@ export async function adminCrawlerDashboard(principal: SessionPrincipal): Promis
   }, { readOnly: true, statementTimeoutMs: 8_000 });
 }
 
+export async function queueAdminUniversalCrawlerJob(principal: SessionPrincipal, input: { rootUrl: string; mode?: string }): Promise<string> {
+  assertAdminPermission(principal, "catalog.write");
+  requireRuntime();
+  const root = normalizeRootUrl(input.rootUrl);
+  const mode = (input.mode?.trim() || "full");
+  if (!(["discovery", "full", "single"] as const).includes(mode as any)) throw new Error("Unsupported simple crawl mode");
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 8_000, lockTimeoutMs: 2_000 });
+  return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const sourceId = await ensureAutomaticCatalogSource(tx, root);
+    const siteRoot = new URL("/", root.origin);
+    const profile = await ensureAutomaticCrawlerProfile(tx, sourceId, siteRoot);
+    const seedUrl = mode === "full" ? undefined : root.toString();
+    const result = await tx.query<SqlRow>(
+      `SELECT bls_private.queue_catalog_web_crawl_job($1,$2,$3,$4,$5,$6) AS id`,
+      [profile.id, mode, seedUrl ?? null, principal.userId, `admin:auto:${principal.userId}:${randomUUID()}`, "web-crawler-v1"]
+    );
+    return required(result.rows[0]?.id, "crawl job id");
+  });
+}
+
 export async function createAdminCrawlerProfile(principal: SessionPrincipal, input: {
   sourceId: string; profileCode?: string; rootUrl: string; allowedHosts?: string; maxPages?: number; maxDepth?: number; requestsPerSecond?: number;
 }): Promise<string> {
   assertAdminPermission(principal, "catalog.write");
   requireRuntime();
-  const root = new URL(input.rootUrl.trim());
-  if (root.protocol !== "https:") throw new Error("Crawler profiles require an HTTPS root URL");
+  const root = normalizeRootUrl(input.rootUrl);
   const allowedHosts = [...new Set((input.allowedHosts ?? root.hostname).split(",").map((value) => value.trim().toLowerCase()).filter(Boolean))];
   if (!allowedHosts.length || !allowedHosts.includes(root.hostname.toLowerCase())) throw new Error("Allowed hosts must contain the root hostname");
   const maxPages = boundedInt(input.maxPages, 10_000, 1, 250_000, "maxPages");
@@ -99,6 +119,54 @@ export async function promoteAdminCrawlerJob(principal: SessionPrincipal, jobId:
   }, { statementTimeoutMs: 15_000 });
 }
 
+async function ensureAutomaticCatalogSource(tx: SqlExecutor, root: URL): Promise<string> {
+  const sourceHost = normalizedCatalogHost(root.hostname);
+  const existing = await tx.query<SqlRow>(`SELECT id,code,website,active FROM public.catalog_sources ORDER BY created_at LIMIT 2000`);
+  const matching = existing.rows.find((row) => row.active === true && normalizedWebsiteHost(row.website) === sourceHost);
+  if (matching) return required(matching.id, "source.id");
+
+  const marketResult = await tx.query<SqlRow>(`SELECT id FROM public.markets ORDER BY (code='sparta') DESC,created_at LIMIT 1`);
+  const marketId = required(marketResult.rows[0]?.id, "market id");
+  const baseCode = sourceCodeForHost(sourceHost);
+  const usedCodes = new Set(existing.rows.map((row) => String(row.code ?? "").trim().toLowerCase()).filter(Boolean));
+  const sourceCode = usedCodes.has(baseCode) ? `${baseCode}-${randomUUID().slice(0, 6)}` : baseCode;
+  const website = new URL("/", root.origin).toString();
+  const result = await tx.query<SqlRow>(`
+    INSERT INTO public.catalog_sources(market_id,code,name,source_kind,website,active,metadata)
+    VALUES($1,$2,$3,'supplier',$4,true,$5::jsonb)
+    RETURNING id
+  `, [marketId, sourceCode, sourceHost, website, JSON.stringify({ createdBy: "catalogue-crawler", automatic: true })]);
+  return required(result.rows[0]?.id, "source id");
+}
+
+async function ensureAutomaticCrawlerProfile(tx: SqlExecutor, sourceId: string, root: URL): Promise<Readonly<{ id: string }>> {
+  const host = root.hostname.toLowerCase();
+  const profileResult = await tx.query<SqlRow>(`
+    SELECT id,profile_code,root_url,allowed_hosts,active
+    FROM public.catalog_web_crawl_profiles
+    WHERE source_id=$1
+    ORDER BY created_at DESC
+  `, [sourceId]);
+  const matching = profileResult.rows.find((row) => {
+    const allowed = Array.isArray(row.allowed_hosts) ? row.allowed_hosts.map((value) => String(value).toLowerCase()) : [];
+    return row.active === true && normalizedWebsiteHost(row.root_url) === normalizedCatalogHost(host) && allowed.includes(host);
+  });
+  if (matching) return { id: required(matching.id, "profile.id") };
+
+  const baseCode = `auto-${sourceCodeForHost(host)}`.slice(0, 80);
+  const usedCodes = new Set(profileResult.rows.map((row) => String(row.profile_code ?? "").trim().toLowerCase()).filter(Boolean));
+  const profileCode = usedCodes.has(baseCode) ? `${baseCode.slice(0, 72)}-${randomUUID().slice(0, 6)}` : baseCode;
+  const result = await tx.query<SqlRow>(`
+    INSERT INTO public.catalog_web_crawl_profiles(
+      source_id,profile_code,root_url,allowed_hosts,allow_subdomains,allow_http,obey_robots,fetch_mode,
+      max_pages,max_depth,max_concurrency,requests_per_second,metadata
+    )
+    VALUES($1,$2,$3,$4::text[],false,false,true,'http',25000,12,1,1,$5::jsonb)
+    RETURNING id
+  `, [sourceId, profileCode, root.toString(), [host], JSON.stringify({ createdBy: "catalogue-crawler", automatic: true })]);
+  return { id: required(result.rows[0]?.id, "profile id") };
+}
+
 async function readSources(tx: SqlExecutor): Promise<readonly AdminCrawlerSource[]> {
   const result = await tx.query<SqlRow>(`SELECT id,code,name,website FROM public.catalog_sources ORDER BY name,code LIMIT 500`);
   return result.rows.map((r) => ({ id: required(r.id,"source.id"), code: required(r.code,"source.code"), name: required(r.name,"source.name"), website: optional(r.website) }));
@@ -112,11 +180,11 @@ async function readProfiles(tx: SqlExecutor): Promise<readonly AdminCrawlerProfi
 }
 async function readJobs(tx: SqlExecutor): Promise<readonly AdminCrawlerJob[]> {
   const result = await tx.query<SqlRow>(`
-    SELECT j.id,s.name source_name,p.profile_code,j.crawl_mode,j.seed_url,j.status,j.attempt_count,j.discovered_url_count,j.fetched_page_count,j.skipped_page_count,j.failed_page_count,j.extracted_product_count,j.review_product_count,j.promoted_product_count,j.claimed_by,
+    SELECT j.id,j.profile_id,s.name source_name,p.profile_code,p.root_url,j.crawl_mode,j.seed_url,j.status,j.attempt_count,j.discovered_url_count,j.fetched_page_count,j.skipped_page_count,j.failed_page_count,j.extracted_product_count,j.review_product_count,j.promoted_product_count,j.claimed_by,
       extract(epoch from j.lease_expires_at)*1000 lease_ms,extract(epoch from j.last_heartbeat_at)*1000 heartbeat_ms,extract(epoch from j.cancel_requested_at)*1000 cancel_ms,extract(epoch from j.created_at)*1000 created_ms,extract(epoch from j.completed_at)*1000 completed_ms,j.failure_reason
     FROM public.catalog_web_crawl_jobs j JOIN public.catalog_web_crawl_profiles p ON p.id=j.profile_id JOIN public.catalog_sources s ON s.id=j.source_id ORDER BY j.created_at DESC LIMIT 120
   `);
-  return result.rows.map((r) => ({ id:required(r.id,"job.id"),sourceName:required(r.source_name,"job.source"),profileCode:required(r.profile_code,"job.profile"),crawlMode:String(r.crawl_mode),seedUrl:optional(r.seed_url),status:String(r.status),attemptCount:Number(r.attempt_count),discovered:Number(r.discovered_url_count),fetched:Number(r.fetched_page_count),skipped:Number(r.skipped_page_count),failed:Number(r.failed_page_count),extracted:Number(r.extracted_product_count),review:Number(r.review_product_count),promoted:Number(r.promoted_product_count),claimedBy:optional(r.claimed_by),leaseExpiresAt:optionalNumber(r.lease_ms),lastHeartbeatAt:optionalNumber(r.heartbeat_ms),cancelRequestedAt:optionalNumber(r.cancel_ms),createdAt:Number(r.created_ms),completedAt:optionalNumber(r.completed_ms),failureReason:optional(r.failure_reason) }));
+  return result.rows.map((r) => ({ id:required(r.id,"job.id"),profileId:required(r.profile_id,"job.profile_id"),sourceName:required(r.source_name,"job.source"),profileCode:required(r.profile_code,"job.profile"),rootUrl:required(r.root_url,"job.root_url"),crawlMode:String(r.crawl_mode),seedUrl:optional(r.seed_url),status:String(r.status),attemptCount:Number(r.attempt_count),discovered:Number(r.discovered_url_count),fetched:Number(r.fetched_page_count),skipped:Number(r.skipped_page_count),failed:Number(r.failed_page_count),extracted:Number(r.extracted_product_count),review:Number(r.review_product_count),promoted:Number(r.promoted_product_count),claimedBy:optional(r.claimed_by),leaseExpiresAt:optionalNumber(r.lease_ms),lastHeartbeatAt:optionalNumber(r.heartbeat_ms),cancelRequestedAt:optionalNumber(r.cancel_ms),createdAt:Number(r.created_ms),completedAt:optionalNumber(r.completed_ms),failureReason:optional(r.failure_reason) }));
 }
 async function readHealth(tx: SqlExecutor): Promise<AdminCrawlerHealth> {
   const result = await tx.query<SqlRow>(`SELECT bls_private.catalog_web_crawl_queue_health() AS health`);
@@ -129,6 +197,27 @@ function validateSeed(seed: string, profile: SqlRow): void {
   const hosts = Array.isArray(profile.allowed_hosts) ? profile.allowed_hosts.map((v) => String(v).toLowerCase()) : [];
   const host = url.hostname.toLowerCase(); const subdomains = profile.allow_subdomains === true;
   if (!hosts.some((allowed) => host === allowed || (subdomains && host.endsWith(`.${allowed}`)))) throw new Error("Seed URL host is outside the crawler profile allowlist");
+}
+function normalizeRootUrl(value: string): URL {
+  const raw = value.trim();
+  if (!raw) throw new Error("Website URL is required");
+  const url = new URL(raw);
+  if (url.protocol !== "https:") throw new Error("Catalogue crawler requires an HTTPS website");
+  if (url.username || url.password) throw new Error("Website URL cannot contain credentials");
+  if (url.port && url.port !== "443") throw new Error("Website URL must use the standard HTTPS port");
+  url.hash = "";
+  url.search = "";
+  return url;
+}
+function normalizedWebsiteHost(value: unknown): string | undefined {
+  const raw = String(value ?? "").trim();
+  if (!raw) return undefined;
+  try { return normalizedCatalogHost(new URL(raw).hostname); } catch { return undefined; }
+}
+function normalizedCatalogHost(host: string): string { return host.trim().toLowerCase().replace(/^www\./, ""); }
+function sourceCodeForHost(host: string): string {
+  const code = normalizedCatalogHost(host).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  return code || `web-${randomUUID().slice(0, 8)}`;
 }
 function requireRuntime(): void { if (!postgresAdminRuntimeEnabled()) throw new Error("PostgreSQL admin runtime is not enabled"); }
 function emptyHealth(): AdminCrawlerHealth { return { queuedReady:0,queuedDelayed:0,running:0,cancellationRequested:0,expiredLeases:0,failedLast24h:0,completedLast24h:0 }; }

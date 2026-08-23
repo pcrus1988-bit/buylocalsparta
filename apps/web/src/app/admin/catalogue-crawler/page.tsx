@@ -4,11 +4,20 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
-import { adminCrawlerDashboard, cancelAdminCrawlerJob, createAdminCrawlerProfile, promoteAdminCrawlerJob, queueAdminCrawlerJob } from "../../../lib/admin-catalogue-crawler";
+import { adminCrawlerDashboard, cancelAdminCrawlerJob, createAdminCrawlerProfile, promoteAdminCrawlerJob, queueAdminCrawlerJob, queueAdminUniversalCrawlerJob } from "../../../lib/admin-catalogue-crawler";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Catalogue Crawler", robots: { index: false, follow: false, nocache: true } };
 
+async function universalQueueAction(formData: FormData) {
+  "use server";
+  const principal = await getAdminSession(); if (!principal) redirect("/admin/login");
+  await queueAdminUniversalCrawlerJob(principal, {
+    rootUrl: String(formData.get("rootUrl") ?? ""),
+    mode: String(formData.get("mode") ?? "full")
+  });
+  revalidatePath("/admin/catalogue-crawler");
+}
 async function createProfileAction(formData: FormData) {
   "use server";
   const principal = await getAdminSession(); if (!principal) redirect("/admin/login");
@@ -43,49 +52,110 @@ export default async function Page() {
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="Catalogue Crawler" />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Catalog · acquisition infrastructure</div><h1>Catalogue Crawler</h1><p className="lead">Governed acquisition queue for supplier websites. Jobs run only in the isolated crawler worker; Admin requests never perform crawling inside the web process.</p></div>
-      <aside className="dashboard-health-card"><span>Execution model</span><strong>Isolated worker</strong><p>Robots, host allowlists, leases, retries, cancellation and immutable PIM promotion remain enforced server-side.</p></aside>
+      <div>
+        <div className="eyebrow">Catalogue · product acquisition</div>
+        <h1>Add products from any website</h1>
+        <p className="lead">Paste an online shop URL. KONTA MOU creates the protected source boundary automatically, discovers catalogue pages and extracts product data into the Supplier PIM review pipeline.</p>
+      </div>
+      <aside className="dashboard-health-card">
+        <span>Normal workflow</span>
+        <strong>URL → Crawl → PIM</strong>
+        <p>No crawler profile setup is required. Robots compliance, host restrictions, rate limits and isolated worker execution remain enforced automatically.</p>
+      </aside>
+    </section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Start here" title="Crawl an online shop" note="Paste the shop homepage for a full catalogue crawl. For one specific product, paste its product page and choose Single page." />
+      <form action={universalQueueAction} className="admin-directory-filters">
+        <label style={{gridColumn:"1 / -1"}}>
+          <span>Website URL</span>
+          <input name="rootUrl" type="url" inputMode="url" placeholder="https://www.example-shop.gr/" required />
+        </label>
+        <label>
+          <span>What do you want to crawl?</span>
+          <select name="mode" defaultValue="full">
+            <option value="full">Entire catalogue · recommended</option>
+            <option value="single">Only this exact product/page</option>
+            <option value="discovery">Discovery scan only</option>
+          </select>
+        </label>
+        <div>
+          <button className="button button-primary" type="submit">Start catalogue crawl</button>
+        </div>
+      </form>
+      <div className="workspace-action-bar">
+        <span>The crawler automatically attempts titles, descriptions, GTIN/EAN, SKU/MPN, brand/model, categories, images, prices and variant attributes when the source exposes them.</span>
+        <Link className="button button-secondary" href="/admin/catalogue-intake">Open Supplier PIM</Link>
+      </div>
     </section>
 
     <WorkspaceMetricStrip items={[
       { label:"Ready queue", value:data.health.queuedReady }, { label:"Running", value:data.health.running },
-      { label:"Cancel requested", value:data.health.cancellationRequested, tone:data.health.cancellationRequested?"attention":"default" },
-      { label:"Expired leases", value:data.health.expiredLeases, tone:data.health.expiredLeases?"attention":"default" },
-      { label:"Completed 24h", value:data.health.completedLast24h }
+      { label:"Completed 24h", value:data.health.completedLast24h },
+      { label:"Failed 24h", value:data.health.failedLast24h, tone:data.health.failedLast24h?"attention":"default" },
+      { label:"Expired leases", value:data.health.expiredLeases, tone:data.health.expiredLeases?"attention":"default" }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Source boundary" title="Crawl profiles" note="A profile freezes the safe crawl boundary. HTTPS, robots compliance and explicit host allowlists are the default." />
-      <form action={createProfileAction} className="admin-directory-filters">
-        <label><span>Catalog source</span><select name="sourceId" required defaultValue=""><option value="" disabled>Select source</option>{data.sources.map((s)=><option key={s.id} value={s.id}>{s.name} · {s.code}</option>)}</select></label>
-        <label><span>Profile code</span><input name="profileCode" defaultValue="main" required /></label>
-        <label><span>Root URL</span><input name="rootUrl" type="url" placeholder="https://supplier.example/" required /></label>
-        <label><span>Allowed hosts</span><input name="allowedHosts" placeholder="supplier.example,www.supplier.example" /></label>
-        <label><span>Max pages</span><input name="maxPages" type="number" min="1" max="250000" defaultValue="10000" /></label>
-        <label><span>Max depth</span><input name="maxDepth" type="number" min="0" max="64" defaultValue="12" /></label>
-        <label><span>Requests / sec</span><input name="requestsPerSecond" type="number" min="0.01" max="20" step="0.01" defaultValue="1" /></label>
-        <div><button className="button button-secondary" type="submit">Create safe profile</button></div>
-      </form>
-      {data.profiles.length===0 ? <WorkspaceEmptyState title="No crawler profiles configured." body="Create one from an existing catalogue source before queueing acquisition work."/> : <div className="workspace-queue-list">{data.profiles.map((p)=><article key={p.id} className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{p.sourceName} · {p.profileCode}</strong><small>{p.rootUrl}</small></div><span className="status-pill">{p.active?"active":"disabled"}</span></div><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Allowlist</strong><span>{p.allowedHosts.join(", ")}</span></div><div className="workspace-compact-row"><strong>Policy</strong><span>{p.maxPages} pages · depth {p.maxDepth} · {p.requestsPerSecond}/s · robots {p.obeyRobots?"on":"off"}</span></div></div></article>)}</div>}
+      <WorkspaceSectionHeading eyebrow="Progress" title="Recent catalogue crawls" note="A completed full crawl can be imported into Supplier PIM. Canonical matching, taxonomy and duplicate review continue there instead of publishing raw crawl data directly." />
+      {data.jobs.length===0 ? <WorkspaceEmptyState title="No catalogue crawls yet." body="Paste a shop URL above to start the first crawl."/> : <div className="workspace-queue-list">{data.jobs.map((job)=><article key={job.id} className="workspace-queue-card">
+        <div className="workspace-queue-head">
+          <div><strong>{job.sourceName}</strong><small>{job.seedUrl??job.rootUrl} · {humanMode(job.crawlMode)} · created {when(job.createdAt)}</small></div>
+          <span className="status-pill">{humanStatus(job.status)}</span>
+        </div>
+        <div className="workspace-compact-list">
+          <div className="workspace-compact-row"><strong>Pages</strong><span>{job.fetched} fetched · {job.skipped} skipped · {job.failed} failed · {job.discovered} discovered</span></div>
+          <div className="workspace-compact-row"><strong>Products</strong><span>{job.extracted} extracted · {job.review} need review · {job.promoted} imported to PIM</span></div>
+          {job.failureReason&&<div className="workspace-compact-row"><strong>Problem</strong><span>{job.failureReason}</span></div>}
+        </div>
+        <div className="workspace-action-bar">
+          <span>{job.completedAt?`Completed ${when(job.completedAt)}`:`Attempt ${job.attemptCount}${job.lastHeartbeatAt?` · active ${when(job.lastHeartbeatAt)}`:""}`}</span>
+          <div>
+            {(["queued","running"] as const).includes(job.status as any)&&<form action={cancelAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-secondary" type="submit">Cancel</button></form>}
+            {(["succeeded","partial"] as const).includes(job.status as any)&&job.crawlMode!=="discovery"&&job.promoted===0&&<form action={promoteAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-primary" type="submit">Import products to PIM</button></form>}
+            {job.promoted>0&&<Link className="button button-secondary" href="/admin/catalogue-intake">Review imported products</Link>}
+          </div>
+        </div>
+      </article>)}</div>}
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Durable queue" title="Queue acquisition" note="This only creates a database job. The persistent crawler worker claims it with a crash-recovery lease." />
-      <form action={queueAction} className="admin-directory-filters">
-        <label><span>Profile</span><select name="profileId" required defaultValue=""><option value="" disabled>Select profile</option>{data.profiles.filter((p)=>p.active).map((p)=><option key={p.id} value={p.id}>{p.sourceName} · {p.profileCode}</option>)}</select></label>
-        <label><span>Mode</span><select name="mode" defaultValue="full"><option value="discovery">Discovery</option><option value="full">Full</option><option value="category">Category</option><option value="single">Single page</option></select></label>
-        <label><span>Optional seed URL</span><input name="seedUrl" type="url" placeholder="Profile root when blank" /></label>
-        <div><button className="button button-primary" type="submit">Queue crawl job</button></div>
-      </form>
-    </section>
+      <details className="workspace-queue-card">
+        <summary><strong>Advanced crawler settings</strong> · profiles, allowlists and manual queue controls</summary>
+        <div style={{marginTop:"1rem"}}>
+          <WorkspaceSectionHeading eyebrow="Advanced" title="Crawler safety profiles" note="These controls remain available for exceptional sources. The normal URL-first crawler above creates and reuses safe profiles automatically." />
+          <form action={createProfileAction} className="admin-directory-filters">
+            <label><span>Catalog source</span><select name="sourceId" required defaultValue=""><option value="" disabled>Select source</option>{data.sources.map((s)=><option key={s.id} value={s.id}>{s.name} · {s.code}</option>)}</select></label>
+            <label><span>Profile code</span><input name="profileCode" defaultValue="main" required /></label>
+            <label><span>Root URL</span><input name="rootUrl" type="url" placeholder="https://supplier.example/" required /></label>
+            <label><span>Allowed hosts</span><input name="allowedHosts" placeholder="supplier.example,www.supplier.example" /></label>
+            <label><span>Max pages</span><input name="maxPages" type="number" min="1" max="250000" defaultValue="10000" /></label>
+            <label><span>Max depth</span><input name="maxDepth" type="number" min="0" max="64" defaultValue="12" /></label>
+            <label><span>Requests / sec</span><input name="requestsPerSecond" type="number" min="0.01" max="20" step="0.01" defaultValue="1" /></label>
+            <div><button className="button button-secondary" type="submit">Create manual profile</button></div>
+          </form>
+          {data.profiles.length===0 ? <WorkspaceEmptyState title="No crawler profiles configured."/> : <div className="workspace-queue-list">{data.profiles.map((p)=><article key={p.id} className="workspace-queue-card">
+            <div className="workspace-queue-head"><div><strong>{p.sourceName} · {p.profileCode}</strong><small>{p.rootUrl}</small></div><span className="status-pill">{p.active?"active":"disabled"}</span></div>
+            <div className="workspace-compact-list">
+              <div className="workspace-compact-row"><strong>Allowlist</strong><span>{p.allowedHosts.join(", ")}</span></div>
+              <div className="workspace-compact-row"><strong>Policy</strong><span>{p.maxPages} pages · depth {p.maxDepth} · {p.requestsPerSecond}/s · robots {p.obeyRobots?"on":"off"}</span></div>
+            </div>
+          </article>)}</div>}
 
-    <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Operations" title="Recent crawl jobs" note="Promotion is explicit and only available after a succeeded or partial acquisition. It creates immutable supplier PIM evidence, not offers or public products." />
-      {data.jobs.length===0 ? <WorkspaceEmptyState title="No crawler jobs yet."/> : <div className="workspace-queue-list">{data.jobs.map((job)=><article key={job.id} className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{job.sourceName} · {job.crawlMode}</strong><small>{job.seedUrl??job.profileCode} · created {when(job.createdAt)}</small></div><span className="status-pill">{job.status.replaceAll("_"," ")}</span></div><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Pages</strong><span>{job.fetched} fetched · {job.skipped} skipped · {job.failed} failed · {job.discovered} discovered</span></div><div className="workspace-compact-row"><strong>Products</strong><span>{job.extracted} extracted · {job.review} review · {job.promoted} promoted</span></div><div className="workspace-compact-row"><strong>Worker</strong><span>{job.claimedBy??"not leased"}{job.lastHeartbeatAt?` · heartbeat ${when(job.lastHeartbeatAt)}`:""}{job.cancelRequestedAt?" · cancellation requested":""}</span></div>{job.failureReason&&<div className="workspace-compact-row"><strong>Failure</strong><span>{job.failureReason}</span></div>}</div><div className="workspace-action-bar"><span>Attempt {job.attemptCount}{job.completedAt?` · completed ${when(job.completedAt)}`:""}</span><div>{(["queued","running"] as const).includes(job.status as any)&&<form action={cancelAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-secondary" type="submit">Cancel</button></form>} {(["succeeded","partial"] as const).includes(job.status as any)&&<form action={promoteAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-primary" type="submit">Promote to PIM</button></form>}</div></div></article>)}</div>}
-      <div className="workspace-action-bar"><span>Promoted crawl evidence appears in Supplier PIM Intake for review and canonical matching.</span><Link className="button button-secondary" href="/admin/catalogue-intake">Open Supplier PIM Intake</Link></div>
+          <WorkspaceSectionHeading eyebrow="Advanced" title="Manual queue" note="Use this only when you intentionally need an existing profile, category seed or other controlled acquisition mode." />
+          <form action={queueAction} className="admin-directory-filters">
+            <label><span>Profile</span><select name="profileId" required defaultValue=""><option value="" disabled>Select profile</option>{data.profiles.filter((p)=>p.active).map((p)=><option key={p.id} value={p.id}>{p.sourceName} · {p.profileCode}</option>)}</select></label>
+            <label><span>Mode</span><select name="mode" defaultValue="full"><option value="discovery">Discovery</option><option value="full">Full</option><option value="category">Category</option><option value="single">Single page</option></select></label>
+            <label><span>Optional seed URL</span><input name="seedUrl" type="url" placeholder="Profile root when blank" /></label>
+            <div><button className="button button-secondary" type="submit">Queue manual crawl</button></div>
+          </form>
+        </div>
+      </details>
     </section>
   </main>;
 }
 
 function numberValue(value: FormDataEntryValue | null): number | undefined { if(value==null||String(value).trim()==="") return undefined; const n=Number(value); return Number.isFinite(n)?n:undefined; }
 function when(value:number):string { return new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"}).format(new Date(value)); }
+function humanMode(value:string):string { return value==="full"?"full catalogue":value==="single"?"single page":value==="discovery"?"discovery scan":value; }
+function humanStatus(value:string):string { return value.replaceAll("_"," "); }
