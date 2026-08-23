@@ -34,6 +34,8 @@ export default async function AdminSeoReportsPage() {
   const canWrite = hasAdminPermission(principal, "content.write");
   const latestSaved = data.reports.reports[0];
   const previousSaved = data.reports.reports[1];
+  const currentJsonExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "json" }).toString()}`;
+  const currentCsvExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "csv" }).toString()}`;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
@@ -84,7 +86,7 @@ export default async function AdminSeoReportsPage() {
       </div>
       <div className="workspace-action-bar" style={{ marginTop: 18 }}>
         <span>Live report exports contain aggregate SEO evidence only; they do not contain customer data, credentials or Search Console referring URLs.</span>
-        <div className="workspace-action-buttons"><a className="button button-secondary" href="/api/admin/seo/reports/current?format=json">Current JSON ↓</a><a className="button button-secondary" href="/api/admin/seo/reports/current?format=csv">Current CSV ↓</a></div>
+        <div className="workspace-action-buttons"><a className="button button-secondary" href={currentJsonExport}>Current JSON ↓</a><a className="button button-secondary" href={currentCsvExport}>Current CSV ↓</a></div>
       </div>
     </section>
 
