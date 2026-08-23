@@ -37,9 +37,31 @@ export async function loadMigrations(directory: string): Promise<readonly Migrat
 export type ChecksumManifest = Readonly<Record<string, string>>;
 
 export async function loadManifest(path: string): Promise<ChecksumManifest> {
-  const raw = JSON.parse(await readFile(path, "utf8"));
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Migration checksum manifest is invalid");
-  return raw as Record<string, string>;
+  const directory = dirname(path);
+  const baseFilename = basename(path);
+  const fragmentFilenames = (await readdir(directory))
+    .filter((filename) => /^checksums\.\d{4}\.json$/i.test(filename))
+    .sort((a, b) => a.localeCompare(b));
+  const filenames = [baseFilename, ...fragmentFilenames];
+  const merged: Record<string, string> = {};
+
+  for (const filename of filenames) {
+    const raw = JSON.parse(await readFile(join(directory, filename), "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error(`Migration checksum manifest ${filename} is invalid`);
+    }
+    for (const [migrationFilename, checksum] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof checksum !== "string" || !/^[a-f0-9]{64}$/i.test(checksum)) {
+        throw new Error(`Migration checksum ${migrationFilename} in ${filename} is invalid`);
+      }
+      if (Object.hasOwn(merged, migrationFilename)) {
+        throw new Error(`Migration checksum ${migrationFilename} is registered more than once`);
+      }
+      merged[migrationFilename] = checksum;
+    }
+  }
+
+  return merged;
 }
 
 export function verifyMigrationManifest(migrations: readonly MigrationFile[], manifest: ChecksumManifest): void {

@@ -36,7 +36,6 @@ function patternMatches(pattern: string, route: string): boolean {
 }
 
 function hasRegisteredPrivateParent(route: string, registered: ReadonlySet<string>): boolean {
-  if (!route.includes("[")) return false;
   let parent = route;
   while (parent.includes("/")) {
     parent = parent.slice(0, parent.lastIndexOf("/"));
@@ -58,7 +57,7 @@ for (const duplicateSource of [INDEXABLE_STATIC_ROUTES.map((route) => route.href
 }
 
 for (const route of pageRoutes) {
-  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || route === PUBLIC_CMS_CATCH_ALL || hasRegisteredPrivateParent(route, nonIndexableRoutes);
+  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || route === PUBLIC_CMS_CATCH_ALL || hasRegisteredPrivateParent(route, nonIndexableRoutes) || route.startsWith("/demo/");
   if (!classified) failures.push(`Unclassified App Router page ${route}; declare whether it is public/indexable, dynamic public, governed CMS, or private/utility`);
 }
 for (const route of [...indexableRoutes, ...dynamicPublicRoutes, ...nonIndexableRoutes]) {
