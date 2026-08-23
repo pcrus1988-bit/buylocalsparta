@@ -4,6 +4,8 @@ const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/seo-unified-report.ts");
 const page = read("apps/web/src/app/admin/seo/reports/page.tsx");
 const route = read("apps/web/src/app/api/admin/seo/reports/current/route.ts");
+const siteNavigation = read("apps/web/src/lib/site-navigation.ts");
+const workspaceNavigation = read("apps/web/src/lib/workspace-navigation.ts");
 const failures: string[] = [];
 const expect = (condition: boolean, message: string) => { if (!condition) failures.push(message); };
 
@@ -55,11 +57,16 @@ for (const contract of [
   "seoUnifiedReportCsv(report)",
   '"Content-Disposition"'
 ]) expect(route.includes(contract), `Unified SEO report export route is missing ${contract}`);
-
 expect(!route.includes("csrf: true"), "Read-only current SEO report export must not pretend to require CSRF; authentication and content.read are the boundary");
+
+expect(siteNavigation.includes('"/admin/seo/reports"'), "SEO Reports page must be explicitly classified as a private/non-indexable Admin route");
+for (const contract of [
+  '{ label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" }',
+  '{ label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" }'
+]) expect(workspaceNavigation.includes(contract), `Admin Content navigation is missing ${contract}`);
 
 if (failures.length) {
   console.error("SEO unified reports checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("SEO unified reports checks passed: cross-surface evidence aggregation, private exports, read-only RBAC and baseline regression visibility verified.");
+console.log("SEO unified reports checks passed: cross-surface evidence aggregation, private exports, read-only RBAC, private-route classification, Admin navigation and baseline regression visibility verified.");
