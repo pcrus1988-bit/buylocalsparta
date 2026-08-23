@@ -22,7 +22,11 @@ for (const contract of [
   'indexingState === "INDEXING_ALLOWED"',
   'pageFetchState === "SUCCESSFUL"',
   'state: !inspection ? "missing"',
-  "stale: 0",
+  "coverageMetrics(rows)",
+  "failedVerdict",
+  "partialVerdict",
+  "indexingBlocked",
+  "fetchFailed",
   "samplingPriority",
   "Math.min(SAMPLE_MAX_URLS",
   "for (const candidate of candidates)",
@@ -34,6 +38,9 @@ for (const contract of [
 expect(!/runGovernedSearchConsoleCoverageSample\([^)]*(url|route|canonical)/i.test(coverage), "Coverage sampler must not accept an operator-provided URL, route or canonical argument");
 expect(!coverage.includes("Promise.all(candidates"), "Coverage URL Inspection must remain sequential instead of bursting Google quota concurrently");
 expect(coverage.includes("const stale = Boolean(capturedAt &&"), "Missing evidence must remain distinct from stale retained evidence");
+expect(coverage.includes('row.verdict === "FAIL"'), "Coverage metrics must expose explicit Google FAIL verdicts for release-health consumers");
+expect(coverage.includes('row.indexingState !== "INDEXING_ALLOWED"'), "Coverage metrics must expose explicit Google indexing blocks");
+expect(coverage.includes('row.pageFetchState !== "SUCCESSFUL"'), "Coverage metrics must expose explicit Google fetch failures");
 
 for (const contract of [
   'requireAdminSession(request, { csrf: true, permission: "content.write" })',
@@ -86,4 +93,4 @@ if (failures.length) {
   console.error("SEO Google index coverage checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("SEO Google index coverage checks passed: governed desired-indexable targets, seven-day freshness, canonical/index/fetch health, bounded sequential sampling, CSRF/RBAC and private Admin routing verified.");
+console.log("SEO Google index coverage checks passed: governed desired-indexable targets, seven-day freshness, canonical/index/fetch health, hard-failure metrics, bounded sequential sampling, CSRF/RBAC and private Admin routing verified.");
