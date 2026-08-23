@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 120;
+export const EXPECTED_SCHEMA_VERSION = 121;
 
 export type PostgresRuntimeConfig = Readonly<{
   connectionString: string;
@@ -222,25 +222,15 @@ function positiveInteger(raw: string | undefined, fallback: number, name: string
 }
 
 export * from "./customer-auth.ts";
-
 export * from "./customer-commerce.ts";
-
 export * from "./vendor-auth.ts";
-
 export * from "./vendor-operations.ts";
-
 export * from "./admin-auth.ts";
-
 export * from "./admin-operations.ts";
-
 export * from "./admin-governance.ts";
-
 export * from "./viva-payments.ts";
-
 export * from "./media-pipeline.ts";
-
 export * from "./mydata.ts";
-
 export * from "./search.ts";
 export * from "./notifications.ts";
 export * from "./boxnow-shipping.ts";

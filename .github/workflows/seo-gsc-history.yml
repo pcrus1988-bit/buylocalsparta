@@ -1,0 +1,32 @@
+name: SEO Search Console History Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/admin/seo/pages/**"
+      - "apps/web/src/app/admin/seo/search-console/**"
+      - "apps/web/src/app/api/admin/seo/search-console/**"
+      - "apps/web/src/components/AdminSearchConsoleSync.tsx"
+      - "apps/web/src/lib/seo-gsc-history.ts"
+      - "apps/web/src/lib/seo-page-detail.ts"
+      - "db/migrations/0121_seo_gsc_history.sql"
+      - "db/migrations/checksums.json"
+      - "packages/postgres-runtime/src/index.ts"
+      - "scripts/verify-seo-gsc-history.ts"
+      - ".github/workflows/seo-gsc-history.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify Search Console history contracts
+        run: node --experimental-strip-types scripts/verify-seo-gsc-history.ts
