@@ -12,9 +12,12 @@ type CanonicalMatch = {
   brand?: string;
   model?: string;
   mpn?: string;
+  warrantyBasis?: string;
   categoryCode: string;
   categoryName: string;
   categoryPath: string;
+  specifications?: Readonly<Record<string, unknown>>;
+  variantAttributes?: Readonly<Record<string, unknown>>;
   score: number;
 };
 
@@ -26,6 +29,21 @@ type Props = {
 const cleanGtin = (value: string) => value.replace(/\D/g, "");
 const lookupSignature = (title: string, gtin: string) => `${title.trim().replace(/\s+/g, " ").toLocaleLowerCase("el")}|${cleanGtin(gtin)}`;
 
+function displayValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(displayValue).filter(Boolean).join(", ");
+  try { return JSON.stringify(value); } catch { return String(value); }
+}
+
+function mergedDetails(match: CanonicalMatch | null): Array<[string, string]> {
+  if (!match) return [];
+  const combined = { ...(match.specifications ?? {}), ...(match.variantAttributes ?? {}) };
+  return Object.entries(combined)
+    .map(([key, value]) => [key, displayValue(value)] as [string, string])
+    .filter(([, value]) => Boolean(value));
+}
+
 export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -33,7 +51,9 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   const [sku, setSku] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
+  const [mpn, setMpn] = useState("");
   const [gtin, setGtin] = useState("");
+  const [description, setDescription] = useState("");
   const [variantNote, setVariantNote] = useState("");
   const [priceEuro, setPriceEuro] = useState("");
   const [stock, setStock] = useState("");
@@ -48,6 +68,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
 
   const signature = useMemo(() => lookupSignature(title, gtin), [title, gtin]);
   const enoughIdentity = title.trim().length >= 4 || cleanGtin(gtin).length >= 6;
+  const canonicalDetails = useMemo(() => mergedDetails(selectedCanonical), [selectedCanonical]);
 
   useEffect(() => {
     if (selectedCanonical || !enoughIdentity) {
@@ -95,8 +116,10 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
     setTitle(match.title);
     setCategory(match.categoryCode);
     setBrand(match.brand ?? "");
-    setModel(match.model ?? match.mpn ?? "");
+    setModel(match.model ?? "");
+    setMpn(match.mpn ?? "");
     setGtin(match.gtin ?? "");
+    setDescription(match.description ?? "");
     setSelectedCanonical(match);
     setMatches([]);
     setDialogOpen(false);
@@ -115,7 +138,9 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
     setSku("");
     setBrand("");
     setModel("");
+    setMpn("");
     setGtin("");
+    setDescription("");
     setVariantNote("");
     setPriceEuro("");
     setStock("");
@@ -141,7 +166,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
           categoryCode: category,
           vendorSku: sku,
           brand,
-          model,
+          model: model || mpn,
           gtin,
           variantNote,
           canonicalVariantId: selectedCanonical?.canonicalVariantId,
@@ -163,24 +188,29 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
 
   return <>
     {dialogOpen && matches.length > 0 && <div role="presentation" style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(15, 23, 42, .48)", display: "grid", placeItems: "center", padding: 20 }} onMouseDown={(event) => { if (event.target === event.currentTarget) dismissMatches(); }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="canonical-match-title" style={{ width: "min(680px, 100%)", maxHeight: "min(82vh, 760px)", overflow: "auto", background: "var(--surface, #fff)", borderRadius: 22, padding: 24, boxShadow: "0 28px 80px rgba(15, 23, 42, .24)" }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="canonical-match-title" style={{ width: "min(720px, 100%)", maxHeight: "min(84vh, 800px)", overflow: "auto", background: "var(--surface, #fff)", borderRadius: 22, padding: 24, boxShadow: "0 28px 80px rgba(15, 23, 42, .24)" }}>
         <div className="eyebrow">Έξυπνη αναγνώριση προϊόντος</div>
         <h3 id="canonical-match-title" style={{ margin: "8px 0 6px" }}>Μήπως εννοείς κάποιο από αυτά;</h3>
-        <p style={{ margin: "0 0 18px", opacity: .78 }}>Υπάρχει ήδη προϊόν στον κατάλογο ΚΟΝΤΑ ΜΟΥ. Επίλεξέ το για να συμπληρωθούν αυτόματα τα κοινά στοιχεία και να συνδεθεί αμέσως η δική σου προσφορά.</p>
+        <p style={{ margin: "0 0 18px", opacity: .78 }}>Υπάρχει ήδη προϊόν στον κατάλογο ΚΟΝΤΑ ΜΟΥ. Επίλεξέ το για να συμπληρωθούν αυτόματα όλα τα διαθέσιμα κοινά στοιχεία και να συνδεθεί αμέσως η δική σου προσφορά.</p>
         <div style={{ display: "grid", gap: 12 }}>
-          {matches.slice(0, 4).map((match) => <article key={match.canonicalVariantId} style={{ border: "1px solid rgba(100,116,139,.25)", borderRadius: 16, padding: 16, display: "grid", gap: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-              <div><strong style={{ display: "block", fontSize: "1.04rem" }}>{match.title}</strong><small>{match.categoryPath}</small></div>
-              <span className="vendor-merchant-status">{match.score >= 900 ? "Πολύ ισχυρή αντιστοίχιση" : "Πιθανή αντιστοίχιση"}</span>
-            </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: ".9rem" }}>
-              {match.gtin && <span><strong>GTIN:</strong> {match.gtin}</span>}
-              {match.brand && <span><strong>Μάρκα:</strong> {match.brand}</span>}
-              {(match.model || match.mpn) && <span><strong>Μοντέλο:</strong> {match.model ?? match.mpn}</span>}
-            </div>
-            {match.description && <p style={{ margin: 0, opacity: .82, lineHeight: 1.45 }}>{match.description.length > 320 ? `${match.description.slice(0, 317)}…` : match.description}</p>}
-            <div className="workspace-form-actions" style={{ marginTop: 2 }}><button type="button" className="button" onClick={() => acceptCanonical(match)}>Ναι — συμπλήρωσέ το</button></div>
-          </article>)}
+          {matches.slice(0, 4).map((match) => {
+            const details = mergedDetails(match);
+            return <article key={match.canonicalVariantId} style={{ border: "1px solid rgba(100,116,139,.25)", borderRadius: 16, padding: 16, display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                <div><strong style={{ display: "block", fontSize: "1.04rem" }}>{match.title}</strong><small>{match.categoryPath}</small></div>
+                <span className="vendor-merchant-status">{match.score >= 900 ? "Πολύ ισχυρή αντιστοίχιση" : "Πιθανή αντιστοίχιση"}</span>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: ".9rem" }}>
+                {match.gtin && <span><strong>GTIN:</strong> {match.gtin}</span>}
+                {match.brand && <span><strong>Μάρκα:</strong> {match.brand}</span>}
+                {match.model && <span><strong>Μοντέλο:</strong> {match.model}</span>}
+                {match.mpn && <span><strong>MPN:</strong> {match.mpn}</span>}
+              </div>
+              {match.description && <p style={{ margin: 0, opacity: .82, lineHeight: 1.45 }}>{match.description.length > 360 ? `${match.description.slice(0, 357)}…` : match.description}</p>}
+              {details.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{details.slice(0, 8).map(([key, value]) => <span key={key} style={{ border: "1px solid rgba(100,116,139,.22)", borderRadius: 999, padding: "4px 9px", fontSize: ".82rem" }}><strong>{key}:</strong> {value}</span>)}</div>}
+              <div className="workspace-form-actions" style={{ marginTop: 2 }}><button type="button" className="button" onClick={() => acceptCanonical(match)}>Ναι — συμπλήρωσέ το</button></div>
+            </article>;
+          })}
         </div>
         <div className="workspace-form-actions" style={{ marginTop: 18 }}><button type="button" className="button button-secondary" onClick={dismissMatches}>Κανένα από αυτά — συνέχισε ως νέο προϊόν</button></div>
       </div>
@@ -191,7 +221,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
       {selectedCanonical && <div style={{ marginBottom: 16, padding: 14, borderRadius: 14, border: "1px solid rgba(22,163,74,.3)", background: "rgba(22,163,74,.07)" }}>
         <strong>✓ Συνδέθηκε με υπάρχον canonical προϊόν</strong>
         <div style={{ marginTop: 4 }}>{selectedCanonical.title}{selectedCanonical.gtin ? ` · GTIN ${selectedCanonical.gtin}` : ""}</div>
-        <small>Η τιμή, το απόθεμα, το SKU και η δική σου παραλλαγή παραμένουν στοιχεία του καταστήματός σου. Αν αλλάξεις τίτλο, κατηγορία, μάρκα, μοντέλο ή GTIN, θα γίνει νέος έλεγχος πριν κρατηθεί η σύνδεση.</small>
+        <small>Τα κοινά στοιχεία παρακάτω προέρχονται από το canonical προϊόν. Η τιμή, το απόθεμα, το SKU και η δική σου παραλλαγή παραμένουν στοιχεία του καταστήματός σου.</small>
       </div>}
       <div className="workspace-form-grid">
         <div className="workspace-form-field span-2">
@@ -210,11 +240,24 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         <div className="workspace-form-field"><label htmlFor="catalog-sku">Δικό σου SKU</label><input id="catalog-sku" name="sku" value={sku} onChange={(event) => setSku(event.target.value)} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-brand">Μάρκα</label><input id="catalog-brand" name="brand" value={brand} onChange={(event) => { clearCanonicalLink(); setBrand(event.target.value); }} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-model">Μοντέλο</label><input id="catalog-model" name="model" autoComplete="off" value={model} onChange={(event) => { clearCanonicalLink(); setModel(event.target.value); }} /></div>
+        <div className="workspace-form-field"><label htmlFor="catalog-mpn">MPN / κωδικός κατασκευαστή</label><input id="catalog-mpn" name="mpn" autoComplete="off" value={mpn} onChange={(event) => { clearCanonicalLink(); setMpn(event.target.value); }} /></div>
         <div className="workspace-form-field">
           <label htmlFor="catalog-gtin">GTIN / EAN / ISBN</label>
           <input id="catalog-gtin" name="gtin" inputMode="numeric" autoComplete="off" placeholder="π.χ. 9781408855652" value={gtin} onChange={(event) => { clearCanonicalLink(); setGtin(event.target.value); setError(""); }} />
-          <small>Ο πλήρης GTIN έχει προτεραιότητα στην αντιστοίχιση.</small>
+          <small>{selectedCanonical && !selectedCanonical.gtin ? "Δεν υπάρχει GTIN αποθηκευμένο στο canonical προϊόν." : "Ο πλήρης GTIN έχει προτεραιότητα στην αντιστοίχιση."}</small>
         </div>
+        <div className="workspace-form-field span-2">
+          <label htmlFor="catalog-description">Περιγραφή canonical προϊόντος</label>
+          <textarea id="catalog-description" name="description" value={description} readOnly rows={4} placeholder={selectedCanonical ? "Δεν υπάρχει αποθηκευμένη περιγραφή." : "Η περιγραφή θα συμπληρωθεί όταν επιλεγεί υπάρχον canonical προϊόν."} />
+          <small>Η κοινή περιγραφή δεν αλλάζει από την προσφορά του vendor. Πρόσθεσε δικές σου πληροφορίες στο πεδίο παραλλαγής/σημείωσης παρακάτω.</small>
+        </div>
+        {selectedCanonical?.warrantyBasis && <div className="workspace-form-field span-2"><label>Εγγύηση / βάση εγγύησης</label><input value={selectedCanonical.warrantyBasis} readOnly /></div>}
+        {canonicalDetails.length > 0 && <div className="workspace-form-field span-2">
+          <label>Τεχνικά χαρακτηριστικά canonical προϊόντος</label>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8 }}>
+            {canonicalDetails.map(([key, value]) => <div key={key} style={{ border: "1px solid rgba(100,116,139,.22)", borderRadius: 12, padding: "9px 11px" }}><small style={{ display: "block", opacity: .72 }}>{key}</small><strong>{value}</strong></div>)}
+          </div>
+        </div>}
         <div className="workspace-form-field span-2">
           <label htmlFor="catalog-variant-note">Παραλλαγή / ποικιλία / δική σου σημείωση <span style={{ fontWeight: 400 }}>(προαιρετικό)</span></label>
           <input id="catalog-variant-note" name="variantNote" value={variantNote} onChange={(event) => setVariantNote(event.target.value)} placeholder="π.χ. 2,5 m, κόκκινο, συσκευασία 10 τεμ." />
