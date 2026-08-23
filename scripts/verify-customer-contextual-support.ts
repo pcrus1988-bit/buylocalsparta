@@ -27,7 +27,7 @@ const expect = (condition: boolean, message: string) => { if (!condition) failur
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0115_customer_contextual_support.sql"] === migrationHash, `0115 checksum mismatch: manifest=${checksums["0115_customer_contextual_support.sql"] ?? "missing"} actual=${migrationHash}`);
-expect(postgresRuntime.includes("EXPECTED_SCHEMA_VERSION = 122"), "PostgreSQL readiness must expect schema version 122");
+expect(postgresRuntime.includes("EXPECTED_SCHEMA_VERSION = 127"), "PostgreSQL readiness must expect schema version 127");
 
 for (const contract of [
   "ADD COLUMN IF NOT EXISTS context_type text",
