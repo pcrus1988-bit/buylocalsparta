@@ -1,6 +1,6 @@
-import { requireAdminSession } from "../../../../../../../lib/admin-session";
-import { persistSeoLiveCrawl } from "../../../../../../../lib/seo-crawl-history";
-import { runSeoTargetedCrawl } from "../../../../../../../lib/seo-live-crawl";
+import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { persistSeoLiveCrawl } from "../../../../../../lib/seo-crawl-history";
+import { runSeoTargetedCrawl } from "../../../../../../lib/seo-live-crawl";
 
 export async function POST(request: Request) {
   try {
