@@ -7,7 +7,7 @@ const EMPTY_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1
 export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
   const canonicalVariantId = id.trim();
-  if (!/^product_[A-Za-z0-9_-]{8,160}$/.test(canonicalVariantId)) return emptyImage();
+  if (!/^[A-Za-z0-9_-]{8,160}$/.test(canonicalVariantId)) return emptyImage();
 
   try {
     const detail = await getPublicProductDetail(canonicalVariantId);
