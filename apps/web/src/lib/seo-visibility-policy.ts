@@ -1,4 +1,5 @@
 import type { PublicVendorDirectoryEntry } from "./public-vendor-directory";
+import { isPublicCatalogueTitle } from "./public-data-integrity";
 
 export type SeoVisibilityClass =
   | "PUBLIC_INDEXABLE"
@@ -173,7 +174,6 @@ export type ResearchVendorIndexPolicy = Readonly<{
 }>;
 const PLACEHOLDER_NAME_PATTERN = /^(unknown|unnamed|χωρίς όνομα|χωρις ονομα|n\/a|test|demo)$/i;
 const CLOSED_STATUS_PATTERN = /(permanently[_ -]?closed|closed|inactive|out[_ -]?of[_ -]?scope|κλειστ|έκλεισ)/i;
-const PLACEHOLDER_PRODUCT_TITLE_PATTERN = /^(unknown|unnamed|product|προϊόν|προιον|χωρίς όνομα|χωρις ονομα|n\/a|test|demo)$/i;
 
 function usefulText(value: string | undefined, minimum = 2): boolean {
   return Boolean(value && value.trim().length >= minimum);
@@ -252,8 +252,9 @@ export const DEFAULT_PRODUCT_INDEX_SCORE = 5;
 /**
  * Search-quality gate layered above the existing public canonical admission rule.
  * Suppressed, recalled, inactive and otherwise unsafe products never reach this
- * function; this gate prevents admitted-but-thin records from sitemap/index
- * promotion while keeping the public page usable for people.
+ * function. An approved primary image is a hard requirement for organic promotion:
+ * catalogue records may continue enriching for people, but image-less canonicals
+ * are not sitemapped/index-promoted as complete commerce documents.
  */
 export function productIndexEligibility(
   product: ProductIndexCandidate,
@@ -271,11 +272,11 @@ export function productIndexEligibility(
   const hasIdentity = usefulText(product.gtin, 8) || usefulText(product.mpn, 2) || usefulText(product.brand, 2);
   const hasStrongDifferentiator = usefulText(product.gtin, 8) || usefulText(product.mpn, 2) || usefulText(product.color, 2) || Boolean(product.sizes?.some((size) => usefulText(size, 1)));
 
-  if (usefulText(title, 3) && !PLACEHOLDER_PRODUCT_TITLE_PATTERN.test(title)) {
+  if (isPublicCatalogueTitle(title)) {
     score += 2;
     reasons.push("meaningful product title");
   } else {
-    blockingReasons.push("missing or placeholder product title");
+    blockingReasons.push("missing, fixture or placeholder product title");
   }
 
   if (usefulText(product.categoryCode, 2)) {
@@ -292,6 +293,8 @@ export function productIndexEligibility(
   if (hasImage) {
     score += 1;
     reasons.push("approved public image");
+  } else {
+    blockingReasons.push("missing approved public image");
   }
   if (hasIdentity) {
     score += 1;
