@@ -17,7 +17,7 @@ for (const contract of [
   "seoReportTrendSeries",
   "reports.slice(0, limit).reverse()",
   "seoReportRecurringFindings",
-  'diagnostic.severity !== "good"',
+  '.filter((item) => item.severity !== "good")',
   "Number(right.current) - Number(left.current)",
   "seoReportComparison",
   'key: "health"',
