@@ -1,0 +1,26 @@
+import { readFile, writeFile } from 'node:fs/promises';
+const OUT='data/imports/polo';
+function validGtin(candidate){ const d=String(candidate??'').replace(/\D/g,''); if(![8,12,13,14].includes(d.length))return false; const b=d.slice(0,-1).split('').reverse().map(Number); const s=b.reduce((a,x,i)=>a+x*(i%2===0?3:1),0); return (10-(s%10))%10===Number(d.at(-1)); }
+const rows=(await readFile(`${OUT}/polo-master.jsonl`,'utf8')).split(/\r?\n/).filter(Boolean).map(JSON.parse);
+const summary=JSON.parse(await readFile(`${OUT}/polo-crawl-summary.json`,'utf8'));
+const counts=(values)=>{const m=new Map();for(const v of values)if(v)m.set(v,(m.get(v)||0)+1);return m;};
+const duplicateSkus=[...counts(rows.map(r=>r.supplier_code)).entries()].filter(([,n])=>n>1).map(([v,n])=>({value:v,count:n}));
+const malformedSkus=rows.filter(r=>!/^\d[A-Z0-9]*-[A-Z0-9/]+$/i.test(String(r.supplier_code||''))).map(r=>({supplier_code:r.supplier_code,title:r.title,source_url:r.source_url}));
+const duplicateGtins=[...counts(rows.map(r=>r.gtin)).entries()].filter(([,n])=>n>1).map(([v,n])=>({value:v,count:n}));
+const invalidGtins=rows.filter(r=>r.gtin&&!validGtin(r.gtin)).map(r=>({supplier_code:r.supplier_code,gtin:r.gtin}));
+const missingImages=rows.filter(r=>!r.image_url).map(r=>r.supplier_code);
+const missingPriceEvidence=rows.filter(r=>!r.msrp&&!r.selling_price&&!r.price).map(r=>r.supplier_code);
+const missingSource=rows.filter(r=>!r.source_url).map(r=>r.supplier_code);
+const report={checkedAt:new Date().toISOString(),rowCount:rows.length,summaryProductCount:summary.productCount,withGtin:rows.filter(r=>r.gtin).length,missingGtin:rows.filter(r=>!r.gtin).length,withColor:rows.filter(r=>r.color).length,withHumanVariantLabel:rows.filter(r=>r.variant_label&&r.variant_label!==r.variant_code).length,duplicateSkus,malformedSkus,duplicateGtins,invalidGtins,missingImages,missingPriceEvidence,missingSource};
+await writeFile(`${OUT}/polo-validation.json`,JSON.stringify(report,null,2)+'\n','utf8');
+console.log(JSON.stringify(report,null,2));
+const failures=[];
+if(rows.length!==Number(summary.productCount))failures.push(`row count ${rows.length} != summary productCount ${summary.productCount}`);
+if(duplicateSkus.length)failures.push(`${duplicateSkus.length} duplicate SKU values`);
+if(malformedSkus.length)failures.push(`${malformedSkus.length} malformed SKU rows`);
+if(duplicateGtins.length)failures.push(`${duplicateGtins.length} duplicate GTIN values`);
+if(invalidGtins.length)failures.push(`${invalidGtins.length} invalid GTIN rows`);
+if(missingImages.length)failures.push(`${missingImages.length} rows missing images`);
+if(missingPriceEvidence.length)failures.push(`${missingPriceEvidence.length} rows missing MSRP/selling price`);
+if(missingSource.length)failures.push(`${missingSource.length} rows missing source URL`);
+if(failures.length)throw new Error(`POLO master validation failed: ${failures.join('; ')}`);
