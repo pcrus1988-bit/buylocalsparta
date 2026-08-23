@@ -26,6 +26,11 @@ CREATE POLICY bls_platform_runtime_all ON seo_crawl_structured_data_observations
   FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
+REVOKE ALL ON TABLE seo_crawl_structured_data_observations
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime;
+GRANT SELECT, INSERT ON TABLE seo_crawl_structured_data_observations
+  TO bls_platform_runtime;
+
 CREATE TRIGGER seo_crawl_structured_data_observations_no_mutation
   BEFORE UPDATE OR DELETE ON seo_crawl_structured_data_observations
   FOR EACH ROW EXECUTE FUNCTION bls_private.prevent_seo_crawl_evidence_mutation();
