@@ -142,7 +142,7 @@ BEGIN
   v_source_signature := bls_private.catalog_material_variant_signature(COALESCE(p_variant_attributes,'{}'::jsonb));
 
   IF NULLIF(btrim(COALESCE(p_gtin,'')),'') IS NOT NULL THEN
-    IF btrim(p_gtin) !~ '^[0-9][0-9 -]*[0-9]$' AND btrim(p_gtin) !~ '^[0-9]$' THEN
+    IF btrim(p_gtin) !~ '^[0-9][0-9 -]*[0-9]$' THEN
       RETURN QUERY SELECT NULL::uuid,NULL::text,v_family_id,'review'::text,'invalid_gtin'::text;
       RETURN;
     END IF;
@@ -165,8 +165,13 @@ BEGIN
         AND pi.identifier_scope='trade_item'
         AND pi.identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn13')
         AND pi.normalized_value=v_gtin
+    ), ranked AS (
+      SELECT id,row_number() OVER (ORDER BY id::text) AS rn,count(*) OVER () AS total
+      FROM matches
     )
-    SELECT count(*),min(id) INTO v_gtin_match_count,v_gtin_match_id FROM matches;
+    SELECT COALESCE(max(total),0),max(id) FILTER (WHERE rn=1)
+    INTO v_gtin_match_count,v_gtin_match_id
+    FROM ranked;
 
     IF v_gtin_match_count > 1 THEN
       RETURN QUERY SELECT NULL::uuid,NULL::text,v_family_id,'review'::text,'gtin_ambiguous'::text;
@@ -188,13 +193,17 @@ BEGIN
 
   -- Exact governed identity inside the family is deterministic. The family lock makes
   -- the lookup/create sequence safe against concurrent vendor submissions.
-  SELECT count(*),min(cv.id)
+  WITH matches AS (
+    SELECT cv.id,row_number() OVER (ORDER BY cv.id::text) AS rn,count(*) OVER () AS total
+    FROM public.canonical_variants cv
+    WHERE cv.family_id=v_family_id
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND bls_private.catalog_material_variant_signature(cv.variant_attributes)=v_source_signature
+  )
+  SELECT COALESCE(max(total),0),max(id) FILTER (WHERE rn=1)
   INTO v_sibling_count,v_sibling_id
-  FROM public.canonical_variants cv
-  WHERE cv.family_id=v_family_id
-    AND cv.suppressed=false
-    AND cv.recalled=false
-    AND bls_private.catalog_material_variant_signature(cv.variant_attributes)=v_source_signature;
+  FROM matches;
 
   IF v_sibling_count > 1 THEN
     RETURN QUERY SELECT NULL::uuid,NULL::text,v_family_id,'review'::text,'family_variant_ambiguous'::text;
