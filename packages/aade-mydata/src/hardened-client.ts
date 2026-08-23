@@ -3,6 +3,7 @@ import {
   decodeAadeXmlEnvelope,
   MyDataTransportError,
   parseTransmissionResponse,
+  retryAfterDelayMs,
   type MyDataConfig,
   type MyDataFetch,
   type MyDataTransmissionResult
@@ -177,7 +178,9 @@ export class HardenedAadeMyDataClient extends BaseAadeMyDataClient {
       if (!response.ok) {
         const summary = redact(`${compact(body).slice(0, 500) || response.statusText}`, this.#extendedConfig);
         throw new MyDataTransportError("http", `AADE myDATA HTTP ${response.status}: ${summary}`, {
-          retryable: retryableStatus(response.status), httpStatus: response.status
+          retryable: retryableStatus(response.status),
+          httpStatus: response.status,
+          retryAfterMs: retryAfterDelayMs(response.headers.get("retry-after"))
         });
       }
       if (!body.trim()) throw new MyDataTransportError("http", "AADE myDATA returned an empty response", { retryable: true, httpStatus: response.status });
