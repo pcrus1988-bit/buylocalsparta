@@ -78,13 +78,6 @@ const SEARCH_EXCLUDED_SOURCES = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: MONOREPO_ROOT,
-  outputFileTracingIncludes: {
-    "/api/internal/catalogue/promote-nikolaou": [
-      "../../scripts/promote-nikolaou-staged-payload.ts",
-      "../../scripts/import-nikolaou-master.ts",
-      "../../scripts/catalogue/nikolaou-import-lib.ts"
-    ]
-  },
   transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/viva-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
