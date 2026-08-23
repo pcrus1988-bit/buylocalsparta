@@ -5,10 +5,13 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchVendorDossier, type ResearchSourceRecord } from "../../../../lib/research-vendors-runtime";
+import { promoteResearchVendorToApplications } from "../../applications/actions";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
 export const metadata: Metadata = { title: "Admin · Research Vendor Dossier", robots: { index: false, follow: false } };
+
+const PRE_LIVE = new Set(["application_started", "verification_pending", "catalog_onboarding", "test_ready"]);
 
 const sourceLabels: Record<string, string> = {
   merchant_census: "Merchant census",
@@ -82,6 +85,18 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
   const profileEntries = Object.entries(vendor.profilePayload);
   const location = [vendor.address, vendor.locality, vendor.postcode].filter(Boolean).join(" · ") || "—";
   const commerceSignals = [vendor.recommendedCommerceMode, vendor.onlineShopActive, vendor.storefrontStatus].filter(Boolean);
+  const inApplications = PRE_LIVE.has(vendor.status);
+
+  const applicationAction = vendor.status === "invited"
+    ? <form action={promoteResearchVendorToApplications}>
+        <input type="hidden" name="csrfToken" value={data.csrfToken} />
+        <input type="hidden" name="vendorId" value={vendor.id} />
+        <input type="hidden" name="reason" value="Promote research prospect to Applications" />
+        <button className="button" type="submit">Move to Applications</button>
+      </form>
+    : inApplications
+      ? <Link className="button" href={`/admin/applications#vendor-${encodeURIComponent(vendor.id)}`}>Open in Applications</Link>
+      : <Link className="button button-secondary" href="/admin/vendors">Partner record</Link>;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel={vendor.tradingName} />
@@ -93,7 +108,7 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
         <p className="lead">{vendor.legalName}{vendor.majorBranch ? ` · ${vendor.majorBranch}` : ""}{vendor.subBranch ? ` / ${vendor.subBranch}` : ""}</p>
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/research-vendors">← Research queue</Link>
-          <Link className="button" href="/admin/vendors">Application workflow</Link>
+          {applicationAction}
           {onlineShopUrl && <a className="text-link" href={onlineShopUrl} target="_blank" rel="noreferrer">Online shop ↗</a>}
         </div>
       </div>
@@ -157,8 +172,8 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
       <article className="workspace-queue-card">
         <div className="workspace-queue-head"><div><strong>{vendor.verificationAction ?? "No specific verification action recorded."}</strong><small>{vendor.outreachPriority ?? "No outreach priority"}{vendor.outreachScore === undefined ? "" : ` · score ${vendor.outreachScore}/10`}</small></div><span className="status-pill">{vendor.status}</span></div>
         <div className="workspace-action-bar">
-          <span>Research → owner contact / claim → formal application → verification.</span>
-          <div className="workspace-action-buttons">{directoryProfile && <a className="button button-secondary" href={directoryProfile} target="_blank" rel="noreferrer">Directory profile ↗</a>}{onlineShopUrl && <a className="button button-secondary" href={onlineShopUrl} target="_blank" rel="noreferrer">Online shop ↗</a>}<Link className="button" href="/admin/vendors">Application workflow</Link></div>
+          <span>Research → Applications → DEMO / verification → onboarding → activation.</span>
+          <div className="workspace-action-buttons">{directoryProfile && <a className="button button-secondary" href={directoryProfile} target="_blank" rel="noreferrer">Directory profile ↗</a>}{onlineShopUrl && <a className="button button-secondary" href={onlineShopUrl} target="_blank" rel="noreferrer">Online shop ↗</a>}{applicationAction}</div>
         </div>
       </article>
 
@@ -187,15 +202,15 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
           <div className="workspace-tool-body">{profileEntries.length > 0 ? <div className="workspace-compact-list">{profileEntries.map(([key, value]) => <DetailRow label={key} key={key}>{renderTextValue(value)}</DetailRow>)}</div> : <p className="workspace-queue-summary">No normalized payload stored.</p>}</div>
         </details>
         <details className="workspace-tool-panel">
-          <summary><span><strong>Research verification checks</strong><small>{vendor.verifications.length} records</small></span></summary>
+          <summary><span><strong>Research verification checks</strong><small>{vendor.verifications.length} records</small></summary>
           <div className="workspace-tool-body">{vendor.verifications.length > 0 ? <div className="workspace-compact-list">{vendor.verifications.map((verification, index) => <DetailRow label={verification.type} key={`${verification.type}:${verification.checkedAt ?? index}`} hint={verification.checkedAt}>{verification.status}</DetailRow>)}</div> : <p className="workspace-queue-summary">No research verification checks stored.</p>}</div>
         </details>
       </div>
     </div></section>
 
     <section className="shell vendor-section">
-      <div className="workspace-inline-note">This dossier is internal acquisition intelligence. Public-source legal candidates, e-shop observations, contact data and issue notes are not merchant-approved storefront content. Formal vendor application and verification remain the authority for activation.</div>
-      <div className="workspace-form-actions"><Link className="text-link" href="/admin/vendors">Continue to governed vendor onboarding →</Link></div>
+      <div className="workspace-inline-note">This dossier is internal acquisition intelligence. Public-source legal candidates, e-shop observations, contact data and issue notes are not merchant-approved storefront content. Moving the prospect to Applications does not activate commerce; it only enables governed follow-up, DEMO and catalogue preparation.</div>
+      <div className="workspace-form-actions">{applicationAction}</div>
     </section>
   </main>;
 }
