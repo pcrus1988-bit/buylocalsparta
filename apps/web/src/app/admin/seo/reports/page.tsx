@@ -41,6 +41,10 @@ export default async function AdminSeoReportsPage() {
   const canWrite = hasAdminPermission(principal, "content.write");
   const latestSaved = data.reports.reports[0];
   const previousSaved = data.reports.reports[1];
+  const googleCoverageHardFailures = data.metrics.gscCoverageCanonicalMismatch
+    + data.metrics.gscCoverageFailedVerdict
+    + data.metrics.gscCoverageIndexingBlocked
+    + data.metrics.gscCoverageFetchFailed;
   const currentJsonExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "json" }).toString()}`;
   const currentCsvExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "csv" }).toString()}`;
 
@@ -51,7 +55,7 @@ export default async function AdminSeoReportsPage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Reports</div>
         <h1>Unified SEO release report</h1>
-        <p className="lead">One operational view of governed URLs, production crawl findings, sitemap evidence, Google Search Console performance, structured data and persisted regression baselines. Evidence freshness is part of the release signal: an old green check becomes attention instead of remaining green forever.</p>
+        <p className="lead">One operational view of governed URLs, production crawl findings, sitemap evidence, Google Search Console performance and index coverage, structured data and persisted regression baselines. Evidence freshness is part of the release signal: an old green check becomes attention instead of remaining green forever.</p>
       </div>
       <aside className={data.status === "blocked" ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
         <span>Current release signal</span>
@@ -68,6 +72,7 @@ export default async function AdminSeoReportsPage() {
         <Link href="/admin/seo/crawl">Crawl</Link>
         <Link href="/admin/seo/sitemaps">Sitemaps</Link>
         <Link href="/admin/seo/search-console">Search Console</Link>
+        <Link href="/admin/seo/search-console/index-coverage">Google Coverage</Link>
         <Link href="/admin/seo/schema">Schema</Link>
         <Link href="/admin/seo/reports">Reports</Link>
       </nav>
@@ -77,16 +82,17 @@ export default async function AdminSeoReportsPage() {
       { label: "Governed URLs", value: data.metrics.governedUrls, tone: "positive", hint: `${data.metrics.desiredIndexable} desired indexable` },
       { label: "Open crawl issues", value: data.metrics.openIssues, tone: data.metrics.criticalOpenIssues ? "attention" : data.metrics.openIssues ? "attention" : "positive", hint: `${data.metrics.criticalOpenIssues} critical` },
       { label: "Sitemap mismatches", value: data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual, tone: data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual ? "attention" : "positive", hint: `${data.metrics.sitemapExpectedMissing} expected missing · ${data.metrics.sitemapUnexpectedActual} unexpected` },
+      { label: "Google coverage", value: `${data.metrics.gscCoverageHealthy}/${data.metrics.gscCoverageGoverned}`, tone: googleCoverageHardFailures || data.metrics.gscCoverageMissing || data.metrics.gscCoverageStale || data.metrics.gscCoverageAttention ? "attention" : "positive", hint: `${data.metrics.gscCoverageMissing} missing · ${data.metrics.gscCoverageStale} stale · ${googleCoverageHardFailures} hard failures` },
       { label: "Schema healthy", value: `${data.metrics.schemaHealthy}/${data.metrics.schemaManaged}`, tone: data.metrics.schemaInvalid || data.metrics.schemaUnexpected || data.metrics.schemaMissing ? "attention" : "positive", hint: `${data.metrics.schemaMissing} missing · ${data.metrics.schemaInvalid} invalid · ${data.metrics.schemaNotChecked} unchecked` }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Release evidence refresh" title="Rebuild the operational evidence pack" note="One operator action refreshes the existing governed evidence sources in sequence. URL registry sync runs first, then a bounded production crawl with structured-data evidence, sitemap capture and Search Console sync. A failure in one source is shown explicitly and does not erase successful evidence from the others." />
+      <WorkspaceSectionHeading eyebrow="Release evidence refresh" title="Rebuild the operational evidence pack" note="One operator action refreshes the existing governed evidence sources in sequence. URL registry sync runs first, then a bounded production crawl with structured-data evidence, sitemap capture, Search Console performance sync and a final bounded Google index-coverage sample. A failure in one source is shown explicitly and does not erase successful evidence from the others." />
       <AdminSeoEvidenceRefresh csrfToken={principal.csrfToken} enabled={canWrite} />
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Release evidence" title="Cross-surface readiness checks" note="Every check links back to the evidence workspace that owns the underlying data. Unknown means evidence has not been captured or persistence is unavailable; stale evidence is attention, never a pass." />
+      <WorkspaceSectionHeading eyebrow="Release evidence" title="Cross-surface readiness checks" note="Every check links back to the evidence workspace that owns the underlying data. Unknown means evidence has not been captured or persistence is unavailable; stale evidence is attention, never a pass. Explicit Google canonical/indexing/fetch failures can block the release signal." />
       <div className="workspace-queue-list">
         {data.checks.map((item) => <article className="workspace-queue-card" key={item.id}>
           <div className="workspace-queue-head">
@@ -103,11 +109,12 @@ export default async function AdminSeoReportsPage() {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Freshness" title="Latest retained evidence" note="Operational thresholds are explicit: production crawl and sitemap evidence target ≤24 hours; Search Console sync targets ≤72 hours to accommodate Google's reporting delay. Missing or older evidence moves the release signal to attention." />
+      <WorkspaceSectionHeading eyebrow="Freshness" title="Latest retained evidence" note="Operational thresholds are explicit: production crawl and sitemap evidence target ≤24 hours; Search Console performance sync targets ≤72 hours to accommodate Google's reporting delay. Google URL Inspection coverage uses its own per-URL seven-day freshness threshold. Missing or older evidence moves the release signal to attention." />
       <div className="admin-domain-card-grid">
         <article className="admin-domain-card"><span>Production crawl</span><strong>{when(data.latestCrawlCompletedAt)}</strong><p>{freshnessLabel(data.freshness.crawl)}</p><b>{data.metrics.latestCrawlIssues}</b><i>Latest-run issues</i></article>
         <article className="admin-domain-card"><span>Sitemap</span><strong>{when(data.latestSitemapCapturedAt)}</strong><p>{freshnessLabel(data.freshness.sitemap)}</p><b>{data.metrics.actualSitemap}</b><i>Observed URLs</i></article>
         <article className="admin-domain-card"><span>Search Console</span><strong>{when(data.latestGscCapturedAt)}</strong><p>{freshnessLabel(data.freshness.searchConsole)}</p><b>{data.metrics.gscImpressions}</b><i>Impressions</i></article>
+        <article className="admin-domain-card"><span>Google index coverage</span><strong>{data.metrics.gscCoverageHealthy}/{data.metrics.gscCoverageGoverned} healthy</strong><p>{data.metrics.gscCoverageMissing} missing · {data.metrics.gscCoverageStale} stale · {data.metrics.gscCoverageAttention} attention.</p><b>{googleCoverageHardFailures}</b><i>Hard Google failures</i></article>
         <article className="admin-domain-card"><span>Search performance</span><strong>{data.metrics.gscClicks} clicks</strong><p>Latest retained Search Console aggregate.</p><b>{data.metrics.gscPages}</b><i>Page rows</i></article>
       </div>
     </div></section>
