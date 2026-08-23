@@ -31,6 +31,8 @@ export type PublicVendorStory = Readonly<{
 
 export type PublicVendorResearchProfile = Readonly<{
   sourceKind?: string;
+  sourceCount?: number;
+  sourceTypes?: readonly string[];
   majorBranch?: string;
   subBranch?: string;
   marketplaceScope?: string;
@@ -83,6 +85,8 @@ type VendorDirectoryRow = SqlRow & {
   story_media_id?: string | null;
   category_codes?: readonly string[] | null;
   research_source_kind?: string | null;
+  research_source_count?: number | string | null;
+  research_source_types?: readonly string[] | null;
   research_major_branch?: string | null;
   research_sub_branch?: string | null;
   research_marketplace_scope?: string | null;
@@ -160,6 +164,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
   const research: PublicVendorResearchProfile | undefined = optionalText(row.research_source_kind) || majorBranch || subBranch
     ? {
         sourceKind: optionalText(row.research_source_kind),
+        sourceCount: asCount(row.research_source_count),
+        sourceTypes: textArray(row.research_source_types),
         majorBranch,
         subBranch,
         marketplaceScope: optionalText(row.research_marketplace_scope),
@@ -212,6 +218,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            story.media_public_id AS story_media_id,
            COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
            vrp.source_kind AS research_source_kind,
+           COALESCE(research_evidence.source_count,0)::integer AS research_source_count,
+           COALESCE(research_evidence.source_types,ARRAY[]::text[]) AS research_source_types,
            vrp.major_branch AS research_major_branch,
            vrp.sub_branch AS research_sub_branch,
            vrp.marketplace_scope AS research_marketplace_scope,
@@ -226,6 +234,14 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
     FROM vendor_businesses v
     JOIN markets m ON m.id=v.market_id
     LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id=v.id
+    LEFT JOIN LATERAL (
+      SELECT count(DISTINCT source_record.id)::integer AS source_count,
+             array_agg(DISTINCT source_record.source_type ORDER BY source_record.source_type)
+               FILTER (WHERE source_record.source_type IS NOT NULL) AS source_types
+      FROM vendor_research_source_links source_link
+      JOIN vendor_research_source_records source_record ON source_record.id=source_link.source_id
+      WHERE source_link.vendor_id=v.id
+    ) research_evidence ON true
     LEFT JOIN LATERAL (
       SELECT COALESCE(NULLIF(ap.display_name,''),'Local adviser') AS name
       FROM adviser_profiles ap
@@ -282,6 +298,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
         AND cv.recalled=false
     ) assortment ON true
     WHERE (m.code=$1 OR m.id::text=$1)
+      AND v.public_directory_visible=true
       AND (
         v.status='active'
         OR (v.status='invited' AND v.public_id LIKE 'vendor_research_%')
