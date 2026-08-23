@@ -8,13 +8,22 @@ on:
       - scripts/catalogue/enrich-polo-browser-v2.mjs
       - scripts/catalogue/enrich-polo-external.mjs
       - .github/workflows/polo-enrichment-refresh.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/catalogue/crawl-polo-browser.mjs
+      - scripts/catalogue/enrich-polo-browser-v2.mjs
+      - scripts/catalogue/enrich-polo-external.mjs
+      - .github/workflows/polo-enrichment-refresh.yml
+      - data/imports/polo/**
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: polo-enrichment-refresh-${{ github.ref }}
+  group: polo-enrichment-refresh-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -62,6 +71,7 @@ jobs:
           retention-days: 30
 
       - name: Commit refreshed POLO data
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
