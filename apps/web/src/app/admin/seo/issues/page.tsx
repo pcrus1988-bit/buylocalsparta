@@ -43,6 +43,7 @@ export default async function AdminSeoIssuesPage() {
       <nav className="admin-local-tabs" aria-label="SEO issue workspace navigation">
         <Link href="/admin/seo">Overview</Link>
         <Link href="/admin/seo/pages">Pages</Link>
+        <Link href="/admin/seo/schema">Structured Data</Link>
         <Link href="/admin/seo/issues">Issues</Link>
         <Link href="/admin/seo/crawl">Crawl</Link>
         <Link href="/admin/seo/sitemaps">Sitemaps</Link>
