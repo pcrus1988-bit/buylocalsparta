@@ -41,10 +41,6 @@ export default async function AdminSeoReportsPage() {
   const canWrite = hasAdminPermission(principal, "content.write");
   const latestSaved = data.reports.reports[0];
   const previousSaved = data.reports.reports[1];
-  const googleCoverageHardFailures = data.metrics.gscCoverageCanonicalMismatch
-    + data.metrics.gscCoverageFailedVerdict
-    + data.metrics.gscCoverageIndexingBlocked
-    + data.metrics.gscCoverageFetchFailed;
   const currentJsonExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "json" }).toString()}`;
   const currentCsvExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "csv" }).toString()}`;
 
@@ -82,7 +78,7 @@ export default async function AdminSeoReportsPage() {
       { label: "Governed URLs", value: data.metrics.governedUrls, tone: "positive", hint: `${data.metrics.desiredIndexable} desired indexable` },
       { label: "Open crawl issues", value: data.metrics.openIssues, tone: data.metrics.criticalOpenIssues ? "attention" : data.metrics.openIssues ? "attention" : "positive", hint: `${data.metrics.criticalOpenIssues} critical` },
       { label: "Sitemap mismatches", value: data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual, tone: data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual ? "attention" : "positive", hint: `${data.metrics.sitemapExpectedMissing} expected missing · ${data.metrics.sitemapUnexpectedActual} unexpected` },
-      { label: "Google coverage", value: `${data.metrics.gscCoverageHealthy}/${data.metrics.gscCoverageGoverned}`, tone: googleCoverageHardFailures || data.metrics.gscCoverageMissing || data.metrics.gscCoverageStale || data.metrics.gscCoverageAttention ? "attention" : "positive", hint: `${data.metrics.gscCoverageMissing} missing · ${data.metrics.gscCoverageStale} stale · ${googleCoverageHardFailures} hard failures` },
+      { label: "Google coverage", value: `${data.metrics.gscCoverageHealthy}/${data.metrics.gscCoverageGoverned}`, tone: data.metrics.gscCoverageHardFailures || data.metrics.gscCoverageMissing || data.metrics.gscCoverageStale || data.metrics.gscCoverageAttention ? "attention" : "positive", hint: `${data.metrics.gscCoverageMissing} missing · ${data.metrics.gscCoverageStale} stale · ${data.metrics.gscCoverageHardFailures} hard-failure URLs` },
       { label: "Schema healthy", value: `${data.metrics.schemaHealthy}/${data.metrics.schemaManaged}`, tone: data.metrics.schemaInvalid || data.metrics.schemaUnexpected || data.metrics.schemaMissing ? "attention" : "positive", hint: `${data.metrics.schemaMissing} missing · ${data.metrics.schemaInvalid} invalid · ${data.metrics.schemaNotChecked} unchecked` }
     ]} />
 
@@ -114,7 +110,7 @@ export default async function AdminSeoReportsPage() {
         <article className="admin-domain-card"><span>Production crawl</span><strong>{when(data.latestCrawlCompletedAt)}</strong><p>{freshnessLabel(data.freshness.crawl)}</p><b>{data.metrics.latestCrawlIssues}</b><i>Latest-run issues</i></article>
         <article className="admin-domain-card"><span>Sitemap</span><strong>{when(data.latestSitemapCapturedAt)}</strong><p>{freshnessLabel(data.freshness.sitemap)}</p><b>{data.metrics.actualSitemap}</b><i>Observed URLs</i></article>
         <article className="admin-domain-card"><span>Search Console</span><strong>{when(data.latestGscCapturedAt)}</strong><p>{freshnessLabel(data.freshness.searchConsole)}</p><b>{data.metrics.gscImpressions}</b><i>Impressions</i></article>
-        <article className="admin-domain-card"><span>Google index coverage</span><strong>{data.metrics.gscCoverageHealthy}/{data.metrics.gscCoverageGoverned} healthy</strong><p>{data.metrics.gscCoverageMissing} missing · {data.metrics.gscCoverageStale} stale · {data.metrics.gscCoverageAttention} attention.</p><b>{googleCoverageHardFailures}</b><i>Hard Google failures</i></article>
+        <article className="admin-domain-card"><span>Google index coverage</span><strong>{data.metrics.gscCoverageHealthy}/{data.metrics.gscCoverageGoverned} healthy</strong><p>{data.metrics.gscCoverageMissing} missing · {data.metrics.gscCoverageStale} stale · {data.metrics.gscCoverageAttention} attention.</p><b>{data.metrics.gscCoverageHardFailures}</b><i>Hard-failure URLs</i></article>
         <article className="admin-domain-card"><span>Search performance</span><strong>{data.metrics.gscClicks} clicks</strong><p>Latest retained Search Console aggregate.</p><b>{data.metrics.gscPages}</b><i>Page rows</i></article>
       </div>
     </div></section>
