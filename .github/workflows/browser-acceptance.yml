@@ -39,7 +39,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - name: Install locked workspace including build-time dev dependencies
+        run: npm ci --include=dev
       - name: Bootstrap Supabase-compatible role and Vault topology
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
