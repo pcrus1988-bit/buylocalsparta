@@ -32,6 +32,7 @@ for (const contract of [
   '"regression-watch"',
   '"/admin/seo/search-console/index-coverage"',
   "googleCoverageHardFailures",
+  "gscCoverage.rows.filter((row) => !row.stale &&",
   "gscCoverage.metrics.canonicalMismatch",
   "gscCoverage.metrics.failedVerdict",
   "gscCoverage.metrics.indexingBlocked",
@@ -46,6 +47,7 @@ for (const contract of [
   "gscCoverageAttention",
   "gscCoverageMissing",
   "gscCoverageStale",
+  "gscCoverageHardFailures",
   "gscCoverageCanonicalMismatch",
   "gscCoverageFailedVerdict",
   "gscCoveragePartialVerdict",
@@ -67,7 +69,8 @@ expect(!/client_secret|access_token|private_key|referringUrls|referring_urls/i.t
 expect(service.includes('crawl.metrics.open > 0 || freshness.crawl.stale ? "warning" : "pass"'), "Stale crawl evidence must prevent a pass state");
 expect(service.includes('sitemap.metrics.unexpectedActual > 0 || freshness.sitemap.stale ? "warning" : "pass"'), "Stale sitemap evidence must prevent a pass state");
 expect(service.includes('freshness.searchConsole.stale ? "warning" : "pass"'), "Stale Search Console evidence must prevent a pass state");
-expect(/googleCoverageHardFailures > 0\s*\? "fail"/.test(service), "Explicit Google canonical/verdict/indexing/fetch failures must block unified SEO release health");
+expect(/googleCoverageHardFailures > 0\s*\? "fail"/.test(service), "Fresh explicit Google canonical/verdict/indexing/fetch failures must block unified SEO release health");
+expect(service.includes("!row.stale && (row.canonicalMismatch"), "Stale Google hard-failure evidence must require refresh instead of blocking forever");
 expect(/gscCoverage\.metrics\.missing > 0[\s\S]*?\? "warning"/.test(service), "Missing Google index-coverage evidence must prevent a pass state without pretending to be a hard failure");
 
 for (const contract of [
@@ -94,7 +97,7 @@ for (const contract of [
   'href="/admin/seo/reports"',
   "Google coverage",
   "Google index coverage",
-  "Hard Google failures",
+  "gscCoverageHardFailures",
   "currentJsonExport",
   "currentCsvExport",
   'new URLSearchParams({ format: "json" })',
@@ -163,4 +166,4 @@ if (failures.length) {
   console.error("SEO unified reports checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("SEO unified reports checks passed: cross-surface evidence aggregation, Google index-coverage release gates, freshness controls, governed sequential refresh pack, private exports, RBAC and Admin navigation verified.");
+console.log("SEO unified reports checks passed: cross-surface evidence aggregation, freshness-aware Google index-coverage release gates, governed sequential refresh pack, private exports, RBAC and Admin navigation verified.");
