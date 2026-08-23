@@ -40,7 +40,7 @@ for (const contract of [
   "bls_private.prevent_seo_crawl_evidence_mutation()"
 ]) expect(migration.includes(contract), `Structured-data migration is missing ${contract}`);
 expect(!migration.includes("GRANT SELECT, INSERT, UPDATE, DELETE"), "Structured-data evidence must not grant mutation privileges");
-expect(!migration.includes("CREATE POLICY") || !migration.includes("anon"), "Anonymous roles must not receive an RLS policy on structured-data evidence");
+expect(!/CREATE POLICY[\s\S]{0,180}\b(?:anon|authenticated|service_role)\b/i.test(migration), "External/Data API roles must not receive an RLS policy on structured-data evidence");
 
 for (const contract of [
   'PRODUCT_SCHEMA_TYPES = ["Product", "Offer", "BreadcrumbList"]',
