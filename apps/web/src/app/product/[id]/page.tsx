@@ -17,7 +17,7 @@ import { productPublicPath } from "../../../lib/product-url";
 import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
-import { getPublicProductDetail } from "../../../lib/public-product-detail";
+import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../lib/public-product-detail";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel } from "../../../lib/public-data-integrity";
 
@@ -29,12 +29,41 @@ const productImageStyle = {
   width: "100%",
   height: "100%",
   objectFit: "contain",
+  padding: "18px",
+  background: "#fff",
   zIndex: 1
 } as const;
 
 const thumbnailImageStyle = {
   objectFit: "contain"
 } as const;
+
+const PRIVATE_SOURCE_ATTRIBUTE_KEYS = new Set([
+  "source",
+  "source_id",
+  "source_code",
+  "source_name",
+  "source_slug",
+  "source_key",
+  "source_domain",
+  "source_website",
+  "source_product_key",
+  "catalog_source",
+  "catalog_source_id",
+  "catalog_source_code",
+  "catalog_source_name",
+  "crawler_source"
+]);
+
+function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute[]): readonly PublicTechnicalAttribute[] {
+  return attributes.filter((attribute) => {
+    const key = attribute.key.trim().toLowerCase();
+    return !PRIVATE_SOURCE_ATTRIBUTE_KEYS.has(key)
+      && !key.startsWith("source_")
+      && !key.startsWith("catalog_source_")
+      && !key.startsWith("crawl_source_");
+  });
+}
 
 function productSeoDescription(product: { title: string; description?: string }): string {
   const description = product.description?.replace(/\s+/g, " ").trim()
@@ -71,7 +100,11 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       title: product.title,
       description,
       canonicalPath: productPublicPath(product),
-      openGraphImage: product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : detail?.sourceImageUrl
+      openGraphImage: product.mediaId
+        ? `/api/media/${encodeURIComponent(product.mediaId)}`
+        : detail?.sourceImageUrl
+          ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+          : undefined
     },
     entityEligible: quality.blockingReasons.length === 0,
     defaultIndexAllowed: quality.eligible
@@ -101,13 +134,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? [{ canonicalVariantId: product.id, mediaId: product.mediaId, altText: product.mediaAlt }]
       : [];
   const primaryImage = mediaGallery[0];
-  const supplierImageUrl = primaryImage ? undefined : detail?.sourceImageUrl;
+  const supplierImageSrc = primaryImage || !detail?.sourceImageUrl
+    ? undefined
+    : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const displayDescription = product.description ?? detail?.description;
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
-  const technicalAttributes = detail?.technicalAttributes ?? [];
+  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
 
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
@@ -136,7 +172,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredImages = mediaGallery.length
     ? mediaGallery.map((image) => `${origin}/api/media/${encodeURIComponent(image.mediaId)}`)
-    : supplierImageUrl ? [supplierImageUrl] : undefined;
+    : supplierImageSrc ? [`${origin}${supplierImageSrc}`] : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -182,9 +218,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <section className="shell product-detail">
         <div style={{ display: "grid", gap: 12, alignSelf: "start" }}>
           <div className={`product-detail-art ${category.artClass}`}>
-            <span className="detail-category">{category.name}</span>
-            <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
-            {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageUrl ? <img src={supplierImageUrl} alt={product.title} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
+            {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
+            {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
+            {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={product.title} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
             <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
           {mediaGallery.length > 1 ? (
@@ -202,7 +238,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
           <h1>{product.title}</h1>
           <div className="detail-price">{displayPrice}</div>
-          <p className="lead compact">{product.available ? "Η τιμή και η διαθεσιμότητα προέρχονται από ένα πραγματικά επιλέξιμο τοπικό offer. Το ΚΟΝΤΑ ΜΟΥ δεν προσθέτει προσαύξηση στην τιμή προϊόντος." : "Ενδεικτική τιμή καταλόγου από την τελευταία καταγεγραμμένη πηγή. Η αγορά θα ενεργοποιηθεί μόνο όταν υπάρχει εγκεκριμένο τοπικό offer με επιβεβαιωμένο stock."}</p>
 
           {displayDescription ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p style={{ whiteSpace: "pre-line" }}>{displayDescription}</p></div></div> : null}
 
@@ -223,7 +258,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {technicalAttributes.length ? <><div className="eyebrow" style={{ marginTop: 24 }}>Τεχνικά χαρακτηριστικά</div><div className="detail-assurances">{technicalAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}</div></> : null}
 
-          {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο αρχείο από την καταγεγραμμένη πηγή προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
+          {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
           {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div></div></div>}
           <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={product} /><ProductAccountActions productId={product.id} /></>}</div></div>
