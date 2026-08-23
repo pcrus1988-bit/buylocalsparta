@@ -1,0 +1,27 @@
+name: Research Vendor SEO Evidence Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/lib/public-vendor-directory.ts"
+      - "apps/web/src/lib/seo-visibility-policy.ts"
+      - "scripts/verify-next-seo.ts"
+      - "scripts/verify-research-vendor-evidence-seo.ts"
+      - ".github/workflows/research-vendor-seo-evidence-acceptance.yml"
+
+jobs:
+  evidence-seo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install locked workspace
+        run: npm ci --ignore-scripts
+      - name: Run established SEO contract
+        run: npm run check:seo
+      - name: Verify research evidence corroboration
+        run: node --experimental-strip-types scripts/verify-research-vendor-evidence-seo.ts
+      - name: Typecheck web application
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
