@@ -6,6 +6,7 @@ import {
   parseXmlDocument,
   textContent
 } from "./xml.ts";
+import { retryAfterDelayMs } from "./retry-after.ts";
 
 export {
   childElements,
@@ -22,6 +23,7 @@ export {
   type XmlElement,
   type XmlElementSpec
 } from "./xml.ts";
+export { retryAfterDelayMs } from "./retry-after.ts";
 
 export type MyDataEnvironment = "test" | "production";
 export type MyDataFetch = typeof fetch;
@@ -89,13 +91,15 @@ export class MyDataTransportError extends Error {
   readonly kind: MyDataTransportErrorKind;
   readonly retryable: boolean;
   readonly httpStatus?: number;
+  readonly retryAfterMs?: number;
 
-  constructor(kind: MyDataTransportErrorKind, message: string, options?: { retryable?: boolean; httpStatus?: number; cause?: unknown }) {
+  constructor(kind: MyDataTransportErrorKind, message: string, options?: { retryable?: boolean; httpStatus?: number; retryAfterMs?: number; cause?: unknown }) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = "MyDataTransportError";
     this.kind = kind;
     this.retryable = options?.retryable ?? false;
     this.httpStatus = options?.httpStatus;
+    this.retryAfterMs = options?.retryAfterMs;
   }
 }
 
@@ -207,7 +211,8 @@ export class AadeMyDataClient {
         const detail = redactSecrets(compactXml(body).slice(0, 500) || response.statusText, this.#config);
         throw new MyDataTransportError("http", `AADE myDATA HTTP ${response.status}: ${detail}`, {
           httpStatus: response.status,
-          retryable: isRetryableHttpStatus(response.status)
+          retryable: isRetryableHttpStatus(response.status),
+          retryAfterMs: retryAfterDelayMs(response.headers.get("retry-after"))
         });
       }
       if (!body.trim()) throw new MyDataTransportError("network", "AADE myDATA returned an empty response", { retryable: true });
