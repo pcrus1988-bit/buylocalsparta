@@ -12,7 +12,10 @@ const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "style-src 'self' 'unsafe-inline' https://unpkg.com",
   `script-src 'self' 'unsafe-inline' https://unpkg.com${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr" : ""}`,
-  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://covers.openlibrary.org https://nikolaoutools.gr https://www.nikolaoutools.gr",
+  // Catalogue fallback images are admitted only after public-product-detail verifies
+  // HTTPS and exact source-host equality. The CSP therefore permits HTTPS images
+  // generically instead of requiring a code deploy for every governed supplier host.
+  "img-src 'self' data: blob: https:",
   `connect-src 'self'${MEDIA_UPLOAD_ORIGIN ? ` ${MEDIA_UPLOAD_ORIGIN}` : ""}${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr https://map.boxnow.gr" : ""}`,
   `frame-src 'self'${BOXNOW_WIDGET_ENABLED ? " https://map.boxnow.gr https://widget-v4.boxnow.gr https://widget-v5.boxnow.gr" : ""}`,
   "frame-ancestors 'none'",
