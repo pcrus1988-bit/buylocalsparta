@@ -6,19 +6,19 @@
   "productCount": 965,
   "familyCount": 302,
   "withSupplierCode": 965,
-  "withGtin": 580,
+  "withGtin": 517,
   "primarySourceGtins": 0,
   "externallyVerifiedGtins": 5,
-  "missingGtin": 385,
+  "missingGtin": 448,
   "withImages": 965,
-  "totalImages": 1916,
+  "totalImages": 1909,
   "withMsrp": 964,
   "withCapacity": 597,
   "withDimensions": 287,
   "withWeight": 906,
-  "withColor": 61,
+  "withColor": 509,
   "withVariantLabel": 965,
-  "qualityReviewRows": 912,
+  "qualityReviewRows": 932,
   "duplicateSku": [],
   "duplicateGtin": [],
   "invalidGtin": [],
@@ -111,33 +111,52 @@
     "colors": "Variant codes and POLO other-colour relationships are retained. Human-readable color/design labels remain pending exact-SKU external verification rather than being guessed."
   },
   "enrichmentV2": {
-    "completedAt": "2026-08-23T17:22:39.477Z",
+    "completedAt": "2026-08-23T18:17:57.204Z",
     "method": "Browser-origin same-site fetch of rendered POLO product HTML plus Woo Store API exact-SKU records",
-    "exactStoreApiRows": 963,
+    "exactStoreApiRows": 964,
     "withOfficialShortDescription": 964,
     "withTechnicalDetails": 964,
     "withDimensionsSourceText": 952,
     "withFeatureIcons": 286,
-    "withSourceSizeCode": 963,
+    "withSourceSizeCode": 964,
     "withDiameter": 32,
     "LAKEN": 74,
     "POLO": 891
   },
   "withTechnicalDetails": 964,
   "externalEnrichment": {
-    "completedAt": "2026-08-23T17:27:59.115Z",
+    "completedAt": "2026-08-23T18:20:59.154Z",
     "policy": "Exact supplier SKU must be present on the external result/product page. GTIN must be checksum-valid and explicitly exposed in structured/labelled product metadata. Multiple differing valid GTINs are quarantined as conflicts.",
     "sources": [
       "BestPrice exact-SKU search/product",
       "NProkos exact-SKU search/product",
       "Domino exact-SKU fallback"
     ],
-    "withGtin": 580,
-    "missingGtin": 385,
+    "withGtin": 583,
+    "missingGtin": 382,
     "withColor": 61,
-    "withHumanVariantLabel": 621,
+    "withHumanVariantLabel": 631,
     "gtinConflicts": 1,
     "colorConflicts": 0,
-    "variantLabelConflicts": 32
+    "variantLabelConflicts": 30
+  },
+  "externalReconciliation": {
+    "completedAt": "2026-08-23T18:49:03.466Z",
+    "invalidatedNonExactGtins": 0,
+    "colorsImproved": 0,
+    "variantLabelsImproved": 0,
+    "policy": "External product evidence is valid only when the exact supplier SKU appears in the product URL path or product title. Query-string-only matches and generic search pages are rejected."
+  },
+  "retailerIndexEnrichment": {
+    "completedAt": "2026-08-23T18:49:02.945Z",
+    "sources": [
+      "Gnosi POLO catalogue index",
+      "Lichnari POLO catalogue index"
+    ],
+    "exactSkuEvidenceRows": 126,
+    "gtinAdded": 34,
+    "colorAdded": 22,
+    "priceAdded": 1,
+    "conflicts": 58
   }
 }
