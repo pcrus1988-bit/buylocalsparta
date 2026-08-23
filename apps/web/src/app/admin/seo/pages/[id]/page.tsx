@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminActionButton } from "../../../../../components/AdminActionButton";
 import { AdminSearchConsoleUrlInspector } from "../../../../../components/AdminSearchConsoleUrlInspector";
 import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../lib/admin-session";
+import { seoIssueGuidance } from "../../../../../lib/seo-issue-guidance";
 import { getSeoPageDetail } from "../../../../../lib/seo-page-detail";
 import { searchConsoleReadiness } from "../../../../../lib/seo-search-console";
 
@@ -38,11 +40,11 @@ export default async function AdminSeoPageDetailPage({ params }: { params: Promi
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel={detail.label} />
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Content · SEO & Visibility · Pages · Record</div><h1>{detail.label}</h1><p className="lead">A single evidence record for this public URL: intended policy, sitemap membership, actual HTTP crawl, issue lifecycle and what Google Search Console has observed.</p></div>
+      <div><div className="eyebrow">Content · SEO & Visibility · Pages · Record</div><h1>{detail.label}</h1><p className="lead">A single evidence record for this public URL: intended policy, sitemap membership, actual HTTP crawl, issue lifecycle and what Google Search Console has observed. Fixes can be verified here with a governed one-route production recheck.</p></div>
       <aside className={criticalIssues || sitemapMismatch ? "dashboard-health-card needs-attention" : "dashboard-health-card"}><span>Page SEO state</span><strong>{criticalIssues ? `${criticalIssues} critical` : sitemapMismatch ? "Sitemap mismatch" : openIssues.length ? `${openIssues.length} open issues` : "Governed"}</strong><p>{detail.route}</p></aside>
     </section>
 
-    <section className="shell admin-local-tabs-shell"><nav className="admin-local-tabs" aria-label="SEO page detail sections"><a href="#page-policy">Policy</a><a href="#page-crawl">HTTP Crawl</a><a href="#page-issues">Issues</a><a href="#page-google">Google</a><Link href={detail.route} target="_blank">Open public page ↗</Link><Link href="/admin/seo/pages">All SEO Pages</Link><Link href="/admin/seo/search-console">Search Console</Link></nav></section>
+    <section className="shell admin-local-tabs-shell"><nav className="admin-local-tabs" aria-label="SEO page detail sections"><a href="#page-policy">Policy</a><a href="#page-crawl">HTTP Crawl</a><a href="#page-issues">Issues</a><a href="#page-google">Google</a><Link href={detail.route} target="_blank">Open public page ↗</Link><Link href="/admin/seo/pages">All SEO Pages</Link><Link href="/admin/seo/issues">Issue queue</Link><Link href="/admin/seo/search-console">Search Console</Link></nav></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Index desired", value: detail.desiredIndexable ? "Allow" : "Deny", tone: detail.desiredIndexable ? "positive" : "default" },
@@ -68,8 +70,8 @@ export default async function AdminSeoPageDetailPage({ params }: { params: Promi
     </section>
 
     <section id="page-crawl" className="vendor-section section-tint admin-anchor-section"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Actual HTTP evidence" title="Latest persisted crawl" note="Crawler evidence is read-only verification of production behavior; it does not itself alter index policy or public content." />
-      {!detail.latestCrawl ? <div className="workspace-empty-state"><strong>This route has not been captured by a persisted crawl.</strong><span>Run the bounded live crawler from the Crawl workspace.</span></div> : <div className="workspace-compact-list">
+      <WorkspaceSectionHeading eyebrow="Actual HTTP evidence" title="Latest persisted crawl" note="Crawler evidence is read-only verification of production behavior; it does not itself alter index policy or public content. A targeted recheck is limited to this governed route and feeds the same immutable crawl/issue history as the full crawler." />
+      {!detail.latestCrawl ? <div className="workspace-empty-state"><strong>This route has not been captured by a persisted crawl.</strong><span>Run the one-route recheck below or use the bounded crawler for a broader verification pass.</span></div> : <div className="workspace-compact-list">
         <div className="workspace-compact-row"><strong>Run</strong><span><code>{detail.latestCrawl.runId}</code> · {when(detail.latestCrawl.capturedAt)}</span></div>
         <div className="workspace-compact-row"><strong>HTTP</strong><span>{detail.latestCrawl.status ?? "—"} · {detail.latestCrawl.responseTimeMs} ms · {detail.latestCrawl.issueCount} issues</span></div>
         <div className="workspace-compact-row"><strong>Final URL</strong><span>{detail.latestCrawl.finalUrl ?? "—"}</span></div>
@@ -78,16 +80,29 @@ export default async function AdminSeoPageDetailPage({ params }: { params: Promi
         <div className="workspace-compact-row"><strong>Robots meta</strong><span>{detail.latestCrawl.robots ?? "—"}</span></div>
         <div className="workspace-compact-row"><strong>H1 count</strong><span>{detail.latestCrawl.h1Count ?? "—"}</span></div>
       </div>}
-      <div className="workspace-action-bar" style={{ marginTop: 16 }}><span>Need fresh production evidence?</span><div className="workspace-action-buttons"><Link className="text-link" href="/admin/seo/crawl">Open Crawl →</Link></div></div>
+      <div className="workspace-action-bar" style={{ marginTop: 16 }}><span>Need fresh production evidence?</span><div className="workspace-action-buttons">{canWrite && <AdminActionButton label="Recheck this URL" endpoint="/api/admin/seo/crawl/recheck" csrfToken={principal.csrfToken} body={{ route: detail.route }} />}<Link className="text-link" href="/admin/seo/crawl">Open full Crawl →</Link></div></div>
     </div></section>
 
     <section id="page-issues" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="Issue lifecycle" title="Current and historical crawl findings" note="Resolved findings remain evidence. Recurring findings reopen under the persisted issue lifecycle; ignored findings keep accumulating observations without reopening automatically." />
-      {detail.issues.length === 0 ? <div className="workspace-empty-state"><strong>No persisted crawl issues for this route.</strong><span>The route may still need a fresh crawl or Google inspection.</span></div> : <div className="workspace-queue-list">{detail.issues.map((issue) => <article className="workspace-queue-card" key={issue.id}>
-        <div className="workspace-queue-head"><div><strong>{issue.code}</strong><small>{issue.detail}</small></div><span className="status-pill">{issue.severity} · {issue.status}</span></div>
-        <div className="workspace-queue-primary"><span>{issue.occurrenceCount} occurrence{issue.occurrenceCount === 1 ? "" : "s"} · first {when(issue.firstSeenAt)} · last {when(issue.lastSeenAt)}</span></div>
-        <div className="workspace-action-bar"><span>Latest run <code>{issue.latestRunId}</code></span><div className="workspace-action-buttons"><Link className="text-link" href="/admin/seo/issues">Manage issue lifecycle →</Link></div></div>
-      </article>)}</div>}
+      <WorkspaceSectionHeading eyebrow="Issue lifecycle" title="Current and historical crawl findings" note="Resolved findings remain evidence. Recurring findings reopen under the persisted issue lifecycle; ignored findings keep accumulating observations without reopening automatically. Prefer a clean targeted recheck over manual resolution whenever the fix can be verified over HTTP." />
+      {detail.issues.length === 0 ? <div className="workspace-empty-state"><strong>No persisted crawl issues for this route.</strong><span>The route may still need a fresh crawl or Google inspection.</span></div> : <div className="workspace-queue-list">{detail.issues.map((issue) => {
+        const guidance = seoIssueGuidance(issue.code);
+        return <article className="workspace-queue-card" key={issue.id}>
+          <div className="workspace-queue-head"><div><strong>{issue.code}</strong><small>{issue.detail}</small></div><span className="status-pill">{issue.severity} · {issue.status}</span></div>
+          <div className="workspace-queue-primary"><span>{issue.occurrenceCount} occurrence{issue.occurrenceCount === 1 ? "" : "s"} · first {when(issue.firstSeenAt)} · last {when(issue.lastSeenAt)}</span></div>
+          <div className="workspace-compact-list" style={{ marginTop: 10 }}>
+            <div className="workspace-compact-row"><strong>Recommended fix</strong><span>{guidance.title} · {guidance.recommendation}</span></div>
+            <div className="workspace-compact-row"><strong>Next step</strong><span>{guidance.nextStep}</span></div>
+            <div className="workspace-compact-row"><strong>Likely owner</strong><span>{guidance.owner}</span></div>
+          </div>
+          <div className="workspace-action-bar"><span>Latest run <code>{issue.latestRunId}</code></span><div className="workspace-action-buttons">{canWrite && <>
+            <AdminActionButton label="Recheck production" endpoint="/api/admin/seo/crawl/recheck" csrfToken={principal.csrfToken} body={{ route: detail.route }} />
+            {issue.status === "open" && <AdminActionButton label="Ignore" endpoint="/api/admin/seo/crawl/issues/action" csrfToken={principal.csrfToken} body={{ issueId: issue.id, action: "ignore" }} reasonPrompt="Why should this SEO issue be ignored? Minimum 5 characters." />}
+            {issue.status !== "resolved" && <AdminActionButton label="Resolve manually" endpoint="/api/admin/seo/crawl/issues/action" csrfToken={principal.csrfToken} body={{ issueId: issue.id, action: "resolve" }} reasonPrompt="Resolution evidence or reason. Prefer a clean recheck when possible. Minimum 5 characters." />}
+            {issue.status !== "open" && <AdminActionButton label="Reopen" endpoint="/api/admin/seo/crawl/issues/action" csrfToken={principal.csrfToken} body={{ issueId: issue.id, action: "reopen" }} reasonPrompt="Why is this issue being reopened? Minimum 5 characters." />}
+          </>}<Link className="text-link" href="/admin/seo/issues">Global issue queue →</Link></div></div>
+        </article>;
+      })}</div>}
     </section>
 
     <section id="page-google" className="vendor-section section-tint admin-anchor-section"><div className="shell">

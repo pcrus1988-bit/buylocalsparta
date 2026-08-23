@@ -63,6 +63,15 @@ function normalizeComparableUrl(value: string): string {
   }
 }
 
+function normalizedGovernedRoute(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.length > 2_048) throw new Error("Governed crawl route is invalid.");
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || raw.includes("?") || raw.includes("#") || /[\u0000-\u001f\u007f]/.test(raw)) {
+    throw new Error("Targeted crawl accepts only a governed absolute path without query, fragment or host.");
+  }
+  return raw === "/" ? "/" : raw.replace(/\/+$/, "") || "/";
+}
+
 function rowWithIssues(input: Omit<SeoLiveCrawlRow, "issues"> & { issueDetails: readonly SeoLiveCrawlIssue[] }): SeoLiveCrawlRow {
   return { ...input, issues: input.issueDetails.map((issue) => issue.detail) };
 }
@@ -160,6 +169,21 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
   }
 }
 
+function reportForRows(origin: URL, limit: number, startedAt: string, rows: readonly SeoLiveCrawlRow[]): SeoLiveCrawlReport {
+  const healthy = rows.filter((row) => row.issueDetails.length === 0).length;
+  return {
+    origin: origin.origin,
+    limit,
+    startedAt,
+    generatedAt: new Date().toISOString(),
+    requested: rows.length,
+    completed: rows.length,
+    healthy,
+    withIssues: rows.length - healthy,
+    rows
+  };
+}
+
 export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimit = 40): Promise<SeoLiveCrawlReport> {
   const startedAt = new Date().toISOString();
   const [{ settings }, graph] = await Promise.all([getSeoGlobalSettingsSnapshot(), adminSeoCrawlGraph(principal)]);
@@ -178,16 +202,19 @@ export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimi
     rows.push(...inspected);
   }
 
-  const healthy = rows.filter((row) => row.issueDetails.length === 0).length;
-  return {
-    origin: origin.origin,
-    limit,
-    startedAt,
-    generatedAt: new Date().toISOString(),
-    requested: targets.length,
-    completed: rows.length,
-    healthy,
-    withIssues: rows.length - healthy,
-    rows
-  };
+  return reportForRows(origin, limit, startedAt, rows);
+}
+
+export async function runSeoTargetedCrawl(principal: SessionPrincipal, requestedRoute: unknown): Promise<SeoLiveCrawlReport> {
+  const startedAt = new Date().toISOString();
+  const route = normalizedGovernedRoute(requestedRoute);
+  const [{ settings }, graph] = await Promise.all([getSeoGlobalSettingsSnapshot(), adminSeoCrawlGraph(principal)]);
+  const target = graph.nodes.find((node) => normalizedGovernedRoute(node.route) === route);
+  if (!target) throw new Error("Targeted crawl route is not present in the governed SEO graph.");
+
+  const origin = new URL(settings.canonicalOrigin);
+  const url = new URL(target.route, origin);
+  if (url.origin !== origin.origin) throw new Error("Governed targeted crawl route escaped the canonical origin.");
+  const row = await inspectUrl(target.route, url, target.indexAllowed);
+  return reportForRows(origin, 1, startedAt, [row]);
 }
