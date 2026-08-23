@@ -61,7 +61,7 @@ export default async function AdminSeoSearchConsolePage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Google</div>
         <h1>Google Search Console operations</h1>
-        <p className="lead">Search Analytics is synchronized deliberately and retained as immutable aggregate evidence. URL Inspection stays operator-triggered and quota-aware. The production sitemap can now be checked directly against Google and submitted or resubmitted through a separately scoped, audited write action. Credentials and OAuth tokens remain server-only.</p>
+        <p className="lead">The Search Console integration keeps each Search Analytics snapshot deliberately synchronized and retained as immutable aggregate evidence. URL Inspection stays operator-triggered and quota-aware. The production sitemap can now be checked directly against Google and submitted or resubmitted through a separately scoped, audited write action. Credentials and OAuth tokens remain server-only.</p>
       </div>
       <aside className={ready && history.persistenceAvailable ? "dashboard-health-card" : "dashboard-health-card needs-attention"}>
         <span>Integration</span>
