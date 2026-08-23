@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/admin-catalogue-import.ts");
 const route = read("apps/web/src/app/api/admin/catalogue-intake/import/route.ts");
+const aiRoute = read("apps/web/src/app/api/admin/catalogue-intake/analyze/route.ts");
 const page = read("apps/web/src/app/admin/catalogue-intake/import/page.tsx");
 const form = read("apps/web/src/components/AdminCatalogueImportForm.tsx");
+const aiForm = read("apps/web/src/components/AdminAiProductImportForm.tsx");
 const workspaceNavigation = read("apps/web/src/lib/workspace-navigation.ts");
 const siteNavigation = read("apps/web/src/lib/site-navigation.ts");
 const platformScopeMigration = read("db/migrations/0008_rls_platform_scope.sql");
@@ -47,10 +49,23 @@ for (const contract of [
   '"Cache-Control": "no-store"'
 ]) expect(route.includes(contract), `Catalogue upload API is missing contract: ${contract}`);
 
-expect(page.includes('robots: { index: false, follow: false, nocache: true }'), "Supplier import Admin page must be explicitly non-indexable");
-expect(page.includes("Stage + seal only"), "Supplier import page must describe its bounded write boundary");
+for (const contract of [
+  'requireAdminSession(request, { csrf: true, permission: "catalog.write" })',
+  "MAX_UPLOAD_BYTES = 8 * 1024 * 1024",
+  "MAX_SOURCE_BYTES = 20 * 1024 * 1024",
+  "gunzipSync(uploaded, { maxOutputLength: MAX_SOURCE_BYTES })",
+  "source.includes(0)",
+  "analyzeProductImport",
+  '"Cache-Control": "no-store"'
+]) expect(aiRoute.includes(contract), `AI product analysis API is missing safety contract: ${contract}`);
+
+expect(page.includes('robots: { index: false, follow: false, nocache: true }'), "Product import Admin page must be explicitly non-indexable");
+expect(page.includes("Analyze first · write later"), "AI product import page must describe its bounded non-writing analysis boundary");
+expect(page.includes("Nikolaou master · v2"), "AI product import page must preserve the trusted Nikolaou adapter");
 expect(form.includes('headers: { "x-csrf-token": csrfToken }'), "Supplier import form must send Admin CSRF token");
 expect(form.includes("Δεν δημιουργεί offer, stock, assortment, canonical product ή public listing"), "Supplier import form must preserve no-publication operator warning");
+expect(aiForm.includes('headers: { "x-csrf-token": csrfToken }'), "AI product import form must send Admin CSRF token");
+expect(aiForm.includes("No canonical products, vendor offers, stock, assortment or public listings are created"), "AI product import form must preserve no-publication warning");
 expect(workspaceNavigation.includes('{ label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" }'), "Supplier import workspace must be catalog.write gated in Admin navigation");
 expect(siteNavigation.includes('"/admin/catalogue-intake/import"'), "Supplier import workspace must be registered as non-indexable/private");
 
