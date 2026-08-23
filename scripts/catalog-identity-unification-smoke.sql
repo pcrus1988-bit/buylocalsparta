@@ -4,8 +4,8 @@ INSERT INTO public.markets(code,name)
 VALUES('catalog-identity-ci','Catalogue Identity CI')
 RETURNING id AS market_id \gset
 
-INSERT INTO public.categories(market_id,code,slug,commerce_mode,active)
-VALUES(:'market_id','identity-tools','identity-tools','standard',true)
+INSERT INTO public.categories(market_id,code,slug,commerce_mode,active,taxonomy_role,assignable,discoverable)
+VALUES(:'market_id','identity-tools','identity-tools','standard',true,'product_class',true,true)
 RETURNING id AS category_id \gset
 
 INSERT INTO public.category_translations(category_id,locale,name)
