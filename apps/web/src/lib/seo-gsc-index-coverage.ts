@@ -138,7 +138,8 @@ function samplingPriority(row: SeoGscCoverageRow): number {
 function stratifiedCoverageCandidates(rows: readonly SeoGscCoverageRow[], limit: number): SeoGscCoverageRow[] {
   const selected: SeoGscCoverageRow[] = [];
   for (const priority of [0, 1, 2, 3] as const) {
-    const queues = new Map<SeoUrlRegistryRow["kind"], SeoGscCoverageRow[]>(SAMPLE_KIND_ORDER.map((kind) => [kind, []]));
+    const queues = new Map<SeoUrlRegistryRow["kind"], SeoGscCoverageRow[]>();
+    for (const kind of SAMPLE_KIND_ORDER) queues.set(kind, []);
     for (const row of rows) {
       if (samplingPriority(row) !== priority) continue;
       queues.get(row.kind)?.push(row);
