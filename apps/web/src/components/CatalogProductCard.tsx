@@ -17,14 +17,22 @@ function demoBookCover(product: CatalogCard): string | undefined {
   return `https://covers.openlibrary.org/b/isbn/${product.mpn}-L.jpg?default=false`;
 }
 
-export function CatalogProductCard({ product, index = 0, vendorContext }: { product: CatalogCard; index?: number; vendorContext?: Readonly<{ name: string; adviser?: string }> }) {
+export function CatalogProductCard({ product, index = 0, vendorContext, demoVendorId }: {
+  product: CatalogCard;
+  index?: number;
+  vendorContext?: Readonly<{ name: string; adviser?: string }>;
+  demoVendorId?: string;
+}) {
   const category = storefrontCategoryForCode(product.categoryCode);
   const vendorName = vendorContext?.name ?? product.vendorName;
   const adviser = vendorContext?.adviser ?? product.adviser;
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
   const externalDemoCover = demoBookCover(product);
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : externalDemoCover;
-  const productHref = productPublicPath(product);
+  const productHref = demoVendorId
+    ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
+    : productPublicPath(product);
+  const demoMode = Boolean(demoVendorId);
 
   return (
     <article className="product-card">
@@ -42,13 +50,15 @@ export function CatalogProductCard({ product, index = 0, vendorContext }: { prod
             style={catalogImageStyle}
           />
         ) : null}
-        <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
+        <span className="product-badge">{demoMode ? "DEMO · Προεπισκόπηση" : product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
       </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}{product.mpn ? ` · Κωδ. ${product.mpn}` : ""}</div>
         <h3><Link href={productHref}>{product.title}</Link></h3>
         {product.description ? <p className="partner">{product.description}</p> : null}
-        {vendorName && adviser ? (
+        {demoMode && vendorName ? (
+          <p className="partner">Προεπισκόπηση καταλόγου από <strong>{vendorName}</strong>. Η αγορά παραμένει απενεργοποιημένη σε DEMO.</p>
+        ) : vendorName && adviser ? (
           <p className="partner">Συμβουλή & παραλαβή από <strong>{vendorHref ? <a href={vendorHref}>{vendorName}</a> : vendorName}</strong> · Ρώτησε {adviser}.</p>
         ) : vendorName ? (
           <p className="partner">Εξυπηρέτηση από <strong>{vendorHref ? <a href={vendorHref}>{vendorName}</a> : vendorName}</strong>.</p>
