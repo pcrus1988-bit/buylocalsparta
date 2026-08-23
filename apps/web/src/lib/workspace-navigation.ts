@@ -48,7 +48,10 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Πελάτες",
     href: "/vendor/advice",
     icon: "◌",
-    links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌" }]
+    links: [
+      { label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌" },
+      { label: "Αξιολογήσεις", href: "/vendor/reviews", icon: "☆", permission: "reviews.read" }
+    ]
   },
   {
     label: "Κατάστημα",

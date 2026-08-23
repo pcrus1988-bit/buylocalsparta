@@ -1,0 +1,186 @@
+name: Verified Reviews Lifecycle Acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+      BLS_EMAIL_DELIVERY_ENABLED: "false"
+      BLS_ACCEPTANCE_SYNTHETIC_DB: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck verified review runtimes
+        run: >-
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
+          --allowImportingTsExtensions --skipLibCheck
+          apps/web/src/lib/customer-reviews-runtime.ts
+          apps/web/src/lib/vendor-reviews-runtime.ts
+          apps/web/src/lib/public-reviews-runtime.ts
+      - name: Bootstrap Supabase-compatible role and Vault topology
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+          END
+          $$;
+
+          CREATE SCHEMA IF NOT EXISTS vault;
+          CREATE TABLE IF NOT EXISTS vault.secrets (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            name text UNIQUE,
+            description text,
+            secret text NOT NULL,
+            key_id uuid,
+            nonce bytea,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE OR REPLACE VIEW vault.decrypted_secrets AS
+            SELECT id, name, description, secret, secret AS decrypted_secret,
+                   key_id, nonce, created_at, updated_at
+            FROM vault.secrets;
+          CREATE OR REPLACE FUNCTION vault.create_secret(
+            new_secret text,
+            new_name text,
+            new_description text,
+            new_key_id uuid
+          ) RETURNS uuid
+          LANGUAGE plpgsql
+          AS $$
+          DECLARE
+            created_id uuid := gen_random_uuid();
+          BEGIN
+            INSERT INTO vault.secrets(id, secret, name, description, key_id)
+            VALUES(created_id, new_secret, new_name, new_description, new_key_id);
+            RETURN created_id;
+          END;
+          $$;
+          SQL
+      - name: Apply full PostgreSQL/PostGIS migration chain
+        run: npm run db:migrate
+      - name: Bind acceptance platform runtime credential
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
+      - name: Verify database readiness
+        run: npm run db:ready
+      - name: Install synthetic verified commercial agreement fixture
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION bls_private.ci_seed_reviews_verified_agreement()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          SECURITY INVOKER
+          SET search_path=pg_catalog,public,bls_private
+          AS $$
+          DECLARE
+            v_vendor_public_id text;
+            v_market_id uuid;
+            v_admin_id uuid;
+          BEGIN
+            SELECT public_id,market_id
+            INTO v_vendor_public_id,v_market_id
+            FROM vendor_businesses
+            WHERE id=NEW.vendor_id;
+
+            IF v_vendor_public_id IS NULL OR v_vendor_public_id NOT LIKE 'vendor_reviews_%' THEN
+              RETURN NEW;
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM vendor_commercial_agreements
+              WHERE vendor_id=NEW.vendor_id
+                AND status='active'
+                AND starts_at <= now()
+                AND (ends_at IS NULL OR ends_at > now())
+            ) THEN
+              RETURN NEW;
+            END IF;
+
+            SELECT id INTO v_admin_id
+            FROM users
+            WHERE public_id LIKE 'usr_admin_reviews_%'
+              AND status='active'
+            ORDER BY created_at DESC,id
+            LIMIT 1;
+
+            IF v_admin_id IS NULL THEN
+              RAISE EXCEPTION 'Synthetic reviews agreement fixture requires its synthetic admin actor';
+            END IF;
+
+            INSERT INTO vendor_commercial_agreements(
+              public_id,market_id,vendor_id,agreement_code,agreement_version,status,
+              starts_at,signed_at,commission_rate_bps,commission_basis,commission_tax_mode,
+              commission_tax_rate_bps,commission_applies_to_shipping,source_document_reference,
+              terms_snapshot,vendor_snapshot,commercial_terms_snapshot,
+              signed_pdf_object_key,signed_pdf_sha256,signed_document_received_at,
+              govgr_reference,govgr_verified_at,govgr_verified_by,
+              activated_at,activated_by,aade_reporting_status,created_by,created_at,updated_at
+            ) VALUES (
+              'agreement_reviews_ci_' || replace(gen_random_uuid()::text,'-',''),
+              v_market_id,NEW.vendor_id,bls_private.generate_vendor_agreement_code(),1,'active',
+              now()-interval '1 day',now()-interval '1 day',700,'merchandise_gross','plus_vat',
+              2400,false,'synthetic verified review acceptance only',
+              jsonb_build_object('synthetic',true,'purpose','verified-reviews-acceptance'),
+              jsonb_build_object('synthetic',true,'vendorPublicId',v_vendor_public_id),
+              jsonb_build_object('commissionRateBps',700,'commissionTaxMode','plus_vat','synthetic',true),
+              'synthetic/reviews/' || v_vendor_public_id || '/signed.pdf',repeat('a',64),now()-interval '1 day',
+              'SYNTHETIC-CI-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,16)),
+              now()-interval '1 day',v_admin_id,
+              now()-interval '1 day',v_admin_id,'not_required',v_admin_id,now()-interval '1 day',now()-interval '1 day'
+            );
+
+            RETURN NEW;
+          END;
+          $$;
+
+          DROP TRIGGER IF EXISTS aaa_ci_reviews_seed_verified_agreement ON order_lines;
+          CREATE TRIGGER aaa_ci_reviews_seed_verified_agreement
+          BEFORE INSERT ON order_lines
+          FOR EACH ROW
+          EXECUTE FUNCTION bls_private.ci_seed_reviews_verified_agreement();
+          SQL
+      - name: Run verified reviews lifecycle acceptance
+        run: >-
+          node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs
+          scripts/verified-reviews-lifecycle-acceptance.ts
+      - name: Remove synthetic agreement fixture
+        if: always()
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER IF EXISTS aaa_ci_reviews_seed_verified_agreement ON order_lines;
+          DROP FUNCTION IF EXISTS bls_private.ci_seed_reviews_verified_agreement();
+          SQL
