@@ -9,11 +9,17 @@ on:
       - "packages/core/src/ingestion/**"
       - "packages/core/test/ingestion*.test.ts"
       - "db/migrations/0130_catalog_web_crawl_job_leases.sql"
+      - "db/migrations/0136_catalog_web_crawler_operations.sql"
       - "db/migrations/checksums.0130.json"
+      - "db/migrations/checksums.0136.json"
       - "deploy/worker-entrypoint.sh"
+      - "deploy/worker.env.example"
+      - "scripts/catalog-crawler-operations-smoke.sql"
       - "scripts/verify-deployment-topology.ts"
       - "docs/CATALOG_CRAWLER_WORKER.md"
       - "packages/postgres-runtime/src/index.ts"
+      - "apps/web/src/lib/admin-catalogue-crawler.ts"
+      - "apps/web/src/app/admin/catalogue-crawler/**"
       - ".github/workflows/catalog-crawler-acceptance.yml"
 
 jobs:
@@ -46,6 +52,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify crawler migration checksum and topology
         run: |
+          sha256sum db/migrations/0136_catalog_web_crawler_operations.sql
           npm run db:verify
           node --experimental-strip-types scripts/verify-deployment-topology.ts
       - name: Bootstrap Supabase-compatible roles and Vault contract
@@ -75,7 +82,7 @@ jobs:
           END;
           $$;
           SQL
-      - name: Apply schema 130 and verify readiness
+      - name: Apply schema 136 and verify readiness
         run: |
           npm run db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
@@ -86,12 +93,18 @@ jobs:
         run: |
           node --experimental-strip-types --test packages/core/test/ingestion.test.ts packages/core/test/ingestion-discovery.test.ts
           node --experimental-strip-types --test workers/catalog-crawler.test.ts
-      - name: Verify crawler lease functions exist
+      - name: Verify crawler operations lifecycle
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/catalog-crawler-operations-smoke.sql
+      - name: Verify crawler functions exist
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           SELECT to_regprocedure('bls_private.queue_catalog_web_crawl_job(uuid,text,text,uuid,text,text)') IS NOT NULL AS queue_exists \gset
           SELECT to_regprocedure('bls_private.claim_catalog_web_crawl_job(text,integer)') IS NOT NULL AS claim_exists \gset
           SELECT to_regprocedure('bls_private.renew_catalog_web_crawl_job_lease(uuid,text,integer)') IS NOT NULL AS renew_exists \gset
+          SELECT to_regprocedure('bls_private.request_catalog_web_crawl_job_cancel(uuid)') IS NOT NULL AS cancel_exists \gset
+          SELECT to_regprocedure('bls_private.catalog_web_crawl_job_should_cancel(uuid,text)') IS NOT NULL AS should_cancel_exists \gset
+          SELECT to_regprocedure('bls_private.acknowledge_catalog_web_crawl_job_cancel(uuid,text)') IS NOT NULL AS ack_cancel_exists \gset
+          SELECT to_regprocedure('bls_private.catalog_web_crawl_queue_health()') IS NOT NULL AS health_exists \gset
           SELECT to_regprocedure('bls_private.finish_catalog_web_crawl_job(uuid,text)') IS NOT NULL AS finish_exists \gset
           SELECT to_regprocedure('bls_private.retry_catalog_web_crawl_job(uuid,text,text,integer,boolean)') IS NOT NULL AS retry_exists \gset
           \if :queue_exists
@@ -103,6 +116,22 @@ jobs:
             \quit 1
           \endif
           \if :renew_exists
+          \else
+            \quit 1
+          \endif
+          \if :cancel_exists
+          \else
+            \quit 1
+          \endif
+          \if :should_cancel_exists
+          \else
+            \quit 1
+          \endif
+          \if :ack_cancel_exists
+          \else
+            \quit 1
+          \endif
+          \if :health_exists
           \else
             \quit 1
           \endif
