@@ -6,12 +6,14 @@ on:
       - chore/polo-catalogue-crawl
     paths:
       - scripts/catalogue/crawl-polo.mjs
+      - scripts/catalogue/crawl-polo-html.mjs
       - .github/workflows/polo-catalogue-crawl.yml
   pull_request:
     branches:
       - main
     paths:
       - scripts/catalogue/crawl-polo.mjs
+      - scripts/catalogue/crawl-polo-html.mjs
       - .github/workflows/polo-catalogue-crawl.yml
       - data/imports/polo/**
   workflow_dispatch:
@@ -46,7 +48,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node scripts/catalogue/crawl-polo.mjs 2>&1 | tee /tmp/polo-crawl.log
+          node scripts/catalogue/crawl-polo-html.mjs 2>&1 | tee /tmp/polo-crawl.log
 
       - name: Upload crawl dataset
         if: steps.crawl.outcome == 'success'
