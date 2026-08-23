@@ -78,6 +78,7 @@ BEGIN
 END $$;
 
 CREATE TEMP TABLE catalog_identity_context(
+  existing_variant_id uuid NOT NULL,
   baseline_canonical_count bigint NOT NULL,
   baseline_offer_count bigint NOT NULL,
   exact_snapshot_id uuid,
@@ -93,8 +94,8 @@ CREATE TEMP TABLE catalog_identity_context(
   variant_second_result jsonb
 );
 
-INSERT INTO catalog_identity_context(baseline_canonical_count,baseline_offer_count)
-SELECT (SELECT count(*) FROM public.canonical_variants),(SELECT count(*) FROM public.vendor_offers);
+INSERT INTO catalog_identity_context(existing_variant_id,baseline_canonical_count,baseline_offer_count)
+SELECT :'existing_variant_id',(SELECT count(*) FROM public.canonical_variants),(SELECT count(*) FROM public.vendor_offers);
 
 -- A. Exact valid GTIN must link the existing identity-only/inactive canonical.
 INSERT INTO public.catalog_source_snapshots(source_id,source_hash,source_version,observed_at,row_count)
@@ -122,14 +123,14 @@ UPDATE catalog_identity_context
 SET exact_snapshot_id=:'exact_snapshot_id',exact_product_id=:'exact_product_id';
 
 DO $$
-DECLARE d text; r text; v uuid;
+DECLARE c catalog_identity_context%ROWTYPE; d text; r text; v uuid;
 BEGIN
+  SELECT * INTO c FROM catalog_identity_context LIMIT 1;
   SELECT disposition,reason_code,existing_variant_id INTO d,r,v
-  FROM bls_private.catalog_source_canonicalization_preview('catalog-identity-ci',
-    (SELECT exact_snapshot_id FROM catalog_identity_context),0.95)
+  FROM bls_private.catalog_source_canonicalization_preview('catalog-identity-ci',c.exact_snapshot_id,0.95)
   WHERE source_product_key='EXACT-42';
   IF d<>'link_existing' OR r IS NOT NULL THEN RAISE EXCEPTION 'exact GTIN did not link_existing: %, %',d,r; END IF;
-  IF v<>:'existing_variant_id'::uuid THEN RAISE EXCEPTION 'exact GTIN selected the wrong canonical'; END IF;
+  IF v<>c.existing_variant_id THEN RAISE EXCEPTION 'exact GTIN selected the wrong canonical'; END IF;
 END $$;
 
 UPDATE catalog_identity_context
@@ -141,13 +142,13 @@ DO $$
 DECLARE c catalog_identity_context%ROWTYPE;
 BEGIN
   SELECT * INTO c FROM catalog_identity_context LIMIT 1;
-  IF (SELECT canonical_variant_id FROM public.catalog_source_product_links WHERE source_product_id=c.exact_product_id AND link_status='approved')<>:'existing_variant_id'::uuid THEN
+  IF (SELECT canonical_variant_id FROM public.catalog_source_product_links WHERE source_product_id=c.exact_product_id AND link_status='approved')<>c.existing_variant_id THEN
     RAISE EXCEPTION 'exact GTIN was not approved onto the existing canonical';
   END IF;
   IF (SELECT match_method FROM public.catalog_source_product_links WHERE source_product_id=c.exact_product_id AND link_status='approved')<>'exact_gtin' THEN
     RAISE EXCEPTION 'exact GTIN link method was not upgraded';
   END IF;
-  IF (SELECT active FROM public.canonical_variants WHERE id=:'existing_variant_id')<>false THEN
+  IF (SELECT active FROM public.canonical_variants WHERE id=c.existing_variant_id)<>false THEN
     RAISE EXCEPTION 'identity linking unexpectedly activated the canonical';
   END IF;
   IF COALESCE(c.exact_result->>'identityPolicy','')<>'catalog_identity_v2' THEN
@@ -262,7 +263,7 @@ BEGIN
   SELECT canonical_variant_id INTO v
   FROM public.catalog_source_product_links
   WHERE source_product_id=c.variant_product_id AND link_status='approved';
-  IF v IS NULL OR v=:'existing_variant_id'::uuid THEN RAISE EXCEPTION 'new material variant was not given a distinct canonical'; END IF;
+  IF v IS NULL OR v=c.existing_variant_id THEN RAISE EXCEPTION 'new material variant was not given a distinct canonical'; END IF;
   IF (SELECT mpn FROM public.canonical_variants WHERE id=v)<>'MPN-18' THEN RAISE EXCEPTION 'source MPN was not preserved on created canonical'; END IF;
   IF (SELECT variant_attributes->>'size' FROM public.canonical_variants WHERE id=v)<>'43' THEN RAISE EXCEPTION 'new variant size was not preserved'; END IF;
   IF (SELECT active FROM public.canonical_variants WHERE id=v)<>false THEN RAISE EXCEPTION 'new identity-only canonical was activated'; END IF;
