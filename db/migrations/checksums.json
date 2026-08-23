@@ -14,7 +14,7 @@
   "0013_workers_search_freshness.sql": "cb9c1b93eb935ee57251cd4a0ccf7f6df9dd6d17c706129a70e9bd1d818bdc3f",
   "0014_delivery_fees_disputes.sql": "11daa83fd4d8e75a19ad9250ee588f1b5cee28200e9dd71e783e875d5bf0b291",
   "0015_cms_seo_storytelling.sql": "f885f19300210ccddcf2d561e57ea24b3cbd7ebc6c08e130b69c0bdf16ed81ca",
-  "0016_analytics_reporting.sql": "c2debcec61b2beae07b2fd742b9aa81b5dafcc917f3a876424944bcc2189e579",
+  "0016_analytics_reporting.sql": "c2debcec61b2beae07b2f742b9aa81b5dafcc917f3a876424944bcc2189e579",
   "0017_notification_delivery.sql": "52c110c946c9b92c9eb19b025c08d159a7a1c5f3d089c87a7bb5a9ec36e9561f",
   "0018_security_operational_events.sql": "bccb5a4c4b4f7d92e4d28657d38def22c663d5a369bbc5504e16fce001681941",
   "0019_verified_reviews.sql": "0bb78b2004207a25456b840a5d0cce979dd3b4766b6f7152a76bd69f62b537da",
@@ -119,5 +119,6 @@
   "0120_seo_url_registry_sitemap_history.sql": "750f59d1eac33a11b3e395b1006e660608f5b326462a90868329ee82e7d200a2",
   "0121_seo_gsc_history.sql": "352bf4503c40a7c11432649fbf1b3f6b31216a8973dab63122eb29c22119587b",
   "0122_seo_structured_data_observations.sql": "d462f06d8b3795f105c9fb11b510ae01dfc2fc912d9189aa2ef9d248ad5454e2",
-  "0123_catalog_source_auto_canonicalization.sql": "1d0dd3baa56721898971e70738865d117b1e74e87c4af9fbf145a0673427d075"
+  "0123_catalog_source_auto_canonicalization.sql": "1d0dd3baa56721898971e70738865d117b1e74e87c4af9fbf145a0673427d075",
+  "0124_admin_vendor_demo_and_prelaunch_catalogue.sql": "25155ba56addd2cfe159ff90e5cd91f4bba625927ade66dd9d94920a6bd17eb3"
 }
