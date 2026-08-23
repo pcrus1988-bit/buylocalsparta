@@ -20,7 +20,7 @@ const expect = (condition: boolean, message: string) => { if (!condition) failur
 
 const hash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0121_seo_gsc_history.sql"] === hash, `0121 checksum mismatch: manifest=${checksums["0121_seo_gsc_history.sql"] ?? "missing"} actual=${hash}`);
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 122"), "PostgreSQL runtime schema target must be 122");
+expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 127"), "PostgreSQL runtime schema target must be 127");
 
 for (const contract of [
   "CREATE TABLE seo_gsc_sync_runs",
