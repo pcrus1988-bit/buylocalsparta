@@ -19,6 +19,7 @@ import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getPublicProductDetail } from "../../../lib/public-product-detail";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
+import { publicCatalogHasOfferPrice, publicCatalogPriceLabel } from "../../../lib/public-data-integrity";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -103,6 +104,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const displayDescription = product.description ?? detail?.description;
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
+  const displayPrice = publicCatalogPriceLabel(product);
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
   const technicalAttributes = detail?.technicalAttributes ?? [];
 
@@ -130,6 +132,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     seller: { "@id": `${origin}/#organization` },
     availableAtOrFrom: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
   };
+  const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -152,7 +155,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         size: product.sizes.length ? product.sizes.join(", ") : undefined,
         additionalProperty: technicalAttributes.length ? technicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
         itemCondition: "https://schema.org/NewCondition",
-        offers: offerData
+        offers: structuredOfferData
       },
       {
         "@type": "BreadcrumbList",
@@ -194,7 +197,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="product-detail-copy">
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
           <h1>{product.title}</h1>
-          <div className="detail-price">{product.price}</div>
+          <div className="detail-price">{displayPrice}</div>
           <p className="lead compact">{product.available ? "Η τιμή και η διαθεσιμότητα προέρχονται από ένα πραγματικά επιλέξιμο τοπικό offer. Το ΚΟΝΤΑ ΜΟΥ δεν προσθέτει προσαύξηση στην τιμή προϊόντος." : "Ενδεικτική τιμή καταλόγου από την τελευταία καταγεγραμμένη πηγή. Η αγορά θα ενεργοποιηθεί μόνο όταν υπάρχει εγκεκριμένο τοπικό offer με επιβεβαιωμένο stock."}</p>
 
           {displayDescription ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p style={{ whiteSpace: "pre-line" }}>{displayDescription}</p></div></div> : null}

@@ -27,10 +27,18 @@ export function isPublicCatalogueTitle(title: string): boolean {
 }
 
 /**
- * A zero minor-unit value on an unavailable canonical is not a customer price.
- * Keep valid reference/catalogue prices visible, but never communicate an absent
- * offer as a misleading EUR 0.00 price.
+ * A non-positive minor-unit value is an import/reference sentinel, not a customer
+ * selling price. Keep valid positive reference/catalogue prices visible, including
+ * temporarily unavailable products, but never communicate a missing price as EUR 0.
  */
 export function publicCatalogPriceLabel(product: Readonly<{ available: boolean; priceMinor: number; price: string }>): string {
-  return !product.available && product.priceMinor === 0 ? "Τιμή μη διαθέσιμη" : product.price;
+  return product.priceMinor <= 0 ? "Τιμή μη διαθέσιμη" : product.price;
+}
+
+/**
+ * Schema.org Offer requires a real monetary amount. Unknown/non-positive import
+ * sentinels must not become a zero-value Offer in search-engine structured data.
+ */
+export function publicCatalogHasOfferPrice(product: Readonly<{ priceMinor: number }>): boolean {
+  return Number.isSafeInteger(product.priceMinor) && product.priceMinor > 0;
 }
