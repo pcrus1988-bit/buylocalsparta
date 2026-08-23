@@ -47,6 +47,9 @@ for (const contract of [
 expect(!page.includes('href="/api/admin/seo/reports/current?'), "Live API downloads must not be represented as static Next page links");
 
 for (const contract of [
+  'from "../../../../../../lib/admin-runtime"',
+  'from "../../../../../../lib/admin-session"',
+  'from "../../../../../../lib/seo-unified-report"',
   "getAdminSession()",
   'assertAdminPermission(principal, "content.read")',
   '"Cache-Control": "private, no-store"',
@@ -57,6 +60,7 @@ for (const contract of [
   "seoUnifiedReportCsv(report)",
   '"Content-Disposition"'
 ]) expect(route.includes(contract), `Unified SEO report export route is missing ${contract}`);
+expect(!route.includes("../../../../../../../lib/"), "Unified SEO report export imports must not escape one level above src/lib");
 expect(!route.includes("csrf: true"), "Read-only current SEO report export must not pretend to require CSRF; authentication and content.read are the boundary");
 
 expect(siteNavigation.includes('"/admin/seo/reports"'), "SEO Reports page must be explicitly classified as a private/non-indexable Admin route");
@@ -69,4 +73,4 @@ if (failures.length) {
   console.error("SEO unified reports checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("SEO unified reports checks passed: cross-surface evidence aggregation, private exports, read-only RBAC, private-route classification, Admin navigation and baseline regression visibility verified.");
+console.log("SEO unified reports checks passed: cross-surface evidence aggregation, private exports, read-only RBAC, import depth, private-route classification, Admin navigation and baseline regression visibility verified.");
