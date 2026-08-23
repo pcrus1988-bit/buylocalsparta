@@ -106,6 +106,7 @@ BEGIN
     WHERE p.job_id=p_job_id AND e.status IN ('accepted','promoted')
     ORDER BY e.source_product_key,e.confidence DESC,e.id
   LOOP
+    v_source_product_id:=NULL;
     v_leaf_taxonomy_id:=NULL;
     v_parent_taxonomy_id:=NULL;
     v_path_keys:=ARRAY[]::text[];
@@ -185,9 +186,17 @@ BEGIN
         SELECT 1 FROM public.catalog_source_category_mappings m
         WHERE m.source_taxonomy_node_id=v_leaf_taxonomy_id AND m.mapping_status='approved'
       ) THEN 'mapped' ELSE 'raw' END
-    ) ON CONFLICT (snapshot_id,source_product_key) DO UPDATE
-      SET source_taxonomy_node_id=COALESCE(public.catalog_source_products.source_taxonomy_node_id,EXCLUDED.source_taxonomy_node_id)
+    ) ON CONFLICT (snapshot_id,source_product_key) DO NOTHING
     RETURNING id INTO v_source_product_id;
+
+    IF v_source_product_id IS NULL THEN
+      SELECT id INTO v_source_product_id
+      FROM public.catalog_source_products
+      WHERE snapshot_id=v_snapshot_id AND source_product_key=v_row.source_product_key;
+    END IF;
+    IF v_source_product_id IS NULL THEN
+      RAISE EXCEPTION 'Unable to resolve immutable catalogue source product after promotion';
+    END IF;
 
     INSERT INTO public.catalog_source_attribute_observations(
       source_product_id,source_attribute_key,position,raw_value,normalized_value,mapping_status,confidence,metadata
