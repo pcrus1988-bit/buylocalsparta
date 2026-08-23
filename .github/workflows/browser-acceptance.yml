@@ -1,0 +1,79 @@
+name: Browser acceptance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: browser-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: buy_local_sparta_acceptance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d buy_local_sparta_acceptance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/buy_local_sparta_acceptance
+      BLS_AUTH_SECRET: browser-acceptance-only-secret-2026-rotate-never-production
+      BLS_EMAIL_DELIVERY_ENABLED: "false"
+      BLS_ACCEPTANCE_BASE_URL: http://127.0.0.1:3000
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Apply production schema
+        run: npm run db:migrate
+      - name: Seed deterministic Sparta reference data
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/0001_sparta_reference.sql
+      - name: Install Playwright without changing the repository lockfile
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Build web application
+        env:
+          BLS_SKIP_PRODUCTION_SCHEMA_HEAD_CHECK: "true"
+        run: npm run build:web
+      - name: Start acceptance server
+        run: |
+          npm run start --workspace @buy-local-sparta/web > /tmp/kontamou-acceptance.log 2>&1 &
+          echo $! > /tmp/kontamou-acceptance.pid
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/kontamou-acceptance.log
+          exit 1
+      - name: Exercise route matrix and browser controls
+        run: npx playwright test --config=playwright.acceptance.config.mjs
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/kontamou-acceptance.log || true
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14
