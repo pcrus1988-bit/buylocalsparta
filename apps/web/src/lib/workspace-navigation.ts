@@ -115,6 +115,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Επισκόπηση συνεργατών", href: "/admin/partners", icon: "◎", permission: "vendor.manage" },
       { label: "Κατάλογος συνεργατών", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
       { label: "Pipeline", href: "/admin/partners/pipeline", icon: "◌", permission: "vendor.manage" },
+      { label: "Applications", href: "/admin/applications", icon: "▤", permission: "vendor.manage" },
       { label: "Συμφωνίες", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
       { label: "SLA συμφωνιών", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
       { label: "Research leads", href: "/admin/research-vendors", icon: "⌕", permission: "vendor.manage", contextHidden: true },
