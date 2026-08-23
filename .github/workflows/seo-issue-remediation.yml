@@ -1,0 +1,30 @@
+name: SEO Issue Remediation Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/admin/seo/issues/**"
+      - "apps/web/src/app/admin/seo/pages/**"
+      - "apps/web/src/app/api/admin/seo/crawl/recheck/**"
+      - "apps/web/src/components/AdminSeoIssueQueue.tsx"
+      - "apps/web/src/lib/seo-live-crawl.ts"
+      - "apps/web/src/lib/seo-crawl-history.ts"
+      - "apps/web/src/lib/seo-issue-guidance.ts"
+      - "scripts/verify-seo-issue-remediation.ts"
+      - ".github/workflows/seo-issue-remediation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify SEO issue remediation contracts
+        run: node --experimental-strip-types scripts/verify-seo-issue-remediation.ts
