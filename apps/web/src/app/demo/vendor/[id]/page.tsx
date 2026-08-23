@@ -5,7 +5,7 @@ import { SiteHeader } from "../../../../components/SiteHeader";
 import { VendorCatalogBrowser } from "../../../../components/VendorCatalogBrowser";
 import { VendorLocationMap } from "../../../../components/VendorLocationMap";
 import styles from "../../../../components/VendorStorefront.module.css";
-import { getDemoStorefrontVendor, getDemoVendorCatalogCards } from "../../../../lib/demo-storefront";
+import { getDemoStorefrontVendor, getDemoVendorCatalogCards, type DemoStorefrontVendor } from "../../../../lib/demo-storefront";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -18,10 +18,9 @@ function initials(value: string): string {
   return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : value.slice(0, 2)).toLocaleUpperCase("el");
 }
 
-function addressText(location: Awaited<ReturnType<typeof getDemoStorefrontVendor>> extends infer T ? T extends { location?: infer L } ? L : never : never): string {
-  if (!location || typeof location !== "object") return "";
-  const value = location as { addressLine1?: string; addressLine2?: string; postcode?: string; locality?: string };
-  return [value.addressLine1, value.addressLine2, [value.postcode, value.locality].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+function addressText(location: DemoStorefrontVendor["location"]): string {
+  if (!location) return "";
+  return [location.addressLine1, location.addressLine2, [location.postcode, location.locality].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 }
 
 export default async function DemoVendorPage({ params }: { params: Promise<{ id: string }> }) {
