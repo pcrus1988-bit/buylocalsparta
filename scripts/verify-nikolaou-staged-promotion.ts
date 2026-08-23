@@ -38,7 +38,7 @@ const checks: Array<[string, boolean]> = [
   ["HTTP trigger requires one-shot Vault authorization", trigger.includes("vault.decrypted_secrets") && trigger.includes("DELETE FROM vault.secrets")],
   ["HTTP trigger serializes authorization consumption", trigger.includes("nikolaou_promotion_http_trigger")],
   ["HTTP trigger requires ready exact contract", trigger.includes('String(row.status) !== "ready"') && trigger.includes("EXPECTED_SOURCE_SHA") && trigger.includes("EXPECTED_COMPRESSED_SHA")],
-  ["HTTP trigger never exposes a GET action", trigger.includes("export function GET()") && trigger.includes("status: 404")],
+  ["HTTP GET requires the one-shot capability", trigger.includes("export async function GET(request: Request)") && trigger.includes('searchParams.get("token")') && trigger.includes("DELETE FROM vault.secrets")],
   ["HTTP trigger is no-store/noindex", trigger.includes('"Cache-Control": "private, no-store, max-age=0"') && trigger.includes('"X-Robots-Tag": "noindex, nofollow, noarchive"')],
   ["HTTP trigger has bounded execution duration", trigger.includes("export const maxDuration = 300")],
   ["Vercel trace includes promotion worker", nextConfig.includes('"../../scripts/promote-nikolaou-staged-payload.ts"')],

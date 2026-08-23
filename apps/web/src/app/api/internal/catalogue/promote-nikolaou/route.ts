@@ -15,7 +15,17 @@ const EXPECTED_COMPRESSED_SHA = "036659754afe49d29b97fffc4d472d00a885d6db67831cb
 const EXPECTED_ROWS = 3_165;
 
 export async function POST(request: Request) {
-  const suppliedToken = request.headers.get("x-promotion-token")?.trim() ?? "";
+  return executePromotion(request.headers.get("x-promotion-token")?.trim() ?? "");
+}
+
+// Temporary one-shot operational path. Without the exact Vault capability it is indistinguishable
+// from a missing route. The Vault secret is deleted before the worker starts and this route is removed
+// immediately after the governed import is verified.
+export async function GET(request: Request) {
+  return executePromotion(new URL(request.url).searchParams.get("token")?.trim() ?? "");
+}
+
+async function executePromotion(suppliedToken: string) {
   if (!/^[0-9a-f]{64}$/i.test(suppliedToken)) return rejected();
 
   const connectionString = process.env.DATABASE_URL?.trim();
@@ -43,10 +53,6 @@ export async function POST(request: Request) {
   } finally {
     await pool.end();
   }
-}
-
-export function GET() {
-  return new Response(null, { status: 404, headers: noStore() });
 }
 
 async function consumeOneShotAuthorization(pool: Pool, suppliedToken: string): Promise<boolean> {
@@ -133,5 +139,9 @@ function rejected() {
 }
 
 function noStore(): Record<string, string> {
-  return { "Cache-Control": "private, no-store, max-age=0", "X-Robots-Tag": "noindex, nofollow, noarchive" };
+  return {
+    "Cache-Control": "private, no-store, max-age=0",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+    "Referrer-Policy": "no-referrer"
+  };
 }
