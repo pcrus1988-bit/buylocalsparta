@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SqlRow } from "@buy-local-sparta/core";
+import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHeader";
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit } from "../../../../../lib/admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../lib/postgres-runtime";
@@ -198,7 +199,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const { id } = await params;
   const { q } = await searchParams;
   if (!productionDatabaseConfigured()) {
-    return <main className="vendor-app admin-app"><section className="shell vendor-section"><h1>Vendor catalogue & DEMO</h1><p>Production database is not configured.</p><Link href="/admin/vendors">Back to partners</Link></section></main>;
+    return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Vendor catalogue & DEMO" /><section className="shell vendor-section"><h1>Vendor catalogue & DEMO</h1><p>Production database is not configured.</p><Link href="/admin/vendors">Back to partners</Link></section></main>;
   }
   const db = getProductionPostgresRuntime().sqlPool;
   const vendorResult = await db.query<VendorRow>(`
@@ -243,6 +244,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const commerceEligible = asText(vendor.status) === "active" && !Boolean(vendor.demo_mode);
 
   return <main className="vendor-app admin-app">
+    <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel={asText(vendor.trading_name)} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div><div className="eyebrow">Admin · Partner catalogue</div><h1>{asText(vendor.trading_name)}</h1><p className="lead">Prepare and assign products before activation, or switch the shop into a safe demonstration mode. Neither action activates the vendor.</p></div>
     </section>
