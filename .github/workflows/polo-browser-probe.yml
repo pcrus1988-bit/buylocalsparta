@@ -1,0 +1,82 @@
+name: POLO browser probe
+
+on:
+  push:
+    branches:
+      - chore/polo-catalogue-crawl
+    paths:
+      - scripts/catalogue/polo-browser-probe.mjs
+      - .github/workflows/polo-browser-probe.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/catalogue/polo-browser-probe.mjs
+      - .github/workflows/polo-browser-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: polo-browser-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright runtime
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Render POLO shop
+        id: probe
+        continue-on-error: true
+        run: node scripts/catalogue/polo-browser-probe.mjs 2>&1 | tee /tmp/polo-browser-probe.log
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: polo-browser-probe-${{ github.run_id }}
+          path: |
+            data/imports/polo-browser-probe/
+            /tmp/polo-browser-probe.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Report browser probe on PR
+        if: github.event_name == 'pull_request' && always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          {
+            echo '### POLO rendered-browser probe'
+            echo
+            if [[ -f data/imports/polo-browser-probe/probe.json ]]; then
+              echo '```json'
+              cat data/imports/polo-browser-probe/probe.json
+              echo '```'
+            else
+              echo '```text'
+              tail -n 100 /tmp/polo-browser-probe.log 2>/dev/null || true
+              echo '```'
+            fi
+          } >/tmp/comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md
+
+      - name: Fail if POLO products were not rendered
+        if: steps.probe.outcome != 'success'
+        run: exit 1
