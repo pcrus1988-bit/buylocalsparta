@@ -174,7 +174,12 @@ export async function GET(request: Request) {
   const client = await pool.connect();
   let locked = false;
   try {
-    const lockResult = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock(hashtext($1)) AS locked", [LOCK_KEY]);
+    // Supavisor uses transaction pooling in production. A session-level advisory
+    // lock can become stranded on an idle backend after the logical client is
+    // returned to the pool. Use a transaction-scoped probe instead; idempotency is
+    // enforced by the stage-2 snapshot's (snapshot_id, source_product_key) unique
+    // constraint, so overlapping invocations cannot duplicate evidence rows.
+    const lockResult = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked", [LOCK_KEY]);
     locked = lockResult.rows[0]?.locked === true;
     if (!locked) return NextResponse.json({ ok: false, busy: true }, { status: 409 });
 
