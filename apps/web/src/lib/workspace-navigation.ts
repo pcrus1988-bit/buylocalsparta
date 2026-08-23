@@ -166,8 +166,11 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     icon: "content",
     links: [
       { label: "Pages & SEO", href: "/admin/content", icon: "✎", permission: "content.read" },
-      { label: "SEO & Visibility", href: "/admin/seo", icon: "⌕", permission: "content.read" },
-      { label: "Crawl graph", href: "/admin/seo/crawl", icon: "↗", permission: "content.read" },
+      { label: "SEO overview", href: "/admin/seo", icon: "⌕", permission: "content.read" },
+      { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
+      { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
+      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read" },
+      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read" },
       { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
       { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" }
