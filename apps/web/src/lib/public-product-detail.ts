@@ -229,6 +229,14 @@ function loadKg(key: string, value: unknown): number | undefined {
   return key === "load_ton" ? parsed * 1000 : parsed;
 }
 
+function parsedRangeMaximums(sourceNormalized: Record<string, unknown>): readonly string[] {
+  const ranges = objectValue(sourceNormalized.priceDrivers).ranges;
+  if (!Array.isArray(ranges)) return [];
+  return ranges
+    .map((entry) => numberToken(objectValue(entry).max))
+    .filter((entry): entry is string => Boolean(entry));
+}
+
 function mergeObject(target: Map<string, unknown>, source: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(source)) {
     if (value !== null && value !== undefined && value !== "") target.set(key, value);
@@ -274,6 +282,18 @@ function technicalAttributes(
   // capacity_l and flow_l_h. Avoid turning that parser artefact into a public claim.
   if (combined.has("capacity_l") && combined.has("flow_l_h") && numberToken(combined.get("capacity_l")) === numberToken(combined.get("flow_l_h"))) {
     combined.delete("capacity_l");
+  }
+
+  // The title range parser can also mistake a range maximum for a standalone
+  // product length (for example 260-400 mm -> length_mm=400). Preserve a real
+  // source length when one exists, otherwise suppress the duplicate range maximum.
+  const directSourceSpecifications = {
+    ...jsonObject(sourceRaw.specifications_json),
+    ...objectValue(sourceNormalized.specifications)
+  };
+  const lengthToken = numberToken(combined.get("length_mm"));
+  if (!directSourceSpecifications.length_mm && lengthToken && parsedRangeMaximums(sourceNormalized).includes(lengthToken)) {
+    combined.delete("length_mm");
   }
 
   // Prefer the source specification in kg when the title-derived tonne value is
