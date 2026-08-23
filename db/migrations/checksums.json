@@ -88,7 +88,7 @@
   "0089_catalog_product_type_attribute_rules_b.sql": "a8341c3c33d9addee8e8af1cf5fee5967169ff1bf327ca81d2529aecf34341c7",
   "0090_catalog_brand_seed_and_live_normalization.sql": "536b2539e0307b9c696e3d31cb16a1d7f9b5a97c4d94d3723b94ebfd0e7b6e76",
   "0091_catalog_taxonomy_lookup_indexes.sql": "39e4c60495ed5792fcbf599587ed6eb13ac084543f7139f8fed247b26c6da480",
-  "0092_catalog_quality_views_security.sql": "394943157ecff238f53b2618e58371398fd834c3824d1c42e39f7fcb0d15",
+  "0092_catalog_quality_views_security.sql": "394943157ecff238ab48f53b2618e58371398fd834c3824d1c42e39f7fcb0d15",
   "0093_catalog_taxonomy_guard_family_field_fix.sql": "135716e90965206b031608263f85a6cf385f177533aa370f6b5ed9eb3779d241",
   "0094_checkout_pickup_delivery_rule_fix.sql": "ac02054c0558661be4565860dfc0be50c81d4acf6509848e9ff9914d580783c9",
   "0095_marketplace_public_references.sql": "6b90458bc8e321cc58125ce35251edad6281f28f94654c5f63413168841ad36c",
