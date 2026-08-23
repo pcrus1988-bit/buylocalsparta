@@ -4,6 +4,7 @@ import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
+import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 
 export type CatalogCard = Readonly<{
@@ -149,6 +150,10 @@ function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b, "el")).map((value) => ({ value, label: value }));
 }
 
+function customerVisibleCanonicals<T extends Readonly<{ title: string }>>(products: readonly T[]): readonly T[] {
+  return products.filter((product) => isPublicCatalogueTitle(product.title));
+}
+
 /**
  * Resolve the exact offer that the fairness engine persisted for this visitor.
  * Available products must always use the assigned offer price. Canonical/reference
@@ -224,11 +229,13 @@ async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[], 
 /**
  * Authoritative public-admission check used before a direct fairness assignment.
  * `publicCanonicals()` is itself filtered in PostgreSQL to active, non-suppressed,
- * non-recalled canonicals, so compliance/recall holds cannot reach assignment.
+ * non-recalled canonicals; the customer projection additionally removes obvious
+ * fixture/demo titles before any public assignment or detail route can resolve.
  */
 async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<boolean> {
   if (!productionDatabaseConfigured()) return false;
-  return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).some((product) => product.id === canonicalVariantId);
+  return customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
+    .some((product) => product.id === canonicalVariantId);
 }
 
 /**
@@ -271,7 +278,7 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string) => {
 export async function getCatalogFacets(category = "", query = ""): Promise<CatalogFacets> {
   if (!productionDatabaseConfigured()) return { subcategories: [], brands: [], colors: [], sizes: [] };
   const normalizedQuery = normalizeSearchText(query);
-  const canonicals = (await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
+  const canonicals = customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
     .filter((product) => categoryCodeMatches(product.categoryCode, category));
   const metadata = await loadCatalogMetadata(canonicals.map((product) => product.id));
   const visible = canonicals.filter((product) => matchesCatalogQuery(product, metadata.get(product.id), normalizedQuery));
@@ -299,7 +306,8 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
   const normalizedQuery = normalizeSearchText(query);
   const production = getProductionPostgresRuntime();
   const commerce = production.customerCommerce;
-  const canonicals = (await commerce.publicCanonicals()).filter((product) => categoryCodeMatches(product.categoryCode, category));
+  const canonicals = customerVisibleCanonicals(await commerce.publicCanonicals())
+    .filter((product) => categoryCodeMatches(product.categoryCode, category));
   const metadata = await loadCatalogMetadata(canonicals.map((product) => product.id));
   const canonicalById = new Map(canonicals.map((product) => [product.id, product]));
   let canonicalIds: readonly string[];
@@ -360,7 +368,7 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   if (!productionDatabaseConfigured()) return undefined;
   if (!await canonicalIsPubliclyAllowed(id)) return undefined;
   const record = await getProductionPostgresRuntime().customerCommerce.publicAssignedCanonical({ canonicalVariantId: id, visitorKey, postcode, reason: "product_view" });
-  if (!record) return undefined;
+  if (!record || !isPublicCatalogueTitle(record.title)) return undefined;
   const priced = await withStorefrontDisplayPrice(record, visitorKey, postcode);
   if (!priced) return undefined;
   const metadata = await loadCatalogMetadata([id]);
@@ -374,7 +382,7 @@ export async function getPublicVendor(vendorId: string): Promise<PublicVendorVie
 
 export async function getVendorCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
-  const records = await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId);
+  const records = customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId));
   const priced = await Promise.all(records.map((record) => withVendorOfferPrice(record, vendorId)));
   const availableRecords = priced.flatMap((record) => record ? [record] : []);
   const metadata = await loadCatalogMetadata(availableRecords.map((record) => record.id));
@@ -384,7 +392,7 @@ export async function getVendorCatalogCards(vendorId: string): Promise<readonly 
 export async function getCanonicalAvailability(id: string, postcode = "23100"): Promise<Readonly<{ available: boolean; availableToSell: number }> | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
   const result = await getProductionPostgresRuntime().customerCommerce.publicCanonicalAvailability(id, { postcode });
-  return result ? { available: result.available, availableToSell: result.availableToSell } : undefined;
+  return result && isPublicCatalogueTitle(result.product.title) ? { available: result.available, availableToSell: result.availableToSell } : undefined;
 }
 
 /**
@@ -393,7 +401,8 @@ export async function getCanonicalAvailability(id: string, postcode = "23100"): 
  */
 async function readPublicCatalogProducts(): Promise<readonly PublicCatalogProduct[]> {
   if (!productionDatabaseConfigured()) return [];
-  return (await getProductionPostgresRuntime().customerCommerce.publicCanonicals()).map((product) => ({ id: product.id, slug: product.slug, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)), categoryCode: product.categoryCode }));
+  return customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
+    .map((product) => ({ id: product.id, slug: product.slug, title: product.title, priceMinor: product.priceMinor, price: formatMoney(money(product.priceMinor)), categoryCode: product.categoryCode }));
 }
 
 export const getPublicCatalogProducts = cache(readPublicCatalogProducts);
