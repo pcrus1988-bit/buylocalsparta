@@ -35,11 +35,13 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Typecheck verified reviews acceptance
+      - name: Typecheck verified review runtimes
         run: >-
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
           --allowImportingTsExtensions --skipLibCheck
-          scripts/verified-reviews-lifecycle-acceptance.ts
+          apps/web/src/lib/customer-reviews-runtime.ts
+          apps/web/src/lib/vendor-reviews-runtime.ts
+          apps/web/src/lib/public-reviews-runtime.ts
       - name: Bootstrap Supabase-compatible role and Vault topology
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
