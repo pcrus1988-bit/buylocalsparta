@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { hashPassword, type Role } from "../packages/core/src/index.ts";
 import {
   createPostgresRuntimeFromEnv,
+  EXPECTED_SCHEMA_VERSION,
   PostgresAdminAuthService,
   PostgresCustomerAuthService,
   PostgresVendorAuthService
@@ -88,7 +89,10 @@ async function saveAccount(input: {
 try {
   const readiness = await runtime.readiness();
   expect(readiness.ok, `Database is not ready: ${readiness.message}`);
-  expect(readiness.appliedSchemaVersion === 119, `Reviews acceptance expected schema 119, got ${readiness.appliedSchemaVersion}`);
+  expect(
+    readiness.appliedSchemaVersion === EXPECTED_SCHEMA_VERSION,
+    `Reviews acceptance expected schema ${EXPECTED_SCHEMA_VERSION}, got ${readiness.appliedSchemaVersion}`
+  );
 
   const customerApi = source("apps/web/src/app/api/account/reviews/route.ts");
   const vendorReadApi = source("apps/web/src/app/api/vendor/reviews/route.ts");
