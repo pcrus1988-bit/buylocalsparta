@@ -4,6 +4,8 @@ const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/admin-catalogue-import.ts");
 const route = read("apps/web/src/app/api/admin/catalogue-intake/import/route.ts");
 const aiRoute = read("apps/web/src/app/api/admin/catalogue-intake/analyze/route.ts");
+const aiUpload = read("apps/web/src/lib/ai-product-upload.ts");
+const aiService = read("apps/web/src/lib/admin-ai-product-import.ts");
 const page = read("apps/web/src/app/admin/catalogue-intake/import/page.tsx");
 const form = read("apps/web/src/components/AdminCatalogueImportForm.tsx");
 const aiForm = read("apps/web/src/components/AdminAiProductImportForm.tsx");
@@ -51,13 +53,20 @@ for (const contract of [
 
 for (const contract of [
   'requireAdminSession(request, { csrf: true, permission: "catalog.write" })',
-  "MAX_UPLOAD_BYTES = 8 * 1024 * 1024",
-  "MAX_SOURCE_BYTES = 20 * 1024 * 1024",
-  "gunzipSync(uploaded, { maxOutputLength: MAX_SOURCE_BYTES })",
-  "source.includes(0)",
+  "readAiProductUpload(file)",
   "analyzeProductImport",
   '"Cache-Control": "no-store"'
-]) expect(aiRoute.includes(contract), `AI product analysis API is missing safety contract: ${contract}`);
+]) expect(aiRoute.includes(contract), `AI product analysis API is missing contract: ${contract}`);
+for (const contract of [
+  "maxUploadedBytes: 8 * 1024 * 1024",
+  "maxSourceBytes: 20 * 1024 * 1024"
+]) expect(aiService.includes(contract), `AI product import limits are missing safety contract: ${contract}`);
+for (const contract of [
+  "file.size > AI_PRODUCT_IMPORT_LIMITS.maxUploadedBytes",
+  "gunzipSync(uploaded, { maxOutputLength: AI_PRODUCT_IMPORT_LIMITS.maxSourceBytes })",
+  "source.length > AI_PRODUCT_IMPORT_LIMITS.maxSourceBytes",
+  "source.includes(0)"
+]) expect(aiUpload.includes(contract), `AI product upload helper is missing safety contract: ${contract}`);
 
 expect(page.includes('robots: { index: false, follow: false, nocache: true }'), "Product import Admin page must be explicitly non-indexable");
 expect(page.includes("Analyze first · write later"), "AI product import page must describe its bounded non-writing analysis boundary");
@@ -65,7 +74,7 @@ expect(page.includes("Nikolaou master · v2"), "AI product import page must pres
 expect(form.includes('headers: { "x-csrf-token": csrfToken }'), "Supplier import form must send Admin CSRF token");
 expect(form.includes("Δεν δημιουργεί offer, stock, assortment, canonical product ή public listing"), "Supplier import form must preserve no-publication operator warning");
 expect(aiForm.includes('headers: { "x-csrf-token": csrfToken }'), "AI product import form must send Admin CSRF token");
-expect(aiForm.includes("No canonical products, vendor offers, stock, assortment or public listings are created"), "AI product import form must preserve no-publication warning");
+expect(aiForm.includes("No offer, live stock or public listing is created here"), "AI product import form must preserve no-publication warning");
 expect(workspaceNavigation.includes('{ label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" }'), "Supplier import workspace must be catalog.write gated in Admin navigation");
 expect(siteNavigation.includes('"/admin/catalogue-intake/import"'), "Supplier import workspace must be registered as non-indexable/private");
 
