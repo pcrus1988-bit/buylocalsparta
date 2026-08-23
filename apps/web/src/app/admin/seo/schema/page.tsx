@@ -60,6 +60,7 @@ export default async function AdminSeoSchemaPage() {
         <Link href="/admin/seo">Overview</Link>
         <Link href="/admin/seo/pages">Pages</Link>
         <Link href="/admin/seo/schema">Structured Data</Link>
+        <Link href="/admin/seo/reports">Reports</Link>
         <Link href="/admin/seo/issues">Issues</Link>
         <Link href="/admin/seo/crawl">Crawl</Link>
         <Link href="/admin/seo/search-console">Search Console</Link>
