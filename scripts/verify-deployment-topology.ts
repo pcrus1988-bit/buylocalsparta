@@ -6,6 +6,7 @@ const vercel = JSON.parse(await readFile(new URL("../vercel.json", import.meta.u
 const entrypoint = await readFile(new URL("../deploy/worker-entrypoint.sh", import.meta.url), "utf8");
 const dockerfile = await readFile(new URL("../deploy/worker.Dockerfile", import.meta.url), "utf8");
 const docs = await readFile(new URL("../docs/DEPLOYMENT_TOPOLOGY.md", import.meta.url), "utf8");
+const crawlerDocs = await readFile(new URL("../docs/CATALOG_CRAWLER_WORKER.md", import.meta.url), "utf8");
 const nextConfig = await readFile(new URL("../apps/web/next.config.ts", import.meta.url), "utf8");
 const productionCi = await readFile(new URL("../.github/workflows/production-ci.yml", import.meta.url), "utf8");
 const stagingActivation = await readFile(new URL("../.github/workflows/staging-activation.yml", import.meta.url), "utf8");
@@ -39,7 +40,7 @@ for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
   assert(workflow.includes("npm ci --ignore-scripts"), "release/staging workflows must consume the committed npm lockfile");
   assert(!workflow.includes("npm install --ignore-scripts"), "release/staging workflows must not re-resolve dependencies with npm install");
 }
-for (const role of ["postgres", "search", "notifications", "media", "reports"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
+for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
 assert(entrypoint.includes("Unsupported BLS_WORKER_ROLE"), "worker entrypoint must fail closed on unknown roles");
 assert(dockerfile.includes("FROM node:24-"), "worker container must run Node 24");
 assert(dockerfile.includes("COPY package.json package-lock.json ./"), "worker image must copy the committed root lockfile before installing dependencies");
@@ -50,7 +51,11 @@ assert(docs.includes("npm ci --ignore-scripts"), "deployment runbook must docume
 assert(docs.includes("dashboard Install Command override"), "deployment runbook must document the observed Vercel dashboard override and build-time lockfile guard");
 assert(docs.includes("production schema gate"), "deployment runbook must document the hard production schema gate");
 assert(docs.includes("schema-ledger fingerprint"), "deployment runbook must document Vercel's runtime schema-fingerprint verification path");
-assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports"), "deployment runbook must document independent worker roles");
+assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports"), "deployment runbook must document established independent worker roles");
+assert(crawlerDocs.includes("BLS_WORKER_ROLE=crawler"), "crawler runbook must document the isolated worker role");
+assert(crawlerDocs.includes("DNS") && crawlerDocs.includes("pinned"), "crawler runbook must document DNS pinning protection");
+assert(crawlerDocs.includes("DATABASE_URL") && crawlerDocs.includes("BLS_CRAWLER_LEASE_SECONDS"), "crawler runbook must document worker database and lease configuration");
+assert(crawlerDocs.includes("never become public products") || crawlerDocs.includes("never become") || crawlerDocs.includes("never become public"), "crawler runbook must preserve the staging/publication boundary");
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
 
 const mediaWeb = await readFile(new URL("../apps/web/src/lib/media-upload-service.ts", import.meta.url), "utf8");
@@ -60,9 +65,16 @@ assert(!mediaWeb.includes("BLS_CLAMAV_HOST"), "Vercel media upload admission mus
 assert(envMatrix.includes("Do not put `BLS_CLAMAV_HOST` on Vercel"), "environment matrix must keep ClamAV credentials worker-only");
 assert(envMatrix.includes("MEILISEARCH_ADMIN_KEY") && envMatrix.includes("search worker"), "environment matrix must isolate Meilisearch index-management credentials");
 assert(envMatrix.includes("BLS_REPORT_ASYNC_ENABLED") && envMatrix.includes("reports` worker"), "environment matrix must document report worker split");
-for (const path of ["../workers/postgres-worker.ts", "../workers/search-worker.ts", "../workers/notification-worker.ts", "../workers/media-worker.ts", "../workers/report-worker.ts"]) {
+for (const path of [
+  "../workers/postgres-worker.ts",
+  "../workers/search-worker.ts",
+  "../workers/notification-worker.ts",
+  "../workers/media-worker.ts",
+  "../workers/report-worker.ts",
+  "../workers/catalog-crawler-worker.ts"
+]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, Vercel-safe immutable production schema gate, web build and five isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, Vercel-safe immutable production schema gate, web build and six isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
