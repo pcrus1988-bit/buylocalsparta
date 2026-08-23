@@ -1,33 +1,33 @@
--- Buy Local Sparta — structured-data observations on immutable SEO crawl evidence.
--- Historical crawl rows remain nullable/unknown; new crawler runs record JSON-LD coverage
--- without mutating any previously captured evidence.
+-- Buy Local Sparta — immutable structured-data observations attached to SEO crawl results.
+-- Historical crawl results simply have no observation row, preserving an honest "not checked"
+-- state rather than backfilling inferred JSON-LD evidence.
 
 BEGIN;
 
-ALTER TABLE seo_crawl_results
-  ADD COLUMN structured_data_count integer,
-  ADD COLUMN structured_data_types jsonb,
-  ADD COLUMN structured_data_parse_error_count integer;
+CREATE TABLE seo_crawl_structured_data_observations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  public_id text NOT NULL UNIQUE,
+  result_id uuid NOT NULL UNIQUE REFERENCES seo_crawl_results(id) ON DELETE CASCADE,
+  block_count integer NOT NULL CHECK (block_count >= 0),
+  schema_types jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(schema_types) = 'array'),
+  parse_error_count integer NOT NULL DEFAULT 0 CHECK (parse_error_count >= 0),
+  captured_at timestamptz NOT NULL DEFAULT now()
+);
 
-ALTER TABLE seo_crawl_results
-  ADD CONSTRAINT seo_crawl_results_structured_data_count_check
-    CHECK (structured_data_count IS NULL OR structured_data_count >= 0),
-  ADD CONSTRAINT seo_crawl_results_structured_data_types_check
-    CHECK (structured_data_types IS NULL OR jsonb_typeof(structured_data_types) = 'array'),
-  ADD CONSTRAINT seo_crawl_results_structured_data_parse_error_count_check
-    CHECK (structured_data_parse_error_count IS NULL OR structured_data_parse_error_count >= 0),
-  ADD CONSTRAINT seo_crawl_results_structured_data_consistency_check
-    CHECK (
-      (structured_data_count IS NULL AND structured_data_types IS NULL AND structured_data_parse_error_count IS NULL)
-      OR
-      (structured_data_count IS NOT NULL AND structured_data_types IS NOT NULL AND structured_data_parse_error_count IS NOT NULL)
-    );
+CREATE INDEX seo_crawl_structured_data_types_idx
+  ON seo_crawl_structured_data_observations USING gin(schema_types);
 
-COMMENT ON COLUMN seo_crawl_results.structured_data_count IS
-  'Number of application/ld+json script blocks observed in this immutable production crawl result; NULL means the historical crawler did not capture structured-data evidence.';
-COMMENT ON COLUMN seo_crawl_results.structured_data_types IS
-  'Distinct schema.org @type values recursively observed in parsed JSON-LD blocks for this crawl result.';
-COMMENT ON COLUMN seo_crawl_results.structured_data_parse_error_count IS
-  'Number of application/ld+json blocks that could not be parsed as JSON during this crawl result.';
+COMMENT ON TABLE seo_crawl_structured_data_observations IS
+  'Immutable JSON-LD coverage evidence captured for one SEO crawl result. Absence means that historical crawl did not record structured-data evidence.';
+
+ALTER TABLE seo_crawl_structured_data_observations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY bls_platform_runtime_all ON seo_crawl_structured_data_observations
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
+
+CREATE TRIGGER seo_crawl_structured_data_observations_no_mutation
+  BEFORE UPDATE OR DELETE ON seo_crawl_structured_data_observations
+  FOR EACH ROW EXECUTE FUNCTION bls_private.prevent_seo_crawl_evidence_mutation();
 
 COMMIT;
