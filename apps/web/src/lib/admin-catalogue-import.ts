@@ -123,7 +123,6 @@ export async function adminStageNikolaouGzip(
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 20_000, lockTimeoutMs: 4_000 });
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     await tx.query("SELECT pg_advisory_xact_lock(hashtext('catalog_source_payload_upload:nikolaou-tools'))");
-    await tx.query("SET LOCAL ROLE bls_platform_runtime");
 
     const existing = await tx.query<SqlRow>(`
       SELECT id::text,status,source_filename,expected_compressed_sha256,expected_row_count,

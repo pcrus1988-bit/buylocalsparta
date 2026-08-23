@@ -7,6 +7,7 @@ const page = read("apps/web/src/app/admin/catalogue-intake/import/page.tsx");
 const form = read("apps/web/src/components/AdminCatalogueImportForm.tsx");
 const workspaceNavigation = read("apps/web/src/lib/workspace-navigation.ts");
 const siteNavigation = read("apps/web/src/lib/site-navigation.ts");
+const platformScopeMigration = read("db/migrations/0008_rls_platform_scope.sql");
 const transportMigration = read("db/migrations/0119_catalog_source_import_payloads.sql");
 
 const failures: string[] = [];
@@ -24,10 +25,13 @@ for (const contract of [
   "gunzipSync(compressed, { maxOutputLength: NIKOLAOU_IMPORT_LIMITS.maxSourceBytes })",
   "assertNikolaouHeaders(parsed.headers)",
   "analysis.duplicateSourceKeys.length",
-  "SET LOCAL ROLE bls_platform_runtime",
+  "platformScope(principal.userId)",
   "bls_private.seal_catalog_source_import_payload",
   "pg_advisory_xact_lock(hashtext('catalog_source_payload_upload:nikolaou-tools'))"
 ]) expect(service.includes(contract), `Catalogue upload service is missing contract: ${contract}`);
+
+expect(!service.includes("SET LOCAL ROLE bls_platform_runtime"), "Admin catalogue upload must not SET ROLE: platform authorization is credential-bound to session_user membership");
+expect(platformScopeMigration.includes("pg_has_role(session_user, 'bls_platform_runtime', 'member')"), "Platform authorization must remain credential-bound to session_user role membership");
 
 for (const forbidden of ["vendor_offers", "vendor_catalog_assortments", "canonical_variants", "product_identifiers"]) {
   expect(!service.includes(forbidden), `Catalogue staging service must not mutate ${forbidden}`);
