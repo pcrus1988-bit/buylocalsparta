@@ -75,7 +75,7 @@
   "0076_accounting_mapping_v1.sql": "ec680d9221be33beaa64e2bb7e842c58ff1df61e9efa72b6715e64e033e0dc7a",
   "0077_product_tax_profile_audit.sql": "3254685ce114e88e4cc004ae645e5651c65de46b34ce9c310f6bd99b8b974b2d",
   "0078_customer_comms_ask_local_workflow.sql": "c09ab0fc446ce9454bd8637bf5a8ae1a59410a999207ee327ce93fe768124d6b",
-  "0079_vendor_platform_billing.sql": "ef800bb4d303d94190aac335e60f73c2cab01c0948ac787eb8e3666418519221",
+  "0079_vendor_platform_billing.sql": "ef800bb4d303b94190aac335e60f73c2cab01c0948ac787eb8e3666418519221",
   "0080_vendor_order_sla_notifications.sql": "cbdd161638a2903aea56e73ff86b59639880967c8ae29fc3fcd9718613160696",
   "0081_vendor_daily_access_push.sql": "4dc95d4f8bfb47d03d7ee61cedea6990726c051a048450ba343c8a8dc157c723",
   "0082_order_sla_trigger_search_path.sql": "c915907a6ad7229cff9de2f750f7b9fd0761d4854dc562f2af0672d6bb8fc5d4",
@@ -117,5 +117,6 @@
   "0118_seo_crawl_history_issues.sql": "f6859360c2e86968b7ab689c5d5b0c9e2a72a818d81d46ca5b80463c8a60aa52",
   "0119_catalog_source_import_payloads.sql": "b93ab56c0f4b9ecdf693b69c6c36ff3bf7ea11716759edab0720848d0034f974",
   "0120_seo_url_registry_sitemap_history.sql": "750f59d1eac33a11b3e395b1006e660608f5b326462a90868329ee82e7d200a2",
-  "0121_seo_gsc_history.sql": "352bf4503c40a7c11432649fbf1b3f6b31216a8973dab63122eb29c22119587b"
+  "0121_seo_gsc_history.sql": "352bf4503c40a7c11432649fbf1b3f6b31216a8973dab63122eb29c22119587b",
+  "0122_seo_structured_data_observations.sql": "2f411c410c514757edd5b2e117c9bb969e597787e03fb21db8b63e3aa6b83a73"
 }
