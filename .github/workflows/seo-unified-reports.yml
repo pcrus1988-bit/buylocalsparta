@@ -6,6 +6,8 @@ on:
       - "apps/web/src/app/admin/seo/reports/**"
       - "apps/web/src/app/api/admin/seo/reports/**"
       - "apps/web/src/lib/seo-unified-report.ts"
+      - "apps/web/src/lib/site-navigation.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
       - "scripts/verify-seo-unified-reports.ts"
       - ".github/workflows/seo-unified-reports.yml"
 
