@@ -33,10 +33,12 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const adviser = vendorContext?.adviser ?? product.adviser;
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
   const externalDemoCover = demoBookCover(product);
-  const imageSrc = product.mediaId
+  const directImageSrc = product.mediaId
     ? `/api/media/${encodeURIComponent(product.mediaId)}`
     : product.previewImageSrc ?? externalDemoCover;
-  const externalImage = Boolean(imageSrc?.startsWith("https://"));
+  const governedSourceFallback = !directImageSrc;
+  const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  const externalImage = governedSourceFallback || Boolean(imageSrc.startsWith("https://"));
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
@@ -46,19 +48,17 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   return (
     <article className="product-card">
       <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${product.title}`}>
-        {!imageSrc ? <span className="art-category">{category.name}</span> : null}
-        {!imageSrc ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
-        {!imageSrc ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
-        {imageSrc ? (
-          <img
-            src={imageSrc}
-            alt={product.mediaAlt ?? product.title}
-            loading="lazy"
-            decoding="async"
-            referrerPolicy={externalImage ? "no-referrer" : undefined}
-            style={catalogImageStyle}
-          />
-        ) : null}
+        {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
+        {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
+        {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
+        <img
+          src={imageSrc}
+          alt={product.mediaAlt ?? product.title}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy={externalImage ? "no-referrer" : undefined}
+          style={governedSourceFallback ? { ...catalogImageStyle, background: "transparent" } : catalogImageStyle}
+        />
         <span className="product-badge">{demoMode ? "DEMO · Προεπισκόπηση" : product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
       </Link>
       <div className="product-body">
