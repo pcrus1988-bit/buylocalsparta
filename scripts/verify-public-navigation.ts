@@ -37,7 +37,6 @@ function patternMatches(pattern: string, route: string): boolean {
 }
 
 function hasRegisteredPrivateParent(route: string, registered: ReadonlySet<string>): boolean {
-  if (!route.includes("[")) return false;
   let parent = route;
   while (parent.includes("/")) {
     parent = parent.slice(0, parent.lastIndexOf("/"));
