@@ -167,7 +167,7 @@ function attributeValue(key: string, value: unknown): string | undefined {
   if (typeof value === "object") return undefined;
   const raw = text(value).trim();
   if (!raw) return undefined;
-  if (/\p{L}|%|°|\/|×|x/i.test(raw)) return raw;
+  if (/\p{L}|%|°|\/|×|x/iu.test(raw)) return raw;
   if (key === "power_w") return `${raw} W`;
   if (key === "capacity_l") return `${raw} L`;
   if (key === "voltage_v") return `${raw} V`;
