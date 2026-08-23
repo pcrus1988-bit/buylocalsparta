@@ -96,6 +96,22 @@ const ATTRIBUTE_UNIT_OVERRIDES: Readonly<Record<string, string>> = {
   μεγιστο_υψος_ανυψωσης_m: "mm"
 };
 
+const FEATURE_VALUE_LABELS: Readonly<Record<string, string>> = {
+  solo_tool: "Μόνο εργαλείο",
+  brushless: "Χωρίς ψήκτρες",
+  adjustable: "Ρυθμιζόμενο",
+  foldable: "Πτυσσόμενο",
+  telescopic: "Τηλεσκοπικό",
+  sds_plus: "SDS Plus",
+  stainless: "Ανοξείδωτο",
+  sds_max: "SDS Max",
+  "2_stroke": "Δίχρονο",
+  universal: "Γενικής χρήσης",
+  avr: "AVR",
+  "4_stroke": "Τετράχρονο",
+  inverter: "Inverter"
+};
+
 const HIDDEN_ATTRIBUTE_KEYS = new Set([
   "sizes",
   "sizes_observed",
@@ -177,6 +193,7 @@ function attributeValue(key: string, value: unknown): string | undefined {
   if (typeof value === "object") return undefined;
   const raw = text(value).trim();
   if (!raw) return undefined;
+  if (key === "features") return FEATURE_VALUE_LABELS[raw.toLowerCase()] ?? raw;
   const overrideUnit = ATTRIBUTE_UNIT_OVERRIDES[key];
   if (overrideUnit && !/[\p{L}%°/×]/iu.test(raw)) return `${raw} ${overrideUnit}`;
   if (/\p{L}|%|°|\/|×|x/iu.test(raw)) return raw;
@@ -202,6 +219,14 @@ function attributeValue(key: string, value: unknown): string | undefined {
 function numberToken(value: unknown): string | undefined {
   const match = text(value).match(/\d+(?:[.,]\d+)?/);
   return match?.[0]?.replace(",", ".");
+}
+
+function loadKg(key: string, value: unknown): number | undefined {
+  const token = numberToken(value);
+  if (!token) return undefined;
+  const parsed = Number(token);
+  if (!Number.isFinite(parsed)) return undefined;
+  return key === "load_ton" ? parsed * 1000 : parsed;
 }
 
 function mergeObject(target: Map<string, unknown>, source: Record<string, unknown>): void {
@@ -249,6 +274,14 @@ function technicalAttributes(
   // capacity_l and flow_l_h. Avoid turning that parser artefact into a public claim.
   if (combined.has("capacity_l") && combined.has("flow_l_h") && numberToken(combined.get("capacity_l")) === numberToken(combined.get("flow_l_h"))) {
     combined.delete("capacity_l");
+  }
+
+  // Prefer the source specification in kg when the title-derived tonne value is
+  // mathematically equivalent, rather than exposing the same load twice.
+  const titleLoadKg = loadKg("load_ton", combined.get("load_ton"));
+  const specificationLoadKg = loadKg("μεγιστο_φορτιο_kg", combined.get("μεγιστο_φορτιο_kg"));
+  if (titleLoadKg !== undefined && specificationLoadKg !== undefined && Math.abs(titleLoadKg - specificationLoadKg) < 0.5) {
+    combined.delete("load_ton");
   }
 
   return [...combined.entries()]
