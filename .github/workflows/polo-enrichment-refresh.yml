@@ -5,16 +5,24 @@ on:
     branches:
       - chore/polo-catalogue-crawl
     paths:
+      - scripts/catalogue/normalize-polo-skus.mjs
       - scripts/catalogue/enrich-polo-browser-v2.mjs
       - scripts/catalogue/enrich-polo-external.mjs
+      - scripts/catalogue/reconcile-polo-external.mjs
+      - scripts/catalogue/enrich-polo-retailer-indexes.mjs
+      - scripts/catalogue/validate-polo-master.mjs
       - .github/workflows/polo-enrichment-refresh.yml
   pull_request:
     branches:
       - main
     paths:
       - scripts/catalogue/crawl-polo-browser.mjs
+      - scripts/catalogue/normalize-polo-skus.mjs
       - scripts/catalogue/enrich-polo-browser-v2.mjs
       - scripts/catalogue/enrich-polo-external.mjs
+      - scripts/catalogue/reconcile-polo-external.mjs
+      - scripts/catalogue/enrich-polo-retailer-indexes.mjs
+      - scripts/catalogue/validate-polo-master.mjs
       - .github/workflows/polo-enrichment-refresh.yml
       - data/imports/polo/**
   workflow_dispatch:
@@ -44,6 +52,12 @@ jobs:
           npm install --no-save --ignore-scripts playwright@1.55.0
           npx playwright install --with-deps chromium
 
+      - name: Normalize supplier SKUs from official POLO pages
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/normalize-polo-skus.mjs 2>&1 | tee /tmp/polo-sku-normalization.log
+
       - name: Apply authoritative POLO enrichment
         id: primary
         shell: bash
@@ -52,11 +66,34 @@ jobs:
           node scripts/catalogue/enrich-polo-browser-v2.mjs 2>&1 | tee /tmp/polo-enrichment-v2.log
 
       - name: Apply exact-SKU external enrichment
-        if: hashFiles('scripts/catalogue/enrich-polo-external.mjs') != ''
         shell: bash
         run: |
           set -o pipefail
           node scripts/catalogue/enrich-polo-external.mjs 2>&1 | tee /tmp/polo-external-enrichment.log
+
+      - name: Reconcile exact-SKU external evidence
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/reconcile-polo-external.mjs 2>&1 | tee /tmp/polo-external-reconciliation.log
+
+      - name: Enrich from bulk retailer catalogue indexes
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/enrich-polo-retailer-indexes.mjs 2>&1 | tee /tmp/polo-retailer-index-enrichment.log
+
+      - name: Final evidence reconciliation
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/reconcile-polo-external.mjs 2>&1 | tee /tmp/polo-final-reconciliation.log
+
+      - name: Validate POLO import invariants
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/validate-polo-master.mjs 2>&1 | tee /tmp/polo-validation.log
 
       - name: Upload refreshed POLO import package
         if: always()
@@ -65,8 +102,13 @@ jobs:
           name: polo-enriched-catalogue-${{ github.run_id }}
           path: |
             data/imports/polo/
+            /tmp/polo-sku-normalization.log
             /tmp/polo-enrichment-v2.log
             /tmp/polo-external-enrichment.log
+            /tmp/polo-external-reconciliation.log
+            /tmp/polo-retailer-index-enrichment.log
+            /tmp/polo-final-reconciliation.log
+            /tmp/polo-validation.log
           if-no-files-found: error
           retention-days: 30
 
@@ -82,5 +124,5 @@ jobs:
             echo 'No POLO enrichment changes to commit.'
             exit 0
           fi
-          git commit -m 'data: apply authoritative POLO enrichment [skip ci]'
+          git commit -m 'data: apply verified POLO enrichment [skip ci]'
           git push origin HEAD:chore/polo-catalogue-crawl
