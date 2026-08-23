@@ -1,6 +1,6 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../../lib/vendor-backoffice-service";
-import { createVendorProductFromCanonical } from "../../../../../lib/vendor-canonical-match-service";
+import { createVendorProductFromCanonicalPrefill } from "../../../../../lib/vendor-canonical-prefill-service";
 
 export async function POST(request: Request) {
   try {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     };
 
     if (canonicalVariantId) {
-      await createVendorProductFromCanonical(principal, {
+      await createVendorProductFromCanonicalPrefill(principal, {
         ...common,
         canonicalVariantId,
         variantNote: text("variantNote") || undefined
