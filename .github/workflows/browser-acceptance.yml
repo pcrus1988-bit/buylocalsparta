@@ -95,12 +95,12 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO postgres"
       - name: Verify database readiness
         run: npm run db:ready
-      - name: Install Playwright without changing the repository lockfile
+      - name: Build web application with the locked workspace dependency tree
+        run: npm run build:web
+      - name: Install Playwright only after the production build
         run: |
           npm install --no-save --package-lock=false @playwright/test@1.55.0
           npx playwright install --with-deps chromium
-      - name: Build web application
-        run: npm run build:web
       - name: Start acceptance server
         run: |
           npm run start --workspace @buy-local-sparta/web > /tmp/kontamou-acceptance.log 2>&1 &
