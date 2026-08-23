@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../../lib/admin-session";
-import { syncSeoUrlRegistry } from "../../../../../../../lib/seo-url-registry";
+import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { syncSeoUrlRegistry } from "../../../../../../lib/seo-url-registry";
 
 export async function POST(request: Request) {
   try {
