@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Pool } from "pg";
+import { resolveDatabaseUrlFromEnv } from "../../../../../lib/postgres-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,8 +29,12 @@ export async function GET(request: Request) {
 async function executePromotion(suppliedToken: string) {
   if (!/^[0-9a-f]{64}$/i.test(suppliedToken)) return rejected();
 
-  const connectionString = process.env.DATABASE_URL?.trim();
+  // Use exactly the same DATABASE_URL/POSTGRES_URL resolution as the production web runtime.
+  // The worker/importer themselves require DATABASE_URL, so we pass the resolved URL explicitly
+  // into the child process without changing the global serverless process environment.
+  const connectionString = resolveDatabaseUrlFromEnv();
   if (!connectionString) return Response.json({ error: "database_runtime_unavailable" }, { status: 503, headers: noStore() });
+  const workerEnv: NodeJS.ProcessEnv = { ...process.env, DATABASE_URL: connectionString };
 
   const pool = new Pool({ connectionString, max: 1, application_name: "buy-local-sparta-nikolaou-trigger" });
   try {
@@ -37,7 +42,7 @@ async function executePromotion(suppliedToken: string) {
     if (!authorized) return rejected();
 
     const workerPath = resolveWorkerPath();
-    const run = await runWorker(workerPath);
+    const run = await runWorker(workerPath, workerEnv);
     if (run.code !== 0) {
       console.error(JSON.stringify({ event: "catalogue.nikolaou_promotion_failed", code: run.code, stderr: run.stderr.slice(-8_000) }));
       return Response.json({ error: "promotion_worker_failed", code: run.code, stderr: run.stderr.slice(-4_000) }, { status: 500, headers: noStore() });
@@ -118,10 +123,10 @@ function resolveWorkerPath(): string {
   return path;
 }
 
-function runWorker(workerPath: string): Promise<{ code: number; stdout: string; stderr: string }> {
+function runWorker(workerPath: string, env: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolveRun, reject) => {
     const child = spawn(process.execPath, ["--experimental-strip-types", workerPath, `--payload-id=${PAYLOAD_ID}`], {
-      cwd: process.cwd(), env: process.env, stdio: ["ignore", "pipe", "pipe"]
+      cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
     let stderr = "";
