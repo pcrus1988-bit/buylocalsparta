@@ -1,6 +1,6 @@
-import { assertAdminPermission } from "../../../../../../../lib/admin-runtime";
-import { getAdminSession } from "../../../../../../../lib/admin-session";
-import { getSeoUnifiedReportWorkspace, seoUnifiedReportCsv } from "../../../../../../../lib/seo-unified-report";
+import { assertAdminPermission } from "../../../../../../lib/admin-runtime";
+import { getAdminSession } from "../../../../../../lib/admin-session";
+import { getSeoUnifiedReportWorkspace, seoUnifiedReportCsv } from "../../../../../../lib/seo-unified-report";
 
 export const dynamic = "force-dynamic";
 
