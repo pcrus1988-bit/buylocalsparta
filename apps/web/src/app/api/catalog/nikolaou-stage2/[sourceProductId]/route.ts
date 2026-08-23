@@ -7,20 +7,24 @@ const HOSTS = new Set(["nikolaoutools.gr", "www.nikolaoutools.gr"]);
 const MAX_BYTES = 2 * 1024 * 1024;
 const PENDING = "supplier_title_crawled_body_pending";
 const LABELS: Readonly<Record<string, string>> = {
-  "ισχυς watt": "power_w", "ισχυς w": "power_w", "ισχυς": "power_w",
+  "ισχυς watt": "power_w", "ισχυς w": "power_w", "ισχυς": "power_w", "ισχυς hp": "horsepower_hp",
   "μεγιστη παροχη lt h": "flow_l_h", "μεγιστη παροχη l h": "flow_l_h", "παροχη lt h": "flow_l_h", "παροχη l h": "flow_l_h",
   "μεγιστο μανομετρικο m": "max_head_m", "μεγιστο μανομετρικο": "max_head_m",
   "υψος αναρροφησης m": "suction_height_m", "υψος αναρροφησης": "suction_height_m", "υψος m": "suction_height_m",
+  "μεγιστη βυθιση m": "max_submersion_m", "μεγιστη βυθιση": "max_submersion_m",
   "μεγιστο μεγεθος σωματιδιων mm": "max_particle_size_mm", "μεγιστο μεγεθος σωματιδιων": "max_particle_size_mm",
-  "οθονη": "display", "διαθετει": "features", "στομιο εισοδου inch": "inlet_in", "στομιο εξοδου inch": "outlet_in",
-  "βαρος συσκευασιας kg": "package_weight_kg", "βαρος kg": "weight_kg", "καθαρο βαρος kg": "net_weight_kg",
+  "οθονη": "display", "διαθετει": "features", "περιλαμβανει": "included_items",
+  "στομιο εισοδου inch": "inlet_in", "στομιο εξοδου inch": "outlet_in",
+  "βαρος συσκευασιας kg": "package_weight_kg", "βαρος kg": "weight_kg", "καθαρο βαρος kg": "net_weight_kg", "βαρος καθαρο kg": "net_weight_kg",
   "διαστασεις συσκ τεμ cm μxπxυ": "package_dimensions_cm", "διαστασεις συσκ τεμ cm μ x π x υ": "package_dimensions_cm",
   "διαστασεις cm": "dimensions_cm", "πιεση bar": "pressure_bar", "μεγιστη πιεση bar": "pressure_bar",
-  "ταση v": "voltage_v", "στροφες rpm": "rpm", "ταχυτητα rpm": "rpm", "διαμετρος mm": "diameter_mm",
+  "ταση v": "voltage_v", "ταση συχνοτητα v hz": "voltage_frequency_v_hz",
+  "στροφες rpm": "rpm", "ταχυτητα rpm": "rpm", "διαμετρος mm": "diameter_mm", "διαμετρος αντλιας ιντσες": "pump_diameter_in",
+  "θερμοκρασια νερου c": "water_temperature_c",
   "μηκος mm": "length_mm", "μηκος cm": "length_cm", "μηκος m": "length_m", "πλατος mm": "width_mm", "υψος mm": "height_mm",
   "κυβισμος cc": "engine_cc", "ιπποδυναμη hp": "horsepower_hp", "υλικο": "material", "χρωμα": "color", "μεγεθος": "size"
 };
-const NUMERIC_KEYS = new Set(["power_w", "max_head_m", "suction_height_m", "max_particle_size_mm", "package_weight_kg", "weight_kg", "net_weight_kg", "pressure_bar", "voltage_v", "rpm", "diameter_mm", "length_mm", "length_cm", "length_m", "width_mm", "height_mm", "engine_cc", "horsepower_hp"]);
+const NUMERIC_KEYS = new Set(["power_w", "max_head_m", "suction_height_m", "max_submersion_m", "max_particle_size_mm", "package_weight_kg", "weight_kg", "net_weight_kg", "pressure_bar", "voltage_v", "rpm", "diameter_mm", "length_mm", "length_cm", "length_m", "width_mm", "height_mm", "engine_cc", "horsepower_hp"]);
 
 type SourceRow = { id: string; source_product_key: string; supplier_code: string | null; source_url: string };
 
@@ -52,7 +56,8 @@ function numberToken(value: string) { const match = value.replace(",", ".").matc
 function valueFor(key: string, raw: string): string | number {
   const numeric = numberToken(raw);
   if (key === "flow_l_h" && numeric !== undefined) return `${numeric} L/h`;
-  if ((key === "inlet_in" || key === "outlet_in") && numeric !== undefined) return `${numeric} in`;
+  if ((key === "inlet_in" || key === "outlet_in" || key === "pump_diameter_in") && numeric !== undefined) return `${numeric} in`;
+  if (key === "water_temperature_c" && numeric !== undefined) return `${numeric} °C`;
   if (key === "package_dimensions_cm" || key === "dimensions_cm") { const match = raw.match(/(\d+(?:[.,]\d+)?)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*[x×X]\s*(\d+(?:[.,]\d+)?)/); if (match) return `${match[1].replace(",", ".")} × ${match[2].replace(",", ".")} × ${match[3].replace(",", ".")} cm`; }
   return NUMERIC_KEYS.has(key) && numeric !== undefined ? numeric : raw;
 }
@@ -67,7 +72,16 @@ function parse(body: string, base: string) {
   for (let i = Math.max(identityAt, 0); i < items.length; i += 1) if (greek(items[i]) === "χαρακτηριστικα") { start = i + 1; break; }
   if (start < 0) start = Math.max(identityAt + 1, 0);
   const specifications: Array<{ key: string; label: string; raw: string; value: string | number }> = []; const seen = new Set<string>();
-  for (let i = start; i < Math.min(items.length, start + 180); i += 1) { const line = items[i]; if (/^(?:Εταιρεία|Εταιρική Υπευθυνότητα|Πολιτική Απορρήτου|Καταστήματα|Επικοινωνία)$/iu.test(line)) break; const separator = line.indexOf(":"); if (separator < 1) continue; const label = line.slice(0, separator).trim(); const raw = line.slice(separator + 1).trim(); if (!raw || label.length > 100 || raw.length > 220 || /^(?:Μοντέλο|Κωδικός|Barcode|Μάρκα|T|Tel|Fax)$/iu.test(label)) continue; const key = LABELS[greek(label)] ?? fallbackKey(label); if (seen.has(key)) continue; seen.add(key); specifications.push({ key, label, raw, value: valueFor(key, raw) }); }
+  for (let i = start; i < Math.min(items.length, start + 180); i += 1) {
+    const line = items[i];
+    if (/^Image\s+\d+\s*:/i.test(line)) break;
+    if (/^(?:Εταιρεία|Εταιρική Υπευθυνότητα|Πολιτική Απορρήτου|Καταστήματα|Επικοινωνία)$/iu.test(line)) break;
+    const separator = line.indexOf(":"); if (separator < 1) continue;
+    const label = line.slice(0, separator).trim(); const raw = line.slice(separator + 1).trim();
+    if (!raw || label.length > 100 || raw.length > 220 || /^(?:Μοντέλο|Κωδικός|Barcode|Μάρκα|T|Tel|Fax)$/iu.test(label)) continue;
+    const key = LABELS[greek(label)] ?? fallbackKey(label); if (seen.has(key)) continue;
+    seen.add(key); specifications.push({ key, label, raw, value: valueFor(key, raw) });
+  }
   return { model, supplierCode, brand, gtin: barcode && barcode.length >= 8 ? barcode : undefined, manualUrl: manualUrl(body, base), specifications };
 }
 async function readBounded(response: Response) {
