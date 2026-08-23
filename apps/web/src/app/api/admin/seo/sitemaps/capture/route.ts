@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../../lib/admin-session";
-import { captureProductionSitemap } from "../../../../../../../lib/seo-sitemap-history";
+import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { captureProductionSitemap } from "../../../../../../lib/seo-sitemap-history";
 
 export async function POST(request: Request) {
   try {
