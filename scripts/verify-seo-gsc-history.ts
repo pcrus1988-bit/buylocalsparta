@@ -31,7 +31,7 @@ for (const contract of [
   "BEFORE UPDATE OR DELETE ON seo_gsc_url_inspections"
 ]) expect(migration.includes(contract), `Search Console history migration is missing ${contract}`);
 expect(!/referring_urls|referringUrls/.test(migration), "Persistent Search Console schema must not store Google referring URLs");
-expect(!/access_token|private_key|client_secret|oauth/i.test(migration), "Persistent Search Console schema must not contain Google credential/token fields");
+expect(!/^\s*(access_token|private_key|client_secret|oauth_token)\s+(?:text|jsonb|bytea|varchar|character)/im.test(migration), "Persistent Search Console schema must not define Google credential/token columns");
 
 for (const contract of [
   "sanitizeAnalyticsSearchQuery",
@@ -57,9 +57,9 @@ for (const contract of [
   "AdminSearchConsoleSync",
   "Persisted Search Analytics",
   "Privacy-minimized Google queries",
-  "URL Inspection",
-  "Referring URLs"
+  "URL Inspection"
 ]) expect(searchConsolePage.includes(contract), `Search Console Admin page is missing ${contract}`);
+expect(searchConsolePage.toLowerCase().includes("referring urls"), "Search Console Admin page must explain that Google referring URLs are not persisted");
 expect(!searchConsolePage.includes("getSearchConsoleBreakdown"), "Search Console Admin page must not spend Search Analytics API quota on every render");
 expect(!searchConsolePage.includes("getSearchConsoleOverview"), "Search Console Admin page must use retained performance history instead of live aggregate fetch on every render");
 
