@@ -1,5 +1,5 @@
-import type { PublicVendorDirectoryEntry } from "./public-vendor-directory";
-import { isPublicCatalogueTitle } from "./public-data-integrity";
+import type { PublicVendorDirectoryEntry } from "./public-vendor-directory.ts";
+import { isPublicCatalogueTitle } from "./public-data-integrity.ts";
 
 export type SeoVisibilityClass =
   | "PUBLIC_INDEXABLE"
