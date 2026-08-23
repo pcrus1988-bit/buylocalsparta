@@ -2,7 +2,7 @@
   "0001_core.sql": "efd71870ec8ac483f4dbc136b4d9251fea56b56a02e874a9dba913d0a333d853",
   "0002_runtime_hardening.sql": "195d6847d888f1eabff65e4c94a43d021ec4f45deb8d7c6015e5f9d330fcd47e",
   "0003_identity_private_offers_notifications.sql": "45a5fbc836a7f6c2d121128ca77060d055619696f1625da5345bec2bc427240b",
-  "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce056b7c397691f5aaeb5eaafe78fbe3a",
+  "0004_launch_plan_configuration.sql": "7ad703765d2190fba01208931a4ce04655d1f7c397691f5aaeb5eaafe78fbe3a",
   "0005_catalog_workflows.sql": "d6778462a1f010ec61ad1e0d6cd5328808a59f789e687bc0cf847cbd24d669a9",
   "0006_transactional_inventory.sql": "f4d5798afe37f533b1ab52c0823ae83d03527b9a30a52b08219db496ce63d150",
   "0007_settlement_controls.sql": "11cdf087f0796b4d050037182dc1381758bbeef664af514bf03b4cd99a792f42",
