@@ -173,6 +173,8 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read" },
       { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read" },
       { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
+      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" },
+      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
       { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" }
     ]
