@@ -122,5 +122,6 @@
   "0123_catalog_source_auto_canonicalization.sql": "1d0dd3baa56721898971e70738865d117b1e74e87c4af9fbf145a0673427d075",
   "0124_admin_vendor_demo_and_prelaunch_catalogue.sql": "25155ba56addd2cfe159ff90e5cd91f4bba625927ade66dd9d94920a6bd17eb3",
   "0125_catalog_source_taxonomy_consensus.sql": "47b791fca0948a0b6b92d52016a7962f5c3b44f1bccc612fbc4740342c84551d",
-  "0126_vendor_demo_pre_live_invariant.sql": "7392cbe07ff5e1e3ed58ce5595ce74c9c8a54bd3cf6ea9c475c8380e0bcef7d5"
+  "0126_vendor_demo_pre_live_invariant.sql": "7392cbe07ff5e1e3ed58ce5595ce74c9c8a54bd3cf6ea9c475c8380e0bcef7d5",
+  "0127_machinery_equipment_taxonomy.sql": "d653f7d3e60705b21da36ea778f1fdeb11408ec9456ca23d50566e5fee86fb78"
 }
