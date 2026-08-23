@@ -53,6 +53,10 @@ export type SeoGscIndexCoverageWorkspace = Readonly<{
     missing: number;
     stale: number;
     canonicalMismatch: number;
+    failedVerdict: number;
+    partialVerdict: number;
+    indexingBlocked: number;
+    fetchFailed: number;
   }>;
   maxAgeHours: number;
 }>;
@@ -122,17 +126,29 @@ function samplingPriority(row: SeoGscCoverageRow): number {
   return 3;
 }
 
+function coverageMetrics(rows: readonly SeoGscCoverageRow[]): SeoGscIndexCoverageWorkspace["metrics"] {
+  return {
+    governedIndexable: rows.length,
+    inspected: rows.filter((row) => Boolean(row.capturedAt)).length,
+    healthy: rows.filter((row) => row.state === "healthy").length,
+    attention: rows.filter((row) => row.state === "attention").length,
+    missing: rows.filter((row) => row.state === "missing").length,
+    stale: rows.filter((row) => row.stale).length,
+    canonicalMismatch: rows.filter((row) => row.canonicalMismatch).length,
+    failedVerdict: rows.filter((row) => row.verdict === "FAIL").length,
+    partialVerdict: rows.filter((row) => Boolean(row.verdict) && row.verdict !== "PASS" && row.verdict !== "FAIL").length,
+    indexingBlocked: rows.filter((row) => Boolean(row.indexingState) && row.indexingState !== "INDEXING_ALLOWED").length,
+    fetchFailed: rows.filter((row) => Boolean(row.pageFetchState) && row.pageFetchState !== "SUCCESSFUL").length
+  };
+}
+
 export async function getSeoGscIndexCoverageWorkspace(principal: SessionPrincipal): Promise<SeoGscIndexCoverageWorkspace> {
   assertAdminPermission(principal, "content.read");
   const registry = await getSeoUrlRegistryWorkspace(principal);
   const targets = registry.rows.filter((row) => row.active && row.desiredIndexable);
   if (!productionDatabaseConfigured() || !registry.persistenceAvailable) {
-    return {
-      persistenceAvailable: false,
-      rows: targets.map((row) => rowState(row, undefined, Date.now())),
-      metrics: { governedIndexable: targets.length, inspected: 0, healthy: 0, attention: 0, missing: targets.length, stale: 0, canonicalMismatch: 0 },
-      maxAgeHours: COVERAGE_MAX_AGE_HOURS
-    };
+    const rows = targets.map((row) => rowState(row, undefined, Date.now()));
+    return { persistenceAvailable: false, rows, metrics: coverageMetrics(rows), maxAgeHours: COVERAGE_MAX_AGE_HOURS };
   }
 
   const routes = targets.map((row) => row.route);
@@ -155,20 +171,7 @@ export async function getSeoGscIndexCoverageWorkspace(principal: SessionPrincipa
   const nowMs = Date.now();
   const rows = targets.map((row) => rowState(row, latestByRoute.get(row.route), nowMs))
     .sort((a, b) => samplingPriority(a) - samplingPriority(b) || (a.capturedAt ?? "").localeCompare(b.capturedAt ?? "") || a.route.localeCompare(b.route, "el"));
-  return {
-    persistenceAvailable: true,
-    rows,
-    metrics: {
-      governedIndexable: rows.length,
-      inspected: rows.filter((row) => Boolean(row.capturedAt)).length,
-      healthy: rows.filter((row) => row.state === "healthy").length,
-      attention: rows.filter((row) => row.state === "attention").length,
-      missing: rows.filter((row) => row.state === "missing").length,
-      stale: rows.filter((row) => row.stale).length,
-      canonicalMismatch: rows.filter((row) => row.canonicalMismatch).length
-    },
-    maxAgeHours: COVERAGE_MAX_AGE_HOURS
-  };
+  return { persistenceAvailable: true, rows, metrics: coverageMetrics(rows), maxAgeHours: COVERAGE_MAX_AGE_HOURS };
 }
 
 export async function runGovernedSearchConsoleCoverageSample(principal: SessionPrincipal, requestedLimit: number) {

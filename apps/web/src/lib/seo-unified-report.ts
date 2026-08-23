@@ -5,6 +5,7 @@ import { adminSeoWorkspace } from "./admin-seo-runtime";
 import { getSeoCrawlHistorySnapshot } from "./seo-crawl-history";
 import { seoDiagnosticRegressionSignals } from "./seo-diagnostic-monitoring";
 import { getSearchConsoleHistoryWorkspace } from "./seo-gsc-history";
+import { getSeoGscIndexCoverageWorkspace } from "./seo-gsc-index-coverage";
 import { getSeoSchemaDiagnosticsWorkspace } from "./seo-schema-diagnostics";
 import { getSeoSitemapHistoryWorkspace } from "./seo-sitemap-history";
 import { getSeoUrlRegistryWorkspace } from "./seo-url-registry";
@@ -48,6 +49,18 @@ export type SeoUnifiedReportWorkspace = Readonly<{
     gscClicks: number;
     gscImpressions: number;
     gscPages: number;
+    gscCoverageGoverned: number;
+    gscCoverageInspected: number;
+    gscCoverageHealthy: number;
+    gscCoverageAttention: number;
+    gscCoverageMissing: number;
+    gscCoverageStale: number;
+    gscCoverageHardFailures: number;
+    gscCoverageCanonicalMismatch: number;
+    gscCoverageFailedVerdict: number;
+    gscCoveragePartialVerdict: number;
+    gscCoverageIndexingBlocked: number;
+    gscCoverageFetchFailed: number;
     schemaManaged: number;
     schemaHealthy: number;
     schemaMissing: number;
@@ -92,12 +105,13 @@ function freshnessLabel(value: SeoEvidenceFreshness): string {
 }
 
 export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal): Promise<SeoUnifiedReportWorkspace> {
-  const [overview, registry, crawl, sitemap, gsc, schema] = await Promise.all([
+  const [overview, registry, crawl, sitemap, gsc, gscCoverage, schema] = await Promise.all([
     adminSeoWorkspace(principal),
     getSeoUrlRegistryWorkspace(principal),
     getSeoCrawlHistorySnapshot(principal),
     getSeoSitemapHistoryWorkspace(principal),
     getSearchConsoleHistoryWorkspace(principal),
+    getSeoGscIndexCoverageWorkspace(principal),
     getSeoSchemaDiagnosticsWorkspace(principal)
   ]);
 
@@ -117,6 +131,10 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
   const latestReport = overview.reports.reports[0];
   const previousReport = overview.reports.reports[1];
   const regressionSignals = seoDiagnosticRegressionSignals(latestReport, previousReport);
+  const googleCoverageHardFailures = gscCoverage.rows.filter((row) => !row.stale && (row.canonicalMismatch
+    || row.verdict === "FAIL"
+    || Boolean(row.indexingState && row.indexingState !== "INDEXING_ALLOWED")
+    || Boolean(row.pageFetchState && row.pageFetchState !== "SUCCESSFUL"))).length;
 
   const checks: SeoOperationalCheck[] = [
     check(
@@ -156,6 +174,21 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
         ? "No retained Search Console performance sync is available yet."
         : `${gsc.latest.clicks} clicks · ${gsc.latest.impressions} impressions · ${gsc.pages.length} retained page rows for ${gsc.latest.startDate} → ${gsc.latest.endDate} · ${freshnessLabel(freshness.searchConsole)}.`,
       "/admin/seo/search-console"
+    ),
+    check(
+      "google-index-coverage",
+      "Google index coverage",
+      !gscCoverage.persistenceAvailable
+        ? "unknown"
+        : googleCoverageHardFailures > 0
+          ? "fail"
+          : gscCoverage.metrics.missing > 0 || gscCoverage.metrics.stale > 0 || gscCoverage.metrics.partialVerdict > 0 || gscCoverage.metrics.attention > 0
+            ? "warning"
+            : "pass",
+      !gscCoverage.persistenceAvailable
+        ? "Retained Google URL Inspection coverage requires the PostgreSQL SEO URL registry and inspection evidence."
+        : `${gscCoverage.metrics.healthy}/${gscCoverage.metrics.governedIndexable} healthy · ${gscCoverage.metrics.inspected} inspected · ${gscCoverage.metrics.missing} missing · ${gscCoverage.metrics.stale} stale (>${gscCoverage.maxAgeHours / 24}d) · ${googleCoverageHardFailures} fresh URLs with hard Google failures · ${gscCoverage.metrics.canonicalMismatch} canonical mismatch · ${gscCoverage.metrics.failedVerdict} FAIL verdict · ${gscCoverage.metrics.indexingBlocked} indexing blocked · ${gscCoverage.metrics.fetchFailed} fetch failed · ${gscCoverage.metrics.partialVerdict} partial/other verdict.`,
+      "/admin/seo/search-console/index-coverage"
     ),
     check(
       "structured-data",
@@ -200,6 +233,18 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
       gscClicks: gsc.latest?.clicks ?? 0,
       gscImpressions: gsc.latest?.impressions ?? 0,
       gscPages: gsc.pages.length,
+      gscCoverageGoverned: gscCoverage.metrics.governedIndexable,
+      gscCoverageInspected: gscCoverage.metrics.inspected,
+      gscCoverageHealthy: gscCoverage.metrics.healthy,
+      gscCoverageAttention: gscCoverage.metrics.attention,
+      gscCoverageMissing: gscCoverage.metrics.missing,
+      gscCoverageStale: gscCoverage.metrics.stale,
+      gscCoverageHardFailures: googleCoverageHardFailures,
+      gscCoverageCanonicalMismatch: gscCoverage.metrics.canonicalMismatch,
+      gscCoverageFailedVerdict: gscCoverage.metrics.failedVerdict,
+      gscCoveragePartialVerdict: gscCoverage.metrics.partialVerdict,
+      gscCoverageIndexingBlocked: gscCoverage.metrics.indexingBlocked,
+      gscCoverageFetchFailed: gscCoverage.metrics.fetchFailed,
       schemaManaged: schema.metrics.managed,
       schemaHealthy: schema.metrics.healthy,
       schemaMissing: schema.metrics.missing,
