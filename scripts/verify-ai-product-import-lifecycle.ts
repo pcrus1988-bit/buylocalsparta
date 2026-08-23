@@ -19,7 +19,7 @@ for (const contract of [
   "duplicate_source_key",
   "parsePriceMinor",
   "sourceIdentityKey",
-  'triageStatus: "ready_for_identity_matching"'
+  "ready_for_identity_matching"
 ]) expect(normalization.includes(contract), `Normalization engine is missing contract: ${contract}`);
 
 for (const table of ["catalog_import_mapping_profiles", "catalog_import_runs", "catalog_import_row_decisions"]) {
