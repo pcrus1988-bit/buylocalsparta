@@ -1,0 +1,188 @@
+import "server-only";
+
+import type { SessionPrincipal } from "@buy-local-sparta/core";
+import { adminSeoWorkspace } from "./admin-seo-runtime";
+import { getSeoCrawlHistorySnapshot } from "./seo-crawl-history";
+import { seoDiagnosticRegressionSignals } from "./seo-diagnostic-monitoring";
+import { getSearchConsoleHistoryWorkspace } from "./seo-gsc-history";
+import { getSeoSchemaDiagnosticsWorkspace } from "./seo-schema-diagnostics";
+import { getSeoSitemapHistoryWorkspace } from "./seo-sitemap-history";
+import { getSeoUrlRegistryWorkspace } from "./seo-url-registry";
+
+export type SeoOperationalCheckState = "pass" | "warning" | "fail" | "unknown";
+
+export type SeoOperationalCheck = Readonly<{
+  id: string;
+  label: string;
+  state: SeoOperationalCheckState;
+  detail: string;
+  href: string;
+}>;
+
+export type SeoUnifiedReportWorkspace = Readonly<{
+  generatedAt: string;
+  status: "healthy" | "attention" | "blocked";
+  checks: readonly SeoOperationalCheck[];
+  metrics: Readonly<{
+    governedUrls: number;
+    desiredIndexable: number;
+    actualSitemap: number;
+    sitemapExpectedMissing: number;
+    sitemapUnexpectedActual: number;
+    openIssues: number;
+    criticalOpenIssues: number;
+    latestCrawlIssues: number;
+    gscClicks: number;
+    gscImpressions: number;
+    gscPages: number;
+    schemaManaged: number;
+    schemaHealthy: number;
+    schemaMissing: number;
+    schemaInvalid: number;
+    schemaUnexpected: number;
+    schemaNotChecked: number;
+  }>;
+  latestGscCapturedAt?: string;
+  latestSitemapCapturedAt?: string;
+  latestCrawlCompletedAt?: string;
+  reports: Awaited<ReturnType<typeof adminSeoWorkspace>>["reports"];
+  regressionSignals: ReturnType<typeof seoDiagnosticRegressionSignals>;
+}>;
+
+function check(id: string, label: string, state: SeoOperationalCheckState, detail: string, href: string): SeoOperationalCheck {
+  return { id, label, state, detail, href };
+}
+
+function overallStatus(checks: readonly SeoOperationalCheck[]): SeoUnifiedReportWorkspace["status"] {
+  if (checks.some((item) => item.state === "fail")) return "blocked";
+  if (checks.some((item) => item.state === "warning" || item.state === "unknown")) return "attention";
+  return "healthy";
+}
+
+export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal): Promise<SeoUnifiedReportWorkspace> {
+  const [overview, registry, crawl, sitemap, gsc, schema] = await Promise.all([
+    adminSeoWorkspace(principal),
+    getSeoUrlRegistryWorkspace(principal),
+    getSeoCrawlHistorySnapshot(principal),
+    getSeoSitemapHistoryWorkspace(principal),
+    getSearchConsoleHistoryWorkspace(principal),
+    getSeoSchemaDiagnosticsWorkspace(principal)
+  ]);
+
+  const overviewCritical = overview.diagnostics.filter((item) => item.severity === "critical").length;
+  const overviewWarnings = overview.diagnostics.filter((item) => item.severity === "warning").length;
+  const latestReport = overview.reports.reports[0];
+  const previousReport = overview.reports.reports[1];
+  const regressionSignals = seoDiagnosticRegressionSignals(latestReport, previousReport);
+
+  const checks: SeoOperationalCheck[] = [
+    check(
+      "governed-url-registry",
+      "Governed URL registry",
+      !registry.persistenceAvailable ? "unknown" : registry.metrics.withCriticalIssues > 0 ? "fail" : registry.metrics.withOpenIssues > 0 ? "warning" : "pass",
+      !registry.persistenceAvailable
+        ? "Persistent page-level SEO evidence is unavailable."
+        : `${registry.metrics.active} active URLs · ${registry.metrics.withOpenIssues} URLs with open issues · ${registry.metrics.withCriticalIssues} critical.`,
+      "/admin/seo/pages"
+    ),
+    check(
+      "crawl-issues",
+      "Production crawl findings",
+      !crawl.persistenceAvailable ? "unknown" : crawl.metrics.criticalOpen > 0 ? "fail" : crawl.metrics.open > 0 ? "warning" : "pass",
+      !crawl.persistenceAvailable
+        ? "Durable crawl history is unavailable."
+        : `${crawl.metrics.open} open findings · ${crawl.metrics.criticalOpen} critical · ${crawl.metrics.latestRunIssues} findings in latest run.`,
+      "/admin/seo/issues"
+    ),
+    check(
+      "sitemap-evidence",
+      "Production sitemap",
+      !sitemap.persistenceAvailable || !sitemap.latest ? "unknown" : !sitemap.latest.valid ? "fail" : sitemap.metrics.expectedMissing > 0 || sitemap.metrics.unexpectedActual > 0 ? "warning" : "pass",
+      !sitemap.latest
+        ? "No production sitemap snapshot has been retained yet."
+        : `${sitemap.latest.valid ? "Valid" : "Invalid"} snapshot · ${sitemap.metrics.latestEntries} URLs · ${sitemap.metrics.expectedMissing} expected missing · ${sitemap.metrics.unexpectedActual} unexpected actual.`,
+      "/admin/seo/sitemaps"
+    ),
+    check(
+      "search-console",
+      "Search Console evidence",
+      !gsc.persistenceAvailable || !gsc.latest ? "unknown" : "pass",
+      !gsc.latest
+        ? "No retained Search Console performance sync is available yet."
+        : `${gsc.latest.clicks} clicks · ${gsc.latest.impressions} impressions · ${gsc.pages.length} retained page rows for ${gsc.latest.startDate} → ${gsc.latest.endDate}.`,
+      "/admin/seo/search-console"
+    ),
+    check(
+      "structured-data",
+      "Structured data",
+      !schema.persistenceAvailable ? "unknown" : schema.metrics.invalid > 0 || schema.metrics.unexpected > 0 ? "fail" : schema.metrics.missing > 0 || schema.metrics.notChecked > 0 ? "warning" : "pass",
+      !schema.persistenceAvailable
+        ? "Structured-data crawl evidence is unavailable."
+        : `${schema.metrics.healthy}/${schema.metrics.managed} healthy · ${schema.metrics.missing} missing · ${schema.metrics.invalid} invalid · ${schema.metrics.unexpected} unexpected · ${schema.metrics.notChecked} not checked.`,
+      "/admin/seo/schema"
+    ),
+    check(
+      "policy-diagnostics",
+      "Governed SEO policy diagnostics",
+      overviewCritical > 0 ? "fail" : overviewWarnings > 0 ? "warning" : "pass",
+      `${overviewCritical} critical · ${overviewWarnings} warnings in the current governed policy/content projection.`,
+      "/admin/seo"
+    ),
+    check(
+      "regression-watch",
+      "Persisted baseline regression watch",
+      regressionSignals.some((signal) => signal.severity === "critical") ? "fail" : regressionSignals.some((signal) => signal.severity === "warning") ? "warning" : latestReport && previousReport ? "pass" : "unknown",
+      latestReport && previousReport
+        ? `${regressionSignals.length} material signal${regressionSignals.length === 1 ? "" : "s"} between the two latest saved diagnostic baselines.`
+        : "Two saved diagnostic baselines are required for regression comparison.",
+      "/admin/seo/reports"
+    )
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    status: overallStatus(checks),
+    checks,
+    metrics: {
+      governedUrls: registry.metrics.active,
+      desiredIndexable: registry.metrics.desiredIndexable,
+      actualSitemap: registry.metrics.actualSitemap,
+      sitemapExpectedMissing: sitemap.metrics.expectedMissing,
+      sitemapUnexpectedActual: sitemap.metrics.unexpectedActual,
+      openIssues: crawl.metrics.open,
+      criticalOpenIssues: crawl.metrics.criticalOpen,
+      latestCrawlIssues: crawl.metrics.latestRunIssues,
+      gscClicks: gsc.latest?.clicks ?? 0,
+      gscImpressions: gsc.latest?.impressions ?? 0,
+      gscPages: gsc.pages.length,
+      schemaManaged: schema.metrics.managed,
+      schemaHealthy: schema.metrics.healthy,
+      schemaMissing: schema.metrics.missing,
+      schemaInvalid: schema.metrics.invalid,
+      schemaUnexpected: schema.metrics.unexpected,
+      schemaNotChecked: schema.metrics.notChecked
+    },
+    latestGscCapturedAt: gsc.latest?.capturedAt,
+    latestSitemapCapturedAt: sitemap.latest?.capturedAt,
+    latestCrawlCompletedAt: crawl.runs[0]?.completedAt,
+    reports: overview.reports,
+    regressionSignals
+  };
+}
+
+function csv(value: unknown): string {
+  const text = String(value ?? "");
+  return /[\",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+export function seoUnifiedReportCsv(report: SeoUnifiedReportWorkspace): string {
+  const rows: Array<readonly [string, string, string, string]> = [
+    ["section", "metric", "value", "detail"],
+    ["summary", "generated_at", report.generatedAt, ""],
+    ["summary", "status", report.status, ""],
+    ...Object.entries(report.metrics).map(([key, value]) => ["metrics", key, String(value), ""] as const),
+    ...report.checks.map((item) => ["check", item.id, item.state, `${item.label}: ${item.detail}`] as const),
+    ...report.regressionSignals.map((item) => ["regression", item.id, item.severity, item.detail] as const)
+  ];
+  return rows.map((row) => row.map(csv).join(",")).join("\n");
+}
