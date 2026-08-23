@@ -8,9 +8,13 @@ const catalogImageStyle = {
   inset: 0,
   width: "100%",
   height: "100%",
-  objectFit: "cover",
+  objectFit: "contain",
+  padding: "18px",
+  background: "#fff",
   zIndex: 1
 } as const;
+
+type CatalogCardWithPreview = CatalogCard & Readonly<{ previewImageSrc?: string }>;
 
 function demoBookCover(product: CatalogCard): string | undefined {
   if (product.mediaId || !product.id.startsWith("product_demo_book_") || !/^\d{13}$/.test(product.mpn ?? "")) return undefined;
@@ -18,7 +22,7 @@ function demoBookCover(product: CatalogCard): string | undefined {
 }
 
 export function CatalogProductCard({ product, index = 0, vendorContext, demoVendorId }: {
-  product: CatalogCard;
+  product: CatalogCardWithPreview;
   index?: number;
   vendorContext?: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
@@ -28,7 +32,9 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const adviser = vendorContext?.adviser ?? product.adviser;
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
   const externalDemoCover = demoBookCover(product);
-  const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : externalDemoCover;
+  const imageSrc = product.mediaId
+    ? `/api/media/${encodeURIComponent(product.mediaId)}`
+    : product.previewImageSrc ?? externalDemoCover;
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
@@ -37,9 +43,9 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   return (
     <article className="product-card">
       <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${product.title}`}>
-        <span className="art-category">{category.name}</span>
-        <span className="art-symbol" aria-hidden="true">{category.symbol}</span>
-        <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+        {!imageSrc ? <span className="art-category">{category.name}</span> : null}
+        {!imageSrc ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
+        {!imageSrc ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
         {imageSrc ? (
           <img
             src={imageSrc}
