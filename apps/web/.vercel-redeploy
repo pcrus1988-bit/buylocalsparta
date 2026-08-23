@@ -1,2 +1,2 @@
-schema-0121-reconciled-2026-08-23
+schema-0122-reconciled-2026-08-23
 This file is an inert deployment trigger only; runtime schema authority remains packages/postgres-runtime and db/migrations.
