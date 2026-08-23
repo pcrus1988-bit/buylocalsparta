@@ -49,7 +49,7 @@ export function normalizeProductImport(text: string, sourceFilename = "upload.cs
   const analysis = analyzeProductImport(text, sourceFilename);
   const parsed = parseDelimited(text, analysis.delimiter);
   const byField = new Map(analysis.mappings.map((mapping) => [mapping.canonicalField, mapping]));
-  const baseRows = parsed.rows.map((row, index) => normalizeRow(row, index + 2, byField, analysis.ambiguousColumns));
+  const baseRows = parsed.rows.map((row, index) => normalizeRow(row, index + 2, byField));
 
   const counts = new Map<string, number>();
   for (const row of baseRows) counts.set(row.sourceKey, (counts.get(row.sourceKey) ?? 0) + 1);
@@ -83,8 +83,7 @@ export function normalizeProductImport(text: string, sourceFilename = "upload.cs
 function normalizeRow(
   row: Record<string, string>,
   rowNumber: number,
-  byField: Map<ProductImportCanonicalField, ProductImportMapping>,
-  ambiguousColumns: readonly string[]
+  byField: Map<ProductImportCanonicalField, ProductImportMapping>
 ): ProductImportNormalizedRow {
   const value = (field: ProductImportCanonicalField) => clean(byField.get(field) ? row[byField.get(field)!.sourceColumn] : "");
   const gtinRaw = value("gtin");
@@ -107,11 +106,10 @@ function normalizeRow(
   if (title) identityConfidence = Math.max(identityConfidence, 0.48);
   if (!title) reasons.push("missing_title");
   if (identityConfidence < 0.75) reasons.push("weak_identity");
-  if (ambiguousColumns.length) reasons.push("mapping_ambiguity");
 
   let triageStatus: ProductImportRowDecision["status"];
   if (!title || identityConfidence < 0.5) triageStatus = "quarantine";
-  else if (ambiguousColumns.length || identityConfidence < 0.85 || reasons.includes("invalid_gtin")) triageStatus = "needs_mapping_review";
+  else if (identityConfidence < 0.85 || reasons.includes("invalid_gtin")) triageStatus = "needs_mapping_review";
   else triageStatus = "ready_for_identity_matching";
 
   const gtin = gtinRaw && isValidGtin(gtinRaw) ? digits(gtinRaw) : undefined;
