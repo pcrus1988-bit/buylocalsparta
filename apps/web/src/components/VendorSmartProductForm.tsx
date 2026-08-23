@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type CategoryOption = { id: string; code: string; name: string; path: string; depth: number };
@@ -36,6 +36,7 @@ type VariantAttributeSchema = {
 };
 type ProductTypeSchema = { code: string; name: string; isDefault: boolean; variantAttributes: readonly VariantAttributeSchema[] };
 type ProductIdentitySchema = { categoryCode: string; categoryName: string; productTypes: readonly ProductTypeSchema[]; selectedProductTypeCode?: string };
+type CanonicalDetachState = { categoryCode: string; productTypeCode: string; preserveVariantAttributes: boolean };
 
 type Props = {
   csrfToken: string;
@@ -137,6 +138,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   const [dismissedSignature, setDismissedSignature] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const canonicalDetachState = useRef<CanonicalDetachState | null>(null);
 
   const signature = useMemo(() => lookupSignature(title, gtin), [title, gtin]);
   const enoughIdentity = title.trim().length >= 4 || cleanGtin(gtin).length >= 6;
@@ -179,6 +181,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
 
   useEffect(() => {
     if (!category) {
+      canonicalDetachState.current = null;
       setIdentitySchema(null);
       setProductTypeCode("");
       setVariantAttributes({});
@@ -194,16 +197,25 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         const payload = await response.json() as { schema?: ProductIdentitySchema; error?: string };
         if (!response.ok || !payload.schema) throw new Error(payload.error ?? "Δεν ήταν δυνατή η φόρτωση των χαρακτηριστικών παραλλαγής.");
         const schema = payload.schema;
+        const detached = !selectedCanonical && canonicalDetachState.current?.categoryCode === category ? canonicalDetachState.current : null;
+        const preservedTypeCode = detached?.productTypeCode && schema.productTypes.some((type) => type.code === detached.productTypeCode) ? detached.productTypeCode : undefined;
+        const nextTypeCode = schema.selectedProductTypeCode ?? preservedTypeCode ?? (schema.productTypes.length === 1 ? schema.productTypes[0].code : "");
+        const resolvedTypeCode = preservedTypeCode ?? nextTypeCode;
+        const nextType = schema.productTypes.find((type) => type.code === resolvedTypeCode);
         setIdentitySchema(schema);
-        const nextTypeCode = schema.selectedProductTypeCode ?? (schema.productTypes.length === 1 ? schema.productTypes[0].code : "");
-        setProductTypeCode(nextTypeCode);
-        const nextType = schema.productTypes.find((type) => type.code === nextTypeCode);
-        setVariantAttributes(selectedCanonical ? canonicalVariantPrefill(nextType, selectedCanonical) : {});
+        setProductTypeCode(resolvedTypeCode);
+        if (selectedCanonical) setVariantAttributes(canonicalVariantPrefill(nextType, selectedCanonical));
+        else if (!(detached?.preserveVariantAttributes && preservedTypeCode)) setVariantAttributes({});
+        canonicalDetachState.current = null;
       } catch (cause) {
         if (!controller.signal.aborted) {
-          setIdentitySchema(null);
-          setProductTypeCode("");
-          setVariantAttributes({});
+          const preserveCurrent = !selectedCanonical && canonicalDetachState.current?.categoryCode === category;
+          if (!preserveCurrent) {
+            setIdentitySchema(null);
+            setProductTypeCode("");
+            setVariantAttributes({});
+          }
+          canonicalDetachState.current = null;
           setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η φόρτωση των χαρακτηριστικών παραλλαγής.");
         }
       } finally {
@@ -214,8 +226,13 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
     return () => controller.abort();
   }, [category, selectedCanonical]);
 
-  function clearCanonicalLink() {
+  function clearCanonicalLink(options: { productTypeCode?: string; preserveVariantAttributes?: boolean } = {}) {
     if (selectedCanonical) {
+      canonicalDetachState.current = {
+        categoryCode: category,
+        productTypeCode: options.productTypeCode ?? productTypeCode,
+        preserveVariantAttributes: options.preserveVariantAttributes ?? true
+      };
       setSelectedCanonical(null);
       setMatches([]);
       setDismissedSignature("");
@@ -223,6 +240,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   }
 
   function acceptCanonical(match: CanonicalMatch) {
+    canonicalDetachState.current = null;
     setTitle(match.title);
     setCategory(match.categoryCode);
     setBrand(match.brand ?? "");
@@ -243,6 +261,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   }
 
   function reset() {
+    canonicalDetachState.current = null;
     setTitle("");
     setCategory("");
     setProductTypeCode("");
@@ -367,7 +386,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         {schemaBusy && <div className="workspace-form-field span-2"><small>Φόρτωση δομημένων χαρακτηριστικών προϊόντος…</small></div>}
         {!schemaBusy && identitySchema && identitySchema.productTypes.length > 1 && <div className="workspace-form-field span-2">
           <label htmlFor="catalog-product-type">Τύπος προϊόντος</label>
-          <select id="catalog-product-type" required value={productTypeCode} onChange={(event) => { clearCanonicalLink(); setProductTypeCode(event.target.value); setVariantAttributes({}); }}>
+          <select id="catalog-product-type" required value={productTypeCode} onChange={(event) => { const nextType = event.target.value; clearCanonicalLink({ productTypeCode: nextType, preserveVariantAttributes: false }); setProductTypeCode(nextType); setVariantAttributes({}); }}>
             <option value="" disabled>Επίλεξε τύπο προϊόντος</option>
             {identitySchema.productTypes.map((type) => <option key={type.code} value={type.code}>{type.name}{type.isDefault ? " · προτεινόμενο" : ""}</option>)}
           </select>
