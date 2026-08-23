@@ -55,6 +55,8 @@ const PRIVATE_SOURCE_ATTRIBUTE_KEYS = new Set([
   "crawler_source"
 ]);
 
+const GENERATED_TECHNICAL_DESCRIPTION_MARKER = "Κύρια διακριτικά/τεχνικά χαρακτηριστικά:";
+
 function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute[]): readonly PublicTechnicalAttribute[] {
   return attributes.filter((attribute) => {
     const key = attribute.key.trim().toLowerCase();
@@ -63,6 +65,25 @@ function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute
       && !key.startsWith("catalog_source_")
       && !key.startsWith("crawl_source_");
   });
+}
+
+function productDisplayDescription(input: Readonly<{
+  canonicalDescription?: string;
+  sourceDescription?: string;
+  technicalAttributes: readonly PublicTechnicalAttribute[];
+}>): string | undefined {
+  const canonical = input.canonicalDescription?.trim();
+  if (!canonical) return input.sourceDescription?.trim() || undefined;
+  const markerIndex = canonical.indexOf(GENERATED_TECHNICAL_DESCRIPTION_MARKER);
+  if (markerIndex < 0) return canonical;
+
+  const intro = canonical.slice(0, markerIndex).trim();
+  const facts = input.technicalAttributes
+    .slice(0, 6)
+    .map((attribute) => `${attribute.label}: ${attribute.value}`)
+    .join(" · ");
+  if (facts) return `${intro} Βασικά στοιχεία: ${facts}.`.trim();
+  return intro || input.sourceDescription?.trim() || undefined;
 }
 
 function productSeoDescription(product: { title: string; description?: string }): string {
@@ -89,8 +110,14 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   ]);
   if (!product) return { title: "Προϊόν" };
   const detail = await getPublicProductDetail(product.id);
+  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const displayDescription = productDisplayDescription({
+    canonicalDescription: product.description,
+    sourceDescription: detail?.description,
+    technicalAttributes
+  });
   const quality = productIndexEligibility(product);
-  const description = productSeoDescription({ ...product, description: product.description ?? detail?.description });
+  const description = productSeoDescription({ title: product.title, description: displayDescription });
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
     reference,
@@ -138,12 +165,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? undefined
     : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
-  const displayDescription = product.description ?? detail?.description;
+  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const displayDescription = productDisplayDescription({
+    canonicalDescription: product.description,
+    sourceDescription: detail?.description,
+    technicalAttributes
+  });
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
-  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
 
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
