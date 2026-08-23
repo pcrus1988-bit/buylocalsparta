@@ -21,7 +21,7 @@ for (const contract of [
   "graph.nodes.find",
   "Targeted crawl route is not present in the governed SEO graph.",
   "url.origin !== origin.origin",
-  "inspectUrl(target.route, url, target.indexAllowed)",
+  "inspectUrl(target.route, url, target.indexAllowed, schemaExpectationForNode(target, overrides.entries))",
   "reportForRows(origin, 1"
 ]) expect(crawler.includes(contract), `Targeted SEO crawler is missing ${contract}`);
 expect(!crawler.includes("inspectUrl(route, new URL(requestedRoute"), "Targeted SEO crawler must never build a request URL directly from operator input");

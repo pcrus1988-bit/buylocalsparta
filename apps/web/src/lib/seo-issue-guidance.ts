@@ -54,6 +54,48 @@ const GUIDANCE: Readonly<Record<string, SeoIssueGuidance>> = {
     nextStep: "Review the rendered content/template and simplify heading structure where appropriate, then recheck.",
     owner: "Content / SEO"
   },
+  invalid_structured_data: {
+    title: "Repair invalid JSON-LD",
+    recommendation: "At least one application/ld+json block could not be parsed. Fix serialization in the governed page template; do not paste untrusted raw JSON into the page.",
+    nextStep: "Repair the structured-data renderer and run a targeted production recheck.",
+    owner: "Engineering"
+  },
+  missing_structured_data: {
+    title: "Restore governed structured data",
+    recommendation: "This product or vendor page is configured to emit structured data, but no application/ld+json block was observed in production.",
+    nextStep: "Check the entity schema decision and public template, then run a targeted production recheck.",
+    owner: "Content + Engineering"
+  },
+  missing_product_schema: {
+    title: "Restore Product schema",
+    recommendation: "The page has JSON-LD but no Product @type. Keep product identity, canonical URL and public offer data aligned with the governed product renderer.",
+    nextStep: "Repair Product JSON-LD generation and recheck the public product URL.",
+    owner: "Engineering"
+  },
+  missing_offer_schema: {
+    title: "Restore Offer schema",
+    recommendation: "The Product JSON-LD does not expose an Offer type. Confirm that an eligible public offer is represented with the same price, availability and seller semantics shown to crawlers.",
+    nextStep: "Repair Offer JSON-LD generation and recheck the public product URL.",
+    owner: "Content + Engineering"
+  },
+  missing_breadcrumb_schema: {
+    title: "Restore BreadcrumbList schema",
+    recommendation: "The product page is missing its governed BreadcrumbList structured data. Keep breadcrumb URLs aligned with the canonical product and category routes.",
+    nextStep: "Repair breadcrumb JSON-LD generation and recheck the product route.",
+    owner: "Engineering"
+  },
+  missing_local_business_schema: {
+    title: "Restore LocalBusiness schema",
+    recommendation: "The vendor dossier has JSON-LD but no LocalBusiness @type. Confirm the governed vendor renderer still emits the public business identity and approved location/contact fields.",
+    nextStep: "Repair LocalBusiness JSON-LD generation and recheck the vendor route.",
+    owner: "Content + Engineering"
+  },
+  unexpected_structured_data: {
+    title: "Respect the schema suppression decision",
+    recommendation: "Structured data is present even though the governed entity schema decision disables it. Align the public renderer with the current SEO entity control before changing the override.",
+    nextStep: "Review the entity schema decision and renderer, then run a targeted recheck.",
+    owner: "Content + Engineering"
+  },
   unexpected_content_type: {
     title: "Return HTML for the public page",
     recommendation: "The governed public URL did not return an HTML document. Check route handlers, file/media collisions, content negotiation and deployment routing.",

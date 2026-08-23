@@ -10,7 +10,7 @@ const expect = (condition: boolean, message: string) => { if (!condition) failur
 
 const hash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0119_catalog_source_import_payloads.sql"] === hash, `0119 checksum mismatch: manifest=${checksums["0119_catalog_source_import_payloads.sql"] ?? "missing"} actual=${hash}`);
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 121"), "PostgreSQL runtime schema target must be 121");
+expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 122"), "PostgreSQL runtime schema target must be 122");
 
 for (const contract of [
   "CREATE TABLE catalog_source_import_payloads",

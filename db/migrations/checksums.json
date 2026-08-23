@@ -117,5 +117,6 @@
   "0118_seo_crawl_history_issues.sql": "f6859360c2e86968b7ab689c5d5b0c9e2a72a818d81d46ca5b80463c8a60aa52",
   "0119_catalog_source_import_payloads.sql": "b93ab56c0f4b9ecdf693b69c6c36ff3bf7ea11716759edab0720848d0034f974",
   "0120_seo_url_registry_sitemap_history.sql": "750f59d1eac33a11b3e395b1006e660608f5b326462a90868329ee82e7d200a2",
-  "0121_seo_gsc_history.sql": "352bf4503c40a7c11432649fbf1b3f6b31216a8973dab63122eb29c22119587b"
+  "0121_seo_gsc_history.sql": "352bf4503c40a7c11432649fbf1b3f6b31216a8973dab63122eb29c22119587b",
+  "0122_seo_structured_data_observations.sql": "d462f06d8b3795f105c9fb11b510ae01dfc2fc912d9189aa2ef9d248ad5454e2"
 }

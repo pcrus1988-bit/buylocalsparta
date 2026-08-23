@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminSeoCrawlGraph } from "./seo-crawl-graph";
+import { getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
+import { issueCodeForMissingSchemaType, missingSchemaTypes, schemaExpectationForNode, type SeoSchemaExpectation } from "./seo-schema-policy";
 import { getSeoGlobalSettingsSnapshot } from "./seo-settings";
 
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -27,6 +29,9 @@ export type SeoLiveCrawlRow = Readonly<{
   canonical?: string;
   robots?: string;
   h1Count?: number;
+  structuredDataCount?: number;
+  structuredDataTypes?: readonly string[];
+  structuredDataParseErrors?: number;
   issues: readonly string[];
   issueDetails: readonly SeoLiveCrawlIssue[];
 }>;
@@ -41,6 +46,12 @@ export type SeoLiveCrawlReport = Readonly<{
   healthy: number;
   withIssues: number;
   rows: readonly SeoLiveCrawlRow[];
+}>;
+
+type StructuredDataObservation = Readonly<{
+  blockCount: number;
+  schemaTypes: readonly string[];
+  parseErrorCount: number;
 }>;
 
 function crawlIssue(code: string, severity: SeoLiveCrawlIssueSeverity, detail: string): SeoLiveCrawlIssue {
@@ -76,7 +87,69 @@ function rowWithIssues(input: Omit<SeoLiveCrawlRow, "issues"> & { issueDetails: 
   return { ...input, issues: input.issueDetails.map((issue) => issue.detail) };
 }
 
-async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean): Promise<SeoLiveCrawlRow> {
+function collectSchemaTypes(value: unknown, types: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectSchemaTypes(item, types);
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  const type = record["@type"];
+  if (typeof type === "string" && type.trim()) types.add(type.trim());
+  else if (Array.isArray(type)) {
+    for (const item of type) if (typeof item === "string" && item.trim()) types.add(item.trim());
+  }
+  for (const nested of Object.values(record)) collectSchemaTypes(nested, types);
+}
+
+function inspectStructuredData(html: string): StructuredDataObservation {
+  const blocks = [...html.matchAll(/<script\b(?=[^>]*\btype\s*=\s*["']application\/ld\+json["'])[^>]*>([\s\S]*?)<\/script>/gi)];
+  const schemaTypes = new Set<string>();
+  let parseErrorCount = 0;
+  for (const block of blocks) {
+    const source = block[1]?.trim();
+    if (!source) {
+      parseErrorCount += 1;
+      continue;
+    }
+    try {
+      collectSchemaTypes(JSON.parse(source), schemaTypes);
+    } catch {
+      parseErrorCount += 1;
+    }
+  }
+  return { blockCount: blocks.length, schemaTypes: [...schemaTypes].sort(), parseErrorCount };
+}
+
+function addStructuredDataIssues(
+  issueDetails: SeoLiveCrawlIssue[],
+  expectation: SeoSchemaExpectation,
+  observation: StructuredDataObservation
+): void {
+  if (observation.parseErrorCount > 0) issueDetails.push(crawlIssue(
+    "invalid_structured_data",
+    "warning",
+    `${observation.parseErrorCount} JSON-LD block${observation.parseErrorCount === 1 ? "" : "s"} could not be parsed`
+  ));
+  if (!expectation.managed) return;
+  if (!expectation.allowed) {
+    if (observation.blockCount > 0) issueDetails.push(crawlIssue(
+      "unexpected_structured_data",
+      "warning",
+      `Structured data is present although governed schema output is disabled (${observation.schemaTypes.join(", ") || "no parsed @type"})`
+    ));
+    return;
+  }
+  if (observation.blockCount === 0) {
+    issueDetails.push(crawlIssue("missing_structured_data", "warning", "Managed page is missing application/ld+json structured data"));
+    return;
+  }
+  for (const type of missingSchemaTypes(expectation, observation.schemaTypes)) {
+    issueDetails.push(crawlIssue(issueCodeForMissingSchemaType(type), "warning", `Missing required ${type} structured-data type`));
+  }
+}
+
+async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean, schemaExpectation: SeoSchemaExpectation): Promise<SeoLiveCrawlRow> {
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -106,6 +179,9 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
     let canonical: string | undefined;
     let robots: string | undefined;
     let h1Count: number | undefined;
+    let structuredDataCount: number | undefined;
+    let structuredDataTypes: readonly string[] | undefined;
+    let structuredDataParseErrors: number | undefined;
     if (contentType?.toLowerCase().includes("text/html")) {
       const html = await response.text();
       title = htmlText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -114,6 +190,11 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
       robots = htmlText(html, /<meta[^>]+name=["']robots["'][^>]+content=["']([^"']+)["'][^>]*>/i)
         ?? htmlText(html, /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']robots["'][^>]*>/i);
       h1Count = (html.match(/<h1(?:\s|>)/gi) ?? []).length;
+      const structuredData = inspectStructuredData(html);
+      structuredDataCount = structuredData.blockCount;
+      structuredDataTypes = structuredData.schemaTypes;
+      structuredDataParseErrors = structuredData.parseErrorCount;
+      addStructuredDataIssues(issueDetails, schemaExpectation, structuredData);
       if (!title) issueDetails.push(crawlIssue("missing_title", "warning", "Missing <title>"));
       if (!canonical) issueDetails.push(crawlIssue("missing_canonical", "warning", "Missing canonical"));
       else {
@@ -154,6 +235,9 @@ async function inspectUrl(route: string, expectedUrl: URL, indexAllowed: boolean
       canonical,
       robots,
       h1Count,
+      structuredDataCount,
+      structuredDataTypes,
+      structuredDataParseErrors,
       issueDetails
     });
   } catch (error) {
@@ -186,7 +270,11 @@ function reportForRows(origin: URL, limit: number, startedAt: string, rows: read
 
 export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimit = 40): Promise<SeoLiveCrawlReport> {
   const startedAt = new Date().toISOString();
-  const [{ settings }, graph] = await Promise.all([getSeoGlobalSettingsSnapshot(), adminSeoCrawlGraph(principal)]);
+  const [{ settings }, graph, overrides] = await Promise.all([
+    getSeoGlobalSettingsSnapshot(),
+    adminSeoCrawlGraph(principal),
+    getSeoEntityOverridesSnapshot()
+  ]);
   const origin = new URL(settings.canonicalOrigin);
   const limit = Math.max(1, Math.min(MAX_URLS, Math.floor(requestedLimit)));
   const targets = graph.nodes.filter((node) => node.indexAllowed).slice(0, limit);
@@ -197,7 +285,7 @@ export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimi
     const inspected = await Promise.all(batch.map((node) => {
       const url = new URL(node.route, origin);
       if (url.origin !== origin.origin) throw new Error("Governed crawl route escaped the canonical origin.");
-      return inspectUrl(node.route, url, node.indexAllowed);
+      return inspectUrl(node.route, url, node.indexAllowed, schemaExpectationForNode(node, overrides.entries));
     }));
     rows.push(...inspected);
   }
@@ -208,13 +296,17 @@ export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimi
 export async function runSeoTargetedCrawl(principal: SessionPrincipal, requestedRoute: unknown): Promise<SeoLiveCrawlReport> {
   const startedAt = new Date().toISOString();
   const route = normalizedGovernedRoute(requestedRoute);
-  const [{ settings }, graph] = await Promise.all([getSeoGlobalSettingsSnapshot(), adminSeoCrawlGraph(principal)]);
+  const [{ settings }, graph, overrides] = await Promise.all([
+    getSeoGlobalSettingsSnapshot(),
+    adminSeoCrawlGraph(principal),
+    getSeoEntityOverridesSnapshot()
+  ]);
   const target = graph.nodes.find((node) => normalizedGovernedRoute(node.route) === route);
   if (!target) throw new Error("Targeted crawl route is not present in the governed SEO graph.");
 
   const origin = new URL(settings.canonicalOrigin);
   const url = new URL(target.route, origin);
   if (url.origin !== origin.origin) throw new Error("Governed targeted crawl route escaped the canonical origin.");
-  const row = await inspectUrl(target.route, url, target.indexAllowed);
+  const row = await inspectUrl(target.route, url, target.indexAllowed, schemaExpectationForNode(target, overrides.entries));
   return reportForRows(origin, 1, startedAt, [row]);
 }
