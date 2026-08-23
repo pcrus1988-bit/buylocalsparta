@@ -27,9 +27,10 @@ async function visibleHomepageLink(page, href) {
   let link = page.locator(`a[href="${href}"]:visible`).first();
   if (await link.count()) return link;
 
-  const menuToggle = page.getByRole("button", { name: /^Μενού$/ });
+  const menuToggle = page.getByRole("button", { name: /Άνοιγμα μενού|Κλείσιμο μενού/ });
   if (await menuToggle.isVisible().catch(() => false)) {
     await menuToggle.click();
+    await expect(menuToggle).toHaveAttribute("aria-expanded", "true");
     link = page.locator(`a[href="${href}"]:visible`).first();
   }
   return link;
