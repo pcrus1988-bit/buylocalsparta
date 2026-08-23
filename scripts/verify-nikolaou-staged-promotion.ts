@@ -18,7 +18,7 @@ const checks: Array<[string, boolean]> = [
   ["promotion reuses robust CSV parser", worker.includes("parseCsv") && worker.includes("assertNikolaouHeaders")],
   ["promotion rejects duplicate source keys", worker.includes("duplicateSourceKeys")],
   ["promotion requires 3165 rows", worker.includes("expectedRows: 3_165")],
-  ["promotion invokes existing v2 importer", worker.includes("scripts/import-nikolaou-master.ts") && worker.includes("--apply")],
+  ["promotion invokes existing v2 importer by traced absolute path", worker.includes('new URL("./import-nikolaou-master.ts", import.meta.url)') && worker.includes("fileURLToPath") && worker.includes("IMPORTER_PATH") && worker.includes("--apply")],
   ["promotion does not auto-approve taxonomy", !worker.includes("--approve-high-confidence-taxonomy")],
   ["promotion proves 5976 attributes", worker.includes("expectedAttributes: 5_976")],
   ["promotion proves 2728 prices", worker.includes("expectedPriceObservations: 2_728")],

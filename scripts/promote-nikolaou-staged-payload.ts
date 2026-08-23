@@ -3,6 +3,7 @@ import { gunzipSync } from "node:zlib";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
   analyzeNikolaouRows,
@@ -25,6 +26,7 @@ const CONTRACT = Object.freeze({
 });
 
 const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
+const IMPORTER_PATH = fileURLToPath(new URL("./import-nikolaou-master.ts", import.meta.url));
 const payloadId = option("--payload-id");
 if (!payloadId || !/^[0-9a-f-]{36}$/i.test(payloadId)) {
   throw new Error("Usage: promote-nikolaou-staged-payload.ts --payload-id=<uuid>");
@@ -119,7 +121,7 @@ async function readAndVerifyReadyPayload(pool: any, id: string) {
 async function runImporter(csvPath: string): Promise<unknown> {
   const args = [
     "--experimental-strip-types",
-    "scripts/import-nikolaou-master.ts",
+    IMPORTER_PATH,
     csvPath,
     "--apply",
     `--expected-row-count=${CONTRACT.expectedRows}`
