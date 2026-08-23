@@ -16,24 +16,27 @@ const page = await context.newPage();
 try {
   const response = await page.goto("https://www.polo.gr/shop/", { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(6000);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(2500);
 
   const result = await page.evaluate(() => {
-    const productLinks = [...document.querySelectorAll('a[href*="/product/"]')]
-      .map((a) => a.href.split("#")[0])
-      .filter((href, index, all) => all.indexOf(href) === index);
+    const anchors = [...document.querySelectorAll("a")].map((a) => ({
+      href: a.href?.split("#")[0] ?? "",
+      text: a.textContent?.replace(/\s+/g, " ").trim().slice(0, 160) ?? "",
+      title: a.getAttribute("title") ?? "",
+      cls: typeof a.className === "string" ? a.className.slice(0, 200) : "",
+      parentClass: typeof a.parentElement?.className === "string" ? a.parentElement.className.slice(0, 200) : "",
+      grandParentClass: typeof a.parentElement?.parentElement?.className === "string" ? a.parentElement.parentElement.className.slice(0, 200) : ""
+    })).filter((a) => a.href.startsWith("https://www.polo.gr/") && a.href !== "https://www.polo.gr/");
+
+    const titleAnchors = anchors.filter((a) => /title|product|portfolio|item/i.test(`${a.cls} ${a.parentClass} ${a.grandParentClass}`) || /ΣΑΚΙΔΙΟ|ΚΑΣΕΤΙΝΑ|ΤΣΑΝΤ|ΒΑΛΙΤΣΑ|ΘΕΡΜΟΣ|ΠΑΓΟΥΡΙ|BACKPACK|PENCIL|TROLLEY/i.test(a.text));
     const bodyText = document.body?.innerText?.replace(/\s+/g, " ").trim() ?? "";
-    const nextLinks = [...document.querySelectorAll('a')]
-      .filter((a) => /next|επόμεν|επομεν/i.test(`${a.rel} ${a.className} ${a.textContent}`))
-      .map((a) => a.href);
+    const nextLinks = anchors.filter((a) => /next|επόμεν|επομεν/i.test(`${a.cls} ${a.text}`)).map((a) => a.href);
     return {
       title: document.title,
       url: location.href,
-      productLinks: productLinks.slice(0, 50),
-      productLinkCount: productLinks.length,
+      anchorCount: anchors.length,
+      titleAnchors: titleAnchors.slice(0, 180),
       nextLinks: [...new Set(nextLinks)].slice(0, 10),
-      bodyPreview: bodyText.slice(0, 1000),
+      bodyPreview: bodyText.slice(0, 1200),
       htmlBytes: document.documentElement?.outerHTML?.length ?? 0
     };
   });
@@ -45,9 +48,10 @@ try {
     ...result
   };
   await writeFile(`${OUT}/probe.json`, JSON.stringify(report, null, 2) + "\n", "utf8");
+  await writeFile(`${OUT}/shop.html`, await page.content(), "utf8");
   await page.screenshot({ path: `${OUT}/shop.png`, fullPage: true });
   console.log(JSON.stringify(report, null, 2));
-  if (!report.productLinkCount) process.exitCode = 2;
+  if (!report.titleAnchors.length) process.exitCode = 2;
 } finally {
   await browser.close();
 }
