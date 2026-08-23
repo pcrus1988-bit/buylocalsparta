@@ -19,9 +19,11 @@ jobs:
         run: >-
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
           --allowImportingTsExtensions --skipLibCheck
-          scripts/catalogue/nikolaou-import-lib.ts scripts/import-nikolaou-master.ts
+          scripts/catalogue/nikolaou-import-lib.ts scripts/import-nikolaou-master.ts scripts/verify-catalog-source-import-payloads.ts
       - name: Run parser and governance tests
         run: node --experimental-strip-types --test scripts/catalogue/nikolaou-import-lib.test.ts
+      - name: Verify private source import transport
+        run: node --experimental-strip-types scripts/verify-catalog-source-import-payloads.ts
       - name: Exercise safe dry-run CLI
         run: |
           node --experimental-strip-types --input-type=module <<'NODE'
