@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 127;
+export const EXPECTED_SCHEMA_VERSION = 128;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
