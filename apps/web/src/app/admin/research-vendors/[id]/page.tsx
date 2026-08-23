@@ -202,7 +202,7 @@ export default async function ResearchVendorDossierPage({ params }: Props) {
           <div className="workspace-tool-body">{profileEntries.length > 0 ? <div className="workspace-compact-list">{profileEntries.map(([key, value]) => <DetailRow label={key} key={key}>{renderTextValue(value)}</DetailRow>)}</div> : <p className="workspace-queue-summary">No normalized payload stored.</p>}</div>
         </details>
         <details className="workspace-tool-panel">
-          <summary><span><strong>Research verification checks</strong><small>{vendor.verifications.length} records</small></summary>
+          <summary><span><strong>Research verification checks</strong><small>{vendor.verifications.length} records</small></span></summary>
           <div className="workspace-tool-body">{vendor.verifications.length > 0 ? <div className="workspace-compact-list">{vendor.verifications.map((verification, index) => <DetailRow label={verification.type} key={`${verification.type}:${verification.checkedAt ?? index}`} hint={verification.checkedAt}>{verification.status}</DetailRow>)}</div> : <p className="workspace-queue-summary">No research verification checks stored.</p>}</div>
         </details>
       </div>
