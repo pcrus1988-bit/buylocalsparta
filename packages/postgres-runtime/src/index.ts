@@ -55,21 +55,27 @@ export type DatabaseReadiness = Readonly<{
 class PgClientAdapter implements ReleasableSqlExecutor {
   readonly #client: PoolClient;
   constructor(client: PoolClient) { this.#client = client; }
+
   async query<Row extends SqlRow = SqlRow>(text: string, params: readonly unknown[] = []): Promise<SqlQueryResult<Row>> {
     const result = await this.#client.query<QueryResultRow>(text, [...params]);
     return { rows: result.rows as unknown as readonly Row[], rowCount: result.rowCount ?? result.rows.length };
   }
+
   release(): void { this.#client.release(); }
 }
 
 class PgPoolAdapter implements SqlPool {
   readonly #pool: Pool;
   constructor(pool: Pool) { this.#pool = pool; }
+
   async query<Row extends SqlRow = SqlRow>(text: string, params: readonly unknown[] = []): Promise<SqlQueryResult<Row>> {
     const result = await this.#pool.query<QueryResultRow>(text, [...params]);
     return { rows: result.rows as unknown as readonly Row[], rowCount: result.rowCount ?? result.rows.length };
   }
-  async connect(): Promise<ReleasableSqlExecutor> { return new PgClientAdapter(await this.#pool.connect()); }
+
+  async connect(): Promise<ReleasableSqlExecutor> {
+    return new PgClientAdapter(await this.#pool.connect());
+  }
 }
 
 export class ProductionPostgresRuntime {
@@ -137,8 +143,15 @@ export class ProductionPostgresRuntime {
       const extensionsReady = requiredExtensions.length === 3;
       const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
       return {
-        ok: schemaCurrent && extensionsReady && serverMajorReady, checkedAt, serverVersion, serverVersionNumber,
-        postgisVersion: postgisVersion || undefined, requiredExtensions, appliedSchemaVersion, expectedSchemaVersion, pendingMigrations,
+        ok: schemaCurrent && extensionsReady && serverMajorReady,
+        checkedAt,
+        serverVersion,
+        serverVersionNumber,
+        postgisVersion: postgisVersion || undefined,
+        requiredExtensions,
+        appliedSchemaVersion,
+        expectedSchemaVersion,
+        pendingMigrations,
         message: !serverMajorReady
           ? `PostgreSQL 17.x or 18.x is required; server reports ${serverVersion || serverVersionNumber}`
           : !extensionsReady
@@ -148,7 +161,12 @@ export class ProductionPostgresRuntime {
               : "PostgreSQL 17/18 with PostGIS schema is ready"
       };
     } catch (error) {
-      return { ok: false, checkedAt, expectedSchemaVersion, message: error instanceof Error ? error.message : String(error) };
+      return {
+        ok: false,
+        checkedAt,
+        expectedSchemaVersion,
+        message: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 
@@ -197,6 +215,7 @@ function vivaConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): VivaConfig {
 }
 
 function requiredSecret(raw: string | undefined, name: string): string { const value=raw?.trim(); if(!value || value.length < 32) throw new Error(`${name} must be at least 32 characters`); return value; }
+
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
   if (raw == null || raw.trim() === "") return fallback;
   const value = Number(raw);
