@@ -8,6 +8,7 @@ const PRIMARY_ACCOUNT_SECTIONS = [
   { href: "/account/orders", label: "Παραγγελίες" },
   { href: "/account/ask-local", label: "Ask Local" },
   { href: "/account/appointments", label: "Ραντεβού" },
+  { href: "/account/reviews", label: "Αξιολογήσεις" },
   { href: "/account/saved", label: "Αποθηκευμένα" },
   { href: "/account/notifications", label: "Ειδοποιήσεις" },
   { href: "/account/support", label: "Υποστήριξη" },
