@@ -1,5 +1,5 @@
 import { gunzipSync } from "node:zlib";
-import { analyzeProductImport } from "../../../../../../../scripts/catalogue/product-import-intelligence";
+import { analyzeProductImport } from "../../../../../lib/product-import-intelligence-server";
 import { requireAdminSession } from "../../../../../lib/admin-session";
 
 export const runtime = "nodejs";
