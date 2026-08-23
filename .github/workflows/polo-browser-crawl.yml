@@ -6,19 +6,12 @@ on:
       - chore/polo-catalogue-crawl
     paths:
       - scripts/catalogue/crawl-polo-browser.mjs
-      - .github/workflows/polo-browser-crawl.yml
-  pull_request:
-    branches:
-      - main
-    paths:
-      - scripts/catalogue/crawl-polo-browser.mjs
+      - scripts/catalogue/enrich-polo-browser-v2.mjs
       - .github/workflows/polo-browser-crawl.yml
   workflow_dispatch:
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 
 concurrency:
   group: polo-full-browser-crawl-${{ github.ref }}
@@ -50,6 +43,15 @@ jobs:
           set -o pipefail
           node scripts/catalogue/crawl-polo-browser.mjs 2>&1 | tee /tmp/polo-full-crawl.log
 
+      - name: Run authoritative POLO enrichment
+        id: enrich
+        if: steps.crawl.outcome == 'success' && hashFiles('scripts/catalogue/enrich-polo-browser-v2.mjs') != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/enrich-polo-browser-v2.mjs 2>&1 | tee /tmp/polo-enrichment.log
+
       - name: Upload POLO import package
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,35 +60,12 @@ jobs:
           path: |
             data/imports/polo/
             /tmp/polo-full-crawl.log
+            /tmp/polo-enrichment.log
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Report crawl summary on PR
-        if: github.event_name == 'pull_request' && always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo '### POLO full rendered catalogue crawl'
-            echo
-            if [[ -f data/imports/polo/polo-crawl-summary.json ]]; then
-              echo '```json'
-              cat data/imports/polo/polo-crawl-summary.json
-              echo '```'
-            else
-              echo "Crawl outcome: **${{ steps.crawl.outcome }}**"
-              echo
-              echo '```text'
-              tail -n 120 /tmp/polo-full-crawl.log 2>/dev/null || true
-              echo '```'
-            fi
-          } >/tmp/polo-full-comment.md
-          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/polo-full-comment.md
-
       - name: Commit verified crawl output to crawl branch
-        if: github.event_name == 'push' && steps.crawl.outcome == 'success'
+        if: steps.crawl.outcome == 'success' && (steps.enrich.outcome == 'success' || steps.enrich.outcome == 'skipped')
         shell: bash
         run: |
           set -euo pipefail
@@ -100,6 +79,6 @@ jobs:
           git commit -m 'data: refresh full POLO catalogue [skip ci]'
           git push origin HEAD:chore/polo-catalogue-crawl
 
-      - name: Fail workflow if crawler failed
-        if: steps.crawl.outcome != 'success'
+      - name: Fail workflow if crawl or enrichment failed
+        if: steps.crawl.outcome != 'success' || steps.enrich.outcome == 'failure'
         run: exit 1
