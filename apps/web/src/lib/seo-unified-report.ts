@@ -131,10 +131,10 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
   const latestReport = overview.reports.reports[0];
   const previousReport = overview.reports.reports[1];
   const regressionSignals = seoDiagnosticRegressionSignals(latestReport, previousReport);
-  const googleCoverageHardFailures = gscCoverage.rows.filter((row) => row.canonicalMismatch
+  const googleCoverageHardFailures = gscCoverage.rows.filter((row) => !row.stale && (row.canonicalMismatch
     || row.verdict === "FAIL"
     || Boolean(row.indexingState && row.indexingState !== "INDEXING_ALLOWED")
-    || Boolean(row.pageFetchState && row.pageFetchState !== "SUCCESSFUL")).length;
+    || Boolean(row.pageFetchState && row.pageFetchState !== "SUCCESSFUL"))).length;
 
   const checks: SeoOperationalCheck[] = [
     check(
@@ -187,7 +187,7 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
             : "pass",
       !gscCoverage.persistenceAvailable
         ? "Retained Google URL Inspection coverage requires the PostgreSQL SEO URL registry and inspection evidence."
-        : `${gscCoverage.metrics.healthy}/${gscCoverage.metrics.governedIndexable} healthy · ${gscCoverage.metrics.inspected} inspected · ${gscCoverage.metrics.missing} missing · ${gscCoverage.metrics.stale} stale (>${gscCoverage.maxAgeHours / 24}d) · ${googleCoverageHardFailures} URLs with hard Google failures · ${gscCoverage.metrics.canonicalMismatch} canonical mismatch · ${gscCoverage.metrics.failedVerdict} FAIL verdict · ${gscCoverage.metrics.indexingBlocked} indexing blocked · ${gscCoverage.metrics.fetchFailed} fetch failed · ${gscCoverage.metrics.partialVerdict} partial/other verdict.`,
+        : `${gscCoverage.metrics.healthy}/${gscCoverage.metrics.governedIndexable} healthy · ${gscCoverage.metrics.inspected} inspected · ${gscCoverage.metrics.missing} missing · ${gscCoverage.metrics.stale} stale (>${gscCoverage.maxAgeHours / 24}d) · ${googleCoverageHardFailures} fresh URLs with hard Google failures · ${gscCoverage.metrics.canonicalMismatch} canonical mismatch · ${gscCoverage.metrics.failedVerdict} FAIL verdict · ${gscCoverage.metrics.indexingBlocked} indexing blocked · ${gscCoverage.metrics.fetchFailed} fetch failed · ${gscCoverage.metrics.partialVerdict} partial/other verdict.`,
       "/admin/seo/search-console/index-coverage"
     ),
     check(
