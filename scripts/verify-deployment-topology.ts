@@ -57,6 +57,8 @@ assert(crawlerDocs.includes("DNS") && crawlerDocs.includes("pinned"), "crawler r
 assert(crawlerDocs.includes("DATABASE_URL") && crawlerDocs.includes("BLS_CRAWLER_LEASE_SECONDS"), "crawler runbook must document worker database and lease configuration");
 assert(crawlerDocs.includes("never become public products") || crawlerDocs.includes("never become") || crawlerDocs.includes("never become public"), "crawler runbook must preserve the staging/publication boundary");
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
+assert(nextConfig.includes("\"img-src 'self' data: blob: https:\""), "CSP must permit HTTPS catalogue source images after the product-detail source-host guard without hard-coding each supplier hostname");
+assert(!nextConfig.includes("nikolaoutools.gr"), "CSP must not require supplier-specific image host deployments");
 
 const mediaWeb = await readFile(new URL("../apps/web/src/lib/media-upload-service.ts", import.meta.url), "utf8");
 const envMatrix = await readFile(new URL("../docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md", import.meta.url), "utf8");
@@ -75,6 +77,6 @@ for (const path of [
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, Vercel-safe immutable production schema gate, web build and six isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, web build and six isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
