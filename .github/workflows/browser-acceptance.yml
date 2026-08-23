@@ -95,8 +95,6 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO postgres"
       - name: Verify database readiness
         run: npm run db:ready
-      - name: Seed deterministic Sparta reference data
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/0001_sparta_reference.sql
       - name: Install Playwright without changing the repository lockfile
         run: |
           npm install --no-save --package-lock=false @playwright/test@1.55.0
