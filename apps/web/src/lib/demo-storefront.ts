@@ -151,6 +151,20 @@ const positiveInteger = (value: unknown): number | undefined => {
   return parsed !== undefined && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
+function approvedDemoSourceImage(value: unknown): string | undefined {
+  const raw = optionalText(value);
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return undefined;
+    const hostname = url.hostname.toLowerCase();
+    if (hostname !== "nikolaoutools.gr" && hostname !== "www.nikolaoutools.gr") return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 function humanizeKey(key: string): string {
   return ATTRIBUTE_LABELS[key] ?? key
     .replaceAll("_", " ")
@@ -235,7 +249,7 @@ function productFromRow(row: ProductRow, vendor: DemoStorefrontVendor, image?: R
   const sizes = stringArray(specifications.sizes).length ? stringArray(specifications.sizes) : stringArray(attributes.sizes_observed);
   const availableToSell = Math.max(0, Number(row.available_to_sell ?? 0));
   const sourceProductId = optionalText(row.source_product_id);
-  const sourceImage = optionalText(row.source_image_url);
+  const sourceImage = approvedDemoSourceImage(row.source_image_url);
   const sourceDescription = optionalText(sourceNormalized.descriptionEl) ?? optionalText(sourceRaw.master_description_el);
   const variantGroupSize = Math.max(1, Math.trunc(numeric(sourceNormalized.variantGroupSize) ?? numeric(sourceRaw.variant_group_size) ?? 1));
 
@@ -271,7 +285,7 @@ function productFromRow(row: ProductRow, vendor: DemoStorefrontVendor, image?: R
     sourceGtin: optionalText(sourceRaw.gtin13),
     sourceProductId,
     sourceUrl: optionalText(row.source_url) ?? optionalText(sourceRaw.source_url),
-    previewImageSrc: !image?.mediaId && sourceProductId && sourceImage ? `/api/demo/catalog-source-image/${encodeURIComponent(sourceProductId)}` : undefined,
+    previewImageSrc: !image?.mediaId ? sourceImage : undefined,
     priceBasis,
     priceNote: priceBasis === "supplier_recommended"
       ? `Προτεινόμενη λιανική τιμή καταλόγου${optionalText(sourceRaw.price_source_page) ? ` · σελ. ${optionalText(sourceRaw.price_source_page)}` : ""}. Απαιτείται επιβεβαίωση από το κατάστημα πριν τη δημοσίευση.`
