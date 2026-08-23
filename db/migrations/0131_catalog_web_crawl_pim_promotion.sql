@@ -66,8 +66,8 @@ BEGIN
   WHERE p.job_id=p_job_id AND e.status IN ('accepted','promoted');
   IF v_product_count=0 THEN RAISE EXCEPTION 'Catalogue web crawl job has no accepted product extractions to promote'; END IF;
 
-  SELECT encode(extensions.digest(convert_to(string_agg(
-    x.source_product_key||':'||encode(extensions.digest(convert_to(x.extracted_payload::text,'UTF8'),'sha256'),'hex'),
+  SELECT encode(digest(convert_to(string_agg(
+    x.source_product_key||':'||encode(digest(convert_to(x.extracted_payload::text,'UTF8'),'sha256'),'hex'),
     E'\n' ORDER BY x.source_product_key
   ),'UTF8'),'sha256'),'hex')
   INTO v_source_hash
@@ -130,8 +130,8 @@ BEGIN
         ORDER BY n.created_at,n.id LIMIT 1;
 
         IF v_existing_taxonomy_id IS NULL THEN
-          v_taxonomy_key:='crawl-path-'||left(encode(extensions.digest(
-            convert_to(array_to_string(v_prefix,E'\x1f'),'UTF8'),'sha256'),'hex'),32);
+          v_taxonomy_key:='crawl-path-'||left(encode(digest(
+            convert_to(array_to_string(v_prefix,E'\\x1f'),'UTF8'),'sha256'),'hex'),32);
           v_path_keys:=array_append(v_path_keys,v_taxonomy_key);
           INSERT INTO public.catalog_source_taxonomy_nodes(
             source_id,parent_id,source_key,source_label,depth,path_labels,path_keys,source_url,metadata
