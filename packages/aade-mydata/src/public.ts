@@ -10,4 +10,9 @@ export * from "./mapping-reference.ts";
 export * from "./digital-movement.ts";
 export * from "./group-qr.ts";
 export * from "./delivery-return-reconciliation.ts";
-export { HardenedAadeMyDataClient as AadeMyDataClient, type MyDataReportingQuery, type MyDataReportingCollectionOptions } from "./hardened-client.ts";
+export {
+  HardenedAadeMyDataClient,
+  HardenedAadeMyDataClient as AadeMyDataClient,
+  type MyDataReportingQuery,
+  type MyDataReportingCollectionOptions
+} from "./hardened-client.ts";
