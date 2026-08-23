@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "../../../../../../components/SiteFooter";
 import { SiteHeader } from "../../../../../../components/SiteHeader";
-import { getDemoStorefrontVendor, getDemoVendorCatalogProduct } from "../../../../../../lib/demo-storefront";
+import { getDemoStorefrontVendor, getDemoVendorCatalogProduct, getDemoVendorVariantOptions } from "../../../../../../lib/demo-storefront";
 import { storefrontCategoryForCode } from "../../../../../../lib/storefront-taxonomy";
+import styles from "./DemoProduct.module.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -12,82 +12,163 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true }
 };
 
-const productImageStyle = {
-  position: "absolute",
-  inset: 0,
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-  zIndex: 1
-} as const;
-
 export default async function DemoProductPage({ params }: { params: Promise<{ id: string; productId: string }> }) {
   const { id, productId } = await params;
   const vendor = await getDemoStorefrontVendor(id);
   if (!vendor) notFound();
   const product = await getDemoVendorCatalogProduct(vendor, productId);
   if (!product) notFound();
+
+  const variants = await getDemoVendorVariantOptions(vendor, product);
   const category = storefrontCategoryForCode(product.categoryCode);
   const vendorHref = `/demo/vendor/${encodeURIComponent(vendor.id)}`;
+  const imageSrc = product.mediaId
+    ? `/api/media/${encodeURIComponent(product.mediaId)}`
+    : product.previewImageSrc;
+  const highlights = product.technicalAttributes.slice(0, 6);
+  const identitySpecs = [
+    product.brand ? { label: "Μάρκα", value: product.brand } : undefined,
+    product.model ? { label: "Μοντέλο", value: product.model } : undefined,
+    product.supplierCode ? { label: "Κωδικός προμηθευτή", value: product.supplierCode } : undefined,
+    product.vendorSku ? { label: "SKU καταστήματος", value: product.vendorSku } : undefined,
+    product.gtin ? { label: "GTIN / EAN", value: product.gtin } : product.sourceGtin ? { label: "GTIN / EAN πηγής", value: product.sourceGtin } : undefined,
+    { label: "Κατηγορία", value: product.categoryLabel ?? category.label },
+    product.color ? { label: "Χρώμα", value: product.color } : undefined,
+    product.sizes.length ? { label: "Μεγέθη / επιλογές", value: product.sizes.join(" · ") } : undefined,
+    product.fit ? { label: "Εφαρμογή", value: product.fit } : undefined,
+    product.composition ? { label: "Σύνθεση", value: product.composition } : undefined,
+    product.madeIn ? { label: "Κατασκευή", value: product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn } : undefined
+  ].filter((entry): entry is { label: string; value: string } => Boolean(entry));
 
   return (
-    <main>
-      <div className="announcement">DEMO product page · ίδια product-detail εμπειρία χωρίς καλάθι, checkout ή πραγματική διαθεσιμότητα.</div>
+    <main className={styles.page}>
+      <div className={styles.demoBar}>DEMO · Πραγματική προεπισκόπηση προϊόντος — η αγορά παραμένει απενεργοποιημένη</div>
       <SiteHeader compact />
 
-      <section className="shell product-detail">
-        <div className={`product-detail-art ${category.artClass}`}>
-          <span className="detail-category">{category.name}</span>
-          <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
-          {product.mediaId ? <Image src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : null}
-          <span className="product-badge">DEMO · Προεπισκόπηση</span>
-        </div>
+      <div className={styles.shell}>
+        <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+          <a href={vendorHref}>{vendor.name}</a>
+          <span aria-hidden="true">/</span>
+          <a href={`${vendorHref}#products`}>{product.categoryLabel ?? category.label}</a>
+          <span aria-hidden="true">/</span>
+          <span>{product.model ?? product.title}</span>
+        </nav>
 
-        <div className="product-detail-copy">
-          <div className="eyebrow"><a href={`${vendorHref}#products`}>{product.categoryLabel ?? category.label}</a> · {vendor.name} · DEMO</div>
-          <h1>{product.title}</h1>
-          <div className="detail-price">{product.price}</div>
-          <p className="lead compact">Η σελίδα χρησιμοποιεί το ίδιο customer-facing product-detail layout με τα ενεργά προϊόντα. Η τιμή είναι μόνο προεπισκόπηση και δεν δημιουργείται παραγγελία, πληρωμή, stock reservation ή fairness assignment.</p>
-
-          {product.description ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p>{product.description}</p></div></div> : null}
-
-          <div className="eyebrow">Χαρακτηριστικά</div>
-          <div className="detail-assurances">
-            {product.brand ? <div><strong>Μάρκα</strong><span>{product.brand}</span></div> : null}
-            {product.mpn ? <div><strong>Κωδικός προϊόντος</strong><span>{product.mpn}</span></div> : null}
-            {product.vendorSku ? <div><strong>SKU καταστήματος</strong><span>{product.vendorSku}</span></div> : null}
-            {product.gtin ? <div><strong>GTIN / EAN</strong><span>{product.gtin}</span></div> : null}
-            {product.categoryLabel ? <div><strong>Κατηγορία</strong><span>{product.categoryLabel}</span></div> : null}
-            {product.color ? <div><strong>Χρώμα</strong><span>{product.color}</span></div> : null}
-            {product.sizes.length ? <div><strong>Μεγέθη / παραλλαγές</strong><span>{product.sizes.join(" · ")}</span></div> : null}
-            {product.fit ? <div><strong>Εφαρμογή</strong><span>{product.fit}</span></div> : null}
-            {product.composition ? <div><strong>Σύνθεση</strong><span>{product.composition}</span></div> : null}
-            {product.madeIn ? <div><strong>Κατασκευή</strong><span>{product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn}</span></div> : null}
-            <div><strong>Κατάσταση offer</strong><span>{product.offerStatus.replaceAll("_", " ")} · DEMO only</span></div>
-          </div>
-
-          <div className="vendor-card">
-            <div><span className="vendor-avatar">{vendor.name.slice(0, 1)}</span></div>
-            <div>
-              <div className="eyebrow">Κατάστημα προεπισκόπησης</div>
-              <strong><a href={vendorHref}>{vendor.name}</a></strong>
-              <p>Το προϊόν παρουσιάζεται μέσα στο συγκεκριμένο prospect vendor, ακριβώς όπως θα συνδέεται με το κατάστημα μετά την ολοκλήρωση onboarding και publication review.</p>
-              <div className="vendor-actions"><a className="button button-secondary" href={`${vendorHref}#products`}>← Πίσω στα προϊόντα</a></div>
+        <section className={styles.hero}>
+          <div className={styles.mediaColumn}>
+            <div className={styles.imageCard}>
+              {imageSrc ? (
+                <img className={styles.productImage} src={imageSrc} alt={product.mediaAlt ?? product.title} loading="eager" decoding="async" />
+              ) : (
+                <div className={styles.placeholder}>
+                  <div><strong>{product.brand ?? vendor.name}</strong><span>Η εικόνα προϊόντος δεν έχει ακόμη συνδεθεί με την προεπισκόπηση.</span></div>
+                </div>
+              )}
+              <span className={styles.demoBadge}>DEMO · Προεπισκόπηση</span>
+            </div>
+            <div className={styles.mediaMeta}>
+              <span>{product.brand ?? "Προϊόν"}{product.model ? ` · ${product.model}` : ""}</span>
+              {product.sourceUrl ? <a href={product.sourceUrl} target="_blank" rel="noreferrer">Πηγή προϊόντος ↗</a> : null}
             </div>
           </div>
 
-          <div className="purchase-card">
-            <div>
-              <strong>DEMO · αγορά απενεργοποιημένη</strong>
-              <span>{product.priceMinor > 0 ? "Υπάρχει τιμή παρουσίασης, αλλά δεν είναι ενεργό marketplace offer μέχρι να ολοκληρωθούν verification, approval και activation." : "Η τιμή δεν έχει ακόμη επιβεβαιωθεί. Η προεπισκόπηση παραμένει διαθέσιμη χωρίς να εμφανίζει πλασματική τιμή €0,00."}</span>
-            </div>
-            <div className="purchase-actions"><button className="button" type="button" disabled aria-disabled="true">Μη διαθέσιμο για αγορά σε DEMO</button></div>
-          </div>
+          <div className={styles.summary}>
+            <div className={styles.kicker}>{product.categoryLabel ?? category.label} · {vendor.name}</div>
+            <h1 className={styles.title}>{product.title}</h1>
 
-          <div className="detail-assurances">
-            <div><strong>Καμία παραγγελία</strong><span>Δεν δημιουργείται cart ή checkout.</span></div>
-            <div><strong>Καμία δέσμευση</strong><span>Δεν μεταβάλλεται απόθεμα ή fairness state.</span></div>
-            <div><strong>Πραγματικό UX</strong><span>Η δομή προσομοιώνει την τελική product page.</span></div>
+            <div className={styles.identity} aria-label="Ταυτότητα προϊόντος">
+              {product.brand ? <span>{product.brand}</span> : null}
+              {product.model ? <span>Model {product.model}</span> : null}
+              {product.supplierCode ? <span>Κωδ. {product.supplierCode}</span> : null}
+              {product.variantGroupSize > 1 ? <span>{product.variantGroupSize} παραλλαγές οικογένειας</span> : null}
+            </div>
+
+            <div className={styles.priceBlock}>
+              <div className={styles.price}>{product.price}</div>
+              {product.priceNote ? <p className={styles.priceNote}>{product.priceNote}</p> : null}
+            </div>
+
+            {highlights.length ? (
+              <div className={styles.highlights} aria-label="Βασικά χαρακτηριστικά">
+                {highlights.map((attribute) => (
+                  <div className={styles.highlight} key={attribute.key}>
+                    <span>{attribute.label}</span>
+                    <strong>{attribute.value}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <div className={styles.demoNotice}>
+              <div className={styles.demoNoticeIcon} aria-hidden="true">i</div>
+              <div>
+                <strong>Προεπισκόπηση πριν την ενεργοποίηση</strong>
+                <p>Βλέπεις την εικόνα, τα χαρακτηριστικά, τις παραλλαγές και την διαθέσιμη τιμολογιακή ένδειξη όπως θα παρουσιαστούν στο κατάστημα. Σε DEMO δεν δημιουργείται καλάθι, παραγγελία, πληρωμή ή δέσμευση αποθέματος.</p>
+              </div>
+            </div>
+            <button className={styles.purchaseButton} type="button" disabled aria-disabled="true">Αγορά απενεργοποιημένη σε DEMO</button>
+          </div>
+        </section>
+      </div>
+
+      <section className={styles.body}>
+        <div className={styles.shell}>
+          <div className={styles.contentGrid}>
+            <div>
+              <div className={styles.sectionEyebrow}>Περιγραφή</div>
+              <h2 className={styles.sectionTitle}>Για το προϊόν</h2>
+              <p className={styles.description}>{product.description ?? "Η αναλυτική περιγραφή θα συμπληρωθεί πριν από τη δημόσια ενεργοποίηση του προϊόντος."}</p>
+
+              <div className={styles.vendorSection}>
+                <div className={styles.sectionEyebrow}>Τοπικό κατάστημα</div>
+                <div className={styles.vendorCard}>
+                  <div className={styles.vendorAvatar}>{vendor.name.slice(0, 1)}</div>
+                  <div>
+                    <strong><a href={vendorHref}>{vendor.name}</a></strong>
+                    <p>Το προϊόν έχει ήδη συνδεθεί με αυτό το κατάστημα για την προεπισκόπηση. Η εμπορική ενεργοποίηση γίνεται ξεχωριστά μετά την ολοκλήρωση του onboarding.</p>
+                  </div>
+                </div>
+                <a className={styles.backLink} href={`${vendorHref}#products`}>← Πίσω στα προϊόντα του καταστήματος</a>
+              </div>
+            </div>
+
+            <div>
+              <div className={styles.sectionEyebrow}>Τεχνικά στοιχεία</div>
+              <h2 className={styles.sectionTitle}>Χαρακτηριστικά & ταυτότητα</h2>
+              <dl className={styles.specGrid}>
+                {identitySpecs.map((entry) => (
+                  <div className={styles.spec} key={`identity-${entry.label}`}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>
+                ))}
+                {product.technicalAttributes.map((attribute) => (
+                  <div className={styles.spec} key={`technical-${attribute.key}`}><dt>{attribute.label}</dt><dd>{attribute.value}</dd></div>
+                ))}
+              </dl>
+
+              {variants.length ? (
+                <div className={styles.variants}>
+                  <div className={styles.sectionEyebrow}>Παραλλαγές</div>
+                  <h2 className={styles.sectionTitle}>Άλλες επιλογές της ίδιας οικογένειας</h2>
+                  <div className={styles.variantGrid}>
+                    {variants.map((variant) => (
+                      <a className={styles.variantCard} href={`/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(variant.slug || variant.id)}`} key={variant.id}>
+                        <span>{variant.brand ?? product.brand ?? "Παραλλαγή"}</span>
+                        <strong>{variant.model ?? variant.title}</strong>
+                        {variant.technicalAttributes[0] ? <span>{variant.technicalAttributes[0].label}: {variant.technicalAttributes[0].value}</span> : null}
+                        <b>{variant.price}</b>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className={styles.sourceSection}>
+                <div className={styles.sourceMeta}>
+                  {product.sourceLastResearched ? <span>Τελευταία έρευνα πηγής: {product.sourceLastResearched}</span> : null}
+                  {product.sourceUrl ? <a href={product.sourceUrl} target="_blank" rel="noreferrer">Επίσημη σελίδα πηγής ↗</a> : null}
+                  <span>DEMO · noindex · χωρίς εμπορικές ενέργειες</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
