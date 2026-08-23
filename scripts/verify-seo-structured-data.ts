@@ -23,7 +23,7 @@ const vendorPage = read("apps/web/src/app/vendor/[id]/page.tsx");
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0122_seo_structured_data_observations.sql"] === migrationHash,
   `0122 checksum mismatch: manifest=${checksums["0122_seo_structured_data_observations.sql"] ?? "missing"} actual=${migrationHash}`);
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 122"), "PostgreSQL runtime schema target must be 122");
+expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 127"), "PostgreSQL runtime schema target must be 127");
 
 for (const contract of [
   "CREATE TABLE seo_crawl_structured_data_observations",
