@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, normalizeGtin, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 import { createVendorProductFromCanonical as legacyCreateVendorProductFromCanonical, findVendorCanonicalMatches } from "./vendor-canonical-match-service";
@@ -67,11 +67,15 @@ const jsonObject = (value: unknown): Record<string, unknown> => {
   return typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 };
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.map(String) : [];
+const identityText = (value: string | undefined) => (value ?? "").normalize("NFKC").toLocaleLowerCase("el").replace(/[^\p{L}\p{N}]+/gu, "");
 
 function normalizedLookup(input: { title?: string; gtin?: string }) {
   const title = input.title?.trim().replace(/\s+/g, " ") ?? "";
   const gtin = input.gtin?.replace(/\D/g, "") ?? "";
-  return { title, gtin };
+  const exactGtin = gtin ? normalizeGtin(gtin) : undefined;
+  const isCompleteGtinLength = [8, 12, 13, 14].includes(gtin.length);
+  const gtinPrefix = isCompleteGtinLength && !exactGtin ? "" : gtin;
+  return { title, gtin, exactGtin: exactGtin ?? "", gtinPrefix };
 }
 
 export async function findVendorCanonicalPrefillMatches(
@@ -83,7 +87,11 @@ export async function findVendorCanonicalPrefillMatches(
   const limit = Math.min(8, Math.max(1, Math.floor(input.limit ?? 5)));
 
   if (!postgresVendorRuntimeEnabled()) {
-    const matches = await findVendorCanonicalMatches(principal, input);
+    const matches = await findVendorCanonicalMatches(principal, {
+      title: lookup.title,
+      gtin: lookup.exactGtin || lookup.gtinPrefix,
+      limit
+    });
     return matches.map((match) => ({ ...match, specifications: {}, variantAttributes: {} }));
   }
 
@@ -110,16 +118,23 @@ export async function findVendorCanonicalPrefillMatches(
                CASE WHEN ptel.specifications IS NOT NULL AND ptel.specifications<>'{}'::jsonb THEN ptel.specifications
                     WHEN pten.specifications IS NOT NULL THEN pten.specifications ELSE '{}'::jsonb END AS specifications,
                COALESCE(cv.variant_attributes,'{}'::jsonb) AS variant_attributes,
-               cv.gtin,cv.model,cv.mpn,cv.warranty_basis,b.name AS brand,t.code AS category_code,t.path_names,
+               COALESCE(NULLIF(cv.gtin,''),trade_id.normalized_value) AS gtin,
+               cv.model,cv.mpn,cv.warranty_basis,b.name AS brand,t.code AS category_code,t.path_names,
                CASE
-                 WHEN $2<>'' AND regexp_replace(COALESCE(cv.gtin,''),'\\D','','g')=$2 THEN 1000
-                 WHEN $2<>'' AND regexp_replace(COALESCE(cv.gtin,''),'\\D','','g') LIKE $2||'%' THEN 920
-                 WHEN $3<>'' AND lower(COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug))=lower($3) THEN 900
-                 WHEN $3<>'' AND lower(COALESCE(cv.model,''))=lower($3) THEN 880
-                 WHEN $3<>'' AND lower(COALESCE(cv.mpn,''))=lower($3) THEN 870
-                 WHEN $3<>'' AND COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) ILIKE $3||'%' THEN 820
-                 WHEN $3<>'' AND COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) ILIKE '%'||$3||'%' THEN 760
-                 WHEN $3<>'' AND (COALESCE(cv.model,'') ILIKE '%'||$3||'%' OR COALESCE(cv.mpn,'') ILIKE '%'||$3||'%') THEN 700
+                 WHEN $2<>'' AND (
+                   (cv.gtin IS NOT NULL AND bls_private.catalog_gtin_is_valid(cv.gtin) AND bls_private.catalog_normalize_gtin(cv.gtin)=$2)
+                   OR trade_id.normalized_value=$2
+                 ) THEN 1000
+                 WHEN $2='' AND $3<>'' AND (
+                   regexp_replace(COALESCE(cv.gtin,''),'\\D','','g') LIKE $3||'%'
+                   OR trade_id.normalized_value LIKE $3||'%'
+                 ) THEN 920
+                 WHEN $4<>'' AND lower(COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug))=lower($4) THEN 900
+                 WHEN $4<>'' AND lower(COALESCE(cv.model,''))=lower($4) THEN 880
+                 WHEN $4<>'' AND lower(COALESCE(cv.mpn,''))=lower($4) THEN 870
+                 WHEN $4<>'' AND COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) ILIKE $4||'%' THEN 820
+                 WHEN $4<>'' AND COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) ILIKE '%'||$4||'%' THEN 760
+                 WHEN $4<>'' AND (COALESCE(cv.model,'') ILIKE '%'||$4||'%' OR COALESCE(cv.mpn,'') ILIKE '%'||$4||'%') THEN 700
                  ELSE 0
                END AS identity_score,
                (CASE WHEN b.name IS NOT NULL THEN 35 ELSE 0 END
@@ -127,34 +142,46 @@ export async function findVendorCanonicalPrefillMatches(
                 + CASE WHEN COALESCE(NULLIF(ptel.description,''),NULLIF(pten.description,'')) IS NOT NULL THEN 25 ELSE 0 END
                 + CASE WHEN (ptel.specifications IS NOT NULL AND ptel.specifications<>'{}'::jsonb) OR (pten.specifications IS NOT NULL AND pten.specifications<>'{}'::jsonb) THEN 15 ELSE 0 END
                 + CASE WHEN COALESCE(cv.variant_attributes,'{}'::jsonb)<>'{}'::jsonb THEN 10 ELSE 0 END
-                + CASE WHEN cv.gtin IS NOT NULL THEN 15 ELSE 0 END
-                - CASE WHEN b.name IS NULL AND cv.model IS NULL AND cv.mpn IS NULL AND cv.gtin IS NULL
-                         AND COALESCE(NULLIF(ptel.description,''),NULLIF(pten.description,'')) IS NULL
-                         AND COALESCE(ptel.specifications,'{}'::jsonb)='{}'::jsonb
-                         AND COALESCE(pten.specifications,'{}'::jsonb)='{}'::jsonb
-                         AND COALESCE(cv.variant_attributes,'{}'::jsonb)='{}'::jsonb THEN 140 ELSE 0 END) AS quality_score
+                + CASE WHEN cv.gtin IS NOT NULL OR trade_id.normalized_value IS NOT NULL THEN 15 ELSE 0 END) AS quality_score
         FROM canonical_variants cv
         JOIN category_tree t ON t.id=cv.category_id
         LEFT JOIN brands b ON b.id=cv.brand_id
         LEFT JOIN product_translations ptel ON ptel.canonical_variant_id=cv.id AND ptel.locale='el'
         LEFT JOIN product_translations pten ON pten.canonical_variant_id=cv.id AND pten.locale='en'
+        LEFT JOIN LATERAL (
+          SELECT bls_private.catalog_normalize_gtin(pi.normalized_value) AS normalized_value
+          FROM product_identifiers pi
+          WHERE pi.canonical_variant_id=cv.id
+            AND pi.active=true
+            AND pi.identifier_scope='trade_item'
+            AND pi.identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn13')
+          ORDER BY pi.is_primary DESC,pi.created_at,pi.id
+          LIMIT 1
+        ) trade_id ON true
         WHERE cv.market_id=(SELECT market_id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
           AND cv.suppressed=false AND cv.recalled=false
           AND (
-            ($2<>'' AND regexp_replace(COALESCE(cv.gtin,''),'\\D','','g') LIKE $2||'%')
-            OR ($3<>'' AND (
-              COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) ILIKE '%'||$3||'%'
-              OR COALESCE(cv.model,'') ILIKE '%'||$3||'%'
-              OR COALESCE(cv.mpn,'') ILIKE '%'||$3||'%'
+            ($2<>'' AND (
+              (cv.gtin IS NOT NULL AND bls_private.catalog_gtin_is_valid(cv.gtin) AND bls_private.catalog_normalize_gtin(cv.gtin)=$2)
+              OR trade_id.normalized_value=$2
+            ))
+            OR ($2='' AND $3<>'' AND (
+              regexp_replace(COALESCE(cv.gtin,''),'\\D','','g') LIKE $3||'%'
+              OR trade_id.normalized_value LIKE $3||'%'
+            ))
+            OR ($2='' AND $4<>'' AND (
+              COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) ILIKE '%'||$4||'%'
+              OR COALESCE(cv.model,'') ILIKE '%'||$4||'%'
+              OR COALESCE(cv.mpn,'') ILIKE '%'||$4||'%'
             ))
           )
       )
-      SELECT *, identity_score + quality_score AS score
+      SELECT *,identity_score+quality_score AS score
       FROM raw_candidates
       WHERE identity_score>0
-      ORDER BY (identity_score + quality_score) DESC, quality_score DESC, title
-      LIMIT $4
-    `, [vendorId, lookup.gtin, lookup.title, limit]);
+      ORDER BY (identity_score+quality_score) DESC,quality_score DESC,title
+      LIMIT $5
+    `, [vendorId, lookup.exactGtin, lookup.gtinPrefix, lookup.title, limit]);
 
     return rows.rows.map((row) => {
       const path = strings(row.path_names);
@@ -180,6 +207,7 @@ export async function findVendorCanonicalPrefillMatches(
 
 export async function createVendorProductFromCanonicalPrefill(principal: SessionPrincipal, input: CreateVendorProductFromPrefillInput) {
   const safetyStock = input.safetyStock ?? 0;
+  if (!input.title.trim()) throw new Error("Title is required");
   if (!Number.isSafeInteger(input.supplierUnitPriceMinor) || input.supplierUnitPriceMinor < 0) throw new Error("Price must use non-negative integer minor units");
   if (!Number.isSafeInteger(input.stockOnHand) || input.stockOnHand < 0 || !Number.isSafeInteger(safetyStock) || safetyStock < 0 || safetyStock > input.stockOnHand) throw new Error("Invalid stock/safety stock");
 
@@ -192,7 +220,8 @@ export async function createVendorProductFromCanonicalPrefill(principal: Session
              (SELECT id::text FROM vendor_locations WHERE vendor_id=vb.id AND active ORDER BY created_at LIMIT 1) AS location_uuid,
              (SELECT id::text FROM users WHERE public_id=$3 OR id::text=$3 LIMIT 1) AS user_uuid,
              cv.id::text AS canonical_uuid,cv.category_id::text AS category_uuid,cv.public_id AS canonical_public_id,
-             cv.gtin,cv.model,cv.mpn,cv.variant_attributes,cv.warranty_basis,cv.active AS canonical_active,
+             COALESCE(NULLIF(cv.gtin,''),trade_id.normalized_value) AS gtin,
+             cv.model,cv.mpn,cv.variant_attributes,cv.warranty_basis,cv.active AS canonical_active,
              c.code AS category_code,b.name AS brand,
              COALESCE(ptel.title,pten.title,cv.model,cv.mpn,cv.slug) AS canonical_title,
              COALESCE(NULLIF(ptel.description,''),NULLIF(pten.description,'')) AS canonical_description,
@@ -204,6 +233,16 @@ export async function createVendorProductFromCanonicalPrefill(principal: Session
       LEFT JOIN brands b ON b.id=cv.brand_id
       LEFT JOIN product_translations ptel ON ptel.canonical_variant_id=cv.id AND ptel.locale='el'
       LEFT JOIN product_translations pten ON pten.canonical_variant_id=cv.id AND pten.locale='en'
+      LEFT JOIN LATERAL (
+        SELECT bls_private.catalog_normalize_gtin(pi.normalized_value) AS normalized_value
+        FROM product_identifiers pi
+        WHERE pi.canonical_variant_id=cv.id
+          AND pi.active=true
+          AND pi.identifier_scope='trade_item'
+          AND pi.identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn13')
+        ORDER BY pi.is_primary DESC,pi.created_at,pi.id
+        LIMIT 1
+      ) trade_id ON true
       WHERE (vb.public_id=$1 OR vb.id::text=$1)
         AND cv.suppressed=false AND cv.recalled=false
       LIMIT 1
@@ -218,6 +257,17 @@ export async function createVendorProductFromCanonicalPrefill(principal: Session
     const canonicalModel = optionalText(row.model);
     const canonicalMpn = optionalText(row.mpn);
     const canonicalGtin = optionalText(row.gtin);
+    const suppliedGtinRaw = input.gtin?.replace(/\D/g, "") ?? "";
+    const suppliedGtin = suppliedGtinRaw ? normalizeGtin(suppliedGtinRaw) : undefined;
+
+    if (suppliedGtinRaw && !suppliedGtin) throw new Error("The supplied GTIN is invalid and cannot confirm the selected product");
+    if (suppliedGtin && suppliedGtin !== canonicalGtin) throw new Error("The supplied GTIN does not match the selected canonical product");
+    if (!suppliedGtin && identityText(input.title) !== identityText(canonicalTitle)) {
+      const suppliedModel = identityText(input.model);
+      const canonicalPart = new Set([identityText(canonicalModel), identityText(canonicalMpn)].filter(Boolean));
+      if (!suppliedModel || !canonicalPart.has(suppliedModel)) throw new Error("The selected canonical product no longer matches this entry");
+    }
+
     const submissionUuid = randomUUID();
     const publicId = `vps_${randomUUID()}`;
     const identity = {
@@ -231,16 +281,13 @@ export async function createVendorProductFromCanonicalPrefill(principal: Session
       canonicalSelectedByVendor: true,
       canonicalVariantId: input.canonicalVariantId.trim(),
       canonicalWasInactive: !Boolean(row.canonical_active),
+      canonicalActivationChanged: false,
       canonicalDescription: optionalText(row.canonical_description),
       canonicalSpecifications: jsonObject(row.canonical_specifications),
       canonicalVariantAttributes: jsonObject(row.variant_attributes),
       canonicalWarrantyBasis: optionalText(row.warranty_basis),
       vendorVariantNote: input.variantNote?.trim() || undefined
     };
-
-    if (!Boolean(row.canonical_active)) {
-      await tx.query("UPDATE canonical_variants SET active=true,updated_at=now() WHERE id=$1 AND suppressed=false AND recalled=false", [requiredText(row.canonical_uuid, "canonical product")]);
-    }
 
     await tx.query(`
       INSERT INTO vendor_product_submissions(
@@ -284,9 +331,11 @@ export async function createVendorProductFromCanonicalPrefill(principal: Session
       requiredText(row.canonical_uuid, "canonical product"),
       JSON.stringify({
         source: "vendor_catalog_smart_entry",
+        identityPolicy: "catalog_identity_v2",
         canonicalPublicId: input.canonicalVariantId.trim(),
         categoryCode: requiredText(row.category_code, "category code"),
-        canonicalActivatedByVendorClaim: !Boolean(row.canonical_active)
+        canonicalWasInactive: !Boolean(row.canonical_active),
+        canonicalActivationChanged: false
       })
     ]);
 
