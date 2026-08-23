@@ -57,7 +57,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           loading="lazy"
           decoding="async"
           referrerPolicy={externalImage ? "no-referrer" : undefined}
-          style={governedSourceFallback ? { ...catalogImageStyle, background: "transparent" } : catalogImageStyle}
+          style={catalogImageStyle}
         />
         <span className="product-badge">{demoMode ? "DEMO · Προεπισκόπηση" : product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
       </Link>
