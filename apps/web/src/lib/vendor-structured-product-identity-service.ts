@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
+import { resolveDivergentVendorFamilyVariant } from "./vendor-canonical-family-variant-service";
 
 export type VendorVariantScalar = string | number | boolean;
 export type VendorVariantValue = VendorVariantScalar | readonly VendorVariantScalar[];
@@ -440,7 +441,28 @@ export async function createVendorStructuredProductFromCanonical(principal: Sess
       SELECT bls_private.catalog_material_variant_conflict($1::jsonb,COALESCE($2::jsonb,'{}'::jsonb)) AS conflict
     `, [JSON.stringify(validated.variantAttributes), JSON.stringify(row.variant_attributes ?? {})]);
     const conflictText = optionalText(conflict.rows[0]?.conflict);
-    if (conflictText) throw new Error(`Η επιλεγμένη παραλλαγή δεν είναι το ίδιο canonical προϊόν (${conflictText}). Συνέχισε ως νέο προϊόν/παραλλαγή.`);
+    if (conflictText) {
+      return resolveDivergentVendorFamilyVariant(tx, input, {
+        marketUuid: requiredText(row.market_uuid,"market"),
+        vendorUuid: requiredText(row.vendor_uuid,"vendor"),
+        locationUuid: requiredText(row.location_uuid,"location"),
+        userUuid: requiredText(row.user_uuid,"user"),
+        categoryUuid: requiredText(row.category_uuid,"category"),
+        categoryCode: canonicalCategoryCode,
+        canonicalUuid: requiredText(row.canonical_uuid,"canonical product"),
+        canonicalPublicId: requiredText(row.canonical_public_id,"canonical product"),
+        canonicalActive: Boolean(row.canonical_active),
+        canonicalTitle: requiredText(row.canonical_title,"canonical title"),
+        canonicalDescription: optionalText(row.canonical_description),
+        canonicalSpecifications: row.canonical_specifications ?? {},
+        canonicalVariantAttributes: row.variant_attributes ?? {},
+        canonicalWarrantyBasis: optionalText(row.warranty_basis),
+        canonicalBrand: optionalText(row.brand),
+        canonicalModel: optionalText(row.model),
+        canonicalMpn: optionalText(row.mpn),
+        productTypeCode: requiredText(validated.productTypeCode,"product type")
+      }, validated.variantAttributes, conflictText);
+    }
 
     const canonicalGtin = optionalText(row.gtin);
     const submittedGtin = input.gtin?.replace(/\D/g, "") || undefined;
