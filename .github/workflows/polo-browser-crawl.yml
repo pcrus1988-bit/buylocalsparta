@@ -1,0 +1,105 @@
+name: POLO full browser crawl
+
+on:
+  push:
+    branches:
+      - chore/polo-catalogue-crawl
+    paths:
+      - scripts/catalogue/crawl-polo-browser.mjs
+      - .github/workflows/polo-browser-crawl.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/catalogue/crawl-polo-browser.mjs
+      - .github/workflows/polo-browser-crawl.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: polo-full-browser-crawl-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Crawl complete POLO catalogue
+        id: crawl
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/catalogue/crawl-polo-browser.mjs 2>&1 | tee /tmp/polo-full-crawl.log
+
+      - name: Upload POLO import package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: polo-full-catalogue-${{ github.run_id }}
+          path: |
+            data/imports/polo/
+            /tmp/polo-full-crawl.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Report crawl summary on PR
+        if: github.event_name == 'pull_request' && always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '### POLO full rendered catalogue crawl'
+            echo
+            if [[ -f data/imports/polo/polo-crawl-summary.json ]]; then
+              echo '```json'
+              cat data/imports/polo/polo-crawl-summary.json
+              echo '```'
+            else
+              echo "Crawl outcome: **${{ steps.crawl.outcome }}**"
+              echo
+              echo '```text'
+              tail -n 120 /tmp/polo-full-crawl.log 2>/dev/null || true
+              echo '```'
+            fi
+          } >/tmp/polo-full-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/polo-full-comment.md
+
+      - name: Commit verified crawl output to crawl branch
+        if: github.event_name == 'push' && steps.crawl.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/imports/polo
+          if git diff --cached --quiet; then
+            echo 'No POLO dataset changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: refresh full POLO catalogue [skip ci]'
+          git push origin HEAD:chore/polo-catalogue-crawl
+
+      - name: Fail workflow if crawler failed
+        if: steps.crawl.outcome != 'success'
+        run: exit 1
