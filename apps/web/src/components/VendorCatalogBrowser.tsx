@@ -20,15 +20,17 @@ function unique(values: readonly (string | undefined)[]): readonly string[] {
     .sort((left, right) => left.localeCompare(right, "el"));
 }
 
-export function VendorCatalogBrowser({ products, vendor }: {
+export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
+  demoVendorId?: string;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [brand, setBrand] = useState("all");
   const [color, setColor] = useState("all");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
+  const demoMode = Boolean(demoVendorId);
 
   const categories = useMemo(() => {
     const map = new Map<string, string>();
@@ -55,6 +57,7 @@ export function VendorCatalogBrowser({ products, vendor }: {
         product.brand,
         product.color,
         product.mpn,
+        product.gtin,
         ...product.sizes
       ].filter(Boolean).join(" ")).includes(needle);
     });
@@ -100,10 +103,10 @@ export function VendorCatalogBrowser({ products, vendor }: {
           </label>
         )}
         <label className={styles.field}>
-          <span>Διαθεσιμότητα</span>
+          <span>{demoMode ? "Τιμή παρουσίασης" : "Διαθεσιμότητα"}</span>
           <select value={availability} onChange={(event) => setAvailability(event.target.value as AvailabilityFilter)}>
             <option value="all">Όλα</option>
-            <option value="available">Διαθέσιμα τώρα</option>
+            <option value="available">{demoMode ? "Με επιβεβαιωμένη τιμή" : "Διαθέσιμα τώρα"}</option>
           </select>
         </label>
       </div>
@@ -135,19 +138,20 @@ export function VendorCatalogBrowser({ products, vendor }: {
 
       <div className={styles.catalogMeta}>
         <span><strong>{filtered.length}</strong> από {products.length} προϊόντα εμφανίζονται.</span>
+        {demoMode ? <span>DEMO · οι κάρτες ανοίγουν πλήρη προεπισκόπηση προϊόντος, χωρίς checkout.</span> : null}
         {hasFilters && <button type="button" className={styles.clearButton} onClick={clear}>Καθαρισμός φίλτρων</button>}
       </div>
 
       {filtered.length > 0 ? (
         <div className="product-grid">
           {filtered.map((product, index) => (
-            <CatalogProductCard product={product} index={index} vendorContext={vendor} key={product.id} />
+            <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />
           ))}
         </div>
       ) : (
         <div className={styles.noResults}>
           <h3>Δεν βρέθηκε προϊόν με αυτά τα φίλτρα.</h3>
-          <p>Δοκίμασε άλλη λέξη ή κατηγορία. Αν ψάχνεις κάτι που δεν είναι καταχωρισμένο, μπορείς να ρωτήσεις απευθείας το κατάστημα στο Ask Local παρακάτω.</p>
+          <p>{demoMode ? "Δοκίμασε άλλη λέξη, μάρκα ή κατηγορία για να συνεχίσεις την προεπισκόπηση του καταλόγου." : "Δοκίμασε άλλη λέξη ή κατηγορία. Αν ψάχνεις κάτι που δεν είναι καταχωρισμένο, μπορείς να ρωτήσεις απευθείας το κατάστημα στο Ask Local παρακάτω."}</p>
           <button type="button" className="button button-secondary" onClick={clear}>Εμφάνιση όλων</button>
         </div>
       )}
