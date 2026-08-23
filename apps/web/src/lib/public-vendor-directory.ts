@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages } from "./public-media-service";
+import { hasUsablePublicCoordinates } from "./public-data-integrity";
 import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
 
 export type PublicVendorCoordinates = Readonly<{
@@ -131,7 +132,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
   const postcode = optionalText(row.postcode);
   const latitude = asCoordinate(row.latitude, -90, 90);
   const longitude = asCoordinate(row.longitude, -180, 180);
-  const coordinates = latitude !== undefined && longitude !== undefined ? { latitude, longitude } : undefined;
+  const rawCoordinates = latitude !== undefined && longitude !== undefined ? { latitude, longitude } : undefined;
+  const coordinates = hasUsablePublicCoordinates(rawCoordinates) ? rawCoordinates : undefined;
   const location = addressLine1 && locality && postcode
     ? {
         name: optionalText(row.location_name) ?? row.vendor_name,
