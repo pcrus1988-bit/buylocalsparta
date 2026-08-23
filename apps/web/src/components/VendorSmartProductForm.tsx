@@ -20,6 +20,22 @@ type CanonicalMatch = {
   variantAttributes?: Readonly<Record<string, unknown>>;
   score: number;
 };
+type VariantValue = string | number | boolean | readonly (string | number | boolean)[];
+type VariantOption = { code: string; label: string };
+type VariantAttributeSchema = {
+  code: string;
+  label: string;
+  helpText?: string;
+  dataType: "text" | "number" | "boolean" | "enum" | "dimension";
+  valueMode: "free" | "controlled" | "mixed";
+  unit?: string;
+  requirementLevel: "required" | "recommended" | "optional";
+  allowMultiple: boolean;
+  variantAxisOrder: number;
+  options: readonly VariantOption[];
+};
+type ProductTypeSchema = { code: string; name: string; isDefault: boolean; variantAttributes: readonly VariantAttributeSchema[] };
+type ProductIdentitySchema = { categoryCode: string; categoryName: string; productTypes: readonly ProductTypeSchema[]; selectedProductTypeCode?: string };
 
 type Props = {
   csrfToken: string;
@@ -28,6 +44,7 @@ type Props = {
 
 const cleanGtin = (value: string) => value.replace(/\D/g, "");
 const lookupSignature = (title: string, gtin: string) => `${title.trim().replace(/\s+/g, " ").toLocaleLowerCase("el")}|${cleanGtin(gtin)}`;
+const normalizedChoice = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("el").replace(/[^\p{L}\p{N}]+/gu, "");
 
 function displayValue(value: unknown): string {
   if (value == null) return "";
@@ -44,10 +61,65 @@ function mergedDetails(match: CanonicalMatch | null): Array<[string, string]> {
     .filter(([, value]) => Boolean(value));
 }
 
+function canonicalVariantValue(code: string, source: Readonly<Record<string, unknown>> | undefined): unknown {
+  if (!source) return undefined;
+  if (source[code] != null) return source[code];
+  const aliases: Record<string, readonly string[]> = {
+    manufacturer_colour: ["manufacturer_color", "colour", "color"],
+    apparel_size: ["size"],
+    footwear_size: ["size"],
+    ring_size: ["size"],
+    bicycle_frame_size: ["size"],
+    pack_quantity: ["pack_count", "packcount"]
+  };
+  for (const alias of aliases[code] ?? []) if (source[alias] != null) return source[alias];
+  return undefined;
+}
+
+function valueForSchema(attribute: VariantAttributeSchema, raw: unknown): VariantValue | undefined {
+  if (raw == null || raw === "") return undefined;
+  if (attribute.allowMultiple && Array.isArray(raw)) {
+    return raw.map((item) => valueForSchema({ ...attribute, allowMultiple: false }, item)).filter((item): item is string | number | boolean => item != null && !Array.isArray(item));
+  }
+  if (attribute.dataType === "boolean") {
+    if (typeof raw === "boolean") return raw;
+    const normalized = normalizedChoice(raw);
+    if (["true","yes","1","ναι"].includes(normalized)) return true;
+    if (["false","no","0","οχι","όχι"].includes(normalized)) return false;
+    return undefined;
+  }
+  if (attribute.dataType === "number") {
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+    const matched = String(raw).replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+    return matched ? Number(matched[0]) : undefined;
+  }
+  const value = String(raw).trim();
+  if (!value) return undefined;
+  if (attribute.dataType === "enum" || attribute.valueMode === "controlled") {
+    const normalized = normalizedChoice(value);
+    return attribute.options.find((option) => normalizedChoice(option.code) === normalized || normalizedChoice(option.label) === normalized)?.code;
+  }
+  return value;
+}
+
+function canonicalVariantPrefill(type: ProductTypeSchema | undefined, match: CanonicalMatch | null) {
+  const next: Record<string, VariantValue> = {};
+  if (!type || !match?.variantAttributes) return next;
+  for (const attribute of type.variantAttributes) {
+    const value = valueForSchema(attribute, canonicalVariantValue(attribute.code, match.variantAttributes));
+    if (value != null && (!Array.isArray(value) || value.length)) next[attribute.code] = value;
+  }
+  return next;
+}
+
 export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
+  const [productTypeCode, setProductTypeCode] = useState("");
+  const [variantAttributes, setVariantAttributes] = useState<Record<string, VariantValue>>({});
+  const [identitySchema, setIdentitySchema] = useState<ProductIdentitySchema | null>(null);
+  const [schemaBusy, setSchemaBusy] = useState(false);
   const [sku, setSku] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
@@ -69,6 +141,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   const signature = useMemo(() => lookupSignature(title, gtin), [title, gtin]);
   const enoughIdentity = title.trim().length >= 4 || cleanGtin(gtin).length >= 6;
   const canonicalDetails = useMemo(() => mergedDetails(selectedCanonical), [selectedCanonical]);
+  const activeProductType = useMemo(() => identitySchema?.productTypes.find((type) => type.code === productTypeCode), [identitySchema, productTypeCode]);
 
   useEffect(() => {
     if (selectedCanonical || !enoughIdentity) {
@@ -104,6 +177,43 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
     };
   }, [title, gtin, signature, enoughIdentity, dismissedSignature, selectedCanonical]);
 
+  useEffect(() => {
+    if (!category) {
+      setIdentitySchema(null);
+      setProductTypeCode("");
+      setVariantAttributes({});
+      return;
+    }
+    const controller = new AbortController();
+    const load = async () => {
+      setSchemaBusy(true);
+      try {
+        const params = new URLSearchParams({ categoryCode: category });
+        if (selectedCanonical?.canonicalVariantId) params.set("canonicalVariantId", selectedCanonical.canonicalVariantId);
+        const response = await fetch(`/api/vendor/catalog/product-schema?${params.toString()}`, { signal: controller.signal, cache: "no-store" });
+        const payload = await response.json() as { schema?: ProductIdentitySchema; error?: string };
+        if (!response.ok || !payload.schema) throw new Error(payload.error ?? "Δεν ήταν δυνατή η φόρτωση των χαρακτηριστικών παραλλαγής.");
+        const schema = payload.schema;
+        setIdentitySchema(schema);
+        const nextTypeCode = schema.selectedProductTypeCode ?? (schema.productTypes.length === 1 ? schema.productTypes[0].code : "");
+        setProductTypeCode(nextTypeCode);
+        const nextType = schema.productTypes.find((type) => type.code === nextTypeCode);
+        setVariantAttributes(selectedCanonical ? canonicalVariantPrefill(nextType, selectedCanonical) : {});
+      } catch (cause) {
+        if (!controller.signal.aborted) {
+          setIdentitySchema(null);
+          setProductTypeCode("");
+          setVariantAttributes({});
+          setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η φόρτωση των χαρακτηριστικών παραλλαγής.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setSchemaBusy(false);
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [category, selectedCanonical]);
+
   function clearCanonicalLink() {
     if (selectedCanonical) {
       setSelectedCanonical(null);
@@ -135,6 +245,9 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
   function reset() {
     setTitle("");
     setCategory("");
+    setProductTypeCode("");
+    setVariantAttributes({});
+    setIdentitySchema(null);
     setSku("");
     setBrand("");
     setModel("");
@@ -151,6 +264,16 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
     setDismissedSignature("");
   }
 
+  function updateVariantAttribute(attribute: VariantAttributeSchema, value: VariantValue | undefined) {
+    clearCanonicalLink();
+    setVariantAttributes((current) => {
+      const next = { ...current };
+      if (value == null || value === "" || (Array.isArray(value) && value.length === 0)) delete next[attribute.code];
+      else next[attribute.code] = value;
+      return next;
+    });
+  }
+
   const selectedCategoryMissing = Boolean(selectedCanonical && !categoryOptions.some((item) => item.code === selectedCanonical.categoryCode));
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -164,10 +287,13 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         body: JSON.stringify({
           title,
           categoryCode: category,
+          productTypeCode,
           vendorSku: sku,
           brand,
-          model: model || mpn,
+          model,
+          mpn,
           gtin,
+          variantAttributes,
           variantNote,
           canonicalVariantId: selectedCanonical?.canonicalVariantId,
           customerPriceMinor: Math.round(Number(priceEuro) * 100),
@@ -191,7 +317,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
       <div role="dialog" aria-modal="true" aria-labelledby="canonical-match-title" style={{ width: "min(720px, 100%)", maxHeight: "min(84vh, 800px)", overflow: "auto", background: "var(--surface, #fff)", borderRadius: 22, padding: 24, boxShadow: "0 28px 80px rgba(15, 23, 42, .24)" }}>
         <div className="eyebrow">Έξυπνη αναγνώριση προϊόντος</div>
         <h3 id="canonical-match-title" style={{ margin: "8px 0 6px" }}>Μήπως εννοείς κάποιο από αυτά;</h3>
-        <p style={{ margin: "0 0 18px", opacity: .78 }}>Υπάρχει ήδη προϊόν στον κατάλογο ΚΟΝΤΑ ΜΟΥ. Επίλεξέ το για να συμπληρωθούν αυτόματα όλα τα διαθέσιμα κοινά στοιχεία και να συνδεθεί αμέσως η δική σου προσφορά.</p>
+        <p style={{ margin: "0 0 18px", opacity: .78 }}>Υπάρχει ήδη προϊόν στον κατάλογο ΚΟΝΤΑ ΜΟΥ. Επίλεξέ το για να συμπληρωθούν αυτόματα τα κοινά στοιχεία και τα δομημένα χαρακτηριστικά της συγκεκριμένης παραλλαγής.</p>
         <div style={{ display: "grid", gap: 12 }}>
           {matches.slice(0, 4).map((match) => {
             const details = mergedDetails(match);
@@ -221,7 +347,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
       {selectedCanonical && <div style={{ marginBottom: 16, padding: 14, borderRadius: 14, border: "1px solid rgba(22,163,74,.3)", background: "rgba(22,163,74,.07)" }}>
         <strong>✓ Συνδέθηκε με υπάρχον canonical προϊόν</strong>
         <div style={{ marginTop: 4 }}>{selectedCanonical.title}{selectedCanonical.gtin ? ` · GTIN ${selectedCanonical.gtin}` : ""}</div>
-        <small>Τα κοινά στοιχεία παρακάτω προέρχονται από το canonical προϊόν. Η τιμή, το απόθεμα, το SKU και η δική σου παραλλαγή παραμένουν στοιχεία του καταστήματός σου.</small>
+        <small>Τα κοινά στοιχεία και η ταυτότητα παραλλαγής ελέγχονται από το canonical προϊόν. Τιμή, απόθεμα και SKU παραμένουν στοιχεία του καταστήματός σου.</small>
       </div>}
       <div className="workspace-form-grid">
         <div className="workspace-form-field span-2">
@@ -231,12 +357,23 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         </div>
         <div className="workspace-form-field span-2">
           <label htmlFor="catalog-category">Κατηγορία</label>
-          <select id="catalog-category" name="category" required value={category} onChange={(event) => { clearCanonicalLink(); setCategory(event.target.value); }}>
+          <select id="catalog-category" name="category" required value={category} onChange={(event) => { clearCanonicalLink(); setCategory(event.target.value); setProductTypeCode(""); setVariantAttributes({}); }}>
             <option value="" disabled>Επίλεξε κατηγορία</option>
             {selectedCategoryMissing && selectedCanonical && <option value={selectedCanonical.categoryCode}>{selectedCanonical.categoryPath}</option>}
             {categoryOptions.map((item) => <option key={item.id} value={item.code}>{item.path}</option>)}
           </select>
         </div>
+
+        {schemaBusy && <div className="workspace-form-field span-2"><small>Φόρτωση δομημένων χαρακτηριστικών προϊόντος…</small></div>}
+        {!schemaBusy && identitySchema && identitySchema.productTypes.length > 1 && <div className="workspace-form-field span-2">
+          <label htmlFor="catalog-product-type">Τύπος προϊόντος</label>
+          <select id="catalog-product-type" required value={productTypeCode} onChange={(event) => { clearCanonicalLink(); setProductTypeCode(event.target.value); setVariantAttributes({}); }}>
+            <option value="" disabled>Επίλεξε τύπο προϊόντος</option>
+            {identitySchema.productTypes.map((type) => <option key={type.code} value={type.code}>{type.name}{type.isDefault ? " · προτεινόμενο" : ""}</option>)}
+          </select>
+          <small>Ο τύπος προϊόντος καθορίζει ποια χαρακτηριστικά δημιουργούν διαφορετική παραλλαγή.</small>
+        </div>}
+
         <div className="workspace-form-field"><label htmlFor="catalog-sku">Δικό σου SKU</label><input id="catalog-sku" name="sku" value={sku} onChange={(event) => setSku(event.target.value)} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-brand">Μάρκα</label><input id="catalog-brand" name="brand" value={brand} onChange={(event) => { clearCanonicalLink(); setBrand(event.target.value); }} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-model">Μοντέλο</label><input id="catalog-model" name="model" autoComplete="off" value={model} onChange={(event) => { clearCanonicalLink(); setModel(event.target.value); }} /></div>
@@ -246,10 +383,38 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
           <input id="catalog-gtin" name="gtin" inputMode="numeric" autoComplete="off" placeholder="π.χ. 9781408855652" value={gtin} onChange={(event) => { clearCanonicalLink(); setGtin(event.target.value); setError(""); }} />
           <small>{selectedCanonical && !selectedCanonical.gtin ? "Δεν υπάρχει GTIN αποθηκευμένο στο canonical προϊόν." : "Ο πλήρης GTIN έχει προτεραιότητα στην αντιστοίχιση."}</small>
         </div>
+
+        {activeProductType?.variantAttributes.length ? <div className="workspace-form-field span-2" style={{ border: "1px solid rgba(59,130,246,.22)", borderRadius: 16, padding: 16 }}>
+          <label style={{ fontSize: "1rem" }}>Χαρακτηριστικά που ορίζουν την παραλλαγή</label>
+          <small style={{ display: "block", marginBottom: 12 }}>Συμπλήρωσέ τα ξεχωριστά. Το ΚΟΝΤΑ ΜΟΥ τα χρησιμοποιεί για να μην συγχέει διαφορετικά μεγέθη, χρώματα, χωρητικότητες ή συσκευασίες.</small>
+          <div className="workspace-form-grid">
+            {activeProductType.variantAttributes.map((attribute) => {
+              const value = variantAttributes[attribute.code];
+              const required = attribute.requirementLevel === "required";
+              const id = `catalog-variant-${attribute.code}`;
+              const suffix = attribute.unit ? ` (${attribute.unit})` : "";
+              return <div className="workspace-form-field" key={attribute.code}>
+                <label htmlFor={id}>{attribute.label}{suffix}{required ? " *" : ""}</label>
+                {(attribute.dataType === "enum" || attribute.valueMode === "controlled") && attribute.options.length > 0 ? (
+                  attribute.allowMultiple ? <select id={id} multiple required={required} value={Array.isArray(value) ? value.map(String) : []} onChange={(event) => updateVariantAttribute(attribute, [...event.target.selectedOptions].map((option) => option.value))}>
+                    {attribute.options.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
+                  </select> : <select id={id} required={required} value={value == null || Array.isArray(value) ? "" : String(value)} onChange={(event) => updateVariantAttribute(attribute, event.target.value || undefined)}>
+                    <option value="">Επίλεξε…</option>
+                    {attribute.options.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
+                  </select>
+                ) : attribute.dataType === "boolean" ? <select id={id} required={required} value={typeof value === "boolean" ? String(value) : ""} onChange={(event) => updateVariantAttribute(attribute, event.target.value === "" ? undefined : event.target.value === "true")}>
+                  <option value="">Επίλεξε…</option><option value="true">Ναι</option><option value="false">Όχι</option>
+                </select> : <input id={id} required={required} type={attribute.dataType === "number" ? "number" : "text"} step={attribute.dataType === "number" ? "any" : undefined} value={value == null || Array.isArray(value) ? "" : String(value)} onChange={(event) => updateVariantAttribute(attribute, event.target.value === "" ? undefined : attribute.dataType === "number" ? Number(event.target.value) : event.target.value)} />}
+                <small>{attribute.helpText ?? `${required ? "Υποχρεωτικό" : attribute.requirementLevel === "recommended" ? "Προτεινόμενο" : "Προαιρετικό"} στοιχείο ταυτότητας παραλλαγής.`}</small>
+              </div>;
+            })}
+          </div>
+        </div> : null}
+
         <div className="workspace-form-field span-2">
           <label htmlFor="catalog-description">Περιγραφή canonical προϊόντος</label>
           <textarea id="catalog-description" name="description" value={description} readOnly rows={4} placeholder={selectedCanonical ? "Δεν υπάρχει αποθηκευμένη περιγραφή." : "Η περιγραφή θα συμπληρωθεί όταν επιλεγεί υπάρχον canonical προϊόν."} />
-          <small>Η κοινή περιγραφή δεν αλλάζει από την προσφορά του vendor. Πρόσθεσε δικές σου πληροφορίες στο πεδίο παραλλαγής/σημείωσης παρακάτω.</small>
+          <small>Η κοινή περιγραφή δεν αλλάζει από την προσφορά του vendor.</small>
         </div>
         {selectedCanonical?.warrantyBasis && <div className="workspace-form-field span-2"><label>Εγγύηση / βάση εγγύησης</label><input value={selectedCanonical.warrantyBasis} readOnly /></div>}
         {canonicalDetails.length > 0 && <div className="workspace-form-field span-2">
@@ -259,15 +424,15 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
           </div>
         </div>}
         <div className="workspace-form-field span-2">
-          <label htmlFor="catalog-variant-note">Παραλλαγή / ποικιλία / δική σου σημείωση <span style={{ fontWeight: 400 }}>(προαιρετικό)</span></label>
-          <input id="catalog-variant-note" name="variantNote" value={variantNote} onChange={(event) => setVariantNote(event.target.value)} placeholder="π.χ. 2,5 m, κόκκινο, συσκευασία 10 τεμ." />
-          <small>Αυτό δεν αλλάζει το κοινό canonical προϊόν· περιγράφει τη συγκεκριμένη προσφορά ή παραλλαγή του καταστήματός σου.</small>
+          <label htmlFor="catalog-variant-note">Πρόσθετη σημείωση προσφοράς <span style={{ fontWeight: 400 }}>(προαιρετικό)</span></label>
+          <input id="catalog-variant-note" name="variantNote" value={variantNote} onChange={(event) => setVariantNote(event.target.value)} placeholder="π.χ. ειδική συσκευασία καταστήματος ή χρήσιμη πληροφορία παραλαβής" />
+          <small>Η σημείωση δεν χρησιμοποιείται για canonical matching. Μέγεθος, χρώμα, χωρητικότητα και άλλα στοιχεία ταυτότητας μπαίνουν στα δομημένα πεδία παραπάνω.</small>
         </div>
         <div className="workspace-form-field"><label htmlFor="catalog-price">Τελική τιμή €</label><input id="catalog-price" name="priceEuro" required type="number" min="0" step="0.01" placeholder="44.90" value={priceEuro} onChange={(event) => setPriceEuro(event.target.value)} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-stock">Φυσικό απόθεμα</label><input id="catalog-stock" name="stock" required type="number" min="0" step="1" value={stock} onChange={(event) => setStock(event.target.value)} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-safety">Απόθεμα ασφαλείας</label><input id="catalog-safety" name="safety" type="number" min="0" step="1" value={safety} onChange={(event) => setSafety(event.target.value)} /></div>
       </div>
-      <div className="workspace-form-actions"><button className="button" disabled={saving}>{saving ? "Αποθήκευση…" : selectedCanonical ? "Αποθήκευση συνδεδεμένης προσφοράς" : "Αποθήκευση προϊόντος"}</button></div>
+      <div className="workspace-form-actions"><button className="button" disabled={saving || schemaBusy}>{saving ? "Αποθήκευση…" : selectedCanonical ? "Αποθήκευση συνδεδεμένης προσφοράς" : "Αποθήκευση προϊόντος"}</button></div>
     </form>
   </>;
 }
