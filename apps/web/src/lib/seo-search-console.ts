@@ -3,15 +3,17 @@ import "server-only";
 import { createSign } from "node:crypto";
 
 const READONLY_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
+const WRITE_SCOPE = "https://www.googleapis.com/auth/webmasters";
 const TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const SEARCH_ANALYTICS_BASE = "https://www.googleapis.com/webmasters/v3";
 const URL_INSPECTION_ENDPOINT = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_BREAKDOWN_ROWS = 250;
 
+type OAuthScope = typeof READONLY_SCOPE | typeof WRITE_SCOPE;
 type TokenCache = Readonly<{ accessToken: string; expiresAt: number }>;
-const tokenCacheKey = "__buyLocalSpartaSearchConsoleToken" as const;
-type Globals = typeof globalThis & { [tokenCacheKey]?: TokenCache };
+const tokenCacheKey = "__buyLocalSpartaSearchConsoleTokens" as const;
+type Globals = typeof globalThis & { [tokenCacheKey]?: Partial<Record<OAuthScope, TokenCache>> };
 const globals = globalThis as Globals;
 
 export type SearchConsoleReadiness = Readonly<{
@@ -68,6 +70,19 @@ export type SearchConsoleUrlInspection = Readonly<{
   referringUrls: readonly string[];
 }>;
 
+export type SearchConsoleSitemapStatus = Readonly<{
+  sitemapUrl: string;
+  submitted: boolean;
+  path?: string;
+  lastSubmitted?: string;
+  lastDownloaded?: string;
+  isPending: boolean;
+  isSitemapsIndex: boolean;
+  type?: string;
+  warnings: number;
+  errors: number;
+}>;
+
 type SearchAnalyticsResponse = Readonly<{
   rows?: readonly Readonly<{
     keys?: readonly string[];
@@ -94,6 +109,17 @@ type UrlInspectionResponse = Readonly<{
       referringUrls?: readonly string[];
     }>;
   }>;
+}>;
+
+type SitemapResource = Readonly<{
+  path?: string;
+  lastSubmitted?: string;
+  lastDownloaded?: string;
+  isPending?: boolean;
+  isSitemapsIndex?: boolean;
+  type?: string;
+  warnings?: number | string;
+  errors?: number | string;
 }>;
 
 function envText(name: string): string | undefined {
@@ -141,7 +167,7 @@ function base64Url(value: string | Buffer): string {
   return Buffer.from(value).toString("base64url");
 }
 
-function serviceAccountAssertion(now: number): string {
+function serviceAccountAssertion(now: number, scope: OAuthScope): string {
   const clientEmail = envText("GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL");
   const key = privateKey();
   if (!clientEmail || !key) throw new Error("Search Console service-account credentials are not configured.");
@@ -149,7 +175,7 @@ function serviceAccountAssertion(now: number): string {
   const issuedAt = Math.floor(now / 1000);
   const claims = base64Url(JSON.stringify({
     iss: clientEmail,
-    scope: READONLY_SCOPE,
+    scope,
     aud: TOKEN_AUDIENCE,
     iat: issuedAt,
     exp: issuedAt + 3600
@@ -161,9 +187,10 @@ function serviceAccountAssertion(now: number): string {
   return `${unsigned}.${base64Url(signer.sign(key))}`;
 }
 
-async function accessToken(): Promise<string> {
+async function accessToken(scope: OAuthScope): Promise<string> {
   const now = Date.now();
-  const cached = globals[tokenCacheKey];
+  const cache = globals[tokenCacheKey] ?? {};
+  const cached = cache[scope];
   if (cached && cached.expiresAt - 60_000 > now) return cached.accessToken;
 
   const controller = new AbortController();
@@ -174,7 +201,7 @@ async function accessToken(): Promise<string> {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: serviceAccountAssertion(now)
+        assertion: serviceAccountAssertion(now, scope)
       }),
       cache: "no-store",
       signal: controller.signal
@@ -183,30 +210,46 @@ async function accessToken(): Promise<string> {
     const payload = await response.json() as { access_token?: string; expires_in?: number };
     if (!payload.access_token) throw new Error("Google OAuth token response did not contain an access token.");
     const expiresIn = Number.isFinite(payload.expires_in) ? Math.max(60, Number(payload.expires_in)) : 3600;
-    globals[tokenCacheKey] = { accessToken: payload.access_token, expiresAt: now + expiresIn * 1000 };
+    globals[tokenCacheKey] = { ...cache, [scope]: { accessToken: payload.access_token, expiresAt: now + expiresIn * 1000 } };
     return payload.access_token;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function googlePost<T>(url: string, body: unknown): Promise<T> {
-  const token = await accessToken();
+type GoogleRequestOptions = Readonly<{
+  method: "GET" | "POST" | "PUT";
+  scope?: OAuthScope;
+  body?: unknown;
+  allowNotFound?: boolean;
+}>;
+
+async function googleRequest<T>(url: string, options: GoogleRequestOptions): Promise<T | undefined> {
+  const token = await accessToken(options.scope ?? READONLY_SCOPE);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-      signal: controller.signal
-    });
+    const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+    const init: RequestInit = { method: options.method, headers, cache: "no-store", signal: controller.signal };
+    if (options.body !== undefined) {
+      headers["content-type"] = "application/json";
+      init.body = JSON.stringify(options.body);
+    }
+    const response = await fetch(url, init);
+    if (options.allowNotFound && response.status === 404) return undefined;
     if (!response.ok) throw new Error(`Search Console API request failed (${response.status}).`);
-    return await response.json() as T;
+    if (response.status === 204) return undefined;
+    const text = await response.text();
+    return text ? JSON.parse(text) as T : undefined;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function googlePost<T>(url: string, body: unknown): Promise<T> {
+  const response = await googleRequest<T>(url, { method: "POST", body, scope: READONLY_SCOPE });
+  if (response === undefined) throw new Error("Search Console API returned an empty response.");
+  return response;
 }
 
 function pacificDate(daysAgo: number): string {
@@ -287,26 +330,36 @@ export async function getSearchConsoleBreakdown(rowLimit = 25): Promise<SearchCo
   }
 }
 
-function inspectionBelongsToProperty(url: URL, siteUrl: string): boolean {
+function urlBelongsToProperty(url: URL, siteUrl: string): boolean {
   if (siteUrl.startsWith("sc-domain:")) {
     const domain = siteUrl.slice("sc-domain:".length).toLowerCase();
     const hostname = url.hostname.toLowerCase();
     return hostname === domain || hostname.endsWith(`.${domain}`);
   }
-  return url.toString().startsWith(siteUrl);
+  try {
+    const property = new URL(siteUrl);
+    return url.origin === property.origin && url.pathname.startsWith(property.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function validatedPropertyUrl(value: string, siteUrl: string, label: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} URL is invalid.`);
+  }
+  if (url.protocol !== "https:" || url.username || url.password) throw new Error(`${label} URL must be a public HTTPS URL.`);
+  if (!urlBelongsToProperty(url, siteUrl)) throw new Error(`${label} URL does not belong to the configured Search Console property.`);
+  return url;
 }
 
 export async function inspectSearchConsoleUrl(inspectionUrl: string): Promise<SearchConsoleUrlInspection> {
   const readiness = searchConsoleReadiness();
   if (!readiness.ready || !readiness.siteUrl) throw new Error("Search Console integration is not ready.");
-  let url: URL;
-  try {
-    url = new URL(inspectionUrl);
-  } catch {
-    throw new Error("Inspection URL is invalid.");
-  }
-  if (url.protocol !== "https:" || url.username || url.password) throw new Error("Inspection URL must be a public HTTPS URL.");
-  if (!inspectionBelongsToProperty(url, readiness.siteUrl)) throw new Error("Inspection URL does not belong to the configured Search Console property.");
+  const url = validatedPropertyUrl(inspectionUrl, readiness.siteUrl, "Inspection");
   const response = await googlePost<UrlInspectionResponse>(URL_INSPECTION_ENDPOINT, {
     inspectionUrl: url.toString(),
     siteUrl: readiness.siteUrl,
@@ -327,4 +380,46 @@ export async function inspectSearchConsoleUrl(inspectionUrl: string): Promise<Se
     sitemaps: [...(status?.sitemap ?? [])],
     referringUrls: [...(status?.referringUrls ?? [])]
   };
+}
+
+function sitemapStatus(sitemapUrl: string, resource?: SitemapResource): SearchConsoleSitemapStatus {
+  return {
+    sitemapUrl,
+    submitted: Boolean(resource),
+    path: resource?.path,
+    lastSubmitted: resource?.lastSubmitted,
+    lastDownloaded: resource?.lastDownloaded,
+    isPending: Boolean(resource?.isPending),
+    isSitemapsIndex: Boolean(resource?.isSitemapsIndex),
+    type: resource?.type,
+    warnings: Math.max(0, Number(resource?.warnings ?? 0) || 0),
+    errors: Math.max(0, Number(resource?.errors ?? 0) || 0)
+  };
+}
+
+function sitemapApiUrl(siteUrl: string, sitemapUrl: string): string {
+  return `${SEARCH_ANALYTICS_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(sitemapUrl)}`;
+}
+
+export async function getSearchConsoleSitemapStatus(sitemapUrl: string): Promise<SearchConsoleSitemapStatus> {
+  const readiness = searchConsoleReadiness();
+  if (!readiness.ready || !readiness.siteUrl) throw new Error("Search Console integration is not ready.");
+  const url = validatedPropertyUrl(sitemapUrl, readiness.siteUrl, "Sitemap");
+  const resource = await googleRequest<SitemapResource>(sitemapApiUrl(readiness.siteUrl, url.toString()), {
+    method: "GET",
+    scope: READONLY_SCOPE,
+    allowNotFound: true
+  });
+  return sitemapStatus(url.toString(), resource);
+}
+
+export async function submitSearchConsoleSitemap(sitemapUrl: string): Promise<Readonly<{ sitemapUrl: string; submittedAt: string }>> {
+  const readiness = searchConsoleReadiness();
+  if (!readiness.ready || !readiness.siteUrl) throw new Error("Search Console integration is not ready.");
+  const url = validatedPropertyUrl(sitemapUrl, readiness.siteUrl, "Sitemap");
+  await googleRequest<void>(sitemapApiUrl(readiness.siteUrl, url.toString()), {
+    method: "PUT",
+    scope: WRITE_SCOPE
+  });
+  return { sitemapUrl: url.toString(), submittedAt: new Date().toISOString() };
 }
