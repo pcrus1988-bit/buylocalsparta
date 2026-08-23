@@ -6,6 +6,7 @@ import {
   planCanonicalization,
   validateCrawlUrl,
   validateExtractedProductCandidate,
+  validateRedirectTarget,
   type CrawlFetchPolicy,
   type ExtractedProductCandidate,
   type ProductIdentity
@@ -36,6 +37,12 @@ test("crawl URL guard rejects unapproved hosts, credentials, ports and plain HTT
   assert.equal(validateCrawlUrl("https://user:pass@example.com/product", policy).decision, "reject");
   assert.equal(validateCrawlUrl("https://example.com:8443/product", policy).decision, "reject");
   assert.equal(validateCrawlUrl("http://example.com/product", policy).decision, "reject");
+});
+
+test("redirect targets are revalidated against host and DNS security policy", () => {
+  assert.equal(validateRedirectTarget("https://shop.example.com/next", policy, ["93.184.216.34"]).decision, "allow");
+  assert.equal(validateRedirectTarget("https://evil.example.net/next", policy, ["93.184.216.34"]).decision, "reject");
+  assert.equal(validateRedirectTarget("https://shop.example.com/next", policy, ["169.254.169.254"]).decision, "reject");
 });
 
 test("GTIN normalization verifies standard GS1 check digits", () => {
