@@ -15,6 +15,8 @@ export type PublicProductDetail = Readonly<{
   model?: string;
   supplierCode?: string;
   sourceGtin?: string;
+  sourceImageUrl?: string;
+  manualUrl?: string;
   technicalAttributes: readonly PublicTechnicalAttribute[];
   variantFamilyId?: string;
   variantGroupSize: number;
@@ -28,6 +30,8 @@ type ProductDetailRow = SqlRow & {
   source_supplier_code: string | null;
   source_normalized_payload: unknown;
   source_raw_payload: unknown;
+  source_image_url: string | null;
+  source_website: string | null;
 };
 
 const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
@@ -95,6 +99,7 @@ const HIDDEN_ATTRIBUTE_KEYS = new Set([
   "source_url",
   "source_image_url",
   "image_url",
+  "manual_url",
   "price",
   "price_minor",
   "recommended_price_minor",
@@ -192,6 +197,22 @@ function mergeObject(target: Map<string, unknown>, source: Record<string, unknow
   }
 }
 
+function sameSourceHttpsUrl(sourceWebsite: unknown, candidate: unknown): string | undefined {
+  const website = optionalText(sourceWebsite);
+  const value = optionalText(candidate);
+  if (!website || !value) return undefined;
+  try {
+    const source = new URL(website);
+    const asset = new URL(value, source);
+    if (asset.protocol !== "https:") return undefined;
+    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
+    if (normalizeHost(source.hostname) !== normalizeHost(asset.hostname)) return undefined;
+    return asset.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 function technicalAttributes(
   specifications: Record<string, unknown>,
   canonicalAttributes: Record<string, unknown>,
@@ -241,6 +262,14 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
     ?? optionalText(sourceRaw.description_el)
     ?? optionalText(sourceRaw.description);
   const variantGroupSize = Math.max(1, Math.trunc(numeric(sourceNormalized.variantGroupSize) ?? numeric(sourceRaw.variant_group_size) ?? 1));
+  const sourceImageUrl = sameSourceHttpsUrl(
+    row.source_website,
+    row.source_image_url ?? sourceNormalized.imageUrl ?? sourceRaw.image_url
+  );
+  const manualUrl = sameSourceHttpsUrl(
+    row.source_website,
+    sourceNormalized.manualUrl ?? sourceNormalized.manual_url ?? sourceRaw.manual_url
+  );
 
   return {
     canonicalVariantId: text(row.canonical_public_id),
@@ -249,6 +278,8 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
     model: optionalText(row.model) ?? optionalText(sourceRaw.model),
     supplierCode: optionalText(row.source_supplier_code) ?? optionalText(sourceRaw.supplier_code),
     sourceGtin: optionalText(sourceRaw.gtin13) ?? optionalText(sourceRaw.gtin) ?? optionalText(sourceNormalized.gtin13),
+    sourceImageUrl,
+    manualUrl,
     technicalAttributes: technicalAttributes(specifications, canonicalAttributes, sourceNormalized, sourceRaw),
     variantFamilyId: optionalText(sourceNormalized.variantFamilyId) ?? optionalText(sourceRaw.variant_family_id),
     variantGroupSize
@@ -257,8 +288,10 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
 
 /**
  * Rich public product facts are projected from the canonical product plus its best
- * approved source-product link. The resolver is intentionally source-agnostic: no
- * supplier hostnames, SKUs, vendor IDs or catalogue-specific branches belong here.
+ * approved source-product identity link. Once an identity link is approved, the
+ * storefront follows newer immutable snapshots with the same source/product key so
+ * crawl enrichment can improve descriptions, images, manuals and specifications
+ * without mutating the historical linked evidence row.
  */
 export const getPublicProductDetail = cache(async (canonicalVariantId: string): Promise<PublicProductDetail | undefined> => {
   const canonicalId = canonicalVariantId.trim();
@@ -268,17 +301,30 @@ export const getPublicProductDetail = cache(async (canonicalVariantId: string): 
     const result = await getProductionPostgresRuntime().sqlPool.query<ProductDetailRow>(`
       SELECT cv.public_id AS canonical_public_id,cv.model,cv.variant_attributes,
              COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
-             src.source_supplier_code,src.source_normalized_payload,src.source_raw_payload
+             src.source_supplier_code,src.source_normalized_payload,src.source_raw_payload,
+             src.source_image_url,src.source_website
       FROM canonical_variants cv
       JOIN markets m ON m.id=cv.market_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       LEFT JOIN LATERAL (
-        SELECT csp.supplier_code AS source_supplier_code,
-               csp.normalized_payload AS source_normalized_payload,
-               csp.raw_payload AS source_raw_payload
+        SELECT latest.supplier_code AS source_supplier_code,
+               latest.normalized_payload AS source_normalized_payload,
+               latest.raw_payload AS source_raw_payload,
+               latest.source_image_url,
+               source.website AS source_website
         FROM catalog_source_product_links csl
-        JOIN catalog_source_products csp ON csp.id=csl.source_product_id
+        JOIN catalog_source_products linked ON linked.id=csl.source_product_id
+        JOIN catalog_sources source ON source.id=linked.source_id AND source.active=true
+        JOIN LATERAL (
+          SELECT candidate.*
+          FROM catalog_source_products candidate
+          JOIN catalog_source_snapshots snapshot ON snapshot.id=candidate.snapshot_id
+          WHERE candidate.source_id=linked.source_id
+            AND candidate.source_product_key=linked.source_product_key
+          ORDER BY snapshot.observed_at DESC NULLS LAST,candidate.created_at DESC,candidate.id DESC
+          LIMIT 1
+        ) latest ON true
         WHERE csl.canonical_variant_id=cv.id
           AND csl.link_status='approved'
         ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
