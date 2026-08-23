@@ -1,5 +1,6 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../../lib/vendor-backoffice-service";
+import { createVendorProductFromCanonical } from "../../../../../lib/vendor-canonical-match-service";
 
 export async function POST(request: Request) {
   try {
@@ -7,9 +8,9 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const text = (key: string) => typeof body[key] === "string" ? String(body[key]).trim() : "";
     const rawCustomerPrice = body.customerPriceMinor ?? body.supplierUnitPriceMinor;
-    await createVendorProductDraft(principal, {
+    const canonicalVariantId = text("canonicalVariantId");
+    const common = {
       title: text("title"),
-      categoryCode: text("categoryCode"),
       vendorSku: text("vendorSku") || undefined,
       brand: text("brand") || undefined,
       model: text("model") || undefined,
@@ -20,7 +21,20 @@ export async function POST(request: Request) {
       stockOnHand: Number(body.stockOnHand),
       safetyStock: Number(body.safetyStock ?? 0),
       adviceAvailable: body.adviceAvailable !== false
-    });
+    };
+
+    if (canonicalVariantId) {
+      await createVendorProductFromCanonical(principal, {
+        ...common,
+        canonicalVariantId,
+        variantNote: text("variantNote") || undefined
+      });
+    } else {
+      await createVendorProductDraft(principal, {
+        ...common,
+        categoryCode: text("categoryCode")
+      });
+    }
     return Response.json(await vendorCatalogWorkspace(principal));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_create_failed" }, { status: 400 });
