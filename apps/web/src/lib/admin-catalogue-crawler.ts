@@ -47,7 +47,7 @@ export async function queueAdminUniversalCrawlerJob(principal: SessionPrincipal,
     const seedUrl = mode === "full" ? undefined : root.toString();
     const result = await tx.query<SqlRow>(
       `SELECT bls_private.queue_catalog_web_crawl_job($1,$2,$3,$4,$5,$6) AS id`,
-      [profile.id, mode, seedUrl ?? null, principal.userId, `admin:auto:${principal.userId}:${randomUUID()}`, "web-crawler-v1"]
+      [profile.id, mode, seedUrl ?? null, databaseUuid(principal.userId), `admin:auto:${principal.userId}:${randomUUID()}`, "web-crawler-v1"]
     );
     return required(result.rows[0]?.id, "crawl job id");
   });
@@ -90,7 +90,7 @@ export async function queueAdminCrawlerJob(principal: SessionPrincipal, input: {
     const seedUrl = input.seedUrl?.trim() || undefined;
     if (mode === "single" && !seedUrl) throw new Error("Single-page crawl requires a seed URL");
     if (seedUrl) validateSeed(seedUrl, profile);
-    const result = await tx.query<SqlRow>(`SELECT bls_private.queue_catalog_web_crawl_job($1,$2,$3,$4,$5,$6) AS id`, [input.profileId, mode, seedUrl ?? null, principal.userId, `admin:${principal.userId}:${randomUUID()}`, "web-crawler-v1"]);
+    const result = await tx.query<SqlRow>(`SELECT bls_private.queue_catalog_web_crawl_job($1,$2,$3,$4,$5,$6) AS id`, [input.profileId, mode, seedUrl ?? null, databaseUuid(principal.userId), `admin:${principal.userId}:${randomUUID()}`, "web-crawler-v1"]);
     return required(result.rows[0]?.id, "crawl job id");
   });
 }
@@ -201,7 +201,9 @@ function validateSeed(seed: string, profile: SqlRow): void {
 function normalizeRootUrl(value: string): URL {
   const raw = value.trim();
   if (!raw) throw new Error("Website URL is required");
-  const url = new URL(raw);
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
+  const url = new URL(candidate);
+  if (url.protocol === "http:") url.protocol = "https:";
   if (url.protocol !== "https:") throw new Error("Catalogue crawler requires an HTTPS website");
   if (url.username || url.password) throw new Error("Website URL cannot contain credentials");
   if (url.port && url.port !== "443") throw new Error("Website URL must use the standard HTTPS port");
@@ -218,6 +220,10 @@ function normalizedCatalogHost(host: string): string { return host.trim().toLowe
 function sourceCodeForHost(host: string): string {
   const code = normalizedCatalogHost(host).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
   return code || `web-${randomUUID().slice(0, 8)}`;
+}
+function databaseUuid(value: string): string | null {
+  const normalized = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized) ? normalized : null;
 }
 function requireRuntime(): void { if (!postgresAdminRuntimeEnabled()) throw new Error("PostgreSQL admin runtime is not enabled"); }
 function emptyHealth(): AdminCrawlerHealth { return { queuedReady:0,queuedDelayed:0,running:0,cancellationRequested:0,expiredLeases:0,failedLast24h:0,completedLast24h:0 }; }
