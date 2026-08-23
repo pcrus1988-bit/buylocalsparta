@@ -9,14 +9,23 @@ import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Catalogue Crawler", robots: { index: false, follow: false, nocache: true } };
 
+type CrawlerSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
 async function universalQueueAction(formData: FormData) {
   "use server";
   const principal = await getAdminSession(); if (!principal) redirect("/admin/login");
-  await queueAdminUniversalCrawlerJob(principal, {
-    rootUrl: String(formData.get("rootUrl") ?? ""),
-    mode: String(formData.get("mode") ?? "full")
-  });
+  const rawUrl = String(formData.get("rootUrl") ?? "").trim();
+  const mode = String(formData.get("mode") ?? "full");
+  try {
+    await queueAdminUniversalCrawlerJob(principal, {
+      rootUrl: normalizeWebsiteInput(rawUrl),
+      mode
+    });
+  } catch (error) {
+    redirect(`/admin/catalogue-crawler?crawlError=${encodeURIComponent(errorMessage(error))}&crawlUrl=${encodeURIComponent(rawUrl)}&crawlMode=${encodeURIComponent(mode)}`);
+  }
   revalidatePath("/admin/catalogue-crawler");
+  redirect("/admin/catalogue-crawler?crawlQueued=1");
 }
 async function createProfileAction(formData: FormData) {
   "use server";
@@ -46,8 +55,14 @@ async function promoteAction(formData: FormData) {
   revalidatePath("/admin/catalogue-crawler"); revalidatePath("/admin/catalogue-intake");
 }
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: CrawlerSearchParams }) {
   const principal = await getAdminSession(); if (!principal) redirect("/admin/login");
+  const params = await searchParams;
+  const crawlError = one(params.crawlError);
+  const crawlUrl = one(params.crawlUrl) ?? "";
+  const requestedMode = one(params.crawlMode);
+  const crawlMode = requestedMode === "single" || requestedMode === "discovery" ? requestedMode : "full";
+  const crawlQueued = one(params.crawlQueued) === "1";
   const data = await adminCrawlerDashboard(principal);
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="Catalogue Crawler" />
@@ -65,15 +80,24 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Start here" title="Crawl an online shop" note="Paste the shop homepage for a full catalogue crawl. For one specific product, paste its product page and choose Single page." />
+      <WorkspaceSectionHeading eyebrow="Start here" title="Crawl an online shop" note="Paste a shop address with or without https://. For one specific product, paste its product page and choose Single page." />
+      {crawlError&&<div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}>
+        <strong>Could not start this crawl</strong>
+        <p>{crawlError}</p>
+        <small>Your entry was kept below so you can correct it and try again.</small>
+      </div>}
+      {crawlQueued&&<div className="workspace-queue-card" role="status" style={{marginBottom:"1rem"}}>
+        <strong>Crawl queued successfully</strong>
+        <p>The crawler worker will pick it up automatically. Progress appears in Recent catalogue crawls below.</p>
+      </div>}
       <form action={universalQueueAction} className="admin-directory-filters">
         <label style={{gridColumn:"1 / -1"}}>
           <span>Website URL</span>
-          <input name="rootUrl" type="url" inputMode="url" placeholder="https://www.example-shop.gr/" required />
+          <input name="rootUrl" type="text" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="polo.gr or https://www.polo.gr/" defaultValue={crawlUrl} required />
         </label>
         <label>
           <span>What do you want to crawl?</span>
-          <select name="mode" defaultValue="full">
+          <select name="mode" defaultValue={crawlMode}>
             <option value="full">Entire catalogue · recommended</option>
             <option value="single">Only this exact product/page</option>
             <option value="discovery">Discovery scan only</option>
@@ -155,6 +179,16 @@ export default async function Page() {
   </main>;
 }
 
+function normalizeWebsiteInput(value: string): string {
+  const raw = value.trim();
+  if (!raw) return raw;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return `https://${raw.replace(/^\/+/, "")}`;
+  const url = new URL(raw);
+  if (url.protocol === "http:") url.protocol = "https:";
+  return url.toString();
+}
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Could not start catalogue crawl"); }
+function one(value: string | string[] | undefined): string | undefined { return Array.isArray(value) ? value[0] : value; }
 function numberValue(value: FormDataEntryValue | null): number | undefined { if(value==null||String(value).trim()==="") return undefined; const n=Number(value); return Number.isFinite(n)?n:undefined; }
 function when(value:number):string { return new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"}).format(new Date(value)); }
 function humanMode(value:string):string { return value==="full"?"full catalogue":value==="single"?"single page":value==="discovery"?"discovery scan":value; }
