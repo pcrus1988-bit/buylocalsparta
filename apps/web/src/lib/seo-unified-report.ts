@@ -9,6 +9,12 @@ import { getSeoSchemaDiagnosticsWorkspace } from "./seo-schema-diagnostics";
 import { getSeoSitemapHistoryWorkspace } from "./seo-sitemap-history";
 import { getSeoUrlRegistryWorkspace } from "./seo-url-registry";
 
+export const SEO_EVIDENCE_MAX_AGE_HOURS = Object.freeze({
+  crawl: 24,
+  sitemap: 24,
+  searchConsole: 72
+});
+
 export type SeoOperationalCheckState = "pass" | "warning" | "fail" | "unknown";
 
 export type SeoOperationalCheck = Readonly<{
@@ -17,6 +23,13 @@ export type SeoOperationalCheck = Readonly<{
   state: SeoOperationalCheckState;
   detail: string;
   href: string;
+}>;
+
+export type SeoEvidenceFreshness = Readonly<{
+  capturedAt?: string;
+  maxAgeHours: number;
+  ageHours?: number;
+  stale: boolean;
 }>;
 
 export type SeoUnifiedReportWorkspace = Readonly<{
@@ -42,6 +55,11 @@ export type SeoUnifiedReportWorkspace = Readonly<{
     schemaUnexpected: number;
     schemaNotChecked: number;
   }>;
+  freshness: Readonly<{
+    crawl: SeoEvidenceFreshness;
+    sitemap: SeoEvidenceFreshness;
+    searchConsole: SeoEvidenceFreshness;
+  }>;
   latestGscCapturedAt?: string;
   latestSitemapCapturedAt?: string;
   latestCrawlCompletedAt?: string;
@@ -59,6 +77,20 @@ function overallStatus(checks: readonly SeoOperationalCheck[]): SeoUnifiedReport
   return "healthy";
 }
 
+function evidenceFreshness(capturedAt: string | undefined, maxAgeHours: number, nowMs: number): SeoEvidenceFreshness {
+  if (!capturedAt) return { maxAgeHours, stale: true };
+  const capturedMs = Date.parse(capturedAt);
+  if (!Number.isFinite(capturedMs)) return { capturedAt, maxAgeHours, stale: true };
+  const ageHours = Math.max(0, (nowMs - capturedMs) / 3_600_000);
+  return { capturedAt, maxAgeHours, ageHours, stale: ageHours > maxAgeHours };
+}
+
+function freshnessLabel(value: SeoEvidenceFreshness): string {
+  if (!value.capturedAt || value.ageHours === undefined) return "no retained evidence";
+  const rounded = value.ageHours < 1 ? "<1h" : `${Math.round(value.ageHours)}h`;
+  return value.stale ? `stale (${rounded}; target ≤${value.maxAgeHours}h)` : `fresh (${rounded}; target ≤${value.maxAgeHours}h)`;
+}
+
 export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal): Promise<SeoUnifiedReportWorkspace> {
   const [overview, registry, crawl, sitemap, gsc, schema] = await Promise.all([
     adminSeoWorkspace(principal),
@@ -68,6 +100,17 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
     getSearchConsoleHistoryWorkspace(principal),
     getSeoSchemaDiagnosticsWorkspace(principal)
   ]);
+
+  const generatedAt = new Date().toISOString();
+  const nowMs = Date.parse(generatedAt);
+  const latestCrawlCompletedAt = crawl.runs[0]?.completedAt;
+  const latestSitemapCapturedAt = sitemap.latest?.capturedAt;
+  const latestGscCapturedAt = gsc.latest?.capturedAt;
+  const freshness = {
+    crawl: evidenceFreshness(latestCrawlCompletedAt, SEO_EVIDENCE_MAX_AGE_HOURS.crawl, nowMs),
+    sitemap: evidenceFreshness(latestSitemapCapturedAt, SEO_EVIDENCE_MAX_AGE_HOURS.sitemap, nowMs),
+    searchConsole: evidenceFreshness(latestGscCapturedAt, SEO_EVIDENCE_MAX_AGE_HOURS.searchConsole, nowMs)
+  } as const;
 
   const overviewCritical = overview.diagnostics.filter((item) => item.severity === "critical").length;
   const overviewWarnings = overview.diagnostics.filter((item) => item.severity === "warning").length;
@@ -88,37 +131,39 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
     check(
       "crawl-issues",
       "Production crawl findings",
-      !crawl.persistenceAvailable ? "unknown" : crawl.metrics.criticalOpen > 0 ? "fail" : crawl.metrics.open > 0 ? "warning" : "pass",
+      !crawl.persistenceAvailable || !latestCrawlCompletedAt ? "unknown" : crawl.metrics.criticalOpen > 0 ? "fail" : crawl.metrics.open > 0 || freshness.crawl.stale ? "warning" : "pass",
       !crawl.persistenceAvailable
         ? "Durable crawl history is unavailable."
-        : `${crawl.metrics.open} open findings · ${crawl.metrics.criticalOpen} critical · ${crawl.metrics.latestRunIssues} findings in latest run.`,
+        : !latestCrawlCompletedAt
+          ? "No production crawl evidence has been retained yet."
+          : `${crawl.metrics.open} open findings · ${crawl.metrics.criticalOpen} critical · ${crawl.metrics.latestRunIssues} findings in latest run · ${freshnessLabel(freshness.crawl)}.`,
       "/admin/seo/issues"
     ),
     check(
       "sitemap-evidence",
       "Production sitemap",
-      !sitemap.persistenceAvailable || !sitemap.latest ? "unknown" : !sitemap.latest.valid ? "fail" : sitemap.metrics.expectedMissing > 0 || sitemap.metrics.unexpectedActual > 0 ? "warning" : "pass",
+      !sitemap.persistenceAvailable || !sitemap.latest ? "unknown" : !sitemap.latest.valid ? "fail" : sitemap.metrics.expectedMissing > 0 || sitemap.metrics.unexpectedActual > 0 || freshness.sitemap.stale ? "warning" : "pass",
       !sitemap.latest
         ? "No production sitemap snapshot has been retained yet."
-        : `${sitemap.latest.valid ? "Valid" : "Invalid"} snapshot · ${sitemap.metrics.latestEntries} URLs · ${sitemap.metrics.expectedMissing} expected missing · ${sitemap.metrics.unexpectedActual} unexpected actual.`,
+        : `${sitemap.latest.valid ? "Valid" : "Invalid"} snapshot · ${sitemap.metrics.latestEntries} URLs · ${sitemap.metrics.expectedMissing} expected missing · ${sitemap.metrics.unexpectedActual} unexpected actual · ${freshnessLabel(freshness.sitemap)}.`,
       "/admin/seo/sitemaps"
     ),
     check(
       "search-console",
       "Search Console evidence",
-      !gsc.persistenceAvailable || !gsc.latest ? "unknown" : "pass",
+      !gsc.persistenceAvailable || !gsc.latest ? "unknown" : freshness.searchConsole.stale ? "warning" : "pass",
       !gsc.latest
         ? "No retained Search Console performance sync is available yet."
-        : `${gsc.latest.clicks} clicks · ${gsc.latest.impressions} impressions · ${gsc.pages.length} retained page rows for ${gsc.latest.startDate} → ${gsc.latest.endDate}.`,
+        : `${gsc.latest.clicks} clicks · ${gsc.latest.impressions} impressions · ${gsc.pages.length} retained page rows for ${gsc.latest.startDate} → ${gsc.latest.endDate} · ${freshnessLabel(freshness.searchConsole)}.`,
       "/admin/seo/search-console"
     ),
     check(
       "structured-data",
       "Structured data",
-      !schema.persistenceAvailable ? "unknown" : schema.metrics.invalid > 0 || schema.metrics.unexpected > 0 ? "fail" : schema.metrics.missing > 0 || schema.metrics.notChecked > 0 ? "warning" : "pass",
+      !schema.persistenceAvailable ? "unknown" : schema.metrics.invalid > 0 || schema.metrics.unexpected > 0 ? "fail" : schema.metrics.missing > 0 || schema.metrics.notChecked > 0 || (schema.metrics.managed > 0 && freshness.crawl.stale) ? "warning" : "pass",
       !schema.persistenceAvailable
         ? "Structured-data crawl evidence is unavailable."
-        : `${schema.metrics.healthy}/${schema.metrics.managed} healthy · ${schema.metrics.missing} missing · ${schema.metrics.invalid} invalid · ${schema.metrics.unexpected} unexpected · ${schema.metrics.notChecked} not checked.`,
+        : `${schema.metrics.healthy}/${schema.metrics.managed} healthy · ${schema.metrics.missing} missing · ${schema.metrics.invalid} invalid · ${schema.metrics.unexpected} unexpected · ${schema.metrics.notChecked} not checked${schema.metrics.managed > 0 ? ` · crawl evidence ${freshnessLabel(freshness.crawl)}` : ""}.`,
       "/admin/seo/schema"
     ),
     check(
@@ -140,7 +185,7 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
   ];
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     status: overallStatus(checks),
     checks,
     metrics: {
@@ -162,9 +207,10 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
       schemaUnexpected: schema.metrics.unexpected,
       schemaNotChecked: schema.metrics.notChecked
     },
-    latestGscCapturedAt: gsc.latest?.capturedAt,
-    latestSitemapCapturedAt: sitemap.latest?.capturedAt,
-    latestCrawlCompletedAt: crawl.runs[0]?.completedAt,
+    freshness,
+    latestGscCapturedAt,
+    latestSitemapCapturedAt,
+    latestCrawlCompletedAt,
     reports: overview.reports,
     regressionSignals
   };
@@ -181,6 +227,7 @@ export function seoUnifiedReportCsv(report: SeoUnifiedReportWorkspace): string {
     ["summary", "generated_at", report.generatedAt, ""],
     ["summary", "status", report.status, ""],
     ...Object.entries(report.metrics).map(([key, value]) => ["metrics", key, String(value), ""] as const),
+    ...Object.entries(report.freshness).map(([key, value]) => ["freshness", key, value.stale ? "stale" : "fresh", `${value.capturedAt ?? "no evidence"}; age_hours=${value.ageHours === undefined ? "" : value.ageHours.toFixed(2)}; max_age_hours=${value.maxAgeHours}`] as const),
     ...report.checks.map((item) => ["check", item.id, item.state, `${item.label}: ${item.detail}`] as const),
     ...report.regressionSignals.map((item) => ["regression", item.id, item.severity, item.detail] as const)
   ];
