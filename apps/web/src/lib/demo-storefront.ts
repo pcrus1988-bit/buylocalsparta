@@ -23,9 +23,28 @@ export type DemoStorefrontVendor = Readonly<{
   }>;
 }>;
 
+export type DemoTechnicalAttribute = Readonly<{
+  key: string;
+  label: string;
+  value: string;
+}>;
+
 export type DemoCatalogProduct = CatalogCard & Readonly<{
   offerStatus: string;
   vendorSku?: string;
+  model?: string;
+  supplierCode?: string;
+  sourceGtin?: string;
+  sourceProductId?: string;
+  sourceUrl?: string;
+  previewImageSrc?: string;
+  priceBasis: "vendor_offer" | "supplier_recommended" | "pending";
+  priceNote?: string;
+  technicalAttributes: readonly DemoTechnicalAttribute[];
+  variantFamilyId?: string;
+  variantGroupSize: number;
+  sourceQuality?: string;
+  sourceLastResearched?: string;
 }>;
 
 type VendorRow = SqlRow & {
@@ -50,6 +69,7 @@ type VendorRow = SqlRow & {
 type ProductRow = SqlRow & {
   id: string;
   slug: string;
+  model: string | null;
   title: string;
   category_code: string;
   category_label: string | null;
@@ -63,6 +83,55 @@ type ProductRow = SqlRow & {
   offer_status: string;
   vendor_sku: string | null;
   available_to_sell: number | string;
+  source_product_id: string | null;
+  source_supplier_code: string | null;
+  source_image_url: string | null;
+  source_url: string | null;
+  source_normalized_payload: unknown;
+  source_raw_payload: unknown;
+};
+
+const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
+  power_w: "Ισχύς",
+  flow_l_h: "Παροχή",
+  capacity_l: "Χωρητικότητα",
+  voltage_v: "Τάση",
+  voltage_family: "Οικογένεια τάσης",
+  battery_capacity_ah: "Χωρητικότητα μπαταρίας",
+  battery_requirement_qty: "Αριθμός μπαταριών",
+  pressure_bar: "Πίεση",
+  pressure_psi: "Πίεση",
+  speed_rpm: "Στροφές",
+  rpm: "Στροφές",
+  diameter: "Διάμετρος",
+  diameter_mm: "Διάμετρος",
+  dimensions: "Διαστάσεις",
+  dimensions_mm: "Διαστάσεις",
+  dimensions_cm: "Διαστάσεις",
+  length_m: "Μήκος",
+  length_cm: "Μήκος",
+  length_mm: "Μήκος",
+  width_mm: "Πλάτος",
+  height_mm: "Ύψος",
+  weight_kg: "Βάρος",
+  net_weight_kg: "Καθαρό βάρος",
+  engine_cc: "Κυβισμός",
+  horsepower_hp: "Ιπποδύναμη",
+  apparent_power_kva: "Φαινόμενη ισχύς",
+  nominal_output_kva: "Ονομαστική ισχύς",
+  maximum_output_kva: "Μέγιστη ισχύς",
+  luminous_flux_lm: "Φωτεινή ροή",
+  color_temperature_k: "Θερμοκρασία χρώματος",
+  chain_pitch: "Βήμα αλυσίδας",
+  chain_gauge: "Πάχος οδηγού",
+  drive_links: "Οδηγοί αλυσίδας",
+  pack_qty: "Ποσότητα συσκευασίας",
+  material: "Υλικό",
+  color: "Χρώμα",
+  size: "Μέγεθος",
+  features: "Χαρακτηριστικά",
+  platform: "Πλατφόρμα",
+  load_ton: "Μέγιστο φορτίο"
 };
 
 const text = (value: unknown): string => typeof value === "string" ? value : String(value ?? "");
@@ -77,13 +146,99 @@ const numeric = (value: unknown): number | undefined => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 };
+const positiveInteger = (value: unknown): number | undefined => {
+  const parsed = numeric(value);
+  return parsed !== undefined && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+function humanizeKey(key: string): string {
+  return ATTRIBUTE_LABELS[key] ?? key
+    .replaceAll("_", " ")
+    .replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("el"));
+}
+
+function attributeValue(key: string, value: unknown): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (typeof value === "boolean") return value ? "Ναι" : "Όχι";
+  if (Array.isArray(value)) {
+    const parts = value.map((entry) => attributeValue(key, entry)).filter((entry): entry is string => Boolean(entry));
+    return parts.length ? [...new Set(parts)].join(", ") : undefined;
+  }
+  if (typeof value === "object") return undefined;
+  const raw = text(value).trim();
+  if (!raw) return undefined;
+  if (/\p{L}|%|°|\/|×|x/i.test(raw)) return raw;
+  if (key === "power_w") return `${raw} W`;
+  if (key === "capacity_l") return `${raw} L`;
+  if (key === "voltage_v") return `${raw} V`;
+  if (key === "battery_capacity_ah") return `${raw} Ah`;
+  if (key === "pressure_bar") return `${raw} bar`;
+  if (key === "pressure_psi") return `${raw} psi`;
+  if (key === "speed_rpm" || key === "rpm") return `${raw} rpm`;
+  if (key.endsWith("_mm")) return `${raw} mm`;
+  if (key.endsWith("_cm")) return `${raw} cm`;
+  if (key.endsWith("_m")) return `${raw} m`;
+  if (key.endsWith("_kg")) return `${raw} kg`;
+  if (key.endsWith("_cc")) return `${raw} cc`;
+  if (key.endsWith("_hp")) return `${raw} HP`;
+  if (key.endsWith("_kva")) return `${raw} kVA`;
+  if (key.endsWith("_lm")) return `${raw} lm`;
+  if (key.endsWith("_k")) return `${raw} K`;
+  return raw;
+}
+
+function numberToken(value: unknown): string | undefined {
+  const match = text(value).match(/\d+(?:[.,]\d+)?/);
+  return match?.[0]?.replace(",", ".");
+}
+
+function technicalAttributes(specifications: Record<string, unknown>, canonicalAttributes: Record<string, unknown>, sourceNormalized: Record<string, unknown>): readonly DemoTechnicalAttribute[] {
+  const sourceVariants = objectValue(sourceNormalized.variantAttributes);
+  const sourcePriceDrivers = objectValue(sourceNormalized.priceDrivers);
+  const combined = new Map<string, unknown>();
+  for (const source of [sourcePriceDrivers, sourceVariants, canonicalAttributes, specifications]) {
+    for (const [key, value] of Object.entries(source)) {
+      if (value !== null && value !== undefined && value !== "") combined.set(key, value);
+    }
+  }
+
+  // Some title parsers historically emitted the flow number as both capacity_l and
+  // flow_l_h. Do not turn that duplicate parser artefact into a customer claim.
+  if (combined.has("capacity_l") && combined.has("flow_l_h") && numberToken(combined.get("capacity_l")) === numberToken(combined.get("flow_l_h"))) {
+    combined.delete("capacity_l");
+  }
+
+  const hidden = new Set(["sizes", "sizes_observed", "brand", "made_in", "fit", "composition"]);
+  return [...combined.entries()]
+    .filter(([key]) => !hidden.has(key))
+    .map(([key, value]) => ({ key, label: humanizeKey(key), value: attributeValue(key, value) }))
+    .filter((entry): entry is DemoTechnicalAttribute => Boolean(entry.value))
+    .slice(0, 30);
+}
+
+function sourcePrice(raw: Record<string, unknown>): number | undefined {
+  if (text(raw.price_status).toLowerCase() !== "matched") return undefined;
+  if (text(raw.price_match_confidence).toLowerCase() !== "high") return undefined;
+  if (text(raw.price_review_required).toLowerCase() !== "no") return undefined;
+  return positiveInteger(raw.recommended_price_minor);
+}
 
 function productFromRow(row: ProductRow, vendor: DemoStorefrontVendor, image?: Readonly<{ mediaId: string; altText?: string }>): DemoCatalogProduct {
   const attributes = objectValue(row.variant_attributes);
   const specifications = objectValue(row.specifications);
-  const priceMinor = Math.max(0, Number(row.customer_price_minor ?? 0));
+  const sourceNormalized = objectValue(row.source_normalized_payload);
+  const sourceRaw = objectValue(row.source_raw_payload);
+  const vendorPriceMinor = positiveInteger(row.customer_price_minor);
+  const sourcePriceMinor = sourcePrice(sourceRaw);
+  const priceMinor = vendorPriceMinor ?? sourcePriceMinor ?? 0;
+  const priceBasis: DemoCatalogProduct["priceBasis"] = vendorPriceMinor ? "vendor_offer" : sourcePriceMinor ? "supplier_recommended" : "pending";
   const sizes = stringArray(specifications.sizes).length ? stringArray(specifications.sizes) : stringArray(attributes.sizes_observed);
   const availableToSell = Math.max(0, Number(row.available_to_sell ?? 0));
+  const sourceProductId = optionalText(row.source_product_id);
+  const sourceImage = optionalText(row.source_image_url);
+  const sourceDescription = optionalText(sourceNormalized.descriptionEl) ?? optionalText(sourceRaw.master_description_el);
+  const variantGroupSize = Math.max(1, Math.trunc(numeric(sourceNormalized.variantGroupSize) ?? numeric(sourceRaw.variant_group_size) ?? 1));
+
   return {
     id: text(row.id),
     slug: text(row.slug),
@@ -94,8 +249,8 @@ function productFromRow(row: ProductRow, vendor: DemoStorefrontVendor, image?: R
     categoryLabel: optionalText(row.category_label),
     gtin: optionalText(row.gtin),
     mpn: optionalText(row.mpn),
-    description: optionalText(row.description),
-    brand: optionalText(row.brand) ?? optionalText(specifications.brand),
+    description: optionalText(row.description) ?? sourceDescription,
+    brand: optionalText(row.brand) ?? optionalText(specifications.brand) ?? optionalText(sourceRaw.brand),
     color: optionalText(specifications.color) ?? optionalText(attributes.color),
     sizes,
     fit: optionalText(specifications.fit),
@@ -104,11 +259,30 @@ function productFromRow(row: ProductRow, vendor: DemoStorefrontVendor, image?: R
     vendorId: vendor.id,
     vendorName: vendor.name,
     mediaId: image?.mediaId,
-    mediaAlt: image?.altText,
+    mediaAlt: image?.altText ?? optionalText(sourceRaw.image_alt) ?? text(row.title),
     availableToSell,
+    // On DEMO this flag drives the "price present" filter only. Commerce remains
+    // hard-disabled by the vendor DEMO invariant and the dedicated demo routes.
     available: priceMinor > 0,
     offerStatus: text(row.offer_status),
-    vendorSku: optionalText(row.vendor_sku)
+    vendorSku: optionalText(row.vendor_sku),
+    model: optionalText(row.model) ?? optionalText(sourceRaw.model),
+    supplierCode: optionalText(row.source_supplier_code) ?? optionalText(sourceRaw.supplier_code),
+    sourceGtin: optionalText(sourceRaw.gtin13),
+    sourceProductId,
+    sourceUrl: optionalText(row.source_url) ?? optionalText(sourceRaw.source_url),
+    previewImageSrc: !image?.mediaId && sourceProductId && sourceImage ? `/api/demo/catalog-source-image/${encodeURIComponent(sourceProductId)}` : undefined,
+    priceBasis,
+    priceNote: priceBasis === "supplier_recommended"
+      ? `Προτεινόμενη λιανική τιμή καταλόγου${optionalText(sourceRaw.price_source_page) ? ` · σελ. ${optionalText(sourceRaw.price_source_page)}` : ""}. Απαιτείται επιβεβαίωση από το κατάστημα πριν τη δημοσίευση.`
+      : priceBasis === "vendor_offer"
+        ? "Τιμή που έχει καταχωριστεί στο draft offer του καταστήματος. Το DEMO δεν επιτρέπει αγορά."
+        : "Δεν έχει επιβεβαιωθεί ακόμη τιμή για την προεπισκόπηση.",
+    technicalAttributes: technicalAttributes(specifications, attributes, sourceNormalized),
+    variantFamilyId: optionalText(sourceNormalized.variantFamilyId) ?? optionalText(sourceRaw.variant_family_id),
+    variantGroupSize,
+    sourceQuality: optionalText(sourceNormalized.descriptionQuality) ?? optionalText(sourceRaw.description_quality),
+    sourceLastResearched: optionalText(sourceNormalized.lastResearchedDate) ?? optionalText(sourceRaw.last_researched_date)
   };
 }
 
@@ -160,19 +334,29 @@ export async function getDemoStorefrontVendor(vendorKey: string): Promise<DemoSt
   };
 }
 
-async function productRows(vendorUuid: string, routeKey?: string): Promise<readonly ProductRow[]> {
+async function productRows(vendorUuid: string, routeKey?: string, variantFamilyId?: string): Promise<readonly ProductRow[]> {
   const values: unknown[] = [vendorUuid];
-  const routePredicate = routeKey ? "AND (cv.public_id=$2 OR cv.slug=$2)" : "";
-  if (routeKey) values.push(routeKey);
+  let routePredicate = "";
+  let familyPredicate = "";
+  if (routeKey) {
+    values.push(routeKey);
+    routePredicate = `AND (cv.public_id=$${values.length} OR cv.slug=$${values.length})`;
+  }
+  if (variantFamilyId) {
+    values.push(variantFamilyId);
+    familyPredicate = `AND src.source_normalized_payload->>'variantFamilyId'=$${values.length}`;
+  }
   const result = await getProductionPostgresRuntime().sqlPool.query<ProductRow>(`
     SELECT DISTINCT ON (cv.id)
-           cv.public_id AS id,cv.slug,
+           cv.public_id AS id,cv.slug,cv.model,
            COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
            c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
            cv.gtin,cv.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
            cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
            vo.customer_price_minor,vo.status::text AS offer_status,vo.vendor_sku,
-           GREATEST(COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0),0)::int AS available_to_sell
+           GREATEST(COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0),0)::int AS available_to_sell,
+           src.source_product_id,src.source_supplier_code,src.source_image_url,src.source_url,
+           src.source_normalized_payload,src.source_raw_payload
     FROM vendor_offers vo
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     JOIN categories c ON c.id=cv.category_id
@@ -182,10 +366,22 @@ async function productRows(vendorUuid: string, routeKey?: string): Promise<reado
     LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
     LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
     LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+    LEFT JOIN LATERAL (
+      SELECT csp.id::text AS source_product_id,csp.supplier_code AS source_supplier_code,
+             csp.source_image_url,csp.source_url,csp.normalized_payload AS source_normalized_payload,
+             csp.raw_payload AS source_raw_payload
+      FROM catalog_source_product_links csl
+      JOIN catalog_source_products csp ON csp.id=csl.source_product_id
+      WHERE csl.canonical_variant_id=cv.id
+        AND csl.link_status='approved'
+      ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
+      LIMIT 1
+    ) src ON true
     WHERE vo.vendor_id=$1::uuid
       AND vo.status IN ('draft','pending_review','approved')
       AND cv.suppressed=false AND cv.recalled=false
       ${routePredicate}
+      ${familyPredicate}
     ORDER BY cv.id,
       CASE vo.status WHEN 'approved' THEN 1 WHEN 'pending_review' THEN 2 ELSE 3 END,
       vo.updated_at DESC,vo.public_id
@@ -211,4 +407,11 @@ export async function getDemoVendorCatalogCards(vendor: DemoStorefrontVendor): P
 
 export async function getDemoVendorCatalogProduct(vendor: DemoStorefrontVendor, routeKey: string): Promise<DemoCatalogProduct | undefined> {
   return (await attachApprovedImages(await productRows(vendor.uuid, routeKey), vendor))[0];
+}
+
+export async function getDemoVendorVariantOptions(vendor: DemoStorefrontVendor, product: DemoCatalogProduct): Promise<readonly DemoCatalogProduct[]> {
+  if (!product.variantFamilyId || product.variantGroupSize <= 1) return [];
+  return (await attachApprovedImages(await productRows(vendor.uuid, undefined, product.variantFamilyId), vendor))
+    .filter((candidate) => candidate.id !== product.id)
+    .slice(0, 24);
 }
