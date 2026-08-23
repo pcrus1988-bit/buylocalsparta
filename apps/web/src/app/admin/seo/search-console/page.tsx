@@ -52,7 +52,7 @@ export default async function AdminSeoSearchConsolePage() {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Google</div>
         <h1>Google Search Console operations</h1>
-        <p className="lead">Search performance is now synced deliberately and stored as immutable aggregate evidence instead of being fetched on every page view. URL Inspection remains operator-triggered and quota-aware. Credentials stay server-only and are never persisted with SEO evidence.</p>
+        <p className="lead">The Search Console integration now syncs performance deliberately and stores each Search Analytics snapshot as immutable aggregate evidence instead of fetching it on every page view. URL Inspection remains operator-triggered and quota-aware. Credentials stay server-only and are never persisted with SEO evidence.</p>
       </div>
       <aside className={ready && history.persistenceAvailable ? "dashboard-health-card" : "dashboard-health-card needs-attention"}>
         <span>Integration</span>
