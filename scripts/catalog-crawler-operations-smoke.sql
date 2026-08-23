@@ -14,63 +14,98 @@ INSERT INTO public.catalog_web_crawl_profiles(
 VALUES(:'source_id','main','https://example.com/',ARRAY['example.com'],'http',20,2,5)
 RETURNING id AS profile_id \gset
 
-SELECT bls_private.queue_catalog_web_crawl_job(:'profile_id','single','https://example.com/p/one',NULL,'ops-cancel-queued','web-crawler-v1') AS queued_cancel_id \gset
-SELECT bls_private.request_catalog_web_crawl_job_cancel(:'queued_cancel_id') AS queued_cancel_result \gset
+CREATE TEMP TABLE crawler_ops_test_context(
+  profile_id uuid NOT NULL,
+  queued_cancel_id uuid,
+  queued_cancel_result text,
+  running_cancel_id uuid,
+  claim_job_id uuid,
+  running_cancel_result text,
+  should_cancel boolean,
+  renew_id uuid,
+  renew_claim_job_id uuid,
+  health_id uuid
+);
+INSERT INTO crawler_ops_test_context(profile_id) VALUES(:'profile_id');
+
+UPDATE crawler_ops_test_context
+SET queued_cancel_id=bls_private.queue_catalog_web_crawl_job(profile_id,'single','https://example.com/p/one',NULL,'ops-cancel-queued','web-crawler-v1');
+UPDATE crawler_ops_test_context
+SET queued_cancel_result=bls_private.request_catalog_web_crawl_job_cancel(queued_cancel_id);
 
 DO $$
+DECLARE c crawler_ops_test_context%ROWTYPE;
 BEGIN
-  IF :'queued_cancel_result' <> 'cancelled' THEN RAISE EXCEPTION 'queued job was not cancelled immediately'; END IF;
-  IF (SELECT status FROM public.catalog_web_crawl_jobs WHERE id=:'queued_cancel_id') <> 'cancelled' THEN RAISE EXCEPTION 'queued cancellation status mismatch'; END IF;
-  IF (SELECT completed_at IS NULL FROM public.catalog_web_crawl_jobs WHERE id=:'queued_cancel_id') THEN RAISE EXCEPTION 'queued cancellation missing completed_at'; END IF;
+  SELECT * INTO c FROM crawler_ops_test_context LIMIT 1;
+  IF c.queued_cancel_result <> 'cancelled' THEN RAISE EXCEPTION 'queued job was not cancelled immediately'; END IF;
+  IF (SELECT status FROM public.catalog_web_crawl_jobs WHERE id=c.queued_cancel_id) <> 'cancelled' THEN RAISE EXCEPTION 'queued cancellation status mismatch'; END IF;
+  IF (SELECT completed_at IS NULL FROM public.catalog_web_crawl_jobs WHERE id=c.queued_cancel_id) THEN RAISE EXCEPTION 'queued cancellation missing completed_at'; END IF;
 END;
 $$;
 
-SELECT bls_private.queue_catalog_web_crawl_job(:'profile_id','single','https://example.com/p/two',NULL,'ops-cancel-running','web-crawler-v1') AS running_cancel_id \gset
-SELECT * FROM bls_private.claim_catalog_web_crawl_job('crawler-ops-worker',120) \gset claim_
+UPDATE crawler_ops_test_context
+SET running_cancel_id=bls_private.queue_catalog_web_crawl_job(profile_id,'single','https://example.com/p/two',NULL,'ops-cancel-running','web-crawler-v1');
+UPDATE crawler_ops_test_context
+SET claim_job_id=(SELECT job_id FROM bls_private.claim_catalog_web_crawl_job('crawler-ops-worker',120) LIMIT 1);
 
 DO $$
+DECLARE c crawler_ops_test_context%ROWTYPE;
 BEGIN
-  IF :'claim_job_id'::uuid <> :'running_cancel_id'::uuid THEN RAISE EXCEPTION 'worker claimed unexpected job'; END IF;
-  IF (SELECT last_heartbeat_at IS NULL FROM public.catalog_web_crawl_jobs WHERE id=:'running_cancel_id') THEN RAISE EXCEPTION 'claim did not set heartbeat'; END IF;
+  SELECT * INTO c FROM crawler_ops_test_context LIMIT 1;
+  IF c.claim_job_id IS DISTINCT FROM c.running_cancel_id THEN RAISE EXCEPTION 'worker claimed unexpected job'; END IF;
+  IF (SELECT last_heartbeat_at IS NULL FROM public.catalog_web_crawl_jobs WHERE id=c.running_cancel_id) THEN RAISE EXCEPTION 'claim did not set heartbeat'; END IF;
 END;
 $$;
 
-SELECT bls_private.request_catalog_web_crawl_job_cancel(:'running_cancel_id') AS running_cancel_result \gset
-SELECT bls_private.catalog_web_crawl_job_should_cancel(:'running_cancel_id','crawler-ops-worker') AS should_cancel \gset
+UPDATE crawler_ops_test_context
+SET running_cancel_result=bls_private.request_catalog_web_crawl_job_cancel(running_cancel_id);
+UPDATE crawler_ops_test_context
+SET should_cancel=bls_private.catalog_web_crawl_job_should_cancel(running_cancel_id,'crawler-ops-worker');
 
 DO $$
+DECLARE c crawler_ops_test_context%ROWTYPE;
 BEGIN
-  IF :'running_cancel_result' <> 'cancellation_requested' THEN RAISE EXCEPTION 'running job did not enter cooperative cancellation'; END IF;
-  IF :'should_cancel' <> 't' THEN RAISE EXCEPTION 'worker cannot observe cancellation request'; END IF;
-  IF (SELECT status FROM public.catalog_web_crawl_jobs WHERE id=:'running_cancel_id') <> 'running' THEN RAISE EXCEPTION 'running job was cancelled before worker acknowledgement'; END IF;
+  SELECT * INTO c FROM crawler_ops_test_context LIMIT 1;
+  IF c.running_cancel_result <> 'cancellation_requested' THEN RAISE EXCEPTION 'running job did not enter cooperative cancellation'; END IF;
+  IF c.should_cancel IS NOT TRUE THEN RAISE EXCEPTION 'worker cannot observe cancellation request'; END IF;
+  IF (SELECT status FROM public.catalog_web_crawl_jobs WHERE id=c.running_cancel_id) <> 'running' THEN RAISE EXCEPTION 'running job was cancelled before worker acknowledgement'; END IF;
 END;
 $$;
 
-SELECT bls_private.acknowledge_catalog_web_crawl_job_cancel(:'running_cancel_id','crawler-ops-worker');
+SELECT bls_private.acknowledge_catalog_web_crawl_job_cancel(running_cancel_id,'crawler-ops-worker')
+FROM crawler_ops_test_context;
 
 DO $$
+DECLARE c crawler_ops_test_context%ROWTYPE;
 BEGIN
-  IF (SELECT status FROM public.catalog_web_crawl_jobs WHERE id=:'running_cancel_id') <> 'cancelled' THEN RAISE EXCEPTION 'worker acknowledgement did not cancel job'; END IF;
-  IF (SELECT claimed_by IS NOT NULL OR lease_expires_at IS NOT NULL FROM public.catalog_web_crawl_jobs WHERE id=:'running_cancel_id') THEN RAISE EXCEPTION 'cancelled job retained worker lease'; END IF;
+  SELECT * INTO c FROM crawler_ops_test_context LIMIT 1;
+  IF (SELECT status FROM public.catalog_web_crawl_jobs WHERE id=c.running_cancel_id) <> 'cancelled' THEN RAISE EXCEPTION 'worker acknowledgement did not cancel job'; END IF;
+  IF (SELECT claimed_by IS NOT NULL OR lease_expires_at IS NOT NULL FROM public.catalog_web_crawl_jobs WHERE id=c.running_cancel_id) THEN RAISE EXCEPTION 'cancelled job retained worker lease'; END IF;
 END;
 $$;
 
-SELECT bls_private.queue_catalog_web_crawl_job(:'profile_id','single','https://example.com/p/three',NULL,'ops-renew','web-crawler-v1') AS renew_id \gset
-SELECT * FROM bls_private.claim_catalog_web_crawl_job('crawler-renew-worker',120) \gset renew_claim_
+UPDATE crawler_ops_test_context
+SET renew_id=bls_private.queue_catalog_web_crawl_job(profile_id,'single','https://example.com/p/three',NULL,'ops-renew','web-crawler-v1');
+UPDATE crawler_ops_test_context
+SET renew_claim_job_id=(SELECT job_id FROM bls_private.claim_catalog_web_crawl_job('crawler-renew-worker',120) LIMIT 1);
 SELECT pg_sleep(0.01);
-SELECT bls_private.renew_catalog_web_crawl_job_lease(:'renew_id','crawler-renew-worker',180);
+SELECT bls_private.renew_catalog_web_crawl_job_lease(renew_id,'crawler-renew-worker',180)
+FROM crawler_ops_test_context;
 
 DO $$
+DECLARE c crawler_ops_test_context%ROWTYPE;
 BEGIN
-  IF :'renew_claim_job_id'::uuid <> :'renew_id'::uuid THEN RAISE EXCEPTION 'renew fixture claimed unexpected job'; END IF;
-  IF (SELECT last_heartbeat_at IS NULL FROM public.catalog_web_crawl_jobs WHERE id=:'renew_id') THEN RAISE EXCEPTION 'renew did not retain heartbeat'; END IF;
-  IF (SELECT lease_expires_at <= now() FROM public.catalog_web_crawl_jobs WHERE id=:'renew_id') THEN RAISE EXCEPTION 'renew did not extend lease'; END IF;
+  SELECT * INTO c FROM crawler_ops_test_context LIMIT 1;
+  IF c.renew_claim_job_id IS DISTINCT FROM c.renew_id THEN RAISE EXCEPTION 'renew fixture claimed unexpected job'; END IF;
+  IF (SELECT last_heartbeat_at IS NULL FROM public.catalog_web_crawl_jobs WHERE id=c.renew_id) THEN RAISE EXCEPTION 'renew did not retain heartbeat'; END IF;
+  IF (SELECT lease_expires_at <= now() FROM public.catalog_web_crawl_jobs WHERE id=c.renew_id) THEN RAISE EXCEPTION 'renew did not extend lease'; END IF;
 END;
 $$;
 
-SELECT bls_private.request_catalog_web_crawl_job_cancel(:'renew_id');
-SELECT bls_private.acknowledge_catalog_web_crawl_job_cancel(:'renew_id','crawler-renew-worker');
-SELECT bls_private.queue_catalog_web_crawl_job(:'profile_id','single','https://example.com/p/four',NULL,'ops-health','web-crawler-v1') AS health_id \gset
+SELECT bls_private.request_catalog_web_crawl_job_cancel(renew_id) FROM crawler_ops_test_context;
+SELECT bls_private.acknowledge_catalog_web_crawl_job_cancel(renew_id,'crawler-renew-worker') FROM crawler_ops_test_context;
+UPDATE crawler_ops_test_context
+SET health_id=bls_private.queue_catalog_web_crawl_job(profile_id,'single','https://example.com/p/four',NULL,'ops-health','web-crawler-v1');
 
 DO $$
 DECLARE h jsonb;
