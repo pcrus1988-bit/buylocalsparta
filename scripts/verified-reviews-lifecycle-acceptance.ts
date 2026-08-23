@@ -202,9 +202,9 @@ try {
   await runtime.sqlPool.query(`
     WITH conversation AS (SELECT id FROM conversations WHERE public_id=$1),customer AS (SELECT id FROM users WHERE public_id=$2),vendor_user AS (SELECT id FROM users WHERE public_id=$3)
     INSERT INTO messages(public_id,conversation_id,sender_user_id,sender_type,body,created_at)
-    SELECT $4,conversation.id,customer.id,'customer','Synthetic customer advice question',$6 FROM conversation,customer
+    SELECT $4,conversation.id,customer.id,'customer','Synthetic customer advice question',$6::timestamptz FROM conversation,customer
     UNION ALL
-    SELECT $5,conversation.id,vendor_user.id,'vendor','Synthetic vendor advice response',$7 FROM conversation,vendor_user
+    SELECT $5,conversation.id,vendor_user.id,'vendor','Synthetic vendor advice response',$7::timestamptz FROM conversation,vendor_user
   `, [conversationId, customerId, vendorOwnerId, `msg_reviews_customer_${suffix}`, `msg_reviews_vendor_${suffix}`, new Date(now + 141), new Date(now + 142)]);
 
   const customerAuth = new PostgresCustomerAuthService({ identity: runtime.persistence.identity, secret });
