@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit, transitionVendorApplication } from "../../../lib/admin-runtime";
@@ -89,7 +89,7 @@ type ApplicationRow = SqlRow & {
   vendor_public_id: string | null;
 };
 
-async function ensureApplicationVendor(tx: { query<T extends SqlRow = SqlRow>(sql: string, values?: readonly unknown[]): Promise<{ rows: T[]; rowCount: number }> }, applicationId: string) {
+async function ensureApplicationVendor(tx: SqlExecutor, applicationId: string) {
   const applicationResult = await tx.query<ApplicationRow>(`
     SELECT a.id::text AS application_uuid,a.public_id AS application_public_id,a.status::text AS application_status,
            a.owner_user_id::text AS owner_uuid,a.market_id::text AS market_uuid,a.legal_name,a.trading_name,
