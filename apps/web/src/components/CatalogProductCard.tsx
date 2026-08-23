@@ -35,6 +35,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const imageSrc = product.mediaId
     ? `/api/media/${encodeURIComponent(product.mediaId)}`
     : product.previewImageSrc ?? externalDemoCover;
+  const externalImage = Boolean(imageSrc?.startsWith("https://"));
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
@@ -52,7 +53,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
             alt={product.mediaAlt ?? product.title}
             loading="lazy"
             decoding="async"
-            referrerPolicy={externalDemoCover ? "no-referrer" : undefined}
+            referrerPolicy={externalImage ? "no-referrer" : undefined}
             style={catalogImageStyle}
           />
         ) : null}
