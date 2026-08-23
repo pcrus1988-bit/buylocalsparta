@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AadeMyDataClient,
-  HardenedAadeMyDataClient,
   MyDataTransportError,
   retryAfterDelayMs,
   type MyDataConfig,
   type MyDataFetch
-} from "../src/public.ts";
+} from "../src/index.ts";
+import { HardenedAadeMyDataClient } from "../src/hardened-client.ts";
 
 const config: MyDataConfig = {
   environment: "test",

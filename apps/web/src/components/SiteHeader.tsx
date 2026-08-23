@@ -75,6 +75,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
       <button
         className="public-menu-toggle"
         type="button"
+        aria-label={menuOpen ? "Κλείσιμο μενού" : "Άνοιγμα μενού"}
         aria-expanded={menuOpen}
         aria-controls="public-site-navigation"
         onClick={() => setMenuOpen((current) => !current)}
