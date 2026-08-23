@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { CatalogCard } from "../lib/catalog-view";
+import { publicCatalogPriceLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 
@@ -40,6 +41,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
   const demoMode = Boolean(demoVendorId);
+  const priceLabel = publicCatalogPriceLabel(product);
 
   return (
     <article className="product-card">
@@ -72,7 +74,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         ) : (
           <p className="partner">Δεν υπάρχει αυτή τη στιγμή επιλέξιμος τοπικός συνεργάτης εκπλήρωσης.</p>
         )}
-        <div className="product-bottom"><div className="price">{product.price}</div><Link className="round-add" href={productHref} aria-label={`Δες ${product.title}`}>→</Link></div>
+        <div className="product-bottom"><div className="price">{priceLabel}</div><Link className="round-add" href={productHref} aria-label={`Δες ${product.title}`}>→</Link></div>
       </div>
     </article>
   );
