@@ -25,6 +25,7 @@ test("crawl URL guard allows an HTTPS public source on an allowed host", () => {
 test("crawl URL guard rejects private and local targets", () => {
   assert.equal(validateCrawlUrl("https://127.0.0.1/admin", { allowedHosts: ["127.0.0.1"] }).decision, "reject");
   assert.equal(validateCrawlUrl("https://localhost/product", { allowedHosts: ["localhost"] }).decision, "reject");
+  assert.equal(validateCrawlUrl("https://[::1]/admin", { allowedHosts: ["::1"] }).decision, "reject");
   assert.equal(validateCrawlUrl("https://shop.example.com/product", policy, ["10.1.2.3"]).decision, "reject");
   assert.equal(isPublicIpAddress("::1"), false);
   assert.equal(isPublicIpAddress("fc00::1"), false);
