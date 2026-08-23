@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./VendorCatalogClient.module.css";
+import { VendorSmartProductForm } from "./VendorSmartProductForm";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
 type CatalogProduct = {
@@ -47,6 +48,7 @@ function submissionStatusLabel(value: string) {
     submitted: "Σε έλεγχο από ΚΟΝΤΑ ΜΟΥ",
     needs_review: "Σε έλεγχο από ΚΟΝΤΑ ΜΟΥ",
     matched: "Αντιστοιχίστηκε",
+    linked: "Συνδέθηκε με υπάρχον προϊόν",
     approved: "Εγκρίθηκε",
     rejected: "Χρειάζεται διόρθωση"
   };
@@ -209,37 +211,16 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Προσθήκη προϊόντος" note="Συμπλήρωσε όσα γνωρίζεις για το προϊόν. Οι κωδικοί μάρκας/μοντέλου/GTIN βοηθούν το ΚΟΝΤΑ ΜΟΥ να το αναγνωρίσει σωστά." />
+      <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Προσθήκη προϊόντος" note="Ξεκίνα από τίτλο ή GTIN. Το ΚΟΝΤΑ ΜΟΥ ελέγχει ζωντανά αν το προϊόν υπάρχει ήδη και, όταν το αναγνωρίσεις, συνδέει απευθείας τη δική σου προσφορά με το canonical προϊόν." />
       <WorkspaceHowItWorks>
-        <p><strong>Υποχρεωτικά:</strong> τίτλος, κατηγορία, τελική τιμή και φυσικό απόθεμα.</p>
-        <p><strong>Πολύ χρήσιμα:</strong> μάρκα, μοντέλο, δικό σου SKU και GTIN/EAN όταν υπάρχουν.</p>
-        <p>Μετά την αποθήκευση το προϊόν εμφανίζεται στην ενότητα «Κατάσταση νέων προϊόντων» ώστε να το στείλεις για έλεγχο.</p>
+        <p><strong>Αυτόματος έλεγχος:</strong> μόλις πληκτρολογήσεις αρκετά στοιχεία στον τίτλο ή στο GTIN, αναζητούμε υπάρχον canonical προϊόν.</p>
+        <p><strong>Αν βρεθεί:</strong> επιβεβαίωσέ το και θα συμπληρωθούν τίτλος, κατηγορία, μάρκα, μοντέλο και GTIN. Η σύνδεση αποθηκεύεται μαζί με την προσφορά σου.</p>
+        <p><strong>Δικά σου στοιχεία:</strong> SKU, τιμή, απόθεμα και παραλλαγή/ποικιλία παραμένουν στοιχεία του καταστήματός σου και δεν αλλάζουν το κοινό canonical προϊόν.</p>
       </WorkspaceHowItWorks>
       <details className="workspace-tool-panel" open>
-        <summary><span><strong>Χειροκίνητη καταχώρηση</strong><small>Για ένα ή λίγα νέα προϊόντα.</small></span></summary>
+        <summary><span><strong>Έξυπνη χειροκίνητη καταχώρηση</strong><small>Για ένα ή λίγα προϊόντα · με live canonical matching.</small></span></summary>
         <div className="workspace-tool-body">
-          <form onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            const priceEuro = Number(form.get("priceEuro"));
-            void call("create", "/api/vendor/catalog/products", {
-              title: form.get("title"), categoryCode: form.get("category"), vendorSku: form.get("sku"), brand: form.get("brand"), model: form.get("model"), gtin: form.get("gtin"),
-              customerPriceMinor: Math.round(priceEuro * 100), stockOnHand: Number(form.get("stock")), safetyStock: Number(form.get("safety"))
-            });
-          }}>
-            <div className="workspace-form-grid">
-              <div className="workspace-form-field span-2"><label htmlFor="catalog-title">Τίτλος προϊόντος</label><input id="catalog-title" name="title" required /></div>
-              <div className="workspace-form-field span-2"><label htmlFor="catalog-category">Κατηγορία</label><select id="catalog-category" name="category" required defaultValue=""><option value="" disabled>Επίλεξε κατηγορία</option>{initial.categoryOptions.map((item) => <option key={item.id} value={item.code}>{item.path}</option>)}</select></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-sku">Δικό σου SKU</label><input id="catalog-sku" name="sku" /></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-brand">Μάρκα</label><input id="catalog-brand" name="brand" /></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-model">Μοντέλο</label><input id="catalog-model" name="model" autoComplete="off" /></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-gtin">GTIN / EAN / ISBN</label><input id="catalog-gtin" name="gtin" inputMode="numeric" autoComplete="off" placeholder="π.χ. 9781408855652" /></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-price">Τελική τιμή €</label><input id="catalog-price" name="priceEuro" required type="number" min="0" step="0.01" placeholder="44.90" /></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-stock">Φυσικό απόθεμα</label><input id="catalog-stock" name="stock" required type="number" min="0" step="1" /></div>
-              <div className="workspace-form-field"><label htmlFor="catalog-safety">Απόθεμα ασφαλείας</label><input id="catalog-safety" name="safety" type="number" min="0" step="1" defaultValue="0" /></div>
-            </div>
-            <div className="workspace-form-actions"><button className="button" disabled={busy === "create"}>{busy === "create" ? "Αποθήκευση…" : "Αποθήκευση προϊόντος"}</button></div>
-          </form>
+          <VendorSmartProductForm csrfToken={initial.csrfToken} categoryOptions={initial.categoryOptions} />
         </div>
       </details>
       <details className="workspace-tool-panel"><summary><span><strong>Μαζική εισαγωγή CSV</strong><small>Για πολλά προϊόντα μαζί · γίνεται έλεγχος πριν την εισαγωγή.</small></span></summary><div className="workspace-tool-body">
@@ -253,8 +234,8 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Νέα προϊόντα" title="Κατάσταση υποβολών" note="Εδώ βλέπεις μόνο προϊόντα που δεν έχουν ολοκληρώσει ακόμη την αναγνώριση και έγκριση από το ΚΟΝΤΑ ΜΟΥ." />
       <WorkspaceHowItWorks>
-        <p><strong>Χρειάζεται υποβολή:</strong> το προϊόν έχει αποθηκευτεί αλλά πρέπει να το στείλεις για έλεγχο.</p>
-        <p><strong>Σε έλεγχο:</strong> δεν χρειάζεται άλλη ενέργεια μέχρι να ολοκληρωθεί η αντιστοίχιση.</p>
+        <p><strong>Χρειάζεται υποβολή:</strong> το προϊόν δεν βρέθηκε στον canonical κατάλογο και αποθηκεύτηκε ως νέο για έλεγχο.</p>
+        <p><strong>Συνδέθηκε:</strong> επέλεξες υπάρχον canonical προϊόν κατά την καταχώρηση· δεν χρειάζεται δεύτερο matching βήμα.</p>
         <p><strong>Χρειάζεται διόρθωση:</strong> διάβασε τον λόγο που εμφανίζεται στην κάρτα πριν το υποβάλεις ξανά.</p>
       </WorkspaceHowItWorks>
       <WorkspaceMetricStrip items={[{ label: "Καταχωρήσεις", value: initial.submissions.length }, { label: "Σε έλεγχο", value: awaitingReview, tone: awaitingReview ? "attention" : "default" }, { label: "Αντιστοιχισμένα", value: linked, tone: linked ? "positive" : "default" }, { label: "Χρειάζονται διόρθωση", value: rejected, tone: rejected ? "attention" : "default" }]} />
@@ -263,7 +244,7 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
         <div className="workspace-queue-primary"><span>Τιμή {item.supplierPrice}</span><span>Φυσικό απόθεμα {item.stockOnHand}</span><span>{item.canonicalVariantId ? "Αναγνωρίστηκε" : `${item.candidates.length} πιθανές αντιστοιχίσεις`}</span></div>
         {item.rejectionReason && <p className="workspace-queue-summary"><strong>Χρειάζεται διόρθωση:</strong> {item.rejectionReason}</p>}
         <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες αντιστοίχισης" open={item.status === "rejected"}><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Source product</strong><span className="vendor-technical-id">{item.id}</span></div>{item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}{item.candidates.map((candidate) => <div className="workspace-compact-row" key={candidate.id}><strong>{candidate.canonicalTitle}</strong><span>{candidate.level} · {(candidate.confidence * 100).toFixed(0)}%</span><small>{candidate.status}</small></div>)}</div></WorkspaceRecordDetails>
-        <div className="workspace-action-bar"><span>{item.status === "draft" ? "Το προϊόν είναι έτοιμο να σταλεί για έλεγχο." : "Η αναγνώριση και η έγκριση γίνονται από το ΚΟΝΤΑ ΜΟΥ."}</span><div className="workspace-action-buttons">{item.status === "draft" && <button className="button" disabled={Boolean(busy)} onClick={() => void call(`submit:${item.id}`, `/api/vendor/catalog/products/${item.id}/submit`, {})}>{busy === `submit:${item.id}` ? "Υποβολή…" : "Αποστολή για έλεγχο"}</button>}</div></div>
+        <div className="workspace-action-bar"><span>{item.status === "draft" ? "Το προϊόν είναι έτοιμο να σταλεί για έλεγχο." : item.status === "linked" ? "Η canonical αντιστοίχιση έχει ήδη ολοκληρωθεί. Απομένει μόνο ο έλεγχος της προσφοράς." : "Η αναγνώριση και η έγκριση γίνονται από το ΚΟΝΤΑ ΜΟΥ."}</span><div className="workspace-action-buttons">{item.status === "draft" && <button className="button" disabled={Boolean(busy)} onClick={() => void call(`submit:${item.id}`, `/api/vendor/catalog/products/${item.id}/submit`, {})}>{busy === `submit:${item.id}` ? "Υποβολή…" : "Αποστολή για έλεγχο"}</button>}</div></div>
       </article>)}</div>}
     </section>
   </>;
