@@ -7,13 +7,20 @@ on:
     paths:
       - scripts/catalogue/crawl-polo.mjs
       - .github/workflows/polo-catalogue-crawl.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/catalogue/crawl-polo.mjs
+      - .github/workflows/polo-catalogue-crawl.yml
+      - data/imports/polo/**
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: polo-catalogue-crawl-${{ github.ref }}
+  group: polo-catalogue-crawl-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -43,6 +50,7 @@ jobs:
           retention-days: 30
 
       - name: Commit crawl output to branch
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
