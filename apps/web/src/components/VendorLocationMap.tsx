@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { hasUsablePublicCoordinates } from "../lib/public-data-integrity";
 import styles from "./VendorStorefront.module.css";
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
@@ -75,15 +76,16 @@ export function VendorLocationMap({ vendorId, vendorName, address, coordinates }
   const mapRef = useRef<LeafletMap | null>(null);
   const [failed, setFailed] = useState(false);
   const mapHref = `/shops/map?vendor=${encodeURIComponent(vendorId)}`;
+  const usableCoordinates = hasUsablePublicCoordinates(coordinates) ? coordinates : undefined;
 
   useEffect(() => {
-    if (!coordinates || !elementRef.current) return undefined;
+    if (!usableCoordinates || !elementRef.current) return undefined;
     let cancelled = false;
 
     loadLeaflet()
       .then((leaflet) => {
         if (cancelled || !elementRef.current || mapRef.current) return;
-        const point: [number, number] = [coordinates.latitude, coordinates.longitude];
+        const point: [number, number] = [usableCoordinates.latitude, usableCoordinates.longitude];
         const map = leaflet.map(elementRef.current, { scrollWheelZoom: false, zoomControl: true }).setView(point, 16);
         leaflet.tileLayer(OSM_TILE_URL, { attribution: "&copy; OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
         const icon = leaflet.divIcon({ className: "", html: MARKER_HTML, iconSize: [30, 30], iconAnchor: [15, 24] });
@@ -100,15 +102,15 @@ export function VendorLocationMap({ vendorId, vendorName, address, coordinates }
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [coordinates, vendorName]);
+  }, [usableCoordinates, vendorName]);
 
-  if (!coordinates || failed) {
+  if (!usableCoordinates || failed) {
     return (
       <div className={styles.mapCard}>
         <div className={styles.mapFallback}>
           <div>
             <h3>{vendorName}</h3>
-            <p>{coordinates ? "Ο διαδραστικός χάρτης δεν μπόρεσε να φορτώσει." : "Δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες για αυτό το κατάστημα."} Η φυσική διεύθυνση παραμένει διαθέσιμη στα στοιχεία καταστήματος.</p>
+            <p>{usableCoordinates ? "Ο διαδραστικός χάρτης δεν μπόρεσε να φορτώσει." : "Δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες για αυτό το κατάστημα."} Η φυσική διεύθυνση παραμένει διαθέσιμη στα στοιχεία καταστήματος.</p>
             <a className="button button-secondary" href={mapHref}>Άνοιξε τον χάρτη καταστημάτων</a>
           </div>
         </div>
