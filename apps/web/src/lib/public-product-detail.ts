@@ -82,7 +82,18 @@ const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
   compatible_brands: "Συμβατές μάρκες",
   compatible_platforms: "Συμβατές πλατφόρμες",
   compatibility_type: "Τύπος συμβατότητας",
-  load_ton: "Μέγιστο φορτίο"
+  load_ton: "Μέγιστο φορτίο",
+  μεγιστο_φορτιο_kg: "Μέγιστο φορτίο",
+  μεγιστο_υψος_ανυψωσης_m: "Ύψος ανύψωσης",
+  τεμαχια_κιβωτιο: "Τεμάχια / κιβώτιο",
+  package_dimensions_cm: "Διαστάσεις συσκευασίας",
+  package_weight_kg: "Βάρος συσκευασίας"
+};
+
+const ATTRIBUTE_UNIT_OVERRIDES: Readonly<Record<string, string>> = {
+  // Nikolaou's Greek source label ends in "M" but values such as 260-400 are millimetres.
+  // Keep immutable crawl evidence untouched and correct only the public projection.
+  μεγιστο_υψος_ανυψωσης_m: "mm"
 };
 
 const HIDDEN_ATTRIBUTE_KEYS = new Set([
@@ -166,6 +177,8 @@ function attributeValue(key: string, value: unknown): string | undefined {
   if (typeof value === "object") return undefined;
   const raw = text(value).trim();
   if (!raw) return undefined;
+  const overrideUnit = ATTRIBUTE_UNIT_OVERRIDES[key];
+  if (overrideUnit && !/[\p{L}%°/×]/iu.test(raw)) return `${raw} ${overrideUnit}`;
   if (/\p{L}|%|°|\/|×|x/iu.test(raw)) return raw;
   if (key === "power_w") return `${raw} W`;
   if (key === "capacity_l") return `${raw} L`;
