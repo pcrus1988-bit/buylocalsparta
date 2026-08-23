@@ -79,12 +79,6 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   }
 ];
 
-/**
- * Admin navigation is organised by operator mental model rather than implementation module.
- * The sidebar renders one entry per group; the active group's links become contextual tabs.
- * Existing routes remain registered here so RBAC and deep links continue to work unchanged.
- * Admin group icons are semantic tokens rendered as inline SVG by AdminDomainNavigation.
- */
 export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Επισκόπηση",
@@ -127,6 +121,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     icon: "catalog",
     links: [
       { label: "Supplier PIM Intake", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
+      { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
       { label: "Product Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
       { label: "Κατηγορίες & policies", href: "/admin/categories", icon: "▦", permission: "catalog.read" }
     ]
