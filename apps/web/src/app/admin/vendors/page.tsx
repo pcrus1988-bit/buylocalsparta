@@ -51,7 +51,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={managed.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Partners · directory</div><h1>Κατάλογος συνεργατών</h1><p className="lead">Scan-first directory με saved operational views. Οι λεπτομέρειες, toggles, agreement, SLA, orders και fiscal documents ανήκουν στο Partner record.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Partners · directory</div><h1>Κατάλογος συνεργατών</h1><p className="lead">Scan-first directory με saved operational views. Από κάθε partner record μπορείς να διαχειριστείς catalogue assignments πριν την ενεργοποίηση και ασφαλές DEMO storefront χωρίς live commerce.</p></div></section>
     <WorkspaceMetricStrip items={[
       { label: filtered ? "Matching partners" : "Partners", value: filtered ? shops.length : managed.shops.length },
       { label: "Operationally active", value: active, tone: active ? "positive" : "default" },
@@ -59,7 +59,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       { label: "Agreement gaps", value: agreementGaps, tone: agreementGaps ? "attention" : "positive" }
     ]} />
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Directory" title="Partner records" note="Partner state stays factual. Attention is a second signal only for the existing agreement or operational-review conditions used by the Needs attention view." />
+      <WorkspaceSectionHeading eyebrow="Directory" title="Partner records" note="Partner state stays factual. Catalogue preparation is independent from activation; DEMO mode remains non-commerce." />
       {!managed.databaseConfigured && <div className="workspace-inline-note">Η production βάση δεν είναι διαθέσιμη· το partner directory είναι unavailable.</div>}
       <nav className="admin-local-tabs" aria-label="Partner saved views">
         <Link href="/admin/vendors" aria-current={view === "all" ? "page" : undefined}>All</Link>
@@ -75,7 +75,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
         <div><button className="button button-secondary" type="submit">Filter</button>{hasAdHocFilters && <Link className="text-link" href={clearHref}>Clear filters</Link>}</div>
       </form>
       {shops.length === 0 ? <WorkspaceEmptyState title={filtered ? "Δεν βρέθηκαν partner records σε αυτό το view / φίλτρο." : "Δεν υπάρχουν partner records."} /> : <div className="admin-directory-table admin-partner-directory" role="table" aria-label="Partner records">
-        <div className="admin-directory-head" role="row"><span>Partner</span><span>State / attention</span><span>Locations</span><span>Offers</span><span>Agreement</span><span>Public</span><span aria-label="Actions" /></div>
+        <div className="admin-directory-head" role="row"><span>Partner</span><span>State / attention</span><span>Locations</span><span>Offers</span><span>Agreement</span><span>Public</span><span>Actions</span></div>
         {shops.map((shop) => {
           const attention = partnerAttention(shop);
           return <div className="admin-directory-row" role="row" key={shop.id}>
@@ -85,7 +85,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
             <span><strong>{shop.approvedOfferCount}</strong><small>approved</small></span>
             <span><strong>{shop.agreement?.code ?? "—"}</strong><small>{shop.cooperationDocumented ? "documented" : "not documented"}</small></span>
             <span><strong>{shop.operationalActive && shop.publicDirectoryVisible ? "Visible" : "Hidden"}</strong></span>
-            <Link className="admin-record-open" href={`/admin/partners/${encodeURIComponent(shop.id)}`} aria-label={`Open ${shop.tradingName}`}>→</Link>
+            <span><Link className="text-link" href={`/admin/partners/${encodeURIComponent(shop.id)}/catalogue`}>Catalogue / DEMO</Link> · <Link className="admin-record-open" href={`/admin/partners/${encodeURIComponent(shop.id)}`} aria-label={`Open ${shop.tradingName}`}>→</Link></span>
           </div>;
         })}
       </div>}
