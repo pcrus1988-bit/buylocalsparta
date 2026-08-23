@@ -25,6 +25,7 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
   const imageSrc = product.mediaId
     ? `/api/media/${encodeURIComponent(product.mediaId)}`
     : product.previewImageSrc;
+  const externalImage = Boolean(imageSrc?.startsWith("https://"));
   const highlights = product.technicalAttributes.slice(0, 6);
   const identitySpecs = [
     product.brand ? { label: "Μάρκα", value: product.brand } : undefined,
@@ -58,7 +59,7 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
           <div className={styles.mediaColumn}>
             <div className={styles.imageCard}>
               {imageSrc ? (
-                <img className={styles.productImage} src={imageSrc} alt={product.mediaAlt ?? product.title} loading="eager" decoding="async" />
+                <img className={styles.productImage} src={imageSrc} alt={product.mediaAlt ?? product.title} loading="eager" decoding="async" referrerPolicy={externalImage ? "no-referrer" : undefined} />
               ) : (
                 <div className={styles.placeholder}>
                   <div><strong>{product.brand ?? vendor.name}</strong><span>Η εικόνα προϊόντος δεν έχει ακόμη συνδεθεί με την προεπισκόπηση.</span></div>
