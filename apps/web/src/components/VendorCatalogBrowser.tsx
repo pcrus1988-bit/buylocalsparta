@@ -106,7 +106,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
           <span>{demoMode ? "Τιμή παρουσίασης" : "Διαθεσιμότητα"}</span>
           <select value={availability} onChange={(event) => setAvailability(event.target.value as AvailabilityFilter)}>
             <option value="all">Όλα</option>
-            <option value="available">{demoMode ? "Με επιβεβαιωμένη τιμή" : "Διαθέσιμα τώρα"}</option>
+            <option value="available">{demoMode ? "Με διαθέσιμη τιμή παρουσίασης" : "Διαθέσιμα τώρα"}</option>
           </select>
         </label>
       </div>
