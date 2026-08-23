@@ -276,7 +276,7 @@ BEGIN
     v_new_id,pt.locale,pt.title,pt.description,pt.specifications,pt.seo_title,pt.seo_description
   FROM public.product_translations pt
   WHERE pt.canonical_variant_id=v_anchor.id
-  ON CONFLICT (canonical_variant_id,locale) DO NOTHING;
+  ON CONFLICT DO NOTHING;
 
   RETURN QUERY SELECT v_new_id,v_new_public_id,v_family_id,'created_sibling'::text,'new_governed_family_variant'::text;
 END;
