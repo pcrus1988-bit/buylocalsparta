@@ -76,19 +76,27 @@ export async function queueAdminCrawlerJob(principal: SessionPrincipal, input: {
 }
 
 export async function cancelAdminCrawlerJob(principal: SessionPrincipal, jobId: string): Promise<string> {
-  assertAdminPermission(principal, "catalog.write"); requireRuntime();
+  assertAdminPermission(principal, "catalog.write");
+  requireRuntime();
   const runtime = getProductionPostgresRuntime();
-  const result = await runtime.sqlPool.query<SqlRow>(`SELECT bls_private.request_catalog_web_crawl_job_cancel($1) AS status`, [jobId]);
-  return required(result.rows[0]?.status, "cancel status");
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 8_000, lockTimeoutMs: 2_000 });
+  return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const result = await tx.query<SqlRow>(`SELECT bls_private.request_catalog_web_crawl_job_cancel($1) AS status`, [jobId]);
+    return required(result.rows[0]?.status, "cancel status");
+  });
 }
 
 export async function promoteAdminCrawlerJob(principal: SessionPrincipal, jobId: string): Promise<Readonly<Record<string, unknown>>> {
-  assertAdminPermission(principal, "catalog.write"); requireRuntime();
+  assertAdminPermission(principal, "catalog.write");
+  requireRuntime();
   const runtime = getProductionPostgresRuntime();
-  const result = await runtime.sqlPool.query<SqlRow>(`SELECT bls_private.promote_catalog_web_crawl_job($1) AS result`, [jobId]);
-  const value = result.rows[0]?.result;
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Crawler promotion returned an invalid result");
-  return value as Readonly<Record<string, unknown>>;
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 2_000 });
+  return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const result = await tx.query<SqlRow>(`SELECT bls_private.promote_catalog_web_crawl_job($1) AS result`, [jobId]);
+    const value = result.rows[0]?.result;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Crawler promotion returned an invalid result");
+    return value as Readonly<Record<string, unknown>>;
+  }, { statementTimeoutMs: 15_000 });
 }
 
 async function readSources(tx: SqlExecutor): Promise<readonly AdminCrawlerSource[]> {
