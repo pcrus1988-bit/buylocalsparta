@@ -14,6 +14,7 @@ const sourceRoots = [appRoot, join(root, "apps/web/src/components")];
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const failures: string[] = [];
 const PUBLIC_CMS_CATCH_ALL = "/[...cmsPath]";
+const SHAREABLE_DEMO_UTILITY_ROUTE = "/demo/vendor/[id]";
 
 function walk(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
@@ -46,6 +47,13 @@ function hasRegisteredPrivateParent(route: string, registered: ReadonlySet<strin
   return false;
 }
 
+function isGovernedShareableDemoUtility(route: string): boolean {
+  if (route !== SHAREABLE_DEMO_UTILITY_ROUTE) return false;
+  const source = read("apps/web/src/app/demo/vendor/[id]/page.tsx");
+  return source.includes('dynamic = "force-dynamic"')
+    && source.includes('robots: { index: false, follow: false, nocache: true }');
+}
+
 const pageFiles = walk(appRoot).filter((path) => path.endsWith("/page.tsx") || path.endsWith("\\page.tsx"));
 const pageRoutes = pageFiles.map(routeFromPage).sort();
 const pageRouteSet = new Set(pageRoutes);
@@ -58,7 +66,7 @@ for (const duplicateSource of [INDEXABLE_STATIC_ROUTES.map((route) => route.href
 }
 
 for (const route of pageRoutes) {
-  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || route === PUBLIC_CMS_CATCH_ALL || hasRegisteredPrivateParent(route, nonIndexableRoutes);
+  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || route === PUBLIC_CMS_CATCH_ALL || hasRegisteredPrivateParent(route, nonIndexableRoutes) || isGovernedShareableDemoUtility(route);
   if (!classified) failures.push(`Unclassified App Router page ${route}; declare whether it is public/indexable, dynamic public, governed CMS, or private/utility`);
 }
 for (const route of [...indexableRoutes, ...dynamicPublicRoutes, ...nonIndexableRoutes]) {
