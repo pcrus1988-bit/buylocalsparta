@@ -17,6 +17,8 @@ import { productPublicPath } from "../../../lib/product-url";
 import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
+import { getPublicProductDetail } from "../../../lib/public-product-detail";
+import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -27,6 +29,10 @@ const productImageStyle = {
   height: "100%",
   objectFit: "contain",
   zIndex: 1
+} as const;
+
+const thumbnailImageStyle = {
+  objectFit: "contain"
 } as const;
 
 function productSeoDescription(product: { title: string; description?: string }): string {
@@ -52,8 +58,9 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     getSeoEntityOverridesSnapshot()
   ]);
   if (!product) return { title: "Προϊόν" };
+  const detail = await getPublicProductDetail(product.id);
   const quality = productIndexEligibility(product);
-  const description = productSeoDescription(product);
+  const description = productSeoDescription({ ...product, description: product.description ?? detail?.description });
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
     reference,
@@ -82,6 +89,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? await getCrawlerCatalogCard(summary.id)
     : await getCatalogCard(summary.id, await getVisitorKey());
   if (!product) notFound();
+
+  const [detail, approvedGallery] = await Promise.all([
+    getPublicProductDetail(product.id),
+    approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId })
+  ]);
+  const mediaGallery = approvedGallery.length
+    ? approvedGallery
+    : product.mediaId
+      ? [{ canonicalVariantId: product.id, mediaId: product.mediaId, altText: product.mediaAlt }]
+      : [];
+  const primaryImage = mediaGallery[0];
+  const displayDescription = product.description ?? detail?.description;
+  const displayBrand = product.brand ?? detail?.brand;
+  const displayGtin = product.gtin ?? detail?.sourceGtin;
+  const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
+  const technicalAttributes = detail?.technicalAttributes ?? [];
+
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
   const quality = productIndexEligibility(summary);
@@ -116,15 +140,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
         url: productUrl,
         mainEntityOfPage: productUrl,
         name: product.title,
-        description: productSeoDescription(product),
-        sku: product.mpn,
+        description: productSeoDescription({ title: product.title, description: displayDescription }),
+        sku: product.mpn ?? supplierCode,
         mpn: product.mpn,
         ...gtinSchema(product.gtin),
-        brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-        image: product.mediaId ? `${origin}/api/media/${encodeURIComponent(product.mediaId)}` : undefined,
+        ...(!product.gtin ? gtinSchema(detail?.sourceGtin) : {}),
+        brand: displayBrand ? { "@type": "Brand", name: displayBrand } : undefined,
+        image: mediaGallery.length ? mediaGallery.map((image) => `${origin}/api/media/${encodeURIComponent(image.mediaId)}`) : undefined,
         category: product.categoryLabel ?? category.label,
         color: product.color,
         size: product.sizes.length ? product.sizes.join(", ") : undefined,
+        additionalProperty: technicalAttributes.length ? technicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
         itemCondition: "https://schema.org/NewCondition",
         offers: offerData
       },
@@ -147,24 +173,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <SiteHeader compact />
 
       <section className="shell product-detail">
-        <div className={`product-detail-art ${category.artClass}`}>
-          <span className="detail-category">{category.name}</span>
-          <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
-          {product.mediaId ? <Image src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : null}
-          <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
+        <div style={{ display: "grid", gap: 12, alignSelf: "start" }}>
+          <div className={`product-detail-art ${category.artClass}`}>
+            <span className="detail-category">{category.name}</span>
+            <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
+            {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : null}
+            <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
+          </div>
+          {mediaGallery.length > 1 ? (
+            <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+              {mediaGallery.slice(1).map((image) => (
+                <div key={image.mediaId} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 14, background: "var(--white)" }}>
+                  <Image src={`/api/media/${encodeURIComponent(image.mediaId)}`} alt={image.altText ?? product.title} fill sizes="(max-width: 620px) 22vw, 11vw" style={thumbnailImageStyle} />
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
+
         <div className="product-detail-copy">
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
           <h1>{product.title}</h1>
           <div className="detail-price">{product.price}</div>
           <p className="lead compact">{product.available ? "Η τιμή και η διαθεσιμότητα προέρχονται από ένα πραγματικά επιλέξιμο τοπικό offer. Το ΚΟΝΤΑ ΜΟΥ δεν προσθέτει προσαύξηση στην τιμή προϊόντος." : "Ενδεικτική τιμή καταλόγου από την τελευταία καταγεγραμμένη πηγή. Η αγορά θα ενεργοποιηθεί μόνο όταν υπάρχει εγκεκριμένο τοπικό offer με επιβεβαιωμένο stock."}</p>
 
-          {product.description ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p>{product.description}</p></div></div> : null}
+          {displayDescription ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p style={{ whiteSpace: "pre-line" }}>{displayDescription}</p></div></div> : null}
 
-          <div className="eyebrow">Χαρακτηριστικά</div>
+          <div className="eyebrow">Στοιχεία προϊόντος</div>
           <div className="detail-assurances">
-            {product.brand ? <div><strong>Μάρκα</strong><span>{product.brand}</span></div> : null}
-            {product.mpn ? <div><strong>Κωδικός προϊόντος</strong><span>{product.mpn}</span></div> : null}
+            {displayBrand ? <div><strong>Μάρκα</strong><span>{displayBrand}</span></div> : null}
+            {detail?.model ? <div><strong>Μοντέλο</strong><span>{detail.model}</span></div> : null}
+            {product.mpn ? <div><strong>Κωδικός κατασκευαστή</strong><span>{product.mpn}</span></div> : null}
+            {supplierCode ? <div><strong>Κωδικός προμηθευτή</strong><span>{supplierCode}</span></div> : null}
+            {displayGtin ? <div><strong>GTIN / EAN</strong><span>{displayGtin}</span></div> : null}
             {product.categoryLabel ? <div><strong>Κατηγορία</strong><span>{product.categoryLabel}</span></div> : null}
             {product.color ? <div><strong>Χρώμα</strong><span>{product.color}</span></div> : null}
             {product.sizes.length ? <div><strong>Μεγέθη</strong><span>{product.sizes.join(" · ")}</span></div> : null}
@@ -172,6 +213,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.composition ? <div><strong>Σύνθεση</strong><span>{product.composition}</span></div> : null}
             {product.madeIn ? <div><strong>Κατασκευή</strong><span>{product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn}</span></div> : null}
           </div>
+
+          {technicalAttributes.length ? <><div className="eyebrow" style={{ marginTop: 24 }}>Τεχνικά χαρακτηριστικά</div><div className="detail-assurances">{technicalAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}</div></> : null}
 
           {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div></div></div>}
           <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={product} /><ProductAccountActions productId={product.id} /></>}</div></div>
