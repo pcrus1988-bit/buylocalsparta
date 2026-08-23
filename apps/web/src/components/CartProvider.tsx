@@ -28,6 +28,18 @@ function isStoredCartItem(value: unknown): value is CartItem {
     && Number.isSafeInteger(item.quantity) && (item.quantity ?? 0) > 0;
 }
 
+function localStorageGet(key: string): string | null {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+
+function localStorageSet(key: string, value: string): void {
+  try { window.localStorage.setItem(key, value); } catch { /* browser storage can be unavailable by policy */ }
+}
+
+function localStorageRemove(key: string): void {
+  try { window.localStorage.removeItem(key); } catch { /* fail soft when browser storage is unavailable */ }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -37,13 +49,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let local: CartItem[] = [];
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
+    const stored = localStorageGet(STORAGE_KEY);
+    if (stored) {
+      try {
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed)) local = parsed.filter(isStoredCartItem).map((item) => ({ ...item, quantity: Math.min(99, item.quantity) }));
-      }
-    } catch { window.localStorage.removeItem(STORAGE_KEY); }
+        else localStorageRemove(STORAGE_KEY);
+      } catch { localStorageRemove(STORAGE_KEY); }
+    }
     setItems(local);
     void fetch("/api/account/cart", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) return;
@@ -59,11 +72,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         merged.set(item.canonicalVariantId, existing ? { ...item, quantity: Math.max(existing.quantity, item.quantity), title: existing.title, priceMinor: existing.priceMinor, price: existing.price } : item);
       }
       setItems([...merged.values()]);
-    }).finally(() => { initialMergeDone.current = true; setHydrated(true); });
+    }).catch(() => undefined).finally(() => { initialMergeDone.current = true; setHydrated(true); });
   }, []);
 
   useEffect(() => {
-    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items));
   }, [hydrated, items]);
 
   useEffect(() => {
@@ -73,7 +86,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         method: "PUT",
         headers: { "content-type": "application/json", "x-csrf-token": persistentCsrf },
         body: JSON.stringify({ items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) })
-      });
+      }).catch(() => undefined);
     }, 250);
     return () => window.clearTimeout(timer);
   }, [hydrated, items, persistentCsrf]);
