@@ -205,7 +205,7 @@ BEGIN
       SELECT id,row_number() OVER (ORDER BY id::text) AS rn,count(*) OVER () AS total
       FROM matches
     )
-    SELECT COALESCE(max(total),0),max(id) FILTER (WHERE rn=1)
+    SELECT COALESCE(max(total),0),((max(id::text) FILTER (WHERE rn=1))::uuid)
     INTO v_gtin_match_count,v_gtin_match_id
     FROM ranked;
 
@@ -237,7 +237,7 @@ BEGIN
       AND cv.recalled=false
       AND bls_private.catalog_material_variant_signature(cv.variant_attributes)=v_source_signature
   )
-  SELECT COALESCE(max(total),0),max(id) FILTER (WHERE rn=1)
+  SELECT COALESCE(max(total),0),((max(id::text) FILTER (WHERE rn=1))::uuid)
   INTO v_sibling_count,v_sibling_id
   FROM matches;
 
