@@ -116,6 +116,7 @@ const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
   weight_kg: "Βάρος",
   net_weight_kg: "Καθαρό βάρος",
   engine_cc: "Κυβισμός",
+  engine_type: "Τύπος κινητήρα",
   horsepower_hp: "Ιπποδύναμη",
   apparent_power_kva: "Φαινόμενη ισχύς",
   nominal_output_kva: "Ονομαστική ισχύς",
@@ -131,6 +132,11 @@ const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
   size: "Μέγεθος",
   features: "Χαρακτηριστικά",
   platform: "Πλατφόρμα",
+  included_items: "Περιλαμβάνονται",
+  compatible_models: "Συμβατά μοντέλα",
+  compatible_brands: "Συμβατές μάρκες",
+  compatible_platforms: "Συμβατές πλατφόρμες",
+  compatibility_type: "Τύπος συμβατότητας",
   load_ton: "Μέγιστο φορτίο"
 };
 
@@ -140,6 +146,16 @@ const optionalText = (value: unknown): string | undefined => {
   return result || undefined;
 };
 const objectValue = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const jsonObject = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+};
 const stringArray = (value: unknown): readonly string[] => Array.isArray(value) ? value.map(optionalText).filter((entry): entry is string => Boolean(entry)) : [];
 const numeric = (value: unknown): number | undefined => {
   if (value === null || value === undefined || value === "") return undefined;
@@ -238,10 +254,21 @@ function sourcePrice(raw: Record<string, unknown>): number | undefined {
 }
 
 function productFromRow(row: ProductRow, vendor: DemoStorefrontVendor, image?: Readonly<{ mediaId: string; altText?: string }>): DemoCatalogProduct {
-  const attributes = objectValue(row.variant_attributes);
-  const specifications = objectValue(row.specifications);
   const sourceNormalized = objectValue(row.source_normalized_payload);
   const sourceRaw = objectValue(row.source_raw_payload);
+  const attributes = {
+    ...jsonObject(sourceRaw.variant_attributes_json),
+    ...objectValue(row.variant_attributes)
+  };
+  const specifications: Record<string, unknown> = {
+    ...jsonObject(sourceRaw.specifications_json),
+    ...objectValue(row.specifications)
+  };
+  for (const key of ["included_items", "platform", "voltage_family", "battery_requirement_qty", "compatibility_type", "compatible_models", "compatible_brands", "compatible_platforms"] as const) {
+    const value = sourceRaw[key];
+    if (value !== null && value !== undefined && value !== "") specifications[key] = value;
+  }
+
   const vendorPriceMinor = positiveInteger(row.customer_price_minor);
   const sourcePriceMinor = sourcePrice(sourceRaw);
   const priceMinor = vendorPriceMinor ?? sourcePriceMinor ?? 0;
