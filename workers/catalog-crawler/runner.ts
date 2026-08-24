@@ -49,7 +49,7 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
   const policy = parseCrawlPolicySnapshot(options.job.policySnapshot);
   if (policy.fetchMode === "browser") throw new CrawlJobError("Browser-only crawl profiles are not supported by the HTTP crawler worker yet", true);
   const fetchPolicy: CrawlFetchPolicy = {
-    allowedHosts: policy.allowedHosts,
+    allowedHosts: expandWwwHosts(policy.allowedHosts),
     allowSubdomains: policy.allowSubdomains,
     allowHttp: policy.allowHttp,
     maxRedirects: policy.maxRedirects,
@@ -268,8 +268,24 @@ function globMatches(pattern: string, value: string): boolean {
 function sameAllowedOriginClass(url: string, seedUrl: string, policy: CrawlPolicySnapshot): boolean {
   const candidate = new URL(url);
   const seed = new URL(seedUrl);
-  if (candidate.hostname === seed.hostname) return true;
+  if (sameWwwSite(candidate.hostname, seed.hostname)) return true;
   return policy.allowSubdomains && policy.allowedHosts.some((host) => candidate.hostname === host || candidate.hostname.endsWith(`.${host}`));
+}
+function expandWwwHosts(hosts: readonly string[]): readonly string[] {
+  const expanded = new Set<string>();
+  for (const rawHost of hosts) {
+    const host = rawHost.trim().toLowerCase();
+    if (!host) continue;
+    expanded.add(host);
+    expanded.add(host.startsWith("www.") ? host.slice(4) : `www.${host}`);
+  }
+  return [...expanded];
+}
+function sameWwwSite(left: string, right: string): boolean {
+  return normalizedWwwHost(left) === normalizedWwwHost(right);
+}
+function normalizedWwwHost(host: string): string {
+  return host.trim().toLowerCase().replace(/^www\./, "");
 }
 function isLikelyPageUrl(rawUrl: string): boolean {
   const pathname = new URL(rawUrl).pathname.toLowerCase();
