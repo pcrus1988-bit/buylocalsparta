@@ -16,8 +16,9 @@ import { PostgresResendNotificationService } from "./notifications.ts";
 import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shipping";
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
+import { PostgresCartRecoveryService } from "./cart-recovery.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 142;
+export const EXPECTED_SCHEMA_VERSION = 143;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
@@ -93,6 +94,7 @@ export class ProductionPostgresRuntime {
   readonly notifications?: PostgresResendNotificationService;
   readonly boxNowShipping?: PostgresBoxNowShippingService;
   readonly activationEvidence: PostgresActivationEvidenceService;
+  readonly cartRecovery: PostgresCartRecoveryService;
 
   constructor(config: PostgresRuntimeConfig) {
     const poolConfig: PoolConfig = {
@@ -119,6 +121,7 @@ export class ProductionPostgresRuntime {
     this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
     this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
     this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool);
+    this.cartRecovery = new PostgresCartRecoveryService(this.sqlPool);
   }
 
   async readiness(expectedSchemaVersion = EXPECTED_SCHEMA_VERSION): Promise<DatabaseReadiness> {
@@ -237,3 +240,4 @@ export * from "./search.ts";
 export * from "./notifications.ts";
 export * from "./boxnow-shipping.ts";
 export * from "./activation-evidence.ts";
+export * from "./cart-recovery.ts";
