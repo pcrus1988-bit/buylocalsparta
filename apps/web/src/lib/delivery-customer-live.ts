@@ -193,9 +193,6 @@ export async function deliveryCustomerGoogleRoute(
   if (!remaining.length) {
     return { configured: true, available: false, reason: "route_complete" };
   }
-  if (remaining.length > 25) {
-    return { configured: true, available: false, reason: "route_too_many_stops" };
-  }
 
   let label = "Εκτιμώμενη ολοκλήρωση διαδρομής";
   if (job.job_type === "outbound") {
@@ -208,6 +205,10 @@ export async function deliveryCustomerGoogleRoute(
     } else {
       label = "Ολοκλήρωση διαδρομής επιστροφής";
     }
+  }
+
+  if (remaining.length > 25) {
+    return { configured: true, available: false, reason: "route_too_many_stops" };
   }
 
   const destination = remaining[remaining.length - 1];

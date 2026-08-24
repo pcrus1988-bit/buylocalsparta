@@ -82,23 +82,18 @@ export function CustomerDeliveryWorkspaceClient({
             ))}
           </div>
 
-          {job.liveTracking && job.latestLocation && job.status !== "completed" && (
+          {job.liveTracking && job.status !== "completed" && (
             <CustomerDeliveryLiveMap
               jobId={job.id}
-              initialLocation={{
-                latitude: job.latestLocation.latitude,
-                longitude: job.latestLocation.longitude,
-                accuracy: job.latestLocation.accuracy,
-                receivedAt: job.latestLocation.receivedAt,
-              }}
+              initialLocation={job.latestLocation
+                ? {
+                    latitude: job.latestLocation.latitude,
+                    longitude: job.latestLocation.longitude,
+                    accuracy: job.latestLocation.accuracy,
+                    receivedAt: job.latestLocation.receivedAt,
+                  }
+                : undefined}
             />
-          )}
-
-          {job.liveTracking && !job.latestLocation && job.status !== "completed" && (
-            <div className={styles.empty}>
-              <strong>Το live tracking ενεργοποιήθηκε</strong>
-              <span>Αναμονή για το πρώτο έγκυρο GPS στίγμα του οδηγού.</span>
-            </div>
           )}
 
           {job.customerQr && job.status !== "completed" && (
