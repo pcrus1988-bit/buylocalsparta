@@ -150,7 +150,7 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     processed += 1;
 
     if (html && options.job.crawlMode !== "single" && item.depth < maxDepth) {
-      const links = discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000));
+      const links = [...discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))];
       links.sort((left, right) => productLikelihood(right) - productLikelihood(left));
       for (const url of links) {
         if (discovered.length >= policy.maxPages * 4) break;
@@ -201,9 +201,6 @@ async function loadRobots(
   let result: SecureCrawlFetchResult;
   try { result = await fetcher(robotsUrl, "text/plain,*/*;q=0.1"); }
   catch (error) { throw new CrawlJobError(`robots.txt fetch failed: ${errorMessage(error)}`); }
-  // RFC 9309 treats 4xx robots responses as "unavailable": the crawler may
-  // access resources. A 401/403 challenge on robots.txt must not silently turn
-  // into a site-wide Disallow rule.
   if (result.status >= 400 && result.status < 500 && result.status !== 429) return { rules: [], sitemaps: [] };
   if (result.status === 429 || result.status >= 500) throw new CrawlJobError(`robots.txt temporarily unavailable (HTTP ${result.status})`);
   if (result.status < 200 || result.status >= 300) return { rules: [], sitemaps: [] };
