@@ -1,0 +1,35 @@
+name: Exceptional Search Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "packages/core/src/search/**"
+      - "packages/core/test/search-intelligence.test.ts"
+      - "packages/meilisearch-search/src/index.ts"
+      - "packages/meilisearch-search/test/**"
+      - "apps/web/src/lib/postgres-storefront-search.ts"
+      - "apps/web/src/lib/catalog-view.ts"
+      - "apps/web/src/lib/storefront-search-analytics.ts"
+      - "apps/web/src/app/shop/page.tsx"
+      - "scripts/verify-exceptional-search.ts"
+      - ".github/workflows/exceptional-search-acceptance.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - name: Verify search contracts
+        run: node --experimental-strip-types scripts/verify-exceptional-search.ts
+      - name: Test search intelligence
+        run: node --experimental-strip-types --test packages/core/test/search-intelligence.test.ts
+      - name: Test Meilisearch provider
+        run: npm run test:search-provider
+      - name: Typecheck core
+        run: npm run typecheck:core
+      - name: Typecheck search provider
+        run: npm run typecheck:search-provider
