@@ -23,6 +23,10 @@ export type AdminAskLocalRequest = Readonly<{
   responseDueAt?: number;
   createdAt: number;
   updatedAt: number;
+  voiceTranscript?: string;
+  barcode?: string;
+  referenceImageDataUrl?: string;
+  captureSource?: string;
 }>;
 
 export type AdminAskLocalVendor = Readonly<{ id: string; name: string }>;
@@ -65,7 +69,11 @@ function mapRequest(row: SqlRow): AdminAskLocalRequest {
     assignedVendorName: optionalText(row.trading_name),
     responseDueAt: epoch(row.expires_at),
     createdAt: epoch(row.created_at) ?? 0,
-    updatedAt: epoch(row.updated_at) ?? 0
+    updatedAt: epoch(row.updated_at) ?? 0,
+    voiceTranscript: optionalText(source.voiceTranscript),
+    barcode: optionalText(source.barcode),
+    referenceImageDataUrl: optionalText(source.referenceImageDataUrl),
+    captureSource: optionalText(source.captureSource)
   };
 }
 
