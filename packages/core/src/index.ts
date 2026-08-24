@@ -15,6 +15,7 @@ export * from "./notifications/index.ts";
 export * from "./plans/index.ts";
 export * from "./persistence/index.ts";
 export * from "./fulfilment/index.ts";
+export * from "./delivery/index.ts";
 
 export * from "./media/index.ts";
 
