@@ -6,6 +6,7 @@ import { CatalogProductCard } from "./CatalogProductCard";
 import styles from "./VendorStorefront.module.css";
 
 type AvailabilityFilter = "all" | "available";
+const SHOWCASE_LIMIT = 10;
 
 function normalized(value: string | undefined): string {
   return (value ?? "")
@@ -20,6 +21,21 @@ function unique(values: readonly (string | undefined)[]): readonly string[] {
     .sort((left, right) => left.localeCompare(right, "el"));
 }
 
+function rank(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function showcase(products: readonly CatalogCard[], seed: string): readonly CatalogCard[] {
+  return [...products]
+    .sort((left, right) => rank(`${seed}:${left.id}`) - rank(`${seed}:${right.id}`))
+    .slice(0, SHOWCASE_LIMIT);
+}
+
 export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
@@ -29,6 +45,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   const [category, setCategory] = useState("all");
   const [brand, setBrand] = useState("all");
   const [color, setColor] = useState("all");
+  const [size, setSize] = useState("all");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
   const demoMode = Boolean(demoVendorId);
 
@@ -39,15 +56,21 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
       .map(([value, label]) => ({ value, label }))
       .sort((left, right) => left.label.localeCompare(right.label, "el"));
   }, [products]);
-  const brands = useMemo(() => unique(products.map((product) => product.brand)), [products]);
-  const colors = useMemo(() => unique(products.map((product) => product.color)), [products]);
+
+  const categoryProducts = useMemo(
+    () => category === "all" ? products : products.filter((product) => product.categoryCode === category),
+    [category, products]
+  );
+  const brands = useMemo(() => unique(categoryProducts.map((product) => product.brand)), [categoryProducts]);
+  const colors = useMemo(() => unique(categoryProducts.map((product) => product.color)), [categoryProducts]);
+  const sizes = useMemo(() => unique(categoryProducts.flatMap((product) => product.sizes)), [categoryProducts]);
 
   const filtered = useMemo(() => {
     const needle = normalized(query);
-    return products.filter((product) => {
-      if (category !== "all" && product.categoryCode !== category) return false;
+    return categoryProducts.filter((product) => {
       if (brand !== "all" && product.brand !== brand) return false;
       if (color !== "all" && product.color !== color) return false;
+      if (size !== "all" && !product.sizes.includes(size)) return false;
       if (availability === "available" && !product.available) return false;
       if (!needle) return true;
       return normalized([
@@ -61,20 +84,31 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
         ...product.sizes
       ].filter(Boolean).join(" ")).includes(needle);
     });
-  }, [availability, brand, category, color, products, query]);
+  }, [availability, brand, categoryProducts, color, query, size]);
 
-  const hasFilters = Boolean(query) || category !== "all" || brand !== "all" || color !== "all" || availability !== "all";
-  const clear = () => {
-    setQuery("");
-    setCategory("all");
+  const categoryFiltersActive = brand !== "all" || color !== "all" || size !== "all" || availability !== "all";
+  const discoveryActive = Boolean(query) || categoryFiltersActive;
+  const visibleProducts = useMemo(
+    () => discoveryActive ? filtered : showcase(filtered, `${vendor.name}:${category}`),
+    [category, discoveryActive, filtered, vendor.name]
+  );
+
+  const resetCategoryFilters = () => {
     setBrand("all");
     setColor("all");
+    setSize("all");
     setAvailability("all");
+  };
+
+  const selectCategory = (nextCategory: string) => {
+    setCategory(nextCategory);
+    setQuery("");
+    resetCategoryFilters();
   };
 
   return (
     <div>
-      <div className={styles.catalogToolbar} aria-label={`Αναζήτηση και φίλτρα προϊόντων ${vendor.name}`}>
+      <div className={styles.catalogToolbarSimple} aria-label={`Αναζήτηση προϊόντων ${vendor.name}`}>
         <label className={styles.field}>
           <span>Αναζήτηση στο κατάστημα</span>
           <input
@@ -84,75 +118,109 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
             placeholder="Προϊόν, μάρκα, κωδικός…"
           />
         </label>
-        {brands.length > 0 && (
-          <label className={styles.field}>
-            <span>Μάρκα</span>
-            <select value={brand} onChange={(event) => setBrand(event.target.value)}>
-              <option value="all">Όλες</option>
-              {brands.map((value) => <option value={value} key={value}>{value}</option>)}
-            </select>
-          </label>
-        )}
-        {colors.length > 0 && (
-          <label className={styles.field}>
-            <span>Χρώμα</span>
-            <select value={color} onChange={(event) => setColor(event.target.value)}>
-              <option value="all">Όλα</option>
-              {colors.map((value) => <option value={value} key={value}>{value}</option>)}
-            </select>
-          </label>
-        )}
-        <label className={styles.field}>
-          <span>{demoMode ? "Τιμή παρουσίασης" : "Διαθεσιμότητα"}</span>
-          <select value={availability} onChange={(event) => setAvailability(event.target.value as AvailabilityFilter)}>
-            <option value="all">Όλα</option>
-            <option value="available">{demoMode ? "Με διαθέσιμη τιμή παρουσίασης" : "Διαθέσιμα τώρα"}</option>
-          </select>
-        </label>
       </div>
 
       {categories.length > 0 && (
-        <div className={styles.categoryBar} aria-label="Κατηγορίες προϊόντων">
-          <button
-            type="button"
-            className={`${styles.categoryChip} ${category === "all" ? styles.categoryChipActive : ""}`}
-            onClick={() => setCategory("all")}
-          >
-            Όλα · {products.length}
-          </button>
-          {categories.map((entry) => {
-            const count = products.filter((product) => product.categoryCode === entry.value).length;
-            return (
-              <button
-                type="button"
-                className={`${styles.categoryChip} ${category === entry.value ? styles.categoryChipActive : ""}`}
-                onClick={() => setCategory(entry.value)}
-                key={entry.value}
-              >
-                {entry.label} · {count}
-              </button>
-            );
-          })}
+        <div className={styles.categoryArea}>
+          <div className={styles.categoryHeading}>
+            <div>
+              <span>Κατηγορίες προϊόντων</span>
+              <strong>{category === "all" ? "Περιηγήσου στον κατάλογο" : categories.find((entry) => entry.value === category)?.label}</strong>
+            </div>
+            {category !== "all" ? <button type="button" className={styles.clearButton} onClick={() => selectCategory("all")}>Όλες οι κατηγορίες</button> : null}
+          </div>
+          <div className={styles.categoryBar} aria-label="Κατηγορίες προϊόντων">
+            <button
+              type="button"
+              className={`${styles.categoryChip} ${category === "all" ? styles.categoryChipActive : ""}`}
+              onClick={() => selectCategory("all")}
+            >
+              Όλα · {products.length}
+            </button>
+            {categories.map((entry) => {
+              const count = products.filter((product) => product.categoryCode === entry.value).length;
+              return (
+                <button
+                  type="button"
+                  className={`${styles.categoryChip} ${category === entry.value ? styles.categoryChipActive : ""}`}
+                  onClick={() => selectCategory(entry.value)}
+                  key={entry.value}
+                >
+                  {entry.label} · {count}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {category !== "all" && (
+        <div className={styles.categoryFilterPanel} aria-label="Φίλτρα επιλεγμένης κατηγορίας">
+          <div className={styles.categoryFilterIntro}>
+            <strong>Φίλτρα κατηγορίας</strong>
+            <span>Τα φίλτρα εμφανίζονται μόνο αφού ανοίξεις κατηγορία.</span>
+          </div>
+          <div className={styles.categoryFilters}>
+            {brands.length > 1 && (
+              <label className={styles.field}>
+                <span>Μάρκα</span>
+                <select value={brand} onChange={(event) => setBrand(event.target.value)}>
+                  <option value="all">Όλες</option>
+                  {brands.map((value) => <option value={value} key={value}>{value}</option>)}
+                </select>
+              </label>
+            )}
+            {colors.length > 1 && (
+              <label className={styles.field}>
+                <span>Χρώμα</span>
+                <select value={color} onChange={(event) => setColor(event.target.value)}>
+                  <option value="all">Όλα</option>
+                  {colors.map((value) => <option value={value} key={value}>{value}</option>)}
+                </select>
+              </label>
+            )}
+            {sizes.length > 1 && (
+              <label className={styles.field}>
+                <span>Μέγεθος</span>
+                <select value={size} onChange={(event) => setSize(event.target.value)}>
+                  <option value="all">Όλα</option>
+                  {sizes.map((value) => <option value={value} key={value}>{value}</option>)}
+                </select>
+              </label>
+            )}
+            <label className={styles.field}>
+              <span>{demoMode ? "Τιμή παρουσίασης" : "Διαθεσιμότητα"}</span>
+              <select value={availability} onChange={(event) => setAvailability(event.target.value as AvailabilityFilter)}>
+                <option value="all">Όλα</option>
+                <option value="available">{demoMode ? "Με διαθέσιμη τιμή παρουσίασης" : "Διαθέσιμα τώρα"}</option>
+              </select>
+            </label>
+          </div>
+          {categoryFiltersActive ? <button type="button" className={styles.clearButton} onClick={resetCategoryFilters}>Καθαρισμός φίλτρων κατηγορίας</button> : null}
         </div>
       )}
 
       <div className={styles.catalogMeta}>
-        <span><strong>{filtered.length}</strong> από {products.length} προϊόντα εμφανίζονται.</span>
+        {discoveryActive ? (
+          <span><strong>{filtered.length}</strong> αποτελέσματα.</span>
+        ) : (
+          <span><strong>{Math.min(SHOWCASE_LIMIT, filtered.length)}</strong> τυχαίες επιλογές από {filtered.length} προϊόντα.</span>
+        )}
         {demoMode ? <span>DEMO · οι κάρτες ανοίγουν πλήρη προεπισκόπηση προϊόντος, χωρίς checkout.</span> : null}
-        {hasFilters && <button type="button" className={styles.clearButton} onClick={clear}>Καθαρισμός φίλτρων</button>}
+        {query ? <button type="button" className={styles.clearButton} onClick={() => setQuery("")}>Καθαρισμός αναζήτησης</button> : null}
       </div>
 
-      {filtered.length > 0 ? (
-        <div className="product-grid">
-          {filtered.map((product, index) => (
+      {visibleProducts.length > 0 ? (
+        <div className={styles.catalogGrid}>
+          {visibleProducts.map((product, index) => (
             <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />
           ))}
         </div>
       ) : (
         <div className={styles.noResults}>
-          <h3>Δεν βρέθηκε προϊόν με αυτά τα φίλτρα.</h3>
-          <p>{demoMode ? "Δοκίμασε άλλη λέξη, μάρκα ή κατηγορία για να συνεχίσεις την προεπισκόπηση του καταλόγου." : "Δοκίμασε άλλη λέξη ή κατηγορία. Αν ψάχνεις κάτι που δεν είναι καταχωρισμένο, μπορείς να ρωτήσεις απευθείας το κατάστημα στο Ask Local παρακάτω."}</p>
-          <button type="button" className="button button-secondary" onClick={clear}>Εμφάνιση όλων</button>
+          <h3>Δεν βρέθηκε προϊόν.</h3>
+          <p>{demoMode ? "Δοκίμασε άλλη λέξη ή άλλα φίλτρα μέσα στην επιλεγμένη κατηγορία." : "Δοκίμασε άλλη λέξη ή κατηγορία. Αν ψάχνεις κάτι που δεν είναι καταχωρισμένο, μπορείς να ρωτήσεις απευθείας το κατάστημα στο Ask Local παρακάτω."}</p>
+          <button type="button" className="button button-secondary" onClick={() => { setQuery(""); resetCategoryFilters(); }}>Καθαρισμός αναζήτησης</button>
         </div>
       )}
     </div>
