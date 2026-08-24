@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { CatalogCrawlerStore, CrawlJobCancelledError } from "../../../../../../../workers/catalog-crawler/store.ts";
 import { CrawlJobError, runCrawlJob } from "../../../../../../../workers/catalog-crawler/runner.ts";
@@ -7,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 700;
 
+const CRON_SCHEDULE = "* * * * *";
 const SLICE_MS = 10 * 60 * 1000;
 const LEASE_SECONDS = 720;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -35,13 +37,25 @@ class TimeSlicedCatalogCrawlerStore extends CatalogCrawlerStore {
 }
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!authorizedSchedulerRequest(request)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const workerId = `vercel-cron:${process.env.VERCEL_REGION ?? "unknown"}:${randomUUID()}`;
   const runtimeDb = getProductionPostgresRuntime();
+
+  // Only one live catalogue worker is allowed at a time. This keeps crawl rate
+  // limits meaningful even though Vercel invokes the scheduler every minute.
+  const activeResult = await runtimeDb.sqlPool.query<SqlRow>(`
+    SELECT count(*)::integer AS active_count
+    FROM public.catalog_web_crawl_jobs
+    WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at>now()
+  `);
+  const activeCount = Number(activeResult.rows[0]?.active_count ?? 0);
+  if (activeCount > 0) {
+    return Response.json({ ok: true, claimed: false, busy: true, activeCount }, { headers: { "cache-control": "no-store" } });
+  }
+
   const store = new TimeSlicedCatalogCrawlerStore(runtimeDb.sqlPool, Date.now() + SLICE_MS);
 
   let job: Awaited<ReturnType<CatalogCrawlerStore["claim"]>>;
@@ -118,6 +132,19 @@ export async function GET(request: Request) {
     }));
     return Response.json({ ok: !terminal, claimed: true, jobId: job.jobId, status: terminal ? "failed" : "retrying", retrySeconds, error: message }, { headers: { "cache-control": "no-store" } });
   }
+}
+
+function authorizedSchedulerRequest(request: Request): boolean {
+  const configuredSecret = process.env.CRON_SECRET?.trim();
+  if (configuredSecret) return request.headers.get("authorization") === `Bearer ${configuredSecret}`;
+
+  // Vercel documents `vercel-cron/1.0` for scheduler invocations and supplies
+  // the deployed cron expression in x-vercel-cron-schedule. This fallback is
+  // intentionally limited to a parameterless worker that can only consume
+  // already-admin-authorized jobs; it cannot create or alter crawl scope.
+  const userAgent = request.headers.get("user-agent")?.trim().toLowerCase();
+  const schedule = request.headers.get("x-vercel-cron-schedule")?.trim();
+  return userAgent === "vercel-cron/1.0" && schedule === CRON_SCHEDULE;
 }
 
 function errorMessage(error: unknown): string {
