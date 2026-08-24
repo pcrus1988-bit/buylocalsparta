@@ -136,7 +136,9 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     const html = isHtml(response) ? response.body.toString("utf8") : undefined;
     const structured = html ? extractJsonLdProductCandidates(html, response.finalUrl) : [];
     const analysis = html ? analyzeHtmlProductPage(html, response.finalUrl) : undefined;
-    const candidates = dedupeCandidates([...structured, ...(analysis?.candidates ?? [])]);
+    const explicitPrices = html ? extractExplicitCommercialPrices(html, response.finalUrl) : [];
+    const rawCandidates = [...structured, ...(analysis?.candidates ?? [])].map((candidate) => sanitizeCandidate(candidate, explicitPrices));
+    const candidates = dedupeCandidates(rawCandidates);
     let reviewCount = 0;
     for (let ordinal = 0; ordinal < candidates.length; ordinal += 1) {
       const status = await options.store.saveExtraction({ pageId: page.id, extractorVersion: options.job.extractorVersion, ordinal, candidate: candidates[ordinal] });
@@ -330,6 +332,81 @@ function sitemapPriority(rawUrl: string): number {
   if (/shop|catalog|catalogue|item/.test(value)) return 6;
   if (/category|taxonomy|post|page|author|tag|news|blog/.test(value)) return 1;
   return 3;
+}
+function sanitizeCandidate(candidate: ExtractedProductCandidate, explicitPrices: readonly ExtractedPrice[]): ExtractedProductCandidate {
+  const sku = plausibleCode(candidate.sku) ? candidate.sku : undefined;
+  const mpn = plausibleCode(candidate.mpn) ? candidate.mpn : undefined;
+  const model = plausibleModel(candidate.model) ? candidate.model : undefined;
+  const brand = plausibleBrand(candidate.brand) ? candidate.brand : undefined;
+  const rejectedIdentity = [candidate.sku !== sku ? candidate.sku : undefined, candidate.mpn !== mpn ? candidate.mpn : undefined, candidate.model !== model ? candidate.model : undefined]
+    .filter((value): value is string => Boolean(value));
+  const sourceKeyRejected = rejectedIdentity.some((value) => normalizeIdentity(value) === normalizeIdentity(candidate.sourceProductKey)) || looksLikeProseIdentity(candidate.sourceProductKey);
+  const sourceProductKey = sourceKeyRejected ? (sku ?? candidate.gtin ?? mpn ?? model ?? candidate.sourceUrl) : candidate.sourceProductKey;
+  const fieldEvidence: Record<string, ProductFieldEvidence | readonly ProductFieldEvidence[]> = { ...candidate.fieldEvidence };
+  if (!sku) delete fieldEvidence.sku;
+  if (!mpn) delete fieldEvidence.mpn;
+  if (!model) delete fieldEvidence.model;
+  if (!brand) delete fieldEvidence.brand;
+  const prices = mergePrices([...(candidate.prices ?? []), ...explicitPrices]);
+  if (explicitPrices.length) fieldEvidence.prices = explicitPrices.map((price) => price.evidence);
+  return { ...candidate, sourceProductKey, sku, mpn, model, brand, prices: prices.length ? prices : undefined, fieldEvidence };
+}
+function plausibleCode(value: string | undefined): value is string {
+  if (!value) return false;
+  const text = value.trim();
+  if (!text || text.length > 100 || /[.!?]\s*$/.test(text) || text.split(/\s+/).length > 5) return false;
+  if (/\b(?:is|are|was|were|recommended|available|click|read|choose|select)\b/i.test(text)) return false;
+  return /\d|[-_\/]/.test(text) || /^[A-Z0-9.]+$/.test(text);
+}
+function plausibleModel(value: string | undefined): value is string {
+  if (!value) return false;
+  const text = value.trim();
+  return Boolean(text && text.length <= 100 && text.split(/\s+/).length <= 8 && !/[!?]\s*$/.test(text) && !/\b(?:is|are|was|were|recommended|available|click|read|choose|select|should|may|will)\b/i.test(text));
+}
+function plausibleBrand(value: string | undefined): value is string {
+  if (!value) return false;
+  const text = value.trim();
+  return Boolean(text && text.length <= 100 && text.split(/\s+/).length <= 8 && !/^[.,:;!?]/.test(text) && !/\b(?:click here|read (?:the|more)|announcement|privacy|cookie|terms|learn more|view all)\b/i.test(text));
+}
+function looksLikeProseIdentity(value: string): boolean {
+  const text = value.trim();
+  return text.length > 120 || text.split(/\s+/).length > 8 || /\b(?:is|are|was|were|recommended|available|click|read|choose|should|may|will)\b/i.test(text) || /[!?]\s*$/.test(text);
+}
+function extractExplicitCommercialPrices(html: string, sourceUrl: string): ExtractedPrice[] {
+  const text = decodeBasicEntities(html.replace(/<(?:script|style|template|svg)\b[\s\S]*?<\/(?:script|style|template|svg)>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  const result: ExtractedPrice[] = [];
+  const patterns: Array<{ kind: ExtractedPrice["kind"]; pattern: RegExp; label: string }> = [
+    { kind: "rrp", label: "rrp/msrp", pattern: /(?:R\s*\.?\s*R\s*\.?\s*P\s*\.?|MSRP|Recommended\s+Retail\s+Price|Προτεινόμενη(?:\s+Λιανική)?\s+Τιμή)\s*[:\-]?\s*(€|EUR|\$|USD|£|GBP)?\s*([0-9]{1,7}(?:[.,][0-9]{1,2})?)/gi },
+    { kind: "promotion", label: "sale/offer", pattern: /(?:Sale\s+Price|Offer\s+Price|Τιμή\s+Προσφοράς|Προσφορά)\s*[:\-]?\s*(€|EUR|\$|USD|£|GBP)?\s*([0-9]{1,7}(?:[.,][0-9]{1,2})?)/gi }
+  ];
+  for (const definition of patterns) {
+    for (const match of text.matchAll(definition.pattern)) {
+      const amountMinor = decimalPriceToMinor(match[2]);
+      const currency = normalizeCurrency(match[1]);
+      if (amountMinor === undefined || !currency) continue;
+      result.push({ amountMinor, currency, kind: definition.kind, evidence: { origin: "html", sourceUrl, confidence: 0.94, selector: `explicit:${definition.label}` } });
+    }
+  }
+  return mergePrices(result);
+}
+function decimalPriceToMinor(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const normalized = raw.trim().replace(/\s/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
+  if (!/^\d{1,9}(?:\.\d{1,2})?$/.test(normalized)) return undefined;
+  const value = Number(normalized);
+  const minor = Math.round(value * 100);
+  return Number.isFinite(value) && value >= 0 && Number.isSafeInteger(minor) ? minor : undefined;
+}
+function normalizeCurrency(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const value = raw.trim().toUpperCase();
+  if (value === "€" || value === "EUR") return "EUR";
+  if (value === "$" || value === "USD") return "USD";
+  if (value === "£" || value === "GBP") return "GBP";
+  return /^[A-Z]{3}$/.test(value) ? value : undefined;
+}
+function decodeBasicEntities(value: string): string {
+  return value.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&euro;/gi, "€").replace(/&#8364;/g, "€").replace(/&#x20ac;/gi, "€");
 }
 function dedupeCandidates(values: readonly ExtractedProductCandidate[]): ExtractedProductCandidate[] {
   const merged: ExtractedProductCandidate[] = [];
