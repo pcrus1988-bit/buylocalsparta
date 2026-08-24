@@ -59,20 +59,20 @@ ALTER TABLE public.gift_card_ledger FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY gift_cards_platform_all ON public.gift_cards
   FOR ALL
-  USING (public.app_platform_access())
-  WITH CHECK (public.app_platform_access());
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY gift_cards_holder_read ON public.gift_cards
   FOR SELECT
   USING (
     holder_user_id IS NOT NULL
-    AND holder_user_id = public.app_actor_user_uuid()
+    AND holder_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
   );
 
 CREATE POLICY gift_card_ledger_platform_all ON public.gift_card_ledger
   FOR ALL
-  USING (public.app_platform_access())
-  WITH CHECK (public.app_platform_access());
+  USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
 CREATE POLICY gift_card_ledger_holder_read ON public.gift_card_ledger
   FOR SELECT
@@ -81,7 +81,7 @@ CREATE POLICY gift_card_ledger_holder_read ON public.gift_card_ledger
       SELECT 1
       FROM public.gift_cards gc
       WHERE gc.id = gift_card_ledger.gift_card_id
-        AND gc.holder_user_id = public.app_actor_user_uuid()
+        AND gc.holder_user_id = nullif(current_setting('app.actor_user_id', true), '')::uuid
     )
   );
 
