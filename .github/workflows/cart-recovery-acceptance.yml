@@ -1,0 +1,99 @@
+name: Smart Cart Recovery Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "db/migrations/0143_smart_cart_recovery.sql"
+      - "db/migrations/checksums.0143.json"
+      - "packages/postgres-runtime/src/cart-recovery.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "workers/notification-worker.ts"
+      - "apps/web/src/lib/customer-cart-recovery-preference.ts"
+      - "apps/web/src/app/api/account/cart-recovery-preference/route.ts"
+      - "apps/web/src/components/CartRecoveryPreferenceToggle.tsx"
+      - "apps/web/src/app/account/notifications/page.tsx"
+      - "scripts/verify-smart-cart-recovery.ts"
+      - ".github/workflows/cart-recovery-acceptance.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - name: Verify recovery contracts
+        run: node --experimental-strip-types scripts/verify-smart-cart-recovery.ts
+      - name: Verify immutable migration checksums
+        run: npm run db:verify
+      - name: Validate migration 0143 in isolation
+        shell: bash
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA bls_private;
+          CREATE FUNCTION bls_private.is_platform_runtime() RETURNS boolean
+          LANGUAGE sql STABLE AS $$ SELECT true $$;
+          CREATE TABLE public.users(id uuid PRIMARY KEY);
+          CREATE TABLE public.carts(id uuid PRIMARY KEY, user_id uuid REFERENCES public.users(id));
+          CREATE TABLE public.notifications(id uuid PRIMARY KEY);
+          SQL
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0143_smart_cart_recovery.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            rls_enabled boolean;
+            rls_forced boolean;
+            function_config text[];
+            policy_count integer;
+          BEGIN
+            SELECT c.relrowsecurity, c.relforcerowsecurity
+              INTO rls_enabled, rls_forced
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid=c.relnamespace
+             WHERE n.nspname='public' AND c.relname='cart_recovery_attempts';
+            IF rls_enabled IS DISTINCT FROM true OR rls_forced IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'cart_recovery_attempts must have enabled + forced RLS';
+            END IF;
+
+            SELECT p.proconfig
+              INTO function_config
+              FROM pg_proc p
+              JOIN pg_namespace n ON n.oid=p.pronamespace
+             WHERE n.nspname='public' AND p.proname='prevent_cart_recovery_attempt_mutation';
+            IF function_config IS NULL OR NOT ('search_path=pg_catalog'=ANY(function_config)) THEN
+              RAISE EXCEPTION 'cart recovery trigger function must pin search_path=pg_catalog';
+            END IF;
+
+            SELECT count(*)::integer
+              INTO policy_count
+              FROM pg_policies
+             WHERE schemaname='public' AND tablename='cart_recovery_attempts';
+            IF policy_count <> 3 THEN
+              RAISE EXCEPTION 'expected 3 cart recovery RLS policies, got %', policy_count;
+            END IF;
+          END $$;
+          SQL
+      - name: Typecheck PostgreSQL runtime
+        run: npm run typecheck:postgres-runtime
+      - name: Typecheck workers
+        run: npm run typecheck:workers
