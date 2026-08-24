@@ -56,7 +56,7 @@ export function AskLocalRichCapture() {
 
   function startVoice() {
     setNotice("");
-    const browser = window as typeof window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+    const browser = window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
     const Speech = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
     if (!Speech) { setNotice("Η φωνητική καταγραφή δεν υποστηρίζεται από αυτόν τον browser. Μπορείς να γράψεις κανονικά το αίτημά σου."); return; }
     const recognition = new Speech();
@@ -79,7 +79,7 @@ export function AskLocalRichCapture() {
     try {
       const { dataUrl, bitmap } = await compressedReferenceImage(file);
       setImageDataUrl(dataUrl);
-      const Detector = (window as typeof window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
+      const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
       if (Detector) {
         try {
           const detected = await new Detector({ formats: BARCODE_FORMATS }).detect(bitmap);
