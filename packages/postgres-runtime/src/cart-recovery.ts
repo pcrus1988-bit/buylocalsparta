@@ -38,6 +38,10 @@ export class PostgresCartRecoveryService {
            WHERE c.user_id IS NOT NULL
              AND c.updated_at <= $1
              AND (c.expires_at IS NULL OR c.expires_at > $3)
+             AND EXISTS (
+               SELECT 1 FROM users u
+                WHERE u.id=c.user_id AND u.status='active' AND u.email_verified_at IS NOT NULL
+             )
              AND EXISTS (SELECT 1 FROM cart_items ci WHERE ci.cart_id=c.id)
              AND COALESCE(
                (SELECT np.enabled FROM notification_preferences np
@@ -138,8 +142,8 @@ export class PostgresCartRecoveryService {
           userId,
           "Το τοπικό σου καλάθι σε περιμένει",
           availableItemCount === itemCount
-            ? `Τα ${itemCount} προϊόντα του καλαθιού σου παραμένουν διαθέσιμα τοπικά. Μπορείς να συνεχίσεις όποτε θέλεις.`
-            : `${availableItemCount} από τα ${itemCount} προϊόντα του καλαθιού σου παραμένουν διαθέσιμα τοπικά. Έλεγξε το καλάθι σου πριν αλλάξει η διαθεσιμότητα.`,
+            ? `Τα ${itemCount} προϊόντα του καλαθιού σου παραμένουν διαθέσιμα τοπικά. Συνέχισε όποτε θέλεις: https://kontamou.site/cart`
+            : `${availableItemCount} από τα ${itemCount} προϊόντα του καλαθιού σου παραμένουν διαθέσιμα τοπικά. Έλεγξε το καλάθι σου πριν αλλάξει η διαθεσιμότητα: https://kontamou.site/cart`,
           { contextType: "cart", contextReference: cartId, itemCount: String(itemCount), availableItemCount: String(availableItemCount) },
           dedupeKey,
           nowDate
