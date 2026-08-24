@@ -1,6 +1,7 @@
 export type PublicCoordinates = Readonly<{ latitude: number; longitude: number }>;
 
 const NON_PUBLIC_CATALOGUE_TITLE_PATTERN = /^\s*(?:test|demo|dummy|sample|placeholder|δοκιμ(?:ή|η)|δοκιμαστικ(?:ό|ο))(?:\s|[-_:/#]|$)/i;
+const GENERATED_TECHNICAL_DESCRIPTION_MARKER = "Κύρια διακριτικά/τεχνικά χαρακτηριστικά:";
 
 /**
  * Reject missing, non-finite, out-of-range and sentinel coordinates before they
@@ -42,6 +43,20 @@ export function publicCatalogueTitleLabel(title: string): string {
     .replace(/([^\d\s]),(?=\d)/gu, "$1, ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Legacy catalogue enrichment generated technical-summary tails directly from
+ * title parsing. Those tails can contain stale parser artefacts even after the
+ * governed public specification projection has been corrected. Cards do not load
+ * the richer specification projection, so expose only the safe introductory text
+ * for that generated template; preserve ordinary editorial descriptions verbatim.
+ */
+export function publicCatalogueCardDescription(description: string): string {
+  const normalized = description.trim();
+  const markerIndex = normalized.indexOf(GENERATED_TECHNICAL_DESCRIPTION_MARKER);
+  if (markerIndex < 0) return normalized;
+  return publicCatalogueTitleLabel(normalized.slice(0, markerIndex).trim());
 }
 
 /**
