@@ -5,11 +5,48 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { publicOrigin } from "./public-origin";
 import { getPublicVendorDirectoryEntry } from "./public-vendor-directory";
 
-export type AskLocalRequestView = Readonly<{ id: string; referenceNumber: string; status: string; need: string; quantity: number; postcode: string; canonicalVariantId?: string; assignedVendorId?: string; assignedVendorName?: string; workflowOwnerKind: "admin" | "vendor"; assignmentReason?: string; responseDueAt?: number; createdAt: number; clarificationCount?: number; privateOffers: readonly Readonly<{ id: string; status: string; priceMinor: number; currency: string; fulfilmentPromise?: string; expiresAt: number }>[] }>;
-export type AskLocalSubmitInput = Readonly<{ need: string; postcode: string; quantity: number; sourceUrl?: string; canonicalVariantId?: string; preferredVendorId?: string; category?: string; now?: number }>;
+export type AskLocalCaptureSource = "text" | "voice" | "barcode" | "photo" | "mixed";
+export type AskLocalRequestView = Readonly<{
+  id: string;
+  referenceNumber: string;
+  status: string;
+  need: string;
+  quantity: number;
+  postcode: string;
+  canonicalVariantId?: string;
+  assignedVendorId?: string;
+  assignedVendorName?: string;
+  workflowOwnerKind: "admin" | "vendor";
+  assignmentReason?: string;
+  responseDueAt?: number;
+  createdAt: number;
+  clarificationCount?: number;
+  voiceTranscript?: string;
+  barcode?: string;
+  referenceImageDataUrl?: string;
+  captureSource?: AskLocalCaptureSource;
+  privateOffers: readonly Readonly<{ id: string; status: string; priceMinor: number; currency: string; fulfilmentPromise?: string; expiresAt: number }>[];
+}>;
+export type AskLocalSubmitInput = Readonly<{
+  need: string;
+  postcode: string;
+  quantity: number;
+  sourceUrl?: string;
+  canonicalVariantId?: string;
+  preferredVendorId?: string;
+  category?: string;
+  voiceTranscript?: string;
+  barcode?: string;
+  referenceImageDataUrl?: string;
+  captureSource?: string;
+  now?: number;
+}>;
 
 const globalKey = "__blsAskLocalMemory" as const;
 const globals = globalThis as typeof globalThis & { [globalKey]?: Map<string, AskLocalRequestView[]> };
+const ALLOWED_CAPTURE_SOURCES = new Set<AskLocalCaptureSource>(["text", "voice", "barcode", "photo", "mixed"]);
+const MAX_REFERENCE_IMAGE_DATA_URL = 260_000;
+const MAX_REFERENCE_IMAGE_BYTES = 190_000;
 
 function memoryStore() { return globals[globalKey] ??= new Map(); }
 function postgresEnabled() { return Boolean(process.env.DATABASE_URL?.trim()); }
@@ -44,15 +81,24 @@ export async function submitAskLocal(principal: SessionPrincipal, raw: AskLocalS
     const offer = assigned && canonical?.rows[0]?.id ? await tx.query<SqlRow>(`SELECT vo.id::text AS id FROM vendor_offers vo JOIN vendor_locations vl ON vl.id=vo.location_id WHERE vo.vendor_id=$1::uuid AND vo.canonical_variant_id=$2::uuid AND vo.status='approved' AND vl.active=true ORDER BY vo.updated_at DESC,vo.id LIMIT 1`, [vendor!.rows[0].id, canonical.rows[0].id]) : undefined;
     const dueAt = assigned ? new Date(input.now + 24 * 60 * 60 * 1000) : null;
     const sourceUrl = input.sourceUrl ?? `${publicOrigin()}/ask-local`;
+    const sourceMetadata = {
+      need: input.need,
+      category: input.category,
+      source: "customer_web",
+      captureSource: input.captureSource,
+      voiceTranscript: input.voiceTranscript,
+      barcode: input.barcode,
+      referenceImageDataUrl: input.referenceImageDataUrl
+    };
     const created = await tx.query<SqlRow>(`INSERT INTO counteroffer_requests(id,public_id,market_id,customer_user_id,visitor_hash,source_url,source_url_hash,source_metadata,canonical_variant_id,requested_quantity,postcode,priorities,status,assigned_vendor_id,assigned_offer_id,expires_at,workflow_owner_kind,assignment_reason,workflow_updated_at,created_at,updated_at)
       VALUES($1,$2,(SELECT id FROM markets WHERE code='sparta'),$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$19)
-      RETURNING reference_number`, [randomUUID(), publicId, user.rows[0].id, createHash("sha256").update(`ask-local:${principal.userId}`).digest("hex"), sourceUrl, createHash("sha256").update(sourceUrl).digest("hex"), JSON.stringify({ need: input.need, category: input.category, source: "customer_web" }), canonical?.rows[0]?.id ?? null, input.quantity, input.postcode, JSON.stringify({ category: input.category }), assigned ? "awaiting_vendor" : "submitted", assigned ? vendor!.rows[0].id : null, assigned ? offer?.rows[0]?.id ?? null : null, dueAt, assigned ? "vendor" : "admin", assignmentReason, new Date(input.now), new Date(input.now)]);
+      RETURNING reference_number`, [randomUUID(), publicId, user.rows[0].id, createHash("sha256").update(`ask-local:${principal.userId}`).digest("hex"), sourceUrl, createHash("sha256").update(sourceUrl).digest("hex"), JSON.stringify(sourceMetadata), canonical?.rows[0]?.id ?? null, input.quantity, input.postcode, JSON.stringify({ category: input.category }), assigned ? "awaiting_vendor" : "submitted", assigned ? vendor!.rows[0].id : null, assigned ? offer?.rows[0]?.id ?? null : null, dueAt, assigned ? "vendor" : "admin", assignmentReason, new Date(input.now), new Date(input.now)]);
     const createdReference = typeof created.rows[0]?.reference_number === "string" ? created.rows[0].reference_number.trim() : "";
     if (!createdReference) throw new Error("Ask Local reference number was not generated");
     await tx.query(`INSERT INTO analytics_events(id,public_id,market_id,event_name,occurred_at,visitor_hash,customer_id,vendor_id,canonical_variant_id,quantity,metadata,dedupe_key,retention_until)
-      VALUES($1,$2,(SELECT id FROM markets WHERE code='sparta'),'counteroffer.requested',$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)`, [randomUUID(), `analytics_${randomUUID()}`, new Date(input.now), createHash("sha256").update(`ask-local:${principal.userId}`).digest("hex"), user.rows[0].id, assigned ? vendor!.rows[0].id : null, canonical?.rows[0].id ?? null, input.quantity, JSON.stringify({ assigned, assignmentReason, workflowOwnerKind: assigned ? "vendor" : "admin", category: input.category, requestId: publicId, requestReference: createdReference }), `ask-local:${publicId}`, new Date(input.now + 400 * 24 * 60 * 60 * 1000)]);
+      VALUES($1,$2,(SELECT id FROM markets WHERE code='sparta'),'counteroffer.requested',$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)`, [randomUUID(), `analytics_${randomUUID()}`, new Date(input.now), createHash("sha256").update(`ask-local:${principal.userId}`).digest("hex"), user.rows[0].id, assigned ? vendor!.rows[0].id : null, canonical?.rows[0].id ?? null, input.quantity, JSON.stringify({ assigned, assignmentReason, workflowOwnerKind: assigned ? "vendor" : "admin", category: input.category, captureSource: input.captureSource, hasPhoto: Boolean(input.referenceImageDataUrl), hasBarcode: Boolean(input.barcode), requestId: publicId, requestReference: createdReference }), `ask-local:${publicId}`, new Date(input.now + 400 * 24 * 60 * 60 * 1000)]);
     if (assigned) await tx.query(`INSERT INTO notifications(id,public_id,vendor_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
-      VALUES($1,$2,$3,'in_app','transactional','counteroffer.requested','ask-local-v2','el','Νέο ιδιωτικό Ask Local αίτημα',$4,$5::jsonb,'queued',$6,$7) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [randomUUID(), `notification_${randomUUID()}`, vendor!.rows[0].id, input.need.slice(0, 240), JSON.stringify({ requestId: publicId, requestReference: createdReference, canonicalVariantId: input.canonicalVariantId, responseDueAt: dueAt?.getTime(), assignmentReason }), `ask-local-vendor:${publicId}`, new Date(input.now)]);
+      VALUES($1,$2,$3,'in_app','transactional','counteroffer.requested','ask-local-v2','el','Νέο ιδιωτικό Ask Local αίτημα',$4,$5::jsonb,'queued',$6,$7) ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [randomUUID(), `notification_${randomUUID()}`, vendor!.rows[0].id, input.need.slice(0, 240), JSON.stringify({ requestId: publicId, requestReference: createdReference, canonicalVariantId: input.canonicalVariantId, responseDueAt: dueAt?.getTime(), assignmentReason, hasPhoto: Boolean(input.referenceImageDataUrl), hasBarcode: Boolean(input.barcode) }), `ask-local-vendor:${publicId}`, new Date(input.now)]);
     await tx.query(`WITH recipients AS (
       SELECT DISTINCT u.id AS user_id,u.public_id
       FROM platform_user_roles pur
@@ -63,7 +109,7 @@ export async function submitAskLocal(principal: SessionPrincipal, raw: AskLocalS
     INSERT INTO notifications(id,public_id,user_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
     SELECT gen_random_uuid(),'notification_' || gen_random_uuid()::text,r.user_id,'in_app','transactional','ask_local.requested','ask-local-admin-v1','el','Νέο Ask Local αίτημα',$1,$2::jsonb,'queued','ask-local-admin:' || $3 || ':' || r.public_id,$4
     FROM recipients r
-    ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [input.need.slice(0, 240), JSON.stringify({ requestId: publicId, requestReference: createdReference, workflowOwnerKind: assigned ? "vendor" : "admin", assignedVendorId: assigned ? assignedVendorId : undefined, assignmentReason }), publicId, new Date(input.now)]);
+    ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [input.need.slice(0, 240), JSON.stringify({ requestId: publicId, requestReference: createdReference, workflowOwnerKind: assigned ? "vendor" : "admin", assignedVendorId: assigned ? assignedVendorId : undefined, assignmentReason, hasPhoto: Boolean(input.referenceImageDataUrl), hasBarcode: Boolean(input.barcode) }), publicId, new Date(input.now)]);
     return createdReference;
   }, { isolation: "serializable" });
   const createdRequest = (await customerAskLocalRequests(principal)).find((request) => request.referenceNumber === referenceNumber);
@@ -95,16 +141,84 @@ async function submitMemory(principal: SessionPrincipal, input: ReturnType<typeo
   if (assignedVendorId && (!vendor || vendor.directoryStatus !== "partner")) assignmentReason = input.preferredVendorId ? "preferred_vendor_ineligible" : "fair_assignment_ineligible";
   const eligibleVendor = vendor?.directoryStatus === "partner" ? vendor : undefined;
   const referenceNumber = `ASK-${String((Math.floor(input.now / 1000) % 900000) + 100000)}`;
-  const request: AskLocalRequestView = { id: referenceNumber, referenceNumber, status: eligibleVendor ? "awaiting_vendor" : "submitted", need: input.need, quantity: input.quantity, postcode: input.postcode, canonicalVariantId: input.canonicalVariantId, assignedVendorId: eligibleVendor?.id, assignedVendorName: eligibleVendor?.name, workflowOwnerKind: eligibleVendor ? "vendor" : "admin", assignmentReason, responseDueAt: eligibleVendor ? input.now + 24 * 60 * 60 * 1000 : undefined, createdAt: input.now, clarificationCount: 0, privateOffers: [] };
-  const items = memoryStore().get(principal.userId) ?? []; items.push(request); memoryStore().set(principal.userId, items); return request;
+  const request: AskLocalRequestView = {
+    id: referenceNumber,
+    referenceNumber,
+    status: eligibleVendor ? "awaiting_vendor" : "submitted",
+    need: input.need,
+    quantity: input.quantity,
+    postcode: input.postcode,
+    canonicalVariantId: input.canonicalVariantId,
+    assignedVendorId: eligibleVendor?.id,
+    assignedVendorName: eligibleVendor?.name,
+    workflowOwnerKind: eligibleVendor ? "vendor" : "admin",
+    assignmentReason,
+    responseDueAt: eligibleVendor ? input.now + 24 * 60 * 60 * 1000 : undefined,
+    createdAt: input.now,
+    clarificationCount: 0,
+    voiceTranscript: input.voiceTranscript,
+    barcode: input.barcode,
+    referenceImageDataUrl: input.referenceImageDataUrl,
+    captureSource: input.captureSource,
+    privateOffers: []
+  };
+  const items = memoryStore().get(principal.userId) ?? [];
+  items.push(request);
+  memoryStore().set(principal.userId, items);
+  return request;
 }
 
 function validate(input: AskLocalSubmitInput) {
-  const need = input.need.trim().replace(/\s+/g, " "); if (need.length < 10 || need.length > 2000) throw new Error("Η περιγραφή πρέπει να έχει από 10 έως 2.000 χαρακτήρες");
-  const postcode = input.postcode.trim(); if (!/^\d{5}$/.test(postcode)) throw new Error("Χρειάζεται έγκυρος πενταψήφιος ΤΚ");
+  const need = input.need.trim().replace(/\s+/g, " ");
+  if (need.length < 10 || need.length > 2000) throw new Error("Η περιγραφή πρέπει να έχει από 10 έως 2.000 χαρακτήρες");
+  const postcode = input.postcode.trim();
+  if (!/^\d{5}$/.test(postcode)) throw new Error("Χρειάζεται έγκυρος πενταψήφιος ΤΚ");
   if (!Number.isSafeInteger(input.quantity) || input.quantity < 1 || input.quantity > 99) throw new Error("Η ποσότητα πρέπει να είναι από 1 έως 99");
-  let sourceUrl: string | undefined; if (input.sourceUrl?.trim()) { const parsed = new URL(input.sourceUrl.trim()); if (!["http:","https:"].includes(parsed.protocol)) throw new Error("Ο σύνδεσμος πρέπει να χρησιμοποιεί HTTP ή HTTPS"); sourceUrl = parsed.toString().slice(0, 2000); }
-  return { need, postcode, quantity: input.quantity, sourceUrl, canonicalVariantId: input.canonicalVariantId?.trim() || undefined, preferredVendorId: input.preferredVendorId?.trim() || undefined, category: input.category?.trim().slice(0, 100) || undefined, now: input.now ?? Date.now() };
+  let sourceUrl: string | undefined;
+  if (input.sourceUrl?.trim()) {
+    const parsed = new URL(input.sourceUrl.trim());
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Ο σύνδεσμος πρέπει να χρησιμοποιεί HTTP ή HTTPS");
+    sourceUrl = parsed.toString().slice(0, 2000);
+  }
+  const voiceTranscript = input.voiceTranscript?.trim().replace(/\s+/g, " ").slice(0, 1200) || undefined;
+  const barcode = validateBarcode(input.barcode);
+  const referenceImageDataUrl = validateReferenceImage(input.referenceImageDataUrl);
+  const suppliedCaptureSource = input.captureSource?.trim() as AskLocalCaptureSource | undefined;
+  const captureSource = suppliedCaptureSource && ALLOWED_CAPTURE_SOURCES.has(suppliedCaptureSource)
+    ? suppliedCaptureSource
+    : [voiceTranscript, barcode, referenceImageDataUrl].filter(Boolean).length > 1 ? "mixed" : voiceTranscript ? "voice" : barcode ? "barcode" : referenceImageDataUrl ? "photo" : "text";
+  return {
+    need,
+    postcode,
+    quantity: input.quantity,
+    sourceUrl,
+    canonicalVariantId: input.canonicalVariantId?.trim() || undefined,
+    preferredVendorId: input.preferredVendorId?.trim() || undefined,
+    category: input.category?.trim().slice(0, 100) || undefined,
+    voiceTranscript,
+    barcode,
+    referenceImageDataUrl,
+    captureSource,
+    now: input.now ?? Date.now()
+  };
+}
+
+function validateBarcode(raw?: string) {
+  const barcode = raw?.trim().replace(/\s+/g, " ");
+  if (!barcode) return undefined;
+  if (barcode.length > 64 || /[\u0000-\u001f\u007f]/.test(barcode)) throw new Error("Ο κωδικός barcode / μοντέλου δεν είναι έγκυρος");
+  return barcode;
+}
+
+function validateReferenceImage(raw?: string) {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  if (value.length > MAX_REFERENCE_IMAGE_DATA_URL) throw new Error("Η φωτογραφία αναφοράς είναι πολύ μεγάλη");
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(value);
+  if (!match) throw new Error("Η φωτογραφία αναφοράς πρέπει να είναι JPG, PNG ή WebP");
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Η φωτογραφία αναφοράς είναι πολύ μεγάλη");
+  return value;
 }
 
 function toView(row: SqlRow): AskLocalRequestView {
@@ -113,5 +227,26 @@ function toView(row: SqlRow): AskLocalRequestView {
   const clarificationCount = Array.isArray(metadata.clarificationMessages) ? metadata.clarificationMessages.length : 0;
   const referenceNumber = typeof row.reference_number === "string" ? row.reference_number.trim() : "";
   if (!referenceNumber) throw new Error("Ask Local request is missing its public reference number");
-  return { id: referenceNumber, referenceNumber, status: String(row.status), need: typeof metadata.need === "string" ? metadata.need : "Local request", quantity: Number(row.requested_quantity), postcode: String(row.postcode), canonicalVariantId: typeof row.canonical_public_id === "string" ? row.canonical_public_id : undefined, assignedVendorId: typeof row.vendor_public_id === "string" ? row.vendor_public_id : undefined, assignedVendorName: typeof row.trading_name === "string" ? row.trading_name : undefined, workflowOwnerKind: owner, assignmentReason: typeof row.assignment_reason === "string" ? row.assignment_reason : undefined, responseDueAt: row.expires_at ? new Date(String(row.expires_at)).getTime() : undefined, createdAt: new Date(String(row.created_at)).getTime(), clarificationCount, privateOffers: Array.isArray(row.private_offers) ? row.private_offers as AskLocalRequestView["privateOffers"] : [] };
+  const captureSource = typeof metadata.captureSource === "string" && ALLOWED_CAPTURE_SOURCES.has(metadata.captureSource as AskLocalCaptureSource) ? metadata.captureSource as AskLocalCaptureSource : undefined;
+  return {
+    id: referenceNumber,
+    referenceNumber,
+    status: String(row.status),
+    need: typeof metadata.need === "string" ? metadata.need : "Local request",
+    quantity: Number(row.requested_quantity),
+    postcode: String(row.postcode),
+    canonicalVariantId: typeof row.canonical_public_id === "string" ? row.canonical_public_id : undefined,
+    assignedVendorId: typeof row.vendor_public_id === "string" ? row.vendor_public_id : undefined,
+    assignedVendorName: typeof row.trading_name === "string" ? row.trading_name : undefined,
+    workflowOwnerKind: owner,
+    assignmentReason: typeof row.assignment_reason === "string" ? row.assignment_reason : undefined,
+    responseDueAt: row.expires_at ? new Date(String(row.expires_at)).getTime() : undefined,
+    createdAt: new Date(String(row.created_at)).getTime(),
+    clarificationCount,
+    voiceTranscript: typeof metadata.voiceTranscript === "string" ? metadata.voiceTranscript : undefined,
+    barcode: typeof metadata.barcode === "string" ? metadata.barcode : undefined,
+    referenceImageDataUrl: typeof metadata.referenceImageDataUrl === "string" ? metadata.referenceImageDataUrl : undefined,
+    captureSource,
+    privateOffers: Array.isArray(row.private_offers) ? row.private_offers as AskLocalRequestView["privateOffers"] : []
+  };
 }
