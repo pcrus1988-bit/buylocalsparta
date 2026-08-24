@@ -17,7 +17,7 @@ import { BoxNowClient, type BoxNowConfig } from "@buy-local-sparta/boxnow-shippi
 import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 136;
+export const EXPECTED_SCHEMA_VERSION = 138;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
@@ -178,7 +178,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
   if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL runtime");
   return {
     connectionString,
-    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
+    applicationName,
     maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
     connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
     idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
