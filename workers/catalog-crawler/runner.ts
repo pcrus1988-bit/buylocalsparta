@@ -13,6 +13,7 @@ import {
   type ProductFieldEvidence,
   type RobotsPolicy
 } from "../../packages/core/src/index.ts";
+import { extractRetailVisibleProductCandidate } from "../../packages/core/src/ingestion/retail-visible-extraction.ts";
 import type { ClaimedCrawlJob } from "./store.ts";
 import { CatalogCrawlerStore } from "./store.ts";
 import { secureCrawlFetch, type SecureCrawlFetchInput, type SecureCrawlFetchResult } from "./transport.ts";
@@ -148,8 +149,10 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     const html = isHtml(response) ? response.body.toString("utf8") : undefined;
     const structured = html ? extractJsonLdProductCandidates(html, response.finalUrl) : [];
     const analysis = html ? analyzeHtmlProductPage(html, response.finalUrl) : undefined;
+    const retailVisible = html ? extractRetailVisibleProductCandidate(html, response.finalUrl) : undefined;
     const explicitPrices = html ? extractExplicitCommercialPrices(html, response.finalUrl) : [];
-    const rawCandidates = [...structured, ...(analysis?.candidates ?? [])].map((candidate) => sanitizeCandidate(candidate, explicitPrices));
+    const rawCandidates = [...structured, ...(analysis?.candidates ?? []), ...(retailVisible ? [retailVisible] : [])]
+      .map((candidate) => sanitizeCandidate(candidate, explicitPrices));
     const candidates = dedupeCandidates(rawCandidates);
     let reviewCount = 0;
     for (let ordinal = 0; ordinal < candidates.length; ordinal += 1) {
