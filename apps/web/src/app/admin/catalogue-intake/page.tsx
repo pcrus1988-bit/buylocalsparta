@@ -21,22 +21,23 @@ async function assignCatalogueAction(formData: FormData) {
   if (!principal) redirect("/admin/login");
   const snapshotId = String(formData.get("snapshotId") ?? "").trim();
   const vendorId = String(formData.get("vendorId") ?? "").trim();
+  let result;
   try {
-    const result = await assignCatalogueSnapshotToVendor(principal, { snapshotId, vendorId });
-    revalidatePath("/admin/catalogue-intake");
-    revalidatePath("/admin/vendors");
-    const search = new URLSearchParams({
-      snapshot: result.snapshotId,
-      assigned: "1",
-      assignedRows: String(result.newlyAssigned),
-      alreadyAssigned: String(result.alreadyAssigned),
-      vendorName: result.vendorName
-    });
-    redirect(`/admin/catalogue-intake?${search.toString()}`);
+    result = await assignCatalogueSnapshotToVendor(principal, { snapshotId, vendorId });
   } catch (error) {
     const search = new URLSearchParams({ snapshot: snapshotId, assignmentError: errorMessage(error) });
     redirect(`/admin/catalogue-intake?${search.toString()}`);
   }
+  revalidatePath("/admin/catalogue-intake");
+  revalidatePath("/admin/vendors");
+  const search = new URLSearchParams({
+    snapshot: result.snapshotId,
+    assigned: "1",
+    assignedRows: String(result.newlyAssigned),
+    alreadyAssigned: String(result.alreadyAssigned),
+    vendorName: result.vendorName
+  });
+  redirect(`/admin/catalogue-intake?${search.toString()}`);
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<Params> }) {
