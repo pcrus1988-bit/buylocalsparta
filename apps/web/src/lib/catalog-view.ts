@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { formatMoney, money, normalizeSearchText } from "@buy-local-sparta/core";
+import { formatMoney, money, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
 import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
@@ -198,8 +198,19 @@ function matchesCatalogFilters(record: DatabaseCatalogRecord, metadata: CatalogM
 
 function matchesCatalogQuery(record: DatabaseCatalogRecord, metadata: CatalogMetadata | undefined, normalizedQuery: string): boolean {
   if (!normalizedQuery) return true;
-  return [record.title, metadata?.description, metadata?.brand, metadata?.color, metadata?.mpn, metadata?.categoryLabel]
-    .some((value) => normalizeSearchText(value ?? "").includes(normalizedQuery));
+  return searchTextRelevance(normalizedQuery, [
+    record.title,
+    metadata?.description,
+    metadata?.brand,
+    metadata?.color,
+    metadata?.mpn,
+    metadata?.gtin,
+    metadata?.categoryLabel,
+    ...(metadata?.sizes ?? []),
+    metadata?.fit,
+    metadata?.composition,
+    metadata?.madeIn
+  ]) > 0;
 }
 
 function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
@@ -392,11 +403,6 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
     return product ? matchesCatalogFilters(product, metadata.get(id), filters) : false;
   });
 
-  // Fairness assignment writes sticky/rotation state. Running one serializable
-  // transaction per product in Promise.all can deadlock on overlapping vendor rows
-  // and can exhaust the serverless PostgreSQL pool. Keep discovery deterministic and
-  // bounded by assigning sequentially. If one assignment is temporarily contended,
-  // render that canonical as unavailable rather than failing the entire storefront.
   const assigned: DatabaseCatalogRecord[] = [];
   for (const canonicalVariantId of canonicalIds) {
     try {
