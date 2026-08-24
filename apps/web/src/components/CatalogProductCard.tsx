@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CatalogCard } from "../lib/catalog-view";
-import { publicCatalogPriceLabel } from "../lib/public-data-integrity";
+import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 
@@ -29,6 +29,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   demoVendorId?: string;
 }) {
   const category = storefrontCategoryForCode(product.categoryCode);
+  const displayTitle = publicCatalogueTitleLabel(product.title);
   const vendorName = vendorContext?.name ?? product.vendorName;
   const adviser = vendorContext?.adviser ?? product.adviser;
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
@@ -47,13 +48,13 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
 
   return (
     <article className="product-card">
-      <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${product.title}`}>
+      <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${displayTitle}`}>
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
         <img
           src={imageSrc}
-          alt={product.mediaAlt ?? product.title}
+          alt={product.mediaAlt ?? displayTitle}
           loading="lazy"
           decoding="async"
           referrerPolicy={externalImage ? "no-referrer" : undefined}
@@ -63,7 +64,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}{product.mpn ? ` · Κωδ. ${product.mpn}` : ""}</div>
-        <h3><Link href={productHref}>{product.title}</Link></h3>
+        <h3><Link href={productHref}>{displayTitle}</Link></h3>
         {product.description ? <p className="partner">{product.description}</p> : null}
         {demoMode && vendorName ? (
           <p className="partner">Προεπισκόπηση καταλόγου από <strong>{vendorName}</strong>. Η αγορά παραμένει απενεργοποιημένη σε DEMO.</p>
@@ -74,7 +75,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         ) : (
           <p className="partner">Δεν υπάρχει αυτή τη στιγμή επιλέξιμος τοπικός συνεργάτης εκπλήρωσης.</p>
         )}
-        <div className="product-bottom"><div className="price">{priceLabel}</div><Link className="round-add" href={productHref} aria-label={`Δες ${product.title}`}>→</Link></div>
+        <div className="product-bottom"><div className="price">{priceLabel}</div><Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link></div>
       </div>
     </article>
   );
