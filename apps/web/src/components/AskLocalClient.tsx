@@ -31,6 +31,17 @@ function requestLifecycle(status: string): readonly CustomerLifecycleStage[] {
   });
 }
 
+function requestNeed(form: FormData) {
+  const typed = String(form.get("need") ?? "").trim();
+  if (typed) return typed;
+  const voice = String(form.get("voiceTranscript") ?? "").trim();
+  if (voice) return voice;
+  const barcode = String(form.get("barcode") ?? "").trim();
+  if (barcode) return `Θέλω να βρω το προϊόν ή ανταλλακτικό με κωδικό ${barcode}.`;
+  if (String(form.get("referenceImageDataUrl") ?? "")) return "Θέλω βοήθεια για να αναγνωρίσω και να βρω το προϊόν ή ανταλλακτικό της φωτογραφίας.";
+  return "";
+}
+
 export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: string; initial: readonly CustomerAskLocalRequestView[]; context: Context }) {
   const [requests, setRequests] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -51,7 +62,7 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({
-          need: form.get("need"),
+          need: requestNeed(form),
           postcode: form.get("postcode"),
           quantity: Number(form.get("quantity")),
           sourceUrl: form.get("sourceUrl"),
@@ -102,7 +113,7 @@ export function AskLocalClient({ csrfToken, initial, context }: { csrfToken: str
     <section className="shell ask-local-workspace">
       <form className="ask-local-live-form" onSubmit={submit}>
         <div className="ask-local-full"><div className="eyebrow">Ask Local 2.0 · ιδιωτική αναζήτηση</div><h2>Τι ψάχνεις;</h2><p>Γράψε, μίλησε, φωτογράφισε ή πρόσθεσε barcode. Το ΚΟΝΤΑ ΜΟΥ κρατά το αίτημα ιδιωτικό και το δρομολογεί μόνο εκεί που πρέπει.</p><CustomerHowItWorks title="Τι συμβαίνει μετά την αποστολή;"><p>Το αίτημα καταχωρίζεται, δρομολογείται ιδιωτικά και εμφανίζει την πορεία του παρακάτω. Όταν υπάρχει συνδεδεμένο προϊόν, η ανάθεση συνεχίζει να χρησιμοποιεί τη δίκαιη μηχανή επιλογής. Η φωτογραφία δεν γίνεται δημόσιο περιεχόμενο.</p></CustomerHowItWorks></div>
-        <label className="ask-local-full"><span>Περιγραφή</span><textarea name="need" minLength={10} maxLength={2000} required defaultValue={context.need} placeholder="π.χ. Χρειάζομαι αυτό το μικρό πλαστικό εξάρτημα για πλυντήριο. Δεν ξέρω πώς λέγεται." /></label>
+        <label className="ask-local-full"><span>Περιγραφή — ή χρησιμοποίησε φωνή / φωτογραφία / barcode παρακάτω</span><textarea name="need" maxLength={2000} defaultValue={context.need} placeholder="π.χ. Χρειάζομαι αυτό το μικρό πλαστικό εξάρτημα για πλυντήριο. Δεν ξέρω πώς λέγεται." /></label>
         <AskLocalRichCapture key={captureResetKey} />
         <label><span>Ταχυδρομικός κώδικας</span><input name="postcode" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} defaultValue="23100" required /></label>
         <label><span>Ποσότητα</span><input name="quantity" type="number" min={1} max={99} defaultValue={1} required /></label>
