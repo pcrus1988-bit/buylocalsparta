@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DailySandwichMenu } from "../../components/DailySandwichMenu";
 
 export const metadata: Metadata = {
   applicationName: "KONTA MOY Daily",
@@ -12,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function DailyLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  return <><DailySandwichMenu />{children}</>;
 }
