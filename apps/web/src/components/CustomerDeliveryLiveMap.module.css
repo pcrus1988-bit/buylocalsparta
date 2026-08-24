@@ -1,0 +1,13 @@
+.card{display:grid;gap:12px;margin-top:16px;padding:14px;border:1px solid #ded8cd;border-radius:18px;background:#f9f7f2}
+.topbar{display:flex;justify-content:space-between;gap:14px;align-items:center}
+.canvas{height:clamp(280px,42vw,430px);width:100%;border-radius:16px;overflow:hidden;background:#e9eee9;border:1px solid #d8ddd8}
+.empty{display:grid;gap:5px;padding:22px;border:1px dashed #cfc7bb;border-radius:16px;background:#faf8f4;color:#5d7065;margin-top:14px}
+.empty span{font-size:13px;line-height:1.45}
+.liveDot{display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:#e1f3e7;padding:6px 10px;font-size:11px;font-weight:950;letter-spacing:.08em;color:#245b36}
+.liveDot::before{content:"";width:8px;height:8px;border-radius:50%;background:#2f8a4c;box-shadow:0 0 0 4px rgba(47,138,76,.12)}
+.liveDotStale{background:#eeeae2;color:#796f61}.liveDotStale::before{background:#9a8f7e;box-shadow:none}
+.etaStrip{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 14px;border-radius:14px;background:#183027;color:#fff}
+.etaStrip>div:first-child{display:grid;gap:2px}.etaStrip span{font-size:12px;opacity:.8}.etaStrip strong{font-size:22px}
+.etaMeta{display:grid;gap:2px;text-align:right;font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){.topbar,.etaStrip{align-items:flex-start}.etaStrip{flex-direction:column}.etaMeta{text-align:left}.actions>*{flex:1 1 100%;text-align:center}.canvas{height:320px}}

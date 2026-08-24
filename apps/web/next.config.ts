@@ -7,16 +7,18 @@ const MONOREPO_ROOT = join(WEB_DIR, "../..");
 
 const MEDIA_UPLOAD_ORIGIN = normalizedOrigin(process.env.BLS_MEDIA_UPLOAD_ORIGIN);
 const BOXNOW_WIDGET_ENABLED = process.env.NEXT_PUBLIC_BOXNOW_WIDGET_ENABLED === "true";
+const GOOGLE_MAPS_BROWSER_ENABLED = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY?.trim());
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://unpkg.com",
-  `script-src 'self' 'unsafe-inline' https://unpkg.com${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr" : ""}`,
+  `style-src 'self' 'unsafe-inline' https://unpkg.com${GOOGLE_MAPS_BROWSER_ENABLED ? " https://fonts.googleapis.com" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://unpkg.com${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr" : ""}${GOOGLE_MAPS_BROWSER_ENABLED ? " https://maps.googleapis.com https://maps.gstatic.com" : ""}`,
   // Catalogue fallback images are admitted only after public-product-detail verifies
   // HTTPS and exact source-host equality. The CSP therefore permits HTTPS images
   // generically instead of requiring a code deploy for every governed supplier host.
   "img-src 'self' data: blob: https:",
-  `connect-src 'self'${MEDIA_UPLOAD_ORIGIN ? ` ${MEDIA_UPLOAD_ORIGIN}` : ""}${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr https://map.boxnow.gr" : ""}`,
+  `connect-src 'self'${MEDIA_UPLOAD_ORIGIN ? ` ${MEDIA_UPLOAD_ORIGIN}` : ""}${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr https://map.boxnow.gr" : ""}${GOOGLE_MAPS_BROWSER_ENABLED ? " https://maps.googleapis.com https://maps.gstatic.com" : ""}`,
+  `font-src 'self' data:${GOOGLE_MAPS_BROWSER_ENABLED ? " https://fonts.gstatic.com" : ""}`,
   `frame-src 'self'${BOXNOW_WIDGET_ENABLED ? " https://map.boxnow.gr https://widget-v4.boxnow.gr https://widget-v5.boxnow.gr" : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -49,6 +51,7 @@ const SEARCH_EXCLUDED_SOURCES = [
   "/account/:path*",
   "/admin/:path*",
   "/daily/:path*",
+  "/driver/:path*",
   "/cart",
   "/checkout/:path*",
   "/login",
@@ -74,6 +77,7 @@ const SEARCH_EXCLUDED_SOURCES = [
   "/api/account/:path*",
   "/api/admin/:path*",
   "/api/daily/:path*",
+  "/api/driver/:path*",
   "/api/internal/:path*",
   "/api/vendor/:path*"
 ] as const;
