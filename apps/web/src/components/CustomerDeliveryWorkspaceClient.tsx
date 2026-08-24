@@ -3,11 +3,120 @@
 import QRCode from "react-qr-code";
 import { useEffect, useState } from "react";
 import type { DeliveryJobView } from "../lib/delivery-driver-runtime";
+import { CustomerDeliveryLiveMap } from "./CustomerDeliveryLiveMap";
 import styles from "./DeliveryOperations.module.css";
-function stamp(value?:number){return value?new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"medium"}).format(value):"";}
-export function CustomerDeliveryWorkspaceClient({initialJobs}:{initialJobs:readonly DeliveryJobView[]}){
-  const [jobs,setJobs]=useState(initialJobs);
-  useEffect(()=>{let active=true;const refresh=async()=>{const response=await fetch("/api/account/delivery",{cache:"no-store"});if(!response.ok||!active)return;const body=await response.json() as {jobs:DeliveryJobView[]};if(active)setJobs(body.jobs);};const timer=window.setInterval(()=>void refresh(),15000);return()=>{active=false;window.clearInterval(timer);};},[]);
-  if(!jobs.length)return <div className={styles.empty}>Δεν υπάρχουν ενεργές τοπικές παραδόσεις ή επιστροφές.</div>;
-  return <div className={styles.grid}>{jobs.map((job)=><article className={styles.card} key={job.id}><div className={styles.toolbar}><span className={styles.badge}>{job.type==="outbound"?"Παράδοση":"Επιστροφή"}</span><strong>{job.orderId}</strong><span className={styles.status}>{job.status}</span></div><div className={styles.progress}><span style={{width:`${job.progress.total?Math.round(job.progress.completed/job.progress.total*100):0}%`}}/></div><p className={styles.muted}>{job.progress.completed}/{job.progress.total} σημεία ολοκληρώθηκαν. Οι ενημερώσεις ανανεώνονται αυτόματα.</p><div className={styles.stopList}>{job.stops.map((stop)=><div className={`${styles.stop} ${stop.status==="completed"?styles.stopDone:""}`} key={stop.id}><span className={styles.stopIndex}>{stop.sequence}</span><div><strong>{stop.vendorName||(stop.kind==="customer_dropoff"?"Παράδοση σε εσένα":stop.kind==="customer_return_pickup"?"Παραλαβή επιστροφής από εσένα":stop.kind)}</strong>{stop.completedAt&&<div className={styles.muted}>{stamp(stop.completedAt)}</div>}</div><span className={styles.status}>{stop.status}</span></div>)}</div>{job.customerQr&&job.status!=="completed"&&<div className={styles.qrWrap}><strong>QR επιτυχούς παράδοσης</strong><QRCode value={job.customerQr} size={220}/><span className={styles.muted}>Δείξε αυτό το QR στον οδηγό μόνο όταν έχεις παραλάβει επιτυχώς την παραγγελία.</span></div>}{job.returnPickupQr&&job.status!=="completed"&&<div className={styles.qrWrap}><strong>QR παραλαβής επιστροφής</strong><QRCode value={job.returnPickupQr} size={220}/><span className={styles.muted}>Δείξε το QR στον οδηγό όταν του παραδώσεις τα προϊόντα της επιστροφής.</span></div>}{job.liveTracking&&job.latestLocation&&<div className={styles.location}><div><strong>Live θέση οδηγού</strong><div className={styles.muted}>Τελευταία ενημέρωση {stamp(job.latestLocation.receivedAt)} · ακρίβεια ±{Math.round(job.latestLocation.accuracy??0)}m</div></div><a className={styles.buttonSecondary} target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${job.latestLocation.latitude},${job.latestLocation.longitude}`}>Χάρτης</a></div>}</article>)}</div>;
+
+function stamp(value?: number) {
+  return value
+    ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "medium" }).format(value)
+    : "";
+}
+
+export function CustomerDeliveryWorkspaceClient({
+  initialJobs,
+}: {
+  initialJobs: readonly DeliveryJobView[];
+}) {
+  const [jobs, setJobs] = useState(initialJobs);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/account/delivery", { cache: "no-store" });
+        if (!response.ok || !active) return;
+        const body = await response.json() as { jobs: DeliveryJobView[] };
+        if (active) setJobs(body.jobs);
+      } catch {
+        // Keep the last successful tracking state during transient connectivity issues.
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 10_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  if (!jobs.length) {
+    return <div className={styles.empty}>Δεν υπάρχουν ενεργές τοπικές παραδόσεις ή επιστροφές.</div>;
+  }
+
+  return (
+    <div className={styles.grid}>
+      {jobs.map((job) => (
+        <article className={styles.card} key={job.id}>
+          <div className={styles.toolbar}>
+            <span className={styles.badge}>{job.type === "outbound" ? "Παράδοση" : "Επιστροφή"}</span>
+            <strong>{job.orderId}</strong>
+            <span className={styles.status}>{job.status}</span>
+          </div>
+
+          <div className={styles.progress}>
+            <span style={{ width: `${job.progress.total ? Math.round(job.progress.completed / job.progress.total * 100) : 0}%` }} />
+          </div>
+          <p className={styles.muted}>
+            {job.progress.completed}/{job.progress.total} σημεία ολοκληρώθηκαν. Οι ενημερώσεις ανανεώνονται αυτόματα.
+          </p>
+
+          <div className={styles.stopList}>
+            {job.stops.map((stop) => (
+              <div
+                className={`${styles.stop} ${stop.status === "completed" ? styles.stopDone : ""}`}
+                key={stop.id}
+              >
+                <span className={styles.stopIndex}>{stop.sequence}</span>
+                <div>
+                  <strong>
+                    {stop.vendorName
+                      || (stop.kind === "customer_dropoff"
+                        ? "Παράδοση σε εσένα"
+                        : stop.kind === "customer_return_pickup"
+                          ? "Παραλαβή επιστροφής από εσένα"
+                          : stop.kind)}
+                  </strong>
+                  {stop.completedAt && <div className={styles.muted}>{stamp(stop.completedAt)}</div>}
+                </div>
+                <span className={styles.status}>{stop.status}</span>
+              </div>
+            ))}
+          </div>
+
+          {job.liveTracking && job.status !== "completed" && (
+            <CustomerDeliveryLiveMap
+              jobId={job.id}
+              initialLocation={job.latestLocation
+                ? {
+                    latitude: job.latestLocation.latitude,
+                    longitude: job.latestLocation.longitude,
+                    accuracy: job.latestLocation.accuracy,
+                    receivedAt: job.latestLocation.receivedAt,
+                  }
+                : undefined}
+            />
+          )}
+
+          {job.customerQr && job.status !== "completed" && (
+            <div className={styles.qrWrap}>
+              <strong>QR επιτυχούς παράδοσης</strong>
+              <QRCode value={job.customerQr} size={220} />
+              <span className={styles.muted}>
+                Δείξε αυτό το QR στον οδηγό μόνο όταν έχεις παραλάβει επιτυχώς την παραγγελία.
+              </span>
+            </div>
+          )}
+
+          {job.returnPickupQr && job.status !== "completed" && (
+            <div className={styles.qrWrap}>
+              <strong>QR παραλαβής επιστροφής</strong>
+              <QRCode value={job.returnPickupQr} size={220} />
+              <span className={styles.muted}>
+                Δείξε το QR στον οδηγό όταν του παραδώσεις τα προϊόντα της επιστροφής.
+              </span>
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  );
 }
