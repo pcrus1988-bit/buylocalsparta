@@ -20,6 +20,13 @@ export type CrawlPageRecord = Readonly<{
   depth: number;
 }>;
 
+export type RememberedCrawlPage = Readonly<{
+  url: string;
+  normalizedUrl: string;
+  depth: number;
+  discoveredFromPageId?: string;
+}>;
+
 export class CrawlJobCancelledError extends Error {
   constructor() { super("Catalogue crawl job cancellation acknowledged"); this.name = "CrawlJobCancelledError"; }
 }
@@ -71,6 +78,45 @@ export class CatalogCrawlerStore {
     const row = result.rows[0];
     if (!row) throw new Error("Crawler page upsert returned no row");
     return { id: required(row.id, "page.id"), status: String(row.status) as CrawlPageRecord["status"], depth: integer(row.depth, "page.depth") };
+  }
+
+  async rememberPages(jobId: string, pages: readonly RememberedCrawlPage[]): Promise<void> {
+    if (!pages.length) return;
+    const chunkSize = 500;
+    for (let offset = 0; offset < pages.length; offset += chunkSize) {
+      const chunk = pages.slice(offset, offset + chunkSize);
+      await this.#db.query(`
+        INSERT INTO public.catalog_web_crawl_pages(job_id,discovered_from_page_id,url,normalized_url,depth,status)
+        SELECT $1::uuid, NULLIF(x.discovered_from_page_id,'')::uuid, x.url, x.normalized_url, x.depth, 'queued'
+        FROM jsonb_to_recordset($2::jsonb) AS x(url text, normalized_url text, depth integer, discovered_from_page_id text)
+        ON CONFLICT (job_id,normalized_url) DO UPDATE
+        SET depth=LEAST(public.catalog_web_crawl_pages.depth,EXCLUDED.depth),
+            discovered_from_page_id=COALESCE(public.catalog_web_crawl_pages.discovered_from_page_id,EXCLUDED.discovered_from_page_id),
+            updated_at=now()
+      `, [jobId, JSON.stringify(chunk.map((page) => ({
+        url: page.url,
+        normalized_url: page.normalizedUrl,
+        depth: page.depth,
+        discovered_from_page_id: page.discoveredFromPageId ?? ""
+      })))]);
+    }
+  }
+
+  async listPendingPages(jobId: string, limit: number): Promise<RememberedCrawlPage[]> {
+    const safeLimit = Math.max(1, Math.min(250_000, Math.floor(limit)));
+    const result = await this.#db.query<SqlRow>(`
+      SELECT url,normalized_url,depth,discovered_from_page_id
+      FROM public.catalog_web_crawl_pages
+      WHERE job_id=$1 AND status IN ('queued','fetching','failed')
+      ORDER BY product_likelihood DESC NULLS LAST, depth ASC, created_at ASC
+      LIMIT $2
+    `, [jobId, safeLimit]);
+    return result.rows.map((row) => ({
+      url: required(row.url, "pending.url"),
+      normalizedUrl: required(row.normalized_url, "pending.normalized_url"),
+      depth: integer(row.depth, "pending.depth"),
+      discoveredFromPageId: optional(row.discovered_from_page_id)
+    }));
   }
 
   async markFetching(pageId: string, robotsAllowed: boolean | null): Promise<void> {
