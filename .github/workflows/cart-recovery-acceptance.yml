@@ -1,0 +1,54 @@
+name: Smart Cart Recovery Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "db/migrations/0143_smart_cart_recovery.sql"
+      - "db/migrations/checksums.0143.json"
+      - "packages/postgres-runtime/src/cart-recovery.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "workers/notification-worker.ts"
+      - "apps/web/src/lib/customer-cart-recovery-preference.ts"
+      - "apps/web/src/app/api/account/cart-recovery-preference/route.ts"
+      - "apps/web/src/components/CartRecoveryPreferenceToggle.tsx"
+      - "apps/web/src/app/account/notifications/page.tsx"
+      - "scripts/verify-smart-cart-recovery.ts"
+      - ".github/workflows/cart-recovery-acceptance.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - name: Verify recovery contracts
+        run: node --experimental-strip-types scripts/verify-smart-cart-recovery.ts
+      - name: Verify immutable migration checksums
+        run: npm run db:verify
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+      - name: Typecheck PostgreSQL runtime
+        run: npm run typecheck:postgres-runtime
+      - name: Typecheck workers
+        run: npm run typecheck:workers
