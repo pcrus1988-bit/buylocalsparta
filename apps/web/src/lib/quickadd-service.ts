@@ -76,7 +76,12 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
     if (!refs.rowCount) throw new Error("Canonical product was not found for this market");
     const ref = refs.rows[0];
     if (!ref.location_uuid) throw new Error("Vendor location is not configured");
-    if (!ref.active || ref.suppressed || ref.recalled) throw new Error("This canonical product is not currently publishable");
+    if (ref.suppressed || ref.recalled) throw new Error("This canonical product is blocked from publication");
+
+    const canonicalWasInactive = !Boolean(ref.active);
+    if (canonicalWasInactive) {
+      await tx.query(`SELECT bls_private.activate_source_approved_canonical($1::uuid)`, [ref.canonical_uuid]);
+    }
 
     const existing = await tx.query<SqlRow>(`
       SELECT vo.id::text id,vo.public_id,vo.status::text status,vo.merchant_pause_active,
@@ -99,10 +104,15 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
         UPDATE public.vendor_offers
         SET vendor_sku=$2,source_gtin=COALESCE(NULLIF($3,''),source_gtin),supplier_unit_price_minor=$4,
             customer_price_minor=$4,merchant_visible=$5,
-            advice_capabilities=jsonb_build_object('available',$6),updated_at=now()
+            advice_capabilities=jsonb_build_object('available',$6),
+            source_payload=COALESCE(source_payload,'{}'::jsonb)||jsonb_build_object(
+              'lastQuickAddSource','daily',
+              'canonicalWasInactive',$7,
+              'canonicalActivatedByQuickAdd',$7
+            ),updated_at=now()
         WHERE id=$1::uuid
         RETURNING id::text id,public_id
-      `, [row.id, clean(input.vendorSku) || null, clean(ref.gtin), customerPriceMinor, visible, adviceAvailable]);
+      `, [row.id, clean(input.vendorSku) || null, clean(ref.gtin), customerPriceMinor, visible, adviceAvailable, canonicalWasInactive]);
       offerUuid = String(changed.rows[0].id);
       offerPublicId = String(changed.rows[0].public_id);
     } else {
@@ -116,11 +126,16 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
         ) VALUES(
           $1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,'approved',
           $9,$9,'EUR',2400,ARRAY['pickup']::fulfilment_mode[],jsonb_build_object('available',$10),
-          jsonb_build_object('source','quickadd','canonicalPublicId',$11),now(),$12,
+          jsonb_build_object(
+            'source','quickadd',
+            'canonicalPublicId',$11,
+            'canonicalWasInactive',$13,
+            'canonicalActivatedByQuickAdd',$13
+          ),now(),$12,
           NULLIF(current_setting('app.actor_user_id',true),'')::uuid,now(),now()
         )
       `, [offerUuid, offerPublicId, ref.market_uuid, ref.vendor_uuid, ref.location_uuid, ref.canonical_uuid,
-        clean(input.vendorSku) || null, clean(ref.gtin) || null, customerPriceMinor, adviceAvailable, canonicalVariantId, visible]);
+        clean(input.vendorSku) || null, clean(ref.gtin) || null, customerPriceMinor, adviceAvailable, canonicalVariantId, visible, canonicalWasInactive]);
     }
 
     const previous = await tx.query<SqlRow>(`SELECT on_hand FROM public.inventory_balances WHERE offer_id=$1::uuid FOR UPDATE`, [offerUuid]);
@@ -138,6 +153,6 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
           jsonb_build_object('previousOnHand',$4,'newOnHand',$5),now())
       `, [randomUUID(), offerUuid, onHand - previousOnHand, previousOnHand, onHand]);
     }
-    return { ok: true, offerId: offerPublicId, canonicalVariantId };
+    return { ok: true, offerId: offerPublicId, canonicalVariantId, canonicalActivated: canonicalWasInactive };
   }, { isolation: "serializable" });
 }
