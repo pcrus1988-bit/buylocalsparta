@@ -3,7 +3,7 @@ import { adminQuickAddLookup, adminQuickAddSave, adminQuickAddWorkspace } from "
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireAdminSession(request);
+    const principal = await requireAdminSession(request, { permission: "catalog.write" });
     const url = new URL(request.url);
     const gtin = url.searchParams.get("gtin") ?? "";
     const q = url.searchParams.get("q") ?? "";
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true });
+    const principal = await requireAdminSession(request, { csrf: true, permission: "catalog.write" });
     const body = await request.json() as Record<string, unknown>;
     return Response.json(await adminQuickAddSave(principal, {
       vendorId: typeof body.vendorId === "string" ? body.vendorId : "",

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
-import { postgresAdminRuntimeEnabled } from "./admin-runtime";
+import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const clean = (value: unknown) => typeof value === "string" ? value.trim() : "";
@@ -39,11 +39,13 @@ async function adminLists(tx:SqlExecutor){
 }
 
 export async function adminQuickAddWorkspace(principal:SessionPrincipal){
+  assertAdminPermission(principal,"catalog.write");
   if(!postgresAdminRuntimeEnabled()) throw new Error("Admin Quick Add requires PostgreSQL runtime");
   return uow().withTransaction(scope(principal),async tx=>({...await adminLists(tx),csrfToken:principal.csrfToken}),{readOnly:true});
 }
 
 export async function adminQuickAddLookup(principal:SessionPrincipal,input:{vendorId?:string;gtin?:string;q?:string}){
+  assertAdminPermission(principal,"catalog.write");
   if(!postgresAdminRuntimeEnabled()) throw new Error("Admin Quick Add requires PostgreSQL runtime");
   const vendorId=clean(input.vendorId), gtin=clean(input.gtin).replace(/\D/g,""), q=clean(input.q);
   return uow().withTransaction(scope(principal),async tx=>{
@@ -65,7 +67,7 @@ export async function adminQuickAddLookup(principal:SessionPrincipal,input:{vend
       LEFT JOIN public.product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       LEFT JOIN public.brands b ON b.id=cv.brand_id
       LEFT JOIN public.vendor_businesses vb ON vb.public_id=$3
-      LEFT JOIN public.vendor_locations vl ON vl.vendor_id=vb.id AND vl.active=true
+      LEFT JOIN LATERAL (SELECT id FROM public.vendor_locations WHERE vendor_id=vb.id ORDER BY active DESC,created_at LIMIT 1) vl ON true
       LEFT JOIN public.vendor_offers vo ON vo.vendor_id=vb.id AND vo.canonical_variant_id=cv.id AND vo.location_id=vl.id
       LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
       WHERE cv.suppressed=false AND cv.recalled=false AND (
@@ -84,8 +86,8 @@ export async function adminQuickAddLookup(principal:SessionPrincipal,input:{vend
 type SaveInput=Readonly<{vendorId:string;canonicalVariantId?:string;title:string;description?:string;gtin?:string;brand?:string;model?:string;mpn?:string;categoryCode:string;vendorSku?:string;customerPriceMinor:number;onHand:number;safetyStock?:number;visible?:boolean}>;
 
 async function upsertOffer(tx:SqlExecutor,principal:SessionPrincipal,input:SaveInput,canonicalUuid:string,canonicalPublicId:string,marketUuid:string){
-  const vendor=await tx.query<SqlRow>(`SELECT vb.id::text id,(SELECT id::text FROM public.vendor_locations WHERE vendor_id=vb.id AND active ORDER BY created_at LIMIT 1) location_id FROM public.vendor_businesses vb WHERE vb.public_id=$1 OR vb.id::text=$1 LIMIT 1`,[input.vendorId]);
-  if(!vendor.rowCount||!vendor.rows[0].location_id) throw new Error("Selected vendor has no active location");
+  const vendor=await tx.query<SqlRow>(`SELECT vb.id::text id,(SELECT id::text FROM public.vendor_locations WHERE vendor_id=vb.id ORDER BY active DESC,created_at LIMIT 1) location_id FROM public.vendor_businesses vb WHERE vb.public_id=$1 OR vb.id::text=$1 LIMIT 1`,[input.vendorId]);
+  if(!vendor.rowCount||!vendor.rows[0].location_id) throw new Error("Selected vendor has no shop location");
   const vendorUuid=String(vendor.rows[0].id),locationUuid=String(vendor.rows[0].location_id);
   const existing=await tx.query<SqlRow>(`SELECT vo.id::text id,vo.public_id,COALESCE(ib.active_reservations,0)::integer reservations FROM public.vendor_offers vo LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id WHERE vo.vendor_id=$1::uuid AND vo.location_id=$2::uuid AND vo.canonical_variant_id=$3::uuid ORDER BY vo.created_at LIMIT 1 FOR UPDATE OF vo`,[vendorUuid,locationUuid,canonicalUuid]);
   const price=integer(input.customerPriceMinor,"price"),onHand=integer(input.onHand,"stock"),safety=integer(input.safetyStock??0,"safety stock");
@@ -106,6 +108,7 @@ async function upsertOffer(tx:SqlExecutor,principal:SessionPrincipal,input:SaveI
 }
 
 export async function adminQuickAddSave(principal:SessionPrincipal,input:SaveInput){
+  assertAdminPermission(principal,"catalog.write");
   if(!postgresAdminRuntimeEnabled()) throw new Error("Admin Quick Add requires PostgreSQL runtime");
   if(!clean(input.vendorId)||!clean(input.title)||!clean(input.categoryCode)) throw new Error("Vendor, title and category are required");
   return uow().withTransaction(scope(principal),async tx=>{
