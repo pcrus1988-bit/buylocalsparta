@@ -50,6 +50,8 @@ export class CrawlJobError extends Error {
   constructor(message: string, terminal = false) { super(message); this.name = "CrawlJobError"; this.terminal = terminal; }
 }
 
+type DiscoveredUrl = { url: string; depth: number; fromPageId?: string };
+
 export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly<{ pages: number; extractions: number }>> {
   const policy = parseCrawlPolicySnapshot(options.job.policySnapshot);
   const fetchPolicy: CrawlFetchPolicy = {
@@ -84,8 +86,15 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     return { pages: 1, extractions: 0 };
   }
 
-  const discovered: Array<{ url: string; depth: number; fromPageId?: string }> = [{ url: normalizedSeed, depth: 0 }];
+  const remembered = await options.store.listPendingPages(options.job.jobId, policy.maxPages);
+  const discovered: DiscoveredUrl[] = [{ url: normalizedSeed, depth: 0 }];
   const queued = new Set<string>([normalizedSeed]);
+  for (const page of remembered) {
+    if (queued.has(page.normalizedUrl)) continue;
+    queued.add(page.normalizedUrl);
+    discovered.push({ url: page.normalizedUrl, depth: page.depth, fromPageId: page.discoveredFromPageId });
+  }
+
   if (options.job.crawlMode !== "single") {
     const sitemapUrls = await discoverFromSitemaps({
       startUrl: normalizedSeed,
@@ -95,7 +104,10 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
       fetchRateLimited,
       maxSitemaps: options.maxSitemaps ?? 32
     });
+    const before = discovered.length;
     for (const url of sitemapUrls) enqueueUrl(url, 0, undefined, discovered, queued, policy, fetchPolicy, normalizedSeed);
+    await rememberDiscovered(options.store, options.job.jobId, discovered.slice(before));
+    await options.store.syncCounters(options.job.jobId);
   }
 
   const maxDepth = options.job.crawlMode === "discovery" ? Math.min(policy.maxDepth, 1) : policy.maxDepth;
@@ -157,10 +169,12 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     if (html && options.job.crawlMode !== "single" && item.depth < maxDepth) {
       const links = [...discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))];
       links.sort((left, right) => productLikelihood(right) - productLikelihood(left));
+      const before = discovered.length;
       for (const url of links) {
         if (discovered.length >= policy.maxPages * 4) break;
         enqueueUrl(url, item.depth + 1, page.id, discovered, queued, policy, fetchPolicy, normalizedSeed);
       }
+      await rememberDiscovered(options.store, options.job.jobId, discovered.slice(before));
     }
     if (processed % 10 === 0) await options.store.syncCounters(options.job.jobId);
     await options.store.renew(options.job.jobId, options.workerId, options.leaseSeconds);
@@ -169,6 +183,16 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
   await options.store.syncCounters(options.job.jobId);
   await options.store.finish(options.job.jobId, options.workerId);
   return { pages: processed, extractions };
+}
+
+async function rememberDiscovered(store: CatalogCrawlerStore, jobId: string, pages: readonly DiscoveredUrl[]): Promise<void> {
+  if (!pages.length) return;
+  await store.rememberPages(jobId, pages.map((page) => ({
+    url: page.url,
+    normalizedUrl: page.url,
+    depth: page.depth,
+    discoveredFromPageId: page.fromPageId
+  })));
 }
 
 export function parseCrawlPolicySnapshot(value: unknown): CrawlPolicySnapshot {
@@ -252,7 +276,7 @@ function enqueueUrl(
   rawUrl: string,
   depth: number,
   fromPageId: string | undefined,
-  queue: Array<{ url: string; depth: number; fromPageId?: string }>,
+  queue: DiscoveredUrl[],
   queued: Set<string>,
   policy: CrawlPolicySnapshot,
   fetchPolicy: CrawlFetchPolicy,
