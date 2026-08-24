@@ -8,6 +8,9 @@ import {
   validateCrawlUrl,
   type CrawlFetchPolicy,
   type ExtractedProductCandidate,
+  type ExtractedPrice,
+  type ExtractedImage,
+  type ProductFieldEvidence,
   type RobotsPolicy
 } from "../../packages/core/src/index.ts";
 import type { ClaimedCrawlJob } from "./store.ts";
@@ -329,13 +332,139 @@ function sitemapPriority(rawUrl: string): number {
   return 3;
 }
 function dedupeCandidates(values: readonly ExtractedProductCandidate[]): ExtractedProductCandidate[] {
+  const merged: ExtractedProductCandidate[] = [];
+  for (const candidate of values) {
+    const index = merged.findIndex((current) => sameProductCandidate(current, candidate));
+    if (index < 0) merged.push(candidate);
+    else merged[index] = mergeProductCandidates(merged[index], candidate);
+  }
+  return merged;
+}
+function sameProductCandidate(left: ExtractedProductCandidate, right: ExtractedProductCandidate): boolean {
+  if (left.gtin && right.gtin && left.gtin === right.gtin) return true;
+  if (left.sku && right.sku && normalizeIdentity(left.sku) === normalizeIdentity(right.sku)) return true;
+  if (left.mpn && right.mpn && normalizeIdentity(left.mpn) === normalizeIdentity(right.mpn)) return true;
+  const leftUrl = normalizeComparableUrl(left.sourceUrl);
+  const rightUrl = normalizeComparableUrl(right.sourceUrl);
+  return leftUrl === rightUrl && titlesOverlap(left.title, right.title);
+}
+function mergeProductCandidates(left: ExtractedProductCandidate, right: ExtractedProductCandidate): ExtractedProductCandidate {
+  const title = chooseTitle(left.title, right.title, fieldConfidence(left.fieldEvidence.title), fieldConfidence(right.fieldEvidence.title));
+  const description = chooseDescription(left.description, right.description);
+  const sku = left.sku ?? right.sku;
+  const gtin = left.gtin ?? right.gtin;
+  const mpn = left.mpn ?? right.mpn;
+  const model = left.model ?? right.model;
+  const brand = left.brand ?? right.brand;
+  const sourceProductKey = sku ?? gtin ?? mpn ?? model ?? preferSourceKey(left.sourceProductKey, right.sourceProductKey, left.sourceUrl);
+  const categoryPath = (right.categoryPath?.length ?? 0) > (left.categoryPath?.length ?? 0) ? right.categoryPath : left.categoryPath;
+  const fieldEvidence = { ...left.fieldEvidence, ...right.fieldEvidence };
+  if (title === left.title && left.fieldEvidence.title) fieldEvidence.title = left.fieldEvidence.title;
+  if (description === left.description && left.fieldEvidence.description) fieldEvidence.description = left.fieldEvidence.description;
+  if (sku === left.sku && left.fieldEvidence.sku) fieldEvidence.sku = left.fieldEvidence.sku;
+  if (gtin === left.gtin && left.fieldEvidence.gtin) fieldEvidence.gtin = left.fieldEvidence.gtin;
+  if (mpn === left.mpn && left.fieldEvidence.mpn) fieldEvidence.mpn = left.fieldEvidence.mpn;
+  if (model === left.model && left.fieldEvidence.model) fieldEvidence.model = left.fieldEvidence.model;
+  if (brand === left.brand && left.fieldEvidence.brand) fieldEvidence.brand = left.fieldEvidence.brand;
+  return {
+    sourceProductKey,
+    sourceUrl: preferCanonicalUrl(left.sourceUrl, right.sourceUrl),
+    title,
+    description,
+    brand,
+    model,
+    mpn,
+    gtin,
+    sku,
+    categoryPath,
+    attributes: { ...left.attributes, ...right.attributes },
+    variantAttributes: Object.keys({ ...(left.variantAttributes ?? {}), ...(right.variantAttributes ?? {}) }).length
+      ? { ...(left.variantAttributes ?? {}), ...(right.variantAttributes ?? {}) }
+      : undefined,
+    prices: mergePrices([...(left.prices ?? []), ...(right.prices ?? [])]),
+    images: mergeImages([...(left.images ?? []), ...(right.images ?? [])]),
+    fieldEvidence,
+    rawPayload: { extractionStrategy: "merged_multi_signal", sources: [left.rawPayload ?? null, right.rawPayload ?? null] }
+  };
+}
+function chooseTitle(left: string, right: string, leftConfidence: number, rightConfidence: number): string {
+  const a = normalizedTitle(left);
+  const b = normalizedTitle(right);
+  if (a && b && (a.includes(b) || b.includes(a))) return left.length <= right.length ? left : right;
+  return rightConfidence > leftConfidence ? right : left;
+}
+function chooseDescription(left: string | undefined, right: string | undefined): string | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  return right.length > left.length * 1.15 ? right : left;
+}
+function fieldConfidence(value: ProductFieldEvidence | readonly ProductFieldEvidence[] | undefined): number {
+  if (!value) return 0;
+  const entries = Array.isArray(value) ? value : [value];
+  return Math.max(...entries.map((entry) => entry.confidence));
+}
+function preferSourceKey(left: string, right: string, pageUrl: string): string {
+  const leftIsUrl = /^https?:\/\//i.test(left);
+  const rightIsUrl = /^https?:\/\//i.test(right);
+  if (leftIsUrl !== rightIsUrl) return leftIsUrl ? right : left;
+  if (left === pageUrl && right !== pageUrl) return right;
+  return left;
+}
+function preferCanonicalUrl(left: string, right: string): string {
+  if (left === right) return left;
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    if (a.hostname.replace(/^www\./, "") === b.hostname.replace(/^www\./, "") && a.pathname === b.pathname) return left.length <= right.length ? left : right;
+  } catch {}
+  return left;
+}
+function mergePrices(values: readonly ExtractedPrice[]): ExtractedPrice[] {
   const seen = new Set<string>();
-  return values.filter((candidate) => {
-    const key = `${candidate.sourceProductKey}\u0000${candidate.title}`.toLowerCase();
-    if (seen.has(key)) return false;
+  const result: ExtractedPrice[] = [];
+  for (const value of values) {
+    const key = `${value.kind}:${value.currency}:${value.amountMinor}`;
+    if (seen.has(key)) continue;
     seen.add(key);
-    return true;
-  });
+    result.push(value);
+  }
+  return result;
+}
+function mergeImages(values: readonly ExtractedImage[]): ExtractedImage[] {
+  const seen = new Set<string>();
+  const result: ExtractedImage[] = [];
+  for (const value of values) {
+    if (seen.has(value.url)) continue;
+    seen.add(value.url);
+    result.push(value);
+  }
+  return result;
+}
+function titlesOverlap(left: string, right: string): boolean {
+  const a = normalizedTitle(left);
+  const b = normalizedTitle(right);
+  return Boolean(a && b && (a.includes(b) || b.includes(a) || tokenSimilarity(a, b) >= 0.72));
+}
+function normalizedTitle(value: string): string {
+  return value.normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+function tokenSimilarity(left: string, right: string): number {
+  const a = new Set(left.split(/\s+/).filter((token) => token.length > 1));
+  const b = new Set(right.split(/\s+/).filter((token) => token.length > 1));
+  if (!a.size || !b.size) return 0;
+  let intersection = 0;
+  for (const token of a) if (b.has(token)) intersection += 1;
+  return intersection / Math.min(a.size, b.size);
+}
+function normalizeIdentity(value: string): string { return value.trim().toUpperCase().replace(/\s+/g, ""); }
+function normalizeComparableUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.hostname = url.hostname.replace(/^www\./, "");
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+    return url.toString();
+  } catch { return value; }
 }
 function requiredString(value: unknown, name: string): string { const text=optionalString(value); if (!text) throw new CrawlJobError(`Crawl policy ${name} is required`, true); return text; }
 function optionalString(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
