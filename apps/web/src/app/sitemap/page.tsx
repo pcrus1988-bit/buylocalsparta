@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/sitemap", {
     title: "Χάρτης ιστοτόπου",
-    description: "Οι πραγματικές δημόσιες διαδρομές του ΚΟΝΤΑ ΜΟΥ Sparta, οργανωμένες χωρίς διπλές ή παραπλανητικές επιλογές."
+    description: "Βρες γρήγορα προϊόντα, καταστήματα, υπηρεσίες και βασικές πληροφορίες του ΚΟΝΤΑ ΜΟΥ Sparta. Περιλαμβάνεται και το XML sitemap για Google Search Console."
   });
 }
 
@@ -61,8 +61,6 @@ async function governedVendorGroups(): Promise<readonly VendorGroup[]> {
     const taxonomy = vendor.taxonomies[0];
     return [{
       vendor,
-      // The default public vendor route family remains /vendor/[id]. Keep canonical
-      // overrides in the shared resolver so the human and XML sitemaps cannot diverge.
       href: absoluteSeoCanonical(settings.canonicalOrigin, reference, override),
       groupSlug: taxonomy?.categorySlug ?? "other",
       groupLabel: taxonomy?.categoryLabel ?? "Άλλες τοπικές επιχειρήσεις"
@@ -126,16 +124,44 @@ export default async function HumanSitemapPage() {
 
   return (
     <main>
-      <div className="announcement">Χάρτης ιστοτόπου · οι πραγματικές δημόσιες διαδρομές του ΚΟΝΤΑ ΜΟΥ Sparta σε ένα σημείο.</div>
+      <div className="announcement">Χάρτης ιστοτόπου · όλο το ΚΟΝΤΑ ΜΟΥ Sparta σε ένα σημείο.</div>
       <SiteHeader />
 
       <section className="shell route-map-hero">
-        <div className="eyebrow">Clear navigation</div>
-        <h1>Βρες ακριβώς τη διαδρομή που χρειάζεσαι.</h1>
-        <p className="lead">Ο χάρτης περιλαμβάνει μόνο σελίδες και ροές που υπάρχουν πραγματικά. Τα ιδιωτικά dashboard και τα τεχνικά API δεν παρουσιάζονται ως δημόσιο περιεχόμενο.</p>
+        <div className="eyebrow">Χάρτης ιστοτόπου</div>
+        <h1>Βρες γρήγορα αυτό που ψάχνεις.</h1>
+        <p className="lead">Προϊόντα, τοπικά καταστήματα, συμβουλές, πληροφορίες αγοράς και χρήσιμες σελίδες του ΚΟΝΤΑ ΜΟΥ, οργανωμένα σε μία καθαρή διαδρομή.</p>
+        <div className="hero-actions">
+          <Link className="button" href="/shop">Δες προϊόντα</Link>
+          <Link className="button button-secondary" href="/shops">Δες καταστήματα</Link>
+          <a className="button button-secondary" href="/sitemap.xml">XML sitemap</a>
+        </div>
+      </section>
+
+      <section className="shell route-map-section" aria-labelledby="search-engine-sitemap-title">
+        <div className="route-map-split">
+          <div>
+            <div className="eyebrow">Για επισκέπτες</div>
+            <h2 id="search-engine-sitemap-title">Ο ανθρώπινος χάρτης του ΚΟΝΤΑ ΜΟΥ.</h2>
+            <p className="lead compact">Οι παρακάτω ενότητες οδηγούν στις βασικές δημόσιες σελίδες. Σελίδες λογαριασμού, διαχείρισης, οδηγών και εσωτερικά εργαλεία δεν προβάλλονται ως δημόσιο περιεχόμενο.</p>
+          </div>
+          <aside className="route-map-account">
+            <div className="eyebrow">Google Search Console</div>
+            <h2>XML sitemap</h2>
+            <p>Για Google και άλλες μηχανές αναζήτησης χρησιμοποιείται ξεχωριστό XML sitemap. Ενημερώνεται δυναμικά με τις δημόσιες σελίδες, κατηγορίες, προϊόντα και καταστήματα που επιτρέπεται να ευρετηριαστούν.</p>
+            <div className="hero-actions">
+              <a className="button" href="/sitemap.xml">Άνοιγμα sitemap.xml</a>
+              <a className="button button-secondary" href="/robots.txt">robots.txt</a>
+            </div>
+          </aside>
+        </div>
       </section>
 
       <section className="shell route-map-section" aria-label="Δημόσιες διαδρομές">
+        <div className="section-heading">
+          <div><div className="eyebrow">Κύριες σελίδες</div><h2>Πήγαινε κατευθείαν εκεί που θέλεις.</h2></div>
+          <p className="section-note">Οι σύνδεσμοι είναι ομαδοποιημένοι ανά χρήση, ώστε ο χάρτης να παραμένει εύχρηστος ακόμη και όσο μεγαλώνει η πλατφόρμα.</p>
+        </div>
         <div className="route-map-grid">
           {HUMAN_SITEMAP_SECTIONS.map((section) => (
             <article className="route-map-card" key={section.title}>
@@ -155,7 +181,7 @@ export default async function HumanSitemapPage() {
       </section>
 
       {cmsLinks.length > 0 && <section className="section section-tint" aria-labelledby="sitemap-cms-title"><div className="shell route-map-section">
-        <div className="section-heading"><div><div className="eyebrow">CMS · {cmsLinks.length}</div><h2 id="sitemap-cms-title">Δημοσιευμένες σελίδες περιεχομένου</h2></div><p className="section-note">Εμφανίζονται μόνο δημοσιευμένες, index-eligible μεταφράσεις που περνούν τους ίδιους κανόνες visibility και canonical governance με το XML sitemap.</p></div>
+        <div className="section-heading"><div><div className="eyebrow">Περιεχόμενο · {cmsLinks.length}</div><h2 id="sitemap-cms-title">Δημοσιευμένες ενημερωτικές σελίδες</h2></div><p className="section-note">Εδώ εμφανίζονται οι δημοσιευμένες σελίδες περιεχομένου που είναι διαθέσιμες δημόσια και μπορούν να εμφανιστούν στις μηχανές αναζήτησης.</p></div>
         <div className="route-map-grid">
           {greekCmsLinks.length > 0 && <article className="route-map-card"><div className="eyebrow">Ελληνικά · {greekCmsLinks.length}</div><div className="route-map-links">{greekCmsLinks.map((item) => <a href={item.href} key={item.path}><strong>{item.title}</strong><span>{item.description}</span><i aria-hidden="true">→</i></a>)}</div></article>}
           {englishCmsLinks.length > 0 && <article className="route-map-card"><div className="eyebrow">English · {englishCmsLinks.length}</div><div className="route-map-links">{englishCmsLinks.map((item) => <a href={item.href} key={item.path}><strong>{item.title}</strong><span>{item.description}</span><i aria-hidden="true">→</i></a>)}</div></article>}
@@ -165,7 +191,7 @@ export default async function HumanSitemapPage() {
       {availableCategories.length > 0 && <section className="section section-tint">
         <div className="shell route-map-split">
           <div>
-            <div className="eyebrow">Κατηγορίες προϊόντων</div>
+            <div className="eyebrow">Κατηγορίες προϊόντων · {availableCategories.length}</div>
             <h2>Μπες κατευθείαν στην κατηγορία.</h2>
             <div className="route-map-category-list">
               {availableCategories.map((category) => <Link href={`/category/${category.slug}`} key={category.slug}>{category.label}<span aria-hidden="true">→</span></Link>)}
@@ -174,7 +200,7 @@ export default async function HumanSitemapPage() {
           <aside className="route-map-account">
             <div className="eyebrow">Λογαριασμός πελάτη</div>
             <h2>Σύνδεση ή νέα εγγραφή.</h2>
-            <p>Οι σελίδες λογαριασμού δεν μπαίνουν στο XML sitemap, αλλά παραμένουν σαφείς και προσβάσιμες όταν τις χρειάζεσαι.</p>
+            <p>Οι προσωπικές σελίδες λογαριασμού δεν ανήκουν στο XML sitemap, αλλά είναι διαθέσιμες εδώ όταν τις χρειάζεσαι.</p>
             <div className="hero-actions">
               {ACCOUNT_UTILITY_NAVIGATION.map((link) => <Link className="button button-secondary" href={link.href} key={link.href}>{link.label}</Link>)}
             </div>
@@ -184,8 +210,8 @@ export default async function HumanSitemapPage() {
 
       {vendorGroups.length > 0 && <section className="shell route-map-section" aria-labelledby="sitemap-vendors-title">
         <div className="section-heading">
-          <div><div className="eyebrow">Τοπικές επιχειρήσεις · {vendorCount}</div><h2 id="sitemap-vendors-title">Δημόσια καταστήματα με δικαίωμα ευρετηρίασης</h2></div>
-          <p className="section-note">Η λίστα ακολουθεί ακριβώς τους ίδιους κανόνες quality, index και sitemap governance με το XML sitemap. Research καταχωρίσεις χαμηλής ποιότητας ή σε noindex κατάσταση δεν εμφανίζονται εδώ.</p>
+          <div><div className="eyebrow">Τοπικές επιχειρήσεις · {vendorCount}</div><h2 id="sitemap-vendors-title">Καταστήματα που μπορείς να ανακαλύψεις δημόσια</h2></div>
+          <p className="section-note">Εμφανίζονται μόνο δημόσιες καταχωρίσεις που πληρούν τα κριτήρια ποιότητας και ευρετηρίασης του ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
         <div className="route-map-grid">
           {vendorGroups.map((group) => <article className="route-map-card" key={group.slug}>
