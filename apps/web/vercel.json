@@ -6,6 +6,10 @@
   "outputDirectory": ".next",
   "crons": [
     {
+      "path": "/api/cron/catalogue-crawler",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/order-sla",
       "schedule": "*/5 * * * *"
     }
