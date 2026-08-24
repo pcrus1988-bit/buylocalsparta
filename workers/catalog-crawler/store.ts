@@ -46,6 +46,7 @@ export class CatalogCrawlerStore {
   }
 
   async acknowledgeCancel(jobId: string, workerId: string): Promise<void> {
+    await this.syncCounters(jobId);
     await this.#db.query(`SELECT bls_private.acknowledge_catalog_web_crawl_job_cancel($1,$2)`, [jobId, workerId]);
   }
 
@@ -73,7 +74,7 @@ export class CatalogCrawlerStore {
   }
 
   async markFetching(pageId: string, robotsAllowed: boolean | null): Promise<void> {
-    await this.#db.query(`UPDATE public.catalog_web_crawl_pages SET status='fetching',robots_allowed=$2,updated_at=now(),failure_kind=NULL,failure_reason=NULL WHERE id=$1 AND status IN ('queued','failed')`, [pageId, robotsAllowed]);
+    await this.#db.query(`UPDATE public.catalog_web_crawl_pages SET status='fetching',robots_allowed=$2,updated_at=now(),failure_kind=NULL,failure_reason=NULL WHERE id=$1 AND status IN ('queued','failed','fetching')`, [pageId, robotsAllowed]);
   }
 
   async markSkipped(pageId: string, reason: string, robotsAllowed: boolean | null): Promise<void> {
@@ -109,15 +110,51 @@ export class CatalogCrawlerStore {
     return status;
   }
 
+  async syncCounters(jobId: string): Promise<void> {
+    await this.#db.query(`
+      WITH page_counts AS (
+        SELECT
+          count(*)::integer AS discovered,
+          count(*) FILTER (WHERE status='fetched')::integer AS fetched,
+          count(*) FILTER (WHERE status='skipped')::integer AS skipped,
+          count(*) FILTER (WHERE status='failed')::integer AS failed
+        FROM public.catalog_web_crawl_pages
+        WHERE job_id=$1
+      ), extraction_counts AS (
+        SELECT
+          count(*)::integer AS extracted,
+          count(*) FILTER (WHERE e.status='review_required')::integer AS review,
+          count(*) FILTER (WHERE e.status='promoted')::integer AS promoted
+        FROM public.catalog_web_product_extractions e
+        JOIN public.catalog_web_crawl_pages p ON p.id=e.page_id
+        WHERE p.job_id=$1
+      )
+      UPDATE public.catalog_web_crawl_jobs j
+      SET discovered_url_count=pc.discovered,
+          fetched_page_count=pc.fetched,
+          skipped_page_count=pc.skipped,
+          failed_page_count=pc.failed,
+          extracted_product_count=ec.extracted,
+          review_product_count=ec.review,
+          promoted_product_count=ec.promoted,
+          updated_at=now()
+      FROM page_counts pc CROSS JOIN extraction_counts ec
+      WHERE j.id=$1
+    `, [jobId]);
+  }
+
   async finish(jobId: string, workerId: string): Promise<void> {
+    await this.syncCounters(jobId);
     if (await this.shouldCancel(jobId, workerId)) {
       await this.acknowledgeCancel(jobId, workerId);
       throw new CrawlJobCancelledError();
     }
     await this.#db.query(`SELECT bls_private.finish_catalog_web_crawl_job($1,$2)`, [jobId, workerId]);
+    await this.syncCounters(jobId);
   }
 
   async retry(jobId: string, workerId: string, reason: string, delaySeconds: number, terminal: boolean): Promise<void> {
+    await this.syncCounters(jobId);
     await this.#db.query(`SELECT bls_private.retry_catalog_web_crawl_job($1,$2,$3,$4,$5)`, [jobId, workerId, reason, delaySeconds, terminal]);
   }
 }
