@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CatalogCard } from "../lib/catalog-view";
-import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
+import { publicCatalogPriceLabel, publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 
@@ -30,6 +30,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
 }) {
   const category = storefrontCategoryForCode(product.categoryCode);
   const displayTitle = publicCatalogueTitleLabel(product.title);
+  const displayDescription = product.description ? publicCatalogueCardDescription(product.description) : undefined;
   const vendorName = vendorContext?.name ?? product.vendorName;
   const adviser = vendorContext?.adviser ?? product.adviser;
   const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
@@ -65,7 +66,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}{product.mpn ? ` · Κωδ. ${product.mpn}` : ""}</div>
         <h3><Link href={productHref}>{displayTitle}</Link></h3>
-        {product.description ? <p className="partner">{product.description}</p> : null}
+        {displayDescription ? <p className="partner">{displayDescription}</p> : null}
         {demoMode && vendorName ? (
           <p className="partner">Προεπισκόπηση καταλόγου από <strong>{vendorName}</strong>. Η αγορά παραμένει απενεργοποιημένη σε DEMO.</p>
         ) : vendorName && adviser ? (
