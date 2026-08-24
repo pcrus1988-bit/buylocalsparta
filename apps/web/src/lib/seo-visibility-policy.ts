@@ -154,6 +154,8 @@ export type ProductIndexCandidate = Readonly<{
   gtin?: string;
   mpn?: string;
   mediaId?: string;
+  sourceImageAvailable?: boolean;
+  offerAvailable?: boolean;
   color?: string;
   sizes?: readonly string[];
   duplicateTitleCount?: number;
@@ -252,9 +254,10 @@ export const DEFAULT_PRODUCT_INDEX_SCORE = 5;
 /**
  * Search-quality gate layered above the existing public canonical admission rule.
  * Suppressed, recalled, inactive and otherwise unsafe products never reach this
- * function. An approved primary image is a hard requirement for organic promotion:
- * catalogue records may continue enriching for people, but image-less canonicals
- * are not sitemapped/index-promoted as complete commerce documents.
+ * function. An approved platform image or a source image admitted through an
+ * approved source-product link is a hard requirement for organic promotion.
+ * Products also need a currently sellable local offer; unavailable catalog records
+ * remain human-readable but are not promoted into search or the sitemap.
  */
 export function productIndexEligibility(
   product: ProductIndexCandidate,
@@ -268,7 +271,9 @@ export function productIndexEligibility(
   const blockingReasons: string[] = [];
   const title = product.title.trim();
   const hasDescription = usefulText(product.description, 60);
-  const hasImage = usefulText(product.mediaId, 8);
+  const hasApprovedMedia = usefulText(product.mediaId, 8);
+  const hasTrustedSourceImage = product.sourceImageAvailable === true;
+  const hasImage = hasApprovedMedia || hasTrustedSourceImage;
   const hasIdentity = usefulText(product.gtin, 8) || usefulText(product.mpn, 2) || usefulText(product.brand, 2);
   const hasStrongDifferentiator = usefulText(product.gtin, 8) || usefulText(product.mpn, 2) || usefulText(product.color, 2) || Boolean(product.sizes?.some((size) => usefulText(size, 1)));
 
@@ -292,9 +297,9 @@ export function productIndexEligibility(
   }
   if (hasImage) {
     score += 1;
-    reasons.push("approved public image");
+    reasons.push(hasApprovedMedia ? "approved public media" : "approved catalogue-source image");
   } else {
-    blockingReasons.push("missing approved public image");
+    blockingReasons.push("missing approved or trusted public image");
   }
   if (hasIdentity) {
     score += 1;
@@ -310,6 +315,11 @@ export function productIndexEligibility(
   }
   if (Number(product.duplicateTitleCount) > 1 && !hasStrongDifferentiator) {
     blockingReasons.push("duplicate title without a public identifier or variant differentiator");
+  }
+  if (product.offerAvailable !== true) {
+    blockingReasons.push("no active local offer with fresh sellable stock");
+  } else {
+    reasons.push("active local offer with fresh sellable stock");
   }
 
   return {

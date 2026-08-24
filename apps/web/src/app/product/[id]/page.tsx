@@ -182,7 +182,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const override = findSeoEntityOverride(overrides.entries, reference);
   const quality = productIndexEligibility(summary);
   const seoControl = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible: quality.blockingReasons.length === 0, defaultIndexAllowed: quality.eligible, defaultSchemaAllowed: true, override });
-  const category = storefrontCategoryForCode(product.categoryCode);
+  const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
   const origin = settings.canonicalOrigin;
   const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
   const categoryUrl = `${origin}/category/${category.slug}`;

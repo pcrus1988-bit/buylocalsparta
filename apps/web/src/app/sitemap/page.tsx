@@ -12,6 +12,7 @@ import { getSeoEntityOverridesSnapshot } from "../../lib/seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../lib/seo-entity-policy";
 import { researchVendorIndexEligibility } from "../../lib/seo-visibility-policy";
 import { getPublicCmsPages } from "../../lib/public-cms";
+import { getAvailableStorefrontCategories } from "../../lib/available-catalog-taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,11 @@ async function governedCmsLinks(): Promise<readonly CmsLink[]> {
 }
 
 export default async function HumanSitemapPage() {
-  const [vendorGroups, cmsLinks] = await Promise.all([governedVendorGroups(), governedCmsLinks()]);
+  const [vendorGroups, cmsLinks, availableCategories] = await Promise.all([
+    governedVendorGroups(),
+    governedCmsLinks(),
+    getAvailableStorefrontCategories("23100")
+  ]);
   const vendorCount = vendorGroups.reduce((sum, group) => sum + group.vendors.length, 0);
   const greekCmsLinks = cmsLinks.filter((item) => item.locale === "el");
   const englishCmsLinks = cmsLinks.filter((item) => item.locale === "en");
@@ -157,13 +162,13 @@ export default async function HumanSitemapPage() {
         </div>
       </div></section>}
 
-      <section className="section section-tint">
+      {availableCategories.length > 0 && <section className="section section-tint">
         <div className="shell route-map-split">
           <div>
             <div className="eyebrow">Κατηγορίες προϊόντων</div>
             <h2>Μπες κατευθείαν στην κατηγορία.</h2>
             <div className="route-map-category-list">
-              {STOREFRONT_CATEGORIES.map((category) => <Link href={`/category/${category.slug}`} key={category.slug}>{category.label}<span aria-hidden="true">→</span></Link>)}
+              {availableCategories.map((category) => <Link href={`/category/${category.slug}`} key={category.slug}>{category.label}<span aria-hidden="true">→</span></Link>)}
             </div>
           </div>
           <aside className="route-map-account">
@@ -175,7 +180,7 @@ export default async function HumanSitemapPage() {
             </div>
           </aside>
         </div>
-      </section>
+      </section>}
 
       {vendorGroups.length > 0 && <section className="shell route-map-section" aria-labelledby="sitemap-vendors-title">
         <div className="section-heading">

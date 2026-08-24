@@ -363,6 +363,20 @@ export const getPublicProductDetail = cache(async (canonicalVariantId: string): 
   const canonicalId = canonicalVariantId.trim();
   if (!canonicalId || !productionDatabaseConfigured()) return undefined;
 
+  return (await getPublicProductDetails([canonicalId])).get(canonicalId);
+});
+
+/**
+ * Batch projection used by sitemap and metadata admission. Keeping this as one
+ * governed query avoids one database round-trip per product when thousands of
+ * imported canonicals are evaluated for search visibility.
+ */
+export async function getPublicProductDetails(
+  canonicalVariantIds: readonly string[]
+): Promise<ReadonlyMap<string, PublicProductDetail>> {
+  const canonicalIds = [...new Set(canonicalVariantIds.map((id) => id.trim()).filter(Boolean))];
+  if (canonicalIds.length === 0 || !productionDatabaseConfigured()) return new Map();
+
   try {
     const result = await getProductionPostgresRuntime().sqlPool.query<ProductDetailRow>(`
       SELECT cv.public_id AS canonical_public_id,cv.model,cv.variant_attributes,
@@ -396,22 +410,23 @@ export const getPublicProductDetail = cache(async (canonicalVariantId: string): 
         ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
         LIMIT 1
       ) src ON true
-      WHERE cv.public_id=$1
+      WHERE cv.public_id=ANY($1::text[])
         AND m.code='sparta'
         AND cv.active=true
         AND cv.suppressed=false
         AND cv.recalled=false
-      LIMIT 1
-    `, [canonicalId]);
-    const row = result.rows[0];
-    return row ? productDetailFromRow(row) : undefined;
+    `, [canonicalIds]);
+    return new Map(result.rows.map((row) => {
+      const detail = productDetailFromRow(row);
+      return [detail.canonicalVariantId, detail] as const;
+    }));
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
-      event: "storefront.product_detail_projection_failed",
-      canonicalVariantId: canonicalId,
+      event: "storefront.product_detail_inventory_projection_failed",
+      canonicalVariantCount: canonicalIds.length,
       message: error instanceof Error ? error.message : String(error)
     }));
-    return undefined;
+    return new Map();
   }
-});
+}

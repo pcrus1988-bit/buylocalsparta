@@ -22,7 +22,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     description: "Αντικείμενα που κάνουν το σπίτι πιο λειτουργικό, πιο όμορφο και πιο προσωπικό — με συμβουλή από ανθρώπους της τοπικής αγοράς.",
     searchHint: "φωτισμός, διακόσμηση, κουζίνα, λευκά είδη",
     artClass: "art-home",
-    aliases: ["home", "home-living", "home-lighting", "lighting", "furniture", "decor", "decoration", "housewares"]
+    aliases: ["home", "home-living", "home-lighting", "lighting", "furniture", "decor", "decoration", "housewares", "kitchen", "drinkware", "bottle", "thermos", "food-storage"]
   },
   {
     slug: "fashion",
@@ -61,10 +61,46 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     aliases: ["kids", "kid", "children", "toys", "toy", "baby", "hobbies", "games"]
   },
   {
+    slug: "tools-diy",
+    label: "Εργαλεία & DIY",
+    name: "Tools & DIY",
+    mark: "05",
+    symbol: "⌁",
+    eyebrow: "Εργαλεία · κατασκευές · επισκευές",
+    description: "Εργαλεία, εξοπλισμός εργαστηρίου και λύσεις για κατασκευές ή επισκευές, με τοπική διαθεσιμότητα και συμβουλή για τη σωστή επιλογή.",
+    searchHint: "εργαλεία, δράπανα, αναλώσιμα, είδη ασφαλείας",
+    artClass: "art-tools",
+    aliases: ["diy", "building", "construction", "hardware", "power-tools", "hand-tools", "tool", "tools", "paint", "sanitary", "plumbing", "welding", "safety", "door", "window", "measuring", "fastener", "compressor", "generator"]
+  },
+  {
+    slug: "garden-outdoors",
+    label: "Κήπος & ύπαιθρος",
+    name: "Garden & Outdoors",
+    mark: "06",
+    symbol: "⌇",
+    eyebrow: "Κήπος · γεωργία · εξωτερικός χώρος",
+    description: "Εξοπλισμός κήπου, γεωργικά εργαλεία και είδη υπαίθρου από την τοπική αγορά της Σπάρτης, με χρήσιμα στοιχεία συμβατότητας και εφαρμογής.",
+    searchHint: "κήπος, γεωργικά, camping, εξοπλισμός υπαίθρου",
+    artClass: "art-outdoors",
+    aliases: ["agriculture", "agricultural", "garden", "outdoor", "camping", "hunting", "fishing", "pet", "animal", "beekeeping", "forestry", "lawn", "irrigation", "pool", "barbecue"]
+  },
+  {
+    slug: "automotive",
+    label: "Αυτοκίνηση",
+    name: "Automotive",
+    mark: "07",
+    symbol: "◉",
+    eyebrow: "Αυτοκίνητο · μοτοσυκλέτα · μετακίνηση",
+    description: "Αξεσουάρ, εργαλεία, αναλώσιμα και εξοπλισμός αυτοκίνησης με έμφαση στη συμβατότητα και στην καθοδήγηση από τοπικό κατάστημα.",
+    searchHint: "αυτοκίνητο, μπαταρίες, αξεσουάρ, εργαλεία οχήματος",
+    artClass: "art-automotive",
+    aliases: ["automotive", "vehicle", "car", "motor", "motorcycle", "bicycle", "cycling", "tyre", "wheel"]
+  },
+  {
     slug: "technology",
     label: "Τεχνολογία",
     name: "Technology",
-    mark: "05",
+    mark: "08",
     symbol: "◎",
     eyebrow: "Τεχνολογία · ήχος · συσκευές",
     description: "Τεχνολογία με τοπική υποστήριξη. Ρώτησε για συμβατότητα, εγκατάσταση ή τη σωστή επιλογή πριν ολοκληρώσεις την αγορά.",
@@ -76,13 +112,13 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     slug: "gifts",
     label: "Δώρα & ιδιαίτερα",
     name: "Gifts & Finds",
-    mark: "06",
+    mark: "09",
     symbol: "✺",
     eyebrow: "Δώρα · βιβλίο · χαρτικά · ιδιαίτερα",
     description: "Ιδέες που αξίζει να ανακαλύψεις τοπικά — από χαρτικά και βιβλία μέχρι μικρά ιδιαίτερα δώρα και αντικείμενα με χαρακτήρα.",
     searchHint: "δώρα, βιβλία, χαρτικά, ιδιαίτερα αντικείμενα",
     artClass: "art-gifts",
-    aliases: ["gifts", "gift", "stationery", "books", "book", "culture", "specialist", "other"]
+    aliases: ["gifts", "gift", "stationery", "books", "book", "school", "office", "culture", "specialist", "packaging", "religious", "other"]
   }
 ];
 
@@ -104,19 +140,25 @@ export function storefrontCategoryBySlug(slug: string): StorefrontCategory | und
   return STOREFRONT_CATEGORIES.find((category) => category.slug === normalized);
 }
 
-export function storefrontCategoryForCode(categoryCode?: string): StorefrontCategory {
-  if (!categoryCode?.trim()) return FALLBACK_CATEGORY;
-  return STOREFRONT_CATEGORIES.find((category) => categoryCodeMatches(categoryCode, category.slug)) ?? FALLBACK_CATEGORY;
+export function storefrontCategoryForCode(categoryCode?: string, departmentCode?: string): StorefrontCategory {
+  if (!categoryCode?.trim() && !departmentCode?.trim()) return FALLBACK_CATEGORY;
+  return STOREFRONT_CATEGORIES.find((category) => categoryCodeMatches(categoryCode, category.slug, departmentCode)) ?? FALLBACK_CATEGORY;
 }
 
-export function categoryCodeMatches(categoryCode: string | undefined, categorySlugOrCode: string | undefined): boolean {
+export function categoryCodeMatches(
+  categoryCode: string | undefined,
+  categorySlugOrCode: string | undefined,
+  departmentCode?: string
+): boolean {
   const code = normalize(categoryCode ?? "");
+  const department = normalize(departmentCode ?? "");
   const requested = normalize(categorySlugOrCode ?? "");
   if (!requested) return true;
-  if (!code) return false;
+  if (!code && !department) return false;
   const category = storefrontCategoryBySlug(requested);
-  if (!category) return code === requested || code.startsWith(`${requested}-`);
-  return category.aliases.some((alias) => code === alias || code.startsWith(`${alias}-`));
+  const candidates = [code, department].filter(Boolean);
+  if (!category) return candidates.some((candidate) => candidate === requested || candidate.startsWith(`${requested}-`));
+  return category.aliases.some((alias) => candidates.some((candidate) => candidate === alias || candidate.startsWith(`${alias}-`)));
 }
 
 function normalize(value: string): string {

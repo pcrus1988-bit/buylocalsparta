@@ -114,7 +114,7 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
   for (const product of products) {
     const reference: SeoEntityReference = { kind: "product", id: product.id };
     const quality = productIndexEligibility(product);
-    const category = storefrontCategoryForCode(product.categoryCode);
+    const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
     const { override, control } = controlled(reference, quality.blockingReasons.length === 0, quality.eligible);
     const route = productPublicPath(product);
     nodes.push({

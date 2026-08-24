@@ -135,6 +135,7 @@ function crawlerCard(product: PublicProductSeoRecord, details: CatalogMetadata |
     priceMinor,
     price: formatMoney(money(priceMinor)),
     categoryCode: product.categoryCode,
+    departmentCode: product.departmentCode,
     categoryLabel: product.categoryLabel,
     gtin: product.gtin,
     mpn: product.mpn,
@@ -150,6 +151,7 @@ function crawlerCard(product: PublicProductSeoRecord, details: CatalogMetadata |
     adviser: preview.adviser,
     mediaId: product.mediaId,
     mediaAlt: product.mediaAlt,
+    sourceImageAvailable: product.sourceImageAvailable,
     available: preview.available,
     availableToSell: preview.availableToSell
   };
@@ -172,7 +174,7 @@ export async function getCrawlerCatalogCards(
   const inventory = await getPublicProductSeoInventory();
   const normalizedQuery = normalizeSearchText(query);
   const candidates = inventory.products.filter((product) =>
-    categoryCodeMatches(product.categoryCode, category)
+    categoryCodeMatches(product.categoryCode, category, product.departmentCode)
     && matchesQuery(product, normalizedQuery)
     && (!filters.subcategory || product.categoryCode === filters.subcategory)
     && sameFilterValue(product.brand, filters.brand)

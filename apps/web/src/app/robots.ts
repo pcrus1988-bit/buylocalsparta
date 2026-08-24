@@ -13,7 +13,9 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       // noindex directives/headers. Let crawlers reach those responses so the
       // noindex signal can actually be processed instead of relying on robots.txt
       // as a privacy mechanism.
-      allow: settings.publicMediaCrawlEnabled ? ["/", "/api/media/"] : "/",
+      allow: settings.publicMediaCrawlEnabled
+        ? ["/", "/api/media/", "/api/catalog-source-image/"]
+        : "/",
       // Keep system/API surfaces out of the crawl graph while explicitly allowing
       // approved public media used by Product/LocalBusiness structured data.
       disallow: ["/api/"]

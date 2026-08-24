@@ -42,6 +42,7 @@ const adminSeoPage = read("apps/web/src/app/admin/seo/page.tsx");
 const adminCrawlPage = read("apps/web/src/app/admin/seo/crawl/page.tsx");
 const adminSearchConsolePage = read("apps/web/src/app/admin/seo/search-console/page.tsx");
 const catalogRuntime = read("apps/web/src/lib/catalog-view.ts");
+const categoryDepartment = read("apps/web/src/lib/catalog-category-department.ts");
 const crawlerCatalog = read("apps/web/src/lib/crawler-catalog.ts");
 const requestAudience = read("apps/web/src/lib/request-audience.ts");
 const crawlGraph = read("apps/web/src/lib/seo-crawl-graph.ts");
@@ -87,6 +88,7 @@ for (const contract of [
   "getSeoGlobalSettingsSnapshot()",
   'disallow: ["/api/"]',
   '"/api/media/"',
+  '"/api/catalog-source-image/"',
   "settings.indexingEnabled ? `${origin}/sitemap.xml` : undefined"
 ]) requireText(robots, contract, `robots.txt governance is missing ${contract}`);
 if (robots.includes("ROBOTS_DISALLOW_PATHS")) failures.push("robots.txt must not hide authenticated HTML before crawlers can process explicit noindex responses");
@@ -148,9 +150,12 @@ const strongProduct = {
   description: "Αναλυτική δημόσια περιγραφή προϊόντος με αρκετές χρήσιμες πληροφορίες για τον πελάτη και την επιλογή του.",
   brand: "Nike",
   mediaId: "media_approved_product",
+  offerAvailable: true,
   duplicateTitleCount: 1
 } as const;
 if (!productIndexEligibility(strongProduct).eligible) failures.push("Useful admitted products must pass the product SEO quality gate");
+if (!productIndexEligibility({ ...strongProduct, mediaId: undefined, sourceImageAvailable: true }).eligible) failures.push("Approved catalogue-source imagery must satisfy the public image gate");
+if (!productIndexEligibility({ ...strongProduct, offerAvailable: false }).blockingReasons.some((reason) => reason.includes("active local offer"))) failures.push("Products without a fresh sellable local offer must stay out of the index");
 if (productIndexEligibility({ title: "Product", categoryCode: "", duplicateTitleCount: 1 }).eligible) failures.push("Placeholder products without classification/content must stay out of the index");
 if (!productIndexEligibility({ ...strongProduct, description: undefined, mediaId: undefined, brand: undefined, duplicateTitleCount: 2 }).blockingReasons.some((reason) => reason.includes("duplicate title"))) failures.push("Undifferentiated duplicate product titles must be a hard index blocker");
 
@@ -164,6 +169,7 @@ requireText(homepage, 'getAvailableStorefrontCategories("23100")', "Homepage mus
 requireText(homepage, "visibleCategories.map", "Homepage must link every available category independently of rotating featured products");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
 if (!category.includes("isReadOnlyPublicCrawlerRequest") || !category.includes("getCrawlerCatalogCards")) failures.push("Category crawler rendering must use the read-only catalogue projection");
+for (const contract of ['"@type": "CollectionPage"', '"@type": "ItemList"', "category-merchant-grid", "seoControl.schemaAllowed ? <script"]) requireText(category, contract, `Category landing SEO is missing ${contract}`);
 for (const source of [shop, shops]) {
   if (!source.includes("searchParams") || !source.includes("index: false, follow: true")) failures.push("Filtered public catalogue/directory URLs must publish noindex,follow");
 }
@@ -200,7 +206,8 @@ if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: open
 if (productPublicPath({ id: "canonical_123", slug: "nike-air-max-90" }) !== "/product/nike-air-max-90") failures.push("Friendly product paths must prefer the catalogue slug");
 if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") failures.push("Friendly product paths must retain legacy-ID fallback");
 for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) requireText(commerceRuntime, contract, `Public catalogue slug projection is missing ${contract}`);
-for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
+for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount", "getPublicProductDetails", "loadPublicOfferAvailability", "sourceImageAvailable", "offerAvailable"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
+for (const contract of ["WITH RECURSIVE category_tree", "department_code", "loadCatalogDepartmentCodes"]) requireText(categoryDepartment, contract, `Governed category hierarchy projection is missing ${contract}`);
 requireText(catalogCard, "productPublicPath(product)", "Public catalogue cards must link to the preferred friendly product URL");
 
 // Read-only crawler offer projection must be truthful and mutation-free.
@@ -215,7 +222,7 @@ for (const bot of ["googlebot", "bingbot", "google-inspectiontool", "facebookext
 if (!requestAudience.includes("read-only public")) failures.push("Crawler classification must document that it only selects a read-only public projection and grants no access");
 
 // Human sitemap and crawl graph provide real internal-link coverage.
-for (const contract of ["getPublicVendorDirectory", "resolveSeoEntityControl", "researchVendorIndexEligibility", "sitemapAllowed", "vendorGroups", "/vendor/"]) requireText(humanSitemap, contract, `Human sitemap governed vendor directory is missing ${contract}`);
+for (const contract of ["getPublicVendorDirectory", "resolveSeoEntityControl", "researchVendorIndexEligibility", "sitemapAllowed", "vendorGroups", "/vendor/", 'getAvailableStorefrontCategories("23100")', "availableCategories.map"]) requireText(humanSitemap, contract, `Human sitemap governed discovery is missing ${contract}`);
 for (const contract of ["adminSeoCrawlGraph", '"/shop catalogue"', '"/shops directory"', '"Homepage category rail"', '"/sitemap governed vendor directory"', "orphan", "weak", "indexAllowed"]) requireText(crawlGraph, contract, `SEO crawl graph is missing ${contract}`);
 for (const contract of ["Internal linking & orphan diagnostics", "Weakly linked", "Orphans", "Open public page"]) requireText(adminCrawlPage, contract, `Admin crawl graph UI is missing ${contract}`);
 

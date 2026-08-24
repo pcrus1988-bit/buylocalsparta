@@ -3,11 +3,13 @@ import type { CatalogFacetOption, CatalogFacets, CatalogFilters } from "./catalo
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { categoryCodeMatches, STOREFRONT_CATEGORIES, type StorefrontCategory } from "./storefront-taxonomy";
+import { loadCatalogDepartmentCodes } from "./catalog-category-department";
 
 type AvailableCanonical = Readonly<{
   id: string;
   title: string;
   categoryCode: string;
+  departmentCode?: string;
 }>;
 
 export type AvailableCatalogTaxonomy = Readonly<{
@@ -50,7 +52,7 @@ function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
 
 function availableCategories(products: readonly AvailableCanonical[]): readonly StorefrontCategory[] {
   return STOREFRONT_CATEGORIES.filter((category) =>
-    products.some((product) => categoryCodeMatches(product.categoryCode, category.slug))
+    products.some((product) => categoryCodeMatches(product.categoryCode, category.slug, product.departmentCode))
   );
 }
 
@@ -60,7 +62,7 @@ async function buildFacets(
   query: string,
   filters: CatalogFilters
 ): Promise<CatalogFacets> {
-  const scoped = products.filter((product) => categoryCodeMatches(product.categoryCode, category));
+  const scoped = products.filter((product) => categoryCodeMatches(product.categoryCode, category, product.departmentCode));
   if (scoped.length === 0) return EMPTY_FACETS;
 
   const metadata = await loadCatalogMetadata(scoped.map((product) => product.id));
@@ -102,6 +104,7 @@ export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise
   const commerce = getProductionPostgresRuntime().customerCommerce;
   const canonicals = await commerce.publicCanonicals();
   if (canonicals.length === 0) return [];
+  const departmentCodes = await loadCatalogDepartmentCodes(canonicals.map((product) => product.id));
 
   const available = new Array<boolean>(canonicals.length).fill(false);
   let cursor = 0;
@@ -124,7 +127,9 @@ export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise
   });
   await Promise.all(workers);
 
-  return canonicals.filter((_, index) => available[index]);
+  return canonicals
+    .filter((_, index) => available[index])
+    .map((product) => ({ ...product, departmentCode: departmentCodes.get(product.id) }));
 }
 
 export async function getAvailableStorefrontCategories(postcode = "23100"): Promise<readonly StorefrontCategory[]> {

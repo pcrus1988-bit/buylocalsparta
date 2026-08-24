@@ -28,7 +28,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   vendorContext?: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
 }) {
-  const category = storefrontCategoryForCode(product.categoryCode);
+  const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
   const displayTitle = publicCatalogueTitleLabel(product.title);
   const displayDescription = product.description ? publicCatalogueCardDescription(product.description) : undefined;
   const vendorName = vendorContext?.name ?? product.vendorName;
