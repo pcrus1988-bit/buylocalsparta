@@ -51,8 +51,17 @@ async function cancelAction(formData: FormData) {
 async function promoteAction(formData: FormData) {
   "use server";
   const principal = await getAdminSession(); if (!principal) redirect("/admin/login");
-  await promoteAdminCrawlerJob(principal, String(formData.get("jobId") ?? ""));
-  revalidatePath("/admin/catalogue-crawler"); revalidatePath("/admin/catalogue-intake");
+  const jobId = String(formData.get("jobId") ?? "").trim();
+  let promotionError: string | undefined;
+  try {
+    await promoteAdminCrawlerJob(principal, jobId);
+  } catch (error) {
+    promotionError = errorMessage(error);
+  }
+  if (promotionError) redirect(`/admin/catalogue-crawler?promotionError=${encodeURIComponent(promotionError)}&promotionJob=${encodeURIComponent(jobId)}`);
+  revalidatePath("/admin/catalogue-crawler");
+  revalidatePath("/admin/catalogue-intake");
+  redirect(`/admin/catalogue-crawler?promotionImported=1&promotionJob=${encodeURIComponent(jobId)}`);
 }
 
 export default async function Page({ searchParams }: { searchParams: CrawlerSearchParams }) {
@@ -63,6 +72,9 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
   const requestedMode = one(params.crawlMode);
   const crawlMode = requestedMode === "single" || requestedMode === "discovery" ? requestedMode : "full";
   const crawlQueued = one(params.crawlQueued) === "1";
+  const promotionError = one(params.promotionError);
+  const promotionImported = one(params.promotionImported) === "1";
+  const promotionJob = one(params.promotionJob);
   const data = await adminCrawlerDashboard(principal);
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="Catalogue Crawler" />
@@ -122,6 +134,16 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Progress" title="Recent catalogue crawls" note="A completed full crawl can be imported into Supplier PIM. Canonical matching, taxonomy and duplicate review continue there instead of publishing raw crawl data directly." />
+      {promotionError&&<div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}>
+        <strong>Could not import this crawl into Supplier PIM</strong>
+        <p>{promotionError}</p>
+        <small>{promotionJob?`Crawl job ${promotionJob}. `:""}The crawl evidence remains intact; nothing was published or deleted.</small>
+      </div>}
+      {promotionImported&&<div className="workspace-queue-card" role="status" style={{marginBottom:"1rem"}}>
+        <strong>Products imported to Supplier PIM</strong>
+        <p>The crawl evidence was normalized and promoted successfully. You can now review the imported catalogue or assign the snapshot to a vendor.</p>
+        {promotionJob&&<small>Crawl job {promotionJob}</small>}
+      </div>}
       {data.jobs.length===0 ? <WorkspaceEmptyState title="No catalogue crawls yet." body="Paste a shop URL above to start the first crawl."/> : <div className="workspace-queue-list">{data.jobs.map((job)=><article key={job.id} className="workspace-queue-card">
         <div className="workspace-queue-head">
           <div><strong>{job.sourceName}</strong><small>{job.seedUrl??job.rootUrl} · {humanMode(job.crawlMode)} · created {when(job.createdAt)}</small></div>
@@ -187,7 +209,7 @@ function normalizeWebsiteInput(value: string): string {
   if (url.protocol === "http:") url.protocol = "https:";
   return url.toString();
 }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Could not start catalogue crawl"); }
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Something went wrong"); }
 function one(value: string | string[] | undefined): string | undefined { return Array.isArray(value) ? value[0] : value; }
 function numberValue(value: FormDataEntryValue | null): number | undefined { if(value==null||String(value).trim()==="") return undefined; const n=Number(value); return Number.isFinite(n)?n:undefined; }
 function when(value:number):string { return new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"}).format(new Date(value)); }
