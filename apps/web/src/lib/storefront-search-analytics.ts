@@ -15,7 +15,7 @@ export async function recordStorefrontSearchAnalytics(input: Readonly<{
   query: string;
   resultCount: number;
   categoryCode?: string;
-  filters?: Readonly<Record<string, string | undefined>>;
+  filters?: Readonly<Record<string, string | number | boolean | undefined>>;
 }>): Promise<void> {
   if (!productionDatabaseConfigured() || !input.query.trim()) return;
   if (!Number.isSafeInteger(input.resultCount) || input.resultCount < 0) return;
