@@ -1,4 +1,5 @@
 import {
+  analyzeHtmlProductPage,
   discoverHtmlUrls,
   extractJsonLdProductCandidates,
   parseRobotsTxt,
@@ -6,6 +7,7 @@ import {
   robotsAllowsUrl,
   validateCrawlUrl,
   type CrawlFetchPolicy,
+  type ExtractedProductCandidate,
   type RobotsPolicy
 } from "../../packages/core/src/index.ts";
 import type { ClaimedCrawlJob } from "./store.ts";
@@ -47,7 +49,6 @@ export class CrawlJobError extends Error {
 
 export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly<{ pages: number; extractions: number }>> {
   const policy = parseCrawlPolicySnapshot(options.job.policySnapshot);
-  if (policy.fetchMode === "browser") throw new CrawlJobError("Browser-only crawl profiles are not supported by the HTTP crawler worker yet", true);
   const fetchPolicy: CrawlFetchPolicy = {
     allowedHosts: expandWwwHosts(policy.allowedHosts),
     allowSubdomains: policy.allowSubdomains,
@@ -104,6 +105,7 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
       const page = await options.store.ensurePage({ jobId: options.job.jobId, url: item.url, normalizedUrl: item.url, depth: item.depth, discoveredFromPageId: item.fromPageId });
       await options.store.markSkipped(page.id, "robots_disallow", false);
       processed += 1;
+      if (processed % 10 === 0) await options.store.syncCounters(options.job.jobId);
       continue;
     }
     const page = await options.store.ensurePage({ jobId: options.job.jobId, url: item.url, normalizedUrl: item.url, depth: item.depth, discoveredFromPageId: item.fromPageId });
@@ -118,40 +120,48 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
       await options.store.markFailed(page.id, "fetch_error", message);
       if (item.url === normalizedSeed) throw new CrawlJobError(`Seed fetch failed: ${message}`);
       processed += 1;
+      if (processed % 10 === 0) await options.store.syncCounters(options.job.jobId);
       await options.store.renew(options.job.jobId, options.workerId, options.leaseSeconds);
       continue;
     }
 
     if ((response.status === 429 || response.status >= 500) && item.url === normalizedSeed) {
-      await options.store.markFailed(page.id, `http_${response.status}`, `Seed returned HTTP ${response.status}`);
+      await options.store.markFailed(page.id, `http_${response.status}`, `Seed returned retryable HTTP ${response.status}`);
       throw new CrawlJobError(`Seed returned retryable HTTP ${response.status}`);
     }
 
     const html = isHtml(response) ? response.body.toString("utf8") : undefined;
-    const candidates = html ? extractJsonLdProductCandidates(html, response.finalUrl) : [];
+    const structured = html ? extractJsonLdProductCandidates(html, response.finalUrl) : [];
+    const analysis = html ? analyzeHtmlProductPage(html, response.finalUrl) : undefined;
+    const candidates = dedupeCandidates([...structured, ...(analysis?.candidates ?? [])]);
     let reviewCount = 0;
     for (let ordinal = 0; ordinal < candidates.length; ordinal += 1) {
       const status = await options.store.saveExtraction({ pageId: page.id, extractorVersion: options.job.extractorVersion, ordinal, candidate: candidates[ordinal] });
       if (status === "review_required") reviewCount += 1;
       extractions += 1;
     }
+    const likelyNeedsReview = Boolean(!candidates.length && analysis && (analysis.requiresRendering || analysis.productLikelihood >= 0.65));
     await options.store.markFetched({
       pageId: page.id,
       result: response,
-      productLikelihood: candidates.length ? 1 : productLikelihood(response.finalUrl),
-      extractionStatus: candidates.length ? (reviewCount ? "review_required" : "extracted") : "not_applicable"
+      productLikelihood: candidates.length ? 1 : analysis?.productLikelihood ?? productLikelihood(response.finalUrl),
+      extractionStatus: candidates.length ? (reviewCount ? "review_required" : "extracted") : likelyNeedsReview ? "review_required" : "not_applicable"
     });
     processed += 1;
 
     if (html && options.job.crawlMode !== "single" && item.depth < maxDepth) {
-      for (const url of discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))) {
+      const links = discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000));
+      links.sort((left, right) => productLikelihood(right) - productLikelihood(left));
+      for (const url of links) {
         if (discovered.length >= policy.maxPages * 4) break;
         enqueueUrl(url, item.depth + 1, page.id, discovered, queued, policy, fetchPolicy, normalizedSeed);
       }
     }
+    if (processed % 10 === 0) await options.store.syncCounters(options.job.jobId);
     await options.store.renew(options.job.jobId, options.workerId, options.leaseSeconds);
   }
 
+  await options.store.syncCounters(options.job.jobId);
   await options.store.finish(options.job.jobId, options.workerId);
   return { pages: processed, extractions };
 }
@@ -191,8 +201,10 @@ async function loadRobots(
   let result: SecureCrawlFetchResult;
   try { result = await fetcher(robotsUrl, "text/plain,*/*;q=0.1"); }
   catch (error) { throw new CrawlJobError(`robots.txt fetch failed: ${errorMessage(error)}`); }
-  if (result.status === 404 || result.status === 410) return { rules: [], sitemaps: [] };
-  if (result.status === 401 || result.status === 403) return { rules: [{ allow: false, path: "/" }], sitemaps: [] };
+  // RFC 9309 treats 4xx robots responses as "unavailable": the crawler may
+  // access resources. A 401/403 challenge on robots.txt must not silently turn
+  // into a site-wide Disallow rule.
+  if (result.status >= 400 && result.status < 500 && result.status !== 429) return { rules: [], sitemaps: [] };
   if (result.status === 429 || result.status >= 500) throw new CrawlJobError(`robots.txt temporarily unavailable (HTTP ${result.status})`);
   if (result.status < 200 || result.status >= 300) return { rules: [], sitemaps: [] };
   return parseRobotsTxt(result.body.toString("utf8"), userAgent);
@@ -206,7 +218,8 @@ async function discoverFromSitemaps(input: {
   fetchRateLimited: (url: string, accept?: string) => Promise<SecureCrawlFetchResult>;
   maxSitemaps: number;
 }): Promise<readonly string[]> {
-  const pending = [...input.robots.sitemaps, new URL("/sitemap.xml", input.startUrl).toString()];
+  const pending = [...new Set([...input.robots.sitemaps, new URL("/sitemap.xml", input.startUrl).toString()])];
+  pending.sort((left, right) => sitemapPriority(right) - sitemapPriority(left));
   const seen = new Set<string>();
   const pages: string[] = [];
   while (pending.length && seen.size < input.maxSitemaps && pages.length < input.policy.maxPages) {
@@ -221,12 +234,16 @@ async function discoverFromSitemaps(input: {
     const xml = response.body.toString("utf8");
     const locations = parseSitemapXml(xml, response.finalUrl, input.policy.maxPages - pages.length);
     if (/<sitemapindex\b/i.test(xml)) {
-      for (const location of locations) if (pending.length + seen.size < input.maxSitemaps * 2) pending.push(location);
+      const ordered = [...locations].sort((left, right) => sitemapPriority(right) - sitemapPriority(left));
+      for (const location of ordered) if (pending.length + seen.size < input.maxSitemaps * 2) pending.push(location);
+      pending.sort((left, right) => sitemapPriority(right) - sitemapPriority(left));
     } else {
       pages.push(...locations);
     }
   }
-  return [...new Set(pages)].slice(0, input.policy.maxPages);
+  return [...new Set(pages)]
+    .sort((left, right) => productLikelihood(right) - productLikelihood(left))
+    .slice(0, input.policy.maxPages);
 }
 
 function enqueueUrl(
@@ -299,7 +316,29 @@ function isHtml(result: SecureCrawlFetchResult): boolean {
 }
 function productLikelihood(rawUrl: string): number {
   const path = new URL(rawUrl).pathname.toLowerCase();
-  return /(?:\/product\/|\/products\/|\/p\/|product-|sku)/.test(path) ? 0.6 : 0.1;
+  if (/\/(?:product|products|p|item|sku)\//.test(path) || /(?:product-|\/p-)/.test(path)) return 0.9;
+  if (/\/(?:product-category|collections?|category|search)(?:\/|$)/.test(path)) return 0.05;
+  const segments = path.split("/").filter(Boolean);
+  const tail = segments.at(-1) ?? "";
+  if (segments.length >= 3 && /(?:^|[-_])\d{3,12}(?:[-_]|$)/.test(tail)) return 0.72;
+  if (segments.length >= 4 && /(?:bag|backpack|shoe|shirt|dress|tool|phone|laptop|watch|camera)s?/.test(path)) return 0.5;
+  return 0.1;
+}
+function sitemapPriority(rawUrl: string): number {
+  const value = rawUrl.toLowerCase();
+  if (/product(?:s)?[-_]?sitemap|sitemap[-_]?product/.test(value)) return 10;
+  if (/shop|catalog|catalogue|item/.test(value)) return 6;
+  if (/category|taxonomy|post|page|author|tag|news|blog/.test(value)) return 1;
+  return 3;
+}
+function dedupeCandidates(values: readonly ExtractedProductCandidate[]): ExtractedProductCandidate[] {
+  const seen = new Set<string>();
+  return values.filter((candidate) => {
+    const key = `${candidate.sourceProductKey}\u0000${candidate.title}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 function requiredString(value: unknown, name: string): string { const text=optionalString(value); if (!text) throw new CrawlJobError(`Crawl policy ${name} is required`, true); return text; }
 function optionalString(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
