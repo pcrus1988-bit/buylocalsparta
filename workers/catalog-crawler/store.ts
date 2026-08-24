@@ -133,11 +133,23 @@ export class CatalogCrawlerStore {
 
   async markFetched(input: { pageId: string; result: SecureCrawlFetchResult; productLikelihood: number; extractionStatus: "not_applicable" | "extracted" | "review_required" }): Promise<void> {
     await this.#db.query(`
-      UPDATE public.catalog_web_crawl_pages
-      SET status='fetched',url=$2,normalized_url=$2,robots_allowed=COALESCE(robots_allowed,true), resolved_addresses=($3::text[])::inet[],fetch_mode='http',http_status=$4,
+      UPDATE public.catalog_web_crawl_pages AS page
+      SET status='fetched',
+          url=$2,
+          normalized_url=CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM public.catalog_web_crawl_pages AS other
+              WHERE other.job_id=page.job_id
+                AND other.normalized_url=$2
+                AND other.id<>page.id
+            ) THEN page.normalized_url
+            ELSE $2
+          END,
+          robots_allowed=COALESCE(page.robots_allowed,true), resolved_addresses=($3::text[])::inet[],fetch_mode='http',http_status=$4,
           content_type=$5,response_bytes=$6,response_sha256=$7,etag=$8,last_modified_header=$9, redirect_chain=$10::jsonb,product_likelihood=$11,extraction_status=$12,
           fetched_at=now(),failure_kind=NULL,failure_reason=NULL,updated_at=now()
-      WHERE id=$1
+      WHERE page.id=$1
     `, [input.pageId,input.result.finalUrl,[...input.result.resolvedAddresses],input.result.status,input.result.headers["content-type"] ?? null,input.result.responseBytes,input.result.responseSha256,input.result.headers.etag ?? null,input.result.headers["last-modified"] ?? null,JSON.stringify(input.result.redirectChain),input.productLikelihood,input.extractionStatus]);
   }
 
