@@ -42,12 +42,14 @@ test("single-product crawl extracts JSON-LD and completes without external netwo
   const events: string[] = [];
   const extractions: unknown[] = [];
   const store = {
+    async listPendingPages() { return []; },
     async ensurePage() { events.push("ensure"); return { id: "page-1", status: "queued", depth: 0 }; },
     async markFetching() { events.push("fetching"); },
     async markSkipped() { events.push("skipped"); },
     async markFailed() { events.push("failed"); },
     async saveExtraction(input: any) { events.push("extraction"); extractions.push(input.candidate); return "accepted" as const; },
     async markFetched() { events.push("fetched"); },
+    async syncCounters() {},
     async renew() { events.push("renew"); },
     async finish() { events.push("finish"); }
   };
