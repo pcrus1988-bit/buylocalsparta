@@ -6,14 +6,14 @@ import { SiteHeader } from "../../../components/SiteHeader";
 import { getAccountSession } from "../../../lib/account-session";
 import { accountDashboard } from "../../../lib/account-view";
 
-export const metadata: Metadata = { title: "Αποθηκευμένα", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Wishlist · Local Watch", robots: { index: false, follow: false } };
 
 export default async function AccountSavedPage() {
   const principal = await getAccountSession();
   if (!principal) redirect("/login?next=/account/saved");
   const dashboard = await accountDashboard(principal);
   return <main className="account-app">
-    <div className="announcement">Τα προϊόντα και οι αναζητήσεις που κράτησες για αργότερα.</div>
+    <div className="announcement">Wishlist + Local Watch: κράτησέ το τώρα, μάθε μόλις γίνει πραγματικά διαθέσιμο στην τοπική αγορά.</div>
     <SiteHeader compact />
     <AccountSectionNavigation />
     <AccountSavedClient initialProducts={dashboard.savedProducts} searches={dashboard.savedSearches} csrfToken={dashboard.csrfToken} />

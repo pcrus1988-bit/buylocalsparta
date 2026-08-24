@@ -5,6 +5,7 @@ const service = read("apps/web/src/lib/customer-saved-product-alert-actions.ts")
 const route = read("apps/web/src/app/api/account/saved-products/[id]/route.ts");
 const client = read("apps/web/src/components/AccountSavedClient.tsx");
 const view = read("apps/web/src/lib/account-view.ts");
+const browserView = read("apps/web/src/lib/customer-account-browser-view.ts");
 const core = read("packages/core/src/engagement/service.ts");
 const css = read("apps/web/src/app/customer-saved-product-alerts.css");
 const layout = read("apps/web/src/app/layout.tsx");
@@ -31,6 +32,7 @@ for (const contract of [
   "export async function PATCH",
   "requireAccountSession(request, true)",
   "configureCustomerSavedProductAlert(principal",
+  "localAvailabilityEnabled",
   "backInStockEnabled",
   "priceDropEnabled",
   "minimumPriceDropMinor",
@@ -42,6 +44,7 @@ for (const contract of [
   "const alert = state.savedProductAlerts.find",
   "customerBrowserSavedProductAlert(alert)",
   "type ProductAlert",
+  "localAvailabilityEnabled",
   "backInStockEnabled",
   "priceDropEnabled",
   "minimumPriceDropMinor",
@@ -49,15 +52,20 @@ for (const contract of [
   "method: \"PATCH\"",
   "\"x-csrf-token\": csrfToken",
   "encodeURIComponent(product.canonicalVariantId)",
-  "Ξανά διαθέσιμο",
+  "Ενημέρωσέ με όταν γίνει τοπικό",
   "Πτώση τιμής",
   "Ελάχιστη πτώση τιμής",
   "customer-price-drop-threshold",
   "disabled={Boolean(busy) || !alert.priceDropEnabled}",
   "setProducts((current) => current.map",
   "customer-saved-product-unavailable",
-  "Κάθε αλλαγή ρύθμισης χρησιμοποιεί την τωρινή διαθεσιμότητα και τιμή ως νέο σημείο αναφοράς"
+  "πραγματικά διαθέσιμο στην τοπική αγορά"
 ]) if (!(view + client).includes(contract)) failures.push(`Saved-product alert customer UI/projection is missing contract: ${contract}`);
+
+for (const contract of [
+  "localAvailabilityEnabled: source.backInStockEnabled",
+  "backInStockEnabled: source.backInStockEnabled"
+]) if (!browserView.includes(contract)) failures.push(`Saved-product browser projection is missing compatibility contract: ${contract}`);
 
 for (const contract of [
   "Re-baseline when the customer changes alert settings",
@@ -81,4 +89,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer saved-product alert checks passed: preferences are customer-scoped, CSRF-protected, re-baselined against current product state, and exposed through responsive self-service controls.");
+console.log("Customer wishlist/local-watch checks passed: preferences are customer-scoped, CSRF-protected, re-baselined against current local availability, and exposed through compatible self-service controls.");

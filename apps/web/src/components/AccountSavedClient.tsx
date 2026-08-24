@@ -6,6 +6,7 @@ import { STOREFRONT_CATEGORIES, categoryCodeMatches } from "../lib/storefront-ta
 import { CustomerHowItWorks } from "./CustomerAccountPrimitives";
 
 type ProductAlert = Readonly<{
+  localAvailabilityEnabled?: boolean;
   backInStockEnabled: boolean;
   priceDropEnabled: boolean;
   minimumPriceDropMinor: number;
@@ -28,7 +29,7 @@ type SavedSearch = Readonly<{
 type SearchDraft = { name: string; q: string; categoryCode: string; availability: "any" | "in_stock" };
 
 const PRICE_DROP_THRESHOLDS = [100, 300, 500, 1000, 2000] as const;
-const DEFAULT_ALERT: ProductAlert = Object.freeze({ backInStockEnabled: false, priceDropEnabled: false, minimumPriceDropMinor: 100 });
+const DEFAULT_ALERT: ProductAlert = Object.freeze({ localAvailabilityEnabled: false, backInStockEnabled: false, priceDropEnabled: false, minimumPriceDropMinor: 100 });
 
 function euroMinor(value: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR", maximumFractionDigits: value % 100 === 0 ? 0 : 2 }).format(value / 100);
@@ -36,6 +37,10 @@ function euroMinor(value: number): string {
 
 function alertThresholds(alert: ProductAlert): readonly number[] {
   return [...new Set([...PRICE_DROP_THRESHOLDS, alert.minimumPriceDropMinor])].sort((a, b) => a - b);
+}
+
+function localWatchEnabled(alert: ProductAlert): boolean {
+  return alert.localAvailabilityEnabled ?? alert.backInStockEnabled;
 }
 
 function categorySlug(categoryCode?: string): string {
@@ -91,7 +96,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
       const response = await fetch(`/api/account/saved-products/${encodeURIComponent(productId)}`, { method: "DELETE", headers: { "x-csrf-token": csrfToken } });
       if (!response.ok) throw new Error("Δεν ήταν δυνατή η αφαίρεση του προϊόντος.");
       setProducts((current) => current.filter((item) => item.canonicalVariantId !== productId));
-      setStatus("Το προϊόν αφαιρέθηκε από τα αποθηκευμένα.");
+      setStatus("Το προϊόν αφαιρέθηκε από τη Wishlist.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η αφαίρεση του προϊόντος.");
     } finally {
@@ -114,7 +119,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
       const payload = await response.json() as { alert?: ProductAlert; error?: string };
       if (!response.ok || !payload.alert) throw new Error(payload.error ?? "Δεν ήταν δυνατή η αλλαγή των ειδοποιήσεων προϊόντος.");
       setProducts((current) => current.map((item) => item.canonicalVariantId === product.canonicalVariantId ? { ...item, alert: payload.alert } : item));
-      setStatus("Οι ειδοποιήσεις του προϊόντος ενημερώθηκαν.");
+      setStatus(localWatchEnabled(payload.alert) ? "Το Local Watch είναι ενεργό για αυτό το προϊόν." : "Οι ρυθμίσεις της Wishlist ενημερώθηκαν.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η αλλαγή των ειδοποιήσεων προϊόντος.");
     } finally {
@@ -175,7 +180,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
       const payload = await response.json() as { search?: SavedSearch; error?: string };
       if (!response.ok || !payload.search) throw new Error(payload.error ?? "Δεν ήταν δυνατή η αλλαγή των ειδοποιήσεων.");
       setSearches((current) => current.map((item) => item.id === search.id ? payload.search! : item));
-      setStatus(payload.search.alertsEnabled ? "Οι ειδοποιήσεις της αναζήτησης ενεργοποιήθηκαν." : "Οι ειδοποιήσεις της αναζήτησης τέθηκαν σε παύση.");
+      setStatus(payload.search.alertsEnabled ? "Το Local Watch για την αναζήτηση ενεργοποιήθηκε." : "Οι ειδοποιήσεις της αναζήτησης τέθηκαν σε παύση.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η αλλαγή των ειδοποιήσεων.");
     } finally {
@@ -205,36 +210,36 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
   }
 
   return <section className="shell customer-account-page">
-    <div className="customer-page-heading"><div><div className="eyebrow">Για αργότερα</div><h1>Αποθηκευμένα</h1></div><p>Προϊόντα που θέλεις να ξαναβρείς και αναζητήσεις που έχεις κρατήσει για να παρακολουθείς την αγορά.</p></div>
+    <div className="customer-page-heading"><div><div className="eyebrow">Wishlist · Local Watch</div><h1>Wishlist</h1></div><p>Κράτησε ό,τι σε ενδιαφέρει και ζήτησε από το ΚΟΝΤΑ ΜΟΥ να σε ενημερώσει μόλις υπάρξει πραγματική τοπική διαθεσιμότητα.</p></div>
     {error && <p className="account-action-error" role="alert">{error}</p>}
     {status && <p className="customer-saved-status" role="status">{status}</p>}
     <div className="customer-account-grid">
       <article className="customer-account-panel">
-        <div className="account-card-head"><div><div className="eyebrow">Προϊόντα</div><h2>Αποθηκευμένα προϊόντα</h2></div><span className="count-pill">{products.length}</span></div>
+        <div className="account-card-head"><div><div className="eyebrow">Προϊόντα</div><h2>Η Wishlist μου</h2></div><span className="count-pill">{products.length}</span></div>
         {products.length ? <div className="customer-saved-product-list">{products.map((product) => {
           const alert = product.alert ?? DEFAULT_ALERT;
           const alertBusy = busy === `product-alert:${product.canonicalVariantId}`;
           return <div className="customer-saved-product-card" key={product.canonicalVariantId}>
             <div className="customer-account-panel-row customer-saved-product-head">
-              <div><Link href={`/product/${product.canonicalVariantId}`}><strong>{product.title ?? "Αποθηκευμένο προϊόν"}</strong></Link><small>{product.price ?? ""} · {product.available ? "διαθέσιμο" : product.unavailable ? "δεν εμφανίζεται πλέον" : "μη διαθέσιμο"}</small></div>
+              <div><Link href={`/product/${product.canonicalVariantId}`}><strong>{product.title ?? "Προϊόν Wishlist"}</strong></Link><small>{product.price ?? ""} · {product.available ? "διαθέσιμο τοπικά τώρα" : product.unavailable ? "δεν εμφανίζεται πλέον" : "δεν υπάρχει ενεργή τοπική διαθεσιμότητα"}</small></div>
               <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void remove(product.canonicalVariantId)}>{busy === `product:${product.canonicalVariantId}` ? "Αφαίρεση…" : "Αφαίρεση"}</button>
             </div>
-            {product.unavailable ? <p className="customer-saved-product-unavailable">Οι ειδοποιήσεις δεν μπορούν να αλλάξουν όσο το προϊόν δεν υπάρχει στον ενεργό κατάλογο.</p> : <div className="customer-product-alerts" aria-label={`Ειδοποιήσεις για ${product.title ?? "αποθηκευμένο προϊόν"}`}>
-              <label className="customer-product-alert-option"><input type="checkbox" checked={alert.backInStockEnabled} disabled={Boolean(busy)} onChange={(event) => void updateProductAlert(product, { backInStockEnabled: event.target.checked })} /><span><strong>Ξανά διαθέσιμο</strong><small>Ενημέρωσέ με όταν το προϊόν επιστρέψει σε διαθέσιμο απόθεμα.</small></span></label>
+            {product.unavailable ? <p className="customer-saved-product-unavailable">Το προϊόν παραμένει στη Wishlist, αλλά οι ειδοποιήσεις δεν μπορούν να αλλάξουν όσο δεν υπάρχει στον ενεργό κατάλογο.</p> : <div className="customer-product-alerts" aria-label={`Local Watch για ${product.title ?? "προϊόν Wishlist"}`}>
+              <label className="customer-product-alert-option"><input type="checkbox" checked={localWatchEnabled(alert)} disabled={Boolean(busy)} onChange={(event) => void updateProductAlert(product, { localAvailabilityEnabled: event.target.checked })} /><span><strong>Ενημέρωσέ με όταν γίνει τοπικό</strong><small>Θα σε ενημερώσουμε όταν εμφανιστεί ξανά επιλέξιμη προσφορά με πραγματικό διαθέσιμο απόθεμα από τοπικό συνεργαζόμενο κατάστημα.</small></span></label>
               <label className="customer-product-alert-option"><input type="checkbox" checked={alert.priceDropEnabled} disabled={Boolean(busy)} onChange={(event) => void updateProductAlert(product, { priceDropEnabled: event.target.checked })} /><span><strong>Πτώση τιμής</strong><small>Ενημέρωσέ με όταν η τιμή πέσει τουλάχιστον όσο το όριο που επιλέγω.</small></span></label>
               <label className="customer-price-drop-threshold"><span>Ελάχιστη πτώση τιμής</span><select value={alert.minimumPriceDropMinor} disabled={Boolean(busy) || !alert.priceDropEnabled} onChange={(event) => void updateProductAlert(product, { minimumPriceDropMinor: Number(event.target.value) })}>{alertThresholds(alert).map((value) => <option value={value} key={value}>{euroMinor(value)}</option>)}</select></label>
               {alertBusy && <small className="customer-alert-saving" role="status">Αποθήκευση ρύθμισης…</small>}
             </div>}
           </div>;
-        })}</div> : <div className="account-empty"><p>Δεν έχεις αποθηκεύσει προϊόντα.</p><Link className="text-link" href="/shop">Ανακάλυψε προϊόντα →</Link></div>}
-        <CustomerHowItWorks title="Τι γίνεται όταν αποθηκεύω προϊόν;"><p>Το προϊόν μένει στη λίστα σου για να το βρίσκεις ξανά εύκολα. Εσύ επιλέγεις χωριστά αν θέλεις ειδοποίηση όταν επιστρέψει σε απόθεμα ή όταν πέσει η τιμή. Κάθε αλλαγή ρύθμισης χρησιμοποιεί την τωρινή διαθεσιμότητα και τιμή ως νέο σημείο αναφοράς, ώστε να μη λάβεις αμέσως ειδοποίηση για κάτι που ήδη ίσχυε.</p></CustomerHowItWorks>
+        })}</div> : <div className="account-empty"><p>Η Wishlist σου είναι ακόμη άδεια.</p><Link className="text-link" href="/shop">Ανακάλυψε προϊόντα →</Link></div>}
+        <CustomerHowItWorks title="Τι σημαίνει «όταν γίνει τοπικό»;"><p>Η ειδοποίηση δεν βασίζεται απλώς στο αν ένα προϊόν υπάρχει στον κατάλογο. Παρακολουθεί αν υπάρχει επιλέξιμη τοπική προσφορά με διαθέσιμο και αρκετά πρόσφατα επιβεβαιωμένο απόθεμα. Η υπάρχουσα ασφαλής λογική back-in-stock παραμένει η βάση, ώστε να μην δημιουργούμε δεύτερο παράλληλο σύστημα ειδοποιήσεων.</p></CustomerHowItWorks>
       </article>
       <article className="customer-account-panel">
-        <div className="account-card-head"><div><div className="eyebrow">Αναζητήσεις</div><h2>Αποθηκευμένες αναζητήσεις</h2></div><span className="count-pill">{searches.length}</span></div>
+        <div className="account-card-head"><div><div className="eyebrow">Local Watch</div><h2>Αποθηκευμένες αναζητήσεις</h2></div><span className="count-pill">{searches.length}</span></div>
         {searches.length ? <div className="customer-saved-search-list">{searches.map((search) => <div className="customer-saved-search-card" key={search.id}>
           <div className="customer-saved-search-head">
             <div><Link href={searchHref(search)}><strong>{search.name}</strong></Link><small>{search.lastObservedCount} αποτελέσματα · {searchSummary(search)}</small></div>
-            <span className={`status-pill${search.alertsEnabled ? "" : " is-muted"}`}>Ειδοποιήσεις {search.alertsEnabled ? "ενεργές" : "σε παύση"}</span>
+            <span className={`status-pill${search.alertsEnabled ? "" : " is-muted"}`}>Local Watch {search.alertsEnabled ? "ενεργό" : "σε παύση"}</span>
           </div>
           {editingId === search.id && draft ? <div className="customer-saved-search-editor" aria-label={`Επεξεργασία ${search.name}`}>
             <label><span>Όνομα αναζήτησης</span><input value={draft.name} maxLength={100} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -245,11 +250,11 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
           </div> : <div className="customer-saved-search-actions">
             <Link className="text-link" href={searchHref(search)}>Αποτελέσματα →</Link>
             <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => beginEdit(search)}>Επεξεργασία</button>
-            <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void toggleSearchAlerts(search)}>{busy === `search-alerts:${search.id}` ? "Ενημέρωση…" : search.alertsEnabled ? "Παύση ειδοποιήσεων" : "Ενεργοποίηση ειδοποιήσεων"}</button>
+            <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void toggleSearchAlerts(search)}>{busy === `search-alerts:${search.id}` ? "Ενημέρωση…" : search.alertsEnabled ? "Παύση Local Watch" : "Ενεργοποίηση Local Watch"}</button>
             {confirmDeleteId === search.id ? <span className="customer-saved-search-confirm"><span>Να διαγραφεί οριστικά;</span><button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void removeSearch(search)}>{busy === `search-delete:${search.id}` ? "Διαγραφή…" : "Ναι, διαγραφή"}</button><button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => setConfirmDeleteId("")}>Άκυρο</button></span> : <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => setConfirmDeleteId(search.id)}>Διαγραφή</button>}
           </div>}
         </div>)}</div> : <div className="account-empty"><p>Δεν έχεις αποθηκευμένες αναζητήσεις.</p><Link className="text-link" href="/shop">Ξεκίνα αναζήτηση →</Link></div>}
-        <CustomerHowItWorks title="Πώς λειτουργούν οι αποθηκευμένες αναζητήσεις;"><p>Κρατούν το όνομα και τα κριτήρια που επέλεξες. Μπορείς να αλλάξεις αναζήτηση, κατηγορία ή διαθεσιμότητα, να παύσεις προσωρινά τις ειδοποιήσεις ή να διαγράψεις την αναζήτηση. Όταν αλλάζεις κριτήρια ή ενεργοποιείς ξανά ειδοποιήσεις, τα τωρινά αποτελέσματα γίνονται το νέο σημείο αναφοράς ώστε να μη λάβεις παλιές αντιστοιχίσεις ως νέες.</p></CustomerHowItWorks>
+        <CustomerHowItWorks title="Πώς λειτουργεί το Local Watch στις αναζητήσεις;"><p>Κρατά τα κριτήρια που επέλεξες και παρακολουθεί τις νέες αντιστοιχίσεις. Μπορείς να αλλάξεις αναζήτηση, κατηγορία ή διαθεσιμότητα, να παύσεις προσωρινά το Local Watch ή να διαγράψεις την αναζήτηση. Όταν αλλάζεις κριτήρια ή το ενεργοποιείς ξανά, τα τωρινά αποτελέσματα γίνονται το νέο σημείο αναφοράς.</p></CustomerHowItWorks>
       </article>
     </div>
   </section>;

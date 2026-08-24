@@ -27,7 +27,9 @@ export async function PATCH(request: Request, context: Context) {
     const principal = await requireAccountSession(request, true);
     const { id } = await context.params;
     const body = await request.json() as Record<string, unknown>;
-    const backInStockEnabled = typeof body.backInStockEnabled === "boolean" ? body.backInStockEnabled : undefined;
+    const localAvailabilityEnabled = typeof body.localAvailabilityEnabled === "boolean" ? body.localAvailabilityEnabled : undefined;
+    const legacyBackInStockEnabled = typeof body.backInStockEnabled === "boolean" ? body.backInStockEnabled : undefined;
+    const backInStockEnabled = localAvailabilityEnabled ?? legacyBackInStockEnabled;
     const priceDropEnabled = typeof body.priceDropEnabled === "boolean" ? body.priceDropEnabled : undefined;
     const minimumPriceDropMinor = body.minimumPriceDropMinor === undefined ? undefined : Number(body.minimumPriceDropMinor);
     if (backInStockEnabled === undefined && priceDropEnabled === undefined && minimumPriceDropMinor === undefined) throw new Error("Δεν δόθηκε αλλαγή ειδοποίησης.");

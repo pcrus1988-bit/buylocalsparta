@@ -99,6 +99,10 @@ export function customerBrowserPreferences(source: CustomerPreferencesSource) {
 
 export function customerBrowserSavedProductAlert(source: SavedProductAlertSource) {
   return {
+    // `backInStockEnabled` remains the persisted compatibility field. In the
+    // customer experience it means "notify me when an eligible local offer is
+    // available again", so expose the clearer product-language alias too.
+    localAvailabilityEnabled: source.backInStockEnabled,
     backInStockEnabled: source.backInStockEnabled,
     priceDropEnabled: source.priceDropEnabled,
     minimumPriceDropMinor: source.minimumPriceDropMinor
