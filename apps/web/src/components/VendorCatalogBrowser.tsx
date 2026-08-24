@@ -108,7 +108,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
 
   return (
     <div>
-      <div className={styles.catalogToolbarSimple} aria-label={`Αναζήτηση προϊόντων ${vendor.name}`}>
+      <div className={styles.catalogToolbar} style={{ gridTemplateColumns: "minmax(0, 720px)", marginBottom: 22 }} aria-label={`Αναζήτηση προϊόντων ${vendor.name}`}>
         <label className={styles.field}>
           <span>Αναζήτηση στο κατάστημα</span>
           <input
@@ -121,11 +121,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
       </div>
 
       {categories.length > 0 && (
-        <div className={styles.categoryArea}>
-          <div className={styles.categoryHeading}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 14, marginBottom: 8 }}>
             <div>
-              <span>Κατηγορίες προϊόντων</span>
-              <strong>{category === "all" ? "Περιηγήσου στον κατάλογο" : categories.find((entry) => entry.value === category)?.label}</strong>
+              <span style={{ display: "block", color: "var(--ink-soft)", fontSize: 10, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase" }}>Κατηγορίες προϊόντων</span>
+              <strong style={{ display: "block", marginTop: 5, fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20 }}>
+                {category === "all" ? "Περιηγήσου στον κατάλογο" : categories.find((entry) => entry.value === category)?.label}
+              </strong>
             </div>
             {category !== "all" ? <button type="button" className={styles.clearButton} onClick={() => selectCategory("all")}>Όλες οι κατηγορίες</button> : null}
           </div>
@@ -155,12 +157,15 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
       )}
 
       {category !== "all" && (
-        <div className={styles.categoryFilterPanel} aria-label="Φίλτρα επιλεγμένης κατηγορίας">
-          <div className={styles.categoryFilterIntro}>
-            <strong>Φίλτρα κατηγορίας</strong>
-            <span>Τα φίλτρα εμφανίζονται μόνο αφού ανοίξεις κατηγορία.</span>
+        <div style={{ marginBottom: 22, padding: 16, border: "1px solid var(--line)", borderRadius: 18, background: "rgba(255,253,248,.55)" }} aria-label="Φίλτρα επιλεγμένης κατηγορίας">
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 12 }}>
+            <div>
+              <strong style={{ display: "block", fontSize: 13 }}>Φίλτρα κατηγορίας</strong>
+              <span style={{ display: "block", marginTop: 3, color: "var(--ink-soft)", fontSize: 11 }}>Εμφανίζονται μόνο μέσα στην κατηγορία που άνοιξες.</span>
+            </div>
+            {categoryFiltersActive ? <button type="button" className={styles.clearButton} onClick={resetCategoryFilters}>Καθαρισμός</button> : null}
           </div>
-          <div className={styles.categoryFilters}>
+          <div className={styles.catalogToolbar} style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", marginBottom: 0 }}>
             {brands.length > 1 && (
               <label className={styles.field}>
                 <span>Μάρκα</span>
@@ -196,7 +201,6 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
               </select>
             </label>
           </div>
-          {categoryFiltersActive ? <button type="button" className={styles.clearButton} onClick={resetCategoryFilters}>Καθαρισμός φίλτρων κατηγορίας</button> : null}
         </div>
       )}
 
@@ -211,7 +215,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
       </div>
 
       {visibleProducts.length > 0 ? (
-        <div className={styles.catalogGrid}>
+        <div className="vendorCatalogGrid">
           {visibleProducts.map((product, index) => (
             <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />
           ))}
@@ -223,6 +227,29 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
           <button type="button" className="button button-secondary" onClick={() => { setQuery(""); resetCategoryFilters(); }}>Καθαρισμός αναζήτησης</button>
         </div>
       )}
+
+      <style jsx>{`
+        .vendorCatalogGrid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 18px;
+        }
+        @media (max-width: 980px) {
+          .vendorCatalogGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+          .vendorCatalogGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+          .vendorCatalogGrid :global(.product-art) { height: 160px; padding: 8px; }
+          .vendorCatalogGrid :global(.product-body) { padding: 12px; }
+          .vendorCatalogGrid :global(.product-body h3) { font-size: 18px; }
+          .vendorCatalogGrid :global(.product-body .eyebrow) { font-size: 9px; }
+          .vendorCatalogGrid :global(.partner) { min-height: 0; font-size: 10px; }
+          .vendorCatalogGrid :global(.product-bottom) { margin-top: 12px; }
+          .vendorCatalogGrid :global(.price) { font-size: 17px; }
+          .vendorCatalogGrid :global(.round-add) { width: 34px; height: 34px; font-size: 18px; }
+          .vendorCatalogGrid :global(.product-badge) { padding: 5px 7px; font-size: 8px; }
+        }
+      `}</style>
     </div>
   );
 }
