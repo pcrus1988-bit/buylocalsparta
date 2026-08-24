@@ -11,9 +11,12 @@ const page = read("apps/web/src/app/account/notifications/page.tsx");
 const failures: string[] = [];
 
 for (const contract of [
-  "CREATE TABLE cart_recovery_attempts",
+  "CREATE TABLE public.cart_recovery_attempts",
   "UNIQUE(cart_id, cart_updated_at)",
-  "notification_id uuid NOT NULL UNIQUE REFERENCES notifications(id) DEFERRABLE INITIALLY DEFERRED",
+  "notification_id uuid NOT NULL UNIQUE REFERENCES public.notifications(id) DEFERRABLE INITIALLY DEFERRED",
+  "CREATE OR REPLACE FUNCTION public.prevent_cart_recovery_attempt_mutation() RETURNS trigger",
+  "SET search_path = pg_catalog",
+  "ALTER TABLE public.cart_recovery_attempts FORCE ROW LEVEL SECURITY",
   "append-only",
   "cart_recovery_attempts_platform_insert",
   "app.privacy_erasure"
@@ -62,4 +65,4 @@ if (failures.length) {
   console.error("Smart cart recovery checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Smart cart recovery checks passed: explicit opt-in, idle threshold, live-stock verification, cooldown, dedupe and append-only audit are present.");
+console.log("Smart cart recovery checks passed: explicit opt-in, idle threshold, live-stock verification, cooldown, dedupe, forced RLS and hardened append-only audit are present.");
