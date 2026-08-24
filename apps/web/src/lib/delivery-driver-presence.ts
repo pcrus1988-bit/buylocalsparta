@@ -2,8 +2,10 @@ import type { DeliveryDriverPrincipal } from "./delivery-driver-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const CURRENT_LOCATION_MIN_INTERVAL_MS = 10_000;
+const PRESENCE_SAMPLE_INTERVAL_MS = 45_000;
 const HISTORY_SAMPLE_INTERVAL_MS = 2 * 60_000;
 const DEFAULT_SHIFT_MS = 12 * 60 * 60_000;
+const LOCATION_HISTORY_RETENTION_MS = 30 * 24 * 60 * 60_000;
 
 export type DeliveryDriverAvailability = "available" | "paused" | "off_shift";
 
@@ -127,8 +129,14 @@ export async function recordDeliveryDriverPresence(
     ? new Date(input.deviceRecordedAt)
     : null;
   const db = runtime();
-  const active = await db.nativePool.query(`SELECT 1 FROM delivery_drivers WHERE id=$1 AND status='active' LIMIT 1`, [principal.driverId]);
-  if (!active.rowCount) throw new Error("Ο λογαριασμός οδηγού δεν είναι ενεργός.");
+  const active = await db.nativePool.query<{ operational_status: string; accepting_jobs: boolean }>(`
+    SELECT operational_status, accepting_jobs
+    FROM delivery_drivers
+    WHERE id=$1 AND status='active'
+    LIMIT 1
+  `, [principal.driverId]);
+  const driver = active.rows[0];
+  if (!driver) throw new Error("Ο λογαριασμός οδηγού δεν είναι ενεργός.");
 
   const presence = await db.nativePool.query(`
     INSERT INTO delivery_driver_location_current(driver_id,latitude,longitude,accuracy_m,heading_deg,speed_mps,device_recorded_at,received_at,expires_at)
@@ -147,7 +155,26 @@ export async function recordDeliveryDriverPresence(
   `, [principal.driverId,input.latitude,input.longitude,accuracy,heading,speed,deviceRecordedAt,new Date(now),new Date(now+10*60_000),CURRENT_LOCATION_MIN_INTERVAL_MS]);
   const accepted = Boolean(presence.rowCount);
 
+  let presenceSampled = false;
   let historySampled = false;
+  if (accepted && driver.accepting_jobs && (driver.operational_status === "available" || driver.operational_status === "busy")) {
+    const latestPresence = await db.nativePool.query<{ received_at: Date }>(`
+      SELECT received_at
+      FROM delivery_location_pings
+      WHERE driver_id=$1 AND sample_kind='presence' AND expires_at>now()
+      ORDER BY received_at DESC
+      LIMIT 1
+    `, [principal.driverId]);
+    const lastPresenceAt = latestPresence.rows[0]?.received_at.getTime();
+    if (lastPresenceAt == null || now - lastPresenceAt >= PRESENCE_SAMPLE_INTERVAL_MS) {
+      await db.nativePool.query(`
+        INSERT INTO delivery_location_pings(job_id,driver_id,sample_kind,latitude,longitude,accuracy_m,heading_deg,speed_mps,device_recorded_at,received_at,expires_at)
+        VALUES(NULL,$1,'presence',$2,$3,$4,$5,$6,$7,$8,$9)
+      `, [principal.driverId,input.latitude,input.longitude,accuracy,heading,speed,deviceRecordedAt,new Date(now),new Date(now+LOCATION_HISTORY_RETENTION_MS)]);
+      presenceSampled = true;
+    }
+  }
+
   if (accepted && input.jobId?.trim()) {
     const job = await db.nativePool.query<{ id: string }>(`
       SELECT id::text AS id FROM delivery_jobs
@@ -155,17 +182,21 @@ export async function recordDeliveryDriverPresence(
     `, [input.jobId.trim(), principal.driverId]);
     if (job.rows[0]) {
       const latest = await db.nativePool.query<{ received_at: Date }>(`
-        SELECT received_at FROM delivery_location_pings WHERE job_id=$1 ORDER BY received_at DESC LIMIT 1
+        SELECT received_at
+        FROM delivery_location_pings
+        WHERE job_id=$1 AND sample_kind='job'
+        ORDER BY received_at DESC
+        LIMIT 1
       `, [job.rows[0].id]);
       const lastAt = latest.rows[0]?.received_at.getTime();
       if (lastAt == null || now - lastAt >= HISTORY_SAMPLE_INTERVAL_MS) {
         await db.nativePool.query(`
-          INSERT INTO delivery_location_pings(job_id,driver_id,latitude,longitude,accuracy_m,heading_deg,speed_mps,device_recorded_at,received_at,expires_at)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        `, [job.rows[0].id,principal.driverId,input.latitude,input.longitude,accuracy,heading,speed,deviceRecordedAt,new Date(now),new Date(now+30*24*60*60_000)]);
+          INSERT INTO delivery_location_pings(job_id,driver_id,sample_kind,latitude,longitude,accuracy_m,heading_deg,speed_mps,device_recorded_at,received_at,expires_at)
+          VALUES($1,$2,'job',$3,$4,$5,$6,$7,$8,$9,$10)
+        `, [job.rows[0].id,principal.driverId,input.latitude,input.longitude,accuracy,heading,speed,deviceRecordedAt,new Date(now),new Date(now+LOCATION_HISTORY_RETENTION_MS)]);
         historySampled = true;
       }
     }
   }
-  return { accepted, reason: accepted ? undefined : "throttled", historySampled } as const;
+  return { accepted, reason: accepted ? undefined : "throttled", presenceSampled, historySampled } as const;
 }
