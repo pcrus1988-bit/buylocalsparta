@@ -257,8 +257,16 @@ export async function deliveryManagerControlWorkspace(principal: SessionPrincipa
   return loadControlWorkspace(marketUuid, base.jobs);
 }
 
-export async function runDeliveryDispatchNow(): Promise<{ evaluated: number; offered: number }> {
-  return runAdaptiveDeliveryDispatcher(Date.now(), 16);
+export async function runDeliveryDispatchNow(): Promise<{ evaluated: number; offered: number; unroutable: number; noDriver: number; skipped: number; failed: number }> {
+  const result = await runAdaptiveDeliveryDispatcher(Date.now(), 16);
+  return {
+    evaluated: result.checked,
+    offered: result.offered,
+    unroutable: result.unroutable,
+    noDriver: result.noDriver,
+    skipped: result.skipped,
+    failed: result.failed,
+  };
 }
 
 export async function grantDeliveryManager(principal: SessionPrincipal, emailInput: string) {
