@@ -1,29 +1,62 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminCatalogueIntakeWorkspace } from "../../../lib/admin-catalogue-intake";
+import { adminCatalogueVendorOptions, assignCatalogueSnapshotToVendor } from "../../../lib/admin-catalogue-vendor-assignment";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Supplier PIM Intake", robots: { index: false, follow: false, nocache: true } };
 
-type Params = { snapshot?: string; q?: string; price?: string; classification?: string; product?: string };
+type Params = {
+  snapshot?: string; q?: string; price?: string; classification?: string; product?: string;
+  assigned?: string; assignedRows?: string; alreadyAssigned?: string; vendorName?: string; assignmentError?: string;
+};
+
+async function assignCatalogueAction(formData: FormData) {
+  "use server";
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  const snapshotId = String(formData.get("snapshotId") ?? "").trim();
+  const vendorId = String(formData.get("vendorId") ?? "").trim();
+  try {
+    const result = await assignCatalogueSnapshotToVendor(principal, { snapshotId, vendorId });
+    revalidatePath("/admin/catalogue-intake");
+    revalidatePath("/admin/vendors");
+    const search = new URLSearchParams({
+      snapshot: result.snapshotId,
+      assigned: "1",
+      assignedRows: String(result.newlyAssigned),
+      alreadyAssigned: String(result.alreadyAssigned),
+      vendorName: result.vendorName
+    });
+    redirect(`/admin/catalogue-intake?${search.toString()}`);
+  } catch (error) {
+    const search = new URLSearchParams({ snapshot: snapshotId, assignmentError: errorMessage(error) });
+    redirect(`/admin/catalogue-intake?${search.toString()}`);
+  }
+}
 
 export default async function Page({ searchParams }: { searchParams: Promise<Params> }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const params = await searchParams;
-  const data = await adminCatalogueIntakeWorkspace(principal, {
-    snapshotId: params.snapshot,
-    q: params.q,
-    priceState: params.price,
-    classificationStatus: params.classification,
-    productId: params.product
-  });
+  const [data, vendors] = await Promise.all([
+    adminCatalogueIntakeWorkspace(principal, {
+      snapshotId: params.snapshot,
+      q: params.q,
+      priceState: params.price,
+      classificationStatus: params.classification,
+      productId: params.product
+    }),
+    adminCatalogueVendorOptions(principal)
+  ]);
   const snapshot = data.snapshots.find((item) => item.id === data.effectiveSnapshotId) ?? data.snapshots[0];
   const selected = data.selected;
   const hasFilters = Boolean(params.q?.trim() || params.price?.trim() || params.classification?.trim());
+  const assignmentSuccess = params.assigned === "1";
   const hrefFor = (productId: string) => {
     const search = new URLSearchParams();
     if (data.effectiveSnapshotId) search.set("snapshot", data.effectiveSnapshotId);
@@ -37,8 +70,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="Supplier PIM Intake" />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Catalog · source evidence</div><h1>Supplier PIM Intake</h1><p className="lead">Read-only intake control centre για supplier master catalogues. Ελέγχει provenance, taxonomy, price evidence, attributes, compatibility και canonical candidates πριν οποιοδήποτε προϊόν γίνει public ή sellable.</p></div>
-      <aside className="dashboard-health-card"><span>Governance mode</span><strong>Read only</strong><p>Δεν δημιουργούνται offers, stock ή canonical products από αυτή τη σελίδα.</p></aside>
+      <div><div className="eyebrow">Catalog · source evidence</div><h1>Supplier PIM Intake</h1><p className="lead">Governed supplier catalogue workspace for provenance, taxonomy, price evidence, attributes, canonical matching and bulk vendor assortment assignment before anything becomes public or sellable.</p></div>
+      <aside className="dashboard-health-card"><span>Governance mode</span><strong>Evidence + assignment</strong><p>Bulk assignment creates vendor assortment candidates only. It never creates stock or public offers automatically.</p></aside>
     </section>
 
     <WorkspaceMetricStrip items={[
@@ -50,8 +83,36 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
     ]} />
 
     <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Vendor catalogue" title="Assign the entire catalogue to a vendor" note="Choose a Supplier PIM snapshot and vendor. Every source product is attached to the vendor's primary active location in one idempotent operation. Existing assignments are preserved; later canonical matching upgrades the same assortment rows." />
+      {assignmentSuccess && <div className="workspace-queue-card" role="status" style={{marginBottom:"1rem"}}>
+        <strong>Catalogue assigned to {params.vendorName ?? "vendor"}</strong>
+        <p>{Number(params.assignedRows ?? 0).toLocaleString("el-GR")} products newly assigned · {Number(params.alreadyAssigned ?? 0).toLocaleString("el-GR")} were already assigned.</p>
+        <small>No offers, inventory or public publication were activated by this operation.</small>
+      </div>}
+      {params.assignmentError && <div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}><strong>Could not assign catalogue</strong><p>{params.assignmentError}</p></div>}
+      <form action={assignCatalogueAction} className="admin-directory-filters">
+        <label>
+          <span>Supplier PIM snapshot</span>
+          <select name="snapshotId" required defaultValue={data.effectiveSnapshotId ?? ""}>
+            <option value="" disabled>Select snapshot</option>
+            {data.snapshots.map((item)=><option key={item.id} value={item.id}>{item.sourceName} · {item.productCount.toLocaleString("el-GR")} products</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Assign to vendor</span>
+          <select name="vendorId" required defaultValue="">
+            <option value="" disabled>Select vendor</option>
+            {vendors.map((vendor)=><option key={vendor.id} value={vendor.id} disabled={!vendor.locationId}>{vendor.name} · {vendor.status}{vendor.demoMode?" · demo":""}{vendor.locationId?` · ${vendor.locationName ?? "primary location"}`:" · no active location"}</option>)}
+          </select>
+        </label>
+        <div><button className="button button-primary" type="submit" disabled={!snapshot || vendors.every((vendor)=>!vendor.locationId)}>Assign entire catalogue</button></div>
+      </form>
+      <div className="workspace-inline-note">Assignment is deliberately separate from publication. Unmatched products become candidate assortments; already matched products keep their canonical links. Vendor confirmation, pricing, stock and offer activation remain governed separately.</div>
+    </section>
+
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Immutable evidence" title="Source snapshots" note="Κάθε εισαγωγή παραμένει ξεχωριστό immutable snapshot. Το hash επιτρέπει να αποδεικνύεται ακριβώς ποιο master file παρήγαγε τα review records." />
-      {data.snapshots.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχει ακόμη supplier snapshot." body="Ο ασφαλής Nikolaou importer είναι διαθέσιμος στο repository, αλλά το production master δεν έχει εφαρμοστεί ακόμη." /> : <div className="workspace-queue-list">{data.snapshots.map((item) => {
+      {data.snapshots.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχει ακόμη supplier snapshot." body="Promote a completed catalogue crawl or import a governed source before assigning it to vendors." /> : <div className="workspace-queue-list">{data.snapshots.map((item) => {
         const active = item.id === data.effectiveSnapshotId;
         const search = new URLSearchParams();
         search.set("snapshot", item.id);
@@ -70,7 +131,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Quality queue" title="Evidence requiring review" note="Priority: price conflicts → price review → classification → unmapped attributes → compatibility/canonical candidates. Η λίστα περιορίζεται στα 120 υψηλότερης προτεραιότητας records ανά filter." />
-      <div className="workspace-inline-note">This workspace is intentionally read-only. Review decisions and canonicalization controls will be introduced only after source evidence is visible and auditable.</div>
+      <div className="workspace-inline-note">The evidence review below remains read-only. Bulk vendor assignment above does not approve questionable canonical matches or publish products.</div>
       <form method="get" className="admin-directory-filters">
         {data.effectiveSnapshotId && <input type="hidden" name="snapshot" value={data.effectiveSnapshotId} />}
         <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Title, supplier code, model, brand…" /></label>
@@ -123,3 +184,4 @@ function compactValue(value: unknown): string {
   const raw = JSON.stringify(value);
   return raw.length > 240 ? `${raw.slice(0, 237)}…` : raw;
 }
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Catalogue assignment failed"); }
