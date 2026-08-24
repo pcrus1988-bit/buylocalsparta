@@ -36,7 +36,7 @@ export function publicCatalogueTitleLabel(title: string): string {
     .trim()
     .replace(/\s+/g, " ")
     .replace(/(\d+(?:[.,]\d+)?)\s*Ton\b/giu, "$1 t")
-    .replace(/(\d+)\s*Τεμ\.?\b/giu, "$1 τεμ.")
+    .replace(/(\d+)\s*Τεμ\b\.?/giu, "$1 τεμ.")
     .replace(/\bΥψος\s*:\s*/giu, "Ύψος: ")
     .replace(/(\d+(?:[.,]\d+)?)\s*(mm|cm|ml|l)\b/giu, (_match, value: string, unit: string) => `${value} ${unit.toLowerCase() === "l" ? "L" : unit.toLowerCase()}`)
     .replace(/([^\d\s]),(?=\d)/gu, "$1, ")
