@@ -27,6 +27,24 @@ export function isPublicCatalogueTitle(title: string): boolean {
 }
 
 /**
+ * Supplier/catalogue titles remain immutable evidence, but their public projection
+ * should use readable unit and punctuation spacing. Keep this deliberately narrow:
+ * do not translate wording, rewrite brands/model codes, or touch decimal commas.
+ */
+export function publicCatalogueTitleLabel(title: string): string {
+  return title
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/(\d+(?:[.,]\d+)?)\s*Ton\b/giu, "$1 t")
+    .replace(/(\d+)\s*Τεμ\.?\b/giu, "$1 τεμ.")
+    .replace(/\bΥψος\s*:\s*/giu, "Ύψος: ")
+    .replace(/(\d+(?:[.,]\d+)?)\s*(mm|cm|ml|l)\b/giu, (_match, value: string, unit: string) => `${value} ${unit.toLowerCase() === "l" ? "L" : unit.toLowerCase()}`)
+    .replace(/([^\d\s]),(?=\d)/gu, "$1, ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * A non-positive minor-unit value is an import/reference sentinel, not a customer
  * selling price. Keep valid positive reference/catalogue prices visible, including
  * temporarily unavailable products, but never communicate a missing price as EUR 0.
