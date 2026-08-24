@@ -29,24 +29,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     getSeoEntityOverridesSnapshot()
   ]);
   if (!settings.indexingEnabled) return [];
+
   const [categories, cmsEntries] = await Promise.all([
-    getAvailableStorefrontCategories("23100").catch((error) => {
-      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_categories_failed", message: String(error) }));
-      return [];
-    }),
-    getPublicCmsSitemapEntries().catch((error) => {
-      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_cms_failed", message: String(error) }));
-      return [];
-    })
+    settings.sitemap.categories
+      ? getAvailableStorefrontCategories("23100").catch((error) => {
+          console.error(JSON.stringify({ level: "error", event: "seo.sitemap_categories_failed", message: String(error) }));
+          return [];
+        })
+      : Promise.resolve([]),
+    settings.sitemap.staticPages
+      ? getPublicCmsSitemapEntries().catch((error) => {
+          console.error(JSON.stringify({ level: "error", event: "seo.sitemap_cms_failed", message: String(error) }));
+          return [];
+        })
+      : Promise.resolve([])
   ]);
+
   const origin = settings.canonicalOrigin;
   const governed = (reference: SeoEntityReference, entityEligible: boolean, defaultIndexAllowed: boolean) => {
     const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
     const control = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible, defaultIndexAllowed, override });
     return { override, control };
   };
+
   const fixed: MetadataRoute.Sitemap = [
-    ...INDEXABLE_STATIC_ROUTES.flatMap((route) => {
+    ...(settings.sitemap.staticPages ? INDEXABLE_STATIC_ROUTES.flatMap((route) => {
       const reference: SeoEntityReference = { kind: "static", id: route.href };
       const { override, control } = governed(reference, true, true);
       return control.sitemapAllowed ? [{
@@ -55,8 +62,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: route.priority,
         lastModified: safeLastModified(override?.lastReviewedAt)
       }] : [];
-    }),
-    ...categories.flatMap((category) => {
+    }) : []),
+    ...(settings.sitemap.categories ? categories.flatMap((category) => {
       const reference: SeoEntityReference = { kind: "category", id: category.slug };
       const { override, control } = governed(reference, true, true);
       return control.sitemapAllowed ? [{
@@ -65,8 +72,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
         lastModified: safeLastModified(override?.lastReviewedAt)
       }] : [];
-    }),
-    ...cmsEntries.flatMap((entry) => {
+    }) : []),
+    ...(settings.sitemap.staticPages ? cmsEntries.flatMap((entry) => {
       const reference: SeoEntityReference = { kind: "static", id: entry.path };
       const { override, control } = governed(reference, true, true);
       if (!control.sitemapAllowed) return [];
@@ -80,23 +87,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: safeLastModified(override?.lastReviewedAt) ?? cmsLastModified(entry.lastModified),
         alternates: languages && Object.keys(languages).length ? { languages } : undefined
       }];
-    })
+    }) : [])
   ];
 
-  const [products, vendors] = await Promise.allSettled([getPublicProductSeoInventory(), getPublicVendorDirectory()]);
+  const [products, vendors] = await Promise.allSettled([
+    settings.sitemap.products ? getPublicProductSeoInventory() : Promise.resolve(null),
+    settings.sitemap.partnerVendors || settings.sitemap.researchVendors ? getPublicVendorDirectory() : Promise.resolve(null)
+  ]);
   if (products.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_products_failed", message: String(products.reason) }));
   if (vendors.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(vendors.reason) }));
 
   const entries: MetadataRoute.Sitemap = [
     ...fixed,
-    ...(products.status === "fulfilled" ? products.value.products.flatMap((product) => {
+    ...(products.status === "fulfilled" && products.value ? products.value.products.flatMap((product) => {
       const reference: SeoEntityReference = { kind: "product", id: product.id };
       const quality = productIndexEligibility(product);
       const { override, control } = governed(reference, quality.blockingReasons.length === 0, quality.eligible);
-      // Product content spans canonical_variants, translations and approved media. The
-      // current schema does not expose one trustworthy public-content update clock across
-      // all three, so do not manufacture freshness from Date.now(), deployment time or
-      // canonical_variants.updated_at alone. An explicit governed review date is honest.
       return control.sitemapAllowed ? [{
         url: new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString(),
         changeFrequency: "daily" as const,
@@ -104,23 +110,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: safeLastModified(override?.lastReviewedAt)
       }] : [];
     }) : []),
-    ...(vendors.status === "fulfilled" ? vendors.value
-      .flatMap((vendor) => {
-        const isPartner = vendor.directoryStatus === "partner";
-        const reference: SeoEntityReference = { kind: isPartner ? "partner_vendor" : "research_vendor", id: vendor.id };
-        const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
-        const { override, control } = governed(
-          reference,
-          isPartner || quality.blockingReasons.length === 0,
-          isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)
-        );
-        return control.sitemapAllowed ? [{
-          url: absoluteSeoCanonical(origin, reference, override),
-          changeFrequency: isPartner ? "weekly" as const : "monthly" as const,
-          priority: isPartner ? 0.7 : 0.6,
-          lastModified: safeLastModified(override?.lastReviewedAt ?? vendor.research?.checkedAt)
-        }] : [];
-      }) : [])
+    ...(vendors.status === "fulfilled" && vendors.value ? vendors.value.flatMap((vendor) => {
+      const isPartner = vendor.directoryStatus === "partner";
+      if (isPartner && !settings.sitemap.partnerVendors) return [];
+      if (!isPartner && !settings.sitemap.researchVendors) return [];
+
+      const reference: SeoEntityReference = { kind: isPartner ? "partner_vendor" : "research_vendor", id: vendor.id };
+      const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
+      const { override, control } = governed(
+        reference,
+        isPartner || quality.blockingReasons.length === 0,
+        isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)
+      );
+      return control.sitemapAllowed ? [{
+        url: absoluteSeoCanonical(origin, reference, override),
+        changeFrequency: isPartner ? "weekly" as const : "monthly" as const,
+        priority: isPartner ? 0.7 : 0.6,
+        lastModified: safeLastModified(override?.lastReviewedAt ?? vendor.research?.checkedAt)
+      }] : [];
+    }) : [])
   ];
 
   return [...new Map(entries.map((entry) => [entry.url, entry])).values()];
