@@ -15,7 +15,7 @@ import { governedStaticSeoMetadata } from "../lib/seo-metadata";
 import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
-const FEATURED_PRODUCT_LIMIT = 4;
+const FEATURED_PRODUCT_LIMIT = 10;
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/", { canonicalPath: "/" });
@@ -55,7 +55,7 @@ export default async function Home() {
               <a className="button button-secondary" href="/shops?status=partner">Ενεργά καταστήματα</a>
             </div>
             <div className={styles.heroProof} aria-label="ΚΟΝΤΑ ΜΟΥ Sparta benefits">
-              <span><strong>4</strong> επιλογές που ανανεώνονται</span>
+              <span><strong>10</strong> επιλογές που ανανεώνονται</span>
               <span><strong>Fair</strong> ανάθεση καταστήματος</span>
               <span><strong>1</strong> ενιαίο checkout</span>
             </div>
@@ -91,7 +91,7 @@ export default async function Home() {
                 letterSpacing: "-0.045em"
               }}
             >
-              <strong style={{ fontWeight: 800 }}>4 επιλογές.</strong>{" "}
+              <strong style={{ fontWeight: 800 }}>10 επιλογές.</strong>{" "}
               <span style={{ fontWeight: 400 }}>Δίκαιη εναλλαγή στην τοπική αγορά.</span>
             </h2>
           </div>
@@ -112,7 +112,7 @@ export default async function Home() {
 
         <div className={styles.rotationNote}>
           <span className={styles.rotationDot} />
-          Η τετράδα αλλάζει περιοδικά. Μόνο τα προϊόντα που φτάνουν πραγματικά στην αρχική περνούν από Fair Vendor Assignment, ώστε η προβολή να μην επιβαρύνει τεχνητά τα στατιστικά δικαιοσύνης.
+          Η δεκάδα αλλάζει περιοδικά. Μόνο τα προϊόντα που φτάνουν πραγματικά στην αρχική περνούν από Fair Vendor Assignment, ώστε η προβολή να μην επιβαρύνει τεχνητά τα στατιστικά δικαιοσύνης.
         </div>
 
         {visibleCategories.length ? (
