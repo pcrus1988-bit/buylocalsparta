@@ -7,7 +7,7 @@ test("natural Greek commerce query extracts price and stock intent without losin
   assert.equal(intent.normalizedText, "bosch drapano");
   assert.equal(intent.maxPriceMinor, 10_000);
   assert.equal(intent.availability, "in_stock");
-  assert.deepEqual(intent.applied.sort(), ["in_stock", "max_price"]);
+  assert.deepEqual([...intent.applied].sort(), ["in_stock", "max_price"]);
 });
 
 test("pickup-today intent is conservative and explicit", () => {
