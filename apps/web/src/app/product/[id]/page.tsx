@@ -55,6 +55,8 @@ const PRIVATE_SOURCE_ATTRIBUTE_KEYS = new Set([
   "crawler_source"
 ]);
 
+const GENERATED_TECHNICAL_DESCRIPTION_MARKER = "Κύρια διακριτικά/τεχνικά χαρακτηριστικά:";
+
 function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute[]): readonly PublicTechnicalAttribute[] {
   return attributes.filter((attribute) => {
     const key = attribute.key.trim().toLowerCase();
@@ -63,6 +65,25 @@ function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute
       && !key.startsWith("catalog_source_")
       && !key.startsWith("crawl_source_");
   });
+}
+
+function productDisplayDescription(input: Readonly<{
+  canonicalDescription?: string;
+  sourceDescription?: string;
+  technicalAttributes: readonly PublicTechnicalAttribute[];
+}>): string | undefined {
+  const canonical = input.canonicalDescription?.trim();
+  if (!canonical) return input.sourceDescription?.trim() || undefined;
+  const markerIndex = canonical.indexOf(GENERATED_TECHNICAL_DESCRIPTION_MARKER);
+  if (markerIndex < 0) return canonical;
+
+  const intro = canonical.slice(0, markerIndex).trim();
+  const facts = input.technicalAttributes
+    .slice(0, 6)
+    .map((attribute) => `${attribute.label}: ${attribute.value}`)
+    .join(" · ");
+  if (facts) return `${intro} Βασικά στοιχεία: ${facts}.`.trim();
+  return intro || input.sourceDescription?.trim() || undefined;
 }
 
 function productSeoDescription(product: { title: string; description?: string }): string {
@@ -89,8 +110,14 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   ]);
   if (!product) return { title: "Προϊόν" };
   const detail = await getPublicProductDetail(product.id);
+  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const displayDescription = productDisplayDescription({
+    canonicalDescription: product.description,
+    sourceDescription: detail?.description,
+    technicalAttributes
+  });
   const quality = productIndexEligibility(product);
-  const description = productSeoDescription({ ...product, description: product.description ?? detail?.description });
+  const description = productSeoDescription({ title: product.title, description: displayDescription });
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
     reference,
@@ -138,12 +165,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? undefined
     : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
-  const displayDescription = product.description ?? detail?.description;
+  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const displayDescription = productDisplayDescription({
+    canonicalDescription: product.description,
+    sourceDescription: detail?.description,
+    technicalAttributes
+  });
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
-  const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
 
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
@@ -261,7 +292,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
           {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div></div></div>}
-          <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={product} /><ProductAccountActions productId={product.id} /></>}</div></div>
+          <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{ id: product.id, title: product.title, priceMinor: product.priceMinor, price: product.price, available: product.available }} /><ProductAccountActions productId={product.id} /></>}</div></div>
           <div className="detail-assurances"><div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div><div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div><div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div></div>
         </div>
       </section>
