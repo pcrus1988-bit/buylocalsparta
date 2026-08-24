@@ -19,7 +19,7 @@ import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../lib/public-product-detail";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
-import { publicCatalogHasOfferPrice, publicCatalogPriceLabel } from "../../../lib/public-data-integrity";
+import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -77,7 +77,7 @@ function productDisplayDescription(input: Readonly<{
   const markerIndex = canonical.indexOf(GENERATED_TECHNICAL_DESCRIPTION_MARKER);
   if (markerIndex < 0) return canonical;
 
-  const intro = canonical.slice(0, markerIndex).trim();
+  const intro = publicCatalogueTitleLabel(canonical.slice(0, markerIndex).trim());
   const facts = input.technicalAttributes
     .slice(0, 6)
     .map((attribute) => `${attribute.label}: ${attribute.value}`)
@@ -110,6 +110,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   ]);
   if (!product) return { title: "Προϊόν" };
   const detail = await getPublicProductDetail(product.id);
+  const displayTitle = publicCatalogueTitleLabel(product.title);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
@@ -117,14 +118,14 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     technicalAttributes
   });
   const quality = productIndexEligibility(product);
-  const description = productSeoDescription({ title: product.title, description: displayDescription });
+  const description = productSeoDescription({ title: displayTitle, description: displayDescription });
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
     reference,
     settings,
     override: findSeoEntityOverride(overrides.entries, reference),
     defaults: {
-      title: product.title,
+      title: displayTitle,
       description,
       canonicalPath: productPublicPath(product),
       openGraphImage: product.mediaId
@@ -151,6 +152,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : await getCatalogCard(summary.id, await getVisitorKey());
   if (!product) notFound();
 
+  const displayTitle = publicCatalogueTitleLabel(product.title);
   const [detail, approvedGallery] = await Promise.all([
     getPublicProductDetail(product.id),
     approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId })
@@ -213,8 +215,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         "@id": `${productUrl}#product`,
         url: productUrl,
         mainEntityOfPage: productUrl,
-        name: product.title,
-        description: productSeoDescription({ title: product.title, description: displayDescription }),
+        name: displayTitle,
+        description: productSeoDescription({ title: displayTitle, description: displayDescription }),
         sku: product.mpn ?? supplierCode,
         mpn: product.mpn,
         ...gtinSchema(product.gtin),
@@ -233,7 +235,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Αρχική", item: origin },
           { "@type": "ListItem", position: 2, name: category.label, item: categoryUrl },
-          { "@type": "ListItem", position: 3, name: product.title, item: productUrl }
+          { "@type": "ListItem", position: 3, name: displayTitle, item: productUrl }
         ]
       }
     ]
@@ -251,14 +253,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className={`product-detail-art ${category.artClass}`}>
             {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
             {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
-            {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? product.title} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={product.title} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
+            {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
             <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
           {mediaGallery.length > 1 ? (
             <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
               {mediaGallery.slice(1).map((image) => (
                 <div key={image.mediaId} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 14, background: "var(--white)" }}>
-                  <Image src={`/api/media/${encodeURIComponent(image.mediaId)}`} alt={image.altText ?? product.title} fill sizes="(max-width: 620px) 22vw, 11vw" style={thumbnailImageStyle} />
+                  <Image src={`/api/media/${encodeURIComponent(image.mediaId)}`} alt={image.altText ?? displayTitle} fill sizes="(max-width: 620px) 22vw, 11vw" style={thumbnailImageStyle} />
                 </div>
               ))}
             </div>
@@ -267,7 +269,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
         <div className="product-detail-copy">
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
-          <h1>{product.title}</h1>
+          <h1>{displayTitle}</h1>
           <div className="detail-price">{displayPrice}</div>
 
           {displayDescription ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p style={{ whiteSpace: "pre-line" }}>{displayDescription}</p></div></div> : null}
@@ -292,7 +294,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
           {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div></div></div>}
-          <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{ id: product.id, title: product.title, priceMinor: product.priceMinor, price: product.price, available: product.available }} /><ProductAccountActions productId={product.id} /></>}</div></div>
+          <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{ id: product.id, title: displayTitle, priceMinor: product.priceMinor, price: product.price, available: product.available }} /><ProductAccountActions productId={product.id} /></>}</div></div>
           <div className="detail-assurances"><div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div><div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div><div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div></div>
         </div>
       </section>
