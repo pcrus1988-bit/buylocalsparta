@@ -5,33 +5,68 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 import { adminOperationsWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
-export const metadata: Metadata = { title: "Admin · System Health & Audit", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · Production Mission Control", robots: { index: false, follow: false } };
+
+const HEALTHY_STATES = new Set(["ready", "healthy", "ok", "disabled"]);
+const STRICT_HEALTHY_STATES = new Set(["ready", "healthy", "ok"]);
+
+function checkNeedsAttention(state: unknown) {
+  return !HEALTHY_STATES.has(String(state).toLowerCase());
+}
 
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const data = await adminOperationsWorkspace(principal);
-  const nonReady = data.health.checks.filter((check) => !["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase())).length;
-  const criticalIssues = data.health.checks.filter((check) => check.critical && !["ready", "healthy", "ok"].includes(String(check.state).toLowerCase())).length;
+  const nonReady = data.health.checks.filter((check) => checkNeedsAttention(check.state)).length;
+  const criticalIssues = data.health.checks.filter((check) => check.critical && !STRICT_HEALTHY_STATES.has(String(check.state).toLowerCase())).length;
   const personalDataEvents = data.security.events.filter((event) => event.type.startsWith("personal_data."));
+  const highSecurityEvents = data.security.events.filter((event) => ["high", "critical"].includes(String(event.severity).toLowerCase()) && event.occurredAt >= Date.now() - 24 * 60 * 60 * 1000);
+  const slowest = [...data.health.checks].sort((a, b) => b.latencyMs - a.latencyMs)[0];
+  const attentionChecks = [...data.health.checks]
+    .filter((check) => checkNeedsAttention(check.state))
+    .sort((a, b) => Number(b.critical) - Number(a.critical) || b.latencyMs - a.latencyMs);
+  const missionState = criticalIssues > 0 ? "RED" : nonReady > 0 || highSecurityEvents.length > 0 ? "AMBER" : "GREEN";
+  const missionNote = missionState === "RED"
+    ? "Critical dependency failure: customer-facing commerce should be treated as degraded until cleared."
+    : missionState === "AMBER"
+      ? "Core commerce is reachable, but at least one operational signal needs attention."
+      : "No current dependency or high-severity security signal requires operator action.";
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · health & governance</div><h1>System Health & Audit</h1><p className="lead">Dependency readiness, security telemetry και audit trail σε μία τεχνική επιφάνεια, ξεχωριστά από τις καθημερινές marketplace operations.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · observability · operations</div><h1>Production Mission Control</h1><p className="lead">Ζωντανή εικόνα της λειτουργικής υγείας του ΚΟΝΤΑ ΜΟΥ: database, catalogue, commerce, onboarding, finance, payments, outbox, security telemetry και audit trail σε μία ενιαία επιφάνεια.</p></div></section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Readiness checks", value: data.health.checks.length },
+      { label: "Platform state", value: missionState, tone: missionState === "GREEN" ? "positive" : "attention", hint: missionNote },
+      { label: "Checks", value: data.health.checks.length },
       { label: "Needs attention", value: nonReady, tone: nonReady ? "attention" : "positive" },
       { label: "Critical issues", value: criticalIssues, tone: criticalIssues ? "attention" : "positive" },
-      { label: "Security events · 24h", value: data.security.summary.total }
+      { label: "Slowest check", value: slowest ? `${slowest.latencyMs} ms` : "—", hint: slowest?.name },
+      { label: "High security · 24h", value: highSecurityEvents.length, tone: highSecurityEvents.length ? "attention" : "positive" }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Dependencies" title="Readiness" note="Disabled non-critical integrations are shown as configuration state, not as false production failures." />
+      <WorkspaceSectionHeading eyebrow="Operator board" title={missionState === "GREEN" ? "No active operational incident" : `${attentionChecks.length} signal${attentionChecks.length === 1 ? "" : "s"} need attention`} note={missionNote} />
+      {attentionChecks.length === 0 ? <WorkspaceEmptyState title="Mission control is green." body="All current dependency checks are healthy or intentionally disabled, and no high-severity security signal is present in the current window." /> : <div className="workspace-queue-list">{attentionChecks.map((check) => <article className="workspace-queue-card" key={`incident-${check.name}`}>
+        <div className="workspace-queue-head"><div><strong>{check.critical ? "Critical" : "Operational"} · {check.name}</strong><small>{check.message ?? "Dependency reported a non-ready state."}</small></div><span className="status-pill needs-attention">{check.state}</span></div>
+        <div className="workspace-queue-primary"><span>{check.latencyMs} ms</span><span>{check.critical ? "commerce gate" : "follow-up required"}</span></div>
+      </article>)}</div>}
+      <div className="workspace-inline-actions">
+        <a className="button button-secondary" href="/admin/activation">Activation Center</a>
+        <a className="button button-secondary" href="/admin/delivery">Delivery</a>
+        <a className="button button-secondary" href="/admin/catalogue-crawler">Crawler</a>
+        <a className="button button-secondary" href="/admin/finance">Finance</a>
+        <a className="button button-secondary" href="/admin/email-lab">Email</a>
+      </div>
+    </section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Live dependencies" title="Readiness checks" note="These checks are read from the production operational runtime. Disabled non-critical integrations remain visible as configuration state instead of being misreported as outages." />
       <div className="workspace-queue-list">{data.health.checks.map((check) => {
-        const healthy = ["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase());
+        const healthy = HEALTHY_STATES.has(String(check.state).toLowerCase());
         return <article className="workspace-queue-card" key={check.name}>
-          <div className="workspace-queue-head"><div><strong>{check.name}</strong><small>{check.critical ? "Critical dependency" : "Non-critical dependency"}</small></div><span className={`status-pill${healthy ? "" : " needs-attention"}`}>{check.state}</span></div>
+          <div className="workspace-queue-head"><div><strong>{check.name}</strong><small>{check.message ?? (check.critical ? "Critical dependency" : "Non-critical dependency")}</small></div><span className={`status-pill${healthy ? "" : " needs-attention"}`}>{check.state}</span></div>
           <div className="workspace-queue-primary"><span>{check.latencyMs} ms</span><span>{check.critical ? "critical" : "non-critical"}</span></div>
         </article>;
       })}</div>
