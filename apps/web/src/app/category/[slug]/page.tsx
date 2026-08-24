@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { CatalogProductCard } from "../../../components/CatalogProductCard";
+import { CategoryCatalogBrowser } from "../../../components/CategoryCatalogBrowser";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getCatalogCards } from "../../../lib/catalog-view";
@@ -64,7 +64,7 @@ export default async function CategoryPage({ params }: Props) {
             <h1>{category.label}</h1>
             <p>{category.description}</p>
             <div className="hero-actions">
-              <a className="button button-light" href={`/shop?category=${category.slug}`}>Δες όλα τα προϊόντα</a>
+              <a className="button button-light" href="#category-products">Δες προϊόντα</a>
               <a className="button category-outline" href="/ask-local">Ρώτησε τοπικά</a>
             </div>
           </div>
@@ -83,16 +83,14 @@ export default async function CategoryPage({ params }: Props) {
         <div><strong>Ένα checkout</strong><span>Συνδύασε προϊόντα από διαφορετικές κατηγορίες και καταστήματα σε μία αγορά.</span></div>
       </section>
 
-      <section className="section section-tint">
+      <section className="section section-tint" id="category-products">
         <div className="shell">
           <div className="section-heading">
             <div><div className="eyebrow">Διαθέσιμα τώρα</div><h2>{category.label} στη Σπάρτη</h2></div>
-            <p className="section-note">Τα προϊόντα παραμένουν canonical: ένα αποτέλεσμα ανά αντικείμενο, με τον κατάλληλο συνεργάτη στο παρασκήνιο.</p>
+            <p className="section-note">Ξεκίνα από 10 τυχαίες επιλογές και χρησιμοποίησε αναζήτηση ή φίλτρα μόνο μέσα σε αυτή την κατηγορία.</p>
           </div>
           {products.length ? (
-            <div className="product-grid">
-              {products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
-            </div>
+            <CategoryCatalogBrowser products={products} categoryName={category.label} />
           ) : (
             <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Η σελίδα είναι έτοιμη για το πραγματικό catalog. Μέχρι τότε, το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
           )}
