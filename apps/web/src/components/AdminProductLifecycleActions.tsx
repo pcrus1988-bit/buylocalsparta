@@ -41,12 +41,21 @@ export function AdminProductLifecycleActions({ submissionId, submissionStatus, c
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ action, submissionId, reason, acknowledged })
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; status?: string; deleted?: boolean };
       if (!response.ok) throw new Error(payload.error ?? "Product lifecycle action failed");
       setDeleteOpen(false);
       setAcknowledged(false);
       setDeleteReason("");
-      setState((current) => ({ ...current, archived: action === "archive", submissionStatus: action === "archive" ? "archived" : action === "reactivate" ? "approved" : current.submissionStatus, activationRequest: action === "reactivate" ? current.activationRequest && { ...current.activationRequest, status: "approved" } : current.activationRequest }));
+      if (!payload.deleted) {
+        const nextStatus = payload.status ?? (action === "archive" ? "archived" : state.submissionStatus);
+        setState((current) => ({
+          ...current,
+          archived: nextStatus === "archived",
+          submissionStatus: nextStatus,
+          offerStatus: action === "archive" ? (current.offerStatus ? "archived" : current.offerStatus) : action === "reactivate" ? (current.offerStatus ? "approved" : current.offerStatus) : current.offerStatus,
+          activationRequest: action === "reactivate" && current.activationRequest ? { ...current.activationRequest, status: "approved" } : current.activationRequest
+        }));
+      }
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Product lifecycle action failed");
