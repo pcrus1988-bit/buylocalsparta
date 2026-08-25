@@ -7,7 +7,7 @@ import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../componen
 import { getAdminSession } from "../../../lib/admin-session";
 import { adminOrderSlaWorkspace } from "../../../lib/order-sla";
 
-export const metadata: Metadata = { title: "Admin · Notifications & Escalations", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · SLA & Escalations", robots: { index: false, follow: false } };
 const when = (value: string) => new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
 const stage = (value: string) => value === "acceptance" ? "Αποδοχή" : "Προετοιμασία";
 
@@ -21,7 +21,7 @@ export default async function Page() {
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Operations · notifications</div><h1>Notifications & Escalations</h1><p className="lead">Operational alerts, vendor price changes και order SLA escalations σε ένα admin workspace με audit trail.</p><div className="hero-actions"><Link className="button" href="/admin/orders">Orders</Link><Link className="button button-secondary" href="/admin/finance/agreements/sla">SLA ανά συμφωνία</Link></div></div>
+      <div><div className="eyebrow">Operations · notifications</div><h1>SLA & Escalations</h1><p className="lead">Order SLA escalations παραμένουν το κύριο operational queue. Στο ίδιο workspace εμφανίζονται επίσης οι αλλαγές τιμών των vendors με πλήρες audit trail.</p><div className="hero-actions"><Link className="button" href="/admin/orders">Orders</Link><Link className="button button-secondary" href="/admin/finance/agreements/sla">SLA ανά συμφωνία</Link></div></div>
     </section>
 
     <WorkspaceMetricStrip items={[
