@@ -20,13 +20,14 @@ async function confirmMappingAction(formData: FormData) {
   const sourceKey = String(formData.get("sourceKey") ?? "").trim();
   const sourceUnit = String(formData.get("sourceUnit") ?? "").trim() || undefined;
   const attributeId = String(formData.get("attributeId") ?? "").trim();
-  const methodRaw = String(formData.get("method") ?? "manual");
-  const method = ["exact_code", "historical", "fuzzy"].includes(methodRaw) ? methodRaw as "exact_code" | "historical" | "fuzzy" : "manual";
-  const confidenceRaw = Number(formData.get("confidence") ?? 1);
   try {
     const result = await confirmCatalogueAttributeMapping(principal, {
-      sourceId, sourceKey, sourceUnit, attributeId, method,
-      confidence: Number.isFinite(confidenceRaw) ? confidenceRaw : 1,
+      sourceId,
+      sourceKey,
+      sourceUnit,
+      attributeId,
+      method: "manual",
+      confidence: 1,
       reasons: ["admin_confirmed_from_attribute_mapper"]
     });
     revalidatePath("/admin/catalogue-intake");
@@ -111,8 +112,6 @@ export default async function AttributeMapperPage({ searchParams }: { searchPara
             <input type="hidden" name="sourceId" value={group.sourceId} />
             <input type="hidden" name="sourceKey" value={group.sourceKey} />
             <input type="hidden" name="sourceUnit" value={group.sourceUnit ?? ""} />
-            <input type="hidden" name="method" value={best?.method ?? "manual"} />
-            <input type="hidden" name="confidence" value={best?.confidence ?? 1} />
             <label><span>Map to canonical attribute</span><select name="attributeId" defaultValue={best?.attributeId ?? ""} required>
               <option value="" disabled>Select attribute</option>
               {mapper.attributes.map((attribute) => <option key={attribute.id} value={attribute.id}>{attribute.code} · {attribute.dataType}{attribute.unit ? ` · ${attribute.unit}` : ""}</option>)}
