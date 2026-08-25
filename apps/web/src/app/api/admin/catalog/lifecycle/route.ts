@@ -1,5 +1,19 @@
 import { requireAdminSession } from "../../../../../lib/admin-session";
 import { adminProductLifecycleState, archiveAdminProduct, permanentlyDeleteAdminProduct, reactivateAdminProduct } from "../../../../../lib/product-lifecycle";
+import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
+
+async function assertNoImmutableWorkflowHistory(submissionId: string) {
+  const result = await getProductionPostgresRuntime().sqlPool.query(`
+    SELECT count(*)::int AS history_count
+    FROM public.catalog_workflow_events e
+    JOIN public.vendor_product_submissions s ON s.id=e.submission_id
+    WHERE s.public_id=$1 OR s.id::text=$1
+  `, [submissionId]);
+  const count = Number(result.rows[0]?.history_count ?? 0);
+  if (count > 0) {
+    throw new Error("This product has immutable catalog workflow history and cannot be permanently deleted. Archive it instead.");
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -23,7 +37,10 @@ export async function POST(request: Request) {
 
     if (action === "archive") return Response.json(await archiveAdminProduct(principal, submissionId, reason));
     if (action === "reactivate") return Response.json(await reactivateAdminProduct(principal, submissionId, reason));
-    if (action === "delete") return Response.json(await permanentlyDeleteAdminProduct(principal, submissionId, reason, body.acknowledged === true));
+    if (action === "delete") {
+      await assertNoImmutableWorkflowHistory(submissionId);
+      return Response.json(await permanentlyDeleteAdminProduct(principal, submissionId, reason, body.acknowledged === true));
+    }
     throw new Error("Unsupported product lifecycle action");
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "product_lifecycle_failed" }, { status: 400 });
