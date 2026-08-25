@@ -20,6 +20,7 @@ async function confirmMappingAction(formData: FormData) {
   const sourceKey = String(formData.get("sourceKey") ?? "").trim();
   const sourceUnit = String(formData.get("sourceUnit") ?? "").trim() || undefined;
   const attributeId = String(formData.get("attributeId") ?? "").trim();
+  let mapped = 0;
   try {
     const result = await confirmCatalogueAttributeMapping(principal, {
       sourceId,
@@ -30,14 +31,15 @@ async function confirmMappingAction(formData: FormData) {
       confidence: 1,
       reasons: ["admin_confirmed_from_attribute_mapper"]
     });
-    revalidatePath("/admin/catalogue-intake");
-    revalidatePath("/admin/catalogue-intake/attributes");
-    const search = new URLSearchParams({ snapshot, mapped: String(result.mapped) });
-    redirect(`/admin/catalogue-intake/attributes?${search.toString()}`);
+    mapped = result.mapped;
   } catch (error) {
     const search = new URLSearchParams({ snapshot, error: errorMessage(error) });
     redirect(`/admin/catalogue-intake/attributes?${search.toString()}`);
   }
+  revalidatePath("/admin/catalogue-intake");
+  revalidatePath("/admin/catalogue-intake/attributes");
+  const search = new URLSearchParams({ snapshot, mapped: String(mapped) });
+  redirect(`/admin/catalogue-intake/attributes?${search.toString()}`);
 }
 
 async function bulkMappingAction(formData: FormData) {
@@ -45,16 +47,20 @@ async function bulkMappingAction(formData: FormData) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const snapshot = String(formData.get("snapshot") ?? "").trim();
+  let rules = 0;
+  let bulkMapped = 0;
   try {
     const result = await bulkConfirmHighConfidenceAttributeMappings(principal, snapshot);
-    revalidatePath("/admin/catalogue-intake");
-    revalidatePath("/admin/catalogue-intake/attributes");
-    const search = new URLSearchParams({ snapshot, rules: String(result.rules), bulkMapped: String(result.mapped) });
-    redirect(`/admin/catalogue-intake/attributes?${search.toString()}`);
+    rules = result.rules;
+    bulkMapped = result.mapped;
   } catch (error) {
     const search = new URLSearchParams({ snapshot, error: errorMessage(error) });
     redirect(`/admin/catalogue-intake/attributes?${search.toString()}`);
   }
+  revalidatePath("/admin/catalogue-intake");
+  revalidatePath("/admin/catalogue-intake/attributes");
+  const search = new URLSearchParams({ snapshot, rules: String(rules), bulkMapped: String(bulkMapped) });
+  redirect(`/admin/catalogue-intake/attributes?${search.toString()}`);
 }
 
 export default async function AttributeMapperPage({ searchParams }: { searchParams: Promise<Params> }) {
