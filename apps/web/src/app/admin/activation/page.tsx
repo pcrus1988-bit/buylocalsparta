@@ -7,7 +7,7 @@ import { adminActivationWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { WEB_BUILD_VERSION } from "../../../lib/build";
 
-export const metadata: Metadata = { title: "Admin · Production Activation Center", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · Launch Readiness · Production Activation Center", robots: { index: false, follow: false } };
 
 type ActivationEvidence = Awaited<ReturnType<typeof adminActivationWorkspace>>["evidence"][number];
 type GateState = "passed" | "failed" | "blocked" | "skipped" | "missing" | "expired";
@@ -73,7 +73,7 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · release gates · production evidence</div><h1>Production Activation Center</h1><p className="lead">Ένα ενιαίο control room για να ξέρουμε αν το ΚΟΝΤΑ ΜΟΥ είναι πραγματικά έτοιμο να δεχθεί live παραγγελίες. Τα πράσινα states προέρχονται μόνο από φρέσκο, build-scoped provider evidence.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · Launch Readiness · production evidence</div><h1>Production Activation Center</h1><p className="lead">Ένα ενιαίο control room για να ξέρουμε αν το ΚΟΝΤΑ ΜΟΥ είναι πραγματικά έτοιμο να δεχθεί live παραγγελίες. Τα πράσινα states προέρχονται μόνο από φρέσκο, build-scoped provider evidence.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Live commerce", value: readyForLiveCommerce ? "READY" : "NOT READY", tone: readyForLiveCommerce ? "positive" : "attention", hint: readyForLiveCommerce ? "Core production gates are green." : "At least one core gate needs evidence or attention." },
