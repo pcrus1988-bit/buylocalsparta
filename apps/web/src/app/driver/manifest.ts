@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Driver",
     description: "Παραλαβές, παραδόσεις, επιστροφές και live tracking για οδηγούς ΚΟΝΤΑ ΜΟΥ.",
     start_url: "/driver",
-    scope: "/driver/",
+    scope: "/driver",
     display: "standalone",
     background_color: "#f6f4ee",
     theme_color: "#171914",
