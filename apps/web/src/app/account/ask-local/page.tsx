@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AccountSectionNavigation } from "../../../components/AccountSectionNavigation";
 import { AskLocalClient } from "../../../components/AskLocalClient";
+import { AskLocalCustomerActions } from "../../../components/AskLocalCustomerActions";
 import { CustomerHowItWorks } from "../../../components/CustomerAccountPrimitives";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getAccountSession } from "../../../lib/account-session";
@@ -20,6 +21,7 @@ export default async function AccountAskLocalPage({ searchParams }: Props) {
     preferredVendorId: typeof params.vendor === "string" ? params.vendor : undefined,
     sourceUrl: typeof params.source === "string" ? params.source : undefined
   };
+  const requests = await customerAskLocalBrowserRequests(principal);
 
   return <main className="account-app">
     <div className="announcement">Ask Local · νέο ιδιωτικό αίτημα και πορεία των ενεργών αιτημάτων σου.</div>
@@ -29,6 +31,7 @@ export default async function AccountAskLocalPage({ searchParams }: Props) {
       <div className="customer-page-heading"><div><div className="eyebrow">Ask Local</div><h1>Ρώτησε την τοπική αγορά</h1></div><p>Πες τι ψάχνεις. Το αίτημα δρομολογείται ιδιωτικά και η κατάστασή του παραμένει στον λογαριασμό σου.</p></div>
       <CustomerHowItWorks><p>Αν το αίτημα συνδέεται με συγκεκριμένο προϊόν, εφαρμόζεται η δίκαιη ανάθεση όπου είναι διαθέσιμη. Αν έχεις επιλέξει συγκεκριμένο κατάστημα, το αίτημα παραμένει ιδιωτικό προς αυτό. Τα γενικά αιτήματα περνούν από την ομάδα ΚΟΝΤΑ ΜΟΥ για σωστή δρομολόγηση.</p></CustomerHowItWorks>
     </section>
-    <AskLocalClient csrfToken={principal.csrfToken} initial={await customerAskLocalBrowserRequests(principal)} context={context} />
+    <AskLocalCustomerActions csrfToken={principal.csrfToken} initial={requests} />
+    <AskLocalClient csrfToken={principal.csrfToken} initial={requests} context={context} />
   </main>;
 }
