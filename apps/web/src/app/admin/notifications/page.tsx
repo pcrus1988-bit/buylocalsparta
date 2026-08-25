@@ -31,7 +31,7 @@ export default async function Page() {
       { label: "Agreements χωρίς policy", value: data.metrics.agreementsWithoutPolicy, tone: data.metrics.agreementsWithoutPolicy ? "attention" : "positive" }
     ]} />
 
-    <AdminVendorPriceHistory />
+    <AdminVendorPriceHistory actorUserId={principal.userId} />
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Live SLA queue" title="Παραγγελίες που απαιτούν παρακολούθηση" note="Η υπενθύμιση σταματά αυτόματα όταν αλλάξει η πραγματική κατάσταση του fulfilment." />
