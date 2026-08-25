@@ -22,7 +22,12 @@ assert(vercel.framework === "nextjs", "Vercel framework must be Next.js");
 assert(vercel.installCommand === "npm ci --ignore-scripts", "source-controlled Vercel install must consume the committed root lockfile");
 assert(vercel.buildCommand === "npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build", "Vercel build must reassert the locked graph before building the web workspace");
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
-assert(!("crons" in vercel), "long-running BLS workers must not be disguised as Vercel cron jobs");
+const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
+assert(
+  vercelCrons.every((cron: Record<string, unknown>) => cron.path === "/api/cron/delivery-dispatch" && cron.schedule === "* * * * *"),
+  "Vercel cron jobs are limited to the bounded delivery dispatch endpoint; long-running BLS workers must remain isolated",
+);
+assert(vercelCrons.filter((cron: Record<string, unknown>) => cron.path === "/api/cron/delivery-dispatch").length <= 1, "delivery dispatch cron must not be duplicated");
 assert(
   web.scripts?.prebuild?.includes("verify-production-schema-head.ts --vercel-production-only"),
   "production Vercel prebuild must enforce the repository/production migration head gate",
@@ -77,6 +82,6 @@ for (const path of [
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, web build and six isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery cron, web build and six isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
