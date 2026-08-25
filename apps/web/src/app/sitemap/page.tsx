@@ -9,7 +9,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../lib/seo-entity-overrides";
-import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../lib/seo-entity-policy";
+import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../lib/seo-entity-policy";
 import { researchVendorIndexEligibility } from "../../lib/seo-visibility-policy";
 import { getPublicCmsPages } from "../../lib/public-cms";
 import { getAvailableStorefrontCategories } from "../../lib/available-catalog-taxonomy";
@@ -17,6 +17,7 @@ import { getAvailableStorefrontCategories } from "../../lib/available-catalog-ta
 export const dynamic = "force-dynamic";
 const XML_SITEMAP_PATH = "/sitemap.xml";
 const ROBOTS_PATH = "/robots.txt";
+const PUBLIC_VENDOR_PROFILE_PREFIX = "/vendor/";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/sitemap", {
@@ -61,9 +62,10 @@ async function governedVendorGroups(): Promise<readonly VendorGroup[]> {
     });
     if (!control.sitemapAllowed) return [];
     const taxonomy = vendor.taxonomies[0];
+    const defaultVendorPath = `${PUBLIC_VENDOR_PROFILE_PREFIX}${encodeURIComponent(vendor.id)}`;
     return [{
       vendor,
-      href: absoluteSeoCanonical(settings.canonicalOrigin, reference, override),
+      href: new URL(override?.canonicalPath ?? defaultVendorPath, `${settings.canonicalOrigin}/`).toString(),
       groupSlug: taxonomy?.categorySlug ?? "other",
       groupLabel: taxonomy?.categoryLabel ?? "Άλλες τοπικές επιχειρήσεις"
     }];
