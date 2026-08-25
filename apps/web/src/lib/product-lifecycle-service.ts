@@ -43,7 +43,7 @@ async function writeAudit(client: any, principal: SessionPrincipal, action: stri
   `, [randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 20)}`, actor, principal.userId, principal.roles[0] ?? "admin", action, entityId, reason, JSON.stringify(beforeState ?? null), JSON.stringify(afterState ?? null)]);
 }
 
-export async function adminProductLifecycleState(principal: SessionPrincipal, submissionId: string) {
+export async function adminProductLifecycleState(_principal: SessionPrincipal, submissionId: string) {
   const client = await pool().connect();
   try {
     const row = await resolveSubmission(client, submissionId, false);
@@ -86,7 +86,7 @@ export async function archiveAdminProduct(principal: SessionPrincipal, submissio
     await client.query("COMMIT");
     return { ok: true, status: "archived" };
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK\");
     throw error;
   } finally {
     client.release();
@@ -128,21 +128,21 @@ export async function permanentlyDeleteAdminProduct(principal: SessionPrincipal,
     if (row.offer_uuid) {
       const history = await client.query(`
         SELECT
-          (SELECT count(*)::int FROM public.order_lines WHERE offer_id=$1::uuid) AS order_lines,
-          (SELECT count(*)::int FROM public.return_replacements WHERE replacement_offer_id=$1::uuid OR original_offer_id=$1::uuid) AS return_replacements,
-          (SELECT count(*)::int FROM public.order_substitution_requests WHERE original_offer_id=$1::uuid OR replacement_offer_id=$1::uuid) AS substitutions,
-          (SELECT count(*)::int FROM public.counteroffer_requests WHERE offer_id=$1::uuid) AS counteroffers
+          (SELECT count(*)::int FROM public.order_lines WHERE assigned_offer_id=$1::uuid) AS order_lines,
+          (SELECT count(*)::int FROM public.return_replacements WHERE offer_id=$1::uuid) AS return_replacements,
+          (SELECT count(*)::int FROM public.order_substitution_requests WHERE proposed_offer_id=$1::uuid) AS substitutions,
+          (SELECT count(*)::int FROM public.counteroffer_requests WHERE assigned_offer_id=$1::uuid) AS counteroffers
       `, [row.offer_uuid]);
       const h = history.rows[0] ?? {};
       const protectedCount = Number(h.order_lines ?? 0) + Number(h.return_replacements ?? 0) + Number(h.substitutions ?? 0) + Number(h.counteroffers ?? 0);
       if (protectedCount > 0) throw new Error("This product has order/return/offer history and cannot be permanently deleted. Archive it instead.");
 
-      await client.query(`DELETE FROM public.cart_items WHERE offer_id=$1::uuid`, [row.offer_uuid]);
+      await client.query(`DELETE FROM public.cart_items WHERE assigned_offer_id=$1::uuid`, [row.offer_uuid]);
       await client.query(`DELETE FROM public.stock_reservations WHERE offer_id=$1::uuid`, [row.offer_uuid]);
       await client.query(`DELETE FROM public.inventory_movements WHERE offer_id=$1::uuid`, [row.offer_uuid]);
-      await client.query(`DELETE FROM public.fairness_assignment_events WHERE offer_id=$1::uuid`, [row.offer_uuid]);
+      await client.query(`DELETE FROM public.fairness_assignment_events WHERE selected_offer_id=$1::uuid`, [row.offer_uuid]);
       await client.query(`DELETE FROM public.sticky_assignments WHERE offer_id=$1::uuid`, [row.offer_uuid]);
-      await client.query(`DELETE FROM public.product_tax_profiles WHERE offer_id=$1::uuid`, [row.offer_uuid]);
+      await client.query(`DELETE FROM public.product_tax_profiles WHERE vendor_offer_id=$1::uuid`, [row.offer_uuid]);
       await client.query(`DELETE FROM public.inventory_balances WHERE offer_id=$1::uuid`, [row.offer_uuid]);
       await client.query(`DELETE FROM public.vendor_product_activation_requests WHERE offer_id=$1::uuid`, [row.offer_uuid]);
       await client.query(`DELETE FROM public.vendor_offers WHERE id=$1::uuid`, [row.offer_uuid]);
