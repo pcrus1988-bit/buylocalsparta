@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const result = await saveCanonicalToVendorShop(principal, {
       canonicalVariantId: typeof body.canonicalVariantId === "string" ? body.canonicalVariantId : "",
+      gtin: typeof body.gtin === "string" ? body.gtin : undefined,
       vendorSku: typeof body.vendorSku === "string" ? body.vendorSku : undefined,
       customerPriceMinor: Number(body.customerPriceMinor),
       onHand: Number(body.onHand),
