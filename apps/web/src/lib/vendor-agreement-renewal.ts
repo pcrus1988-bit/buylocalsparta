@@ -139,7 +139,7 @@ export async function activateOrScheduleCommercialAgreement(
   const agreementId = text(agreementIdRaw, "agreementId");
   const pool = getProductionPostgresRuntime().nativePool;
   const lookup = await pool.query(`
-    SELECT id, vendor_id, status, starts_at, ends_at
+    SELECT id, vendor_id, status, starts_at, ends_at, supersedes_agreement_id
     FROM vendor_commercial_agreements
     WHERE public_id=$1 OR id::text=$1
   `, [agreementId]);
@@ -189,5 +189,24 @@ export async function activateOrScheduleCommercialAgreement(
   }
 
   await activateCommercialAgreement(principal, { agreementId });
+
+  // Generic agreement activation correctly restores the vendor's operational state, but
+  // only renewal successors know that a previous agreement-expiry restriction also saved
+  // the shop's public visibility intent. Restore that intent immediately for a due renewal.
+  if (row.supersedes_agreement_id) {
+    await pool.query(`
+      UPDATE vendor_businesses
+      SET public_directory_visible=COALESCE(agreement_expiry_previous_public_directory_visible,false),
+          public_directory_visibility_updated_at=now(),
+          public_directory_visibility_reason=agreement_expiry_previous_visibility_reason,
+          agreement_expiry_restricted_at=NULL,
+          agreement_expiry_previous_public_directory_visible=NULL,
+          agreement_expiry_previous_visibility_reason=NULL,
+          updated_at=now()
+      WHERE id=$1
+        AND status::text='active'
+        AND agreement_expiry_restricted_at IS NOT NULL
+    `, [row.vendor_id]);
+  }
   return { scheduled: false };
 }
