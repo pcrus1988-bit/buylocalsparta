@@ -1,39 +1,13 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { quickAddActorHash, quickAddLookupFingerprint } from "./quickadd-demand-fingerprint";
 
 const DAY = 24 * 60 * 60 * 1000;
 const RETENTION_DAYS = 180;
 
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizedLookup(input: { gtin?: string; q?: string }): { value: string; kind: "identifier" | "text" } | undefined {
-  const rawGtin = clean(input.gtin);
-  const digits = rawGtin.replace(/\D/g, "");
-  if (digits.length >= 6) return { value: digits.slice(0, 32), kind: "identifier" };
-  const q = (clean(input.q) || rawGtin)
-    .normalize("NFKC")
-    .toLocaleLowerCase("el")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 160);
-  if (!q) return undefined;
-  return { value: q, kind: /^\d+$/.test(q) ? "identifier" : "text" };
-}
-
-function digest(namespace: string, value: string): string {
-  return createHash("sha256").update(`${namespace}|${value}`).digest("hex");
-}
-
-export function quickAddLookupFingerprint(input: { gtin?: string; q?: string }): Readonly<{ fingerprint: string; kind: "identifier" | "text" }> | undefined {
-  const normalized = normalizedLookup(input);
-  if (!normalized) return undefined;
-  return {
-    fingerprint: digest("bls-quickadd-demand-v1", normalized.value),
-    kind: normalized.kind
-  };
 }
 
 export async function recordQuickAddDemandSignal(
@@ -53,7 +27,7 @@ export async function recordQuickAddDemandSignal(
   const shopActor = clean(principal.vendorId) || clean(input.vendorId);
   if (!lookup || !shopActor) return;
 
-  const actorHash = digest("bls-quickadd-actor-v1", shopActor);
+  const actorHash = quickAddActorHash(shopActor);
   const now = new Date();
   const day = now.toISOString().slice(0, 10);
   const eventName = input.matched ? "quickadd.lookup_resolved" : "quickadd.lookup_missed";
