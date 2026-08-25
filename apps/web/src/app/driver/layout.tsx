@@ -15,6 +15,6 @@ export const metadata: Metadata = {
 export default function DriverLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <>
     {children}
-    <ScopedPwaInstallClient appName="Driver" serviceWorkerPath="/driver-sw.js" scope="/driver/" />
+    <ScopedPwaInstallClient appName="Driver" serviceWorkerPath="/driver-sw.js" scope="/driver" />
   </>;
 }
