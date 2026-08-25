@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
-import { getCatalogCards } from "../../lib/catalog-view";
+import { getCatalogCards, type CatalogCard } from "../../lib/catalog-view";
 import { getAvailableCatalogTaxonomy } from "../../lib/available-catalog-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
@@ -10,12 +10,14 @@ import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { CatalogSearchInput } from "../../components/CatalogSearchInput";
 import { storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
+import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../../lib/local-commerce-proof";
 
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
+type ShopCard = CatalogCard & Readonly<{ previewImageSrc?: string; localProof?: LocalCommerceProof }>;
 
 function valueOf(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -57,13 +59,14 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const facets = taxonomy.facets;
   const availableCategories = taxonomy.categories;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
-  let products = readOnlyCrawler
+  let products: ShopCard[] = readOnlyCrawler
     ? [...await getCrawlerCatalogCards("23100", taxonomyQuery, category, { ...filters, fit })]
     : [...await getCatalogCards(visitorKey, "23100", query, category, filters)];
+  if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
   const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
   if (availability === "available" || searchIntent.availability === "in_stock") products = products.filter((product) => product.available);
-  if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.available);
+  if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (searchIntent.minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= searchIntent.minPriceMinor!);
   if (searchIntent.maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= searchIntent.maxPriceMinor!);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
@@ -91,7 +94,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.availability === "in_stock" ? "Σε απόθεμα" : undefined,
-    searchIntent.availability === "pickup_today" ? "Παραλαβή σήμερα · με επιβεβαίωση καταστήματος" : undefined
+    searchIntent.availability === "pickup_today" ? "Παραλαβή σήμερα · μόνο με σημερινή επιβεβαίωση αποθέματος" : undefined
   ].filter((label): label is string => Boolean(label));
 
   return (
