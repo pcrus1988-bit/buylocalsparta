@@ -9,7 +9,13 @@ export async function GET(request: Request) {
     const gtin = url.searchParams.get("gtin") ?? undefined;
     const q = url.searchParams.get("q") ?? undefined;
     const result = await quickAddLookup(principal, { gtin, q, limit: 6 });
-    const best = result.matches[0];
+    const matches = result.matches.map((match) => ({
+      ...match,
+      imageUrl: match.imageUrl?.startsWith("https://")
+        ? `/api/daily/quickadd/image/${encodeURIComponent(match.canonicalVariantId)}`
+        : match.imageUrl
+    }));
+    const best = matches[0];
     await recordQuickAddDemandSignal(principal, {
       source: "daily",
       gtin,
@@ -18,7 +24,7 @@ export async function GET(request: Request) {
       canonicalVariantId: best?.canonicalVariantId,
       categoryCode: best?.categoryCode
     });
-    return Response.json(result);
+    return Response.json({ ...result, matches });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "quickadd_lookup_failed" }, { status: 400 });
   }
