@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AdminNavIcon, type AdminNavIconName } from "./AdminNavIcon";
 
 export type AdminDashboardWidgetSize = "small" | "medium" | "wide";
 export type AdminDashboardWidgetTone = "default" | "positive" | "attention" | "critical";
+export type AdminDashboardWidgetKind = "category" | "route" | "metric";
 
 export type AdminDashboardWidget = Readonly<{
   id: string;
@@ -12,6 +14,8 @@ export type AdminDashboardWidget = Readonly<{
   eyebrow: string;
   href: string;
   source: string;
+  kind?: AdminDashboardWidgetKind;
+  icon?: AdminNavIconName;
   value?: string | number;
   detail?: string;
   tone?: AdminDashboardWidgetTone;
@@ -66,6 +70,10 @@ function writeStoredState(state: StoredDashboardState) {
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* browser storage can be unavailable */ }
 }
 
+function searchableWidgetText(widget: AdminDashboardWidget) {
+  return `${widget.label} ${widget.eyebrow} ${widget.source} ${widget.detail ?? ""} ${widget.href}`.toLocaleLowerCase("el");
+}
+
 export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyArray<AdminDashboardWidget> }>) {
   const initial = useMemo(() => defaultLayout(widgets), [widgets]);
   const [layout, setLayout] = useState<LayoutEntry[]>(initial);
@@ -73,6 +81,7 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
   const [activeViewId, setActiveViewId] = useState<string>("default");
   const [customizing, setCustomizing] = useState(false);
   const [viewName, setViewName] = useState("");
+  const [widgetQuery, setWidgetQuery] = useState("");
   const [savedNotice, setSavedNotice] = useState(false);
 
   useEffect(() => {
@@ -90,6 +99,22 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
   const widgetById = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget])), [widgets]);
   const visibleEntries = layout.filter((entry) => entry.visible && widgetById.has(entry.id));
   const hiddenEntries = layout.filter((entry) => !entry.visible && widgetById.has(entry.id));
+  const normalizedWidgetQuery = widgetQuery.trim().toLocaleLowerCase("el");
+  const filteredHiddenEntries = hiddenEntries.filter((entry) => {
+    if (!normalizedWidgetQuery) return true;
+    const widget = widgetById.get(entry.id);
+    return widget ? searchableWidgetText(widget).includes(normalizedWidgetQuery) : false;
+  });
+  const hiddenGroups = useMemo(() => {
+    const groups = new Map<string, LayoutEntry[]>();
+    for (const entry of filteredHiddenEntries) {
+      const widget = widgetById.get(entry.id);
+      if (!widget) continue;
+      const key = widget.kind === "route" ? widget.source : widget.kind === "category" ? "Κατηγορίες" : "Live widgets";
+      groups.set(key, [...(groups.get(key) ?? []), entry]);
+    }
+    return [...groups.entries()];
+  }, [filteredHiddenEntries, widgetById]);
 
   function updateEntry(id: string, updater: (entry: LayoutEntry) => LayoutEntry) {
     setSavedNotice(false);
@@ -184,7 +209,7 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
     </div>
 
     {customizing ? <div className="admin-dashboard-editor">
-      <div className="admin-dashboard-editor-copy"><strong>Διαμόρφωση dashboard</strong><span>Διάλεξε περιεχόμενο, μέγεθος και σειρά. Οι αλλαγές γίνονται ορατές αμέσως, αλλά αποθηκεύονται μόνο όταν το ζητήσεις.</span></div>
+      <div className="admin-dashboard-editor-copy"><strong>Διαμόρφωση dashboard</strong><span>Διάλεξε κατηγορίες, οποιαδήποτε διαθέσιμη υποσελίδα ή live δεδομένα. Ρύθμισε μέγεθος και σειρά και αποθήκευσε διαφορετικές προβολές.</span></div>
       <div className="admin-dashboard-save-controls">
         <input value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder={activeViewId === "default" ? "Όνομα νέας προβολής" : "Νέο όνομα (προαιρετικό)"} aria-label="Όνομα προβολής" />
         <button type="button" onClick={saveCurrentView}>{activeViewId === "default" ? "Αποθήκευση προβολής" : "Ενημέρωση προβολής"}</button>
@@ -193,28 +218,33 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
         {activeViewId !== "default" ? <button className="is-danger" type="button" onClick={deleteActiveView}>Διαγραφή</button> : null}
       </div>
       {savedNotice ? <span className="admin-dashboard-saved-notice">Η προβολή αποθηκεύτηκε σε αυτή τη συσκευή.</span> : null}
-      {hiddenEntries.length ? <div className="admin-dashboard-widget-library"><span>Διαθέσιμα widgets</span><div>{hiddenEntries.map((entry) => {
-        const widget = widgetById.get(entry.id)!;
-        return <button type="button" key={entry.id} onClick={() => updateEntry(entry.id, (current) => ({ ...current, visible: true }))}><b>+</b>{widget.label}<small>{widget.source}</small></button>;
-      })}</div></div> : null}
+      {hiddenEntries.length ? <div className="admin-dashboard-widget-library">
+        <div className="admin-dashboard-widget-library-head"><span>Διαθέσιμα widgets <b>{filteredHiddenEntries.length}/{hiddenEntries.length}</b></span><input type="search" value={widgetQuery} onChange={(event) => setWidgetQuery(event.target.value)} placeholder="Αναζήτηση widget ή υποσελίδας" aria-label="Αναζήτηση διαθέσιμων widgets" /></div>
+        {hiddenGroups.length ? hiddenGroups.map(([group, entries]) => <div className="admin-dashboard-widget-library-group" key={group}><strong>{group}</strong><div>{entries.map((entry) => {
+          const widget = widgetById.get(entry.id)!;
+          return <button type="button" key={entry.id} onClick={() => updateEntry(entry.id, (current) => ({ ...current, visible: true }))}><b>+</b><span>{widget.label}<small>{widget.kind === "route" ? widget.href : widget.source}</small></span></button>;
+        })}</div></div>) : <div className="admin-dashboard-widget-library-empty">Δεν βρέθηκε widget με αυτόν τον όρο.</div>}
+      </div> : null}
     </div> : null}
 
     <div className={`admin-dashboard-canvas${customizing ? " is-customizing" : ""}`}>
       {visibleEntries.map((entry, index) => {
         const widget = widgetById.get(entry.id)!;
-        return <article className={`admin-dashboard-widget size-${entry.size} tone-${widget.tone ?? "default"}`} key={entry.id}>
+        const kind = widget.kind ?? "metric";
+        return <article className={`admin-dashboard-widget size-${entry.size} tone-${widget.tone ?? "default"} kind-${kind}`} key={entry.id}>
           {customizing ? <div className="admin-dashboard-widget-controls" aria-label={`Ρυθμίσεις ${widget.label}`}>
             <button type="button" onClick={() => move(entry.id, -1)} disabled={index === 0} aria-label="Μετακίνηση αριστερά">←</button>
             <button type="button" onClick={() => move(entry.id, 1)} disabled={index === visibleEntries.length - 1} aria-label="Μετακίνηση δεξιά">→</button>
             {SIZE_ORDER.map((size) => <button type="button" className={entry.size === size ? "is-active" : undefined} onClick={() => updateEntry(entry.id, (current) => ({ ...current, size }))} key={size}>{size === "small" ? "S" : size === "medium" ? "M" : "L"}</button>)}
             <button type="button" onClick={() => updateEntry(entry.id, (current) => ({ ...current, visible: false }))} aria-label="Απόκρυψη widget">×</button>
           </div> : null}
-          <div className="admin-dashboard-widget-head">
-            <div><span>{widget.eyebrow}</span><h2>{widget.label}</h2></div>
-            <Link href={widget.href} title={`Άνοιγμα ${widget.source}`}><span>{widget.source}</span><i aria-hidden="true">↗</i></Link>
+          <div className={`admin-dashboard-widget-head${widget.icon ? " has-icon" : ""}`}>
+            {widget.icon ? <span className="admin-dashboard-widget-icon" aria-hidden="true"><AdminNavIcon name={widget.icon} /></span> : null}
+            <div className="admin-dashboard-widget-title"><span>{widget.eyebrow}</span><h2>{widget.label}</h2>{widget.detail && (kind === "category" || kind === "route") ? <p>{widget.detail}</p> : null}</div>
+            <Link href={widget.href} title={`Άνοιγμα ${widget.source}`}><span>{kind === "category" ? "Άνοιγμα" : widget.source}</span><i aria-hidden="true">↗</i></Link>
           </div>
           {widget.value !== undefined ? <div className="admin-dashboard-widget-value">{widget.value}</div> : null}
-          {widget.detail ? <p className="admin-dashboard-widget-detail">{widget.detail}</p> : null}
+          {widget.detail && kind === "metric" ? <p className="admin-dashboard-widget-detail">{widget.detail}</p> : null}
           {widget.stats?.length ? <div className="admin-dashboard-widget-stats">{widget.stats.map((stat) => <div key={stat.label}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}</div> : null}
           {widget.items?.length ? <div className="admin-dashboard-widget-list">{widget.items.map((item, itemIndex) => {
             const content = <><span><strong>{item.label}</strong>{item.detail ? <small>{item.detail}</small> : null}</span>{item.value !== undefined ? <b>{item.value}</b> : null}</>;
