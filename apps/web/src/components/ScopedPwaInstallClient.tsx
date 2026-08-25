@@ -7,7 +7,8 @@ type InstallPromptEvent = Event & Readonly<{
   userChoice: Promise<Readonly<{ outcome: "accepted" | "dismissed"; platform: string }>>;
 }>;
 
-type InstallMode = "hidden" | "prompt" | "ios" | "instructions";
+type InstallMode = "hidden" | "ready" | "prompt" | "instructions";
+type Platform = "ios" | "other";
 
 function standalone(): boolean {
   const nav = navigator as Navigator & Readonly<{ standalone?: boolean }>;
@@ -30,6 +31,7 @@ export function ScopedPwaInstallClient({
   placement?: "default" | "daily";
 }) {
   const [mode, setMode] = useState<InstallMode>("hidden");
+  const [platform, setPlatform] = useState<Platform>("other");
   const [promptEvent, setPromptEvent] = useState<InstallPromptEvent>();
 
   useEffect(() => {
@@ -39,6 +41,10 @@ export function ScopedPwaInstallClient({
       });
     }
     if (standalone()) return;
+
+    const isIos = iosDevice();
+    setPlatform(isIos ? "ios" : "other");
+    setMode("ready");
 
     const beforeInstall = (event: Event) => {
       event.preventDefault();
@@ -52,7 +58,6 @@ export function ScopedPwaInstallClient({
 
     window.addEventListener("beforeinstallprompt", beforeInstall);
     window.addEventListener("appinstalled", installed);
-    if (iosDevice()) setMode("ios");
     return () => {
       window.removeEventListener("beforeinstallprompt", beforeInstall);
       window.removeEventListener("appinstalled", installed);
@@ -60,15 +65,14 @@ export function ScopedPwaInstallClient({
   }, [scope, serviceWorkerPath]);
 
   async function install() {
-    if (mode === "ios") {
+    if (!promptEvent) {
       setMode("instructions");
       return;
     }
-    if (!promptEvent) return;
     await promptEvent.prompt();
     const choice = await promptEvent.userChoice;
     if (choice.outcome === "accepted") setMode("hidden");
-    else setMode("prompt");
+    else setMode("ready");
     setPromptEvent(undefined);
   }
 
@@ -80,28 +84,33 @@ export function ScopedPwaInstallClient({
       aria-label={`Εγκατάσταση ${appName}`}
       style={{
         position: "fixed",
-        zIndex: 80,
+        zIndex: 90,
         right: 14,
         bottom,
-        width: mode === "instructions" ? "min(330px,calc(100vw - 28px))" : "auto",
-        padding: mode === "instructions" ? 14 : 0,
+        width: mode === "instructions" ? "min(360px,calc(100vw - 28px))" : "auto",
+        padding: mode === "instructions" ? 16 : 0,
         border: mode === "instructions" ? "1px solid rgba(23,25,20,.12)" : 0,
-        borderRadius: 16,
+        borderRadius: 18,
         background: mode === "instructions" ? "#fff" : "transparent",
-        boxShadow: mode === "instructions" ? "0 14px 40px rgba(23,25,20,.14)" : "none"
+        boxShadow: mode === "instructions" ? "0 18px 48px rgba(23,25,20,.18)" : "none"
       }}
     >
       {mode === "instructions" ? (
         <div style={{ display: "grid", gap: 10 }}>
-          <strong>{appName} στην Αρχική οθόνη</strong>
-          <span style={{ fontSize: 13, lineHeight: 1.45, opacity: .72 }}>
-            Στο Safari πάτησε Κοινή χρήση και μετά «Προσθήκη στην οθόνη Αφετηρίας». Η εφαρμογή ανοίγει αυτόνομα, χωρίς να αποθηκεύει παραγγελίες ή στοιχεία πελατών offline.
+          <strong>Download App · {appName}</strong>
+          <span style={{ fontSize: 13, lineHeight: 1.5, opacity: .76 }}>
+            {platform === "ios"
+              ? "Στο Safari πάτησε Κοινή χρήση και μετά «Προσθήκη στην οθόνη Αφετηρίας». Η εφαρμογή θα ανοίγει αυτόνομα από το εικονίδιό της."
+              : "Αν δεν εμφανίστηκε αυτόματα παράθυρο εγκατάστασης, άνοιξε το μενού του Chrome ή Edge και επίλεξε «Εγκατάσταση εφαρμογής» / «Add to Home screen»."}
           </span>
-          <button type="button" onClick={() => setMode("ios")} style={secondaryButton}>Κλείσιμο</button>
+          <span style={{ fontSize: 12, lineHeight: 1.45, opacity: .62 }}>
+            Για λόγους ασφάλειας, παραγγελίες, διευθύνσεις, οικονομικά στοιχεία και στοιχεία πελατών δεν αποθηκεύονται offline.
+          </span>
+          <button type="button" onClick={() => setMode(promptEvent ? "prompt" : "ready")} style={secondaryButton}>Κλείσιμο</button>
         </div>
       ) : (
         <button type="button" onClick={() => void install()} style={installButton}>
-          + Εγκατάσταση {appName}
+          <span aria-hidden="true">↓</span> Download App · {appName}
         </button>
       )}
     </aside>
@@ -109,24 +118,25 @@ export function ScopedPwaInstallClient({
 }
 
 const installButton = {
-  minHeight: 44,
-  border: "1px solid rgba(23,25,20,.14)",
+  minHeight: 52,
+  border: "1px solid rgba(255,255,255,.18)",
   borderRadius: 999,
-  padding: "9px 14px",
+  padding: "12px 18px",
   background: "#171914",
   color: "#fff",
   font: "inherit",
-  fontSize: 12,
+  fontSize: 14,
   fontWeight: 900,
-  boxShadow: "0 8px 24px rgba(23,25,20,.16)",
+  letterSpacing: ".01em",
+  boxShadow: "0 12px 34px rgba(23,25,20,.24)",
   cursor: "pointer"
 } as const;
 
 const secondaryButton = {
-  minHeight: 38,
+  minHeight: 40,
   border: "1px solid rgba(23,25,20,.14)",
   borderRadius: 10,
-  padding: "7px 11px",
+  padding: "8px 12px",
   background: "#f5f2eb",
   color: "#171914",
   font: "inherit",
