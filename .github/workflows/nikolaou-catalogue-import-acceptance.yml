@@ -20,10 +20,16 @@ jobs:
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler
           --allowImportingTsExtensions --skipLibCheck
           scripts/catalogue/product-import-intelligence.ts scripts/catalogue/product-import-intelligence.test.ts
+          scripts/catalogue/product-import-normalization.ts scripts/catalogue/product-import-normalization.test.ts
           scripts/catalogue/nikolaou-import-lib.ts scripts/import-nikolaou-master.ts scripts/promote-nikolaou-staged-payload.ts
-          scripts/verify-catalog-source-import-payloads.ts scripts/verify-admin-catalogue-import-upload.ts scripts/verify-nikolaou-staged-promotion.ts
+          scripts/verify-catalog-source-import-payloads.ts scripts/verify-admin-catalogue-import-upload.ts
+          scripts/verify-nikolaou-staged-promotion.ts scripts/verify-ai-product-import-lifecycle.ts
       - name: Run generic product intelligence tests
         run: node --experimental-strip-types --test scripts/catalogue/product-import-intelligence.test.ts
+      - name: Run product normalization tests
+        run: node --experimental-strip-types --test scripts/catalogue/product-import-normalization.test.ts
+      - name: Verify AI product import lifecycle
+        run: node --experimental-strip-types scripts/verify-ai-product-import-lifecycle.ts
       - name: Run Nikolaou parser and governance tests
         run: node --experimental-strip-types --test scripts/catalogue/nikolaou-import-lib.test.ts
       - name: Verify private source import transport

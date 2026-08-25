@@ -24,6 +24,7 @@ export const SITE_LINKS = {
   delivery: { label: "Παράδοση & παραλαβή", href: "/delivery-pickup", description: "Τοπική παραλαβή, αποστολή και επιλογές fulfilment." },
   payments: { label: "Πληρωμές & ασφάλεια", href: "/payments-security", description: "Πώς προστατεύεται η ενιαία συναλλαγή του marketplace." },
   returns: { label: "Επιστροφές & refunds", href: "/returns-refunds", description: "Επιστροφές, επισκευές, αντικαταστάσεις και επιστροφές χρημάτων." },
+  terms: { label: "Όροι Χρήσης", href: "/terms", description: "Οι βασικοί κανόνες για λογαριασμούς, αγορές, υπηρεσίες και χρήση της πλατφόρμας." },
   privacy: { label: "Privacy controls", href: "/privacy-controls", description: "Διαχείριση ιδιωτικότητας, προσωποποίησης και δικαιωμάτων δεδομένων." },
   privacyNotice: { label: "Πολιτική Απορρήτου", href: "/privacy", description: "Πώς χρησιμοποιούνται, διαβιβάζονται, προστατεύονται και διατηρούνται προσωπικά δεδομένα." },
   cookies: { label: "Πολιτική Cookies", href: "/cookies", description: "Το τρέχον cookie registry, οι κατηγορίες συγκατάθεσης και ο τρόπος ανάκλησης επιλογής." },
@@ -74,14 +75,14 @@ export const FOOTER_NAVIGATION = [
   { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "ΚΟΝΤΑ ΜΟΥ Sparta", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] },
-  { title: "Ιδιωτικότητα & πρόσβαση", links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
+  { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
 ] as const;
 
 export const HUMAN_SITEMAP_SECTIONS = [
   { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
   { title: "Άνθρωποι & συμβουλή", links: [SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
-  { title: "Ιδιωτικότητα & πρόσβαση", links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
+  { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
   { title: "Κανόνες & υποστήριξη", links: [SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.about] },
   { title: "Για επιχειρήσεις", links: [SITE_LINKS.join, SITE_LINKS.joinRequirements, SITE_LINKS.vendorApply] }
 ] as const;
@@ -102,6 +103,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/confirm-email-change",
   "/forgot-password",
   "/reset-password",
+  "/terms",
   "/join/apply",
   "/account",
   "/account/ask-local",

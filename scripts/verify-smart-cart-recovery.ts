@@ -38,8 +38,10 @@ for (const contract of [
   "https://kontamou.site/cart"
 ]) if (!service.includes(contract)) failures.push(`Recovery scanner is missing: ${contract}`);
 
+const schemaMatch = runtime.match(/EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)/);
+const schemaVersion = Number(schemaMatch?.[1] ?? 0);
+if (schemaVersion < 143) failures.push(`Runtime schema ${schemaVersion || "missing"} predates smart cart recovery migration 143`);
 for (const contract of [
-  "EXPECTED_SCHEMA_VERSION = 143",
   "PostgresCartRecoveryService",
   "readonly cartRecovery",
   "this.cartRecovery = new PostgresCartRecoveryService",
