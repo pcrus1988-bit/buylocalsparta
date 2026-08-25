@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
+import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
 import { VendorPriceManager } from "../../../components/VendorPriceManager";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
@@ -39,8 +40,10 @@ export default async function VendorCatalogPage() {
         <p><strong>Απόθεμα ασφαλείας:</strong> τεμάχια που θέλεις να μένουν εκτός online πώλησης για να μειώνεται ο κίνδυνος overselling.</p>
         <p><strong>Δεσμευμένα:</strong> τεμάχια που έχουν ήδη κρατηθεί προσωρινά για ενεργές παραγγελίες.</p>
         <p><strong>Διαθέσιμα προς πώληση:</strong> το ποσό που μπορεί πραγματικά να προσφερθεί online μετά τις δεσμεύσεις και το απόθεμα ασφαλείας.</p>
+        <p><strong>Τοπική παράδοση:</strong> είναι ενεργή από προεπιλογή. Μπορείς να ορίσεις συγκεκριμένο προϊόν ως «μόνο παραλαβή», χωρίς να επηρεάζεται η διαθεσιμότητα των υπόλοιπων προϊόντων σου.</p>
         <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή stock· απλώς σταματά προσωρινά τη δημόσια πώληση.</p>
       </WorkspaceHowItWorks>
+      <VendorDeliveryEligibilityPanel csrfToken={workspace.csrfToken} />
       <VendorPriceManager csrfToken={workspace.csrfToken} products={workspace.catalogProducts} />
     </section>
 

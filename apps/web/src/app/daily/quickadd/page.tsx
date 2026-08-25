@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { QuickAddDeliveryPreference } from "../../../components/QuickAddDeliveryPreference";
 import { QuickAddWorkbench } from "../../../components/QuickAddWorkbench";
 import { VendorDailyBottomNav } from "../../../components/VendorDailyBottomNav";
 import { getDailySession } from "../../../lib/daily-session";
@@ -10,6 +11,7 @@ export default async function Page() {
   const principal = await getDailySession();
   if (!principal) redirect("/daily/login");
   return <main>
+    <QuickAddDeliveryPreference />
     <QuickAddWorkbench csrfToken={principal.csrfToken} />
     <VendorDailyBottomNav active="quickadd" />
   </main>;

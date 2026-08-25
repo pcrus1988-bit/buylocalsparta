@@ -1,6 +1,15 @@
 import { requireDailySession } from "../../../../lib/daily-session";
 import { quickAddLookup, saveCanonicalToVendorShop } from "../../../../lib/quickadd-service";
 import { recordQuickAddDemandSignal } from "../../../../lib/quickadd-demand-signal";
+import { setVendorProductDeliveryEligibility } from "../../../../lib/vendor-delivery-eligibility-service";
+
+function quickAddDeliveryOverride(request: Request): boolean | undefined {
+  const cookie = request.headers.get("cookie") ?? "";
+  const value = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("bls_quickadd_delivery="))?.split("=")[1];
+  if (value === "delivery") return true;
+  if (value === "pickup") return false;
+  return undefined;
+}
 
 export async function GET(request: Request) {
   try {
@@ -44,7 +53,11 @@ export async function POST(request: Request) {
       visible: body.visible !== false,
       adviceAvailable: body.adviceAvailable !== false
     });
-    return Response.json(result);
+    const deliveryEligible = quickAddDeliveryOverride(request);
+    if (deliveryEligible !== undefined) {
+      await setVendorProductDeliveryEligibility(principal, { offerId: result.offerId, deliveryEligible, source: "quickadd" });
+    }
+    return Response.json({ ...result, deliveryEligible });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "quickadd_save_failed" }, { status: 400 });
   }
