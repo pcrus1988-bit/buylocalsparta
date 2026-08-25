@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const normalization = read("scripts/catalogue/product-import-normalization.ts");
-const migration = read("db/migrations/0127_ai_product_import_persistence.sql");
+const migration = read("db/migrations/0145_ai_product_import_persistence.sql");
 const service = read("apps/web/src/lib/admin-ai-product-import.ts");
 const upload = read("apps/web/src/lib/ai-product-upload.ts");
 const stageRoute = read("apps/web/src/app/api/admin/catalogue-intake/stage/route.ts");
@@ -23,13 +23,13 @@ for (const contract of [
 ]) expect(normalization.includes(contract), `Normalization engine is missing contract: ${contract}`);
 
 for (const table of ["catalog_import_mapping_profiles", "catalog_import_runs", "catalog_import_row_decisions"]) {
-  expect(migration.includes(`CREATE TABLE public.${table}`), `Migration 0127 must create ${table}`);
+  expect(migration.includes(`CREATE TABLE public.${table}`), `Migration 0145 must create ${table}`);
   expect(migration.includes(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`), `${table} must have RLS enabled`);
   expect(migration.includes(`REVOKE ALL ON public.${table} FROM PUBLIC, anon, authenticated, service_role`), `${table} must be private from Data API roles`);
 }
 expect(migration.includes("source_snapshot_id uuid REFERENCES public.catalog_source_snapshots"), "AI import runs must link to immutable PIM snapshots");
 expect(migration.includes("triage_status IN ('ready_for_identity_matching','needs_mapping_review','quarantine')"), "AI row triage states must be constrained");
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 127"), "PostgreSQL runtime must require schema 127");
+expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 145"), "PostgreSQL runtime must require schema 145");
 
 for (const contract of [
   "normalizeProductImport",
