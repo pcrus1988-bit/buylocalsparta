@@ -5,7 +5,7 @@ import {
   LOCAL_DEMAND_SOURCE_COVERAGE,
   type DemandSignalRow
 } from "../apps/web/src/lib/local-demand-intelligence.ts";
-import { quickAddLookupFingerprint } from "../apps/web/src/lib/quickadd-demand-signal.ts";
+import { quickAddLookupFingerprint } from "../apps/web/src/lib/quickadd-demand-fingerprint.ts";
 
 function row(actor: number, source: DemandSignalRow["source"], overrides: Partial<DemandSignalRow> = {}): DemandSignalRow {
   return {
@@ -61,6 +61,7 @@ if (gtinFingerprint.fingerprint.includes("5201234567890")) throw new Error("Quic
 
 const service = readFileSync("apps/web/src/lib/local-demand-service.ts", "utf8");
 const quickAddSignal = readFileSync("apps/web/src/lib/quickadd-demand-signal.ts", "utf8");
+const quickAddFingerprint = readFileSync("apps/web/src/lib/quickadd-demand-fingerprint.ts", "utf8");
 const dailyRoute = readFileSync("apps/web/src/app/api/daily/quickadd/route.ts", "utf8");
 const adminRoute = readFileSync("apps/web/src/app/api/admin/quickadd/route.ts", "utf8");
 const vendorPage = readFileSync("apps/web/src/app/daily/opportunities/page.tsx", "utf8");
@@ -70,6 +71,7 @@ if (!service.includes("saved_product_alert_preferences") || !service.includes("c
 if (!service.includes("quickadd.lookup_resolved") || !service.includes("lookupFingerprint") || !service.includes("quickAddMiss")) throw new Error("Quick Add misses must join to later canonical resolution by opaque fingerprint");
 if (service.includes("source_metadata") || service.includes("ss.query->>'q'") || service.includes("metadata->>'query'") || service.includes("postcode")) throw new Error("Demand aggregation must not select rich Ask Local data, raw search text, or postcode");
 if (!quickAddSignal.includes("lookupFingerprint") || !quickAddSignal.includes("lookupKind") || !quickAddSignal.includes("ON CONFLICT (dedupe_key)")) throw new Error("Quick Add instrumentation must persist only deduped privacy-safe lookup metadata");
+if (!quickAddFingerprint.includes("sha256") || !quickAddFingerprint.includes("bls-quickadd-demand-v1")) throw new Error("Quick Add lookup fingerprint must use deterministic one-way hashing");
 if (quickAddSignal.includes("rawQuery") || quickAddSignal.includes("rawGtin:") || quickAddSignal.includes("queryText")) throw new Error("Quick Add analytics metadata must not persist raw lookup values");
 if (!dailyRoute.includes("recordQuickAddDemandSignal") || !adminRoute.includes("recordQuickAddDemandSignal")) throw new Error("Both Vendor Daily and Admin Quick Add lookups must emit demand signals");
 if (!service.includes("back_in_stock_enabled=true") || !service.includes("alerts_enabled=true")) throw new Error("Demand service must use active customer intent, not dormant rows");
