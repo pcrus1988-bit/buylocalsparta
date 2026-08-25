@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DailySandwichMenu } from "../../components/DailySandwichMenu";
+import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 
 export const metadata: Metadata = {
   applicationName: "KONTA MOY Daily",
@@ -13,5 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default function DailyLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <><DailySandwichMenu />{children}</>;
+  return <>
+    <DailySandwichMenu />
+    {children}
+    <ScopedPwaInstallClient appName="Daily" serviceWorkerPath="/daily-sw.js" scope="/daily/" placement="daily" />
+  </>;
 }
