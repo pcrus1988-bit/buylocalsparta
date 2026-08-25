@@ -1,5 +1,5 @@
-import { requireAdminSession } from "../../../../../../../lib/admin-session";
-import { createAdminQuickAddMediaIntent } from "../../../../../../../lib/admin-quickadd-media-service";
+import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { createAdminQuickAddMediaIntent } from "../../../../../../lib/admin-quickadd-media-service";
 
 export async function POST(request: Request) {
   try {
