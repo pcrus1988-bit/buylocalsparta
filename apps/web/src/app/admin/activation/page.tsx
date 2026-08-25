@@ -99,7 +99,7 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Durable evidence" title="Provider checks" note="Κάθε εκτέλεση γράφει append-only, build-scoped evidence με expiry και SHA-256 digest. Secrets και credentials δεν αποθηκεύονται στα details." />
+      <WorkspaceSectionHeading eyebrow="Durable evidence" title="Activation evidence" note="Κάθε εκτέλεση γράφει append-only, build-scoped evidence με expiry και SHA-256 digest. Secrets και credentials δεν αποθηκεύονται στα details." />
       {data.evidence.length === 0 ? <WorkspaceEmptyState title="Δεν έχει καταγραφεί launch readiness evidence." body="Ο super admin μπορεί να εκτελέσει τους production readiness checks από την ενότητα παραπάνω. Μόνο οι έλεγχοι που εκτελέστηκαν επιτυχώς καταγράφονται ως passed." /> : <div className="workspace-queue-list">{data.evidence.map((row) => {
         const isExpired = rowExpired(row, now);
         const isCurrent = row.buildVersion === WEB_BUILD_VERSION;
