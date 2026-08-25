@@ -3,6 +3,7 @@
 import QRCode from "react-qr-code";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeliveryJobView } from "../lib/delivery-driver-runtime";
+import { DeliveryLiveFleetMap } from "./DeliveryLiveFleetMap";
 import { QrScannerOverlay } from "./QrScannerOverlay";
 import styles from "./DeliveryOperations.module.css";
 
@@ -88,8 +89,17 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
     stopWatch();
     trackingKeyRef.current=trackingKey;
     watchRef.current=navigator.geolocation.watchPosition((position)=>{
-      if(position.timestamp-lastPresenceSentRef.current<10_000)return;
+      if(position.timestamp-lastPresenceSentRef.current<5_000)return;
       lastPresenceSentRef.current=position.timestamp;
+      const latestLocation={
+        latitude:position.coords.latitude,
+        longitude:position.coords.longitude,
+        accuracy:position.coords.accuracy,
+        heading:position.coords.heading??undefined,
+        speed:position.coords.speed??undefined,
+        receivedAt:Date.now(),
+      };
+      setWorkspace((current)=>({...current,driver:{...current.driver,latestLocation}}));
       void fetch("/api/driver/location",{
         method:"POST",
         headers:{"content-type":"application/json","x-csrf-token":workspace.csrfToken},
@@ -103,7 +113,7 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
           deviceRecordedAt:position.timestamp,
         }),
       });
-    },(error)=>setNotice(`GPS: ${error.message}`),{enableHighAccuracy:true,maximumAge:8000,timeout:20000});
+    },(error)=>setNotice(`GPS: ${error.message}`),{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
   },[stopWatch,workspace.csrfToken]);
 
   useEffect(()=>{
@@ -112,6 +122,11 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
     else stopWatch();
     return()=>stopWatch();
   },[workspace.assigned,workspace.driver.acceptingJobs,startWatch,stopWatch]);
+
+  useEffect(()=>{
+    const timer=window.setInterval(()=>void refresh(),10_000);
+    return()=>window.clearInterval(timer);
+  },[refresh]);
 
   async function toggleTracking(job:DeliveryJobView){
     const enabled=!job.liveTracking;
@@ -126,6 +141,16 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
   }
 
   const shiftActive=workspace.driver.acceptingJobs;
+  const activeJob=workspace.assigned.find((job)=>["assigned","in_progress"].includes(job.status));
+  const driverMapPoints=workspace.driver.latestLocation?[{
+    id:"driver-current",
+    label:"Η θέση μου",
+    latitude:workspace.driver.latestLocation.latitude,
+    longitude:workspace.driver.latestLocation.longitude,
+    receivedAt:workspace.driver.latestLocation.receivedAt,
+    detail:activeJob?`${activeJob.orderId} · ${activeJob.status}`:workspace.driver.operationalStatus,
+  }]:[];
+
   return <div className={styles.grid}>
     {notice&&<div className={styles.notice}>{notice}</div>}
 
@@ -134,13 +159,18 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
         <div><div className={styles.eyebrow}>Shift & GPS presence</div><h2>Κατάσταση οδηγού</h2></div>
         <span className={styles.status}>{workspace.driver.operationalStatus}</span>
       </div>
-      <p className={styles.muted}>{shiftActive?"Ο dispatcher μπορεί να χρησιμοποιεί την τρέχουσα θέση σου για νέες αναθέσεις. Η ακριβής θέση δεν εμφανίζεται αυτόματα στους πελάτες.":"Εκτός ενεργής βάρδιας ο dispatcher δεν σου αναθέτει νέες εργασίες."}</p>
+      <p className={styles.muted}>{shiftActive?"Ο dispatcher χρησιμοποιεί την τρέχουσα θέση σου για αναθέσεις και ενεργές παραδόσεις.":"Εκτός ενεργής βάρδιας ο dispatcher δεν σου αναθέτει νέες εργασίες."}</p>
       {workspace.driver.latestLocation&&<div className={styles.location}><span>Τελευταίο GPS · {stamp(workspace.driver.latestLocation.receivedAt)}</span><span>±{Math.round(workspace.driver.latestLocation.accuracy??0)}m</span></div>}
       <div className={styles.toolbar}>
         <button className={styles.button} type="button" disabled={Boolean(busy)||shiftActive} onClick={()=>void action("availability",{availability:"available"})}>Έναρξη / συνέχιση βάρδιας</button>
         <button className={styles.buttonSecondary} type="button" disabled={Boolean(busy)||!shiftActive} onClick={()=>void action("availability",{availability:"paused"})}>Παύση</button>
         <button className={styles.buttonSecondary} type="button" disabled={Boolean(busy)||workspace.driver.operationalStatus==="off_shift"} onClick={()=>void action("availability",{availability:"off_shift"})}>Λήξη βάρδιας</button>
       </div>
+    </section>
+
+    <section>
+      <div className={styles.sectionTitle}><div><div className={styles.eyebrow}>Live map</div><h2>Τρέχουσα θέση</h2></div></div>
+      <DeliveryLiveFleetMap points={driverMapPoints} title="Live GPS οδηγού" emptyMessage={shiftActive?"Περιμένουμε την πρώτη θέση GPS από τη συσκευή σου.":"Ξεκίνα τη βάρδια για να ενεργοποιηθεί η θέση GPS."}/>
     </section>
 
     <section>
