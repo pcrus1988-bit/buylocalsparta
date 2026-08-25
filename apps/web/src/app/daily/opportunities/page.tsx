@@ -17,14 +17,14 @@ export default async function Page() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
       <div className="eyebrow">Daily · Local opportunities</div>
       <h1>Τι ζητά η τοπική αγορά</h1>
-      <p className="lead">Σήματα ζήτησης σχετικά με τις κατηγορίες του καταστήματός σου, μόνο όταν τουλάχιστον {data.minimumActors} διαφορετικοί πελάτες σχηματίζουν το ίδιο μοτίβο. Δεν εμφανίζονται ονόματα, αναζητήσεις ή άλλα προσωπικά στοιχεία.</p>
+      <p className="lead">Σήματα ζήτησης σχετικά με τις κατηγορίες του καταστήματός σου, μόνο όταν τουλάχιστον {data.minimumActors} διαφορετικοί πελάτες σχηματίζουν το ίδιο μοτίβο. Δεν εμφανίζονται ονόματα, raw αναζητήσεις ή άλλα προσωπικά στοιχεία.</p>
     </div></section>
 
     <section className="shell vendor-section">
       <div className="workspace-metric-strip">
         <div className="workspace-metric"><span>Ευκαιρίες</span><strong>{data.metrics.qualifiedOpportunities}</strong><small>πάνω από privacy threshold</small></div>
         <div className="workspace-metric"><span>Τοπικά κενά</span><strong>{data.metrics.unmetVariants}</strong><small>ζητούνται χωρίς φρέσκο local stock</small></div>
-        <div className="workspace-metric"><span>Ισχυρά σήματα</span><strong>{data.metrics.strongSignals}</strong><small>πολλαπλές/ισχυρές ενδείξεις</small></div>
+        <div className="workspace-metric"><span>Ισχυρά σήματα</span><strong>{data.metrics.strongSignals}</strong><small>{data.metrics.activeSources}/5 ενεργές πηγές</small></div>
       </div>
     </section>
 
@@ -34,15 +34,15 @@ export default async function Page() {
         {data.opportunities.slice(0, 20).map((item, index) => <article className="workspace-queue-card" key={item.key}>
           <div className="workspace-queue-head"><div><strong>#{index + 1} · {item.title}</strong><small>{item.kind === "variant" ? `Προϊόν · ${item.categoryCode}` : `Κατηγορία · ${item.categoryCode}`}</small></div><span className={`status-pill${item.availableLocal === false ? " needs-attention" : ""}`}>{item.kind === "variant" && item.availableLocal === false ? "κενό στην αγορά" : confidenceLabel[item.confidence]}</span></div>
           <div className="workspace-queue-primary"><span>Demand score {item.score}</span><span>{item.signals.distinctActors}+ διαφορετικοί πελάτες</span></div>
-          <p className="workspace-queue-summary">Local Watch {item.signals.localWatch} · Ask Local {item.signals.askLocal} · Saved search {item.signals.savedSearch}</p>
-          {item.kind === "variant" && item.canonicalVariantId && <div className="workspace-inline-actions"><Link className="button button-secondary" href={`/daily/quickadd?q=${encodeURIComponent(item.canonicalVariantId)}`}>Έλεγχος / προσθήκη</Link></div>}
+          <p className="workspace-queue-summary">Local Watch {item.signals.localWatch} · Ask Local {item.signals.askLocal} · Zero-result {item.signals.zeroResultSearch} · Saved search {item.signals.savedSearch}</p>
+          {item.kind === "variant" && item.canonicalVariantId && <div className="workspace-inline-actions"><Link className="button button-secondary" href="/daily/quickadd">Έλεγχος / προσθήκη στο Quick Add</Link></div>}
         </article>)}
       </div>}
     </section>
 
     <section className="shell vendor-section">
       <div className="workspace-section-heading"><div><span className="eyebrow">Privacy by design</span><h2>Τι δεν βλέπεις</h2></div></div>
-      <p className="workspace-inline-note">Δεν εμφανίζουμε ποιος έκανε αναζήτηση, postcode, email/τηλέφωνο, raw search query, κείμενο Ask Local, φωτογραφία, voice transcript ή barcode. Τα zero-result searches και τα Quick Add misses δεν συμμετέχουν ακόμη επειδή δεν αποθηκεύονται με privacy-safe τρόπο.</p>
+      <p className="workspace-inline-note">Δεν εμφανίζουμε ποιος έκανε αναζήτηση, postcode, email/τηλέφωνο, raw search query, κείμενο Ask Local, φωτογραφία, voice transcript ή barcode. Zero-result search συμμετέχει μόνο ως category-level σήμα μετά από cohort τουλάχιστον {data.minimumActors} διαφορετικών actors. Τα Quick Add misses δεν συμμετέχουν ακόμη επειδή δεν αποθηκεύονται.</p>
     </section>
   </main>;
 }
