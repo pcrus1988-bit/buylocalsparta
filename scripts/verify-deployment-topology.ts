@@ -64,6 +64,8 @@ assert(crawlerDocs.includes("never become public products") || crawlerDocs.inclu
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
 assert(nextConfig.includes("\"img-src 'self' data: blob: https:\""), "CSP must permit HTTPS catalogue source images after the product-detail source-host guard without hard-coding each supplier hostname");
 assert(!nextConfig.includes("nikolaoutools.gr"), "CSP must not require supplier-specific image host deployments");
+assert(nextConfig.includes("microphone=(self)"), "Permissions-Policy must permit same-origin microphone access for first-party Ask Local voice input");
+assert(!nextConfig.includes("microphone=()"), "Permissions-Policy must not globally disable the Ask Local microphone");
 
 const mediaWeb = await readFile(new URL("../apps/web/src/lib/media-upload-service.ts", import.meta.url), "utf8");
 const envMatrix = await readFile(new URL("../docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md", import.meta.url), "utf8");
