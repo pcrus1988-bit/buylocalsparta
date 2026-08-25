@@ -90,6 +90,24 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/viva-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  // QuickAddWorkbench is shared by vendor-owner and Daily operator surfaces. When a
+  // Daily session cookie is present, keep its existing client URLs but route the two
+  // media mutations to Daily-specific handlers so Daily CSRF/session validation is
+  // enforced without weakening the ordinary /api/vendor/* authentication boundary.
+  async rewrites() {
+    return [
+      {
+        source: "/api/vendor/media/intents",
+        has: [{ type: "cookie", key: "bls_daily_session" }],
+        destination: "/api/daily/quickadd/media/intents"
+      },
+      {
+        source: "/api/vendor/media/complete",
+        has: [{ type: "cookie", key: "bls_daily_session" }],
+        destination: "/api/daily/quickadd/media/complete"
+      }
+    ];
+  },
   async headers() {
     return [
       {
