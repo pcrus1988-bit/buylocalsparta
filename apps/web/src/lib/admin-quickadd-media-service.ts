@@ -100,7 +100,6 @@ export async function completeAdminQuickAddMedia(principal: SessionPrincipal, in
       FROM public.media_upload_intents mui
       LEFT JOIN public.product_media pm ON pm.id=mui.media_asset_id
       WHERE mui.public_id=$1 AND mui.created_by=$2::uuid AND mui.purpose='catalog'
-      FOR UPDATE OF mui
     `, [intentId, principal.userId]);
     if (!result.rowCount) throw new Error("Media upload intent not found");
     return result.rows[0];
