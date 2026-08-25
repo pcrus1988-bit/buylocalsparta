@@ -31,13 +31,12 @@ export type VendorAgreementRenewalPreview = Readonly<{
   commercialTermsSnapshot: Record<string, unknown>;
 }>;
 
-export async function reconcileVendorAgreementLifecycle(now = new Date()) {
+export async function reconcileVendorAgreementLifecycle() {
   if (!productionDatabaseConfigured()) return { skipped: true, reason: "database_not_configured" } as const;
   const result = await getProductionPostgresRuntime().nativePool.query(
-    "SELECT bls_private.reconcile_vendor_agreement_lifecycle($1::timestamptz) AS result",
-    [now]
+    "SELECT bls_private.reconcile_vendor_agreement_lifecycle() AS result"
   );
-  return result.rows[0]?.result ?? { expiredAgreements: 0, activatedSuccessors: 0, restrictedVendors: 0, reconciledAt: now.toISOString() };
+  return result.rows[0]?.result ?? { expiredAgreements: 0, activatedSuccessors: 0, restrictedVendors: 0 };
 }
 
 export async function adminVendorAgreementRenewalPreview(
