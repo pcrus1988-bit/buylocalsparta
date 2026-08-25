@@ -51,12 +51,16 @@ if (vendorFiltered.length !== 1 || vendorFiltered[0]?.kind !== "category" || ven
 
 if (LOCAL_DEMAND_SOURCE_COVERAGE.zeroResultSearch !== "active" || LOCAL_DEMAND_SOURCE_COVERAGE.quickAddMiss !== "active") throw new Error("All five intended demand sources must be active");
 
-const gtinFingerprint = quickAddLookupFingerprint({ gtin: "5201234567890" });
-const repeatedFingerprint = quickAddLookupFingerprint({ gtin: "5201234567890" });
-const otherFingerprint = quickAddLookupFingerprint({ gtin: "5201234567891" });
+const TEST_SECRET = "quickadd-demand-test-secret-32-bytes-minimum";
+const OTHER_SECRET = "quickadd-demand-other-secret-32-bytes-minimum";
+const gtinFingerprint = quickAddLookupFingerprint(TEST_SECRET, { gtin: "5201234567890" });
+const repeatedFingerprint = quickAddLookupFingerprint(TEST_SECRET, { gtin: "5201234567890" });
+const otherFingerprint = quickAddLookupFingerprint(TEST_SECRET, { gtin: "5201234567891" });
+const rekeyedFingerprint = quickAddLookupFingerprint(OTHER_SECRET, { gtin: "5201234567890" });
 if (!gtinFingerprint || gtinFingerprint.kind !== "identifier") throw new Error("Quick Add identifier lookup must produce an opaque fingerprint");
 if (gtinFingerprint.fingerprint !== repeatedFingerprint?.fingerprint) throw new Error("Quick Add fingerprint must be deterministic so later resolution can join prior misses");
 if (gtinFingerprint.fingerprint === otherFingerprint?.fingerprint) throw new Error("Distinct Quick Add identifiers must not collapse to one fingerprint");
+if (gtinFingerprint.fingerprint === rekeyedFingerprint?.fingerprint) throw new Error("Quick Add fingerprint must be keyed so a different secret produces a different digest");
 if (gtinFingerprint.fingerprint.includes("5201234567890")) throw new Error("Quick Add fingerprint must never contain the raw identifier");
 
 const service = readFileSync("apps/web/src/lib/local-demand-service.ts", "utf8");
@@ -71,7 +75,8 @@ if (!service.includes("saved_product_alert_preferences") || !service.includes("c
 if (!service.includes("quickadd.lookup_resolved") || !service.includes("lookupFingerprint") || !service.includes("quickAddMiss")) throw new Error("Quick Add misses must join to later canonical resolution by opaque fingerprint");
 if (service.includes("source_metadata") || service.includes("ss.query->>'q'") || service.includes("metadata->>'query'") || service.includes("postcode")) throw new Error("Demand aggregation must not select rich Ask Local data, raw search text, or postcode");
 if (!quickAddSignal.includes("lookupFingerprint") || !quickAddSignal.includes("lookupKind") || !quickAddSignal.includes("ON CONFLICT (dedupe_key)")) throw new Error("Quick Add instrumentation must persist only deduped privacy-safe lookup metadata");
-if (!quickAddFingerprint.includes("sha256") || !quickAddFingerprint.includes("bls-quickadd-demand-v1")) throw new Error("Quick Add lookup fingerprint must use deterministic one-way hashing");
+if (!quickAddSignal.includes("BLS_QUICKADD_DEMAND_SECRET") || !quickAddSignal.includes("BLS_AUTH_SECRET")) throw new Error("Quick Add instrumentation must use a stable server-side secret");
+if (!quickAddFingerprint.includes("createHmac") || !quickAddFingerprint.includes("bls-quickadd-demand-v1")) throw new Error("Quick Add lookup fingerprint must use keyed deterministic HMAC hashing");
 if (quickAddSignal.includes("rawQuery") || quickAddSignal.includes("rawGtin:") || quickAddSignal.includes("queryText")) throw new Error("Quick Add analytics metadata must not persist raw lookup values");
 if (!dailyRoute.includes("recordQuickAddDemandSignal") || !adminRoute.includes("recordQuickAddDemandSignal")) throw new Error("Both Vendor Daily and Admin Quick Add lookups must emit demand signals");
 if (!service.includes("back_in_stock_enabled=true") || !service.includes("alerts_enabled=true")) throw new Error("Demand service must use active customer intent, not dormant rows");
