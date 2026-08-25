@@ -49,7 +49,13 @@ export class ClamAvScanner {
 export function clamAvConfigFromEnv(env: NodeJS.ProcessEnv = process.env): ClamAvConfig {
   const host = env.BLS_CLAMAV_HOST?.trim();
   if (!host) throw new Error("BLS_CLAMAV_HOST is required");
-  return { host, port: positiveInt(env.BLS_CLAMAV_PORT, 3310, "BLS_CLAMAV_PORT"), timeoutMs: positiveInt(env.BLS_CLAMAV_TIMEOUT_MS, 60_000, "BLS_CLAMAV_TIMEOUT_MS"), maxBytes: positiveInt(env.BLS_MEDIA_MAX_BYTES, 25 * 1024 * 1024, "BLS_MEDIA_MAX_BYTES") };
+  const maxBytes = env.BLS_MEDIA_UPLOAD_MAX_BYTES?.trim() || env.BLS_MEDIA_MAX_BYTES?.trim();
+  return {
+    host,
+    port: positiveInt(env.BLS_CLAMAV_PORT, 3310, "BLS_CLAMAV_PORT"),
+    timeoutMs: positiveInt(env.BLS_CLAMAV_TIMEOUT_MS, 60_000, "BLS_CLAMAV_TIMEOUT_MS"),
+    maxBytes: positiveInt(maxBytes, 25 * 1024 * 1024, "BLS_MEDIA_UPLOAD_MAX_BYTES")
+  };
 }
 
 function positiveInt(raw: string | undefined, fallback: number, name: string): number { if (!raw?.trim()) return fallback; const value=Number(raw); if(!Number.isSafeInteger(value)||value<=0) throw new Error(`${name} must be a positive integer`); return value; }

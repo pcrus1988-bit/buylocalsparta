@@ -1,0 +1,58 @@
+name: Media Worker Image
+
+on:
+  pull_request:
+    paths:
+      - deploy/media-worker.Dockerfile
+      - deploy/media-worker-entrypoint.sh
+      - deploy/clamd.media.conf
+      - workers/media-worker.ts
+      - packages/media-processing/**
+      - packages/object-storage/**
+      - packages/postgres-runtime/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/media-worker-image.yml
+  push:
+    branches: [main]
+    paths:
+      - deploy/media-worker.Dockerfile
+      - deploy/media-worker-entrypoint.sh
+      - deploy/clamd.media.conf
+      - workers/media-worker.ts
+      - packages/media-processing/**
+      - packages/object-storage/**
+      - packages/postgres-runtime/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/media-worker-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build media worker and publish on main
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/media-worker.Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/buylocalsparta-media-worker:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/buylocalsparta-media-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
