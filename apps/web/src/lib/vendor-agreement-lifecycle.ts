@@ -44,7 +44,7 @@ export async function adminVendorAgreementRenewalPreview(
   principal: SessionPrincipal,
   vendorId: string
 ): Promise<VendorAgreementRenewalPreview> {
-  assertAdminPermission(principal, "vendor.manage");
+  assertAdminPermission(principal, "finance.read");
   if (!productionDatabaseConfigured()) throw new Error("Vendor agreement renewal requires the production database");
 
   const result = await getProductionPostgresRuntime().nativePool.query(`
@@ -104,7 +104,7 @@ export async function createAdminVendorAgreementRenewal(
   principal: SessionPrincipal,
   input: { vendorId: string; predecessorAgreementId: string; startsAt: unknown; endsAt: unknown; reason: string }
 ) {
-  assertAdminPermission(principal, "vendor.manage");
+  assertAdminPermission(principal, "finance.write");
   if (!productionDatabaseConfigured()) throw new Error("Vendor agreement renewal requires the production database");
   const reason = input.reason.trim();
   if (reason.length < 3) throw new Error("Renewal reason is required");
