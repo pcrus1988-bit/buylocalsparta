@@ -19,13 +19,19 @@ function customerSafeDeliveryJob(job: DeliveryJobView): DeliveryJobView {
     && Boolean(job.driverId)
     && ["assigned", "in_progress"].includes(job.status)
     && customerReturnPickupOpen;
+  const exposeLiveLocation = Boolean(job.driverId)
+    && job.liveTracking
+    && job.status === "in_progress"
+    && (job.type === "outbound"
+      ? vendorPickupsComplete && customerDropoffOpen
+      : customerReturnPickupOpen);
 
   return {
     ...job,
-    // Precise driver coordinates are intentionally excluded from the general customer
-    // workspace. CustomerDeliveryLiveMap obtains them only from the privacy-aware live
-    // endpoint, which reveals a position on the final customer leg and within policy thresholds.
-    latestLocation: undefined,
+    // Exact GPS is exposed only while the assigned driver is on the customer's active
+    // leg. Before all vendor pickups are complete the general customer workspace keeps
+    // the driver's position private.
+    latestLocation: exposeLiveLocation ? job.latestLocation : undefined,
     pickupQr: undefined,
     customerQr: exposeDeliveryProof ? job.customerQr : undefined,
     returnPickupQr: exposeReturnPickupProof ? job.returnPickupQr : undefined,
