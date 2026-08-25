@@ -116,6 +116,7 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
     if (id === "default") {
       setActiveViewId("default");
       setLayout(initial);
+      setSavedNotice(false);
       writeStoredState({ version: 1, views, activeViewId: undefined });
       return;
     }
@@ -123,6 +124,7 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
     if (!selected) return;
     setActiveViewId(selected.id);
     setLayout(mergeLayout(widgets, selected.layout));
+    setSavedNotice(false);
     writeStoredState({ version: 1, views, activeViewId: selected.id });
   }
 
@@ -166,6 +168,7 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
     setLayout(initial);
     setActiveViewId("default");
     setSavedNotice(false);
+    writeStoredState({ version: 1, views, activeViewId: undefined });
   }
 
   return <section className="shell admin-dashboard-shell">
