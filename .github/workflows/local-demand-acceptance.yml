@@ -5,9 +5,12 @@ on:
     paths:
       - "apps/web/src/app/admin/demand/page.tsx"
       - "apps/web/src/app/daily/opportunities/page.tsx"
+      - "apps/web/src/app/api/admin/quickadd/route.ts"
+      - "apps/web/src/app/api/daily/quickadd/route.ts"
       - "apps/web/src/components/DailySandwichMenu.tsx"
       - "apps/web/src/lib/local-demand-intelligence.ts"
       - "apps/web/src/lib/local-demand-service.ts"
+      - "apps/web/src/lib/quickadd-demand-signal.ts"
       - "apps/web/src/lib/workspace-navigation.ts"
       - "scripts/verify-local-demand-intelligence.ts"
       - ".github/workflows/local-demand-acceptance.yml"
