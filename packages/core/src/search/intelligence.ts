@@ -52,10 +52,10 @@ const MIN_PRICE_PATTERNS = [
   /(?:>=)\s*€?\s*(\d+(?:[.,]\d{1,2})?)/iu
 ] as const;
 const PICKUP_TODAY_PATTERNS = [
-  /\b(?:παραλαβη\s+σημερα|παραλαβή\s+σήμερα|pickup\s+today|paralavi\s+simera)\b/iu
+  /(?:παραλαβη\s+σημερα|παραλαβή\s+σήμερα|pickup\s+today|paralavi\s+simera)/iu
 ] as const;
 const IN_STOCK_PATTERNS = [
-  /\b(?:διαθεσιμο\s+τωρα|διαθέσιμο\s+τώρα|σε\s+αποθεμα|σε\s+απόθεμα|in\s+stock|available\s+now|diathesimo\s+tora)\b/iu
+  /(?:διαθεσιμο\s+τωρα|διαθέσιμο\s+τώρα|σε\s+αποθεμα|σε\s+απόθεμα|in\s+stock|available\s+now|diathesimo\s+tora)/iu
 ] as const;
 
 export function interpretSearchQuery(input: string): SearchIntent {
