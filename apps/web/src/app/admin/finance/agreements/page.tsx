@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminAgreementRenewalForm } from "../../../../components/AdminAgreementRenewalForm";
 import { AdminCommercialAgreementsClient } from "../../../../components/AdminCommercialAgreementsClient";
 import { AdminFinanceTabs } from "../../../../components/AdminFinanceTabs";
 import { AdminStatusStack, type AdminRecordStateTone } from "../../../../components/AdminRecordStatus";
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: "Admin · Vendor Agreements", robots:
 const attentionStatuses = new Set<CommercialAgreementStatus>(["draft", "data_complete", "pdf_generated", "sent", "pending_signature", "signed_received", "govgr_verified", "eligible_for_activation", "suspended"]);
 const terminalStatuses = new Set<CommercialAgreementStatus>(["expired", "terminated", "superseded", "rejected"]);
 function stateTone(status: CommercialAgreementStatus): AdminRecordStateTone { return status === "active" ? "positive" : status === "suspended" || status === "rejected" ? "critical" : terminalStatuses.has(status) ? "neutral" : "caution"; }
-function attentionLabel(status: CommercialAgreementStatus) { if (status === "suspended") return "Suspended partner"; if (status === "signed_received") return "Verify gov.gr"; if (["govgr_verified", "eligible_for_activation"].includes(status)) return "Activation ready"; return attentionStatuses.has(status) ? "Next lifecycle step" : undefined; }
+function attentionLabel(status: CommercialAgreementStatus) { if (status === "expired") return "Renewal required"; if (status === "suspended") return "Suspended partner"; if (status === "signed_received") return "Verify gov.gr"; if (["govgr_verified", "eligible_for_activation"].includes(status)) return "Activation ready"; return attentionStatuses.has(status) ? "Next lifecycle step" : undefined; }
 function pct(bps: number) { return `${(bps / 100).toLocaleString("el-GR", { maximumFractionDigits: 2 })}%`; }
 function date(value?: string) { return value ? new Date(value).toLocaleDateString("el-GR") : "—"; }
 
@@ -30,7 +31,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   const visible = workspace.agreements.filter((agreement) => (!status || agreement.status === status) && (!query || [agreement.agreementCode, agreement.vendorName, agreement.vendorId, agreement.govgrReference].some((value) => String(value ?? "").toLocaleLowerCase("el-GR").includes(query))));
   const selected = visible.find((agreement) => agreement.id === params.agreement) ?? visible[0];
   const active = workspace.agreements.filter((agreement) => agreement.status === "active").length;
-  const attention = workspace.agreements.filter((agreement) => attentionStatuses.has(agreement.status)).length;
+  const attention = workspace.agreements.filter((agreement) => attentionStatuses.has(agreement.status) || agreement.status === "expired").length;
   const selectedHref = (agreementId: string) => {
     const next = new URLSearchParams();
     if (params.q) next.set("q", params.q);
@@ -41,7 +42,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Commercial governance</div><h1>Vendor agreements & commissions</h1><p className="lead">Directory-first εικόνα της συμβατικής κατάστασης κάθε partner. Το PDF → gov.gr → verification → activation workflow παραμένει ακριβώς το ίδιο και ανοίγει μόνο όταν χρειάζεται ενέργεια.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Commercial governance</div><h1>Vendor agreements & commissions</h1><p className="lead">Directory-first εικόνα της συμβατικής κατάστασης κάθε partner. Οι ανανεώσεις δημιουργούνται ως νέα linked agreement versions· η προηγούμενη υπογεγραμμένη έκδοση παραμένει immutable και η ενεργοποίηση περιμένει το effective date.</p></div></section>
     <section className="shell admin-local-tabs-shell"><AdminFinanceTabs /></section>
     <WorkspaceMetricStrip items={[
       { label: "Vendors", value: workspace.vendors.length },
@@ -51,7 +52,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Commercial directory" title="Agreement records" note="Αναζήτηση και lifecycle state αριστερά· selected agreement context δεξιά. Τα governed controls παραμένουν κάτω από progressive disclosure." />
+      <WorkspaceSectionHeading eyebrow="Commercial directory" title="Agreement records" note="Αναζήτηση και lifecycle state αριστερά· selected agreement context δεξιά. Expired agreements μπορούν να ανανεωθούν χωρίς να ξαναγραφτεί η συμβατική ιστορία." />
       <form method="get" className="admin-directory-filters">
         <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Agreement, partner, gov.gr reference" /></label>
         <label><span>Status</span><select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{statuses.map((item) => <option value={item} key={item}>{item.replaceAll("_", " ")}</option>)}</select></label>
@@ -81,6 +82,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
               <div className="workspace-compact-row"><strong>Verified</strong><span>{selected.govgrVerifiedAt ? new Date(selected.govgrVerifiedAt).toLocaleString("el-GR") : "—"}</span></div>
             </div>
             <WorkspaceRecordDetails label="Commercial metadata"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Partner ID</strong><span>{selected.vendorId}</span></div><div className="workspace-compact-row"><strong>Agreement ID</strong><code>{selected.id}</code></div><div className="workspace-compact-row"><strong>Updated</strong><span>{new Date(selected.updatedAt).toLocaleString("el-GR")}</span></div></div></WorkspaceRecordDetails>
+            <AdminAgreementRenewalForm agreementId={selected.id} vendorId={selected.vendorId} agreementCode={selected.agreementCode} agreementVersion={selected.agreementVersion} status={selected.status} predecessorEndsAt={selected.endsAt} csrfToken={principal.csrfToken} />
           </> : null}
         </aside>
       </div>}
@@ -89,7 +91,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
     <section className="vendor-section section-tint"><div className="shell">
       <details className="workspace-record-details admin-commercial-controls">
         <summary>Governed agreement lifecycle & create new agreement</summary>
-        <div className="workspace-inline-note">Εδώ παραμένουν τα υπάρχοντα immutable snapshot, PDF, email, signed gov.gr upload, verification, activation, suspension και termination controls. Δεν έχει προστεθεί κανένα νέο transition.</div>
+        <div className="workspace-inline-note">Immutable snapshot, PDF, email, signed gov.gr upload, verification, activation, suspension και termination παραμένουν τα authoritative controls. Renewal δημιουργεί νέο linked successor version και δεν παρατείνει σιωπηρά το ήδη υπογεγραμμένο record.</div>
         <AdminCommercialAgreementsClient initial={workspace} csrfToken={principal.csrfToken} />
       </details>
     </div></section>
