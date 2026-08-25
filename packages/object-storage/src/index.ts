@@ -78,18 +78,47 @@ export function objectStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env)
   const region = env.BLS_OBJECT_STORAGE_REGION?.trim() || env.AWS_REGION?.trim();
   if (!bucket) throw new Error("BLS_OBJECT_STORAGE_BUCKET is required");
   if (!region) throw new Error("BLS_OBJECT_STORAGE_REGION is required");
-  const accessKeyId = env.AWS_ACCESS_KEY_ID?.trim() || env.OBJECT_STORAGE_ACCESS_KEY?.trim() || undefined;
-  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY?.trim() || env.OBJECT_STORAGE_SECRET_KEY?.trim() || undefined;
+
+  // BLS_* is the canonical production contract. AWS_* remains supported so the same
+  // worker image can run on managed container platforms without secret duplication.
+  const accessKeyId = env.BLS_OBJECT_STORAGE_ACCESS_KEY_ID?.trim()
+    || env.AWS_ACCESS_KEY_ID?.trim()
+    || env.OBJECT_STORAGE_ACCESS_KEY?.trim()
+    || undefined;
+  const secretAccessKey = env.BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY?.trim()
+    || env.AWS_SECRET_ACCESS_KEY?.trim()
+    || env.OBJECT_STORAGE_SECRET_KEY?.trim()
+    || undefined;
   if ((accessKeyId && !secretAccessKey) || (!accessKeyId && secretAccessKey)) throw new Error("Object storage access key and secret must be configured together");
+
+  const endpoint = env.BLS_OBJECT_STORAGE_ENDPOINT?.trim() || env.OBJECT_STORAGE_ENDPOINT?.trim() || undefined;
+  const forcePathStyleRaw = env.BLS_OBJECT_STORAGE_FORCE_PATH_STYLE?.trim();
+  if (forcePathStyleRaw && forcePathStyleRaw !== "true" && forcePathStyleRaw !== "false") {
+    throw new Error("BLS_OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false");
+  }
+  const forcePathStyle = forcePathStyleRaw
+    ? forcePathStyleRaw === "true"
+    : isSupabaseStorageEndpoint(endpoint);
+
   return {
     bucket,
     region,
-    endpoint: env.BLS_OBJECT_STORAGE_ENDPOINT?.trim() || env.OBJECT_STORAGE_ENDPOINT?.trim() || undefined,
-    forcePathStyle: env.BLS_OBJECT_STORAGE_FORCE_PATH_STYLE === "true",
+    endpoint,
+    forcePathStyle,
     accessKeyId,
     secretAccessKey,
     uploadTtlSeconds: integer(env.BLS_MEDIA_UPLOAD_TTL_SECONDS, 900)
   };
+}
+
+function isSupabaseStorageEndpoint(endpoint: string | undefined): boolean {
+  if (!endpoint) return false;
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === "https:" && url.hostname.toLowerCase().endsWith(".storage.supabase.co");
+  } catch {
+    return false;
+  }
 }
 
 function integer(raw: string | undefined, fallback: number): number {
