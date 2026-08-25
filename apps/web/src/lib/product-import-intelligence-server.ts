@@ -1,4 +1,5 @@
 export { analyzeProductImport } from "../../../../scripts/catalogue/product-import-intelligence";
+export { normalizeProductImport } from "../../../../scripts/catalogue/product-import-normalization";
 export type {
   ProductImportAnalysis,
   ProductImportCanonicalField,
@@ -6,3 +7,8 @@ export type {
   ProductImportMapping,
   ProductImportRowDecision
 } from "../../../../scripts/catalogue/product-import-intelligence";
+export type {
+  ProductImportNormalization,
+  ProductImportNormalizedFields,
+  ProductImportNormalizedRow
+} from "../../../../scripts/catalogue/product-import-normalization";
