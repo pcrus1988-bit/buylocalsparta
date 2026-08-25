@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { VendorArchivedProductsPanel } from "../../../components/VendorArchivedProductsPanel";
 import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
 import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
@@ -18,6 +19,7 @@ export default async function VendorCatalogPage() {
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
   const hasProducts = workspace.catalogMetrics.totalProducts > 0;
   const hasVisibleProducts = workspace.catalogMetrics.visibleProducts > 0;
+  const archivedProducts = workspace.catalogProducts.filter((item) => item.offerStatus === "archived").map((item) => ({ offerId: item.offerId, title: item.title, vendorSku: item.vendorSku }));
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -48,5 +50,6 @@ export default async function VendorCatalogPage() {
     </section>
 
     <VendorCatalogClient initial={workspace} />
+    <VendorArchivedProductsPanel products={archivedProducts} csrfToken={workspace.csrfToken} />
   </main>;
 }
