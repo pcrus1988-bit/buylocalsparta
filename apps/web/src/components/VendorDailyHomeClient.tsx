@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { buildVendorTodayIntelligence } from "../lib/vendor-today-intelligence";
 import { VendorDailyBottomNav } from "./VendorDailyBottomNav";
 import styles from "./VendorDailyHomeClient.module.css";
 
@@ -17,11 +18,23 @@ type Fulfilment = {
   lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>;
   actions: ReadonlyArray<string>;
 };
+type Product = {
+  offerId: string;
+  canonicalVariantId: string;
+  title: string;
+  onHand: number;
+  reserved: number;
+  blocked: number;
+  safetyStock: number;
+  availableToSell: number;
+  updatedAt: number;
+};
 type Dashboard = {
   vendor: { id: string; name: string; adviser: string };
   account: { email: string; roles: ReadonlyArray<string> };
   csrfToken: string;
   metrics: { ordersRequiringAction: number; activeProducts: number; availableUnits: number; openFulfilments: number };
+  products: ReadonlyArray<Product>;
   fulfilments: ReadonlyArray<Fulfilment>;
 };
 type Advice = {
@@ -90,12 +103,13 @@ function notificationStillNeedsAction(notification: SlaNotification, statusByFul
 }
 
 export function VendorDailyHomeClient({
-  dashboard, advice, sla, push
+  dashboard, advice, sla, push, generatedAt
 }: {
   dashboard: Dashboard;
   advice: Advice;
   sla: SlaWorkspace;
   push: PushStatus;
+  generatedAt: number;
 }) {
   const router = useRouter();
   const [ackBusy, setAckBusy] = useState("");
@@ -156,6 +170,16 @@ export function VendorDailyHomeClient({
     [sla.notifications, statusByFulfilment]
   );
   const openAsk = advice.counteroffers.filter((item) => !["closed", "expired", "accepted", "rejected"].includes(item.status));
+  const today = useMemo(() => buildVendorTodayIntelligence({
+    now: generatedAt,
+    products: dashboard.products,
+    fulfilments: dashboard.fulfilments,
+    askLocalOpen: openAsk.length,
+    unacknowledgedOrders: unacknowledged.length,
+    slaRequiringAction: sla.metrics.requiringAction,
+    slaBreached: sla.metrics.breached,
+    slaEscalated: sla.metrics.escalated
+  }), [dashboard.fulfilments, dashboard.products, generatedAt, openAsk.length, sla.metrics.breached, sla.metrics.escalated, sla.metrics.requiringAction, unacknowledged.length]);
   const feed = [
     ...actionableSlaNotifications.map((item) => ({ id: `sla:${item.id}`, title: item.title, body: item.body, at: new Date(item.createdAt).getTime(), href: orderHref(item) })),
     ...advice.notifications.map((item) => ({ id: `advice:${item.id}`, title: item.title, body: item.body, at: item.createdAt ?? 0, href: "/daily/ask-local" }))
@@ -193,7 +217,7 @@ export function VendorDailyHomeClient({
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
-      if (result === "denied") throw new Error("Οι ειδοποιήσεις αποκλείστηκαν. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση.");
+      if (result === "denied") throw new Error("Οι ειδοποιήσεις αποκλείστηκαν. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση Background Push.");
       if (result !== "granted") throw new Error("Δεν δόθηκε άδεια για ειδοποιήσεις.");
       if (!push.configured || !push.publicKey) {
         setMessage("Ο browser επέτρεψε τις ειδοποιήσεις, αλλά το server Web Push δεν είναι ακόμη διαθέσιμο.");
@@ -239,6 +263,30 @@ export function VendorDailyHomeClient({
           {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Εναλλακτική ενεργοποίηση" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
         </button>
       </section>}
+
+      <section className={styles.todaySection} aria-labelledby="daily-today-title">
+        <div className={styles.todayHero}>
+          <div><span className={styles.eyebrow}>Today · Sparta</span><h1 id="daily-today-title">Τι χρειάζεται σήμερα</h1><p>Μία γρήγορη εικόνα από παραγγελίες, Ask Local και πραγματική κατάσταση stock.</p></div>
+          <span className={styles.todayStamp}>{new Intl.DateTimeFormat("el-GR", { weekday: "short", day: "2-digit", month: "short", timeZone: "Europe/Athens" }).format(new Date(generatedAt))}</span>
+        </div>
+        <div className={styles.todayMetrics}>
+          <Link href="/daily/orders" className={styles.todayMetric}><span>Σήμερα</span><strong>{today.metrics.ordersToday}</strong><small>{today.metrics.unitsToday} τεμ. σε νέες παραγγελίες</small></Link>
+          <Link href="/daily/orders" className={styles.todayMetric}><span>24ωρο</span><strong>{today.metrics.orders24h}</strong><small>ενεργές παραγγελίες</small></Link>
+          <Link href="/daily/ask-local" className={styles.todayMetric}><span>Ask Local</span><strong>{today.metrics.askLocalOpen}</strong><small>ανοιχτά αιτήματα</small></Link>
+          <Link href="/daily/quickadd" className={styles.todayMetric}><span>Stock freshness</span><strong>{today.metrics.stockFreshnessPercent}%</strong><small>{today.metrics.staleStock} παλιά · {today.metrics.outOfStock} μηδενικά</small></Link>
+        </div>
+        <div className={styles.priorityList}>
+          {today.priorities.slice(0, 5).map((priority, index) => <Link key={priority.id} href={priority.href} className={`${styles.priorityCard} ${styles[`priority_${priority.tone}`]}`}>
+            <span className={styles.priorityRank}>{index + 1}</span>
+            <div><strong>{priority.title}</strong><small>{priority.detail}</small></div>
+            <b>{priority.count > 0 ? priority.count : "✓"}</b>
+          </Link>)}
+        </div>
+        {(today.lowStockItems.length > 0 || today.staleStockItems.length > 0) && <div className={styles.stockWatch}>
+          <div><span className={styles.eyebrow}>Stock watch</span><strong>{today.metrics.lowStock} χαμηλά · {today.metrics.staleStock} χρειάζονται φρεσκάρισμα</strong></div>
+          <Link href="/daily/quickadd">Έλεγχος stock</Link>
+        </div>}
+      </section>
 
       {unacknowledged.length > 0 && <section className={styles.inbox}>
         <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Χρειάζεται επιβεβαίωση</span><h2>Νέες παραγγελίες</h2></div><b>{unacknowledged.length}</b></div>
