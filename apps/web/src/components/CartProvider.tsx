@@ -44,17 +44,19 @@ function displayMoney(minor: number) { return new Intl.NumberFormat("el-GR", { s
 function storedCartItem(value: unknown): CartItem | undefined {
   if (!value || typeof value !== "object") return undefined;
   const item = value as Partial<CartItem>;
+  const priceMinor = item.priceMinor;
+  const quantity = item.quantity;
   if (typeof item.canonicalVariantId !== "string" || item.canonicalVariantId.length === 0 || item.canonicalVariantId.length > 128
     || typeof item.title !== "string" || item.title.length === 0 || item.title.length > 500
     || typeof item.price !== "string" || item.price.length > 64
-    || !Number.isSafeInteger(item.priceMinor) || (item.priceMinor ?? -1) < 0
-    || !Number.isSafeInteger(item.quantity) || (item.quantity ?? 0) <= 0) return undefined;
+    || typeof priceMinor !== "number" || !Number.isSafeInteger(priceMinor) || priceMinor < 0
+    || typeof quantity !== "number" || !Number.isSafeInteger(quantity) || quantity <= 0) return undefined;
   return {
     canonicalVariantId: item.canonicalVariantId,
     title: item.title,
-    priceMinor: item.priceMinor,
+    priceMinor,
     price: item.price,
-    quantity: Math.min(99, item.quantity)
+    quantity: Math.min(99, quantity)
   };
 }
 
