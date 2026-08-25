@@ -128,9 +128,12 @@ export async function assignCatalogueSnapshotToVendor(
         NULLIF(sp.supplier_code,''),'candidate','ask_vendor','import',
         jsonb_build_object(
           'commercialConfirmationRequired',true,
+          'vendorWorkspaceAvailable',true,
+          'adminConfirmedAt',now(),
+          'adminConfirmedBy',$6::text,
           'sourceCode',$5::text,
           'snapshotId',$1::uuid,
-          'assignment','bulk_snapshot_v1',
+          'assignment','bulk_snapshot_v2',
           'assignedBy',$6::text
         ),
         now(),now()
