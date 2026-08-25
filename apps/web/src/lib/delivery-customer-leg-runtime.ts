@@ -7,6 +7,28 @@ function runtime() {
   return getProductionPostgresRuntime();
 }
 
+export async function assertCustomerDeliveryLegActive(principal: DeliveryDriverPrincipal, token: string) {
+  const parts = token.trim().split(".");
+  if (parts.length !== 5 || parts[0] !== "kmd1" || parts[1] !== "delivery" || !/^delivery_job_[a-f0-9]{32}$/.test(parts[2] ?? "")) {
+    return;
+  }
+
+  const active = await runtime().nativePool.query(`
+    SELECT 1
+    FROM delivery_jobs j
+    JOIN delivery_stops s ON s.job_id = j.id AND s.stop_kind = 'customer_dropoff'
+    WHERE j.public_id = $1
+      AND j.driver_id = $2
+      AND j.status = 'in_progress'
+      AND s.status = 'ready'
+    LIMIT 1
+  `, [parts[2], principal.driverId]);
+
+  if (!active.rowCount) {
+    throw new Error("Πάτησε πρώτα «Ξεκίνησα προς πελάτη» για να ενεργοποιηθεί η τελική παράδοση.");
+  }
+}
+
 export async function driverStartCustomerDeliveryLeg(
   principal: DeliveryDriverPrincipal,
   input: { jobId: string; now?: number },
