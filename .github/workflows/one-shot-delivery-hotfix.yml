@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
     paths:
+      - .github/workflows/one-shot-delivery-hotfix.yml
       - scripts/one-shot-delivery-hotfix.py
+      - scripts/one-shot-delivery-hotfix-v2.py
 
 permissions:
   contents: write
@@ -26,7 +28,9 @@ jobs:
           cache: npm
 
       - name: Apply delivery custody and privacy patch
-        run: python scripts/one-shot-delivery-hotfix.py
+        run: |
+          python scripts/one-shot-delivery-hotfix.py
+          python scripts/one-shot-delivery-hotfix-v2.py
 
       - name: Install dependencies
         run: npm ci
@@ -50,10 +54,12 @@ jobs:
                   apps/web/src/lib/vendor-runtime.ts \
                   apps/web/src/lib/order-lifecycle.ts \
                   apps/web/src/components/VendorDailyOrdersClient.tsx \
+                  apps/web/src/components/VendorOrdersClient.tsx \
                   apps/web/src/app/daily/scan/page.tsx \
                   apps/web/src/components/VendorDailyScanner.tsx \
                   apps/web/src/app/api/daily/fulfilments/delivery-contact/route.ts \
-                  apps/web/src/app/api/vendor/fulfilments/delivery-contact/route.ts
+                  apps/web/src/app/api/vendor/fulfilments/delivery-contact/route.ts \
+                  scripts/verify-fulfilment-data-minimization.ts
           git diff --cached --check
           git commit -m "Fix local delivery custody flow and privacy"
           git push origin HEAD:main
