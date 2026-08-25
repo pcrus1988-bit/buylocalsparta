@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Daily",
     description: "Καθημερινή διαχείριση παραγγελιών, Ask Local, stock και παραλαβών για συνεργάτες ΚΟΝΤΑ ΜΟΥ.",
     start_url: "/daily",
-    scope: "/daily/",
+    scope: "/daily",
     display: "standalone",
     background_color: "#f6f4ee",
     theme_color: "#171914",
