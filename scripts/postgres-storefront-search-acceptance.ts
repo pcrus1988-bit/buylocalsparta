@@ -11,11 +11,12 @@ if (process.env.NODE_ENV === "production") {
 
 const runtime = getProductionPostgresRuntime();
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
+const hiddenSearchToken = `SearchHiddenOnly${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 const categoryCode = `search-accept-${suffix}`;
 const visibleId = `canonical_search_accept_${suffix}`;
 const hiddenId = `canonical_search_hidden_${suffix}`;
 const visibleTitle = `Σχολική Τσάντα Αθηνά ${suffix}`;
-const hiddenTitle = `Μυστικό SearchHidden ${suffix}`;
+const hiddenTitle = `Μυστικό ${hiddenSearchToken}`;
 
 try {
   await runtime.nativePool.query(`
@@ -55,8 +56,8 @@ try {
     throw new Error("Storefront search did not match normalized title terms");
   }
 
-  const hidden = await postgresStorefrontSearchSignal(`SearchHidden ${suffix}`, 8);
-  if (hidden.hasResults || hidden.suggestions.some((value) => value.includes(hiddenId))) {
+  const hidden = await postgresStorefrontSearchSignal(hiddenSearchToken, 8);
+  if (hidden.hasResults || hidden.suggestions.some((value) => value === hiddenTitle || value.includes(hiddenId))) {
     throw new Error("Suppressed canonical leaked into PostgreSQL storefront search");
   }
 
@@ -73,6 +74,10 @@ try {
   }, null, 2));
 } finally {
   await runtime.nativePool.query("DELETE FROM canonical_variants WHERE public_id = ANY($1::text[])", [[visibleId, hiddenId]]).catch(() => undefined);
+  await runtime.nativePool.query(`
+    DELETE FROM product_families
+    WHERE category_id IN (SELECT id FROM categories WHERE code=$1)
+  `, [categoryCode]).catch(() => undefined);
   await runtime.nativePool.query("DELETE FROM categories WHERE code=$1", [categoryCode]).catch(() => undefined);
   await runtime.close();
 }
