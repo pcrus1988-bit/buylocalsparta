@@ -83,15 +83,33 @@ export function RegisterForm() {
       });
       const data = await response.json() as { error?: string; email?: string; resent?: boolean; verificationUrl?: string };
       if (!response.ok) throw new Error(data.error ?? "Η εγγραφή απέτυχε.");
+
+      const registeredEmail = data.email ?? email;
       setSuccess(data.resent
-        ? `Στείλαμε νέο email επιβεβαίωσης στο ${data.email ?? email}.`
-        : `Ο λογαριασμός δημιουργήθηκε. Έλεγξε το ${data.email ?? email} για να επιβεβαιώσεις το email σου.`);
+        ? `Στείλαμε νέο email επιβεβαίωσης στο ${registeredEmail}.`
+        : `Ο λογαριασμός δημιουργήθηκε. Έλεγξε το ${registeredEmail} για να επιβεβαιώσεις το email σου.`);
       setVerificationUrl(data.verificationUrl ?? "");
+      setLegalDocument(null);
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      setPasswordConfirmation("");
+      setAcceptedTerms(false);
+      setAcceptedPrivacy(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η εγγραφή απέτυχε.");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (success) {
+    return <div className="account-gate registration-success" role="status" aria-live="polite">
+      <strong>Ένα ακόμη βήμα</strong>
+      <p>{success}</p>
+      <p>Άνοιξε το email επιβεβαίωσης και πάτησε τον σύνδεσμο για να ενεργοποιήσεις τον λογαριασμό σου. Μετά θα μπορείς να συνδεθείς.</p>
+      {verificationUrl && <a className="text-link" href={verificationUrl}>Development verification link →</a>}
+    </div>;
   }
 
   const activeLegal = legalDocument ? LEGAL_DOCUMENTS[legalDocument] : null;
@@ -125,9 +143,8 @@ export function RegisterForm() {
       </div>
 
       {error && <p className="form-error" role="alert">{error}</p>}
-      {success && <div className="account-gate" role="status"><strong>Ένα ακόμη βήμα</strong><p>{success}</p>{verificationUrl && <a className="text-link" href={verificationUrl}>Development verification link →</a>}</div>}
 
-      <button className="button" type="submit" disabled={busy || Boolean(success)}>{busy ? "Δημιουργία…" : "Δημιουργία λογαριασμού"}</button>
+      <button className="button" type="submit" disabled={busy}>{busy ? "Δημιουργία…" : "Δημιουργία λογαριασμού"}</button>
       <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href={`/login${safeNextQuery(searchParams.get("next"))}`}>Συνδέσου →</a></p>
     </form>
 
