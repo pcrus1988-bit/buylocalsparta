@@ -14,12 +14,12 @@ export default async function CheckoutPage() {
   const checkoutEnabled = paymentMode !== "unavailable";
 
   return <main>
-    <div className="announcement">{checkoutEnabled ? "Checkout · η τελική διαθεσιμότητα, παράδοση και χρέωση επιβεβαιώνονται από το backend." : "Online checkout · προσωρινά μη διαθέσιμο μέχρι να ενεργοποιηθεί ο production πάροχος πληρωμών."}</div>
+    <div className="announcement">{checkoutEnabled ? "Λίγα βήματα ακόμη · διάλεξε παραλαβή ή παράδοση και ολοκλήρωσε με ασφάλεια." : "Η online πληρωμή είναι προσωρινά μη διαθέσιμη. Το καλάθι σου παραμένει αποθηκευμένο."}</div>
     <SiteHeader compact />
     <section className="shell page-hero">
-      <div className="eyebrow">Checkout</div>
-      <h1>{checkoutEnabled ? "Μία αγορά. Τοπικά." : "Το καλάθι σου παραμένει ασφαλές."}</h1>
-      <div className="checkout-context-links"><a className="text-link" href="/how-it-works">Πώς λειτουργεί η ενιαία αγορά →</a><a className="text-link" href="/delivery-pickup">Παράδοση & παραλαβή →</a><a className="text-link" href="/payments-security">Πώς προστατεύεται η πληρωμή →</a></div>
+      <div className="eyebrow">Ολοκλήρωση αγοράς</div>
+      <h1>{checkoutEnabled ? "Τελειώνουμε εύκολα." : "Το καλάθι σου παραμένει ασφαλές."}</h1>
+      <div className="checkout-context-links"><a className="text-link" href="/cart">← Πίσω στο καλάθι</a><a className="text-link" href="/delivery-pickup">Παράδοση & παραλαβή →</a><a className="text-link" href="/payments-security">Ασφαλής πληρωμή →</a></div>
     </section>
     <section className="shell page-section"><CheckoutPageClient checkoutEnabled={checkoutEnabled} paymentMode={paymentMode} boxNowEnabled={boxNowEnabled} /></section>
     <SiteFooter />
