@@ -16,12 +16,12 @@ const driverOffline = readFileSync("apps/web/public/driver-offline.html", "utf8"
 const adminOffline = readFileSync("apps/web/public/admin-offline.html", "utf8");
 
 for (const [name, manifest, scope, start] of [
-  ["Daily", dailyManifest, "/daily/", "/daily"],
-  ["Driver", driverManifest, "/driver/", "/driver"],
-  ["Admin", adminManifest, "/admin/", "/admin"]
+  ["Daily", dailyManifest, "/daily", "/daily"],
+  ["Driver", driverManifest, "/driver", "/driver"],
+  ["Admin", adminManifest, "/admin", "/admin"]
 ] as const) {
   if (!manifest.includes(`scope: "${scope}"`) || !manifest.includes(`start_url: "${start}"`)) {
-    throw new Error(`${name} manifest must have its own start URL and scope`);
+    throw new Error(`${name} manifest must align start URL and scope`);
   }
   if (!manifest.includes('display: "standalone"') || !manifest.includes('src: "/icon.svg"')) {
     throw new Error(`${name} manifest must be installable and carry an app icon`);
@@ -30,6 +30,9 @@ for (const [name, manifest, scope, start] of [
 
 if (!dailyLayout.includes('manifest: "/daily/manifest.webmanifest"') || !driverLayout.includes('manifest: "/driver/manifest.webmanifest"') || !adminLayout.includes('manifest: "/admin/manifest.webmanifest"')) {
   throw new Error("Operator layouts must override the generic marketplace manifest");
+}
+if (!dailyLayout.includes('scope="/daily"') || !driverLayout.includes('scope="/driver"') || !adminLayout.includes('scope="/admin"')) {
+  throw new Error("Service workers must register on the same exact prefix as their manifests");
 }
 if (!install.includes("beforeinstallprompt") || !install.includes("appinstalled") || !install.includes("serviceWorker.register")) {
   throw new Error("Shared PWA installer must support browser install lifecycle and scoped worker registration");
