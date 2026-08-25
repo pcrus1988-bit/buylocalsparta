@@ -15,6 +15,7 @@ import { storeSignedCommercialAgreementVault } from "../../../../../lib/agreemen
 import { getCommercialAgreementDocumentVault } from "../../../../../lib/agreement-document-vault-get";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 import { normalizeSpartaLocalDateTime } from "../../../../../lib/sparta-local-datetime";
+import { createAdminVendorAgreementRenewal } from "../../../../../lib/vendor-agreement-lifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -126,6 +127,19 @@ export async function POST(request: Request) {
         await generateCommercialAgreementPdfVault(principal, created.agreementId);
       } catch (error) {
         warning = `Η συμφωνία ${created.agreementCode} αποθηκεύτηκε, αλλά το PDF δεν δημιουργήθηκε αυτόματα: ${error instanceof Error ? error.message : "pdf_generation_failed"}`;
+      }
+    } else if (action === "renew") {
+      const renewed = await createAdminVendorAgreementRenewal(principal, {
+        vendorId: typeof body.vendorId === "string" ? body.vendorId : "",
+        predecessorAgreementId: typeof body.agreementId === "string" ? body.agreementId : "",
+        startsAt: normalizeSpartaLocalDateTime(body.startsAt),
+        endsAt: normalizeSpartaLocalDateTime(body.endsAt),
+        reason: typeof body.reason === "string" ? body.reason : ""
+      });
+      try {
+        await generateCommercialAgreementPdfVault(principal, renewed.agreementId);
+      } catch (error) {
+        warning = `Η ανανέωση ${renewed.agreementCode} v${renewed.agreementVersion} αποθηκεύτηκε, αλλά το PDF δεν δημιουργήθηκε αυτόματα: ${error instanceof Error ? error.message : "pdf_generation_failed"}`;
       }
     } else if (action === "generate_pdf") {
       await generateCommercialAgreementPdfVault(principal, body.agreementId);
