@@ -22,7 +22,7 @@ for (const table of [
 for (const mutation of ["INSERT INTO", "UPDATE catalog_", "DELETE FROM catalog_", "TRUNCATE "]) forbidText("runtime", mutation, `Read-only Supplier PIM intake must not contain ${mutation}`);
 requireText("page", "Supplier PIM Intake", "Admin page must identify Supplier PIM Intake");
 requireText("page", "Governance mode", "Admin page must show governance mode");
-requireText("page", "Read only", "Admin page must disclose read-only behavior");
+requireText("page", "read-only", "Admin page must disclose read-only behavior");
 requireText("page", "Product Matching", "Admin page must link to the downstream matching lifecycle");
 forbidText("page", "AdminActionButton", "Read-only Supplier PIM page must not expose mutation buttons");
 forbidText("page", "catalog.write", "Read-only Supplier PIM page must not require write permission");
