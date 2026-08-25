@@ -241,12 +241,30 @@ function customerOrderStatusLabel(order: CustomerOrder): string {
 
   const fulfilments = order.fulfilments.filter((item) => item.status !== "rejected" && item.status !== "cancelled");
   if (fulfilments.length) {
-    const statuses = fulfilments.map((item) => item.status);
-    if (statuses.every((status) => ["handed_over", "delivered"].includes(status))) return order.fulfilmentMode === "pickup" ? "Παραλήφθηκε" : "Ολοκληρώθηκε";
-    if (statuses.some((status) => status === "ready_for_handover")) return order.fulfilmentMode === "pickup" ? "Έτοιμη για παραλαβή" : "Έτοιμη για παράδοση";
-    if (statuses.some((status) => ["accepted", "picking", "packed"].includes(status))) return "Ετοιμάζεται από το κατάστημα";
-    if (statuses.some((status) => status === "shipped")) return "Σε αποστολή";
-    if (statuses.some((status) => status === "awaiting_acceptance")) return "Αναμονή αποδοχής από το κατάστημα";
+    const statuses: string[] = fulfilments.map((item) => item.status);
+
+    if (order.fulfilmentMode === "local_delivery") {
+      if (statuses.every((status) => status === "delivered")) return "Ολοκληρώθηκε";
+      if (statuses.some((status) => status === "handed_over")) {
+        if (statuses.every((status) => ["handed_over", "delivered"].includes(status))) return "Καθ’ οδόν προς εσένα";
+        return "Συλλογή από καταστήματα";
+      }
+      if (statuses.some((status) => status === "ready_for_handover")) return "Περιμένει παραλαβή από οδηγό";
+      if (statuses.some((status) => ["accepted", "picking", "packed"].includes(status))) return "Ετοιμάζεται από το κατάστημα";
+      if (statuses.some((status) => status === "awaiting_acceptance")) return "Αναμονή αποδοχής από το κατάστημα";
+    } else if (order.fulfilmentMode === "pickup") {
+      if (statuses.every((status) => ["handed_over", "delivered"].includes(status))) return "Παραλήφθηκε";
+      if (statuses.some((status) => status === "ready_for_handover")) return "Έτοιμη για παραλαβή";
+      if (statuses.some((status) => ["accepted", "picking", "packed"].includes(status))) return "Ετοιμάζεται από το κατάστημα";
+      if (statuses.some((status) => status === "awaiting_acceptance")) return "Αναμονή αποδοχής από το κατάστημα";
+    } else {
+      if (statuses.every((status) => status === "delivered")) return "Ολοκληρώθηκε";
+      if (statuses.some((status) => status === "shipped")) return "Σε αποστολή";
+      if (statuses.some((status) => status === "handed_over")) return "Παραδόθηκε στον μεταφορέα";
+      if (statuses.some((status) => status === "ready_for_handover")) return "Έτοιμη για αποστολή";
+      if (statuses.some((status) => ["accepted", "picking", "packed"].includes(status))) return "Ετοιμάζεται από το κατάστημα";
+      if (statuses.some((status) => status === "awaiting_acceptance")) return "Αναμονή αποδοχής από το κατάστημα";
+    }
   }
 
   if (["fulfilled", "completed"].includes(order.status)) return "Ολοκληρώθηκε";

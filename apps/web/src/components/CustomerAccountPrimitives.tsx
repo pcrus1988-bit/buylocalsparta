@@ -84,6 +84,11 @@ export function customerOrderLifecycle(status: string, fulfilmentMode: string): 
   const preparing = normalized.includes("ετοιμάζεται") || normalized.includes("επιβεβαιω");
   const ready = normalized.includes("έτοιμη");
   const shipping = normalized.includes("αποστολή");
+  const deliveryTransit = normalized.includes("καθ’ οδόν")
+    || normalized.includes("καθ' οδόν")
+    || normalized.includes("συλλογή από καταστήματα")
+    || normalized.includes("παραλαβή από οδηγό")
+    || normalized.includes("παράδοση συνεχίζεται");
   const complete = normalized.includes("ολοκληρώ") || normalized.includes("παραλήφθηκε") || normalized.includes("επιστράφηκαν τα χρήματα");
   const customerAction = normalized.includes("χρειάζεται ενέργεια");
 
@@ -93,7 +98,7 @@ export function customerOrderLifecycle(status: string, fulfilmentMode: string): 
   let currentIndex = 0;
   if (awaitingShop) currentIndex = 1;
   if (preparing) currentIndex = 2;
-  if (ready || shipping) currentIndex = 3;
+  if (ready || shipping || deliveryTransit) currentIndex = 3;
   if (complete) currentIndex = 4;
 
   const labels = ["Παραγγελία", "Επιβεβαίωση", "Προετοιμασία", fulfilmentLabel, finalLabel];

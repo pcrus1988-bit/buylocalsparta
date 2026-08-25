@@ -4,22 +4,32 @@ const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const progress = read("apps/web/src/components/CustomerFulfilmentProgress.tsx");
 const orderDetail = read("apps/web/src/components/OrderDetailClient.tsx");
 const accountView = read("apps/web/src/lib/account-view.ts");
+const accountPrimitives = read("apps/web/src/components/CustomerAccountPrimitives.tsx");
+const deliveryWorkspace = read("apps/web/src/components/CustomerDeliveryWorkspaceClient.tsx");
+const customerDeliveryView = read("apps/web/src/lib/customer-delivery-view.ts");
 const styles = read("apps/web/src/app/customer-fulfilment-progress.css");
 const layout = read("apps/web/src/app/layout.tsx");
 const failures: string[] = [];
 const expect = (condition: boolean, message: string) => { if (!condition) failures.push(message); };
 
 for (const contract of [
-  'const completed = fulfilments.filter((item) => ["handed_over", "delivered"].includes(item.status)).length',
+  "function isCompleted(status: string, fulfilmentMode: string): boolean",
+  'fulfilmentMode === "pickup" && status === "handed_over"',
+  "const completed = fulfilments.filter((item) => isCompleted(item.status, fulfilmentMode)).length",
   "const customerActions = fulfilments.filter",
   "const problems = fulfilments.filter",
   "toneFor(item.status, fulfilmentMode)",
   "nextStep(item.status, fulfilmentMode)",
+  "statusLabel(item.status, fulfilmentMode)",
   "<progress",
   "`${completed} από ${fulfilments.length} τμήματα ολοκληρώθηκαν`",
   'status === "ready_for_handover"',
   'status === "failed"',
   'status === "cancelled"',
+  'fulfilmentMode === "local_delivery"',
+  "Παραλήφθηκε από οδηγό",
+  "Ο οδηγός παρέλαβε αυτό το τμήμα",
+  "Η παραγγελία δεν θεωρείται παραδομένη μέχρι να επιβεβαιωθεί το τελικό QR του πελάτη",
   'tone === "action" ? "Δική σου ενέργεια"',
   'tone === "problem" ? "Χρειάζεται προσοχή"',
   "part.lineIds.flatMap",
@@ -27,6 +37,7 @@ for (const contract of [
   "Χρέωση παράδοσης: {item.deliveryCharge}"
 ]) expect(progress.includes(contract), `Fulfilment progress component is missing ${contract}`);
 
+expect(!progress.includes('const completed = fulfilments.filter((item) => ["handed_over", "delivered"].includes(item.status)).length'), "Local-delivery driver pickup must not count as customer completion");
 expect(!progress.includes('deliveryCharge !== "0,00'), "Fulfilment progress must not infer zero delivery charge from locale-formatted strings");
 expect(progress.includes('aria-label={`${completed} από ${fulfilments.length} ολοκληρωμένα`}'), "Fulfilment completion count must have an accessible label");
 expect(progress.includes('role="status"'), "Customer-action/problem summary must be announced as status information");
@@ -46,8 +57,41 @@ for (const contract of [
   "vendorName: vendorNames.get(fulfilment.vendorId)",
   "deliveryCharge: formatMoney(fulfilment.deliveryCharge)",
   "lineIds: fulfilment.lineIds.flatMap",
-  "lineTokens.get(lineId)"
+  "lineTokens.get(lineId)",
+  'order.fulfilmentMode === "local_delivery"',
+  "Καθ’ οδόν προς εσένα",
+  "Συλλογή από καταστήματα",
+  "Περιμένει παραλαβή από οδηγό"
 ]) expect(accountView.includes(contract), `Customer order projection is missing governed fulfilment field ${contract}`);
+expect(!accountView.includes('statuses.every((status) => ["handed_over", "delivered"].includes(status))) return order.fulfilmentMode === "pickup" ? "Παραλήφθηκε" : "Ολοκληρώθηκε"'), "Customer order status must not project local driver custody as completed");
+
+for (const contract of [
+  "const deliveryTransit =",
+  "καθ’ οδόν",
+  "συλλογή από καταστήματα",
+  "παραλαβή από οδηγό",
+  "ready || shipping || deliveryTransit"
+]) expect(accountPrimitives.includes(contract), `Customer lifecycle is missing local-delivery transit contract ${contract}`);
+
+for (const contract of [
+  "const vendorPickupsComplete =",
+  "const showCustomerQr = Boolean(job.customerQr",
+  'job.status === "in_progress"',
+  "vendorPickupsComplete",
+  "customerDropoffOpen",
+  "Το QR τελικής παράδοσης θα εμφανιστεί",
+  "showReturnPickupQr"
+]) expect(deliveryWorkspace.includes(contract), `Customer delivery UI is missing proof gating contract ${contract}`);
+
+for (const contract of [
+  "function customerSafeDeliveryJob",
+  "latestLocation: undefined",
+  "customerQr: exposeDeliveryProof ? job.customerQr : undefined",
+  "returnPickupQr: exposeReturnPickupProof ? job.returnPickupQr : undefined",
+  'job.status === "in_progress"',
+  "vendorPickupsComplete",
+  "customerDropoffOpen"
+]) expect(customerDeliveryView.includes(contract), `Customer delivery server projection is missing privacy/proof contract ${contract}`);
 
 for (const contract of [
   ".customer-fulfilment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))",
@@ -55,7 +99,10 @@ for (const contract of [
   ".customer-fulfilment-card.is-action",
   ".customer-fulfilment-card.is-problem",
   "@media(max-width:760px)",
-  ".customer-fulfilment-grid{grid-template-columns:1fr}"
+  ".customer-fulfilment-grid{grid-template-columns:1fr}",
+  "@media(max-width:620px)",
+  ".order-detail-grid,.order-detail-main,.order-detail-side",
+  "overflow-wrap:anywhere"
 ]) expect(styles.includes(contract), `Fulfilment progress stylesheet is missing ${contract}`);
 expect(!styles.includes("var(--success)") && !styles.includes("var(--warning)") && !styles.includes("var(--danger)"), "Fulfilment progress styles must use existing project design tokens");
 expect(layout.includes('import "./customer-fulfilment-progress.css"'), "Global layout must load fulfilment progress styles");
@@ -65,4 +112,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer fulfilment progress checks passed: split completion, per-part next steps, customer action/problem semantics, governed projection fields and responsive presentation verified.");
+console.log("Customer fulfilment progress checks passed: local-driver custody is distinct from customer completion, proof exposure is final-leg gated, customer GPS uses the privacy-aware live endpoint, lifecycle states and responsive presentation are verified.");

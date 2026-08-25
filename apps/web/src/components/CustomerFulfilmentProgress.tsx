@@ -3,24 +3,36 @@ type FulfilmentPart = Readonly<{ id: string; status: string; vendorId: string; v
 
 type Tone = "pending" | "progress" | "action" | "success" | "problem";
 
-const statusLabel: Record<string, string> = {
+const baseStatusLabel: Record<string, string> = {
   awaiting_acceptance: "Αναμονή αποδοχής",
   accepted: "Έγινε αποδεκτή",
   picking: "Ετοιμάζεται",
   packed: "Συσκευάστηκε",
   ready_for_handover: "Έτοιμη",
-  handed_over: "Παραλήφθηκε",
   shipped: "Σε αποστολή",
   delivered: "Παραδόθηκε",
   failed: "Πρόβλημα παράδοσης",
   cancelled: "Ακυρώθηκε"
 };
 
+function statusLabel(status: string, fulfilmentMode: string): string {
+  if (status === "handed_over") {
+    if (fulfilmentMode === "local_delivery") return "Παραλήφθηκε από οδηγό";
+    if (fulfilmentMode === "shipping") return "Παραδόθηκε σε μεταφορέα";
+    return "Παραλήφθηκε";
+  }
+  return baseStatusLabel[status] ?? status.replaceAll("_", " ");
+}
+
+function isCompleted(status: string, fulfilmentMode: string): boolean {
+  return status === "delivered" || (fulfilmentMode === "pickup" && status === "handed_over");
+}
+
 function toneFor(status: string, fulfilmentMode: string): Tone {
-  if (["handed_over", "delivered"].includes(status)) return "success";
+  if (isCompleted(status, fulfilmentMode)) return "success";
   if (["failed", "cancelled"].includes(status)) return "problem";
   if (status === "ready_for_handover" && fulfilmentMode === "pickup") return "action";
-  if (["accepted", "picking", "packed", "ready_for_handover", "shipped"].includes(status)) return "progress";
+  if (["accepted", "picking", "packed", "ready_for_handover", "handed_over", "shipped"].includes(status)) return "progress";
   return "pending";
 }
 
@@ -29,9 +41,17 @@ function nextStep(status: string, fulfilmentMode: string): string {
   if (status === "accepted") return "Το κατάστημα το έχει αποδεχθεί και θα ξεκινήσει την προετοιμασία.";
   if (status === "picking") return "Το κατάστημα συγκεντρώνει τα προϊόντα σου.";
   if (status === "packed") return fulfilmentMode === "pickup" ? "Το τμήμα έχει συσκευαστεί και ετοιμάζεται για παραλαβή." : "Το τμήμα έχει συσκευαστεί και ετοιμάζεται για αποστολή.";
-  if (status === "ready_for_handover") return fulfilmentMode === "pickup" ? "Μπορείς να προχωρήσεις σε παραλαβή όταν εμφανίζεται ενεργό QR / κωδικός παραλαβής παρακάτω." : "Είναι έτοιμο να περάσει στο επόμενο βήμα της παράδοσης.";
+  if (status === "ready_for_handover") {
+    if (fulfilmentMode === "pickup") return "Μπορείς να προχωρήσεις σε παραλαβή όταν εμφανίζεται ενεργό QR / κωδικός παραλαβής παρακάτω.";
+    if (fulfilmentMode === "local_delivery") return "Το κατάστημα ολοκλήρωσε την προετοιμασία και περιμένει την επιβεβαιωμένη παραλαβή από τον οδηγό.";
+    return "Είναι έτοιμο να περάσει στο επόμενο βήμα της παράδοσης.";
+  }
   if (status === "shipped") return "Το τμήμα βρίσκεται σε μεταφορά προς εσένα.";
-  if (status === "handed_over") return "Η παραλαβή αυτού του τμήματος ολοκληρώθηκε.";
+  if (status === "handed_over") {
+    if (fulfilmentMode === "local_delivery") return "Ο οδηγός παρέλαβε αυτό το τμήμα από το κατάστημα. Η παραγγελία δεν θεωρείται παραδομένη μέχρι να επιβεβαιωθεί το τελικό QR του πελάτη.";
+    if (fulfilmentMode === "shipping") return "Το τμήμα παραδόθηκε στον μεταφορέα και συνεχίζει προς εσένα.";
+    return "Η παραλαβή αυτού του τμήματος ολοκληρώθηκε.";
+  }
   if (status === "delivered") return "Η παράδοση αυτού του τμήματος ολοκληρώθηκε.";
   if (status === "failed") return "Υπάρχει πρόβλημα με αυτό το τμήμα. Δες τις ενημερώσεις ή χρησιμοποίησε την υποστήριξη της παραγγελίας.";
   if (status === "cancelled") return "Αυτό το τμήμα δεν θα προχωρήσει. Τυχόν οικονομική τακτοποίηση ακολουθεί τη διαδικασία της παραγγελίας.";
@@ -53,7 +73,7 @@ export function CustomerFulfilmentProgress({ fulfilments, lines, fulfilmentMode 
   fulfilmentMode: string;
 }) {
   if (!fulfilments.length) return null;
-  const completed = fulfilments.filter((item) => ["handed_over", "delivered"].includes(item.status)).length;
+  const completed = fulfilments.filter((item) => isCompleted(item.status, fulfilmentMode)).length;
   const customerActions = fulfilments.filter((item) => toneFor(item.status, fulfilmentMode) === "action").length;
   const problems = fulfilments.filter((item) => toneFor(item.status, fulfilmentMode) === "problem").length;
   const percentage = Math.round((completed / fulfilments.length) * 100);
@@ -70,7 +90,7 @@ export function CustomerFulfilmentProgress({ fulfilments, lines, fulfilmentMode 
       {fulfilments.map((item, index) => {
         const tone = toneFor(item.status, fulfilmentMode);
         return <article className={`customer-fulfilment-card is-${tone}`} key={item.id}>
-          <div className="customer-fulfilment-card-head"><div><span>Τμήμα {index + 1}</span><strong>{item.vendorName}</strong></div><span className="status-pill">{statusLabel[item.status] ?? item.status.replaceAll("_", " ")}</span></div>
+          <div className="customer-fulfilment-card-head"><div><span>Τμήμα {index + 1}</span><strong>{item.vendorName}</strong></div><span className="status-pill">{statusLabel(item.status, fulfilmentMode)}</span></div>
           <p className="customer-fulfilment-items">{itemCopy(item, lines)}</p>
           <div className="customer-fulfilment-next"><span>{tone === "action" ? "Δική σου ενέργεια" : tone === "problem" ? "Χρειάζεται προσοχή" : tone === "success" ? "Ολοκληρώθηκε" : "Τι ακολουθεί"}</span><p>{nextStep(item.status, fulfilmentMode)}</p></div>
           <small className="customer-fulfilment-charge">Χρέωση παράδοσης: {item.deliveryCharge}</small>
