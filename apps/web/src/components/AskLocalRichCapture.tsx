@@ -1,14 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
+type SpeechRecognitionResultLike = { 0?: { transcript?: string } };
 type SpeechRecognitionLike = {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
-  onresult: ((event: { results: ArrayLike<{ 0?: { transcript?: string } }> }) => void) | null;
-  onerror: (() => void) | null;
+  onresult: ((event: { results: ArrayLike<SpeechRecognitionResultLike> }) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start(): void;
   stop(): void;
@@ -43,34 +44,71 @@ async function compressedReferenceImage(file: File): Promise<{ dataUrl: string; 
   return { dataUrl, bitmap: source };
 }
 
+function voiceErrorMessage(error?: string): string {
+  if (error === "not-allowed" || error === "service-not-allowed") return "Η πρόσβαση στο μικρόφωνο δεν επιτράπηκε. Επίτρεψε το μικρόφωνο για το kontamou.site από τις ρυθμίσεις του browser και δοκίμασε ξανά.";
+  if (error === "audio-capture") return "Δεν βρέθηκε διαθέσιμο μικρόφωνο στη συσκευή.";
+  if (error === "no-speech") return "Δεν ακούστηκε ομιλία. Πάτησε ξανά το μικρόφωνο και μίλησε λίγο πιο κοντά στη συσκευή.";
+  if (error === "network") return "Η φωνητική αναγνώριση δεν μπόρεσε να συνδεθεί. Έλεγξε τη σύνδεση και δοκίμασε ξανά.";
+  return "Η φωνητική εισαγωγή δεν ολοκληρώθηκε. Δοκίμασε ξανά ή γράψε την περιγραφή.";
+}
+
 export function AskLocalRichCapture() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [listening, setListening] = useState(false);
   const [barcode, setBarcode] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [notice, setNotice] = useState("");
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const captureSource = useMemo(() => {
     const active = [voiceTranscript ? "voice" : "", barcode ? "barcode" : "", imageDataUrl ? "photo" : ""].filter(Boolean);
     return active.length > 1 ? "mixed" : active[0] || "text";
   }, [barcode, imageDataUrl, voiceTranscript]);
 
+  function stopVoice() {
+    try { recognitionRef.current?.stop(); } catch { /* Recognition may already be stopping. */ }
+  }
+
   function startVoice() {
     setNotice("");
+    if (!window.isSecureContext) {
+      setNotice("Η φωνητική εισαγωγή χρειάζεται ασφαλή σύνδεση HTTPS.");
+      return;
+    }
     const browser = window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
     const Speech = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
-    if (!Speech) { setNotice("Η φωνητική καταγραφή δεν υποστηρίζεται από αυτόν τον browser. Μπορείς να γράψεις κανονικά το αίτημά σου."); return; }
-    const recognition = new Speech();
-    recognition.lang = "el-GR";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim();
-      if (transcript) setVoiceTranscript((current) => current ? `${current} ${transcript}`.slice(0, 1200) : transcript.slice(0, 1200));
-    };
-    recognition.onerror = () => setNotice("Δεν ακούσαμε καθαρά. Δοκίμασε ξανά ή γράψε την περιγραφή.");
-    recognition.onend = () => setListening(false);
-    setListening(true);
-    recognition.start();
+    if (!Speech) {
+      setNotice("Ο browser σου δεν υποστηρίζει φωνητική αναγνώριση. Δοκίμασε Chrome/Edge ή γράψε την περιγραφή.");
+      return;
+    }
+    try {
+      const recognition = new Speech();
+      recognitionRef.current = recognition;
+      recognition.lang = "el-GR";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.onresult = (event) => {
+        const last = event.results.length ? event.results[event.results.length - 1] : undefined;
+        const transcript = last?.[0]?.transcript?.trim();
+        if (transcript) {
+          setVoiceTranscript((current) => current ? `${current} ${transcript}`.slice(0, 1200) : transcript.slice(0, 1200));
+          setNotice("Η φωνητική σημείωση καταγράφηκε. Μπορείς να την ελέγξεις ή να τη διορθώσεις πριν την αποστολή.");
+        }
+      };
+      recognition.onerror = (event) => {
+        setNotice(voiceErrorMessage(event.error));
+        setListening(false);
+      };
+      recognition.onend = () => {
+        recognitionRef.current = null;
+        setListening(false);
+      };
+      setListening(true);
+      recognition.start();
+    } catch (error) {
+      recognitionRef.current = null;
+      setListening(false);
+      setNotice(error instanceof DOMException && error.name === "NotAllowedError" ? voiceErrorMessage("not-allowed") : "Το μικρόφωνο δεν μπόρεσε να ξεκινήσει. Δοκίμασε ξανά.");
+    }
   }
 
   async function capturePhoto(file?: File) {
@@ -96,12 +134,13 @@ export function AskLocalRichCapture() {
 
   return <fieldset className="ask-local-full workspace-tool-panel">
     <legend><strong>Δείξε μας τι ψάχνεις</strong></legend>
-    <p className="workspace-inline-note">Προαιρετικά: μίλησε, φωτογράφισε το αντικείμενο/ανταλλακτικό ή σκάναρε τον κωδικό. Η φωτογραφία μένει μέσα στο ιδιωτικό Ask Local αίτημα και δεν δημοσιεύεται.</p>
+    <p className="workspace-inline-note">Προαιρετικά: μίλησε, φωτογράφισε το αντικείμενο/ανταλλακτικό ή σκάναρε τον κωδικό. Η φωνητική σημείωση μετατρέπεται σε κείμενο και η φωτογραφία μένει μέσα στο ιδιωτικό Ask Local αίτημα.</p>
     <div className="workspace-inline-actions">
-      <button className="button button-secondary" type="button" onClick={startVoice} disabled={listening}>{listening ? "Ακούω…" : "🎤 Μίλησε"}</button>
+      <button className="button button-secondary" type="button" onClick={listening ? stopVoice : startVoice}>{listening ? "■ Σταμάτημα" : "🎤 Φωνητική εισαγωγή"}</button>
       <label className="button button-secondary" htmlFor="ask-local-reference-photo">📷 Φωτογραφία / barcode</label>
       <input id="ask-local-reference-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => void capturePhoto(event.target.files?.[0])} hidden />
     </div>
+    {listening ? <div className="workspace-inline-note" role="status">🎙️ Ακούω τώρα… μίλησε και περίμενε να εμφανιστεί το κείμενο.</div> : null}
     {voiceTranscript ? <label className="ask-local-full"><span>Φωνητική σημείωση</span><textarea name="voiceTranscript" value={voiceTranscript} onChange={(event) => setVoiceTranscript(event.target.value.slice(0, 1200))} maxLength={1200} /></label> : <input type="hidden" name="voiceTranscript" value="" />}
     <label><span>Barcode / EAN / μοντέλο</span><input name="barcode" value={barcode} onChange={(event) => setBarcode(event.target.value.slice(0, 64))} maxLength={64} inputMode="text" autoComplete="off" placeholder="π.χ. 5201234567890" /></label>
     {imageDataUrl ? <div className="ask-local-context"><Image src={imageDataUrl} alt="Φωτογραφία αναφοράς Ask Local" width={240} height={180} unoptimized /><button type="button" className="text-link" onClick={() => setImageDataUrl("")}>Αφαίρεση φωτογραφίας</button></div> : null}
