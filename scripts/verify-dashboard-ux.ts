@@ -40,9 +40,13 @@ for (const requirement of ["ADMIN_WORKSPACE_NAVIGATION", "AdminDomainNavigation"
 
 const account = read("apps/web/src/components/AccountDashboardClient.tsx");
 for (const destination of ["/returns-refunds", "/delivery-pickup", "/privacy-controls", "/ask-local"]) if (!account.includes(`href: "${destination}"`) && !account.includes(`href="${destination}"`)) failures.push(`Account dashboard is missing task path ${destination}`);
-for (const requirement of ["account-snapshot", "AccountSectionNavigation", 'density="compact"', 'role="alert"']) if (!account.includes(requirement)) failures.push(`Account dashboard is missing ${requirement}`);
+for (const requirement of ["account-snapshot", "priorityGrid", "order-tracking", "secondaryDetails", 'role="alert"']) if (!account.includes(requirement)) failures.push(`Account dashboard is missing ${requirement}`);
+const accountPage = read("apps/web/src/app/account/page.tsx");
+for (const requirement of ["AccountSectionNavigation", "/account/ask-local", "/account/orders", "askLocalHeroAction", "orderHeroAction"]) if (!accountPage.includes(requirement)) failures.push(`Account dashboard page is missing ${requirement}`);
 const accountNav = read("apps/web/src/components/AccountSectionNavigation.tsx");
-for (const sectionId of ["overview", "ask-local", "orders", "saved", "notifications", "searches", "recommendations", "privacy", "recent"]) if (!accountNav.includes(`href: "#${sectionId}"`)) failures.push(`Customer account navigation does not expose #${sectionId}`);
+for (const requirement of ["Αγορές & παρακολούθηση", "Τοπική βοήθεια", "Προφίλ & ασφάλεια", "/account/ask-local", "/account/orders", "/account/privacy"]) if (!accountNav.includes(requirement)) failures.push(`Customer account navigation is missing ${requirement}`);
+const accountStyles = read("apps/web/src/components/CustomerAccountExperience.module.css");
+for (const requirement of [".priorityGrid", ".trackerCard", ".askLocalCard", ".secondaryDetails", "@media (max-width: 620px)"]) if (!accountStyles.includes(requirement)) failures.push(`Customer account experience styles are missing ${requirement}`);
 
 const vendorDashboard = read("apps/web/src/components/VendorDashboardClient.tsx");
 for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/returns", "/vendor/trust", "/vendor/advice", "/vendor/finance"]) if (!vendorDashboard.includes(`href: "${destination}"`)) failures.push(`Vendor dashboard is missing task path ${destination}`);
