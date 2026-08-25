@@ -15,6 +15,8 @@ import { getPublicCmsPages } from "../../lib/public-cms";
 import { getAvailableStorefrontCategories } from "../../lib/available-catalog-taxonomy";
 
 export const dynamic = "force-dynamic";
+const XML_SITEMAP_PATH = "/sitemap.xml";
+const ROBOTS_PATH = "/robots.txt";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/sitemap", {
@@ -134,7 +136,7 @@ export default async function HumanSitemapPage() {
         <div className="hero-actions">
           <Link className="button" href="/shop">Δες προϊόντα</Link>
           <Link className="button button-secondary" href="/shops">Δες καταστήματα</Link>
-          <a className="button button-secondary" href="/sitemap.xml">XML sitemap</a>
+          <a className="button button-secondary" href={XML_SITEMAP_PATH}>XML sitemap</a>
         </div>
       </section>
 
@@ -150,8 +152,8 @@ export default async function HumanSitemapPage() {
             <h2>XML sitemap</h2>
             <p>Για Google και άλλες μηχανές αναζήτησης χρησιμοποιείται ξεχωριστό XML sitemap. Ενημερώνεται δυναμικά με τις δημόσιες σελίδες, κατηγορίες, προϊόντα και καταστήματα που επιτρέπεται να ευρετηριαστούν.</p>
             <div className="hero-actions">
-              <a className="button" href="/sitemap.xml">Άνοιγμα sitemap.xml</a>
-              <a className="button button-secondary" href="/robots.txt">robots.txt</a>
+              <a className="button" href={XML_SITEMAP_PATH}>Άνοιγμα sitemap.xml</a>
+              <a className="button button-secondary" href={ROBOTS_PATH}>robots.txt</a>
             </div>
           </aside>
         </div>
