@@ -7,8 +7,8 @@ ALTER TABLE public.vendor_catalog_assortments
   ADD COLUMN public_id text,
   ADD COLUMN price_check_status text NOT NULL DEFAULT 'pending'
     CHECK (price_check_status IN ('pending','confirmed','rejected')),
-  ADD COLUMN verified_supplier_price_minor bigint
-    CHECK (verified_supplier_price_minor IS NULL OR verified_supplier_price_minor >= 0),
+  ADD COLUMN verified_customer_price_minor bigint
+    CHECK (verified_customer_price_minor IS NULL OR verified_customer_price_minor >= 0),
   ADD COLUMN price_checked_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   ADD COLUMN price_checked_at timestamptz,
   ADD COLUMN stock_check_status text NOT NULL DEFAULT 'pending'
@@ -27,7 +27,7 @@ ALTER TABLE public.vendor_catalog_assortments
   ALTER COLUMN public_id SET DEFAULT ('vca_' || replace(gen_random_uuid()::text,'-','')),
   ADD CONSTRAINT vendor_catalog_assortments_public_id_key UNIQUE (public_id),
   ADD CONSTRAINT vendor_catalog_assortments_price_confirmation_check
-    CHECK (price_check_status <> 'confirmed' OR verified_supplier_price_minor IS NOT NULL),
+    CHECK (price_check_status <> 'confirmed' OR verified_customer_price_minor IS NOT NULL),
   ADD CONSTRAINT vendor_catalog_assortments_stock_confirmation_check
     CHECK (stock_check_status <> 'confirmed' OR verified_stock_on_hand IS NOT NULL),
   ADD CONSTRAINT vendor_catalog_assortments_stock_unavailable_check
@@ -38,8 +38,8 @@ CREATE INDEX vendor_catalog_assortments_commercial_review_idx
 
 COMMENT ON COLUMN public.vendor_catalog_assortments.public_id IS
   'Browser-safe public/operator reference for a vendor assortment candidate.';
-COMMENT ON COLUMN public.vendor_catalog_assortments.verified_supplier_price_minor IS
-  'Vendor/Admin-confirmed supplier-side price evidence only. It never creates or updates a sellable vendor_offer by itself.';
+COMMENT ON COLUMN public.vendor_catalog_assortments.verified_customer_price_minor IS
+  'Vendor/Admin-confirmed customer-facing price evidence for this assigned catalogue row. It never creates or updates a sellable vendor_offer by itself.';
 COMMENT ON COLUMN public.vendor_catalog_assortments.verified_stock_on_hand IS
   'Vendor/Admin-confirmed physical stock evidence only. It never creates inventory_balances or customer availability by itself.';
 
