@@ -188,6 +188,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     icon: "analytics",
     links: [
       { label: "Analytics", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
+      { label: "Demand Intelligence", href: "/admin/demand", icon: "◎", permission: "analytics.market.read" },
       { label: "Reports", href: "/admin/reports", icon: "▤", permission: "analytics.market.read" }
     ]
   },
