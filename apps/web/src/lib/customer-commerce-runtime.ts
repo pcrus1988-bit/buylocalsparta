@@ -40,8 +40,21 @@ export async function customerOrder(principal: SessionPrincipal, orderId: string
 
 export async function cancelCustomerCommerceOrder(principal: SessionPrincipal, input: { orderId: string; reason: string; now: number }): Promise<CustomerOrder> {
   if (postgresCommerceEnabled()) {
-    const runtime=getProductionPostgresRuntime();
-    if(runtime.vivaPayments) await runtime.vivaPayments.prepareOrderCancellation({orderId:input.orderId,reason:input.reason,now:input.now});
+    const runtime = getProductionPostgresRuntime();
+    const order = await runtime.customerCommerce.orderForCustomer(principal.userId, input.orderId);
+    if (!order) throw new Error("ORDER_NOT_FOUND");
+
+    // A pending-payment order has not charged the customer. Cancel it locally first so
+    // the payment row becomes `cancelled`; prepareOrderCancellation then performs only
+    // its database check and cannot call Viva for an uncharged payment. If a capture
+    // races with this cancellation, the captured balance is still detected and refunded.
+    if (order.status === "pending_payment") {
+      const cancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId: principal.userId, orderId: input.orderId, reason: input.reason, now: input.now });
+      if (runtime.vivaPayments) await runtime.vivaPayments.prepareOrderCancellation({ orderId: input.orderId, reason: input.reason, now: input.now });
+      return cancelled;
+    }
+
+    if (runtime.vivaPayments) await runtime.vivaPayments.prepareOrderCancellation({ orderId: input.orderId, reason: input.reason, now: input.now });
     return runtime.customerCommerce.cancelCustomerOrder({ customerId: principal.userId, orderId: input.orderId, reason: input.reason, now: input.now });
   }
   const order = developmentRuntime.commerce.orders().find((entry) => entry.id === input.orderId);

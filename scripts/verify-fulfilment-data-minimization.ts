@@ -57,7 +57,13 @@ requireText(checkoutRoute, "checkout_request_guards", "Checkout replay guard mus
 requireText(checkoutClient, 'const needsDeliveryAddress = fulfilmentMode === "local_delivery";', "Checkout UI must request a delivery address only for local delivery");
 requireText(checkoutClient, 'deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : undefined', "Client must omit delivery address IDs for pickup and BOX NOW");
 requireText(checkoutClient, 'providerDestinationPostcode: boxNowLocker?.postcode', "Client must send the selected BOX NOW locker postcode explicitly");
-requireText(checkoutClient, "Για παραλαβή από κατάστημα δεν αποθηκεύεται διεύθυνση παράδοσης", "Checkout must explain pickup data minimization to the customer");
+const pickupMinimizationCopy = [
+  "Για παραλαβή από κατάστημα δεν ζητάμε διεύθυνση παράδοσης",
+  "Για παραλαβή από κατάστημα δεν αποθηκεύεται διεύθυνση παράδοσης"
+];
+if (!pickupMinimizationCopy.some((copy) => checkoutClient.includes(copy))) {
+  throw new Error("Checkout must explain pickup data minimization to the customer");
+}
 
 const vendorDashboardQuery = between(vendorOperations, "async dashboard", "async updateStock");
 for (const forbidden of ["->>'recipientName'", "->>'recipientEmail'", "->>'recipientPhone'", "->>'line1'", "->>'phone'"]) {

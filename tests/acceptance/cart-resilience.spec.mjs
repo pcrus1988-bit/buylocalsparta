@@ -5,7 +5,7 @@ function desktopOnly(testInfo) {
 }
 
 async function expectUsableCart(page, pageErrors) {
-  await expect(page.getByRole("heading", { level: 1, name: "Οι τοπικές επιλογές σου." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Είναι όλα εδώ." })).toBeVisible();
   await page.waitForTimeout(600);
   expect(pageErrors, `unhandled browser errors: ${pageErrors.join(" | ")}`).toEqual([]);
 }
@@ -61,7 +61,7 @@ test("persistent cart PUT failure stays fail-soft after hydration", async ({ pag
   });
 
   await page.goto("/cart");
-  await expect(page.getByRole("heading", { level: 1, name: "Οι τοπικές επιλογές σου." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Είναι όλα εδώ." })).toBeVisible();
   await expect.poll(() => putAttempts, { timeout: 3_000 }).toBeGreaterThan(0);
   await page.waitForTimeout(250);
   expect(pageErrors, `unhandled browser errors: ${pageErrors.join(" | ")}`).toEqual([]);

@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       email?: unknown;
       password?: unknown;
       passwordConfirmation?: unknown;
+      acceptedTerms?: unknown;
       acceptedPrivacy?: unknown;
       next?: unknown;
     };
@@ -49,7 +50,8 @@ export async function POST(request: Request) {
     if (!email || !password) throw new Error("Συμπλήρωσε email και κωδικό.");
     if (password !== password.trim()) throw new Error("Ο κωδικός δεν μπορεί να αρχίζει ή να τελειώνει με κενό.");
     if (password !== passwordConfirmation) throw new Error("Οι δύο κωδικοί δεν ταιριάζουν.");
-    if (body.acceptedPrivacy !== true) throw new Error("Χρειάζεται να αποδεχτείς την επεξεργασία δεδομένων για τη δημιουργία λογαριασμού.");
+    if (body.acceptedTerms !== true) throw new Error("Χρειάζεται να αποδεχτείς τους Όρους Χρήσης.");
+    if (body.acceptedPrivacy !== true) throw new Error("Χρειάζεται να αποδεχτείς την Πολιτική Απορρήτου.");
 
     const result = await registerCustomer({ email, password, now });
     await saveRegisteredCustomerName({ userId: result.account.id, fullName, now });

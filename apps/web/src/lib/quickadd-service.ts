@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { flexibleQuickAddSearch } from "./quickadd-flex-search";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
-import { findVendorCanonicalPrefillMatches, type VendorCanonicalPrefillMatch } from "./vendor-canonical-prefill-service";
+import type { VendorCanonicalPrefillMatch } from "./vendor-canonical-prefill-service";
 import { vendorCatalogControlWorkspace, type VendorManagedCatalogProduct } from "./vendor-catalog-control-service";
 
 export type QuickAddMatch = VendorCanonicalPrefillMatch & Readonly<{
@@ -37,9 +38,32 @@ function vendorScope(principal: SessionPrincipal) {
 }
 
 export async function quickAddLookup(principal: SessionPrincipal, input: { gtin?: string; q?: string; limit?: number }) {
-  const gtin = clean(input.gtin).replace(/\D/g, "");
-  const q = clean(input.q);
-  const matches = await findVendorCanonicalPrefillMatches(principal, { gtin, title: q, limit: input.limit ?? 6 });
+  if (!postgresVendorRuntimeEnabled()) throw new Error("Quick Add requires the PostgreSQL vendor runtime");
+  const rawGtin = clean(input.gtin);
+  const gtin = rawGtin.replace(/\D/g, "");
+  const q = clean(input.q) || rawGtin;
+  const limit = Math.min(8, Math.max(1, Math.floor(input.limit ?? 6)));
+
+  const flexible = await uow().withTransaction(vendorScope(principal), async (tx) =>
+    flexibleQuickAddSearch(tx, { vendorId: requiredVendorId(principal), query: q, code: gtin, limit }),
+  { readOnly: true });
+
+  const matches: VendorCanonicalPrefillMatch[] = flexible.map((match) => ({
+    canonicalVariantId: match.canonicalVariantId,
+    title: match.title,
+    gtin: match.gtin,
+    description: match.description,
+    brand: match.brand,
+    model: match.model,
+    mpn: match.mpn,
+    categoryCode: match.categoryCode,
+    categoryName: match.categoryPath.split(" › ").at(-1) ?? match.categoryCode,
+    categoryPath: match.categoryPath,
+    specifications: match.specifications,
+    variantAttributes: match.variantAttributes,
+    score: match.score
+  }));
+
   const workspace = await vendorCatalogControlWorkspace(principal);
   const byCanonical = new Map(workspace.catalogProducts.map((item) => [item.canonicalVariantId, item]));
   const byGtin = new Map(workspace.catalogProducts.filter((item) => item.gtin).map((item) => [item.gtin!.replace(/\D/g, ""), item]));
@@ -103,12 +127,13 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
       const changed = await tx.query<SqlRow>(`
         UPDATE public.vendor_offers
         SET vendor_sku=$2,source_gtin=COALESCE(NULLIF($3,''),source_gtin),supplier_unit_price_minor=$4,
-            customer_price_minor=$4,merchant_visible=$5,
-            advice_capabilities=jsonb_build_object('available',$6),
+            customer_price_minor=$4,merchant_visible=$5::boolean,
+            merchant_pause_active=CASE WHEN $5::boolean THEN false ELSE merchant_pause_active END,
+            advice_capabilities=jsonb_build_object('available',$6::boolean),
             source_payload=COALESCE(source_payload,'{}'::jsonb)||jsonb_build_object(
               'lastQuickAddSource','daily',
-              'canonicalWasInactive',$7,
-              'canonicalActivatedByQuickAdd',$7
+              'canonicalWasInactive',$7::boolean,
+              'canonicalActivatedByQuickAdd',$7::boolean
             ),updated_at=now()
         WHERE id=$1::uuid
         RETURNING id::text id,public_id
@@ -125,13 +150,13 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
           advice_capabilities,source_payload,approved_at,merchant_visible,merchant_visibility_updated_by,created_at,updated_at
         ) VALUES(
           $1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,'approved',
-          $9,$9,'EUR',2400,ARRAY['pickup']::fulfilment_mode[],jsonb_build_object('available',$10),
+          $9,$9,'EUR',2400,ARRAY['pickup']::fulfilment_mode[],jsonb_build_object('available',$10::boolean),
           jsonb_build_object(
             'source','quickadd',
-            'canonicalPublicId',$11,
-            'canonicalWasInactive',$13,
-            'canonicalActivatedByQuickAdd',$13
-          ),now(),$12,
+            'canonicalPublicId',$11::text,
+            'canonicalWasInactive',$13::boolean,
+            'canonicalActivatedByQuickAdd',$13::boolean
+          ),now(),$12::boolean,
           NULLIF(current_setting('app.actor_user_id',true),'')::uuid,now(),now()
         )
       `, [offerUuid, offerPublicId, ref.market_uuid, ref.vendor_uuid, ref.location_uuid, ref.canonical_uuid,
@@ -150,7 +175,7 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
       await tx.query(`
         INSERT INTO public.inventory_movements(id,offer_id,movement_type,quantity_delta,source,actor_id,metadata,created_at)
         VALUES($1,$2::uuid,'manual_adjustment',$3,'quickadd',NULLIF(current_setting('app.actor_user_id',true),'')::uuid,
-          jsonb_build_object('previousOnHand',$4,'newOnHand',$5),now())
+          jsonb_build_object('previousOnHand',$4::integer,'newOnHand',$5::integer),now())
       `, [randomUUID(), offerUuid, onHand - previousOnHand, previousOnHand, onHand]);
     }
     return { ok: true, offerId: offerPublicId, canonicalVariantId, canonicalActivated: canonicalWasInactive };
