@@ -1,0 +1,31 @@
+name: Great Differentiators Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/lib/local-commerce-proof.ts"
+      - "apps/web/src/components/LocalCommerceProof.tsx"
+      - "apps/web/src/components/CatalogProductCard.tsx"
+      - "apps/web/src/components/CustomerDeliveryWorkspaceClient.tsx"
+      - "apps/web/src/app/shop/page.tsx"
+      - "scripts/verify-great-differentiators.ts"
+      - ".github/workflows/great-differentiators-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify differentiator contracts
+        run: node --experimental-strip-types scripts/verify-great-differentiators.ts
+      - name: Typecheck web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
