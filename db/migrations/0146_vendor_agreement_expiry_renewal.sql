@@ -2,7 +2,12 @@
 -- Signed agreements remain immutable history. Renewal is represented by a linked successor
 -- and commercial storefront access follows the currently effective agreement automatically.
 
+-- Hosted production already carried these public-directory controls through an earlier
+-- operational migration. Make them canonical here so clean databases and production agree.
 ALTER TABLE public.vendor_businesses
+  ADD COLUMN IF NOT EXISTS public_directory_visible boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS public_directory_visibility_updated_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS public_directory_visibility_reason text NULL,
   ADD COLUMN IF NOT EXISTS agreement_expiry_restricted_at timestamptz NULL,
   ADD COLUMN IF NOT EXISTS agreement_expiry_previous_public_directory_visible boolean NULL,
   ADD COLUMN IF NOT EXISTS agreement_expiry_previous_visibility_reason text NULL;
