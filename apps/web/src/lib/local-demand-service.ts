@@ -130,6 +130,28 @@ async function loadSignalRows(principal: SessionPrincipal, now: number): Promise
 
         UNION ALL
 
+        SELECT 'quickadd:'||miss.visitor_hash AS actor_key,'quickAddMiss'::text AS source,
+               vc.public_id AS canonical_variant_id,vc.category_code,vc.title,vc.category_name,vc.available_local
+        FROM analytics_events miss
+        JOIN LATERAL (
+          SELECT resolved.canonical_variant_id
+          FROM analytics_events resolved
+          WHERE resolved.market_id=miss.market_id
+            AND resolved.event_name='quickadd.lookup_resolved'
+            AND resolved.canonical_variant_id IS NOT NULL
+            AND resolved.metadata->>'lookupFingerprint'=miss.metadata->>'lookupFingerprint'
+          ORDER BY resolved.occurred_at DESC
+          LIMIT 1
+        ) resolved ON true
+        JOIN variant_context vc ON vc.id=resolved.canonical_variant_id
+        WHERE miss.market_id=(SELECT id FROM market)
+          AND miss.event_name='quickadd.lookup_missed'
+          AND miss.occurred_at >= $1
+          AND NULLIF(miss.visitor_hash,'') IS NOT NULL
+          AND NULLIF(miss.metadata->>'lookupFingerprint','') IS NOT NULL
+
+        UNION ALL
+
         SELECT 'user:'||ss.user_id::text AS actor_key,'savedSearch'::text AS source,
                NULL::text AS canonical_variant_id,cat.category_code,NULL::text AS title,cat.category_name,NULL::boolean AS available_local
         FROM saved_searches ss
@@ -156,7 +178,7 @@ async function loadSignalRows(principal: SessionPrincipal, now: number): Promise
       const actorKey = text(row.actor_key);
       const source = text(row.source);
       const categoryCode = text(row.category_code);
-      if (!actorKey || !categoryCode || !["localWatch", "askLocal", "savedSearch", "zeroResultSearch"].includes(source ?? "")) return [];
+      if (!actorKey || !categoryCode || !["localWatch", "askLocal", "savedSearch", "zeroResultSearch", "quickAddMiss"].includes(source ?? "")) return [];
       return [{
         actorKey,
         source: source as DemandSignalRow["source"],
