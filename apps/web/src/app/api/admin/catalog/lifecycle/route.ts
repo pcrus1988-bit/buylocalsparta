@@ -1,5 +1,16 @@
 import { requireAdminSession } from "../../../../../lib/admin-session";
-import { archiveAdminProduct, permanentlyDeleteAdminProduct, reactivateAdminProduct } from "../../../../../lib/product-lifecycle-service";
+import { adminProductLifecycleState, archiveAdminProduct, permanentlyDeleteAdminProduct, reactivateAdminProduct } from "../../../../../lib/product-lifecycle-service";
+
+export async function GET(request: Request) {
+  try {
+    const principal = await requireAdminSession(request, { permission: "catalog.read" });
+    const submissionId = new URL(request.url).searchParams.get("submissionId")?.trim() ?? "";
+    if (!submissionId) throw new Error("Product submission is required");
+    return Response.json(await adminProductLifecycleState(principal, submissionId));
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "product_lifecycle_state_failed" }, { status: 400 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
