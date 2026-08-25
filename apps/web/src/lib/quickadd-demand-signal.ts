@@ -10,6 +10,11 @@ function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function demandSecret(): string | undefined {
+  const secret = clean(process.env.BLS_QUICKADD_DEMAND_SECRET) || clean(process.env.BLS_AUTH_SECRET);
+  return secret.length >= 32 ? secret : undefined;
+}
+
 export async function recordQuickAddDemandSignal(
   principal: SessionPrincipal,
   input: Readonly<{
@@ -23,11 +28,13 @@ export async function recordQuickAddDemandSignal(
   }>
 ): Promise<void> {
   if (!process.env.DATABASE_URL?.trim()) return;
-  const lookup = quickAddLookupFingerprint(input);
+  const secret = demandSecret();
+  if (!secret) return;
+  const lookup = quickAddLookupFingerprint(secret, input);
   const shopActor = clean(principal.vendorId) || clean(input.vendorId);
   if (!lookup || !shopActor) return;
 
-  const actorHash = quickAddActorHash(shopActor);
+  const actorHash = quickAddActorHash(secret, shopActor);
   const now = new Date();
   const day = now.toISOString().slice(0, 10);
   const eventName = input.matched ? "quickadd.lookup_resolved" : "quickadd.lookup_missed";
