@@ -39,6 +39,17 @@ function addressText(address: Record<string, unknown>): string {
 function stamp(value?: number) {
   return value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "medium" }).format(value) : "";
 }
+function customerLegState(job: DeliveryJobView) {
+  const vendorPickups = job.stops.filter((stop) => stop.kind === "vendor_pickup");
+  const vendorPickupsComplete = vendorPickups.length > 0 && vendorPickups.every((stop) => stop.status === "completed");
+  const customerDropoff = job.stops.find((stop) => stop.kind === "customer_dropoff" && !["completed", "skipped", "failed"].includes(stop.status));
+  return {
+    vendorPickupsComplete,
+    customerDropoff,
+    canStart: job.type === "outbound" && vendorPickupsComplete && customerDropoff?.status === "pending",
+    active: job.type === "outbound" && customerDropoff?.status === "ready",
+  };
+}
 
 export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace }) {
   const [workspace,setWorkspace]=useState(initial);
@@ -133,6 +144,13 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
     const ok=await action("tracking",{jobId:job.id,enabled});
     if(ok&&enabled)startWatch(job.id);
   }
+  async function startCustomerLeg(job: DeliveryJobView) {
+    const ok = await action("start_customer_leg", { jobId: job.id });
+    if (ok) {
+      setNotice("Το τελικό σκέλος προς τον πελάτη ξεκίνησε. Το live tracking και το QR παραλαβής είναι πλέον διαθέσιμα στον πελάτη.");
+      startWatch(job.id);
+    }
+  }
   async function scan(value:string){
     setScanner(false);
     setManual(value);
@@ -175,14 +193,23 @@ export function DeliveryDriverWorkspaceClient({ initial }: { initial: Workspace 
 
     <section>
       <div className={styles.sectionTitle}><div><div className={styles.eyebrow}>Assigned</div><h2>Οι εργασίες μου</h2></div><button className={styles.buttonSecondary} type="button" onClick={()=>void refresh()}>Ανανέωση</button></div>
-      {workspace.assigned.length===0?<div className={styles.empty}>Δεν έχεις ανατεθειμένες εργασίες.</div>:<div className={`${styles.grid} ${styles.two}`}>{workspace.assigned.map((job)=><article className={styles.card} key={job.id}>
-        <div className={styles.toolbar}><span className={styles.badge}>{job.type==="outbound"?"Παράδοση":"Επιστροφή"}</span><strong>{job.orderId}</strong><span className={styles.status}>{job.status}</span></div>
-        <div className={styles.progress}><span style={{width:`${job.progress.total?Math.round(job.progress.completed/job.progress.total*100):0}%`}}/></div><p className={styles.muted}>{job.progress.completed}/{job.progress.total} σημεία ολοκληρώθηκαν.</p>
-        {job.pickupQr&&<div className={styles.qrWrap}><strong>Κοινό QR παραλαβής</strong><QRCode value={job.pickupQr} size={220}/><span className={styles.muted}>Δείξε το ίδιο QR σε κάθε κατάστημα. Κάθε κατάστημα ολοκληρώνει μόνο το δικό του σημείο.</span></div>}
-        <div className={styles.stopList}>{job.stops.map((stop)=><div className={`${styles.stop} ${stop.status==="completed"?styles.stopDone:""}`} key={stop.id}><span className={styles.stopIndex}>{stop.sequence}</span><div><strong>{stop.vendorName||(stop.kind==="customer_dropoff"?"Πελάτης · παράδοση":stop.kind==="customer_return_pickup"?"Πελάτης · παραλαβή επιστροφής":"Σημείο")}</strong><div className={styles.muted}>{addressText(stop.address)||(stop.kind.startsWith("customer")?"Διεύθυνση πελάτη":"")}</div>{stop.completedAt&&<small>Ολοκληρώθηκε {stamp(stop.completedAt)}</small>}</div><span className={styles.status}>{stop.status}{stop.sourceStatus?` · ${stop.sourceStatus}`:""}</span></div>)}</div>
-        <div className={styles.toolbar}><button className={styles.button} type="button" onClick={()=>setScanner(true)}>Σάρωση επιβεβαίωσης</button><button className={styles.buttonSecondary} type="button" onClick={()=>void toggleTracking(job)} disabled={busy===`tracking:${job.id}`}>{job.liveTracking?"Διακοπή customer live tracking":"Έναρξη customer live tracking"}</button></div>
-        {job.latestLocation&&<div className={styles.location}><span>Τελευταίο job sample · {stamp(job.latestLocation.receivedAt)}</span><span>±{Math.round(job.latestLocation.accuracy??0)}m</span></div>}
-      </article>)}</div>}
+      {workspace.assigned.length===0?<div className={styles.empty}>Δεν έχεις ανατεθειμένες εργασίες.</div>:<div className={`${styles.grid} ${styles.two}`}>{workspace.assigned.map((job)=>{
+        const leg = customerLegState(job);
+        return <article className={styles.card} key={job.id}>
+          <div className={styles.toolbar}><span className={styles.badge}>{job.type==="outbound"?"Παράδοση":"Επιστροφή"}</span><strong>{job.orderId}</strong><span className={styles.status}>{job.status}</span></div>
+          <div className={styles.progress}><span style={{width:`${job.progress.total?Math.round(job.progress.completed/job.progress.total*100):0}%`}}/></div><p className={styles.muted}>{job.progress.completed}/{job.progress.total} σημεία ολοκληρώθηκαν.</p>
+          {job.pickupQr&&<div className={styles.qrWrap}><strong>Κοινό QR παραλαβής</strong><QRCode value={job.pickupQr} size={220}/><span className={styles.muted}>Δείξε το ίδιο QR σε κάθε κατάστημα. Κάθε κατάστημα ολοκληρώνει μόνο το δικό του σημείο.</span></div>}
+          <div className={styles.stopList}>{job.stops.map((stop)=><div className={`${styles.stop} ${stop.status==="completed"?styles.stopDone:""}`} key={stop.id}><span className={styles.stopIndex}>{stop.sequence}</span><div><strong>{stop.vendorName||(stop.kind==="customer_dropoff"?"Πελάτης · παράδοση":stop.kind==="customer_return_pickup"?"Πελάτης · παραλαβή επιστροφής":"Σημείο")}</strong><div className={styles.muted}>{addressText(stop.address)||(stop.kind.startsWith("customer")?"Διεύθυνση πελάτη":"")}</div>{stop.completedAt&&<small>Ολοκληρώθηκε {stamp(stop.completedAt)}</small>}</div><span className={styles.status}>{stop.kind==="customer_dropoff"&&stop.status==="ready"?"καθ’ οδόν":stop.status}{stop.sourceStatus?` · ${stop.sourceStatus}`:""}</span></div>)}</div>
+          {job.type==="outbound"&&leg.vendorPickupsComplete&&!leg.active&&leg.customerDropoff&&<div className={styles.notice}>Όλες οι παραλαβές ολοκληρώθηκαν. Πάτησε «Ξεκίνησα προς πελάτη» όταν φύγεις πραγματικά για τη διεύθυνσή του. Τότε θα εμφανιστούν στον πελάτη η live θέση και το QR παραλαβής.</div>}
+          {leg.active&&<div className={styles.notice}>Τελικό σκέλος ενεργό · ο πελάτης βλέπει το live tracking και το QR επιβεβαίωσης παραλαβής.</div>}
+          <div className={styles.toolbar}>
+            {leg.canStart&&<button className={styles.button} type="button" onClick={()=>void startCustomerLeg(job)} disabled={Boolean(busy)}>Ξεκίνησα προς πελάτη</button>}
+            <button className={leg.canStart?styles.buttonSecondary:styles.button} type="button" onClick={()=>setScanner(true)} disabled={Boolean(busy)||(job.type==="outbound"&&!leg.active)}>Σάρωση επιβεβαίωσης</button>
+            {(job.type!=="outbound"||leg.active)&&<button className={styles.buttonSecondary} type="button" onClick={()=>void toggleTracking(job)} disabled={busy===`tracking:${job.id}`}>{job.liveTracking?"Διακοπή live tracking":"Συνέχιση live tracking"}</button>}
+          </div>
+          {job.latestLocation&&<div className={styles.location}><span>Τελευταίο job sample · {stamp(job.latestLocation.receivedAt)}</span><span>±{Math.round(job.latestLocation.accuracy??0)}m</span></div>}
+        </article>;
+      })}</div>}
     </section>
 
     <section>
