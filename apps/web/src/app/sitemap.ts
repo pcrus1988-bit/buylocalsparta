@@ -103,6 +103,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const reference: SeoEntityReference = { kind: "product", id: product.id };
       const quality = productIndexEligibility(product);
       const { override, control } = governed(reference, quality.blockingReasons.length === 0, quality.eligible);
+      // Product lastmod is evidence-only: do not manufacture freshness from created, updated, price, or request-time clocks.
       return control.sitemapAllowed ? [{
         url: new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString(),
         changeFrequency: "daily" as const,
