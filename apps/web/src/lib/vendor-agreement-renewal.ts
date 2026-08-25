@@ -162,10 +162,10 @@ export async function activateOrScheduleCommercialAgreement(
       `, [row.id]);
       if (!current.rowCount) throw new Error("Agreement not found");
       const status = String(current.rows[0].status);
-      if (!['govgr_verified', 'eligible_for_activation'].includes(status)) {
+      if (!["govgr_verified", "eligible_for_activation"].includes(status)) {
         throw new Error("Future agreement must be gov.gr verified before activation can be scheduled");
       }
-      if (status === 'govgr_verified') {
+      if (status === "govgr_verified") {
         const actorUserId = await resolveActorUserId(client, principal);
         await client.query(`
           UPDATE vendor_commercial_agreements
@@ -188,6 +188,6 @@ export async function activateOrScheduleCommercialAgreement(
     }
   }
 
-  await activateCommercialAgreement(principal, agreementId);
+  await activateCommercialAgreement(principal, { agreementId });
   return { scheduled: false };
 }
