@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminVendorPriceHistory } from "../../../components/AdminVendorPriceHistory";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
@@ -20,7 +21,7 @@ export default async function Page() {
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Operations · order SLA</div><h1>SLA & Escalations</h1><p className="lead">Προθεσμίες vendor, breaches και κλιμακώσεις σε ένα operational queue. Η σελίδα αφορά order SLA, όχι γενικές ειδοποιήσεις της πλατφόρμας.</p><div className="hero-actions"><Link className="button" href="/admin/orders">Orders</Link><Link className="button button-secondary" href="/admin/finance/agreements/sla">SLA ανά συμφωνία</Link></div></div>
+      <div><div className="eyebrow">Operations · notifications</div><h1>SLA & Escalations</h1><p className="lead">Order SLA escalations παραμένουν το κύριο operational queue. Στο ίδιο workspace εμφανίζονται επίσης οι αλλαγές τιμών των vendors με πλήρες audit trail.</p><div className="hero-actions"><Link className="button" href="/admin/orders">Orders</Link><Link className="button button-secondary" href="/admin/finance/agreements/sla">SLA ανά συμφωνία</Link></div></div>
     </section>
 
     <WorkspaceMetricStrip items={[
@@ -29,6 +30,8 @@ export default async function Page() {
       { label: "Escalated", value: data.metrics.escalated, tone: data.metrics.escalated ? "attention" : "default" },
       { label: "Agreements χωρίς policy", value: data.metrics.agreementsWithoutPolicy, tone: data.metrics.agreementsWithoutPolicy ? "attention" : "positive" }
     ]} />
+
+    <AdminVendorPriceHistory actorUserId={principal.userId} />
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Live SLA queue" title="Παραγγελίες που απαιτούν παρακολούθηση" note="Η υπενθύμιση σταματά αυτόματα όταν αλλάξει η πραγματική κατάσταση του fulfilment." />
