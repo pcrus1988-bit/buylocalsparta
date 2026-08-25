@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       WHERE (v.public_id=$1 OR v.id::text=$1) AND r.status='pending'
       ORDER BY r.requested_at DESC
     `, [principal.vendorId]);
-    return Response.json({ requests: result.rows.map((row) => ({ offerId: String(row.offer_id), status: String(row.status), requestedAt: new Date(row.requested_at).getTime() })) });
+    return Response.json({ requests: result.rows.map((row) => ({ offerId: String(row.offer_id), status: String(row.status), requestedAt: new Date(String(row.requested_at)).getTime() })) });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "activation_requests_failed" }, { status: 400 });
   }
