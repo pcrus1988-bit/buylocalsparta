@@ -2,7 +2,20 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-export type CartItem = Readonly<{ canonicalVariantId: string; title: string; priceMinor: number; price: string; quantity: number }>;
+export type CartItem = Readonly<{
+  canonicalVariantId: string;
+  title: string;
+  priceMinor: number;
+  price: string;
+  quantity: number;
+  imageUrl?: string;
+  imageAlt?: string;
+  sku?: string;
+  gtin?: string;
+  color?: string;
+  size?: string;
+}>;
+
 type CartContextValue = Readonly<{
   items: readonly CartItem[];
   count: number;
@@ -14,18 +27,47 @@ type CartContextValue = Readonly<{
   hydrated: boolean;
 }>;
 
+type CartProductDetails = Readonly<{
+  canonicalVariantId: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  sku?: string;
+  gtin?: string;
+  color?: string;
+  size?: string;
+}>;
+
 const STORAGE_KEY = "buy-local-sparta-cart-v1";
 const CartContext = createContext<CartContextValue | null>(null);
 function displayMoney(minor: number) { return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100); }
 
-function isStoredCartItem(value: unknown): value is CartItem {
-  if (!value || typeof value !== "object") return false;
+function storedCartItem(value: unknown): CartItem | undefined {
+  if (!value || typeof value !== "object") return undefined;
   const item = value as Partial<CartItem>;
-  return typeof item.canonicalVariantId === "string" && item.canonicalVariantId.length > 0 && item.canonicalVariantId.length <= 128
-    && typeof item.title === "string" && item.title.length > 0 && item.title.length <= 500
-    && typeof item.price === "string" && item.price.length <= 64
-    && Number.isSafeInteger(item.priceMinor) && (item.priceMinor ?? -1) >= 0
-    && Number.isSafeInteger(item.quantity) && (item.quantity ?? 0) > 0;
+  const priceMinor = item.priceMinor;
+  const quantity = item.quantity;
+  if (typeof item.canonicalVariantId !== "string" || item.canonicalVariantId.length === 0 || item.canonicalVariantId.length > 128
+    || typeof item.title !== "string" || item.title.length === 0 || item.title.length > 500
+    || typeof item.price !== "string" || item.price.length > 64
+    || typeof priceMinor !== "number" || !Number.isSafeInteger(priceMinor) || priceMinor < 0
+    || typeof quantity !== "number" || !Number.isSafeInteger(quantity) || quantity <= 0) return undefined;
+  return {
+    canonicalVariantId: item.canonicalVariantId,
+    title: item.title,
+    priceMinor,
+    price: item.price,
+    quantity: Math.min(99, quantity)
+  };
+}
+
+function persistentCartItem(item: CartItem) {
+  return {
+    canonicalVariantId: item.canonicalVariantId,
+    title: item.title,
+    priceMinor: item.priceMinor,
+    price: item.price,
+    quantity: item.quantity
+  };
 }
 
 function localStorageGet(key: string): string | null {
@@ -46,6 +88,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [persistentCsrf, setPersistentCsrf] = useState<string>();
   const persistentEnabled = useRef(false);
   const initialMergeDone = useRef(false);
+  const itemIdsKey = useMemo(() => items.map((item) => item.canonicalVariantId).sort().join("|"), [items]);
 
   useEffect(() => {
     let local: CartItem[] = [];
@@ -53,7 +96,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as unknown;
-        if (Array.isArray(parsed)) local = parsed.filter(isStoredCartItem).map((item) => ({ ...item, quantity: Math.min(99, item.quantity) }));
+        if (Array.isArray(parsed)) local = parsed.map(storedCartItem).filter((item): item is CartItem => Boolean(item));
         else localStorageRemove(STORAGE_KEY);
       } catch { localStorageRemove(STORAGE_KEY); }
     }
@@ -76,7 +119,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items));
+    if (!hydrated || !itemIdsKey || !/^\/(?:cart|checkout)\/?$/.test(window.location.pathname)) return;
+    const controller = new AbortController();
+    const ids = itemIdsKey.split("|").filter(Boolean);
+    void fetch("/api/cart/details", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+      cache: "no-store",
+      signal: controller.signal
+    })
+      .then(async (response) => response.ok ? response.json() as Promise<{ items?: readonly CartProductDetails[] }> : undefined)
+      .then((body) => {
+        if (!body?.items?.length) return;
+        const details = new Map(body.items.map((item) => [item.canonicalVariantId, item]));
+        setItems((current) => current.map((item) => {
+          const detail = details.get(item.canonicalVariantId);
+          return detail ? { ...item, ...detail } : item;
+        }));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [hydrated, itemIdsKey]);
+
+  useEffect(() => {
+    if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items.map(persistentCartItem)));
   }, [hydrated, items]);
 
   useEffect(() => {
@@ -97,7 +164,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((current) => {
       const existing = current.find((entry) => entry.canonicalVariantId === item.canonicalVariantId);
       if (!existing) return [...current, { ...item, quantity: safeQuantity }];
-      return current.map((entry) => entry.canonicalVariantId === item.canonicalVariantId ? { ...entry, quantity: Math.min(99, entry.quantity + safeQuantity) } : entry);
+      return current.map((entry) => entry.canonicalVariantId === item.canonicalVariantId ? { ...entry, ...item, quantity: Math.min(99, entry.quantity + safeQuantity) } : entry);
     });
   }, []);
 
