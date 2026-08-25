@@ -11,7 +11,7 @@ if (process.env.NODE_ENV === "production") {
 
 const runtime = getProductionPostgresRuntime();
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
-const hiddenSearchToken = `SearchHiddenOnly${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+const hiddenSearchToken = `κρυφομοναδικο${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 const categoryCode = `search-accept-${suffix}`;
 const visibleId = `canonical_search_accept_${suffix}`;
 const hiddenId = `canonical_search_hidden_${suffix}`;
