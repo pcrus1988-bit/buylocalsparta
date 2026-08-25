@@ -1,4 +1,5 @@
 import { driverScanDeliveryProof, driverSetLiveTracking } from "../../../../lib/delivery-driver-runtime";
+import { driverStartCustomerDeliveryLeg } from "../../../../lib/delivery-customer-leg-runtime";
 import {
   acceptDeliveryAssignmentOffer,
   declineDeliveryAssignmentOffer,
@@ -48,6 +49,9 @@ export async function POST(request: Request) {
       return Response.json({ ok: true, driver });
     }
     if (action === "scan") return Response.json(await driverScanDeliveryProof(principal, String(body.token ?? "")));
+    if (action === "start_customer_leg") {
+      return Response.json(await driverStartCustomerDeliveryLeg(principal, { jobId: String(body.jobId ?? "") }));
+    }
     if (action === "tracking") {
       return Response.json(await driverSetLiveTracking(principal, { jobId: String(body.jobId ?? ""), enabled: body.enabled === true }));
     }
