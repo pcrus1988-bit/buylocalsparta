@@ -1,5 +1,5 @@
 import { requireAdminSession } from "../../../../../lib/admin-session";
-import { adminProductLifecycleState, archiveAdminProduct, permanentlyDeleteAdminProduct, reactivateAdminProduct } from "../../../../../lib/product-lifecycle-service";
+import { adminProductLifecycleState, archiveAdminProduct, permanentlyDeleteAdminProduct, reactivateAdminProduct } from "../../../../../lib/product-lifecycle";
 
 export async function GET(request: Request) {
   try {
