@@ -5,7 +5,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 import { adminOperationsWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
-export const metadata: Metadata = { title: "Admin · Production Mission Control", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · System Health & Audit · Production Mission Control", robots: { index: false, follow: false } };
 
 const HEALTHY_STATES = new Set(["ready", "healthy", "ok", "disabled"]);
 const STRICT_HEALTHY_STATES = new Set(["ready", "healthy", "ok"]);
@@ -35,7 +35,7 @@ export default async function Page() {
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · observability · operations</div><h1>Production Mission Control</h1><p className="lead">Ζωντανή εικόνα της λειτουργικής υγείας του ΚΟΝΤΑ ΜΟΥ: database, catalogue, commerce, onboarding, finance, payments, outbox, security telemetry και audit trail σε μία ενιαία επιφάνεια.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · System Health & Audit · operations</div><h1>Production Mission Control</h1><p className="lead">Ζωντανή εικόνα της λειτουργικής υγείας του ΚΟΝΤΑ ΜΟΥ: database, catalogue, commerce, onboarding, finance, payments, outbox, security telemetry και audit trail σε μία ενιαία επιφάνεια.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Platform state", value: missionState, tone: missionState === "GREEN" ? "positive" : "attention", hint: missionNote },
