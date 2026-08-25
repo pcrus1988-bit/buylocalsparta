@@ -1,0 +1,35 @@
+name: Operator PWA Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/daily/layout.tsx"
+      - "apps/web/src/app/daily/manifest.ts"
+      - "apps/web/src/app/driver/layout.tsx"
+      - "apps/web/src/app/driver/manifest.ts"
+      - "apps/web/src/components/ScopedPwaInstallClient.tsx"
+      - "apps/web/public/daily-sw.js"
+      - "apps/web/public/driver-sw.js"
+      - "apps/web/public/daily-offline.html"
+      - "apps/web/public/driver-offline.html"
+      - "scripts/verify-operator-pwa.ts"
+      - ".github/workflows/operator-pwa-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify operator PWA contracts
+        run: node --experimental-strip-types scripts/verify-operator-pwa.ts
+      - name: Typecheck web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
