@@ -1,5 +1,5 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
-import { requestVendorProductActivation } from "../../../../../lib/product-lifecycle-service";
+import { requestVendorProductActivation } from "../../../../../lib/product-lifecycle";
 
 export async function POST(request: Request) {
   try {
