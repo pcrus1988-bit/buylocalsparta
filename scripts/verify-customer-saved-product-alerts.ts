@@ -59,7 +59,7 @@ for (const contract of [
   "disabled={Boolean(busy) || !alert.priceDropEnabled}",
   "setProducts((current) => current.map",
   "customer-saved-product-unavailable",
-  "πραγματικά διαθέσιμο στην τοπική αγορά"
+  "πραγματική τοπική διαθεσιμότητα"
 ]) if (!(view + client).includes(contract)) failures.push(`Saved-product alert customer UI/projection is missing contract: ${contract}`);
 
 for (const contract of [
