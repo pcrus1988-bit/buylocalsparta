@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import QRCode from "react-qr-code";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CustomerDeliveryLiveMap } from "./CustomerDeliveryLiveMap";
 import { CustomerFulfilmentProgress } from "./CustomerFulfilmentProgress";
 import { CustomerReturnsPanel, type CustomerReturnCaseView } from "./CustomerReturnsPanel";
 import { productPublicPath } from "../lib/product-url";
@@ -31,6 +32,22 @@ type Detail = {
   returns: ReadonlyArray<CustomerReturnCaseView>;
 };
 
+type DeliveryJob = Readonly<{
+  id: string;
+  orderId: string;
+  type: "outbound" | "return";
+  status: string;
+  liveTracking: boolean;
+  customerQr?: string;
+  returnPickupQr?: string;
+  latestLocation?: Readonly<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    receivedAt: number;
+  }>;
+}>;
+
 type PaymentResumePayload = Readonly<{ redirectUrl?: string; reservationExpiresAt?: number; error?: string }>;
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -39,11 +56,39 @@ const modeLabel: Record<string, string> = { pickup: "Παραλαβή από κ�
 export function OrderDetailClient({ initial }: { initial: Detail }) {
   const router = useRouter();
   const [data, setData] = useState(initial);
+  const [deliveryJob, setDeliveryJob] = useState<DeliveryJob>();
   const [reason, setReason] = useState("Άλλαξα γνώμη πριν την έναρξη φυσικής παράδοσης");
   const [busy, setBusy] = useState(false);
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (data.fulfilmentMode !== "local_delivery") {
+      setDeliveryJob(undefined);
+      return undefined;
+    }
+
+    let active = true;
+    const refreshDelivery = async () => {
+      try {
+        const response = await fetch("/api/account/delivery", { cache: "no-store" });
+        if (!response.ok || !active) return;
+        const payload = await response.json() as { jobs?: DeliveryJob[] };
+        const job = payload.jobs?.find((item) => item.orderId === data.id && item.type === "outbound");
+        if (active) setDeliveryJob(job);
+      } catch {
+        // Keep the latest delivery state visible through transient connectivity issues.
+      }
+    };
+
+    void refreshDelivery();
+    const timer = window.setInterval(() => void refreshDelivery(), 5_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [data.id, data.fulfilmentMode]);
 
   async function resumePayment() {
     setPaymentBusy(true);
@@ -89,6 +134,44 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <div><div className="eyebrow">Παραγγελία</div><h1>{data.status}</h1><p>{date(data.createdAt)} · {modeLabel[data.fulfilmentMode] ?? data.fulfilmentMode} · ΤΚ {data.postcode}</p><small className="order-detail-id">{data.referenceNumber}</small></div>
         <strong>{data.total}</strong>
       </div>
+
+      {data.fulfilmentMode === "local_delivery" && <div className="order-detail-card is-refined">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div>
+            <div className="eyebrow">Τοπική παράδοση</div>
+            <h2 style={{ marginBottom: 6 }}>Live tracking & επιβεβαίωση παραλαβής</h2>
+            <p style={{ margin: 0 }}>Η θέση του οδηγού εμφανίζεται εδώ όταν ξεκινήσει το τελικό σκέλος προς εσένα. Το QR είναι η ασφαλής επιβεβαίωση ότι παρέλαβες την παραγγελία.</p>
+          </div>
+          {deliveryJob && <span className="status-pill">{deliveryJob.status}</span>}
+        </div>
+
+        {deliveryJob ? <div style={{ display: "grid", gap: 18, marginTop: 18 }}>
+          <CustomerDeliveryLiveMap jobId={deliveryJob.id} initialLocation={deliveryJob.latestLocation} />
+
+          {deliveryJob.customerQr ? <div className="workspace-inline-note" style={{ display: "grid", gap: 14, padding: 16 }}>
+            <div>
+              <strong>QR επιβεβαίωσης παράδοσης</strong>
+              <p style={{ marginBottom: 0 }}>Όταν ο οδηγός φτάσει, δείξε αυτό το QR. Ο οδηγός το σαρώνει και μόνο τότε η παραγγελία καταγράφεται ως παραδομένη.</p>
+            </div>
+            <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ background: "white", padding: 12, borderRadius: 16, width: 220, height: 220, display: "grid", placeItems: "center", maxWidth: "100%" }} aria-label="QR επιβεβαίωσης παράδοσης">
+                <QRCode value={deliveryJob.customerQr} size={192} level="M" />
+              </div>
+              <div style={{ display: "grid", gap: 6, maxWidth: 430 }}>
+                <strong>Δείξ' το μόνο στον οδηγό κατά την παράδοση.</strong>
+                <small>Μην το στείλεις εκ των προτέρων και μην το κοινοποιήσεις σε τρίτους.</small>
+                <small>Μετά την επιτυχημένη σάρωση το QR παύει να είναι έγκυρο.</small>
+              </div>
+            </div>
+          </div> : <div className="workspace-inline-note">
+            <strong>Το QR παραλαβής θα εμφανιστεί αυτόματα εδώ.</strong>
+            <p style={{ marginBottom: 0 }}>Ενεργοποιείται όταν ο οδηγός έχει παραλάβει όλα τα δέματα από τα καταστήματα και ξεκινά το τελικό σκέλος προς τη διεύθυνσή σου.</p>
+          </div>}
+        </div> : <div className="workspace-inline-note" style={{ marginTop: 16 }}>
+          <strong>Η εργασία διανομής ετοιμάζεται.</strong>
+          <p style={{ marginBottom: 0 }}>Μόλις δημιουργηθεί και ανατεθεί σε οδηγό, το live tracking και το QR επιβεβαίωσης θα εμφανιστούν στην ίδια θέση.</p>
+        </div>}
+      </div>}
 
       <div className="order-detail-card is-refined">
         <h2>Προϊόντα</h2>
