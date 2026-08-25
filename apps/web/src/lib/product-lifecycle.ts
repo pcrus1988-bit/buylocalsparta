@@ -81,7 +81,7 @@ export async function adminProductLifecycleState(_principal: SessionPrincipal, s
       activationRequest: latest ? {
         id: String(latest.public_id),
         status: String(latest.status),
-        requestedAt: new Date(latest.requested_at).getTime(),
+        requestedAt: new Date(String(latest.requested_at)).getTime(),
         resolutionNote: latest.resolution_note ? String(latest.resolution_note) : undefined
       } : undefined
     };
@@ -127,6 +127,14 @@ export async function reactivateAdminProduct(principal: SessionPrincipal, submis
     const row = await product(client, submissionId, true);
     if (row.submission_status !== "archived" && row.offer_status !== "archived") throw new Error("Product is not archived");
     const nextStatus = row.offer_uuid ? "approved" : row.canonical_uuid ? "linked" : "needs_review";
+    if (row.offer_uuid && row.canonical_uuid) {
+      const publishable = await client.query(`
+        SELECT 1 AS ok FROM public.canonical_variants
+        WHERE id=$1::uuid AND active=true AND suppressed=false AND recalled=false
+        LIMIT 1
+      `, [row.canonical_uuid]);
+      if (!publishable.rowCount) throw new Error("Archived product cannot be reactivated because its canonical product is not currently publishable");
+    }
     if (row.offer_uuid) await client.query(`UPDATE public.vendor_offers SET status='approved',updated_at=now() WHERE id=$1::uuid`, [row.offer_uuid]);
     await client.query(`UPDATE public.vendor_product_submissions SET status=$2,updated_at=now() WHERE id=$1::uuid`, [row.submission_uuid, nextStatus]);
     if (row.offer_uuid) {
