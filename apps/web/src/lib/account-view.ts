@@ -241,7 +241,7 @@ function customerOrderStatusLabel(order: CustomerOrder): string {
 
   const fulfilments = order.fulfilments.filter((item) => item.status !== "rejected" && item.status !== "cancelled");
   if (fulfilments.length) {
-    const statuses = fulfilments.map((item) => item.status);
+    const statuses: string[] = fulfilments.map((item) => item.status);
 
     if (order.fulfilmentMode === "local_delivery") {
       if (statuses.every((status) => status === "delivered")) return "Ολοκληρώθηκε";
