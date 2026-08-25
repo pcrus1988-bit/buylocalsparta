@@ -2,30 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import styles from "./CustomerAccountExperience.module.css";
 
-const PRIMARY_ACCOUNT_SECTIONS = [
-  { href: "/account", label: "Επισκόπηση" },
-  { href: "/account/orders", label: "Παραγγελίες" },
-  { href: "/account/ask-local", label: "Ask Local" },
-  { href: "/account/appointments", label: "Ραντεβού" },
-  { href: "/account/saved", label: "Wishlist" },
-  { href: "/account/notifications", label: "Ειδοποιήσεις" },
-  { href: "/account/support", label: "Υποστήριξη" },
-  { href: "/account/profile", label: "Προφίλ & διευθύνσεις" },
-  { href: "/account/security", label: "Ασφάλεια" },
-  { href: "/account/privacy", label: "Ιδιωτικότητα" }
-] as const;
+type AccountSection = {
+  href: string;
+  label: string;
+  featured?: boolean;
+};
 
-const OVERVIEW_ACCOUNT_SECTIONS = [
-  { href: "#overview", label: "Σύνοψη" },
-  { href: "#ask-local", label: "Ask Local" },
-  { href: "#orders", label: "Παραγγελίες" },
-  { href: "#saved", label: "Wishlist" },
-  { href: "#notifications", label: "Ειδοποιήσεις" },
-  { href: "#searches", label: "Αναζητήσεις" },
-  { href: "#recommendations", label: "Προτάσεις" },
-  { href: "#privacy", label: "Ιδιωτικότητα" },
-  { href: "#recent", label: "Πρόσφατα" }
+type AccountGroup = {
+  label: string;
+  items: readonly AccountSection[];
+};
+
+const ACCOUNT_GROUPS: readonly AccountGroup[] = [
+  {
+    label: "Αγορές & παρακολούθηση",
+    items: [
+      { href: "/account", label: "Επισκόπηση" },
+      { href: "/account/orders", label: "Παραγγελίες" },
+      { href: "/account/saved", label: "Wishlist" },
+      { href: "/account/notifications", label: "Ειδοποιήσεις" }
+    ]
+  },
+  {
+    label: "Τοπική βοήθεια",
+    items: [
+      { href: "/account/ask-local", label: "Ask Local", featured: true },
+      { href: "/account/appointments", label: "Ραντεβού" },
+      { href: "/account/support", label: "Υποστήριξη" }
+    ]
+  },
+  {
+    label: "Προφίλ & ασφάλεια",
+    items: [
+      { href: "/account/profile", label: "Προφίλ & διευθύνσεις" },
+      { href: "/account/security", label: "Ασφάλεια" },
+      { href: "/account/privacy", label: "Ιδιωτικότητα" }
+    ]
+  }
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -35,16 +50,37 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AccountSectionNavigation() {
   const pathname = usePathname();
-  return <nav className="shell customer-account-nav" aria-label="Ενότητες λογαριασμού">
-    <div className="customer-account-nav-row">
-      {PRIMARY_ACCOUNT_SECTIONS.map((section) => {
-        const active = isActive(pathname, section.href);
-        return <Link className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} href={section.href} key={section.href}>{section.label}</Link>;
-      })}
-      {pathname === "/account" && <details className="customer-account-nav-overview">
-        <summary>Σε αυτή τη σελίδα</summary>
-        <div>{OVERVIEW_ACCOUNT_SECTIONS.map((section) => <a href={section.href} key={section.href}>{section.label}</a>)}</div>
-      </details>}
+
+  return <nav className={`shell ${styles.accountNavigation}`} aria-label="Ενότητες λογαριασμού">
+    <div className={styles.navFrame}>
+      <div className={styles.navLead}>
+        <span>Ο λογαριασμός μου</span>
+        <strong>Μενού</strong>
+      </div>
+      <div className={styles.navGroups}>
+        {ACCOUNT_GROUPS.map((group) => <section className={styles.navGroup} key={group.label} aria-label={group.label}>
+          <span className={styles.navGroupLabel}>{group.label}</span>
+          <div className={styles.navItems}>
+            {group.items.map((section) => {
+              const active = isActive(pathname, section.href);
+              const className = [
+                styles.navLink,
+                active ? styles.navLinkActive : "",
+                section.featured ? styles.navLinkFeatured : ""
+              ].filter(Boolean).join(" ");
+
+              return <Link
+                className={className}
+                aria-current={active ? "page" : undefined}
+                href={section.href}
+                key={section.href}
+              >
+                {section.label}
+              </Link>;
+            })}
+          </div>
+        </section>)}
+      </div>
     </div>
   </nav>;
 }
