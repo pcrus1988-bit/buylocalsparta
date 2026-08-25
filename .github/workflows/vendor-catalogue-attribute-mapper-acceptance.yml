@@ -1,0 +1,19 @@
+name: Vendor Catalogue Attribute Mapper Acceptance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify vendor catalogue and attribute mapper contracts
+        run: node --experimental-strip-types scripts/verify-vendor-catalogue-attribute-mapper.ts
+      - name: Verify immutable migration checksums
+        run: node --experimental-strip-types scripts/verify-migrations.ts
