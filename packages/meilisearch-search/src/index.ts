@@ -1,4 +1,4 @@
-import type { SearchDocument, SearchHit, SearchIndexBackend, SearchQuery } from "@buy-local-sparta/core";
+import { buildSearchAliases, interpretSearchQuery, normalizeSearchText, type SearchDocument, type SearchHit, type SearchIndexBackend, type SearchQuery } from "@buy-local-sparta/core";
 
 export type MeilisearchConfig = Readonly<{
   host: string;
@@ -29,8 +29,6 @@ export class MeilisearchClient implements SearchIndexBackend {
   }
 
   async configureIndex(): Promise<void> {
-    // Creating/upserting the first document can create the index, but an explicit
-    // index creation makes primary-key/settings failures visible during deploy.
     const adminApiKey = this.#adminKey();
     const get = await this.#raw(`/indexes/${encodeURIComponent(this.#config.indexUid)}`, { method: "GET", key: adminApiKey });
     if (get.status === 404) {
@@ -45,7 +43,7 @@ export class MeilisearchClient implements SearchIndexBackend {
     const settings = await this.#request(`/indexes/${encodeURIComponent(this.#config.indexUid)}/settings`, {
       method: "PATCH", key: adminApiKey, accept: [202], body: {
         displayedAttributes: ["id","type","marketId","title","titleEl","titleEn","body","brand","model","identifiers","categoryCodes","synonyms","available","pickupToday","adviceAvailable","priceMinor","vendorId","attributes","metadata","attributePairs"],
-        searchableAttributes: ["titleEl","titleEn","title","brand","model","identifiers","synonyms","body"],
+        searchableAttributes: ["identifiers","model","brand","searchAliases","titleEl","titleEn","title","synonyms","body"],
         filterableAttributes: ["marketId","type","available","pickupToday","adviceAvailable","categoryCodes","attributePairs"],
         sortableAttributes: ["priceMinor"],
         localizedAttributes: [
@@ -74,13 +72,17 @@ export class MeilisearchClient implements SearchIndexBackend {
   }
 
   async search(query: SearchQuery & { sort?: "price-asc"|"price-desc" }): Promise<readonly SearchHit[]> {
+    const intent = interpretSearchQuery(query.q);
     const filters: string[] = [`marketId = ${quote(query.marketId)}`];
     if (query.type && query.type !== "all") filters.push(`type = ${quote(query.type)}`);
-    if (query.availability === "in_stock") filters.push("available = true");
-    if (query.availability === "pickup_today") filters.push("pickupToday = true");
+    const availability = query.availability && query.availability !== "any" ? query.availability : intent.availability;
+    if (availability === "in_stock") filters.push("available = true");
+    if (availability === "pickup_today") filters.push("pickupToday = true");
     if (query.adviceOnly) filters.push("adviceAvailable = true");
-    if (query.minPriceMinor !== undefined) filters.push(`priceMinor >= ${integer(query.minPriceMinor, "minPriceMinor")}`);
-    if (query.maxPriceMinor !== undefined) filters.push(`priceMinor <= ${integer(query.maxPriceMinor, "maxPriceMinor")}`);
+    const minPriceMinor = query.minPriceMinor ?? intent.minPriceMinor;
+    const maxPriceMinor = query.maxPriceMinor ?? intent.maxPriceMinor;
+    if (minPriceMinor !== undefined) filters.push(`priceMinor >= ${integer(minPriceMinor, "minPriceMinor")}`);
+    if (maxPriceMinor !== undefined) filters.push(`priceMinor <= ${integer(maxPriceMinor, "maxPriceMinor")}`);
     if (query.categoryCode) filters.push(`categoryCodes = ${quote(query.categoryCode)}`);
     for (const [code, expected] of Object.entries(query.attributeFilters ?? {})) {
       const values = Array.isArray(expected) ? expected : [expected];
@@ -88,7 +90,7 @@ export class MeilisearchClient implements SearchIndexBackend {
       filters.push(clauses.length === 1 ? clauses[0] : `(${clauses.join(" OR ")})`);
     }
     const body: Record<string, unknown> = {
-      q: query.q,
+      q: intent.normalizedText || normalizeSearchText(query.q),
       limit: Math.min(100, Math.max(1, query.limit ?? 24)),
       filter: filters.join(" AND ")
     };
@@ -101,7 +103,7 @@ export class MeilisearchClient implements SearchIndexBackend {
     const hits = Array.isArray(payload.hits) ? payload.hits : [];
     return hits.flatMap((raw, index) => {
       const document = fromIndexedDocument(raw);
-      return document ? [{ document, score: Math.max(0.0001, 1 / (index + 1)), reasons: ["meilisearch"] }] : [];
+      return document ? [{ document, score: Math.max(0.0001, 1 / (index + 1)), reasons: ["meilisearch", ...intent.applied.map((reason) => `intent:${reason}`)] }] : [];
     });
   }
 
@@ -163,7 +165,11 @@ export function meilisearchConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
 }
 
 function toIndexedDocument(document: SearchDocument): Record<string, unknown> {
-  return { ...document, attributes: document.attributes ?? {}, metadata: document.metadata ?? {}, attributePairs: Object.entries(document.attributes ?? {}).flatMap(([code,value]) => String(value).split("|").map((item) => `${code}:${item}`)) };
+  const aliases = buildSearchAliases([
+    document.title, document.titleEl, document.titleEn, document.brand, document.model, document.body,
+    ...(document.identifiers ?? []), ...(document.synonyms ?? [])
+  ]);
+  return { ...document, attributes: document.attributes ?? {}, metadata: document.metadata ?? {}, searchAliases: aliases, attributePairs: Object.entries(document.attributes ?? {}).flatMap(([code,value]) => String(value).split("|").map((item) => `${code}:${item}`)) };
 }
 function fromIndexedDocument(raw: unknown): SearchDocument | undefined {
   if (!raw || typeof raw !== "object") return undefined;

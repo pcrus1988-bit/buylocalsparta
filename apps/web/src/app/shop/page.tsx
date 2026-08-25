@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { interpretSearchQuery } from "@buy-local-sparta/core";
 import { getCatalogCards } from "../../lib/catalog-view";
 import { getAvailableCatalogTaxonomy } from "../../lib/available-catalog-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
@@ -39,6 +40,8 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
 export default async function ShopPage({ searchParams }: ShopProps) {
   const params = await searchParams;
   const query = valueOf(params.q).trim();
+  const searchIntent = interpretSearchQuery(query);
+  const taxonomyQuery = searchIntent.text || (searchIntent.applied.length ? "" : query);
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
   const category = valueOf(params.category);
@@ -50,16 +53,19 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const filters = { subcategory, brand, color, size };
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const taxonomy = await getAvailableCatalogTaxonomy(category, query, filters, "23100");
+  const taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100");
   const facets = taxonomy.facets;
   const availableCategories = taxonomy.categories;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
   let products = readOnlyCrawler
-    ? [...await getCrawlerCatalogCards("23100", query, category, { ...filters, fit })]
+    ? [...await getCrawlerCatalogCards("23100", taxonomyQuery, category, { ...filters, fit })]
     : [...await getCatalogCards(visitorKey, "23100", query, category, filters)];
   const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
-  if (availability === "available") products = products.filter((product) => product.available);
+  if (availability === "available" || searchIntent.availability === "in_stock") products = products.filter((product) => product.available);
+  if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.available);
+  if (searchIntent.minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= searchIntent.minPriceMinor!);
+  if (searchIntent.maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= searchIntent.maxPriceMinor!);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
   if (!readOnlyCrawler) await recordStorefrontSearchAnalytics({
@@ -73,11 +79,20 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       color: color || undefined,
       size: size || undefined,
       fit: fit || undefined,
-      availability: availability || undefined,
-      sort: sort || undefined
+      availability: availability || searchIntent.availability || undefined,
+      sort: sort || undefined,
+      interpretedMaxPriceMinor: searchIntent.maxPriceMinor,
+      interpretedMinPriceMinor: searchIntent.minPriceMinor
     }
   });
   const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit);
+  const interpretedLabels = [
+    searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
+    searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
+    searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,
+    searchIntent.availability === "in_stock" ? "Σε απόθεμα" : undefined,
+    searchIntent.availability === "pickup_today" ? "Παραλαβή σήμερα · με επιβεβαίωση καταστήματος" : undefined
+  ].filter((label): label is string => Boolean(label));
 
   return (
     <main>
@@ -98,7 +113,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <aside className="catalog-sidebar">
           <form className="filter-form" action="/shop">
             <label htmlFor="q">Αναζήτηση</label>
-            <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Τι ψάχνεις;"} />
+            <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Π.χ. Bosch δραπανο μέχρι 100€"} />
 
             {availableCategories.length > 0 ? <>
               <label htmlFor="category">Τμήμα</label>
@@ -167,6 +182,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
         <div className="catalog-results">
           <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {facets.subcategories.find((item) => item.value === subcategory)?.label}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
+          {interpretedLabels.length > 0 ? <div className="category-chip-row" aria-label="Κατανόηση αναζήτησης">{interpretedLabels.map((label) => <span className="category-chip active" key={label}>{label}</span>)}</div> : null}
           {products.length === 0 ? (
             <div className="empty-state"><div className="eyebrow">0 αποτελέσματα</div><h2>Δεν το βρήκαμε ακόμα.</h2><p>Δοκίμασε διαφορετικά φίλτρα ή χρησιμοποίησε το Ask Local για να ρωτήσουμε κατάλληλο κατάστημα ιδιωτικά.</p><a className="button" href="/ask-local">Ask Local</a></div>
           ) : (

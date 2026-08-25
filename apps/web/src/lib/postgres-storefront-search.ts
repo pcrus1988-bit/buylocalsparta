@@ -1,4 +1,4 @@
-import { normalizeSearchText } from "@buy-local-sparta/core";
+import { interpretSearchQuery, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
@@ -33,18 +33,19 @@ export type PostgresStorefrontSearchReadiness = Readonly<{
 }>;
 
 export async function postgresStorefrontSearchSignal(query: string, limit = 8): Promise<PostgresStorefrontSearchSignal> {
-  const normalizedQuery = normalizeSearchText(query.slice(0, 120));
-  if (!normalizedQuery || !productionDatabaseConfigured()) {
+  const intent = interpretSearchQuery(query.slice(0, 120));
+  if (!intent.normalizedText || !productionDatabaseConfigured()) {
     return { provider: "postgres", hasResults: false, suggestions: [], visibleProducts: 0 };
   }
 
   const rows = await projection();
   const matched = rows
-    .filter((row) => row.searchable.includes(normalizedQuery))
-    .sort((left, right) => rank(left, normalizedQuery) - rank(right, normalizedQuery) || left.title.localeCompare(right.title, "el"));
+    .map((row) => ({ row, score: searchTextRelevance(intent.text, [row.title, row.searchable]) }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.row.title.localeCompare(right.row.title, "el"));
   const suggestions: string[] = [];
   const seen = new Set<string>();
-  for (const row of matched) {
+  for (const { row } of matched) {
     const key = normalizeSearchText(row.title);
     if (!key || seen.has(key)) continue;
     seen.add(key);
@@ -124,13 +125,6 @@ async function loadProjection(): Promise<readonly SearchProjectionRow[]> {
       searchable: fields.map((value) => normalizeSearchText(value ?? "")).filter(Boolean).join(" ")
     };
   });
-}
-
-function rank(row: SearchProjectionRow, query: string): number {
-  if (row.titleKey === query) return 0;
-  if (row.titleKey.startsWith(query)) return 1;
-  if (row.titleKey.includes(query)) return 2;
-  return 3;
 }
 
 function clampLimit(value: number): number {
