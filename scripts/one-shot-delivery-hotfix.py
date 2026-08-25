@@ -186,8 +186,8 @@ replace_once(
 )
 replace_once(
     "apps/web/src/components/VendorDailyOrdersClient.tsx",
-    '>{busy === `${item.id}:${action}` ? "Ενημέρωση…" : actionLabel[action] ?? action}',
-    '>{busy === `${item.id}:${action}` ? "Ενημέρωση…" : action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? action}',
+    ': actionLabel[action] ?? action}',
+    ': action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? action}',
 )
 replace_once(
     "apps/web/src/components/VendorDailyOrdersClient.tsx",
