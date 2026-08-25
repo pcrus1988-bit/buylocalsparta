@@ -1,5 +1,6 @@
 import { requireAdminSession } from "../../../../lib/admin-session";
 import { adminQuickAddLookup, adminQuickAddSave, adminQuickAddWorkspace } from "../../../../lib/admin-quickadd-service";
+import { recordQuickAddDemandSignal } from "../../../../lib/quickadd-demand-signal";
 
 export async function GET(request: Request) {
   try {
@@ -8,7 +9,20 @@ export async function GET(request: Request) {
     const gtin = url.searchParams.get("gtin") ?? "";
     const q = url.searchParams.get("q") ?? "";
     const vendorId = url.searchParams.get("vendorId") ?? "";
-    if (gtin || q) return Response.json(await adminQuickAddLookup(principal, { vendorId, gtin, q }));
+    if (gtin || q) {
+      const result = await adminQuickAddLookup(principal, { vendorId, gtin, q });
+      const best = result.matches[0];
+      await recordQuickAddDemandSignal(principal, {
+        source: "admin",
+        vendorId,
+        gtin,
+        q,
+        matched: Boolean(best),
+        canonicalVariantId: best?.id,
+        categoryCode: best?.categoryCode
+      });
+      return Response.json(result);
+    }
     return Response.json(await adminQuickAddWorkspace(principal));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "admin_quickadd_failed" }, { status: 400 });

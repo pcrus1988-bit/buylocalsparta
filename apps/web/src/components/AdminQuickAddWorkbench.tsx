@@ -14,6 +14,7 @@ type Match = Readonly<{
   brand?: string;
   model?: string;
   mpn?: string;
+  imageUrl?: string;
   categoryCode: string;
   categoryPath: string;
   active: boolean;
@@ -36,13 +37,21 @@ type Draft = {
 type Notice = Readonly<{ tone: "success" | "error" | "info"; text: string }>;
 type Detector = { detect(source: CanvasImageSource): Promise<Array<{ rawValue?: string }>> };
 type DetectorCtor = new (options?: { formats?: string[] }) => Detector;
+type PendingPhoto = Readonly<{ file: File; previewUrl: string }>;
+type ScanTarget = "lookup" | "ean";
 
 const EMPTY_DRAFT: Draft = { title: "", description: "", gtin: "", brand: "", model: "", mpn: "", categoryCode: "", vendorSku: "", price: "0.00", onHand: "0", safetyStock: "0", visible: true };
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function barcodeValue(value: string): string | undefined {
   const compact = value.replace(/[\s-]/g, "");
   const digits = compact.replace(/\D/g, "");
   return compact === digits && digits.length >= 6 ? digits : undefined;
+}
+
+function eanValue(value: string): string | undefined {
+  const digits = value.replace(/\D/g, "");
+  return [8, 12, 13, 14].includes(digits.length) ? digits : undefined;
 }
 
 function draftFromMatch(match: Match): Draft {
@@ -72,27 +81,63 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [busy, setBusy] = useState<"lookup" | "save" | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [scanTarget, setScanTarget] = useState<ScanTarget | null>(null);
+  const [photos, setPhotos] = useState<readonly PendingPhoto[]>([]);
+  const [photoRightsConfirmed, setPhotoRightsConfirmed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scannerFrameRef = useRef<number | null>(null);
+  const photosRef = useRef<readonly PendingPhoto[]>([]);
 
   function patchDraft(patch: Partial<Draft>) { setDraft((current) => ({ ...current, ...patch })); }
+
+  function clearPhotos() {
+    photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+    photosRef.current = [];
+    setPhotos([]);
+    setPhotoRightsConfirmed(false);
+  }
+
+  function queuePhotos(files: FileList | null) {
+    if (!files) return;
+    const incoming = Array.from(files).filter((file) => IMAGE_TYPES.has(file.type)).map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    if (!incoming.length) { setNotice({ tone: "error", text: "Οι φωτογραφίες πρέπει να είναι JPEG, PNG ή WebP." }); return; }
+    setPhotos((current) => {
+      const combined = [...current, ...incoming];
+      const next = combined.slice(0, 8);
+      combined.slice(8).forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      photosRef.current = next;
+      return next;
+    });
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((current) => {
+      const removed = current[index];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      const next = current.filter((_, itemIndex) => itemIndex !== index);
+      photosRef.current = next;
+      if (!next.length) setPhotoRightsConfirmed(false);
+      return next;
+    });
+  }
 
   function stopScanner() {
     if (scannerFrameRef.current !== null) cancelAnimationFrame(scannerFrameRef.current);
     scannerFrameRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    setScanning(false);
+    setScanTarget(null);
   }
 
   useEffect(() => () => {
     if (scannerFrameRef.current !== null) cancelAnimationFrame(scannerFrameRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
+    photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
   }, []);
 
   function choose(match: Match) {
+    clearPhotos();
     setSelected(match);
     setDraft(draftFromMatch(match));
     setMode("existing");
@@ -100,6 +145,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   }
 
   function resetResult() {
+    clearPhotos();
     setSearchedQuery(null);
     setMatches([]);
     setSelected(null);
@@ -138,6 +184,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   }
 
   function beginCreate() {
+    clearPhotos();
     const barcode = barcodeValue(query.trim());
     setSelected(null);
     setDraft({ ...EMPTY_DRAFT, gtin: barcode ?? "", title: barcode ? "" : query.trim() });
@@ -145,7 +192,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     setNotice(null);
   }
 
-  async function startScanner() {
+  async function startScanner(target: ScanTarget) {
     if (!vendorId) { setNotice({ tone: "error", text: "Επίλεξε πρώτα κατάστημα και μετά άνοιξε την κάμερα." }); return; }
     const DetectorClass = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
     if (!DetectorClass || !navigator.mediaDevices?.getUserMedia) {
@@ -154,14 +201,15 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     }
     try {
       setNotice(null);
+      setScanTarget(target);
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
       streamRef.current = stream;
-      setScanning(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       const video = videoRef.current;
       if (!video) throw new Error("Η προεπισκόπηση κάμερας δεν είναι διαθέσιμη.");
       video.srcObject = stream;
       await video.play();
+      video.scrollIntoView({ behavior: "smooth", block: "center" });
       const detector = new DetectorClass({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] });
       const scan = async () => {
         if (!streamRef.current || !videoRef.current) return;
@@ -169,10 +217,20 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
           const codes = await detector.detect(videoRef.current);
           const raw = codes.find((item) => item.rawValue)?.rawValue?.trim();
           if (raw) {
-            setQuery(raw);
-            stopScanner();
-            await lookup(raw);
-            return;
+            if (target === "ean") {
+              const ean = eanValue(raw);
+              if (ean) {
+                patchDraft({ gtin: ean });
+                stopScanner();
+                setNotice({ tone: "info", text: `EAN / GTIN ${ean} σαρώθηκε. Θα αποθηκευτεί με το προϊόν μετά τον έλεγχο checksum.` });
+                return;
+              }
+            } else {
+              setQuery(raw);
+              stopScanner();
+              await lookup(raw);
+              return;
+            }
           }
         } catch { /* Continue scanning until a readable code is available. */ }
         scannerFrameRef.current = requestAnimationFrame(() => void scan());
@@ -182,6 +240,41 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
       stopScanner();
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "Δεν ήταν δυνατή η πρόσβαση στην κάμερα." });
     }
+  }
+
+  async function uploadAdminPhotos(canonicalVariantId: string, title: string) {
+    const vendor = vendors.find((item) => item.id === vendorId);
+    if (!vendor) throw new Error("Δεν βρέθηκε το επιλεγμένο κατάστημα για τις φωτογραφίες.");
+    let uploaded = 0;
+    for (const photo of photos) {
+      const intentResponse = await fetch("/api/admin/quickadd/media/intents", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({
+          vendorId,
+          canonicalVariantId,
+          filename: photo.file.name,
+          contentType: photo.file.type,
+          byteSize: photo.file.size,
+          altText: title,
+          rightsOwner: vendor.name
+        })
+      });
+      const intent = await intentResponse.json() as { error?: string; uploadUrl?: string; headers?: Record<string, string>; intentId?: string; maxBytes?: number };
+      if (!intentResponse.ok || !intent.uploadUrl || !intent.intentId) throw new Error(intent.error ?? "Δεν δημιουργήθηκε ασφαλές upload για τη φωτογραφία.");
+      if (intent.maxBytes && photo.file.size > intent.maxBytes) throw new Error("Μία φωτογραφία είναι μεγαλύτερη από το επιτρεπόμενο όριο.");
+      const put = await fetch(intent.uploadUrl, { method: "PUT", headers: intent.headers ?? {}, body: photo.file });
+      if (!put.ok) throw new Error("Η αποστολή φωτογραφίας στο ασφαλές storage απέτυχε.");
+      const complete = await fetch("/api/admin/quickadd/media/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ intentId: intent.intentId })
+      });
+      const result = await complete.json() as { error?: string };
+      if (!complete.ok) throw new Error(result.error ?? "Η ολοκλήρωση της φωτογραφίας απέτυχε.");
+      uploaded += 1;
+    }
+    return uploaded;
   }
 
   async function save() {
@@ -196,8 +289,10 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
       setNotice({ tone: "error", text: "Έλεγξε τιμή, stock και safety stock. Το safety stock δεν μπορεί να υπερβαίνει το stock." }); return;
     }
     if (draft.visible && euros <= 0) { setNotice({ tone: "error", text: "Για δημόσια εμφάνιση χρειάζεται τιμή μεγαλύτερη από €0. Κλείσε τη δημοσίευση αν θέλεις να το προετοιμάσεις ως κρυφό." }); return; }
+    if (photos.length && !photoRightsConfirmed) { setNotice({ tone: "error", text: "Επιβεβαίωσε το δικαίωμα χρήσης πριν ανεβάσεις τις νέες φωτογραφίες." }); return; }
     setBusy("save");
     setNotice(null);
+    let productSaved = false;
     try {
       const response = await fetch("/api/admin/quickadd", {
         method: "POST",
@@ -219,31 +314,39 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
           visible: draft.visible
         })
       });
-      const payload = await response.json() as { error?: string; canonicalVariantId?: string; createdCanonical?: boolean; reusedExactGtin?: boolean };
+      const payload = await response.json() as { error?: string; canonicalVariantId?: string; createdCanonical?: boolean; reusedExactGtin?: boolean; gtinAdded?: boolean; gtin?: string };
       if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση απέτυχε.");
-      const identity = draft.gtin.trim() || title;
+      productSaved = true;
+      let uploaded = 0;
+      if (photos.length && payload.canonicalVariantId) uploaded = await uploadAdminPhotos(payload.canonicalVariantId, title);
+      if (uploaded) clearPhotos();
+      const identity = payload.gtin || draft.gtin.trim() || title;
       if (payload.canonicalVariantId) await lookup(identity, payload.canonicalVariantId);
+      const baseMessage = payload.reusedExactGtin
+        ? "Βρέθηκε ίδιο GTIN: επαναχρησιμοποιήθηκε το canonical και ενημερώθηκε το vendor offer."
+        : payload.createdCanonical
+          ? "Το canonical προϊόν δημιουργήθηκε και ανατέθηκε στο κατάστημα."
+          : "Το canonical προϊόν και το vendor offer ενημερώθηκαν επιτυχώς.";
       setNotice({
         tone: "success",
-        text: payload.reusedExactGtin
-          ? "Βρέθηκε ίδιο GTIN: επαναχρησιμοποιήθηκε το canonical και ενημερώθηκε το vendor offer."
-          : payload.createdCanonical
-            ? "Το canonical προϊόν δημιουργήθηκε και ανατέθηκε στο κατάστημα."
-            : "Το canonical προϊόν και το vendor offer ενημερώθηκαν επιτυχώς."
+        text: `${baseMessage}${payload.gtinAdded ? " Το EAN προστέθηκε στο canonical." : ""}${uploaded ? ` ${uploaded} νέα φωτογραφ${uploaded === 1 ? "ία ανέβηκε" : "ίες ανέβηκαν"} και μπήκε σε ασφαλή έλεγχο.` : ""}`
       });
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : "Η αποθήκευση απέτυχε." });
+      const detail = error instanceof Error ? error.message : "Η αποθήκευση απέτυχε.";
+      setNotice({ tone: "error", text: productSaved ? `Το προϊόν αποθηκεύτηκε, αλλά η αποστολή φωτογραφιών δεν ολοκληρώθηκε: ${detail}` : detail });
     } finally { setBusy(null); }
   }
 
   const selectedVendor = vendors.find((vendor) => vendor.id === vendorId);
   const editorOpen = mode === "existing" || mode === "create";
 
+  const scanner = (target: ScanTarget) => scanTarget === target && <div className={styles.scanner}><video ref={videoRef} playsInline muted /><div /><span>{target === "ean" ? "Σκάναρε το EAN / GTIN της συσκευασίας" : "Κράτησε το barcode μέσα στο πλαίσιο"}</span></div>;
+
   return <div className={styles.workbench}>
     <section className={styles.setupCard}>
       <label className={styles.vendorField}>
         <span>1 · Κατάστημα</span>
-        <select value={vendorId} onChange={(event) => { setVendorId(event.target.value); resetResult(); setNotice(null); }}>
+        <select value={vendorId} onChange={(event) => { stopScanner(); setVendorId(event.target.value); resetResult(); setNotice(null); }}>
           <option value="">Επίλεξε vendor shop…</option>
           {vendors.map((vendor) => <option value={vendor.id} key={vendor.id}>{vendor.name} · {vendor.status}</option>)}
         </select>
@@ -256,9 +359,9 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
       <div className={styles.searchRow}>
         <input value={query} onChange={(event) => { setQuery(event.target.value); setSearchedQuery(null); setMatches([]); }} onKeyDown={(event) => { if (event.key === "Enter") void lookup(); }} placeholder="GTIN / EAN / τίτλος / model / MPN" aria-label="Αναζήτηση canonical προϊόντος" inputMode="search" autoComplete="off" />
         <button className={styles.primaryButton} type="button" onClick={() => void lookup()} disabled={busy !== null}>{busy === "lookup" ? "Αναζήτηση…" : "Αναζήτηση"}</button>
-        <button className={styles.secondaryButton} type="button" onClick={() => scanning ? stopScanner() : void startScanner()} disabled={busy === "save"}>{scanning ? "Κλείσιμο" : "▣ Scan"}</button>
+        <button className={styles.secondaryButton} type="button" onClick={() => scanTarget === "lookup" ? stopScanner() : void startScanner("lookup")} disabled={busy === "save"}>{scanTarget === "lookup" ? "Κλείσιμο" : "▣ Scan"}</button>
       </div>
-      {scanning && <div className={styles.scanner}><video ref={videoRef} playsInline muted /><div /><span>Κράτησε το barcode μέσα στο πλαίσιο</span></div>}
+      {scanner("lookup")}
     </section>
 
     {notice && <div className={`${styles.notice} ${styles[notice.tone]}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
@@ -266,7 +369,8 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     {mode === "idle" && matches.length > 0 && <section className={styles.resultsCard}>
       <div className={styles.cardHeading}><div><span>Canonical catalogue</span><h2>{matches.length} αποτελέσματα</h2></div></div>
       <div className={styles.results}>{matches.map((match) => <button type="button" className={styles.result} key={match.id} onClick={() => choose(match)}>
-        <span><strong>{match.title}</strong><small>{[match.brand, match.model, match.mpn, match.gtin].filter(Boolean).join(" · ") || "Χωρίς πρόσθετο identifier"}</small><small>{match.categoryPath}</small></span>
+        <span className={styles.resultImage}>{match.imageUrl ? <img src={match.imageUrl} alt="" /> : <i>Χωρίς εικόνα</i>}</span>
+        <span className={styles.resultCopy}><strong>{match.title}</strong><small>{[match.brand, match.model, match.mpn, match.gtin].filter(Boolean).join(" · ") || "Χωρίς πρόσθετο identifier"}</small><small>{match.categoryPath}</small></span>
         <span className={styles.resultMeta}><b className={match.listed ? styles.listed : styles.unlisted}>{match.listed ? "Στο κατάστημα" : "Δεν έχει ανατεθεί"}</b><small>{match.active ? "canonical active" : "canonical inactive"}</small></span>
       </button>)}</div>
       <div className={styles.newProductBar}><span>Κανένα αποτέλεσμα δεν είναι το σωστό προϊόν;</span><button type="button" className={styles.secondaryButton} onClick={beginCreate}>Δημιουργία διαφορετικού canonical</button></div>
@@ -283,19 +387,33 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
         <b className={selected?.listed ? styles.listed : styles.unlisted}>{selected?.listed ? "Update offer" : "Add to shop"}</b>
       </div>
 
-      {mode === "existing" && <div className={styles.identityNote}>Το canonical identity προστατεύεται: GTIN, brand και category εμφανίζονται εδώ αλλά δεν αλλάζουν από γρήγορη ενημέρωση. Τίτλος, περιγραφή, model, MPN και vendor offer μπορούν να ενημερωθούν.</div>}
+      {mode === "existing" && <div className={styles.identityNote}>Το canonical identity προστατεύεται: υπάρχον GTIN, brand και category δεν αντικαθίστανται από Quick Add. Αν το GTIN / EAN λείπει, μπορείς να το προσθέσεις μία φορά με scan και έλεγχο checksum.</div>}
+
+      <div className={styles.mediaSection}>
+        <div className={styles.heroImage}>{selected?.imageUrl ? <img src={selected.imageUrl} alt={selected.title} /> : <div><strong>Χωρίς κύρια εικόνα</strong><span>Πρόσθεσε φωτογραφία από κάμερα ή αρχείο.</span></div>}</div>
+        <div className={styles.mediaControls}>
+          <div><h3>Φωτογραφίες προϊόντος</h3><p>Η υπάρχουσα εικόνα εμφανίζεται αριστερά. Μπορείς να τραβήξεις ή να ανεβάσεις έως 8 επιπλέον φωτογραφίες.</p></div>
+          <label className={styles.photoPicker}><span>📷 Λήψη ή προσθήκη φωτογραφιών</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple onChange={(event) => { queuePhotos(event.target.files); event.currentTarget.value = ""; }} /></label>
+          {photos.length > 0 && <>
+            <div className={styles.photoQueue}>{photos.map((photo, index) => <div key={`${photo.file.name}-${photo.file.lastModified}-${index}`}><img src={photo.previewUrl} alt="Προεπισκόπηση νέας φωτογραφίας" /><button type="button" onClick={() => removePhoto(index)} aria-label="Αφαίρεση φωτογραφίας">×</button></div>)}</div>
+            <label className={styles.rightsCheck}><input type="checkbox" checked={photoRightsConfirmed} onChange={(event) => setPhotoRightsConfirmed(event.target.checked)} /><span>Επιβεβαιώνω ότι το επιλεγμένο κατάστημα έχει δικαίωμα χρήσης αυτών των φωτογραφιών.</span></label>
+            <small>Μετά το upload οι εικόνες περνούν ασφαλή σάρωση πριν χρησιμοποιηθούν δημόσια.</small>
+          </>}
+        </div>
+      </div>
 
       <div className={styles.formSection}>
         <h3>Canonical στοιχεία</h3>
         <div className={styles.formGrid}>
           <label className={styles.wide}><span>Τίτλος *</span><input value={draft.title} onChange={(event) => patchDraft({ title: event.target.value })} /></label>
           <label className={styles.wide}><span>Περιγραφή</span><textarea value={draft.description} onChange={(event) => patchDraft({ description: event.target.value })} rows={4} /></label>
-          <label><span>GTIN / EAN</span><input value={draft.gtin} onChange={(event) => patchDraft({ gtin: event.target.value })} inputMode="numeric" disabled={mode === "existing"} /></label>
+          <label><span>GTIN / EAN</span><div className={styles.inlineField}><input value={draft.gtin} onChange={(event) => patchDraft({ gtin: event.target.value })} inputMode="numeric" disabled={mode === "existing" && Boolean(selected?.gtin)} />{(mode === "create" || !selected?.gtin) && <button type="button" className={styles.miniButton} onClick={() => scanTarget === "ean" ? stopScanner() : void startScanner("ean")} disabled={busy !== null}>{scanTarget === "ean" ? "Κλείσιμο" : "▣ Scan EAN"}</button>}</div></label>
           <label><span>Brand</span><input value={draft.brand} onChange={(event) => patchDraft({ brand: event.target.value })} disabled={mode === "existing"} /></label>
           <label><span>Model</span><input value={draft.model} onChange={(event) => patchDraft({ model: event.target.value })} /></label>
           <label><span>MPN</span><input value={draft.mpn} onChange={(event) => patchDraft({ mpn: event.target.value })} /></label>
           <label className={styles.wide}><span>Κατηγορία *</span><select value={draft.categoryCode} onChange={(event) => patchDraft({ categoryCode: event.target.value })} disabled={mode === "existing"}><option value="">Επίλεξε assignable category…</option>{categories.map((category) => <option value={category.code} key={category.code}>{category.path}</option>)}</select></label>
         </div>
+        {scanner("ean")}
       </div>
 
       <div className={styles.formSection}>
@@ -312,7 +430,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
       {selected?.listed && <div className={styles.currentOffer}><span>Current offer</span><strong>{selected.listed.status} · stock {selected.listed.onHand} · €{(selected.listed.priceMinor / 100).toFixed(2)}</strong><small>{selected.listed.offerId}</small></div>}
 
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryButton} onClick={() => { setMode("idle"); setSelected(null); }} disabled={busy !== null}>Πίσω στα αποτελέσματα</button>
+        <button type="button" className={styles.secondaryButton} onClick={() => { stopScanner(); clearPhotos(); setMode("idle"); setSelected(null); }} disabled={busy !== null}>Πίσω στα αποτελέσματα</button>
         <button type="button" className={styles.primaryButton} onClick={() => void save()} disabled={busy !== null}>{busy === "save" ? "Αποθήκευση…" : mode === "create" ? "Δημιουργία canonical & ανάθεση" : selected?.listed ? "Ενημέρωση προϊόντος & stock" : "Ανάθεση στο κατάστημα"}</button>
       </div>
     </section>}

@@ -5,6 +5,7 @@ import {
   LOCAL_DEMAND_SOURCE_COVERAGE,
   type DemandSignalRow
 } from "../apps/web/src/lib/local-demand-intelligence.ts";
+import { quickAddLookupFingerprint } from "../apps/web/src/lib/quickadd-demand-fingerprint.ts";
 
 function row(actor: number, source: DemandSignalRow["source"], overrides: Partial<DemandSignalRow> = {}): DemandSignalRow {
   return {
@@ -27,14 +28,15 @@ const qualified = buildLocalDemandIntelligence([
   ...[1, 2, 3, 4, 5].map((actor) => row(actor, "localWatch")),
   ...[1, 2, 3, 4, 5].map((actor) => row(actor, "askLocal")),
   ...[1, 2, 3, 4, 5].map((actor) => row(actor, "zeroResultSearch", { canonicalVariantId: undefined })),
+  ...[1, 2, 3, 4, 5].map((actor) => row(actor, "quickAddMiss")),
   ...[1, 2, 3, 4, 5].map((actor) => row(actor, "savedSearch", { canonicalVariantId: undefined }))
 ]);
 const variant = qualified.find((item) => item.kind === "variant");
 const category = qualified.find((item) => item.kind === "category");
 if (!variant || variant.signals.distinctActors !== 5) throw new Error("Five-actor variant cluster should be visible without leaking actor identities");
-if (variant.score !== 35) throw new Error(`Variant score should apply Local Watch ×4 and Ask Local ×3; received ${variant.score}`);
-if (!category || category.score !== 50) throw new Error(`Category score should include Local Watch ×4, Ask Local ×3, zero-result ×2 and saved search ×1; received ${category?.score}`);
-if (category.signals.zeroResultSearch !== 5) throw new Error("Privacy-qualified zero-result category demand must be counted");
+if (variant.score !== 45) throw new Error(`Variant score should apply Local Watch ×4, Ask Local ×3 and resolved Quick Add miss ×2; received ${variant?.score}`);
+if (!category || category.score !== 60) throw new Error(`Category score should include Local Watch ×4, Ask Local ×3, zero-result ×2, Quick Add miss ×2 and saved search ×1; received ${category?.score}`);
+if (category.signals.zeroResultSearch !== 5 || category.signals.quickAddMiss !== 5) throw new Error("Privacy-qualified search and Quick Add demand must be counted");
 if (variant.availableLocal !== false) throw new Error("Local availability gap must survive aggregation");
 
 const vendorFiltered = buildLocalDemandIntelligence([
@@ -47,22 +49,42 @@ const vendorFiltered = buildLocalDemandIntelligence([
 if (vendorFiltered.some((item) => item.kind === "variant")) throw new Error("Vendor opportunities must exclude products the vendor already offers");
 if (vendorFiltered.length !== 1 || vendorFiltered[0]?.kind !== "category" || vendorFiltered[0].categoryCode !== "photo-accessories") throw new Error("Vendor opportunity filtering must retain only relevant qualified categories");
 
-if (LOCAL_DEMAND_SOURCE_COVERAGE.zeroResultSearch !== "active") throw new Error("Persisted privacy-qualified zero-result search must be active");
-if (LOCAL_DEMAND_SOURCE_COVERAGE.quickAddMiss !== "not_instrumented") throw new Error("Unpersisted Quick Add misses must not be presented as active");
+if (LOCAL_DEMAND_SOURCE_COVERAGE.zeroResultSearch !== "active" || LOCAL_DEMAND_SOURCE_COVERAGE.quickAddMiss !== "active") throw new Error("All five intended demand sources must be active");
+
+const TEST_SECRET = "quickadd-demand-test-secret-32-bytes-minimum";
+const OTHER_SECRET = "quickadd-demand-other-secret-32-bytes-minimum";
+const gtinFingerprint = quickAddLookupFingerprint(TEST_SECRET, { gtin: "5201234567890" });
+const repeatedFingerprint = quickAddLookupFingerprint(TEST_SECRET, { gtin: "5201234567890" });
+const otherFingerprint = quickAddLookupFingerprint(TEST_SECRET, { gtin: "5201234567891" });
+const rekeyedFingerprint = quickAddLookupFingerprint(OTHER_SECRET, { gtin: "5201234567890" });
+if (!gtinFingerprint || gtinFingerprint.kind !== "identifier") throw new Error("Quick Add identifier lookup must produce an opaque fingerprint");
+if (gtinFingerprint.fingerprint !== repeatedFingerprint?.fingerprint) throw new Error("Quick Add fingerprint must be deterministic so later resolution can join prior misses");
+if (gtinFingerprint.fingerprint === otherFingerprint?.fingerprint) throw new Error("Distinct Quick Add identifiers must not collapse to one fingerprint");
+if (gtinFingerprint.fingerprint === rekeyedFingerprint?.fingerprint) throw new Error("Quick Add fingerprint must be keyed so a different secret produces a different digest");
+if (gtinFingerprint.fingerprint.includes("5201234567890")) throw new Error("Quick Add fingerprint must never contain the raw identifier");
 
 const service = readFileSync("apps/web/src/lib/local-demand-service.ts", "utf8");
+const quickAddSignal = readFileSync("apps/web/src/lib/quickadd-demand-signal.ts", "utf8");
+const quickAddFingerprint = readFileSync("apps/web/src/lib/quickadd-demand-fingerprint.ts", "utf8");
+const dailyRoute = readFileSync("apps/web/src/app/api/daily/quickadd/route.ts", "utf8");
+const adminRoute = readFileSync("apps/web/src/app/api/admin/quickadd/route.ts", "utf8");
 const vendorPage = readFileSync("apps/web/src/app/daily/opportunities/page.tsx", "utf8");
 const adminPage = readFileSync("apps/web/src/app/admin/demand/page.tsx", "utf8");
 const menu = readFileSync("apps/web/src/components/DailySandwichMenu.tsx", "utf8");
-if (!service.includes("saved_product_alert_preferences") || !service.includes("counteroffer.requested") || !service.includes("saved_searches") || !service.includes("search.performed")) throw new Error("Demand service must read all four proven durable signal families");
-if (!service.includes("resultCount") || !service.includes("zeroResultSearch")) throw new Error("Zero-result demand must come from actor-bearing analytics events");
+if (!service.includes("saved_product_alert_preferences") || !service.includes("counteroffer.requested") || !service.includes("saved_searches") || !service.includes("search.performed") || !service.includes("quickadd.lookup_missed")) throw new Error("Demand service must read all five durable signal families");
+if (!service.includes("quickadd.lookup_resolved") || !service.includes("lookupFingerprint") || !service.includes("quickAddMiss")) throw new Error("Quick Add misses must join to later canonical resolution by opaque fingerprint");
 if (service.includes("source_metadata") || service.includes("ss.query->>'q'") || service.includes("metadata->>'query'") || service.includes("postcode")) throw new Error("Demand aggregation must not select rich Ask Local data, raw search text, or postcode");
+if (!quickAddSignal.includes("lookupFingerprint") || !quickAddSignal.includes("lookupKind") || !quickAddSignal.includes("ON CONFLICT (dedupe_key)")) throw new Error("Quick Add instrumentation must persist only deduped privacy-safe lookup metadata");
+if (!quickAddSignal.includes("BLS_QUICKADD_DEMAND_SECRET") || !quickAddSignal.includes("BLS_AUTH_SECRET")) throw new Error("Quick Add instrumentation must use a stable server-side secret");
+if (!quickAddFingerprint.includes("createHmac") || !quickAddFingerprint.includes("bls-quickadd-demand-v1")) throw new Error("Quick Add lookup fingerprint must use keyed deterministic HMAC hashing");
+if (quickAddSignal.includes("rawQuery") || quickAddSignal.includes("rawGtin:") || quickAddSignal.includes("queryText")) throw new Error("Quick Add analytics metadata must not persist raw lookup values");
+if (!dailyRoute.includes("recordQuickAddDemandSignal") || !adminRoute.includes("recordQuickAddDemandSignal")) throw new Error("Both Vendor Daily and Admin Quick Add lookups must emit demand signals");
 if (!service.includes("back_in_stock_enabled=true") || !service.includes("alerts_enabled=true")) throw new Error("Demand service must use active customer intent, not dormant rows");
-if (!vendorPage.includes("Δεν εμφανίζουμε ποιος") || !vendorPage.includes("minimumActors") || !vendorPage.includes("Zero-result")) throw new Error("Vendor workspace must explain its privacy boundary and qualified search gap signal");
-if (!adminPage.includes("Local Demand Intelligence") || !adminPage.includes("Privacy boundary")) throw new Error("Admin demand workspace must expose the aggregated intelligence and privacy boundary");
+if (!vendorPage.includes("Δεν εμφανίζουμε ποιος") || !vendorPage.includes("minimumActors") || !vendorPage.includes("Quick Add miss")) throw new Error("Vendor workspace must explain its privacy boundary and Quick Add signal");
+if (!adminPage.includes("Local Demand Intelligence") || !adminPage.includes("Privacy boundary") || !adminPage.includes("Quick Add miss")) throw new Error("Admin demand workspace must expose the five-source intelligence and privacy boundary");
 if (!menu.includes('href="/daily/opportunities"')) throw new Error("Daily navigation must expose Local opportunities");
 for (const forbidden of ["customerEmail", "recipientName", "shipping_address", "voiceTranscript", "referenceImageDataUrl"]) {
   if (vendorPage.includes(forbidden)) throw new Error(`Vendor page must not expose private field ${forbidden}`);
 }
 
-console.log("Local-commerce demand intelligence contracts verified");
+console.log("Local-commerce demand intelligence contracts verified with all five sources active");

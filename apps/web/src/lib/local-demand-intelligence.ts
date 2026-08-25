@@ -1,5 +1,5 @@
 export type DemandSignalSource = "localWatch" | "askLocal" | "savedSearch" | "zeroResultSearch" | "quickAddMiss";
-export type ActiveDemandSignalSource = Exclude<DemandSignalSource, "quickAddMiss">;
+export type ActiveDemandSignalSource = DemandSignalSource;
 
 export type DemandSignalRow = Readonly<{
   actorKey: string;
@@ -41,13 +41,14 @@ export const LOCAL_DEMAND_SOURCE_COVERAGE: DemandSourceCoverage = {
   askLocal: "active",
   savedSearch: "active",
   zeroResultSearch: "active",
-  quickAddMiss: "not_instrumented"
+  quickAddMiss: "active"
 };
 
 const WEIGHTS: Readonly<Record<ActiveDemandSignalSource, number>> = {
   localWatch: 4,
   askLocal: 3,
   zeroResultSearch: 2,
+  quickAddMiss: 2,
   savedSearch: 1
 };
 
@@ -71,7 +72,7 @@ function bucket(map: Map<string, MutableBucket>, input: Omit<MutableBucket, "act
   const created: MutableBucket = {
     ...input,
     actors: new Set(),
-    bySource: { localWatch: new Set(), askLocal: new Set(), savedSearch: new Set(), zeroResultSearch: new Set() }
+    bySource: { localWatch: new Set(), askLocal: new Set(), savedSearch: new Set(), zeroResultSearch: new Set(), quickAddMiss: new Set() }
   };
   map.set(input.key, created);
   return created;
@@ -87,11 +88,13 @@ function finish(item: MutableBucket): DemandOpportunity {
   const askLocal = item.bySource.askLocal.size;
   const savedSearch = item.bySource.savedSearch.size;
   const zeroResultSearch = item.bySource.zeroResultSearch.size;
+  const quickAddMiss = item.bySource.quickAddMiss.size;
   const distinctActors = item.actors.size;
-  const sourceFamilies = [localWatch, askLocal, savedSearch, zeroResultSearch].filter((count) => count > 0).length;
+  const sourceFamilies = [localWatch, askLocal, savedSearch, zeroResultSearch, quickAddMiss].filter((count) => count > 0).length;
   const score = localWatch * WEIGHTS.localWatch
     + askLocal * WEIGHTS.askLocal
     + zeroResultSearch * WEIGHTS.zeroResultSearch
+    + quickAddMiss * WEIGHTS.quickAddMiss
     + savedSearch * WEIGHTS.savedSearch;
   const confidence = distinctActors >= 12 || (distinctActors >= 8 && sourceFamilies >= 2)
     ? "very_strong"
@@ -107,7 +110,7 @@ function finish(item: MutableBucket): DemandOpportunity {
     score,
     confidence,
     availableLocal: item.availableLocal,
-    signals: { localWatch, askLocal, savedSearch, zeroResultSearch, quickAddMiss: 0, distinctActors }
+    signals: { localWatch, askLocal, savedSearch, zeroResultSearch, quickAddMiss, distinctActors }
   };
 }
 

@@ -1,17 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
+import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { flexibleQuickAddSearch } from "./quickadd-flex-search";
+import { attachMissingQuickAddGtin } from "./quickadd-gtin-service";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 import type { VendorCanonicalPrefillMatch } from "./vendor-canonical-prefill-service";
 import { vendorCatalogControlWorkspace, type VendorManagedCatalogProduct } from "./vendor-catalog-control-service";
 
 export type QuickAddMatch = VendorCanonicalPrefillMatch & Readonly<{
+  imageUrl?: string;
   listed?: VendorManagedCatalogProduct;
 }>;
 
 export type QuickAddSaveInput = Readonly<{
   canonicalVariantId: string;
+  gtin?: string;
   vendorSku?: string;
   customerPriceMinor: number;
   onHand: number;
@@ -48,7 +52,7 @@ export async function quickAddLookup(principal: SessionPrincipal, input: { gtin?
     flexibleQuickAddSearch(tx, { vendorId: requiredVendorId(principal), query: q, code: gtin, limit }),
   { readOnly: true });
 
-  const matches: VendorCanonicalPrefillMatch[] = flexible.map((match) => ({
+  const matches: QuickAddMatch[] = flexible.map((match) => ({
     canonicalVariantId: match.canonicalVariantId,
     title: match.title,
     gtin: match.gtin,
@@ -56,6 +60,7 @@ export async function quickAddLookup(principal: SessionPrincipal, input: { gtin?
     brand: match.brand,
     model: match.model,
     mpn: match.mpn,
+    imageUrl: match.imageUrl,
     categoryCode: match.categoryCode,
     categoryName: match.categoryPath.split(" › ").at(-1) ?? match.categoryCode,
     categoryPath: match.categoryPath,
@@ -86,8 +91,17 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
   const visible = input.visible !== false;
   const adviceAvailable = input.adviceAvailable !== false;
   const vendorPublicId = requiredVendorId(principal);
+  const suppliedGtin = clean(input.gtin);
 
-  return uow().withTransaction(vendorScope(principal), async (tx) => {
+  // Canonical identity tables intentionally have platform-only write RLS. A scanned missing
+  // GTIN therefore uses one narrowly scoped privileged transaction so the identity write and
+  // this authenticated vendor's own offer/stock write stay atomic. vendorPublicId comes only
+  // from the signed session and every mutated row below is re-resolved against that vendor.
+  const transactionScope = suppliedGtin
+    ? platformScope(principal.userId, "sparta")
+    : vendorScope(principal);
+
+  return uow().withTransaction(transactionScope, async (tx) => {
     const refs = await tx.query<SqlRow>(`
       SELECT vb.id::text vendor_uuid,vb.market_id::text market_uuid,
              (SELECT id::text FROM public.vendor_locations WHERE vendor_id=vb.id AND active ORDER BY created_at LIMIT 1) location_uuid,
@@ -101,6 +115,19 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
     const ref = refs.rows[0];
     if (!ref.location_uuid) throw new Error("Vendor location is not configured");
     if (ref.suppressed || ref.recalled) throw new Error("This canonical product is blocked from publication");
+
+    let effectiveGtin = clean(ref.gtin);
+    let gtinAdded = false;
+    if (suppliedGtin) {
+      const attached = await attachMissingQuickAddGtin(tx, {
+        canonicalUuid: String(ref.canonical_uuid),
+        canonicalPublicId: String(ref.canonical_public_id),
+        gtin: suppliedGtin,
+        source: "vendor_submission"
+      });
+      effectiveGtin = attached.gtin;
+      gtinAdded = attached.added;
+    }
 
     const canonicalWasInactive = !Boolean(ref.active);
     if (canonicalWasInactive) {
@@ -137,7 +164,7 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
             ),updated_at=now()
         WHERE id=$1::uuid
         RETURNING id::text id,public_id
-      `, [row.id, clean(input.vendorSku) || null, clean(ref.gtin), customerPriceMinor, visible, adviceAvailable, canonicalWasInactive]);
+      `, [row.id, clean(input.vendorSku) || null, effectiveGtin, customerPriceMinor, visible, adviceAvailable, canonicalWasInactive]);
       offerUuid = String(changed.rows[0].id);
       offerPublicId = String(changed.rows[0].public_id);
     } else {
@@ -160,7 +187,7 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
           NULLIF(current_setting('app.actor_user_id',true),'')::uuid,now(),now()
         )
       `, [offerUuid, offerPublicId, ref.market_uuid, ref.vendor_uuid, ref.location_uuid, ref.canonical_uuid,
-        clean(input.vendorSku) || null, clean(ref.gtin) || null, customerPriceMinor, adviceAvailable, canonicalVariantId, visible, canonicalWasInactive]);
+        clean(input.vendorSku) || null, effectiveGtin || null, customerPriceMinor, adviceAvailable, canonicalVariantId, visible, canonicalWasInactive]);
     }
 
     const previous = await tx.query<SqlRow>(`SELECT on_hand FROM public.inventory_balances WHERE offer_id=$1::uuid FOR UPDATE`, [offerUuid]);
@@ -178,6 +205,6 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
           jsonb_build_object('previousOnHand',$4::integer,'newOnHand',$5::integer),now())
       `, [randomUUID(), offerUuid, onHand - previousOnHand, previousOnHand, onHand]);
     }
-    return { ok: true, offerId: offerPublicId, canonicalVariantId, canonicalActivated: canonicalWasInactive };
+    return { ok: true, offerId: offerPublicId, canonicalVariantId, canonicalActivated: canonicalWasInactive, gtin: effectiveGtin || undefined, gtinAdded };
   }, { isolation: "serializable" });
 }
