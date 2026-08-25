@@ -65,6 +65,6 @@ export default async function DailyLayout({ children }: Readonly<{ children: Rea
   return <>
     {children}
     {principal && <DailyNotificationFloat events={floatingEvents} unread={floatingUnread} />}
-    <ScopedPwaInstallClient appName="Daily" serviceWorkerPath="/daily-sw.js" scope="/daily/" placement="daily" />
+    <ScopedPwaInstallClient appName="Daily" serviceWorkerPath="/daily-sw.js" scope="/daily" placement="daily" />
   </>;
 }
