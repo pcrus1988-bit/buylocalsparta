@@ -21,6 +21,30 @@ function locationFreshness(receivedAt: number | undefined, now: number): string 
   return `Τελευταία θέση · πριν ${minutes}′`;
 }
 
+function jobStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    queued: "Σε προγραμματισμό",
+    ready: "Έτοιμη για ανάθεση",
+    assigned: "Ανατέθηκε σε οδηγό",
+    in_progress: "Σε εξέλιξη",
+    completed: "Ολοκληρώθηκε",
+    failed: "Πρόβλημα",
+    cancelled: "Ακυρώθηκε"
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
+}
+
+function stopStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    pending: "Αναμονή",
+    ready: "Έτοιμο",
+    completed: "Ολοκληρώθηκε",
+    skipped: "Παραλείφθηκε",
+    failed: "Πρόβλημα"
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
+}
+
 function customerRouteStage(job: DeliveryJobView, now: number): Readonly<{ title: string; detail: string }> {
   if (job.status === "completed") return { title: "Ολοκληρώθηκε", detail: "Η διαδρομή έχει ολοκληρωθεί." };
   const customerKind = job.type === "outbound" ? "customer_dropoff" : "customer_return_pickup";
@@ -99,12 +123,26 @@ export function CustomerDeliveryWorkspaceClient({
     <div className={styles.grid}>
       {jobs.map((job) => {
         const routeStage = customerRouteStage(job, now);
+        const vendorPickups = job.stops.filter((stop) => stop.kind === "vendor_pickup");
+        const vendorPickupsComplete = vendorPickups.length > 0
+          && vendorPickups.every((stop) => stop.status === "completed" || stop.status === "skipped");
+        const customerDropoffOpen = job.stops.some((stop) => stop.kind === "customer_dropoff"
+          && !["completed", "skipped", "failed"].includes(stop.status));
+        const showCustomerQr = Boolean(job.customerQr
+          && job.driverId
+          && job.status === "in_progress"
+          && vendorPickupsComplete
+          && customerDropoffOpen);
+        const showReturnPickupQr = Boolean(job.returnPickupQr
+          && job.driverId
+          && ["assigned", "in_progress"].includes(job.status));
+
         return (
           <article className={styles.card} key={job.id}>
             <div className={styles.toolbar}>
               <span className={styles.badge}>{job.type === "outbound" ? "Παράδοση" : "Επιστροφή"}</span>
               <strong>{job.orderId}</strong>
-              <span className={styles.status}>{job.status}</span>
+              <span className={styles.status}>{jobStatusLabel(job.status)}</span>
             </div>
 
             <div className={styles.progress}>
@@ -141,7 +179,7 @@ export function CustomerDeliveryWorkspaceClient({
                     </strong>
                     {stop.completedAt && <div className={styles.muted}>{stamp(stop.completedAt)}</div>}
                   </div>
-                  <span className={styles.status}>{stop.status}</span>
+                  <span className={styles.status}>{stopStatusLabel(stop.status)}</span>
                 </div>
               ))}
             </div>
@@ -160,20 +198,26 @@ export function CustomerDeliveryWorkspaceClient({
               />
             )}
 
-            {job.customerQr && job.status !== "completed" && (
+            {job.type === "outbound" && job.status !== "completed" && !showCustomerQr && (
+              <div className={styles.notice} role="status">
+                Το QR τελικής παράδοσης θα εμφανιστεί όταν ο οδηγός έχει παραλάβει όλα τα τμήματα της παραγγελίας και ξεκινήσει το τελικό σκέλος προς εσένα.
+              </div>
+            )}
+
+            {showCustomerQr && (
               <div className={styles.qrWrap}>
                 <strong>QR επιτυχούς παράδοσης</strong>
-                <QRCode value={job.customerQr} size={220} />
+                <QRCode value={job.customerQr!} size={220} />
                 <span className={styles.muted}>
-                  Δείξε αυτό το QR στον οδηγό μόνο όταν έχεις παραλάβει επιτυχώς την παραγγελία.
+                  Δείξε αυτό το QR στον οδηγό μόνο όταν έχεις παραλάβει επιτυχώς την παραγγελία. Η σάρωση ολοκληρώνει την παράδοση.
                 </span>
               </div>
             )}
 
-            {job.returnPickupQr && job.status !== "completed" && (
+            {showReturnPickupQr && (
               <div className={styles.qrWrap}>
                 <strong>QR παραλαβής επιστροφής</strong>
-                <QRCode value={job.returnPickupQr} size={220} />
+                <QRCode value={job.returnPickupQr!} size={220} />
                 <span className={styles.muted}>
                   Δείξε το QR στον οδηγό όταν του παραδώσεις τα προϊόντα της επιστροφής.
                 </span>
