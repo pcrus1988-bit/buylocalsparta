@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AdminDeliveryWorkspaceClient } from "../../../components/AdminDeliveryWorkspaceClient";
+import { AdminLocalDeliverySettings } from "../../../components/AdminLocalDeliverySettings";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import styles from "../../../components/DeliveryOperations.module.css";
+import { adminLocalDeliverySettings } from "../../../lib/admin-local-delivery-service";
 import { deliveryAdminControlWorkspace } from "../../../lib/delivery-control-runtime";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
@@ -14,7 +16,10 @@ export default async function AdminDeliveryPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   if (!hasAdminPermission(principal, "fulfilment.write")) redirect("/admin");
-  const workspace = await deliveryAdminControlWorkspace(principal);
+  const [workspace, localDelivery] = await Promise.all([
+    deliveryAdminControlWorkspace(principal),
+    adminLocalDeliverySettings(principal),
+  ]);
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Delivery" />
     <section className={`${styles.shell} ${styles.hero}`}>
@@ -22,6 +27,7 @@ export default async function AdminDeliveryPage() {
       <h1>Delivery Control Centre</h1>
       <p className={styles.lead}>Live fleet state, algorithmic dispatch decisions, fairness, forecasts, Delivery Managers, Red Mode, QR custody and route oversight.</p>
     </section>
+    <section className={styles.shell}><AdminLocalDeliverySettings initial={localDelivery} csrfToken={principal.csrfToken} /></section>
     <section className={styles.shell}><AdminDeliveryWorkspaceClient initial={workspace} csrfToken={principal.csrfToken} /></section>
   </main>;
 }
