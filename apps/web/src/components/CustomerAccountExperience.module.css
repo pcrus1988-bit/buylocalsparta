@@ -1,0 +1,644 @@
+.accountNavigation {
+  padding: 18px 0 10px;
+}
+
+.navFrame {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 253, 248, 0.74);
+  box-shadow: 0 12px 34px rgba(24, 48, 39, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.navLead {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 12px;
+}
+
+.navLead span,
+.navGroupLabel,
+.priorityKicker,
+.heroActionKicker,
+.secondarySummary span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--olive);
+}
+
+.navLead strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.navGroups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.navGroup {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(214, 207, 191, 0.76);
+  border-radius: 17px;
+  background: rgba(244, 240, 232, 0.5);
+}
+
+.navGroupLabel {
+  display: block;
+  padding: 2px 6px 8px;
+}
+
+.navItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.navLink {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 11px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.navLink:hover {
+  background: var(--white);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.navLinkActive {
+  background: var(--ink);
+  color: white;
+}
+
+.navLinkActive:hover {
+  background: var(--ink);
+  color: white;
+}
+
+.navLinkFeatured:not(.navLinkActive) {
+  background: rgba(178, 150, 97, 0.16);
+  color: var(--ink);
+}
+
+.mainDashboardHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 34px;
+  align-items: end;
+  padding: 54px 0 30px;
+}
+
+.heroTitle {
+  max-width: 760px;
+  margin: 12px 0 18px;
+  font-size: clamp(42px, 5.4vw, 72px);
+  line-height: 0.98;
+}
+
+.heroLead {
+  max-width: 650px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.62;
+}
+
+.heroActions {
+  display: grid;
+  gap: 10px;
+}
+
+.heroAction {
+  position: relative;
+  display: grid;
+  gap: 7px;
+  min-height: 132px;
+  padding: 20px 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--white);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.heroAction:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(24, 48, 39, 0.1);
+}
+
+.heroAction strong {
+  max-width: 420px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.heroAction small {
+  max-width: 430px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.heroActionArrow {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.askLocalHeroAction {
+  border-color: rgba(89, 97, 67, 0.42);
+  background: linear-gradient(135deg, #dfe0c7 0%, #c8cda9 100%);
+}
+
+.orderHeroAction {
+  background: var(--ink);
+  color: #f7f3e8;
+}
+
+.orderHeroAction .heroActionKicker,
+.orderHeroAction small {
+  color: #cbd5cd;
+}
+
+.dashboardRoot {
+  padding-bottom: 68px;
+}
+
+.dashboardRoot :global(.account-toolbar) {
+  margin-top: 8px;
+  margin-bottom: 18px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 253, 248, 0.54);
+}
+
+.priorityGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(290px, 0.65fr);
+  gap: 16px;
+  margin-top: 24px;
+  margin-bottom: 18px;
+}
+
+.priorityCard {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  padding: 26px;
+  background: var(--white);
+  box-shadow: 0 18px 50px rgba(24, 48, 39, 0.07);
+}
+
+.trackerCard {
+  background: linear-gradient(145deg, #fffdf8 0%, #f0ecdf 100%);
+}
+
+.askLocalCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(155deg, #647050 0%, #35483b 100%);
+  color: #f8f4eb;
+  border-color: rgba(53, 72, 59, 0.34);
+}
+
+.askLocalCard .priorityKicker,
+.askLocalCard p {
+  color: #d8dfd6;
+}
+
+.priorityHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.priorityHead h2 {
+  margin: 7px 0 0;
+  font-size: clamp(30px, 3.2vw, 43px);
+}
+
+.priorityStatus {
+  flex: 0 0 auto;
+  max-width: 210px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(24, 48, 39, 0.08);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.orderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: -4px 0 18px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.priorityActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.primaryPriorityAction,
+.secondaryPriorityAction {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 17px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.primaryPriorityAction {
+  background: var(--ink);
+  color: white;
+}
+
+.secondaryPriorityAction {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.askLocalCard .primaryPriorityAction {
+  background: #f4f0e8;
+  color: var(--ink);
+}
+
+.askLocalCard .secondaryPriorityAction {
+  border-color: rgba(244, 240, 232, 0.36);
+  background: transparent;
+  color: #f4f0e8;
+}
+
+.askLocalCopy {
+  margin: 14px 0 20px;
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+.emptyTracker {
+  display: grid;
+  gap: 12px;
+}
+
+.emptyTracker p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.dashboardRoot :global(.customer-overview-attention) {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 253, 248, 0.66);
+}
+
+.dashboardRoot :global(.customer-overview-attention-head) h2,
+.dashboardRoot :global(.account-section-intro) h2,
+.dashboardRoot :global(.account-card-head) h2 {
+  font-size: clamp(28px, 3vw, 40px);
+}
+
+.dashboardRoot :global(.customer-kpi-links) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboardRoot :global(.customer-kpi-link) {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+}
+
+.dashboardRoot :global(.customer-kpi-link) > span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dashboardRoot :global(.customer-kpi-link) > strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.dashboardRoot :global(.customer-kpi-link) > small {
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.dashboardRoot :global(.customer-kpi-link.needs-attention) {
+  border-color: rgba(170, 102, 79, 0.45);
+  background: #fff7ef;
+}
+
+.dashboardRoot :global(.account-section-intro) {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+  margin-top: 36px;
+  margin-bottom: 14px;
+}
+
+.dashboardRoot :global(.account-section-intro) p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.dashboardRoot :global(.account-live-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dashboardRoot :global(.account-live-card) {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--white);
+}
+
+.dashboardRoot :global(.account-wide) {
+  grid-column: 1 / -1;
+}
+
+.dashboardRoot :global(.account-card-head) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.dashboardRoot :global(.account-card-head) h2 {
+  margin: 7px 0 0;
+}
+
+.dashboardRoot :global(.count-pill) {
+  display: inline-flex;
+  min-width: 32px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 9px;
+  background: #e9e5da;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.dashboardRoot :global(.order-row) {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.5fr) auto;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.dashboardRoot :global(.order-row):first-child {
+  border-top: 0;
+}
+
+.dashboardRoot :global(.order-lines),
+.dashboardRoot :global(.order-total),
+.dashboardRoot :global(.mini-list) > div {
+  display: grid;
+  gap: 5px;
+}
+
+.dashboardRoot :global(.order-row) small,
+.dashboardRoot :global(.order-lines),
+.dashboardRoot :global(.order-total) span,
+.dashboardRoot :global(.mini-list) span,
+.dashboardRoot :global(.mini-list) small,
+.dashboardRoot :global(.account-muted) {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dashboardRoot :global(.mini-list) {
+  display: grid;
+  gap: 0;
+}
+
+.dashboardRoot :global(.mini-list) > div {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.dashboardRoot :global(.mini-list) > div:first-child {
+  border-top: 0;
+}
+
+.secondaryDetails {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 253, 248, 0.52);
+  overflow: hidden;
+}
+
+.secondarySummary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  cursor: pointer;
+}
+
+.secondarySummary::-webkit-details-marker {
+  display: none;
+}
+
+.secondarySummary strong {
+  display: block;
+  margin-top: 4px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.secondarySummary::after {
+  content: '+';
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 20px;
+}
+
+.secondaryDetails[open] .secondarySummary::after {
+  content: '−';
+}
+
+.secondaryContent {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.secondaryContent :global(.account-wide) {
+  grid-column: 1 / -1;
+}
+
+.helpCard {
+  margin-top: 14px;
+  margin-bottom: 0 !important;
+}
+
+@media (max-width: 960px) {
+  .navFrame,
+  .mainDashboardHero,
+  .priorityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .navLead {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 0;
+  }
+
+  .navGroups {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboardRoot :global(.customer-kpi-links),
+  .dashboardRoot :global(.account-live-grid),
+  .secondaryContent {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboardRoot :global(.account-wide),
+  .secondaryContent :global(.account-wide) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .accountNavigation {
+    padding-top: 10px;
+  }
+
+  .navFrame {
+    padding: 10px;
+    border-radius: 19px;
+  }
+
+  .navGroup {
+    padding: 8px;
+  }
+
+  .navItems {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+  }
+
+  .navItems::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navLink {
+    flex: 0 0 auto;
+  }
+
+  .mainDashboardHero {
+    gap: 22px;
+    padding: 34px 0 20px;
+  }
+
+  .heroTitle {
+    font-size: clamp(39px, 12vw, 55px);
+  }
+
+  .priorityCard {
+    padding: 20px;
+    border-radius: 21px;
+  }
+
+  .priorityHead {
+    display: grid;
+  }
+
+  .priorityStatus {
+    max-width: none;
+    justify-self: start;
+  }
+
+  .dashboardRoot :global(.customer-kpi-links),
+  .dashboardRoot :global(.account-live-grid),
+  .secondaryContent {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboardRoot :global(.account-section-intro) {
+    display: grid;
+    align-items: start;
+  }
+
+  .dashboardRoot :global(.order-row) {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboardRoot :global(.account-wide),
+  .secondaryContent :global(.account-wide) {
+    grid-column: auto;
+  }
+}
