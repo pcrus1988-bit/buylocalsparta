@@ -15,6 +15,10 @@ import { storeSignedCommercialAgreementVault } from "../../../../../lib/agreemen
 import { getCommercialAgreementDocumentVault } from "../../../../../lib/agreement-document-vault-get";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 import { normalizeSpartaLocalDateTime } from "../../../../../lib/sparta-local-datetime";
+import {
+  activateOrScheduleCommercialAgreement,
+  createCommercialAgreementRenewal
+} from "../../../../../lib/vendor-agreement-renewal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +31,8 @@ async function activateFinanceAgreementThroughOnboarding(principal: SessionPrinc
   const activation = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const result = await tx.query<SqlRow>(`
       SELECT agreement.agreement_code,
+             agreement.starts_at AS agreement_starts_at,
+             agreement.supersedes_agreement_id,
              app.public_id AS application_public_id,
              app.status::text AS application_status
       FROM vendor_commercial_agreements agreement
@@ -42,10 +48,19 @@ async function activateFinanceAgreementThroughOnboarding(principal: SessionPrinc
     if (!result.rowCount) throw new Error("Agreement not found");
     return {
       agreementCode: String(result.rows[0].agreement_code),
+      startsAt: new Date(result.rows[0].agreement_starts_at as string | Date).toISOString(),
+      isRenewal: Boolean(result.rows[0].supersedes_agreement_id),
       applicationId: result.rows[0].application_public_id ? String(result.rows[0].application_public_id) : undefined,
       applicationStatus: result.rows[0].application_status ? String(result.rows[0].application_status) : undefined
     };
   }, { readOnly: true });
+
+  // Renewal successors always use the renewal-aware handoff. Future agreements are scheduled;
+  // due renewals are activated now and restore any visibility saved by expiry restriction.
+  if (activation.isRenewal || new Date(activation.startsAt).getTime() > Date.now()) {
+    await activateOrScheduleCommercialAgreement(principal, normalizedAgreementId);
+    return;
+  }
 
   if (!activation.applicationId || !activation.applicationStatus || activation.applicationStatus === "active") {
     await activateCommercialAgreement(principal, { agreementId: normalizedAgreementId });
@@ -126,6 +141,17 @@ export async function POST(request: Request) {
         await generateCommercialAgreementPdfVault(principal, created.agreementId);
       } catch (error) {
         warning = `Η συμφωνία ${created.agreementCode} αποθηκεύτηκε, αλλά το PDF δεν δημιουργήθηκε αυτόματα: ${error instanceof Error ? error.message : "pdf_generation_failed"}`;
+      }
+    } else if (action === "renew") {
+      const created = await createCommercialAgreementRenewal(principal, {
+        ...body,
+        startsAt: normalizeSpartaLocalDateTime(body.startsAt),
+        endsAt: normalizeSpartaLocalDateTime(body.endsAt)
+      });
+      try {
+        await generateCommercialAgreementPdfVault(principal, created.agreementId);
+      } catch (error) {
+        warning = `Η ανανέωση ${created.agreementCode} αποθηκεύτηκε, αλλά το PDF δεν δημιουργήθηκε αυτόματα: ${error instanceof Error ? error.message : "pdf_generation_failed"}`;
       }
     } else if (action === "generate_pdf") {
       await generateCommercialAgreementPdfVault(principal, body.agreementId);

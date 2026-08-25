@@ -52,6 +52,27 @@ runner.register({
 });
 
 runner.register({
+  name: "agreements.vendor_lifecycle_reconciliation",
+  intervalMs: 5 * 60 * 1_000,
+  retryMs: 60_000,
+  run: async (now) => {
+    const result = await runtime.nativePool.query<{
+      expired_agreements: number;
+      activated_successors: number;
+      restricted_vendors: number;
+      restored_vendors: number;
+    }>("SELECT * FROM bls_private.reconcile_vendor_agreement_lifecycle($1::timestamptz)", [new Date(now)]);
+    const row = result.rows[0];
+    log("info", "worker.vendor_agreement_lifecycle", {
+      expiredAgreements: Number(row?.expired_agreements ?? 0),
+      activatedSuccessors: Number(row?.activated_successors ?? 0),
+      restrictedVendors: Number(row?.restricted_vendors ?? 0),
+      restoredVendors: Number(row?.restored_vendors ?? 0)
+    });
+  }
+});
+
+runner.register({
   name: "retention.security_events",
   intervalMs: 24 * 60 * 60 * 1_000,
   retryMs: 15 * 60 * 1_000,
