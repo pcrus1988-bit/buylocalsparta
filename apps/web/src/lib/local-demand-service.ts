@@ -31,12 +31,16 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function activeSourceCount() {
+  return Object.values(LOCAL_DEMAND_SOURCE_COVERAGE).filter((state) => state === "active").length;
+}
+
 function demandMetrics(opportunities: readonly DemandOpportunity[]) {
   return {
     qualifiedOpportunities: opportunities.length,
     unmetVariants: opportunities.filter((item) => item.kind === "variant" && item.availableLocal === false).length,
     strongSignals: opportunities.filter((item) => item.confidence !== "qualified").length,
-    activeSources: Object.values(LOCAL_DEMAND_SOURCE_COVERAGE).filter((state) => state === "active").length
+    activeSources: activeSourceCount()
   };
 }
 
@@ -47,7 +51,7 @@ function emptyWorkspace(now: number): LocalDemandWorkspace {
     minimumActors: LOCAL_DEMAND_MIN_ACTORS,
     sourceCoverage: LOCAL_DEMAND_SOURCE_COVERAGE,
     opportunities: [],
-    metrics: { qualifiedOpportunities: 0, unmetVariants: 0, strongSignals: 0, activeSources: 3 }
+    metrics: { qualifiedOpportunities: 0, unmetVariants: 0, strongSignals: 0, activeSources: activeSourceCount() }
   };
 }
 
@@ -103,6 +107,29 @@ async function loadSignalRows(principal: SessionPrincipal, now: number): Promise
 
         UNION ALL
 
+        SELECT COALESCE('user:'||ae.customer_id::text,'visitor:'||ae.visitor_hash) AS actor_key,'zeroResultSearch'::text AS source,
+               NULL::text AS canonical_variant_id,cat.category_code,NULL::text AS title,cat.category_name,NULL::boolean AS available_local
+        FROM analytics_events ae
+        JOIN LATERAL (
+          SELECT c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_name
+          FROM categories c
+          LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+          LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+          WHERE c.code=COALESCE(NULLIF(ae.metadata->>'categoryCode',''),NULLIF(ae.metadata#>>'{filters,categoryCode}',''))
+            AND (c.market_id IS NULL OR c.market_id=(SELECT id FROM market))
+          ORDER BY (c.market_id=(SELECT id FROM market)) DESC NULLS LAST,c.id
+          LIMIT 1
+        ) cat ON true
+        WHERE ae.market_id=(SELECT id FROM market)
+          AND ae.event_name='search.performed'
+          AND ae.occurred_at >= $1
+          AND (ae.customer_id IS NOT NULL OR NULLIF(ae.visitor_hash,'') IS NOT NULL)
+          AND ae.metadata ? 'resultCount'
+          AND (ae.metadata->>'resultCount') ~ '^\\d+$'
+          AND (ae.metadata->>'resultCount')::integer=0
+
+        UNION ALL
+
         SELECT 'user:'||ss.user_id::text AS actor_key,'savedSearch'::text AS source,
                NULL::text AS canonical_variant_id,cat.category_code,NULL::text AS title,cat.category_name,NULL::boolean AS available_local
         FROM saved_searches ss
@@ -129,7 +156,7 @@ async function loadSignalRows(principal: SessionPrincipal, now: number): Promise
       const actorKey = text(row.actor_key);
       const source = text(row.source);
       const categoryCode = text(row.category_code);
-      if (!actorKey || !categoryCode || !["localWatch", "askLocal", "savedSearch"].includes(source ?? "")) return [];
+      if (!actorKey || !categoryCode || !["localWatch", "askLocal", "savedSearch", "zeroResultSearch"].includes(source ?? "")) return [];
       return [{
         actorKey,
         source: source as DemandSignalRow["source"],
