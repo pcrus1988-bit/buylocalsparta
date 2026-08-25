@@ -15,6 +15,6 @@ export const metadata: Metadata = {
 export default function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <>
     {children}
-    <ScopedPwaInstallClient appName="Admin" serviceWorkerPath="/admin-sw.js" scope="/admin/" />
+    <ScopedPwaInstallClient appName="Admin" serviceWorkerPath="/admin-sw.js" scope="/admin" />
   </>;
 }
