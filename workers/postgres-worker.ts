@@ -62,12 +62,12 @@ runner.register({
       restricted_vendors: number;
       restored_vendors: number;
     }>("SELECT * FROM bls_private.reconcile_vendor_agreement_lifecycle($1::timestamptz)", [new Date(now)]);
-    const row = result.rows[0] ?? {};
+    const row = result.rows[0];
     log("info", "worker.vendor_agreement_lifecycle", {
-      expiredAgreements: Number(row.expired_agreements ?? 0),
-      activatedSuccessors: Number(row.activated_successors ?? 0),
-      restrictedVendors: Number(row.restricted_vendors ?? 0),
-      restoredVendors: Number(row.restored_vendors ?? 0)
+      expiredAgreements: Number(row?.expired_agreements ?? 0),
+      activatedSuccessors: Number(row?.activated_successors ?? 0),
+      restrictedVendors: Number(row?.restricted_vendors ?? 0),
+      restoredVendors: Number(row?.restored_vendors ?? 0)
     });
   }
 });
