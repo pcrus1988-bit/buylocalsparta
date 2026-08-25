@@ -111,10 +111,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !itemIdsKey) return;
+    if (!hydrated || !itemIdsKey || !/^\/(?:cart|checkout)\/?$/.test(window.location.pathname)) return;
     const controller = new AbortController();
     const ids = itemIdsKey.split("|").filter(Boolean);
-    void fetch(`/api/cart/details?ids=${encodeURIComponent(ids.join(","))}`, { cache: "no-store", signal: controller.signal })
+    void fetch("/api/cart/details", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+      cache: "no-store",
+      signal: controller.signal
+    })
       .then(async (response) => response.ok ? response.json() as Promise<{ items?: readonly CartProductDetails[] }> : undefined)
       .then((body) => {
         if (!body?.items?.length) return;
