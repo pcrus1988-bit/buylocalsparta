@@ -146,7 +146,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
         </div>
         <div className={styles.priorityActions}>
           <Link className={styles.primaryPriorityAction} href="/account/ask-local">Άνοιγμα Ask Local</Link>
-          <Link className={styles.secondaryPriorityAction} href="/businesses">Τοπικές επιχειρήσεις</Link>
+          <Link className={styles.secondaryPriorityAction} href="/shops">Τοπικές επιχειρήσεις</Link>
         </div>
       </article>
     </section>
