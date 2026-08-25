@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AccountSectionNavigation } from "./AccountSectionNavigation";
 import { CustomerActionCard, CustomerHowItWorks, CustomerLifecycle, customerOrderLifecycle } from "./CustomerAccountPrimitives";
-import { WorkspaceQuickLinks } from "./WorkspaceQuickLinks";
+import styles from "./CustomerAccountExperience.module.css";
 import { productPublicPath } from "../lib/product-url";
 
 type Dashboard = {
@@ -44,6 +43,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
   const activeOrders = useMemo(() => data.orders.filter((order) => !completedOrder(order.status)), [data.orders]);
   const attentionOrders = useMemo(() => activeOrders.filter(orderNeedsAction), [activeOrders]);
+  const latestActiveOrder = activeOrders[0];
   const attentionCount = attentionOrders.length + (data.unreadNotifications > 0 ? 1 : 0);
 
   async function refresh() {
@@ -104,59 +104,75 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
     await mutate("preferences", "/api/account/preferences", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
   }
 
-  return <>
+  return <div className={styles.dashboardRoot}>
     <section className="shell account-toolbar dashboard-toolbar-refined">
       <div className="account-identity"><span className="account-avatar" aria-hidden="true">{data.account.email.slice(0, 1).toUpperCase()}</span><span><small>Συνδεδεμένος ως</small><strong>{data.account.email}</strong></span></div>
       <button className="button button-secondary" type="button" onClick={logout} disabled={busy === "logout"}>Αποσύνδεση</button>
     </section>
 
-    <AccountSectionNavigation />
-
     {error && <div className="shell account-action-error" role="alert"><strong>Η ενέργεια δεν ολοκληρώθηκε.</strong><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Κλείσιμο μηνύματος">×</button></div>}
 
+    <section className={`shell ${styles.priorityGrid}`} aria-label="Βασικές ενέργειες πελάτη">
+      <article className={`${styles.priorityCard} ${styles.trackerCard}`} id="order-tracking">
+        <div className={styles.priorityHead}>
+          <div>
+            <span className={styles.priorityKicker}>Live order tracking</span>
+            <h2>{latestActiveOrder ? latestActiveOrder.referenceNumber : "Οι παραγγελίες σου"}</h2>
+          </div>
+          {latestActiveOrder && <span className={styles.priorityStatus}>{latestActiveOrder.status}</span>}
+        </div>
+        {latestActiveOrder ? <>
+          <div className={styles.orderMeta}>
+            <span>{date(latestActiveOrder.createdAt)}</span>
+            <span>{modeLabel(latestActiveOrder.fulfilmentMode)}</span>
+            <strong>{latestActiveOrder.total}</strong>
+          </div>
+          <CustomerLifecycle label={`Ζωντανή πορεία ${latestActiveOrder.referenceNumber}`} stages={customerOrderLifecycle(latestActiveOrder.status, latestActiveOrder.fulfilmentMode)} />
+          <div className={styles.priorityActions}>
+            <Link className={styles.primaryPriorityAction} href={`/account/orders/${latestActiveOrder.id}`}>Παρακολούθηση παραγγελίας</Link>
+            <Link className={styles.secondaryPriorityAction} href="/account/orders">Όλες οι παραγγελίες</Link>
+          </div>
+        </> : <div className={styles.emptyTracker}>
+          <p>Μόλις κάνεις μια παραγγελία, η τρέχουσα κατάσταση και το επόμενο βήμα θα εμφανίζονται εδώ — χωρίς να χρειάζεται να ψάχνεις.</p>
+          <div className={styles.priorityActions}><Link className={styles.primaryPriorityAction} href="/shop">Ανακάλυψε προϊόντα</Link></div>
+        </div>}
+      </article>
+
+      <article className={`${styles.priorityCard} ${styles.askLocalCard}`} id="ask-local">
+        <div>
+          <span className={styles.priorityKicker}>Ask Local</span>
+          <div className={styles.priorityHead}><h2>Δεν το βρίσκεις; Ζήτησέ το.</h2></div>
+          <p className={styles.askLocalCopy}>Πες μας τι ψάχνεις. Το αίτημα δρομολογείται ιδιωτικά στην κατάλληλη τοπική επιχείρηση, ώστε να μη χρειάζεται να τηλεφωνείς ή να ψάχνεις παντού.</p>
+        </div>
+        <div className={styles.priorityActions}>
+          <Link className={styles.primaryPriorityAction} href="/account/ask-local">Άνοιγμα Ask Local</Link>
+          <Link className={styles.secondaryPriorityAction} href="/businesses">Τοπικές επιχειρήσεις</Link>
+        </div>
+      </article>
+    </section>
+
     <section className="shell customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
-      <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">Τι χρειάζεται την προσοχή σου</h2></div><p>Πρώτα εμφανίζονται όσα χρειάζονται δική σου ενέργεια. Όταν περιμένουμε κατάστημα ή μεταφορέα, το λέμε ξεκάθαρα.</p></div>
+      <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">{attentionCount ? "Χρειάζεται κάτι από εσένα" : "Όλα κυλούν κανονικά"}</h2></div><p>{attentionCount ? "Εδώ εμφανίζονται μόνο όσα χρειάζονται δική σου ενέργεια. Τα υπόλοιπα συνεχίζουν από κατάστημα, πλατφόρμα ή μεταφορέα." : "Δεν υπάρχει κάποια ενέργεια που να περιμένει από εσένα αυτή τη στιγμή."}</p></div>
       <div className="customer-action-stack">
         {attentionOrders.slice(0, 3).map((order) => <CustomerActionCard key={order.id} tone="action" title={`${order.referenceNumber} · ${order.status}`} body={orderAttentionBody(order.status)} href={`/account/orders/${order.id}`} action={orderAttentionAction(order.status)} />)}
         {data.unreadNotifications > 0 && <CustomerActionCard tone="action" title={`${data.unreadNotifications} ${data.unreadNotifications === 1 ? "νέα ειδοποίηση" : "νέες ειδοποιήσεις"}`} body="Δες τι άλλαξε στις παραγγελίες, τα αιτήματα και τον λογαριασμό σου." href="/account/notifications" action="Δες ειδοποιήσεις" />}
-        {attentionCount === 0 && <CustomerActionCard tone="success" title="Δεν χρειάζεται ενέργεια αυτή τη στιγμή" body="Ό,τι είναι σε εξέλιξη συνεχίζει χωρίς να χρειάζεται να κάνεις κάτι. Θα σε ενημερώσουμε όταν αλλάξει κατάσταση." />}
+        {attentionCount === 0 && <CustomerActionCard tone="success" title="Δεν χρειάζεται ενέργεια αυτή τη στιγμή" body="Θα σε ενημερώσουμε όταν αλλάξει κάτι ή όταν χρειάζεται απόφαση από εσένα." />}
       </div>
-      <CustomerHowItWorks title="Πώς διαβάζω τις καταστάσεις;"><p><strong>Πορτοκαλί:</strong> χρειάζεται κάτι από εσένα. <strong>Μπλε:</strong> περιμένουμε κατάστημα, πλατφόρμα ή μεταφορέα. <strong>Πράσινο:</strong> το βήμα ολοκληρώθηκε.</p></CustomerHowItWorks>
     </section>
 
     <section className="shell customer-kpi-links account-snapshot dashboard-kpis-refined" aria-label="Σύνοψη λογαριασμού">
-      <Link className={attentionCount ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/orders"><span>Ενεργές παραγγελίες</span><strong>{activeOrders.length}</strong><small>{attentionOrders.length ? `${attentionOrders.length} χρειάζονται προσοχή` : "Καμία ενέργεια τώρα"}</small></Link>
+      <Link className={attentionOrders.length ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/orders"><span>Ενεργές παραγγελίες</span><strong>{activeOrders.length}</strong><small>{attentionOrders.length ? `${attentionOrders.length} χρειάζονται προσοχή` : "Καμία ενέργεια τώρα"}</small></Link>
       <Link className={data.unreadNotifications ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/notifications"><span>Νέες ειδοποιήσεις</span><strong>{data.unreadNotifications}</strong><small>Όλες οι αλλαγές σε ένα σημείο</small></Link>
-      <Link className="customer-kpi-link" href="/account/saved"><span>Αποθηκευμένα</span><strong>{data.savedProducts.length}</strong><small>{data.savedSearches.length} αποθηκευμένες αναζητήσεις</small></Link>
-      <Link className="customer-kpi-link" href="/account/profile"><span>Προφίλ & διευθύνσεις</span><strong>→</strong><small>Στοιχεία παράδοσης και τιμολόγησης</small></Link>
+      <Link className="customer-kpi-link" href="/account/saved"><span>Wishlist</span><strong>{data.savedProducts.length}</strong><small>{data.savedSearches.length} αποθηκευμένες αναζητήσεις</small></Link>
+      <Link className="customer-kpi-link" href="/account/profile"><span>Προφίλ & διευθύνσεις</span><strong>→</strong><small>Παράδοση, τιμολόγηση και στοιχεία</small></Link>
     </section>
 
-    <WorkspaceQuickLinks
-      density="compact"
-      eyebrow="Γρήγορες διαδρομές"
-      title="Συνέχισε από εκεί που χρειάζεται."
-      links={[
-        { kicker: "Αγορές", label: "Οι παραγγελίες μου", description: "Κατάσταση, παραλαβή, αποστολή και επιστροφές.", href: "/account/orders" },
-        { kicker: "Τοπικά", label: "Ask Local", description: "Νέο ιδιωτικό αίτημα και πορεία ενεργών αιτημάτων.", href: "/account/ask-local" },
-        { kicker: "Για αργότερα", label: "Αποθηκευμένα", description: "Προϊόντα, αναζητήσεις και διαθεσιμότητα.", href: "/account/saved" },
-        { kicker: "Στοιχεία", label: "Προφίλ & διευθύνσεις", description: "Παράδοση, τιμολόγηση και στοιχεία επικοινωνίας.", href: "/account/profile" }
-      ]}
-    />
-
-    <section className="shell account-section-intro dashboard-section-heading" aria-labelledby="account-activity-title"><div><div className="eyebrow">Σε εξέλιξη</div><h2 id="account-activity-title">Η δραστηριότητά σου</h2></div><p>Σύντομη εικόνα εδώ. Οι πλήρεις λίστες βρίσκονται στις αντίστοιχες ενότητες.</p></section>
+    <section className="shell account-section-intro dashboard-section-heading" aria-labelledby="account-activity-title"><div><div className="eyebrow">Σε εξέλιξη</div><h2 id="account-activity-title">Οι αγορές και οι ενημερώσεις σου</h2></div><p>Τα σημαντικά μένουν ανοιχτά. Ιστορικό, προτιμήσεις και προτάσεις είναι διαθέσιμα πιο κάτω όταν τα χρειάζεσαι.</p></section>
 
     <section className="shell account-live-grid">
       <article className="account-live-card account-wide" id="orders">
         <div className="account-card-head"><div><div className="eyebrow">Αγορές</div><h2>Ενεργές παραγγελίες</h2></div><Link className="text-link" href="/account/orders">Όλες οι παραγγελίες →</Link></div>
-        {activeOrders.length ? <div className="account-list">{activeOrders.slice(0, 3).map((order) => <div className="order-row" key={order.id}><div><Link href={`/account/orders/${order.id}`}><strong>{order.referenceNumber}</strong></Link><small>{date(order.createdAt)} · {modeLabel(order.fulfilmentMode)}</small></div><div className="order-lines">{order.lines.slice(0, 3).map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div><div className="order-total"><strong>{order.total}</strong><span>{order.status}</span></div><div style={{gridColumn:"1/-1"}}><CustomerLifecycle label={`Πορεία ${order.referenceNumber}`} stages={customerOrderLifecycle(order.status, order.fulfilmentMode)} /></div></div>)}</div> : <div className="account-empty"><p>Δεν υπάρχουν ενεργές παραγγελίες.</p><Link href="/shop" className="text-link">Ανακάλυψε προϊόντα →</Link></div>}
-        <CustomerHowItWorks><p>Κάθε παραγγελία έχει δική της πορεία. Σε παραγγελίες με περισσότερα καταστήματα, κάθε μέρος μπορεί να προχωρά με διαφορετικό ρυθμό.</p></CustomerHowItWorks>
-      </article>
-
-      <article className="account-live-card account-callout" id="ask-local">
-        <div className="account-card-head"><div><div className="eyebrow">Ask Local</div><h2>Ρώτησε την τοπική αγορά</h2></div></div>
-        <p className="account-muted">Περιέγραψε τι ψάχνεις και παρακολούθησε ιδιωτικά την ανάθεση και την απάντηση.</p>
-        <Link className="button button-secondary" href="/account/ask-local">Άνοιγμα Ask Local</Link>
-        <CustomerHowItWorks><p>Το αίτημα δεν γίνεται δημόσια δημοπρασία. Δρομολογείται στον κατάλληλο συνεργάτη ή στην ομάδα ΚΟΝΤΑ ΜΟΥ για ασφαλή ανάθεση.</p></CustomerHowItWorks>
+        {activeOrders.length ? <div className="account-list">{activeOrders.slice(0, 3).map((order) => <div className="order-row" key={order.id}><div><Link href={`/account/orders/${order.id}`}><strong>{order.referenceNumber}</strong></Link><small>{date(order.createdAt)} · {modeLabel(order.fulfilmentMode)}</small></div><div className="order-lines">{order.lines.slice(0, 3).map((line) => <span key={line.id}>{line.quantity}× {line.title}</span>)}</div><div className="order-total"><strong>{order.total}</strong><span>{order.status}</span></div><div style={{ gridColumn: "1/-1" }}><CustomerLifecycle label={`Πορεία ${order.referenceNumber}`} stages={customerOrderLifecycle(order.status, order.fulfilmentMode)} /></div></div>)}</div> : <div className="account-empty"><p>Δεν υπάρχουν ενεργές παραγγελίες.</p><Link href="/shop" className="text-link">Ανακάλυψε προϊόντα →</Link></div>}
       </article>
 
       <article className="account-live-card" id="notifications">
@@ -166,41 +182,46 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
       </article>
 
       <article className="account-live-card" id="saved">
-        <div className="account-card-head"><div><div className="eyebrow">Για αργότερα</div><h2>Αποθηκευμένα προϊόντα</h2></div><span className="count-pill">{data.savedProducts.length}</span></div>
+        <div className="account-card-head"><div><div className="eyebrow">Για αργότερα</div><h2>Wishlist</h2></div><span className="count-pill">{data.savedProducts.length}</span></div>
         {data.savedProducts.length ? <div className="mini-list">{data.savedProducts.slice(0, 4).map((product) => <div key={product.canonicalVariantId}><Link href={productPublicPath({ id: product.canonicalVariantId, slug: product.slug })}><strong>{product.title ?? product.canonicalVariantId}</strong></Link><span>{product.price ?? ""} · {product.available ? "διαθέσιμο" : "μη διαθέσιμο"}</span><button type="button" onClick={() => void mutate(`remove-${product.canonicalVariantId}`, `/api/account/saved-products/${encodeURIComponent(product.canonicalVariantId)}`, { method: "DELETE" })}>Αφαίρεση</button></div>)}</div> : <p className="account-muted">Δεν έχεις αποθηκεύσει προϊόντα.</p>}
-        <Link className="text-link" href="/account/saved">Διαχείριση αποθηκευμένων →</Link>
+        <Link className="text-link" href="/account/saved">Διαχείριση wishlist →</Link>
       </article>
 
-      <article className="account-live-card" id="searches">
-        <div className="account-card-head"><div><div className="eyebrow">Αναζήτηση</div><h2>Αποθηκευμένες αναζητήσεις</h2></div><span className="count-pill">{data.savedSearches.length}</span></div>
-        {data.savedSearches.length ? <div className="mini-list">{data.savedSearches.slice(0, 4).map((search) => <div key={search.id}><strong>{search.name}</strong><span>{search.lastObservedCount} αποτελέσματα · ειδοποιήσεις {search.alertsEnabled ? "ενεργές" : "ανενεργές"}</span></div>)}</div> : <p className="account-muted">Δεν έχεις αποθηκευμένες αναζητήσεις.</p>}
-      </article>
+      <details className={styles.secondaryDetails}>
+        <summary className={styles.secondarySummary}><div><span>Περισσότερα</span><strong>Ιστορικό, προτιμήσεις & προτάσεις</strong></div></summary>
+        <div className={styles.secondaryContent}>
+          <article className="account-live-card" id="searches">
+            <div className="account-card-head"><div><div className="eyebrow">Αναζήτηση</div><h2>Αποθηκευμένες αναζητήσεις</h2></div><span className="count-pill">{data.savedSearches.length}</span></div>
+            {data.savedSearches.length ? <div className="mini-list">{data.savedSearches.slice(0, 4).map((search) => <div key={search.id}><strong>{search.name}</strong><span>{search.lastObservedCount} αποτελέσματα · ειδοποιήσεις {search.alertsEnabled ? "ενεργές" : "ανενεργές"}</span></div>)}</div> : <p className="account-muted">Δεν έχεις αποθηκευμένες αναζητήσεις.</p>}
+          </article>
 
-      <article className="account-live-card" id="privacy">
-        <div className="account-card-head"><div><div className="eyebrow">Έλεγχος</div><h2>Ιδιωτικότητα</h2></div><Link className="text-link" href="/account/privacy">Κέντρο ιδιωτικότητας →</Link></div>
-        <label className="preference-row"><span><strong>Προσωποποιημένες προτάσεις</strong><small>Χρήση μόνο δικών σου σημάτων ενδιαφέροντος.</small></span><input type="checkbox" checked={data.preferences.recommendationsEnabled} onChange={(event) => void updatePreferences({ recommendationsEnabled: event.target.checked })} /></label>
-        <label className="preference-row"><span><strong>Πρόσφατα προβεβλημένα</strong><small>Η απενεργοποίηση σταματά τη μελλοντική καταγραφή και καθαρίζει το σχετικό ιστορικό.</small></span><input type="checkbox" checked={data.preferences.recentlyViewedEnabled} onChange={(event) => void updatePreferences({ recentlyViewedEnabled: event.target.checked })} /></label>
-        <p className="customer-history-privacy-note">Θέλεις να κρατήσεις τη λειτουργία ενεργή αλλά να διαγράψεις μόνο όσα έχουν ήδη καταγραφεί; Χρησιμοποίησε τον καθαρισμό ιστορικού στην ενότητα «Πρόσφατα προϊόντα».</p>
-        {data.privacyRequests.length > 0 && <small className="privacy-status">Τελευταίο αίτημα: {data.privacyRequests[0].status} · {date(data.privacyRequests[0].submittedAt)}</small>}
-      </article>
+          <article className="account-live-card" id="privacy">
+            <div className="account-card-head"><div><div className="eyebrow">Έλεγχος</div><h2>Ιδιωτικότητα</h2></div><Link className="text-link" href="/account/privacy">Κέντρο ιδιωτικότητας →</Link></div>
+            <label className="preference-row"><span><strong>Προσωποποιημένες προτάσεις</strong><small>Χρήση μόνο δικών σου σημάτων ενδιαφέροντος.</small></span><input type="checkbox" checked={data.preferences.recommendationsEnabled} onChange={(event) => void updatePreferences({ recommendationsEnabled: event.target.checked })} /></label>
+            <label className="preference-row"><span><strong>Πρόσφατα προβεβλημένα</strong><small>Η απενεργοποίηση σταματά τη μελλοντική καταγραφή και καθαρίζει το σχετικό ιστορικό.</small></span><input type="checkbox" checked={data.preferences.recentlyViewedEnabled} onChange={(event) => void updatePreferences({ recentlyViewedEnabled: event.target.checked })} /></label>
+            <p className="customer-history-privacy-note">Θέλεις να κρατήσεις τη λειτουργία ενεργή αλλά να διαγράψεις μόνο όσα έχουν ήδη καταγραφεί; Χρησιμοποίησε τον καθαρισμό ιστορικού στα «Πρόσφατα προϊόντα».</p>
+            {data.privacyRequests.length > 0 && <small className="privacy-status">Τελευταίο αίτημα: {data.privacyRequests[0].status} · {date(data.privacyRequests[0].submittedAt)}</small>}
+          </article>
 
-      <article className="account-live-card" id="recommendations">
-        <div className="account-card-head"><div><div className="eyebrow">Για εσένα</div><h2>Προτάσεις</h2></div></div>
-        {data.recommendations.length ? <div className="mini-list">{data.recommendations.slice(0, 4).map((item) => <div key={item.canonicalVariantId}><Link href={productPublicPath({ id: item.canonicalVariantId, slug: item.slug })}><strong>{item.title}</strong></Link><span>{item.price}</span><small>{item.explanation}</small></div>)}</div> : <p className="account-muted">Οι προτάσεις εμφανίζονται όταν η προσωποποίηση είναι ενεργή.</p>}
-      </article>
+          <article className="account-live-card" id="recommendations">
+            <div className="account-card-head"><div><div className="eyebrow">Για εσένα</div><h2>Προτάσεις</h2></div></div>
+            {data.recommendations.length ? <div className="mini-list">{data.recommendations.slice(0, 4).map((item) => <div key={item.canonicalVariantId}><Link href={productPublicPath({ id: item.canonicalVariantId, slug: item.slug })}><strong>{item.title}</strong></Link><span>{item.price}</span><small>{item.explanation}</small></div>)}</div> : <p className="account-muted">Οι προτάσεις εμφανίζονται όταν η προσωποποίηση είναι ενεργή.</p>}
+          </article>
 
-      <article className="account-live-card account-wide" id="recent">
-        <div className="account-card-head customer-history-card-head"><div><div className="eyebrow">Ιστορικό</div><h2>Πρόσφατα προϊόντα</h2></div><div className="customer-history-head-actions"><span className="count-pill">{data.recentlyViewed.length}</span>{data.recentlyViewed.length > 0 && !confirmHistoryClear && <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => { setConfirmHistoryClear(true); setHistoryStatus(""); }}>Καθαρισμός ιστορικού</button>}</div></div>
-        {confirmHistoryClear && <div className="customer-history-confirm" role="group" aria-label="Επιβεβαίωση καθαρισμού ιστορικού"><span>Να διαγραφούν όλες οι πρόσφατες προβολές; Η λειτουργία θα παραμείνει {data.preferences.recentlyViewedEnabled ? "ενεργή" : "ανενεργή"}.</span><div><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void clearRecentHistory()}>{busy === "recent-history" ? "Καθαρισμός…" : "Ναι, καθαρισμός"}</button><button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => setConfirmHistoryClear(false)}>Άκυρο</button></div></div>}
-        {historyStatus && <p className="customer-history-status" role="status">{historyStatus}</p>}
-        {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={productPublicPath({ id: item.canonicalVariantId, slug: item.slug })} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">{data.preferences.recentlyViewedEnabled ? "Δεν υπάρχει πρόσφατο ιστορικό. Νέες προβολές μπορούν να καταγραφούν ξανά όσο η λειτουργία παραμένει ενεργή." : "Η καταγραφή πρόσφατων προβολών είναι απενεργοποιημένη."}</p>}
-        <CustomerHowItWorks title="Καθαρισμός ή απενεργοποίηση;"><p><strong>Καθαρισμός ιστορικού:</strong> διαγράφει μόνο τις προβολές που έχουν ήδη αποθηκευτεί και δεν αλλάζει την επιλογή σου για μελλοντική καταγραφή. <strong>Απενεργοποίηση:</strong> καθαρίζει το ιστορικό και σταματά την καταγραφή νέων προβολών μέχρι να την ενεργοποιήσεις ξανά.</p></CustomerHowItWorks>
-      </article>
+          <article className="account-live-card account-wide" id="recent">
+            <div className="account-card-head customer-history-card-head"><div><div className="eyebrow">Ιστορικό</div><h2>Πρόσφατα προϊόντα</h2></div><div className="customer-history-head-actions"><span className="count-pill">{data.recentlyViewed.length}</span>{data.recentlyViewed.length > 0 && !confirmHistoryClear && <button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => { setConfirmHistoryClear(true); setHistoryStatus(""); }}>Καθαρισμός ιστορικού</button>}</div></div>
+            {confirmHistoryClear && <div className="customer-history-confirm" role="group" aria-label="Επιβεβαίωση καθαρισμού ιστορικού"><span>Να διαγραφούν όλες οι πρόσφατες προβολές; Η λειτουργία θα παραμείνει {data.preferences.recentlyViewedEnabled ? "ενεργή" : "ανενεργή"}.</span><div><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void clearRecentHistory()}>{busy === "recent-history" ? "Καθαρισμός…" : "Ναι, καθαρισμός"}</button><button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => setConfirmHistoryClear(false)}>Άκυρο</button></div></div>}
+            {historyStatus && <p className="customer-history-status" role="status">{historyStatus}</p>}
+            {data.recentlyViewed.length ? <div className="recent-grid">{data.recentlyViewed.slice(0, 8).map((item) => <Link href={productPublicPath({ id: item.canonicalVariantId, slug: item.slug })} key={item.canonicalVariantId}><strong>{item.title}</strong><span>{item.price}</span><small>{date(item.viewedAt)}</small></Link>)}</div> : <p className="account-muted">{data.preferences.recentlyViewedEnabled ? "Δεν υπάρχει πρόσφατο ιστορικό. Νέες προβολές μπορούν να καταγραφούν ξανά όσο η λειτουργία παραμένει ενεργή." : "Η καταγραφή πρόσφατων προβολών είναι απενεργοποιημένη."}</p>}
+            <CustomerHowItWorks title="Καθαρισμός ή απενεργοποίηση;"><p><strong>Καθαρισμός ιστορικού:</strong> διαγράφει μόνο τις προβολές που έχουν ήδη αποθηκευτεί και δεν αλλάζει την επιλογή σου για μελλοντική καταγραφή. <strong>Απενεργοποίηση:</strong> καθαρίζει το ιστορικό και σταματά την καταγραφή νέων προβολών μέχρι να την ενεργοποιήσεις ξανά.</p></CustomerHowItWorks>
+          </article>
+        </div>
+      </details>
     </section>
 
-    <section className="shell account-live-card account-wide" aria-label="Βοήθεια λογαριασμού" style={{marginBottom:70}}>
+    <section className={`shell account-live-card account-wide ${styles.helpCard}`} aria-label="Βοήθεια λογαριασμού">
       <div className="account-card-head"><div><div className="eyebrow">Χρειάζεσαι εξήγηση;</div><h2>Οδηγοί για τις βασικές ροές</h2></div></div>
       <div className="hero-actions"><Link className="text-link" href="/returns-refunds">Επιστροφές & επιστροφή χρημάτων →</Link><Link className="text-link" href="/delivery-pickup">Παράδοση & παραλαβή →</Link><Link className="text-link" href="/privacy-controls">Έλεγχοι ιδιωτικότητας →</Link><Link className="text-link" href="/ask-local">Δημόσια σελίδα Ask Local →</Link></div>
     </section>
-  </>;
+  </div>;
 }
