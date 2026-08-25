@@ -10,6 +10,7 @@ export * from "./mapping-reference.ts";
 export * from "./digital-movement.ts";
 export * from "./group-qr.ts";
 export * from "./delivery-return-reconciliation.ts";
+export * from "./shipping-vat-allocation.ts";
 export {
   HardenedAadeMyDataClient,
   HardenedAadeMyDataClient as AadeMyDataClient,
