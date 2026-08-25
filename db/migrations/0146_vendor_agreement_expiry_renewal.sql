@@ -161,6 +161,12 @@ BEGIN
     ORDER BY a.starts_at, a.created_at
     FOR UPDATE OF a
   LOOP
+    -- A malformed/manual successor must never create overlapping active commercial terms.
+    -- The governed renewal form already prevents this, and the DB reconciler fails closed too.
+    IF bls_private.vendor_has_effective_commercial_agreement(r.vendor_id, p_at) THEN
+      CONTINUE;
+    END IF;
+
     UPDATE public.vendor_commercial_agreements
        SET status = 'active',
            activated_at = COALESCE(activated_at, p_at),
@@ -212,11 +218,12 @@ BEGIN
   GET DIAGNOSTICS v_restricted = ROW_COUNT;
 
   -- 4. Restore only vendors that this reconciler restricted. Manual suspended/closed states
-  -- are never overridden. Restore the exact public-visibility state recorded before the lapse.
+  -- are never overridden. Also self-heal a vendor already set active by a due manual renewal
+  -- if visibility restoration was interrupted between activation and the follow-up write.
   WITH candidates AS (
     SELECT v.id
     FROM public.vendor_businesses v
-    WHERE v.status::text = 'restricted'
+    WHERE v.status::text IN ('restricted','active')
       AND v.agreement_expiry_restricted_at IS NOT NULL
       AND bls_private.vendor_has_effective_commercial_agreement(v.id, p_at)
     FOR UPDATE OF v
@@ -243,4 +250,4 @@ GRANT EXECUTE ON FUNCTION bls_private.reconcile_vendor_agreement_lifecycle(times
   TO bls_app_runtime, bls_platform_runtime;
 
 COMMENT ON FUNCTION bls_private.reconcile_vendor_agreement_lifecycle(timestamptz)
-  IS 'Expires ended agreements, activates due verified successors, restricts vendors during agreement lapses, and restores lifecycle-restricted vendors without losing prior visibility intent.';
+  IS 'Expires ended agreements, activates due verified successors without overlapping an effective term, restricts vendors during agreement lapses, and restores lifecycle-restricted visibility intent.';
