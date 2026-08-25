@@ -129,6 +129,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Quick Add", href: "/admin/quickadd", icon: "+", permission: "catalog.write" },
       { label: "Supplier PIM Intake", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
+      { label: "Attribute Mapper", href: "/admin/catalogue-intake/attributes", icon: "◇", permission: "catalog.write" },
       { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
       { label: "Catalogue Crawler", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
       { label: "Product Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
