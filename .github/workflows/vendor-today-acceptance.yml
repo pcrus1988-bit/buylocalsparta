@@ -1,0 +1,30 @@
+name: Vendor Today Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/daily/page.tsx"
+      - "apps/web/src/components/VendorDailyHomeClient.tsx"
+      - "apps/web/src/components/VendorDailyHomeClient.module.css"
+      - "apps/web/src/lib/vendor-today-intelligence.ts"
+      - "scripts/verify-vendor-today.ts"
+      - ".github/workflows/vendor-today-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify Vendor Today contracts
+        run: node --experimental-strip-types scripts/verify-vendor-today.ts
+      - name: Typecheck web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
