@@ -267,51 +267,86 @@ export async function syncVendorFulfilmentLifecycle(principal: SessionPrincipal,
         WHERE id IN (SELECT order_line_id FROM fulfilment_order_lines WHERE fulfilment_order_id=$1)
           AND status='awaiting_vendor'
       `, [row.fulfilment_uuid]);
-      const pickup = await ensurePickupGroup(client, {
-        fulfilmentUuid: row.fulfilment_uuid,
-        fulfilmentId: row.fulfilment_id,
-        vendorUuid: row.vendor_uuid,
-        vendorId: row.vendor_id,
-        vendorName: row.vendor_name,
-        fulfilmentStatus: row.fulfilment_status,
-        now
-      });
-      await insertTimelineOnce(client, {
-        orderUuid: row.order_uuid,
-        fulfilmentUuid: row.fulfilment_uuid,
-        vendorUuid: row.vendor_uuid,
-        eventType: "pickup.ready",
-        actorType: "vendor",
-        actorPublicId: principal.userId,
-        message: `${row.vendor_name}: η παραγγελία είναι έτοιμη για παραλαβή.`,
-        metadata: { fulfilmentId: row.fulfilment_id, pickupId: pickup.pickup_public_id },
-        now
-      });
-      if (row.user_uuid) {
-        const code = pickupShortCode(pickup.pickup_public_id, row.fulfilment_id);
-        await notifyCustomerState(client, {
-          userUuid: row.user_uuid,
-          orderId: row.order_id,
+      if (row.mode === "pickup") {
+        const pickup = await ensurePickupGroup(client, {
+          fulfilmentUuid: row.fulfilment_uuid,
           fulfilmentId: row.fulfilment_id,
-          state: "ready",
-          title: "Η παραγγελία σου είναι έτοιμη για παραλαβή",
-          inAppBody: `${row.vendor_name}: δείξε το QR παραλαβής ή τον κωδικό ${code} στο κατάστημα.`,
-          emailBody: [
-            `Η παραγγελία ${row.order_id} είναι έτοιμη στο «${row.vendor_name}».`,
-            "",
-            "Οδηγίες παραλαβής:",
-            "1. Άνοιξε την παραγγελία σου από το KONTA MOY.",
-            "2. Δείξε στο κατάστημα το QR παραλαβής που εμφανίζεται στην οθόνη.",
-            `3. Εναλλακτικός 6ψήφιος κωδικός: ${code}`,
-            "",
-            `QR & στοιχεία παραλαβής: ${publicBaseUrl()}/account/orders/${encodeURIComponent(row.order_id)}`,
-            "",
-            "Το κατάστημα ολοκληρώνει την παραλαβή με ασφαλή σάρωση του QR.",
-            "",
-            "KONTA MOY · Buy Local Sparta"
-          ].join("\n"),
+          vendorUuid: row.vendor_uuid,
+          vendorId: row.vendor_id,
+          vendorName: row.vendor_name,
+          fulfilmentStatus: row.fulfilment_status,
           now
         });
+        await insertTimelineOnce(client, {
+          orderUuid: row.order_uuid,
+          fulfilmentUuid: row.fulfilment_uuid,
+          vendorUuid: row.vendor_uuid,
+          eventType: "pickup.ready",
+          actorType: "vendor",
+          actorPublicId: principal.userId,
+          message: `${row.vendor_name}: η παραγγελία είναι έτοιμη για παραλαβή.`,
+          metadata: { fulfilmentId: row.fulfilment_id, pickupId: pickup.pickup_public_id },
+          now
+        });
+        if (row.user_uuid) {
+          const code = pickupShortCode(pickup.pickup_public_id, row.fulfilment_id);
+          await notifyCustomerState(client, {
+            userUuid: row.user_uuid,
+            orderId: row.order_id,
+            fulfilmentId: row.fulfilment_id,
+            state: "ready",
+            title: "Η παραγγελία σου είναι έτοιμη για παραλαβή",
+            inAppBody: `${row.vendor_name}: δείξε το QR παραλαβής ή τον κωδικό ${code} στο κατάστημα.`,
+            emailBody: [
+              `Η παραγγελία ${row.order_id} είναι έτοιμη στο «${row.vendor_name}».`,
+              "",
+              "Οδηγίες παραλαβής:",
+              "1. Άνοιξε την παραγγελία σου από το KONTA MOY.",
+              "2. Δείξε στο κατάστημα το QR παραλαβής που εμφανίζεται στην οθόνη.",
+              `3. Εναλλακτικός 6ψήφιος κωδικός: ${code}`,
+              "",
+              `QR & στοιχεία παραλαβής: ${publicBaseUrl()}/account/orders/${encodeURIComponent(row.order_id)}`,
+              "",
+              "Το κατάστημα ολοκληρώνει την παραλαβή με ασφαλή σάρωση του QR.",
+              "",
+              "KONTA MOY · Buy Local Sparta"
+            ].join("\n"),
+            now
+          });
+        }
+      } else if (row.mode === "local_delivery") {
+        await insertTimelineOnce(client, {
+          orderUuid: row.order_uuid,
+          fulfilmentUuid: row.fulfilment_uuid,
+          vendorUuid: row.vendor_uuid,
+          eventType: "delivery.vendor_ready",
+          actorType: "vendor",
+          actorPublicId: principal.userId,
+          message: `${row.vendor_name}: η παραγγελία είναι έτοιμη για παραλαβή από οδηγό ΚΟΝΤΑ ΜΟΥ.`,
+          metadata: { fulfilmentId: row.fulfilment_id },
+          now
+        });
+        if (row.user_uuid) {
+          await notifyCustomerState(client, {
+            userUuid: row.user_uuid,
+            orderId: row.order_id,
+            fulfilmentId: row.fulfilment_id,
+            state: "ready_for_driver",
+            title: "Η παραγγελία σου είναι έτοιμη για τον οδηγό",
+            inAppBody: `${row.vendor_name}: η παραγγελία ετοιμάστηκε και περιμένει παραλαβή από οδηγό ΚΟΝΤΑ ΜΟΥ.`,
+            emailBody: [
+              `Η παραγγελία ${row.order_id} ετοιμάστηκε στο «${row.vendor_name}».`,
+              "",
+              "Δεν χρειάζεται να μεταβείς στο κατάστημα. Ο οδηγός ΚΟΝΤΑ ΜΟΥ θα την παραλάβει και η παρακολούθηση θα ενημερωθεί μετά τη σάρωση παραλαβής.",
+              `Παρακολούθηση: ${publicBaseUrl()}/account/orders/${encodeURIComponent(row.order_id)}`,
+              "",
+              "KONTA MOY · Buy Local Sparta"
+            ].join("\n"),
+            now
+          });
+        }
+      } else {
+        throw new Error("Ready action is not supported for this fulfilment mode");
       }
     } else if (input.action === "delivered") {
       await finalizeOrderFromFulfilments(client, row.order_uuid, now);

@@ -69,24 +69,16 @@ const vendorDashboardQuery = between(vendorOperations, "async dashboard", "async
 for (const forbidden of ["->>'recipientName'", "->>'recipientEmail'", "->>'recipientPhone'", "->>'line1'", "->>'phone'"]) {
   forbidText(vendorDashboardQuery, forbidden, `Vendor dashboard must not preload personal delivery field ${forbidden}`);
 }
-requireText(vendorRuntime, 'if (!["accepted", "picking", "packed", "ready_for_handover"].includes(fulfilmentStatus))', "Vendor delivery reveal must be limited to active accepted fulfilments");
-requireText(vendorRuntime, 'accessRoute = "/api/vendor/fulfilments/delivery-contact"', "Shared delivery reveal must default to the vendor route while allowing the Daily route to be recorded accurately");
-requireText(vendorRuntime, 'type: "personal_data.revealed"', "Vendor delivery reveal must create a personal-data access event");
-requireText(vendorRuntime, 'purpose: "order_fulfilment"', "Vendor delivery reveal must record its fulfilment purpose");
-requireText(vendorRuntime, 'dataClasses: "identity,contact,address"', "Vendor delivery reveal must record disclosed data classes");
-requireText(vendorDeliveryRoute, "requireVendorSession(request, true)", "Vendor delivery reveal endpoint must require authenticated CSRF-protected vendor access");
-requireText(vendorDeliveryRoute, '"cache-control": "no-store, private"', "Vendor delivery contact responses must not be cached");
-requireText(vendorOrdersClient, "Εμφάνιση στοιχείων παράδοσης", "Vendor must explicitly request local-delivery personal data");
-requireText(vendorOrdersClient, "Η πρόσβαση καταγράφεται", "Vendor UI must tell the operator that personal-data access is logged");
-requireText(vendorOrdersClient, 'delete next[fulfilmentId]', "Revealed delivery data must be removable from vendor client state after use/status change");
+requireText(vendorDeliveryRoute, "requireVendorSession(request, true)", "Vendor delivery-contact endpoint must remain authenticated and CSRF protected even when disclosure is denied");
+requireText(vendorDeliveryRoute, "διαθέσιμη μόνο στον ανατεθειμένο οδηγό", "Vendor delivery-contact endpoint must deny customer destination disclosure");
+requireText(vendorDeliveryRoute, '"cache-control": "no-store, private"', "Vendor delivery-contact denial responses must not be cached");
+requireText(vendorOrdersClient, 'const deliveryRevealStatuses = new Set<string>();', "Vendor workspace must never make KONTA MOY local-delivery destination PII revealable");
+requireText(vendorOrdersClient, "δεν εμφανίζονται στο κατάστημα", "Vendor workspace must explain the platform-driver privacy boundary");
 
-requireText(dailyDeliveryRoute, "requireDailySession(request, true)", "Daily delivery reveal endpoint must require authenticated CSRF-protected Daily access");
-requireText(dailyDeliveryRoute, 'vendorLocalDeliveryContact(principal, fulfilmentId, "/api/daily/fulfilments/delivery-contact")', "Daily must reuse the shared delivery reveal policy and record its own access route");
-requireText(dailyDeliveryRoute, '"cache-control": "no-store, private"', "Daily delivery contact responses must not be cached");
-requireText(dailyOrdersClient, 'fetch("/api/daily/fulfilments/delivery-contact"', "Daily must fetch delivery data only after an explicit operator action");
-requireText(dailyOrdersClient, "Δεν φορτώνονται αυτόματα", "Daily must explain that delivery personal data is not preloaded");
-requireText(dailyOrdersClient, "Η πρόσβαση καταγράφεται", "Daily must disclose that personal-data access is logged");
-requireText(dailyOrdersClient, 'delete next[item.id]', "Daily must remove revealed delivery data from client state after completion/rejection");
+requireText(dailyDeliveryRoute, "requireDailySession(request, true)", "Daily delivery-contact endpoint must remain authenticated and CSRF protected even when disclosure is denied");
+requireText(dailyDeliveryRoute, "διαθέσιμη μόνο στον ανατεθειμένο οδηγό", "Daily delivery-contact endpoint must deny customer destination disclosure");
+requireText(dailyDeliveryRoute, '"cache-control": "no-store, private"', "Daily delivery-contact denial responses must not be cached");
+requireText(dailyOrdersClient, 'const DELIVERY_REVEAL_STATUSES = new Set<string>();', "Daily must never make KONTA MOY local-delivery destination PII revealable");
 
 requireText(boxNowRuntime, 'purpose:"carrier_fulfilment"', "Carrier shipment creation must record the disclosure purpose");
 requireText(boxNowRuntime, 'recipient:"BOX NOW"', "Carrier shipment creation must record the external recipient without logging the recipient customer data");

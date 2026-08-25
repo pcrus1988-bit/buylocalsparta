@@ -46,7 +46,7 @@ const actionLabel: Record<string, string> = {
   ready: "Έτοιμη για παράδοση",
   delivered: "Επιβεβαίωση παράδοσης"
 };
-const deliveryRevealStatuses = new Set(["accepted", "picking", "packed", "ready_for_handover"]);
+const deliveryRevealStatuses = new Set<string>();
 
 function isFinished(status: string) {
   return ["delivered", "collected", "completed", "fulfilled"].includes(status.toLowerCase());
@@ -167,7 +167,7 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
         <p><strong>Τι είναι αυτή η σελίδα;</strong> Εδώ βλέπεις τις παραγγελίες που έχουν ανατεθεί στο κατάστημά σου.</p>
         <p><strong>Τι κάνεις;</strong> Ακολούθησε το επισημασμένο βήμα και πάτησε μόνο όταν το πραγματικό γεγονός έχει συμβεί.</p>
         <p><strong>Τι γίνεται μετά;</strong> Η πορεία ενημερώνεται αυτόματα και οι επόμενες εργασίες εμφανίζονται όταν γίνουν διαθέσιμες.</p>
-        <p><strong>Στοιχεία παράδοσης:</strong> για τοπική παράδοση εμφανίζονται μόνο όταν τα ζητήσεις για ενεργή ανάθεση. Η πρόσβαση καταγράφεται και τα στοιχεία χρησιμοποιούνται αποκλειστικά για τη συγκεκριμένη παράδοση.</p>
+        <p><strong>Στοιχεία παράδοσης:</strong> στην τοπική παράδοση ΚΟΝΤΑ ΜΟΥ η διεύθυνση και το τηλέφωνο του πελάτη δεν εμφανίζονται στο κατάστημα. Είναι διαθέσιμα μόνο στον ανατεθειμένο οδηγό και στους εξουσιοδοτημένους διαχειριστές παράδοσης.</p>
       </WorkspaceHowItWorks>
       {data.fulfilments.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ανατεθειμένες παραγγελίες αυτή τη στιγμή." /> : <div className="workspace-queue-list">
         {data.fulfilments.map((item) => {
@@ -215,7 +215,7 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
             {item.actions.length > 0 && <div className="workspace-action-bar">
               <span>Η κύρια ενέργεια προχωρά την παραγγελία στο επόμενο στάδιο.</span>
               <div className="workspace-action-buttons">
-                {item.actions.map((action) => <button key={action} type="button" className={action === "reject" ? "button button-secondary" : "button"} disabled={Boolean(busy)} onClick={() => void act(item.id, action)}>{busy === `${item.id}:${action}` ? "Ενημέρωση…" : actionLabel[action] ?? vendorStatusLabel(action)}</button>)}
+                {item.actions.map((action) => <button key={action} type="button" className={action === "reject" ? "button button-secondary" : "button"} disabled={Boolean(busy)} onClick={() => void act(item.id, action)}>{busy === `${item.id}:${action}` ? "Ενημέρωση…" : action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? vendorStatusLabel(action)}</button>)}
               </div>
             </div>}
           </article>;

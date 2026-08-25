@@ -230,13 +230,11 @@ function memoryActOnVendorFulfilment(principal: SessionPrincipal, input: { fulfi
   if (input.action === "reject") return commerceRuntime.commerce.rejectFulfilment(order.id, fulfilment.id, now);
   if (input.action === "ready") {
     if (!["confirmed", "partially_fulfilled"].includes(order.status)) throw new Error("Order must be confirmed before pickup preparation can complete");
-    if (order.fulfilmentMode !== "pickup") throw new Error("Ready-for-pickup is only valid for pickup fulfilments");
+    if (!["pickup", "local_delivery"].includes(order.fulfilmentMode)) throw new Error("Ready-for-handover is valid only for pickup or KONTA MOY local delivery");
     return commerceRuntime.commerce.markReadyForHandover(order.id, fulfilment.id);
   }
   if (input.action === "delivered") {
-    if (!["confirmed", "partially_fulfilled"].includes(order.status)) throw new Error("Order must be confirmed before local delivery can complete");
-    if (order.fulfilmentMode !== "local_delivery") throw new Error("Vendor delivery confirmation is only allowed for local-delivery fulfilments; shipping delivery is carrier-confirmed");
-    return commerceRuntime.commerce.markDelivered(order.id, fulfilment.id, now);
+    throw new Error("Local delivery completion is confirmed by the delivery driver after scanning the customer QR.");
   }
   throw new Error("Unsupported fulfilment action");
 }
@@ -249,6 +247,6 @@ function fulfilmentActions(orderStatus: string, mode: string, status: string): r
   if (status === "awaiting_acceptance") return ["accept", "reject"];
   if (!["confirmed", "partially_fulfilled"].includes(orderStatus)) return [];
   if (mode === "pickup" && ["accepted", "picking", "packed"].includes(status)) return ["ready"];
-  if (mode === "local_delivery" && ["accepted", "picking", "packed", "ready_for_handover"].includes(status)) return ["delivered"];
+  if (mode === "local_delivery" && ["accepted", "picking", "packed"].includes(status)) return ["ready"];
   return [];
 }

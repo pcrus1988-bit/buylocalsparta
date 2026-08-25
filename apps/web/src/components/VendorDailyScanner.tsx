@@ -28,7 +28,7 @@ function cameraError(cause: unknown): string {
   return cause.message || "Δεν ήταν δυνατή η πρόσβαση στην κάμερα.";
 }
 
-export function VendorDailyScanner() {
+export function VendorDailyScanner({ csrfToken }: { csrfToken: string }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -42,10 +42,28 @@ export function VendorDailyScanner() {
     controlsRef.current = null;
   }
 
-  function openToken(raw: string) {
+  async function openToken(raw: string) {
     const token = pickupToken(raw);
     if (!token) return;
     stop();
+    if (token.startsWith("kmd1.pickup.")) {
+      setStatus("starting");
+      try {
+        const response = await fetch("/api/daily/delivery", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ token })
+        });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Η επιβεβαίωση παραλαβής απέτυχε.");
+        setMessage("Η παραλαβή από τον οδηγό επιβεβαιώθηκε.");
+        router.push("/daily/orders?category=processing");
+      } catch (cause) {
+        setStatus("error");
+        setMessage(cause instanceof Error ? cause.message : "Η επιβεβαίωση παραλαβής απέτυχε.");
+      }
+      return;
+    }
     router.push(`/daily/pickup?token=${encodeURIComponent(token)}`);
   }
 
@@ -76,7 +94,7 @@ export function VendorDailyScanner() {
         { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
         video,
         (result) => {
-          if (result) openToken(result.getText());
+          if (result) void openToken(result.getText());
         }
       );
       controlsRef.current = controls;
@@ -119,7 +137,7 @@ export function VendorDailyScanner() {
         {message && <p role="status" style={{ margin: 0, padding: "11px 13px", borderRadius: 13, background: "rgba(255,255,255,.09)", lineHeight: 1.45 }}>{message}</p>}
       </div>
 
-      <form onSubmit={(event) => { event.preventDefault(); openToken(manual); }} style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,.14)", display: "grid", gap: 9 }}>
+      <form onSubmit={(event) => { event.preventDefault(); void openToken(manual); }} style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,.14)", display: "grid", gap: 9 }}>
         <label htmlFor="daily-pickup-token" style={{ fontWeight: 850 }}>Εναλλακτικά: pickup link / token</label>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
           <input id="daily-pickup-token" value={manual} onChange={(event) => setManual(event.target.value)} placeholder="Επικόλληση εδώ" autoComplete="off" style={{ minWidth: 0, minHeight: 50, borderRadius: 14, border: "1px solid rgba(255,255,255,.2)", background: "rgba(255,255,255,.08)", color: "white", padding: "0 13px", font: "inherit" }} />

@@ -68,7 +68,7 @@ const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
   "packed",
   "ready_for_handover"
 ]);
-const DELIVERY_REVEAL_STATUSES = new Set(["accepted", "picking", "packed", "ready_for_handover"]);
+const DELIVERY_REVEAL_STATUSES = new Set<string>();
 
 const formatWhen = (value: string | number) => new Intl.DateTimeFormat("el-GR", {
   dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens"
@@ -88,7 +88,7 @@ function payloadString(payload: Record<string, unknown> | undefined, key: string
 
 function categoryOf(item: Fulfilment): Category {
   if (item.status === "awaiting_acceptance") return "new";
-  if (item.mode === "pickup" && item.status === "ready_for_handover") return "ready";
+  if ((item.mode === "pickup" || item.mode === "local_delivery") && item.status === "ready_for_handover") return "ready";
   return "processing";
 }
 
@@ -237,10 +237,10 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
                 </> : <div className={styles.deliveryRevealHead}><div><strong>Χρειάζεσαι τα στοιχεία παράδοσης;</strong><small>Δεν φορτώνονται αυτόματα. Εμφανίζονται ανά παραγγελία μόνο μετά την αποδοχή.</small></div><button type="button" className={styles.revealButton} disabled={contactBusy === item.id} onClick={() => void revealDeliveryContact(item.id)}>{contactBusy === item.id ? "Φόρτωση…" : "Εμφάνιση"}</button></div>}
               </div>}
 
-              {selected === "ready" ? <Link href="/daily/scan" className={styles.scanButton}>Σάρωση QR παραλαβής</Link> :
+              {selected === "ready" ? <Link href="/daily/scan" className={styles.scanButton}>{item.mode === "local_delivery" ? "Σάρωση QR οδηγού" : "Σάρωση QR παραλαβής"}</Link> :
                 item.actions.length > 0 ? <div className={styles.actions}>{item.actions.map((action) => <button key={action} type="button" disabled={Boolean(busy)}
                   className={action === "reject" ? styles.secondary : styles.primary} onClick={() => void act(item, action)}>
-                  {busy === `${item.id}:${action}` ? "Ενημέρωση…" : actionLabel[action] ?? action}
+                  {busy === `${item.id}:${action}` ? "Ενημέρωση…" : action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? action}
                 </button>)}</div> : <div className={styles.noAction}>Δεν απαιτείται χειροκίνητη αλλαγή κατάστασης αυτή τη στιγμή.</div>}
             </article>;
           })}

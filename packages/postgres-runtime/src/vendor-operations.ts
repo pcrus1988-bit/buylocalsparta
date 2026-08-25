@@ -141,17 +141,12 @@ export class PostgresVendorOperationsService {
         await tx.query("UPDATE fulfilment_orders SET status='accepted',accepted_at=$2,updated_at=$2 WHERE id=$1",[id,new Date(now)]);
       } else if(input.action==="ready"){
         if(!["confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must be confirmed before pickup preparation can complete");
-        if(mode!=="pickup") throw new Error("Ready-for-pickup is only valid for pickup fulfilments");
+        if(!["pickup","local_delivery"].includes(mode)) throw new Error("Ready-for-handover is valid only for pickup or KONTA MOY local delivery");
         if(!["accepted","picking","packed"].includes(status)) throw new Error("Fulfilment is not ready for this action");
         await tx.query("UPDATE fulfilment_orders SET status='ready_for_handover',updated_at=$2 WHERE id=$1",[id,new Date(now)]);
-        await tx.query("UPDATE pickup_groups SET ready_at=COALESCE(ready_at,$2) WHERE fulfilment_order_id=$1",[id,new Date(now)]);
+        if(mode==="pickup") await tx.query("UPDATE pickup_groups SET ready_at=COALESCE(ready_at,$2) WHERE fulfilment_order_id=$1",[id,new Date(now)]);
       } else if(input.action==="delivered"){
-        if(!["confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must be confirmed before local delivery can complete");
-        if(mode!=="local_delivery") throw new Error("Vendor delivery confirmation is only allowed for local-delivery fulfilments; shipping delivery is carrier-confirmed");
-        if(!["accepted","picking","packed","ready_for_handover"].includes(status)) throw new Error("Fulfilment is not ready for this action");
-        await tx.query("UPDATE fulfilment_orders SET status='delivered',delivered_at=$2,updated_at=$2 WHERE id=$1",[id,new Date(now)]);
-        await tx.query(`UPDATE order_lines SET status='fulfilled',fulfilled_quantity=quantity,fulfilled_at=COALESCE(fulfilled_at,$2)
-          WHERE id IN (SELECT order_line_id FROM fulfilment_order_lines WHERE fulfilment_order_id=$1)`,[id,new Date(now)]);
+        throw new Error("Local delivery completion is confirmed by the delivery driver after scanning the customer QR.");
       } else throw new Error("Unsupported fulfilment action");
       return {ok:true};
     },{isolation:"serializable"});
@@ -325,4 +320,4 @@ export class PostgresVendorOperationsService {
 }
 
 function requiredVendorId(principal:SessionPrincipal):string{if(!principal.vendorId||!principal.roles.some(r=>r.startsWith("vendor_")))throw new Error("VENDOR_AUTH_REQUIRED");return principal.vendorId}
-function fulfilmentActions(orderStatus:string,mode:string,status:string):readonly string[]{if(!["confirmed","partially_fulfilled"].includes(orderStatus))return[];if(status==="awaiting_acceptance")return["accept","reject"];if(mode==="pickup"&&["accepted","picking","packed"].includes(status))return["ready"];if(mode==="local_delivery"&&["accepted","picking","packed","ready_for_handover"].includes(status))return["delivered"];return[]}
+function fulfilmentActions(orderStatus:string,mode:string,status:string):readonly string[]{if(!["confirmed","partially_fulfilled"].includes(orderStatus))return[];if(status==="awaiting_acceptance")return["accept","reject"];if(mode==="pickup"&&["accepted","picking","packed"].includes(status))return["ready"];if(mode==="local_delivery"&&["accepted","picking","packed"].includes(status))return["ready"];return[]}

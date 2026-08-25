@@ -6,6 +6,7 @@ import { getDailySession } from "../../../lib/daily-session";
 export const metadata: Metadata = { title: "KONTA MOY Daily · Scan", robots: { index: false, follow: false } };
 
 export default async function DailyScanPage() {
-  if (!await getDailySession()) redirect("/daily/login");
-  return <VendorDailyScanner />;
+  const principal = await getDailySession();
+  if (!principal) redirect("/daily/login");
+  return <VendorDailyScanner csrfToken={principal.csrfToken} />;
 }
