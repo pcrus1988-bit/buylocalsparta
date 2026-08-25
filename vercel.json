@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/delivery-dispatch",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/vendor-agreement-lifecycle",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
