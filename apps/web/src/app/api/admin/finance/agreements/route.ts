@@ -32,6 +32,7 @@ async function activateFinanceAgreementThroughOnboarding(principal: SessionPrinc
     const result = await tx.query<SqlRow>(`
       SELECT agreement.agreement_code,
              agreement.starts_at AS agreement_starts_at,
+             agreement.supersedes_agreement_id,
              app.public_id AS application_public_id,
              app.status::text AS application_status
       FROM vendor_commercial_agreements agreement
@@ -48,14 +49,15 @@ async function activateFinanceAgreementThroughOnboarding(principal: SessionPrinc
     return {
       agreementCode: String(result.rows[0].agreement_code),
       startsAt: new Date(result.rows[0].agreement_starts_at as string | Date).toISOString(),
+      isRenewal: Boolean(result.rows[0].supersedes_agreement_id),
       applicationId: result.rows[0].application_public_id ? String(result.rows[0].application_public_id) : undefined,
       applicationStatus: result.rows[0].application_status ? String(result.rows[0].application_status) : undefined
     };
   }, { readOnly: true });
 
-  // A verified renewal may be prepared before the current contract expires. Scheduling it
-  // must not activate the successor (or touch onboarding) before its actual effective date.
-  if (new Date(activation.startsAt).getTime() > Date.now()) {
+  // Renewal successors always use the renewal-aware handoff. Future agreements are scheduled;
+  // due renewals are activated now and restore any visibility saved by expiry restriction.
+  if (activation.isRenewal || new Date(activation.startsAt).getTime() > Date.now()) {
     await activateOrScheduleCommercialAgreement(principal, normalizedAgreementId);
     return;
   }
