@@ -25,6 +25,7 @@ export type QuickAddFlexibleMatch = Readonly<{
   brand?: string;
   model?: string;
   mpn?: string;
+  imageUrl?: string;
   categoryCode: string;
   categoryPath: string;
   specifications: Readonly<Record<string, unknown>>;
@@ -85,6 +86,7 @@ export async function flexibleQuickAddSearch(
              COALESCE(cv.variant_attributes,'{}'::jsonb) AS variant_attributes,
              COALESCE(NULLIF(cv.gtin,''),ids.primary_trade_id) AS gtin,
              cv.model,cv.mpn,cv.active,b.name AS brand,t.code AS category_code,t.path_names,
+             catalog_media.media_public_id,source_media.source_image_url,
              own_offer.offer_id,own_offer.vendor_sku,own_offer.customer_price_minor,
              own_offer.merchant_visible,own_offer.merchant_pause_active,own_offer.offer_status,
              own_offer.on_hand,own_offer.active_reservations,own_offer.safety_stock,own_offer.blocked,
@@ -144,6 +146,30 @@ export async function flexibleQuickAddSearch(
         WHERE pi.canonical_variant_id=cv.id AND pi.active=true
       ) ids ON true
       LEFT JOIN LATERAL (
+        SELECT pm.public_id AS media_public_id
+        FROM public.product_media pm
+        WHERE pm.canonical_variant_id=cv.id
+          AND pm.kind='image'
+          AND pm.scan_status='clean'
+          AND pm.rights_status='approved'
+          AND pm.moderation_status='approved'
+          AND pm.object_key IS NOT NULL
+          AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+        ORDER BY pm.sort_order,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.id
+        LIMIT 1
+      ) catalog_media ON true
+      LEFT JOIN LATERAL (
+        SELECT csp.source_image_url
+        FROM public.catalog_source_product_links cspl
+        JOIN public.catalog_source_products csp ON csp.id=cspl.source_product_id
+        WHERE cspl.canonical_variant_id=cv.id
+          AND cspl.link_status='approved'
+          AND NULLIF(btrim(csp.source_image_url),'') IS NOT NULL
+          AND csp.source_image_url ~ '^https://'
+        ORDER BY cspl.confidence DESC NULLS LAST,cspl.reviewed_at DESC NULLS LAST,csp.created_at DESC,csp.id
+        LIMIT 1
+      ) source_media ON true
+      LEFT JOIN LATERAL (
         SELECT vo.public_id AS offer_id,vo.vendor_sku,vo.source_gtin,vo.customer_price_minor,
                vo.merchant_visible,vo.merchant_pause_active,vo.status::text AS offer_status,
                COALESCE(ib.on_hand,0)::integer AS on_hand,
@@ -166,30 +192,34 @@ export async function flexibleQuickAddSearch(
     LIMIT $4::integer
   `, [vendorId, query, digits, limit]);
 
-  return rows.rows.map((row) => ({
-    canonicalVariantId: String(row.canonical_public_id),
-    canonicalUuid: String(row.canonical_uuid),
-    title: String(row.title),
-    description: optionalText(row.description),
-    gtin: optionalText(row.gtin),
-    brand: optionalText(row.brand),
-    model: optionalText(row.model),
-    mpn: optionalText(row.mpn),
-    categoryCode: String(row.category_code),
-    categoryPath: stringArray(row.path_names).join(" › "),
-    specifications: jsonObject(row.specifications),
-    variantAttributes: jsonObject(row.variant_attributes),
-    active: Boolean(row.active),
-    score: Number(row.match_score ?? 0),
-    offerId: optionalText(row.offer_id),
-    vendorSku: optionalText(row.vendor_sku),
-    customerPriceMinor: Number(row.customer_price_minor ?? 0),
-    merchantVisible: Boolean(row.merchant_visible),
-    merchantPauseActive: Boolean(row.merchant_pause_active),
-    offerStatus: optionalText(row.offer_status),
-    onHand: Number(row.on_hand ?? 0),
-    activeReservations: Number(row.active_reservations ?? 0),
-    safetyStock: Number(row.safety_stock ?? 0),
-    blocked: Number(row.blocked ?? 0)
-  }));
+  return rows.rows.map((row) => {
+    const mediaId = optionalText(row.media_public_id);
+    return {
+      canonicalVariantId: String(row.canonical_public_id),
+      canonicalUuid: String(row.canonical_uuid),
+      title: String(row.title),
+      description: optionalText(row.description),
+      gtin: optionalText(row.gtin),
+      brand: optionalText(row.brand),
+      model: optionalText(row.model),
+      mpn: optionalText(row.mpn),
+      imageUrl: mediaId ? `/api/media/${encodeURIComponent(mediaId)}` : optionalText(row.source_image_url),
+      categoryCode: String(row.category_code),
+      categoryPath: stringArray(row.path_names).join(" › "),
+      specifications: jsonObject(row.specifications),
+      variantAttributes: jsonObject(row.variant_attributes),
+      active: Boolean(row.active),
+      score: Number(row.match_score ?? 0),
+      offerId: optionalText(row.offer_id),
+      vendorSku: optionalText(row.vendor_sku),
+      customerPriceMinor: Number(row.customer_price_minor ?? 0),
+      merchantVisible: Boolean(row.merchant_visible),
+      merchantPauseActive: Boolean(row.merchant_pause_active),
+      offerStatus: optionalText(row.offer_status),
+      onHand: Number(row.on_hand ?? 0),
+      activeReservations: Number(row.active_reservations ?? 0),
+      safetyStock: Number(row.safety_stock ?? 0),
+      blocked: Number(row.blocked ?? 0)
+    };
+  });
 }
