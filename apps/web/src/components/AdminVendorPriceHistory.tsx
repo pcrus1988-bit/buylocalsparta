@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { SqlRow } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../lib/postgres-runtime";
 import { WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
@@ -45,15 +46,15 @@ const asInt = (value: unknown) => Number.isFinite(Number(value)) ? Number(value)
 const euro = (minor: unknown, currency = "EUR") => new Intl.NumberFormat("el-GR", { style: "currency", currency }).format(asInt(minor) / 100);
 const when = (value: Date | string) => new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
 
-export async function AdminVendorPriceHistory() {
+export async function AdminVendorPriceHistory({ actorUserId }: { actorUserId: string }) {
   if (!productionDatabaseConfigured()) return null;
 
   let alerts: AlertRow[] = [];
   let history: HistoryRow[] = [];
   try {
-    const db = getProductionPostgresRuntime().sqlPool;
-    const [alertResult, historyResult] = await Promise.all([
-      db.query<AlertRow>(`
+    const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
+    const data = await uow.withTransaction(platformScope(actorUserId), async (tx) => {
+      const alertResult = await tx.query<AlertRow>(`
         SELECT
           n.public_id AS id,
           n.title,
@@ -72,8 +73,8 @@ export async function AdminVendorPriceHistory() {
         WHERE n.channel='in_app' AND n.event_type='admin.vendor_price_changed'
         ORDER BY n.created_at DESC
         LIMIT 50
-      `),
-      db.query<HistoryRow>(`
+      `);
+      const historyResult = await tx.query<HistoryRow>(`
         SELECT
           h.public_id AS id,
           vb.public_id AS vendor_id,
@@ -94,10 +95,11 @@ export async function AdminVendorPriceHistory() {
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         ORDER BY h.changed_at DESC, h.id DESC
         LIMIT 500
-      `)
-    ]);
-    alerts = [...alertResult.rows];
-    history = [...historyResult.rows];
+      `);
+      return { alerts: [...alertResult.rows], history: [...historyResult.rows] };
+    }, { readOnly: true });
+    alerts = data.alerts;
+    history = data.history;
   } catch {
     return null;
   }
