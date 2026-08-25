@@ -15,7 +15,8 @@ for (const contract of [
   "request.referenceNumber === referenceNumber",
   "SELECT cr.reference_number,cr.status::text",
   "const referenceNumber = typeof row.reference_number === \"string\" ? row.reference_number.trim() : \"\"",
-  "id: referenceNumber, referenceNumber",
+  "id: referenceNumber,",
+  "referenceNumber,",
   "Ask Local request is missing its public reference number",
   "const referenceNumber = `ASK-${String("
 ]) expect(service.includes(contract), `Customer Ask Local projection is missing public-reference contract: ${contract}`);
