@@ -29,7 +29,9 @@ for (const table of ["catalog_import_mapping_profiles", "catalog_import_runs", "
 }
 expect(migration.includes("source_snapshot_id uuid REFERENCES public.catalog_source_snapshots"), "AI import runs must link to immutable PIM snapshots");
 expect(migration.includes("triage_status IN ('ready_for_identity_matching','needs_mapping_review','quarantine')"), "AI row triage states must be constrained");
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 145"), "PostgreSQL runtime must require schema 145");
+const runtimeSchemaMatch = runtime.match(/export const EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)/);
+const runtimeSchemaVersion = Number(runtimeSchemaMatch?.[1] ?? 0);
+expect(runtimeSchemaVersion >= 145, "PostgreSQL runtime must require schema 145 or newer");
 
 for (const contract of [
   "normalizeProductImport",
