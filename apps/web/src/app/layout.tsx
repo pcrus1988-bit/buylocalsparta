@@ -33,6 +33,7 @@ import "./vendor-lifecycle.css";
 import "./vendor-login.css";
 import "./admin-information-architecture.css";
 import "./admin-domain-workspaces.css";
+import "./admin-dashboard-customizer.css";
 import "./admin-directory-search.css";
 import "./admin-orders-directory.css";
 import "./admin-order-record.css";
