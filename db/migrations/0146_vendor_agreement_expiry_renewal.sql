@@ -1,4 +1,4 @@
--- KONTA MOU — enforce time-bounded vendor agreements and renewal handoff.
+-- KONTA MOY — enforce time-bounded vendor agreements and renewal handoff.
 -- Signed agreements remain immutable evidence. Expiry changes lifecycle state;
 -- a verified successor may take over automatically when its effective date arrives.
 
@@ -46,6 +46,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Re-check only when visibility is being enabled or the vendor is becoming active.
   IF TG_OP = 'UPDATE'
      AND OLD.public_directory_visible = true
      AND NOT (NEW.status::text = 'active' AND OLD.status::text IS DISTINCT FROM 'active') THEN
@@ -104,6 +105,7 @@ DECLARE
   v_restricted_count integer := 0;
   v_row record;
 BEGIN
+  -- 1. Time-expire agreements whose signed term has ended.
   FOR v_row IN
     UPDATE public.vendor_commercial_agreements a
        SET status = 'expired', updated_at = v_now
@@ -126,6 +128,9 @@ BEGIN
     );
   END LOOP;
 
+  -- 2. A fully verified successor can take over automatically at its start time.
+  -- This allows an admin to complete renewal paperwork before the old term ends
+  -- without prematurely superseding the still-effective predecessor.
   FOR v_row IN
     SELECT a.id, a.vendor_id, a.supersedes_agreement_id, a.agreement_code, a.agreement_version, a.status AS prior_status
     FROM public.vendor_commercial_agreements a
@@ -145,6 +150,7 @@ BEGIN
     ORDER BY a.starts_at, a.created_at
     FOR UPDATE OF a
   LOOP
+    -- Do not create two simultaneous active agreements for the same vendor.
     IF EXISTS (
       SELECT 1 FROM public.vendor_commercial_agreements current_agreement
       WHERE current_agreement.vendor_id = v_row.vendor_id
@@ -161,6 +167,8 @@ BEGIN
            updated_at = v_now
      WHERE id = v_row.id;
 
+    -- Contract expiry uses restricted. A manually suspended vendor stays suspended
+    -- and therefore cannot be silently unsuspended by a renewal cron.
     UPDATE public.vendor_businesses
        SET status = CASE WHEN status::text = 'restricted' THEN 'active'::vendor_status ELSE status END,
            contract_started_at = COALESCE(contract_started_at, v_now),
@@ -200,6 +208,8 @@ BEGIN
     );
   END LOOP;
 
+  -- 3. Commercial vendors with agreement history but no effective verified
+  -- agreement must stop selling. The account remains available for history and renewal.
   FOR v_row IN
     SELECT v.id, v.public_id
     FROM public.vendor_businesses v
@@ -264,4 +274,6 @@ GRANT EXECUTE ON FUNCTION bls_private.reconcile_vendor_agreement_lifecycle()
 COMMENT ON FUNCTION bls_private.reconcile_vendor_agreement_lifecycle()
   IS 'Expires ended vendor agreements, activates verified renewal successors at their effective start, and restricts vendors lacking an effective agreement.';
 
+-- Reconcile legacy stale states as part of deployment. This is intentionally
+-- idempotent; the scheduled runtime will continue to call the same function.
 SELECT bls_private.reconcile_vendor_agreement_lifecycle();
