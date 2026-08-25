@@ -18,6 +18,7 @@ export const SITE_LINKS = {
   shopsMap: { label: "Χάρτης καταστημάτων", href: "/shops/map", description: "Διαδραστικός χάρτης τοπικών επιχειρήσεων με κατηγορίες, φίλτρα απόστασης και απευθείας πρόσβαση σε κάθε δημόσιο dossier." },
   advice: { label: "Συμβουλή από κατάστημα", href: "/advice", description: "Βρες δημόσια διαθέσιμους τοπικούς συμβούλους πριν αγοράσεις." },
   askLocal: { label: "Ask Local", href: "/ask-local", description: "Στείλε ιδιωτικά αυτό που ψάχνεις σε κατάλληλο τοπικό συνεργάτη." },
+  giftCards: { label: "Δωροκάρτες", href: "/gift-cards", description: "Μία δωροκάρτα για αγορές σε συμμετέχοντα καταστήματα της τοπικής αγοράς." },
   howItWorks: { label: "Πώς λειτουργεί", href: "/how-it-works", description: "Από την ανακάλυψη μέχρι checkout, fulfilment και υποστήριξη." },
   fairness: { label: "Δίκαιη ανάθεση", href: "/fairness", description: "Οι κανόνες που αποτρέπουν την άσκοπη εσωτερική σύγκρουση εμπόρων." },
   delivery: { label: "Παράδοση & παραλαβή", href: "/delivery-pickup", description: "Τοπική παραλαβή, αποστολή και επιλογές fulfilment." },
@@ -44,6 +45,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.shopsMap, changeFrequency: "daily", priority: 0.8 },
   { ...SITE_LINKS.advice, changeFrequency: "weekly", priority: 0.8 },
   { ...SITE_LINKS.askLocal, changeFrequency: "weekly", priority: 0.8 },
+  { ...SITE_LINKS.giftCards, changeFrequency: "monthly", priority: 0.7 },
   { ...SITE_LINKS.howItWorks, changeFrequency: "monthly", priority: 0.75 },
   { ...SITE_LINKS.fairness, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.delivery, changeFrequency: "monthly", priority: 0.65 },
@@ -70,7 +72,7 @@ export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
 
 export const FOOTER_NAVIGATION = [
   { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
-  { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
+  { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "ΚΟΝΤΑ ΜΟΥ Sparta", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] },
   { title: "Ιδιωτικότητα & πρόσβαση", links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
 ] as const;
@@ -78,7 +80,7 @@ export const FOOTER_NAVIGATION = [
 export const HUMAN_SITEMAP_SECTIONS = [
   { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
   { title: "Άνθρωποι & συμβουλή", links: [SITE_LINKS.advice, SITE_LINKS.askLocal] },
-  { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
+  { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "Ιδιωτικότητα & πρόσβαση", links: [SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
   { title: "Κανόνες & υποστήριξη", links: [SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.about] },
   { title: "Για επιχειρήσεις", links: [SITE_LINKS.join, SITE_LINKS.joinRequirements, SITE_LINKS.vendorApply] }
@@ -121,6 +123,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/daily/pickup",
   "/daily/push-bridge",
   "/daily/scan",
+  "/delivery/manage",
   "/driver",
   "/driver/login",
   "/vendor",
