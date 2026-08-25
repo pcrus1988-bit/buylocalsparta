@@ -1,3 +1,4 @@
+// Production deployment marker: canonical agreement lifecycle schema 0146 is reconciled.
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type VendorAgreementLifecycleResult = Readonly<{
