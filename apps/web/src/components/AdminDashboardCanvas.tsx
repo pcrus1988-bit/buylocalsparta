@@ -99,9 +99,13 @@ export function AdminDashboardCanvas({ widgets }: Readonly<{ widgets: ReadonlyAr
   function move(id: string, direction: -1 | 1) {
     setSavedNotice(false);
     setLayout((current) => {
+      const visibleIds = current.filter((entry) => entry.visible && widgetById.has(entry.id)).map((entry) => entry.id);
+      const visibleIndex = visibleIds.indexOf(id);
+      const targetId = visibleIds[visibleIndex + direction];
+      if (visibleIndex < 0 || !targetId) return current;
       const index = current.findIndex((entry) => entry.id === id);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
+      const target = current.findIndex((entry) => entry.id === targetId);
+      if (index < 0 || target < 0) return current;
       const next = [...current];
       [next[index], next[target]] = [next[target], next[index]];
       return next;
