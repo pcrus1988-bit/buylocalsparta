@@ -25,6 +25,7 @@ export default async function VendorDailyPage() {
   if (!principal) redirect("/daily/login");
 
   synchronizeOperationalEvents();
+  const generatedAt = Date.now();
   const [dashboard, advice, sla, push] = await Promise.all([
     vendorDashboard(principal),
     vendorAdviceWorkspace(principal),
@@ -32,5 +33,5 @@ export default async function VendorDailyPage() {
     dailyPushStatus(principal)
   ]);
 
-  return <VendorDailyHomeClient dashboard={dashboard} advice={advice} sla={sla} push={push} />;
+  return <VendorDailyHomeClient dashboard={dashboard} advice={advice} sla={sla} push={push} generatedAt={generatedAt} />;
 }
