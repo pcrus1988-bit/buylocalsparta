@@ -10,6 +10,7 @@ export function DailySandwichMenu() {
       <Link href="/daily/quickadd"><b>▣</b><span><strong>Item Research / Stock</strong><small>Scan · έλεγχος · προσθήκη · edit</small></span></Link>
       <Link href="/daily/orders">Παραγγελίες</Link>
       <Link href="/daily/ask-local">Ask Local</Link>
+      <Link href="/daily/opportunities"><b>∿</b><span><strong>Local opportunities</strong><small>Τι ζητά η τοπική αγορά</small></span></Link>
       <Link href="/daily/notifications">Ειδοποιήσεις</Link>
     </nav>
   </details>;

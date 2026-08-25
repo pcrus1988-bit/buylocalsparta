@@ -1,0 +1,32 @@
+name: Local Demand Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/admin/demand/page.tsx"
+      - "apps/web/src/app/daily/opportunities/page.tsx"
+      - "apps/web/src/components/DailySandwichMenu.tsx"
+      - "apps/web/src/lib/local-demand-intelligence.ts"
+      - "apps/web/src/lib/local-demand-service.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "scripts/verify-local-demand-intelligence.ts"
+      - ".github/workflows/local-demand-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify local demand contracts
+        run: node --experimental-strip-types scripts/verify-local-demand-intelligence.ts
+      - name: Typecheck web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
