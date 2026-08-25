@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { DeliveryControlWorkspace } from "../lib/delivery-control-runtime";
+import { DeliveryLiveFleetMap, type DeliveryMapPoint } from "./DeliveryLiveFleetMap";
 import styles from "./DeliveryOperations.module.css";
 
 function stamp(value?: number) { return value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "medium" }).format(value) : "—"; }
@@ -18,6 +19,12 @@ export function DeliveryManagerWorkspaceClient({ initial, csrfToken }: { initial
     const response = await fetch("/api/delivery/manage", { cache: "no-store" });
     if (response.ok) setData(await response.json() as DeliveryControlWorkspace);
   }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refresh(), 8_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   async function action(name: string, payload: Record<string, unknown>) {
     setBusy(true); setNotice("");
     try {
@@ -44,6 +51,21 @@ export function DeliveryManagerWorkspaceClient({ initial, csrfToken }: { initial
   const latestForecast = data.forecasts[0];
   const openJobs = data.jobs.filter((job) => !["completed", "cancelled", "failed"].includes(job.status));
   const available = data.drivers.filter((driver) => driver.status === "active" && driver.acceptingJobs && ["available", "busy"].includes(driver.operationalStatus));
+  const liveMapPoints = useMemo(() => {
+    const points = new Map<string, DeliveryMapPoint>();
+    for (const job of data.jobs) {
+      if (!job.latestLocation || !job.driverId || ["completed", "cancelled", "failed"].includes(job.status)) continue;
+      points.set(job.driverId, {
+        id: job.driverId,
+        label: job.driverName ?? job.orderId,
+        latitude: job.latestLocation.latitude,
+        longitude: job.latestLocation.longitude,
+        receivedAt: job.latestLocation.receivedAt,
+        detail: `${job.orderId} · ${job.status}`,
+      });
+    }
+    return [...points.values()];
+  }, [data.jobs]);
 
   return <div className={styles.grid}>
     {notice && <div className={styles.notice}>{notice}</div>}
@@ -55,7 +77,12 @@ export function DeliveryManagerWorkspaceClient({ initial, csrfToken }: { initial
 
     <section className={styles.card}><div className={styles.sectionTitle}><div><div className={styles.eyebrow}>Autonomous operations</div><h2>Dispatcher oversight</h2></div><button className={styles.button} disabled={busy} type="button" onClick={() => void action("run_dispatch", {})}>Re-evaluate fleet now</button></div><p className={styles.muted}>Η ενέργεια ζητά από τον αλγόριθμο νέα αξιολόγηση. Δεν αποτελεί manual dispatch και δεν παρακάμπτει constraints.</p></section>
 
-    <section><div className={styles.sectionTitle}><div><div className={styles.eyebrow}>Live fleet</div><h2>Route & fairness state</h2></div><button className={styles.buttonSecondary} type="button" onClick={() => void refresh()}>Refresh</button></div><div className={`${styles.grid} ${styles.two}`}>{data.drivers.map((driver) => <article className={styles.card} key={driver.id}><div className={styles.toolbar}><strong>{driver.name}</strong><span className={styles.status}>{driver.operationalStatus}</span></div><p className={styles.muted}>{driver.partnerName} · {driver.activeJobs} active · GPS {driver.latestLocationAt ? stamp(driver.latestLocationAt) : "missing"}</p><div className={styles.toolbar}><span className={styles.badge}>7d burden {num(driver.workload7d)}</span><span className={styles.badge}>fairness Δ {num(driver.fairnessDebt)}</span><span className={styles.badge}>{driver.farJobs7d} far</span><span className={styles.badge}>{driver.difficultJobs7d} difficult</span></div><p className={styles.muted}>Route {driver.routeVersion ? `v${driver.routeVersion} · ${driver.routeState}` : "—"} · 7d {num(driver.plannedDistance7d)} planned km</p></article>)}</div></section>
+    <section>
+      <div className={styles.sectionTitle}><div><div className={styles.eyebrow}>Live operations map</div><h2>Οδηγοί σε ενεργές εργασίες</h2></div><button className={styles.buttonSecondary} type="button" onClick={() => void refresh()}>Refresh</button></div>
+      <DeliveryLiveFleetMap points={liveMapPoints} title="Live στόλος" emptyMessage="Δεν υπάρχει πρόσφατη GPS θέση από οδηγό σε ενεργή εργασία." />
+    </section>
+
+    <section><div className={styles.sectionTitle}><div><div className={styles.eyebrow}>Live fleet</div><h2>Route & fairness state</h2></div></div><div className={`${styles.grid} ${styles.two}`}>{data.drivers.map((driver) => <article className={styles.card} key={driver.id}><div className={styles.toolbar}><strong>{driver.name}</strong><span className={styles.status}>{driver.operationalStatus}</span></div><p className={styles.muted}>{driver.partnerName} · {driver.activeJobs} active · GPS {driver.latestLocationAt ? stamp(driver.latestLocationAt) : "missing"}</p><div className={styles.toolbar}><span className={styles.badge}>7d burden {num(driver.workload7d)}</span><span className={styles.badge}>fairness Δ {num(driver.fairnessDebt)}</span><span className={styles.badge}>{driver.farJobs7d} far</span><span className={styles.badge}>{driver.difficultJobs7d} difficult</span></div><p className={styles.muted}>Route {driver.routeVersion ? `v${driver.routeVersion} · ${driver.routeState}` : "—"} · 7d {num(driver.plannedDistance7d)} planned km</p></article>)}</div></section>
 
     <section className={`${styles.grid} ${styles.two}`}>
       <article className={styles.card}><div className={styles.eyebrow}>Red Button request</div><h2>Escalation</h2><p className={styles.muted}>Red Mode ενεργοποιείται μόνο αφού εγκρίνουν δύο διαφορετικοί άνθρωποι: Delivery Manager + Admin.</p><form className={styles.form} onSubmit={(event) => void requestRed(event)}><label className={styles.field}><span>Operational reason</span><textarea minLength={8} value={red.reason} onChange={(event) => setRed({ ...red, reason: event.target.value })} required /></label><label className={styles.field}><span>Expires in minutes</span><input type="number" min={5} max={120} value={red.expiresMinutes} onChange={(event) => setRed({ ...red, expiresMinutes: Number(event.target.value) })} /></label><button className={styles.button} type="submit" disabled={busy}>Request Red Mode</button></form></article>
