@@ -1,5 +1,5 @@
 import { driverScanDeliveryProof, driverSetLiveTracking } from "../../../../lib/delivery-driver-runtime";
-import { driverStartCustomerDeliveryLeg } from "../../../../lib/delivery-customer-leg-runtime";
+import { assertCustomerDeliveryLegActive, driverStartCustomerDeliveryLeg } from "../../../../lib/delivery-customer-leg-runtime";
 import {
   acceptDeliveryAssignmentOffer,
   declineDeliveryAssignmentOffer,
@@ -48,7 +48,11 @@ export async function POST(request: Request) {
       if (availability === "available") await runAdaptiveDeliveryDispatcher(Date.now(), 4);
       return Response.json({ ok: true, driver });
     }
-    if (action === "scan") return Response.json(await driverScanDeliveryProof(principal, String(body.token ?? "")));
+    if (action === "scan") {
+      const token = String(body.token ?? "");
+      await assertCustomerDeliveryLegActive(principal, token);
+      return Response.json(await driverScanDeliveryProof(principal, token));
+    }
     if (action === "start_customer_leg") {
       return Response.json(await driverStartCustomerDeliveryLeg(principal, { jobId: String(body.jobId ?? "") }));
     }
