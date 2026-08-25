@@ -77,7 +77,7 @@ export type FulfilmentOrder = {
   deliveryRuleId?: string;
   deliveryRuleVersion?: number;
   deliveryQuoteId?: string;
-  status: "awaiting_acceptance" | "accepted" | "rejected" | "picking" | "packed" | "ready_for_handover" | "shipped" | "delivered" | "failed" | "cancelled";
+  status: "awaiting_acceptance" | "accepted" | "rejected" | "picking" | "packed" | "ready_for_handover" | "handed_over" | "shipped" | "delivered" | "failed" | "cancelled";
   deliveredAt?: number;
 };
 
