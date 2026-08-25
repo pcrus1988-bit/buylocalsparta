@@ -1,15 +1,12 @@
 import type { VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
-import { requireDailySession } from "../../../../../lib/daily-session";
+import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { createVendorMediaUploadIntent } from "../../../../../lib/media-upload-service";
 
 const PROFILE_ROLES = new Set<VendorProfileMediaRole>(["logo","storefront","team","gallery"]);
 
 export async function POST(request:Request){
   try{
-    // Daily Quick Add is a scoped vendor session. requireDailySession verifies Daily
-    // tokens with Daily CSRF and transparently falls back to a normal vendor session,
-    // so this shared media endpoint stays usable by both operator surfaces.
-    const principal=await requireDailySession(request,true);
+    const principal=await requireVendorSession(request,true);
     const body=await request.json();
     const kind=String(body.kind??"") as "image"|"video"|"document";
     if(!["image","video","document"].includes(kind))throw new Error("Invalid media kind");
