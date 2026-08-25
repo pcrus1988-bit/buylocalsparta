@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Admin",
     description: "Κέντρο ελέγχου KONTA MOY για λειτουργία, παραγγελίες, συνεργάτες, κατάλογο, delivery και εξαιρέσεις.",
     start_url: "/admin",
-    scope: "/admin/",
+    scope: "/admin",
     display: "standalone",
     background_color: "#f6f4ee",
     theme_color: "#171914",
