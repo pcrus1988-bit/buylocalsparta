@@ -2,13 +2,22 @@ import { getPublicProductSeoSummary } from "../../../../lib/catalog-view";
 
 const MAX_CART_ITEMS = 100;
 
-function requestedIds(request: Request): readonly string[] {
-  const raw = new URL(request.url).searchParams.get("ids") ?? "";
-  return [...new Set(raw.split(",").map((value) => value.trim()).filter((value) => value.length > 0 && value.length <= 128))].slice(0, MAX_CART_ITEMS);
+async function requestedIds(request: Request): Promise<readonly string[]> {
+  try {
+    const body = await request.json() as { ids?: unknown };
+    if (!Array.isArray(body.ids)) return [];
+    return [...new Set(body.ids
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0 && value.length <= 128))]
+      .slice(0, MAX_CART_ITEMS);
+  } catch {
+    return [];
+  }
 }
 
-export async function GET(request: Request) {
-  const ids = requestedIds(request);
+export async function POST(request: Request) {
+  const ids = await requestedIds(request);
   if (ids.length === 0) return Response.json({ items: [] });
 
   const products = await Promise.all(ids.map(async (id) => {
