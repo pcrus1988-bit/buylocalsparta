@@ -5,6 +5,8 @@ const dashboard = read("apps/web/src/components/AccountDashboardClient.tsx");
 const orders = read("apps/web/src/app/account/orders/page.tsx");
 const primitives = read("apps/web/src/components/CustomerAccountPrimitives.tsx");
 const detail = read("apps/web/src/components/OrderDetailClient.tsx");
+const commerceRuntime = read("apps/web/src/lib/customer-commerce-runtime.ts");
+const postgresCommerce = read("packages/postgres-runtime/src/customer-commerce.ts");
 const failures: string[] = [];
 
 for (const contract of [
@@ -37,9 +39,27 @@ for (const contract of [
   "x-csrf-token"
 ]) if (!detail.includes(contract)) failures.push(`Order detail no longer provides governed payment recovery: ${contract}`);
 
+const pendingCancellationMatch = commerceRuntime.match(/if \(order\.status === "pending_payment"\) \{([\s\S]*?)\n\s*return cancelled;\n\s*\}/);
+if (!pendingCancellationMatch) {
+  failures.push("Customer commerce runtime is missing the dedicated pending-payment cancellation path");
+} else {
+  const pendingCancellation = pendingCancellationMatch[1];
+  const localCancellation = pendingCancellation.indexOf("runtime.customerCommerce.cancelCustomerOrder");
+  const vivaPreparation = pendingCancellation.indexOf("runtime.vivaPayments.prepareOrderCancellation");
+  if (localCancellation < 0) failures.push("Pending-payment cancellation no longer cancels the order locally");
+  if (vivaPreparation < 0) failures.push("Pending-payment cancellation no longer performs the post-cancel payment race check");
+  if (localCancellation >= 0 && vivaPreparation >= 0 && localCancellation > vivaPreparation) {
+    failures.push("Pending-payment cancellation must complete its local cancellation before any Viva cancellation preparation");
+  }
+}
+
+if (!postgresCommerce.includes("status IN ('created','requires_action','authorised','failed') THEN 'cancelled'")) {
+  failures.push("Postgres customer cancellation no longer marks uncharged payment states as cancelled before the post-cancel Viva check");
+}
+
 if (failures.length) {
   console.error("Customer order actionability checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
 
-console.log("Customer order actionability checks passed: pending payment is prioritized on the dashboard, explicit in the order directory, orange in lifecycle semantics, and recoverable from order detail.");
+console.log("Customer order actionability checks passed: pending payment is prioritized on the dashboard, explicit in the order directory, orange in lifecycle semantics, recoverable from order detail, and customer cancellation closes an unpaid order locally before any Viva cancellation preparation.");
