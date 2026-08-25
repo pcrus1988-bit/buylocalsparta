@@ -4,6 +4,7 @@ import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { flexibleQuickAddSearch } from "./quickadd-flex-search";
+import { attachMissingQuickAddGtin } from "./quickadd-gtin-service";
 
 const clean = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const opt = (value: unknown) => clean(value) || undefined;
@@ -16,7 +17,7 @@ function scope(principal:SessionPrincipal){return platformScope(principal.userId
 export type AdminQuickAddVendor = Readonly<{id:string;name:string;status:string}>;
 export type AdminQuickAddCategory = Readonly<{code:string;name:string;path:string}>;
 export type AdminQuickAddCanonical = Readonly<{
-  id:string;title:string;description?:string;gtin?:string;brand?:string;model?:string;mpn?:string;categoryCode:string;categoryPath:string;active:boolean;
+  id:string;title:string;description?:string;gtin?:string;brand?:string;model?:string;mpn?:string;imageUrl?:string;categoryCode:string;categoryPath:string;active:boolean;
   listed?:Readonly<{offerId:string;vendorSku?:string;priceMinor:number;onHand:number;safetyStock:number;visible:boolean;status:string}>;
 }>;
 
@@ -59,6 +60,7 @@ export async function adminQuickAddLookup(principal:SessionPrincipal,input:{vend
       brand:r.brand,
       model:r.model,
       mpn:r.mpn,
+      imageUrl:r.imageUrl,
       categoryCode:r.categoryCode,
       categoryPath:r.categoryPath,
       active:r.active,
@@ -107,24 +109,40 @@ export async function adminQuickAddSave(principal:SessionPrincipal,input:SaveInp
   return uow().withTransaction(scope(principal),async tx=>{
     const vendorMarket=await tx.query<SqlRow>(`SELECT market_id::text market_uuid FROM public.vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1`,[input.vendorId]);
     if(!vendorMarket.rowCount) throw new Error("Unknown vendor");const marketUuid=String(vendorMarket.rows[0].market_uuid);
-    let canonicalUuid:string,canonicalPublicId:string;
+    let canonicalUuid:string,canonicalPublicId:string,gtinAdded=false;
     if(clean(input.canonicalVariantId)){
       const found=await tx.query<SqlRow>(`SELECT id::text id,public_id FROM public.canonical_variants WHERE public_id=$1 AND market_id=$2::uuid AND suppressed=false AND recalled=false FOR UPDATE`,[clean(input.canonicalVariantId),marketUuid]);
       if(!found.rowCount) throw new Error("Canonical product no longer exists");canonicalUuid=String(found.rows[0].id);canonicalPublicId=String(found.rows[0].public_id);
+      if(clean(input.gtin)){
+        const attached=await attachMissingQuickAddGtin(tx,{canonicalUuid,canonicalPublicId,gtin:clean(input.gtin),source:"catalog_admin"});
+        input={...input,gtin:attached.gtin};gtinAdded=attached.added;
+      }
       await tx.query(`INSERT INTO public.product_translations(canonical_variant_id,locale,title,description,specifications) VALUES($1::uuid,'el',$2,$3,'{}'::jsonb) ON CONFLICT(canonical_variant_id,locale) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description`,[canonicalUuid,clean(input.title),opt(input.description)??null]);
       await tx.query(`UPDATE public.canonical_variants SET model=$2,mpn=$3,updated_at=now() WHERE id=$1::uuid`,[canonicalUuid,opt(input.model)??null,opt(input.mpn)??null]);
     }else{
       const digits=clean(input.gtin).replace(/\D/g,"");
-      if(digits){const valid=await tx.query<SqlRow>(`SELECT bls_private.catalog_gtin_is_valid($1) ok`,[digits]);if(!valid.rows[0]?.ok) throw new Error("GTIN checksum is invalid");const duplicate=await tx.query<SqlRow>(`SELECT id::text id,public_id FROM public.canonical_variants WHERE market_id=$1::uuid AND gtin=$2 LIMIT 1 FOR UPDATE`,[marketUuid,digits]);if(duplicate.rowCount){canonicalUuid=String(duplicate.rows[0].id);canonicalPublicId=String(duplicate.rows[0].public_id);const offer=await upsertOffer(tx,principal,{...input,canonicalVariantId:canonicalPublicId},canonicalUuid,canonicalPublicId,marketUuid);return{ok:true,createdCanonical:false,reusedExactGtin:true,canonicalVariantId:canonicalPublicId,...offer};}}
+      if(digits){
+        const valid=await tx.query<SqlRow>(`SELECT bls_private.catalog_gtin_is_valid($1) ok`,[digits]);if(!valid.rows[0]?.ok) throw new Error("GTIN checksum is invalid");
+        const duplicate=await tx.query<SqlRow>(`
+          SELECT DISTINCT cv.id::text id,cv.public_id
+          FROM public.canonical_variants cv
+          LEFT JOIN public.product_identifiers pi ON pi.canonical_variant_id=cv.id AND pi.active=true
+          WHERE cv.market_id=$1::uuid
+            AND (regexp_replace(COALESCE(cv.gtin,''),'\\D','','g')=$2 OR regexp_replace(COALESCE(pi.normalized_value,''),'\\D','','g')=$2)
+          LIMIT 1 FOR UPDATE OF cv
+        `,[marketUuid,digits]);
+        if(duplicate.rowCount){canonicalUuid=String(duplicate.rows[0].id);canonicalPublicId=String(duplicate.rows[0].public_id);input={...input,gtin:digits};const offer=await upsertOffer(tx,principal,{...input,canonicalVariantId:canonicalPublicId},canonicalUuid,canonicalPublicId,marketUuid);return{ok:true,createdCanonical:false,reusedExactGtin:true,canonicalVariantId:canonicalPublicId,gtin:digits,gtinAdded:false,...offer};}
+      }
       const category=await tx.query<SqlRow>(`SELECT id::text id FROM public.categories WHERE code=$1 AND active=true AND assignable=true AND (market_id IS NULL OR market_id=$2::uuid) ORDER BY CASE WHEN market_id=$2::uuid THEN 0 ELSE 1 END LIMIT 1`,[clean(input.categoryCode),marketUuid]);if(!category.rowCount) throw new Error("Unknown/disabled category");
       let brandUuid:string|undefined;const brand=clean(input.brand);if(brand){const b=await tx.query<SqlRow>(`INSERT INTO public.brands(name,normalized_name) VALUES($1,$2) ON CONFLICT(normalized_name) DO UPDATE SET name=EXCLUDED.name RETURNING id::text id`,[brand,normalizeBrand(brand)]);brandUuid=String(b.rows[0].id);}
       const family=await tx.query<SqlRow>(`INSERT INTO public.product_families(market_id,brand_id,category_id,model,active,created_at,updated_at) VALUES($1::uuid,$2::uuid,$3::uuid,$4,true,now(),now()) RETURNING id::text id`,[marketUuid,brandUuid??null,String(category.rows[0].id),opt(input.model)??null]);
       canonicalUuid=randomUUID();canonicalPublicId=`cv_${randomUUID()}`;const base=slugify(clean(input.title));const slug=`${base}-${randomUUID().slice(0,8)}`;
       await tx.query(`INSERT INTO public.canonical_variants(id,public_id,market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,variant_attributes,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled,created_at,updated_at) VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9,$10,'new','{}'::jsonb,$11,'EUR',2400,true,false,false,now(),now())`,[canonicalUuid,canonicalPublicId,marketUuid,String(family.rows[0].id),brandUuid??null,String(category.rows[0].id),slug,digits||null,opt(input.mpn)??null,opt(input.model)??null,integer(input.customerPriceMinor,"price")]);
+      if(digits){const attached=await attachMissingQuickAddGtin(tx,{canonicalUuid,canonicalPublicId,gtin:digits,source:"catalog_admin"});input={...input,gtin:attached.gtin};gtinAdded=attached.added;}
       await tx.query(`INSERT INTO public.product_translations(canonical_variant_id,locale,title,description,specifications) VALUES($1::uuid,'el',$2,$3,'{}'::jsonb)`,[canonicalUuid,clean(input.title),opt(input.description)??null]);
       await tx.query(`INSERT INTO public.catalog_workflow_events(id,public_id,actor_id,action,to_status,canonical_variant_id,reason,metadata,created_at) VALUES($1,$2,$3::uuid,'admin_quickadd_create',NULL,$4::uuid,'Admin created canonical product through Quick Add',jsonb_build_object('source','admin_quickadd','gtin',$5::text),now())`,[randomUUID(),`cwe_${randomUUID()}`,principal.userId,canonicalUuid,digits||null]);
     }
     const offer=await upsertOffer(tx,principal,input,canonicalUuid,canonicalPublicId,marketUuid);
-    return{ok:true,createdCanonical:!clean(input.canonicalVariantId),canonicalVariantId:canonicalPublicId,...offer};
+    return{ok:true,createdCanonical:!clean(input.canonicalVariantId),canonicalVariantId:canonicalPublicId,gtin:opt(input.gtin),gtinAdded,...offer};
   },{isolation:"serializable"});
 }
