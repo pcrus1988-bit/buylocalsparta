@@ -75,8 +75,8 @@ for (const contract of [
   "Τι ψάχνεις;",
   "Όλες οι κατηγορίες",
   "Διαθέσιμο τώρα",
-  "Παύση ειδοποιήσεων",
-  "Ενεργοποίηση ειδοποιήσεων",
+  "Παύση Local Watch",
+  "Ενεργοποίηση Local Watch",
   "Να διαγραφεί οριστικά;",
   "Ναι, διαγραφή",
   "role=\"status\"",
@@ -94,12 +94,12 @@ for (const contract of [
 ]) if (!styles.includes(contract)) failures.push(`Saved-search responsive styling missing: ${contract}`);
 if (!layout.includes('import "./customer-saved-search-editing.css";')) failures.push("Root layout must load saved-search editing styles.");
 
-if (!shop.includes('if (availability === "available") products = products.filter((product) => product.available);')) failures.push("Saved-search reopen contract assumes the storefront supports availability=available.");
-if (shop.includes('availability === "pickup_today"')) failures.push("Verifier expected no distinct pickup-today storefront filter; update saved-search editor semantics if storefront gains one.");
+if (!shop.includes('availability === "available"') || !shop.includes('products = products.filter((product) => product.available);')) failures.push("Saved-search reopen contract assumes the storefront supports availability=available.");
+if (shop.includes('if (availability === "pickup_today")')) failures.push("Saved-search editor must not expose a distinct pickup-today query-param filter; pickup-today may still be interpreted from natural-language search intent.");
 
 if (failures.length) {
   console.error("Customer saved-search editing checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
 
-console.log("Customer saved-search editing checks passed: edit/pause/delete are customer-scoped and CSRF-protected, edits re-baseline before alerts, ownership is resolved before matching, public criteria map to the real storefront, and mobile controls remain accessible.");
+console.log("Customer saved-search editing checks passed: edit/Local Watch pause/delete are customer-scoped and CSRF-protected, edits re-baseline before alerts, ownership is resolved before matching, public criteria map to the real storefront, natural-language pickup-today intent remains separate, and mobile controls remain accessible.");
