@@ -41,25 +41,31 @@ const STORAGE_KEY = "buy-local-sparta-cart-v1";
 const CartContext = createContext<CartContextValue | null>(null);
 function displayMoney(minor: number) { return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100); }
 
-function optionalText(value: unknown, maxLength: number): boolean {
-  return value === undefined || (typeof value === "string" && value.length <= maxLength);
+function storedCartItem(value: unknown): CartItem | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const item = value as Partial<CartItem>;
+  if (typeof item.canonicalVariantId !== "string" || item.canonicalVariantId.length === 0 || item.canonicalVariantId.length > 128
+    || typeof item.title !== "string" || item.title.length === 0 || item.title.length > 500
+    || typeof item.price !== "string" || item.price.length > 64
+    || !Number.isSafeInteger(item.priceMinor) || (item.priceMinor ?? -1) < 0
+    || !Number.isSafeInteger(item.quantity) || (item.quantity ?? 0) <= 0) return undefined;
+  return {
+    canonicalVariantId: item.canonicalVariantId,
+    title: item.title,
+    priceMinor: item.priceMinor,
+    price: item.price,
+    quantity: Math.min(99, item.quantity)
+  };
 }
 
-function isStoredCartItem(value: unknown): value is CartItem {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Partial<CartItem>;
-  return typeof item.canonicalVariantId === "string" && item.canonicalVariantId.length > 0 && item.canonicalVariantId.length <= 128
-    && typeof item.title === "string" && item.title.length > 0 && item.title.length <= 500
-    && typeof item.price === "string" && item.price.length <= 64
-    && Number.isSafeInteger(item.priceMinor) && (item.priceMinor ?? -1) >= 0
-    && Number.isSafeInteger(item.quantity) && (item.quantity ?? 0) > 0
-    && optionalText(item.imageUrl, 600)
-    && (!item.imageUrl || item.imageUrl.startsWith("/api/media/") || item.imageUrl.startsWith("/api/catalog-source-image/"))
-    && optionalText(item.imageAlt, 500)
-    && optionalText(item.sku, 160)
-    && optionalText(item.gtin, 64)
-    && optionalText(item.color, 160)
-    && optionalText(item.size, 240);
+function persistentCartItem(item: CartItem) {
+  return {
+    canonicalVariantId: item.canonicalVariantId,
+    title: item.title,
+    priceMinor: item.priceMinor,
+    price: item.price,
+    quantity: item.quantity
+  };
 }
 
 function localStorageGet(key: string): string | null {
@@ -88,7 +94,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as unknown;
-        if (Array.isArray(parsed)) local = parsed.filter(isStoredCartItem).map((item) => ({ ...item, quantity: Math.min(99, item.quantity) }));
+        if (Array.isArray(parsed)) local = parsed.map(storedCartItem).filter((item): item is CartItem => Boolean(item));
         else localStorageRemove(STORAGE_KEY);
       } catch { localStorageRemove(STORAGE_KEY); }
     }
@@ -135,7 +141,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [hydrated, itemIdsKey]);
 
   useEffect(() => {
-    if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items));
+    if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items.map(persistentCartItem)));
   }, [hydrated, items]);
 
   useEffect(() => {
