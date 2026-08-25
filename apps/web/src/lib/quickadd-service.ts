@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
+import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { flexibleQuickAddSearch } from "./quickadd-flex-search";
 import { attachMissingQuickAddGtin } from "./quickadd-gtin-service";
@@ -90,8 +91,17 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
   const visible = input.visible !== false;
   const adviceAvailable = input.adviceAvailable !== false;
   const vendorPublicId = requiredVendorId(principal);
+  const suppliedGtin = clean(input.gtin);
 
-  return uow().withTransaction(vendorScope(principal), async (tx) => {
+  // Canonical identity tables intentionally have platform-only write RLS. A scanned missing
+  // GTIN therefore uses one narrowly scoped privileged transaction so the identity write and
+  // this authenticated vendor's own offer/stock write stay atomic. vendorPublicId comes only
+  // from the signed session and every mutated row below is re-resolved against that vendor.
+  const transactionScope = suppliedGtin
+    ? platformScope(principal.userId, "sparta")
+    : vendorScope(principal);
+
+  return uow().withTransaction(transactionScope, async (tx) => {
     const refs = await tx.query<SqlRow>(`
       SELECT vb.id::text vendor_uuid,vb.market_id::text market_uuid,
              (SELECT id::text FROM public.vendor_locations WHERE vendor_id=vb.id AND active ORDER BY created_at LIMIT 1) location_uuid,
@@ -108,11 +118,11 @@ export async function saveCanonicalToVendorShop(principal: SessionPrincipal, inp
 
     let effectiveGtin = clean(ref.gtin);
     let gtinAdded = false;
-    if (clean(input.gtin)) {
+    if (suppliedGtin) {
       const attached = await attachMissingQuickAddGtin(tx, {
         canonicalUuid: String(ref.canonical_uuid),
         canonicalPublicId: String(ref.canonical_public_id),
-        gtin: clean(input.gtin),
+        gtin: suppliedGtin,
         source: "vendor_submission"
       });
       effectiveGtin = attached.gtin;
