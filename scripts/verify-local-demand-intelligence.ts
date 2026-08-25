@@ -70,7 +70,7 @@ const dailyRoute = readFileSync("apps/web/src/app/api/daily/quickadd/route.ts", 
 const adminRoute = readFileSync("apps/web/src/app/api/admin/quickadd/route.ts", "utf8");
 const vendorPage = readFileSync("apps/web/src/app/daily/opportunities/page.tsx", "utf8");
 const adminPage = readFileSync("apps/web/src/app/admin/demand/page.tsx", "utf8");
-const menu = readFileSync("apps/web/src/components/DailySandwichMenu.tsx", "utf8");
+const bottomNav = readFileSync("apps/web/src/components/VendorDailyBottomNav.tsx", "utf8");
 if (!service.includes("saved_product_alert_preferences") || !service.includes("counteroffer.requested") || !service.includes("saved_searches") || !service.includes("search.performed") || !service.includes("quickadd.lookup_missed")) throw new Error("Demand service must read all five durable signal families");
 if (!service.includes("quickadd.lookup_resolved") || !service.includes("lookupFingerprint") || !service.includes("quickAddMiss")) throw new Error("Quick Add misses must join to later canonical resolution by opaque fingerprint");
 if (service.includes("source_metadata") || service.includes("ss.query->>'q'") || service.includes("metadata->>'query'") || service.includes("postcode")) throw new Error("Demand aggregation must not select rich Ask Local data, raw search text, or postcode");
@@ -82,7 +82,7 @@ if (!dailyRoute.includes("recordQuickAddDemandSignal") || !adminRoute.includes("
 if (!service.includes("back_in_stock_enabled=true") || !service.includes("alerts_enabled=true")) throw new Error("Demand service must use active customer intent, not dormant rows");
 if (!vendorPage.includes("Δεν εμφανίζουμε ποιος") || !vendorPage.includes("minimumActors") || !vendorPage.includes("Quick Add miss")) throw new Error("Vendor workspace must explain its privacy boundary and Quick Add signal");
 if (!adminPage.includes("Local Demand Intelligence") || !adminPage.includes("Privacy boundary") || !adminPage.includes("Quick Add miss")) throw new Error("Admin demand workspace must expose the five-source intelligence and privacy boundary");
-if (!menu.includes('href="/daily/opportunities"')) throw new Error("Daily navigation must expose Local opportunities");
+if (!vendorPage.includes('href="/daily"') || !bottomNav.includes('href="/daily/quickadd"') || !bottomNav.includes('href="/daily/scan"') || !bottomNav.includes('href="/daily/orders"')) throw new Error("Daily opportunities must retain a route back to Today while the current bottom navigation remains Quick Add / Scan / Orders");
 for (const forbidden of ["customerEmail", "recipientName", "shipping_address", "voiceTranscript", "referenceImageDataUrl"]) {
   if (vendorPage.includes(forbidden)) throw new Error(`Vendor page must not expose private field ${forbidden}`);
 }
