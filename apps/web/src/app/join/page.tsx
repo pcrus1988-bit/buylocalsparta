@@ -40,7 +40,7 @@ export default function JoinPage() {
     <section className="shell page-hero">
       <div className="eyebrow">Merchant onboarding</div>
       <h1>Μπες στην τοπική αγορά χωρίς να χάσεις την ταυτότητά σου.</h1>
-      <p className="lead">Το ΚΟΝΤΑ ΜΟΥ Sparta σχεδιάστηκε ώστε το κατάστημα, οι άνθρωποι και η τεχνογνωσία του να παραμένουν ορατά — ενώ ο πελάτης έχει μία ενιαία και καθαρή εμπειρία αγοράς.</p>
+      <p className="lead">Το ΚΟΝΤΑ ΜΟΥ Σπάρτη σχεδιάστηκε ώστε το κατάστημα, οι άνθρωποι και η τεχνογνωσία του να παραμένουν ορατά — ενώ ο πελάτης έχει μία ενιαία και καθαρή εμπειρία αγοράς.</p>
       <div className="hero-actions"><a className="button" href="#plans">Σύγκρινε προγράμματα</a><a className="button button-secondary" href="/join/apply?plan=annual">Ξεκίνα αίτηση</a><a className="text-link" href="/join/requirements">Readiness check →</a></div>
       <p className="section-note">Διάλεξε πρώτα το πρόγραμμα που ταιριάζει στο κατάστημά σου. Η επιλογή μεταφέρεται στην αίτηση και μπορείς να την αλλάξεις πριν την υποβολή.</p>
     </section>
