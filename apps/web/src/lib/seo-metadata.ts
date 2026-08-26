@@ -2,7 +2,7 @@ import "server-only";
 
 import type { Metadata } from "next";
 import type { SeoGlobalSettings } from "./seo-settings";
-import { getSeoGlobalSettingsSnapshot } from "./seo-settings";
+import { getSeoGlobalSettingsSnapshot, localizeSeoBranding } from "./seo-settings";
 import { getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
 import {
   findSeoEntityOverride,
@@ -21,6 +21,10 @@ export type GovernedSeoMetadataDefaults = Readonly<{
   openGraphImage?: string;
 }>;
 
+function localizeOptionalSeoText(value: string | undefined): string | undefined {
+  return value ? localizeSeoBranding(value) : undefined;
+}
+
 export function buildGovernedSeoMetadata(input: {
   reference: SeoEntityReference;
   settings: SeoGlobalSettings;
@@ -36,11 +40,11 @@ export function buildGovernedSeoMetadata(input: {
     defaultIndexAllowed: input.defaultIndexAllowed,
     override: input.override
   });
-  const title = input.override?.title ?? input.defaults.title;
-  const description = input.override?.description ?? input.defaults.description;
+  const title = localizeOptionalSeoText(input.override?.title ?? input.defaults.title);
+  const description = localizeOptionalSeoText(input.override?.description ?? input.defaults.description);
   const canonical = input.override?.canonicalPath ?? input.defaults.canonicalPath ?? routeForSeoEntity(input.reference);
-  const openGraphTitle = input.override?.openGraphTitle ?? input.defaults.openGraphTitle ?? title;
-  const openGraphDescription = input.override?.openGraphDescription ?? input.defaults.openGraphDescription ?? description;
+  const openGraphTitle = localizeOptionalSeoText(input.override?.openGraphTitle ?? input.defaults.openGraphTitle ?? title);
+  const openGraphDescription = localizeOptionalSeoText(input.override?.openGraphDescription ?? input.defaults.openGraphDescription ?? description);
   const openGraphImage = input.override?.openGraphImage ?? input.defaults.openGraphImage;
   return {
     title,
