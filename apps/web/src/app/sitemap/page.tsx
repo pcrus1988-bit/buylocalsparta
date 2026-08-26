@@ -22,7 +22,7 @@ const PUBLIC_VENDOR_PROFILE_PREFIX = "/vendor/";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/sitemap", {
     title: "Χάρτης ιστοτόπου",
-    description: "Βρες γρήγορα προϊόντα, καταστήματα, υπηρεσίες και βασικές πληροφορίες του ΚΟΝΤΑ ΜΟΥ Sparta. Περιλαμβάνεται και το XML sitemap για Google Search Console."
+    description: "Βρες γρήγορα προϊόντα, καταστήματα, υπηρεσίες και βασικές πληροφορίες του ΚΟΝΤΑ ΜΟΥ Σπάρτη. Περιλαμβάνεται και το XML sitemap για Google Search Console."
   });
 }
 
@@ -128,7 +128,7 @@ export default async function HumanSitemapPage() {
 
   return (
     <main>
-      <div className="announcement">Χάρτης ιστοτόπου · όλο το ΚΟΝΤΑ ΜΟΥ Sparta σε ένα σημείο.</div>
+      <div className="announcement">Χάρτης ιστοτόπου · όλο το ΚΟΝΤΑ ΜΟΥ Σπάρτη σε ένα σημείο.</div>
       <SiteHeader />
 
       <section className="shell route-map-hero">
