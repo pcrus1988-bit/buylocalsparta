@@ -29,7 +29,7 @@ export const SITE_LINKS = {
   privacyNotice: { label: "Πολιτική Απορρήτου", href: "/privacy", description: "Πώς χρησιμοποιούνται, διαβιβάζονται, προστατεύονται και διατηρούνται προσωπικά δεδομένα." },
   cookies: { label: "Πολιτική Cookies", href: "/cookies", description: "Το τρέχον cookie registry, οι κατηγορίες συγκατάθεσης και ο τρόπος ανάκλησης επιλογής." },
   accessibility: { label: "Προσβασιμότητα", href: "/accessibility", description: "Ο στόχος WCAG 2.2 AA, η τρέχουσα κατάσταση και ο τρόπος αναφοράς εμποδίου." },
-  about: { label: "Η ιδέα και η αποστολή", href: "/about", description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ Sparta και ποιο πρόβλημα λύνει." },
+  about: { label: "Η ιδέα και η αποστολή", href: "/about", description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ Σπάρτη και ποιο πρόβλημα λύνει." },
   help: { label: "Κέντρο βοήθειας", href: "/help", description: "Καθοδήγηση για αγορές, αιτήματα και υποστήριξη." },
   join: { label: "Γίνε συνεργάτης", href: "/join", description: "Η πρόταση συνεργασίας για τοπικές επιχειρήσεις." },
   joinRequirements: { label: "Προϋποθέσεις συνεργασίας", href: "/join/requirements", description: "Readiness checklist πριν από την αίτηση εμπόρου." },
@@ -74,7 +74,7 @@ export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
 export const FOOTER_NAVIGATION = [
   { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
-  { title: "ΚΟΝΤΑ ΜΟΥ Sparta", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] },
+  { title: "ΚΟΝΤΑ ΜΟΥ Σπάρτη", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
 ] as const;
 
