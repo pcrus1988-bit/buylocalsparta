@@ -7,7 +7,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/returns-refunds", {
   title: "Επιστροφές & επιστροφές χρημάτων",
-  description: "Η πραγματική διαδρομή ακύρωσης, επιστροφής, ελέγχου και αποκατάστασης μιας παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  description: "Η πραγματική διαδρομή ακύρωσης, επιστροφής, ελέγχου και αποκατάστασης μιας παραγγελίας στο ΚΟΝΤΑ ΜΟΥ Σπάρτη."
   });
 }
 
