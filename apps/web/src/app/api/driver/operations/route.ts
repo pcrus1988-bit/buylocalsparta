@@ -17,8 +17,8 @@ import { requireDeliveryDriverSession } from "../../../../lib/delivery-driver-se
 export async function GET() {
   try {
     const principal = await requireDeliveryDriverSession();
-    const [workspace, driver, meta] = await Promise.all([
-      deliveryDriverDispatchWorkspace(principal),
+    const workspace = await deliveryDriverDispatchWorkspace(principal);
+    const [driver, meta] = await Promise.all([
       getDeliveryDriverPresenceState(principal),
       getDeliveryDriverMobileMeta(principal),
     ]);
