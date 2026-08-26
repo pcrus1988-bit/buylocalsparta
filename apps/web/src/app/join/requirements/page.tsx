@@ -8,7 +8,7 @@ import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/join/requirements", {
   title: "Προϋποθέσεις συνεργάτη",
-  description: "Διαδραστικός έλεγχος επιχειρησιακής ετοιμότητας για καταστήματα που θέλουν να συμμετέχουν στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  description: "Διαδραστικός έλεγχος επιχειρησιακής ετοιμότητας για καταστήματα που θέλουν να συμμετέχουν στο ΚΟΝΤΑ ΜΟΥ Σπάρτη."
   });
 }
 
