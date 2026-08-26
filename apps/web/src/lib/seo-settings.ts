@@ -10,6 +10,13 @@ import { publicOrigin } from "./public-origin";
 export const SEO_GLOBAL_SETTINGS_KEY = "seo.visibility.global.v1";
 export const SEO_SETTINGS_AUDIT_ENTITY = "seo_global_settings";
 
+const LEGACY_SITE_NAME = "ΚΟΝΤΑ ΜΟΥ Sparta";
+export const LOCALIZED_SITE_NAME = "ΚΟΝΤΑ ΜΟΥ Σπάρτη";
+
+export function localizeSeoBranding(value: string): string {
+  return value.replaceAll(LEGACY_SITE_NAME, LOCALIZED_SITE_NAME);
+}
+
 export type SeoSitemapSettings = Readonly<{
   staticPages: boolean;
   categories: boolean;
@@ -67,11 +74,11 @@ function marketCode(): string {
 export function defaultSeoGlobalSettings(): SeoGlobalSettings {
   return {
     canonicalOrigin: publicOrigin(),
-    siteName: "ΚΟΝΤΑ ΜΟΥ Sparta",
-    defaultTitle: "ΚΟΝΤΑ ΜΟΥ Sparta | Η τοπική αγορά της Σπάρτης online",
-    titleTemplate: "%s | ΚΟΝΤΑ ΜΟΥ Sparta",
+    siteName: LOCALIZED_SITE_NAME,
+    defaultTitle: "ΚΟΝΤΑ ΜΟΥ Σπάρτη | Η τοπική αγορά της Σπάρτης online",
+    titleTemplate: "%s | ΚΟΝΤΑ ΜΟΥ Σπάρτη",
     defaultDescription: "Ανακάλυψε προϊόντα από καταστήματα της Σπάρτης, πάρε πραγματική συμβουλή από τοπικούς επαγγελματίες και αγόρασε με μία ενιαία εμπειρία checkout.",
-    defaultOpenGraphTitle: "ΚΟΝΤΑ ΜΟΥ Sparta",
+    defaultOpenGraphTitle: LOCALIZED_SITE_NAME,
     defaultOpenGraphDescription: "ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου",
     defaultOpenGraphImage: "/brand/kontamou-sparta-logo.webp",
     indexingEnabled: true,
@@ -113,17 +120,17 @@ export function normalizeStoredSeoGlobalSettings(value: unknown, fallback = defa
   const input = object(value);
   const sitemap = object(input.sitemap);
   const storedOrigin = savedString(input.canonicalOrigin, fallback.canonicalOrigin, 300);
-  const storedTemplate = savedString(input.titleTemplate, fallback.titleTemplate, 140);
+  const storedTemplate = localizeSeoBranding(savedString(input.titleTemplate, fallback.titleTemplate, 140));
   const storedImage = savedOptionalString(input.defaultOpenGraphImage, 1000);
   const storedVerification = savedOptionalString(input.googleSiteVerification, 255);
   return {
     canonicalOrigin: safely(() => normalizeCanonicalOrigin(storedOrigin), fallback.canonicalOrigin),
-    siteName: savedString(input.siteName, fallback.siteName, 80),
-    defaultTitle: savedString(input.defaultTitle, fallback.defaultTitle, 140),
+    siteName: localizeSeoBranding(savedString(input.siteName, fallback.siteName, 80)),
+    defaultTitle: localizeSeoBranding(savedString(input.defaultTitle, fallback.defaultTitle, 140)),
     titleTemplate: safely(() => normalizeTitleTemplate(storedTemplate), fallback.titleTemplate),
-    defaultDescription: savedString(input.defaultDescription, fallback.defaultDescription, 320),
-    defaultOpenGraphTitle: savedString(input.defaultOpenGraphTitle, fallback.defaultOpenGraphTitle, 140),
-    defaultOpenGraphDescription: savedString(input.defaultOpenGraphDescription, fallback.defaultOpenGraphDescription, 320),
+    defaultDescription: localizeSeoBranding(savedString(input.defaultDescription, fallback.defaultDescription, 320)),
+    defaultOpenGraphTitle: localizeSeoBranding(savedString(input.defaultOpenGraphTitle, fallback.defaultOpenGraphTitle, 140)),
+    defaultOpenGraphDescription: localizeSeoBranding(savedString(input.defaultOpenGraphDescription, fallback.defaultOpenGraphDescription, 320)),
     defaultOpenGraphImage: safely(() => normalizeOptionalPublicImage(storedImage), fallback.defaultOpenGraphImage),
     googleSiteVerification: safely(() => normalizeOptionalVerification(storedVerification), fallback.googleSiteVerification),
     indexingEnabled: savedBoolean(input.indexingEnabled, fallback.indexingEnabled),
@@ -207,12 +214,12 @@ export function validateSeoGlobalSettingsInput(value: unknown): SeoGlobalSetting
   };
   return {
     canonicalOrigin: normalizeCanonicalOrigin(requiredText(input.canonicalOrigin, "Canonical origin", 8, 300)),
-    siteName: requiredText(input.siteName, "Site name", 2, 80),
-    defaultTitle: requiredText(input.defaultTitle, "Default title", 10, 140),
-    titleTemplate: normalizeTitleTemplate(String(input.titleTemplate ?? "")),
-    defaultDescription: requiredText(input.defaultDescription, "Default description", 40, 320),
-    defaultOpenGraphTitle: requiredText(input.defaultOpenGraphTitle, "Default Open Graph title", 2, 140),
-    defaultOpenGraphDescription: requiredText(input.defaultOpenGraphDescription, "Default Open Graph description", 20, 320),
+    siteName: localizeSeoBranding(requiredText(input.siteName, "Site name", 2, 80)),
+    defaultTitle: localizeSeoBranding(requiredText(input.defaultTitle, "Default title", 10, 140)),
+    titleTemplate: normalizeTitleTemplate(localizeSeoBranding(String(input.titleTemplate ?? ""))),
+    defaultDescription: localizeSeoBranding(requiredText(input.defaultDescription, "Default description", 40, 320)),
+    defaultOpenGraphTitle: localizeSeoBranding(requiredText(input.defaultOpenGraphTitle, "Default Open Graph title", 2, 140)),
+    defaultOpenGraphDescription: localizeSeoBranding(requiredText(input.defaultOpenGraphDescription, "Default Open Graph description", 20, 320)),
     defaultOpenGraphImage: normalizeOptionalPublicImage(savedOptionalString(input.defaultOpenGraphImage, 1000)),
     googleSiteVerification: normalizeOptionalVerification(savedOptionalString(input.googleSiteVerification, 255)),
     indexingEnabled: boolean(input.indexingEnabled, "Indexing master switch"),
