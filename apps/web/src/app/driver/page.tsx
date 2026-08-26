@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import { DeliveryDriverWorkspaceClient } from "../../components/DeliveryDriverWorkspaceClient";
 import { deliveryDriverDispatchWorkspace } from "../../lib/delivery-dispatch-runtime";
@@ -9,15 +9,21 @@ import { getDeliveryDriverSession } from "../../lib/delivery-driver-session";
 export const metadata: Metadata = {
   title: "Driver · KONTA MOY",
   robots: { index: false, follow: false, nocache: true },
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+};
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 export const dynamic = "force-dynamic";
 
 export default async function DriverPage() {
   const principal = await getDeliveryDriverSession();
   if (!principal) redirect("/driver/login");
-  const [workspace, driver, meta] = await Promise.all([
-    deliveryDriverDispatchWorkspace(principal),
+  const workspace = await deliveryDriverDispatchWorkspace(principal);
+  const [driver, meta] = await Promise.all([
     getDeliveryDriverPresenceState(principal),
     getDeliveryDriverMobileMeta(principal),
   ]);
