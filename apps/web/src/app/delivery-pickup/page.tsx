@@ -6,7 +6,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/delivery-pickup", {
   title: "Παράδοση & παραλαβή",
-  description: "Πώς λειτουργούν η τοπική παραλαβή, η αποστολή και η παρακολούθηση παραγγελιών στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  description: "Πώς λειτουργούν η τοπική παραλαβή, η αποστολή και η παρακολούθηση παραγγελιών στο ΚΟΝΤΑ ΜΟΥ Σπάρτη."
   });
 }
 
