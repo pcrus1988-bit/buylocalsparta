@@ -8,9 +8,9 @@ import {
 } from "../../../../lib/delivery-dispatch-runtime";
 import {
   getDeliveryDriverPresenceState,
-  setDeliveryDriverAvailability,
   type DeliveryDriverAvailability,
 } from "../../../../lib/delivery-driver-presence";
+import { setDeliveryDriverAvailabilityWithTimekeeping } from "../../../../lib/delivery-operations-reporting";
 import { requireDeliveryDriverSession } from "../../../../lib/delivery-driver-session";
 
 export async function GET() {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       if (!(["available", "paused", "off_shift"] as const).includes(availability)) {
         return Response.json({ error: "invalid_driver_availability" }, { status: 400 });
       }
-      const driver = await setDeliveryDriverAvailability(principal, availability);
+      const driver = await setDeliveryDriverAvailabilityWithTimekeeping(principal, availability);
       if (availability === "available") await runAdaptiveDeliveryDispatcher(Date.now(), 4);
       return Response.json({ ok: true, driver });
     }
