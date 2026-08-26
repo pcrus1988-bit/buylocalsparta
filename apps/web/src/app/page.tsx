@@ -54,7 +54,7 @@ export default async function Home() {
               <a className="button" href="/shop">Όλα τα προϊόντα</a>
               <a className="button button-secondary" href="/shops?status=partner">Ενεργά καταστήματα</a>
             </div>
-            <div className={styles.heroProof} aria-label="ΚΟΝΤΑ ΜΟΥ Sparta benefits">
+            <div className={styles.heroProof} aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη benefits">
               <span><strong>10</strong> επιλογές που ανανεώνονται</span>
               <span><strong>Fair</strong> ανάθεση καταστήματος</span>
               <span><strong>1</strong> ενιαίο checkout</span>
