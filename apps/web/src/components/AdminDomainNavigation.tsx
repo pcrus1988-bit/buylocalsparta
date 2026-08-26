@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { WorkspaceNavGroup, WorkspaceNavLink } from "../lib/workspace-navigation";
@@ -25,16 +26,20 @@ export function AdminDomainNavigation({ id, groups, onNavigate }: Readonly<{ id:
   const pathname = usePathname();
   const current = activeContext(pathname, groups);
   return <nav id={id} className="admin-domain-nav" aria-label="Admin domains">
-    {groups.map((group) => {
+    {groups.map((group, index) => {
       const href = group.href ?? group.links.find((link) => !link.contextHidden)?.href ?? group.links[0]?.href ?? "/admin";
       const active = current?.group.label === group.label;
       const badgeLabel = group.badge && group.badge > 99 ? "99+" : group.badge;
-      return <Link href={href} key={group.label} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} onClick={onNavigate}>
-        <span className="admin-domain-icon" aria-hidden="true"><AdminNavIcon name={group.icon ?? "overview"} /></span>
-        <span className="admin-domain-label">{group.label}</span>
-        <span className={`admin-domain-badge${group.badge ? "" : " is-empty"}`} aria-label={group.badge ? `${group.badge} items need attention` : undefined} aria-hidden={group.badge ? undefined : true}>{badgeLabel ?? ""}</span>
-        <i aria-hidden="true">›</i>
-      </Link>;
+      const showSection = Boolean(group.section && group.section !== groups[index - 1]?.section);
+      return <Fragment key={group.label}>
+        {showSection ? <span className="admin-nav-section-label">{group.section}</span> : null}
+        <Link href={href} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} onClick={onNavigate} title={group.description}>
+          <span className="admin-domain-icon" aria-hidden="true"><AdminNavIcon name={group.icon ?? "overview"} /></span>
+          <span className="admin-domain-copy"><strong>{group.label}</strong>{group.description ? <small>{group.description}</small> : null}</span>
+          <span className={`admin-domain-badge${group.badge ? "" : " is-empty"}`} aria-label={group.badge ? `${group.badge} items need attention` : undefined} aria-hidden={group.badge ? undefined : true}>{badgeLabel ?? ""}</span>
+          <i aria-hidden="true">›</i>
+        </Link>
+      </Fragment>;
     })}
   </nav>;
 }
@@ -44,11 +49,16 @@ export function AdminContextNavigation({ groups }: Readonly<{ groups: ReadonlyAr
   const group = activeContext(pathname, groups)?.group;
   if (!group) return null;
   const links = group.links.filter((link) => !link.contextHidden);
-  if (links.length <= 1) return null;
   const current = activeLink(pathname, links);
-  return <nav className="admin-context-nav" aria-label={`${group.label} sections`}>
-    {links.map((link) => <Link href={link.href} key={link.href} className={current?.href === link.href ? "is-active" : undefined} aria-current={current?.href === link.href ? "page" : undefined}>{link.label}</Link>)}
-  </nav>;
+  return <div className="admin-context-shell">
+    <div className="admin-context-heading">
+      <span className="admin-context-icon" aria-hidden="true"><AdminNavIcon name={group.icon ?? "overview"} /></span>
+      <span><small>Workspace</small><strong>{group.label}</strong></span>
+    </div>
+    {links.length > 1 ? <nav className="admin-context-nav" aria-label={`${group.label} sections`}>
+      {links.map((link) => <Link href={link.href} key={link.href} className={current?.href === link.href ? "is-active" : undefined} aria-current={current?.href === link.href ? "page" : undefined}>{link.label}</Link>)}
+    </nav> : <span className="admin-context-description">{group.description}</span>}
+  </div>;
 }
 
 export function AdminBreadcrumbs({ groups, entityLabel }: Readonly<{ groups: ReadonlyArray<WorkspaceNavGroup>; entityLabel?: string }>) {

@@ -14,6 +14,8 @@ export type WorkspaceNavGroup = Readonly<{
   href?: string;
   icon?: string;
   badge?: number;
+  section?: string;
+  description?: string;
 }>;
 
 export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
@@ -80,16 +82,19 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
 ];
 
 /**
- * Admin navigation is organised by operator mental model rather than implementation module.
- * The sidebar renders one entry per group; the active group's links become contextual tabs.
- * Existing routes remain registered here so RBAC and deep links continue to work unchanged.
- * Admin group icons are semantic tokens rendered as inline SVG by AdminDomainNavigation.
+ * Admin navigation follows the operator's mental model rather than the code/module layout.
+ * Existing URLs remain stable contracts: moving a link between visible domains does not rename
+ * the route, permission, API, workflow state, database value or audit/event identifier.
+ * Nested routes stay registered for RBAC/deep-link access even when contextHidden keeps the
+ * section bar focused on the most useful operator destinations.
  */
 export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
     label: "Επισκόπηση",
     href: "/admin",
     icon: "overview",
+    section: "Κέντρο ελέγχου",
+    description: "Σήμερα, εκκρεμότητες και γρήγορες ενέργειες",
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
       { label: "Αναζήτηση", href: "/admin/search", icon: "⌕", contextHidden: true }
@@ -99,10 +104,23 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Λειτουργίες",
     href: "/admin/work",
     icon: "operations",
+    section: "Καθημερινή λειτουργία",
+    description: "Παραγγελίες, διανομή και SLA",
     links: [
       { label: "Κέντρο λειτουργιών", href: "/admin/work", icon: "◈", permission: "fulfilment.read" },
       { label: "Παραγγελίες", href: "/admin/orders", icon: "□", permission: "fulfilment.read" },
-      { label: "SLA & Escalations", href: "/admin/notifications", icon: "!", permission: "fulfilment.read" },
+      { label: "Delivery Control", href: "/admin/delivery", icon: "⌁", permission: "fulfilment.write" },
+      { label: "SLA & Escalations", href: "/admin/notifications", icon: "!", permission: "fulfilment.read" }
+    ]
+  },
+  {
+    label: "Πελάτες",
+    href: "/admin/customers",
+    icon: "customers",
+    section: "Καθημερινή λειτουργία",
+    description: "Πελάτες, Ask Local και υποστήριξη",
+    links: [
+      { label: "Κατάλογος πελατών", href: "/admin/customers", icon: "◉", permission: "customer.read" },
       { label: "Ask Local", href: "/admin/ask-local", icon: "◎", permission: "customer.read" },
       { label: "Υποστήριξη", href: "/admin/customers/support", icon: "?", permission: "customer.read" }
     ]
@@ -111,12 +129,14 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Συνεργάτες",
     href: "/admin/partners",
     icon: "partners",
+    section: "Εμπορική διαχείριση",
+    description: "Vendors, pipeline, onboarding και συμφωνίες",
     links: [
       { label: "Επισκόπηση συνεργατών", href: "/admin/partners", icon: "◎", permission: "vendor.manage" },
-      { label: "Κατάλογος συνεργατών", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
+      { label: "Συνεργάτες", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
       { label: "Pipeline", href: "/admin/partners/pipeline", icon: "◌", permission: "vendor.manage" },
       { label: "Applications", href: "/admin/applications", icon: "▤", permission: "vendor.manage" },
-      { label: "Συμφωνίες", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
+      { label: "Εμπορικές συμφωνίες", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
       { label: "SLA συμφωνιών", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
       { label: "Research leads", href: "/admin/research-vendors", icon: "⌕", permission: "vendor.manage", contextHidden: true },
       { label: "Onboarding prospects", href: "/admin/prospects", icon: "◌", permission: "vendor.manage", contextHidden: true }
@@ -126,27 +146,37 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Κατάλογος",
     href: "/admin/matching",
     icon: "catalog",
+    section: "Εμπορική διαχείριση",
+    description: "Προϊόντα, intake, matching και taxonomy",
     links: [
       { label: "Quick Add", href: "/admin/quickadd", icon: "+", permission: "catalog.write" },
-      { label: "Supplier PIM Intake", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
-      { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
+      { label: "Catalogue Intake", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
+      { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write", contextHidden: true },
       { label: "Catalogue Crawler", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
       { label: "Product Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
       { label: "Κατηγορίες & policies", href: "/admin/categories", icon: "▦", permission: "catalog.read" }
     ]
   },
   {
-    label: "Πελάτες",
-    href: "/admin/customers",
-    icon: "customers",
-    links: [{ label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" }]
+    label: "Οικονομικά",
+    href: "/admin/finance",
+    icon: "finance",
+    section: "Εμπορική διαχείριση",
+    description: "Settlements, vendor billing και myDATA",
+    links: [
+      { label: "Οικονομική επισκόπηση", href: "/admin/finance", icon: "€", permission: "finance.read" },
+      { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
+      { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" }
+    ]
   },
   {
-    label: "Εμπιστοσύνη & Ασφάλεια",
+    label: "Εμπιστοσύνη",
     href: "/admin/trust",
     icon: "trust",
+    section: "Διακυβέρνηση & ανάπτυξη",
+    description: "Trust, safety, privacy και fairness",
     links: [
-      { label: "Review queue", href: "/admin/trust", icon: "✓", permission: "catalog.read" },
+      { label: "Trust review", href: "/admin/trust", icon: "✓", permission: "catalog.read" },
       { label: "Αξιολογήσεις", href: "/admin/reviews", icon: "☆", permission: "reviews.read" },
       { label: "Product Safety", href: "/admin/recalls", icon: "!", permission: "returns.read" },
       { label: "Privacy", href: "/admin/privacy", icon: "◐", permission: "privacy.read" },
@@ -155,37 +185,31 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   {
-    label: "Οικονομικά & Φορολογία",
-    href: "/admin/finance",
-    icon: "finance",
-    links: [
-      { label: "Settlements", href: "/admin/finance", icon: "€", permission: "finance.read" },
-      { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
-      { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" }
-    ]
-  },
-  {
-    label: "Περιεχόμενο",
+    label: "Περιεχόμενο & SEO",
     href: "/admin/content",
     icon: "content",
+    section: "Διακυβέρνηση & ανάπτυξη",
+    description: "CMS, homepage, email και οργανική ορατότητα",
     links: [
-      { label: "Pages & SEO", href: "/admin/content", icon: "✎", permission: "content.read" },
-      { label: "SEO overview", href: "/admin/seo", icon: "⌕", permission: "content.read" },
-      { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
-      { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
-      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read" },
-      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read" },
-      { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
-      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" },
-      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" },
+      { label: "Content Operations", href: "/admin/content", icon: "✎", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
-      { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" }
+      { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" },
+      { label: "SEO & Visibility", href: "/admin/seo", icon: "⌕", permission: "content.read" },
+      { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read", contextHidden: true },
+      { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read", contextHidden: true },
+      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read", contextHidden: true },
+      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read", contextHidden: true },
+      { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read", contextHidden: true },
+      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read", contextHidden: true },
+      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read", contextHidden: true }
     ]
   },
   {
     label: "Αναλύσεις",
     href: "/admin/analytics",
     icon: "analytics",
+    section: "Διακυβέρνηση & ανάπτυξη",
+    description: "Marketplace intelligence, demand και reports",
     links: [
       { label: "Analytics", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
       { label: "Demand Intelligence", href: "/admin/demand", icon: "◎", permission: "analytics.market.read" },
@@ -196,10 +220,12 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Πλατφόρμα",
     href: "/admin/platform",
     icon: "platform",
+    section: "Σύστημα",
+    description: "Health, integrations, jobs και launch readiness",
     links: [
       { label: "Platform overview", href: "/admin/platform", icon: "⚙", permission: "admin.audit.read" },
-      { label: "System Health", href: "/admin/operations", icon: "◉", permission: "admin.audit.read" },
-      { label: "Integrations · BOX NOW", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write" },
+      { label: "System Health & Audit", href: "/admin/operations", icon: "◉", permission: "admin.audit.read" },
+      { label: "BOX NOW Integration", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write" },
       { label: "Jobs", href: "/admin/maintenance", icon: "⋯", permission: "admin.audit.read" },
       { label: "Launch Readiness", href: "/admin/activation", icon: "◈", permission: "admin.audit.read" }
     ]
