@@ -6,7 +6,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/fairness", {
   title: "Δίκαιη ανάθεση καταστημάτων",
-  description: "Πώς το ΚΟΝΤΑ ΜΟΥ Sparta εμφανίζει ένα προϊόν μία φορά και αναθέτει δίκαια την εκπλήρωση σε επιλέξιμο τοπικό κατάστημα."
+  description: "Πώς το ΚΟΝΤΑ ΜΟΥ Σπάρτη εμφανίζει ένα προϊόν μία φορά και αναθέτει δίκαια την εκπλήρωση σε επιλέξιμο τοπικό κατάστημα."
   });
 }
 
