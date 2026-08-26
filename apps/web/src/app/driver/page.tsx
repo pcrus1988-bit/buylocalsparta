@@ -1,28 +1,29 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { DeliveryDriverWorkspaceClient } from "../../components/DeliveryDriverWorkspaceClient";
-import styles from "../../components/DeliveryOperations.module.css";
 import { deliveryDriverDispatchWorkspace } from "../../lib/delivery-dispatch-runtime";
+import { getDeliveryDriverMobileMeta } from "../../lib/delivery-driver-mobile-runtime";
 import { getDeliveryDriverPresenceState } from "../../lib/delivery-driver-presence";
 import { getDeliveryDriverSession } from "../../lib/delivery-driver-session";
 
-export const metadata: Metadata = { title: "Driver · KONTA MOY", robots: { index: false, follow: false, nocache: true } };
+export const metadata: Metadata = {
+  title: "Driver · KONTA MOY",
+  robots: { index: false, follow: false, nocache: true },
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+};
 export const dynamic = "force-dynamic";
 
 export default async function DriverPage() {
   const principal = await getDeliveryDriverSession();
   if (!principal) redirect("/driver/login");
-  const [workspace, driver] = await Promise.all([
+  const [workspace, driver, meta] = await Promise.all([
     deliveryDriverDispatchWorkspace(principal),
     getDeliveryDriverPresenceState(principal),
+    getDeliveryDriverMobileMeta(principal),
   ]);
-  return <main className={styles.page}>
-    <section className={`${styles.shell} ${styles.hero}`}>
-      <div className={styles.eyebrow}>KONTA MOY · Delivery Driver</div>
-      <h1>Γεια σου, {principal.displayName}</h1>
-      <p className={styles.lead}>{principal.partnerName} · αυτόματες αναθέσεις, παραλαβές, παραδόσεις, επιστροφές και live tracking.</p>
-      <form method="post" action="/api/driver/logout"><button className={styles.buttonSecondary} type="submit">Αποσύνδεση</button></form>
-    </section>
-    <section className={styles.shell}><DeliveryDriverWorkspaceClient initial={{ ...workspace, driver }}/></section>
-  </main>;
+  return <DeliveryDriverWorkspaceClient
+    initial={{ ...workspace, driver, meta }}
+    driverName={principal.displayName}
+    partnerName={principal.partnerName}
+  />;
 }
