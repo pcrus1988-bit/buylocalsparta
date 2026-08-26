@@ -9,32 +9,33 @@
     "prebuild": "node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs && node --experimental-strip-types ../../scripts/verify-production-schema-head.ts --vercel-production-only"
   },
   "dependencies": {
+    "@buy-local-sparta/aade-mydata": "0.45.0",
+    "@buy-local-sparta/boxnow-shipping": "0.45.0",
     "@buy-local-sparta/core": "0.24.0",
+    "@buy-local-sparta/media-processing": "0.45.0",
+    "@buy-local-sparta/meilisearch-search": "0.45.0",
+    "@buy-local-sparta/object-storage": "0.45.0",
+    "@buy-local-sparta/postgres-runtime": "0.45.0",
+    "@buy-local-sparta/resend-notifications": "0.45.0",
+    "@buy-local-sparta/viva-payments": "0.45.0",
+    "@vercel/analytics": "2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "@zxing/browser": "0.2.1",
+    "@zxing/library": "0.23.0",
     "next": "16.3.1",
+    "pdfmake": "0.2.20",
+    "pg": "8.22.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-qr-code": "2.0.18",
-    "@zxing/browser": "0.2.1",
-    "@zxing/library": "0.23.0",
-    "@buy-local-sparta/postgres-runtime": "0.45.0",
-    "pg": "8.22.0",
-    "@buy-local-sparta/viva-payments": "0.45.0",
-    "@buy-local-sparta/object-storage": "0.45.0",
-    "@buy-local-sparta/media-processing": "0.45.0",
-    "@buy-local-sparta/aade-mydata": "0.45.0",
-    "@buy-local-sparta/meilisearch-search": "0.45.0",
-    "@buy-local-sparta/resend-notifications": "0.45.0",
-    "@buy-local-sparta/boxnow-shipping": "0.45.0",
-    "@vercel/analytics": "2.0.1",
-    "pdfmake": "0.2.20",
     "web-push": "3.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.18.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.9.0",
-    "@types/pg": "^8.18.0"
+    "typescript": "^5.9.0"
   },
   "type": "module"
 }

@@ -55,6 +55,7 @@ import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <PrivacyConsentProvider><CartProvider>{children}</CartProvider></PrivacyConsentProvider>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
+      <SpeedInsights />
     </body>
   </html>;
 }
