@@ -13,11 +13,11 @@ export function SiteFooter() {
     <footer className="footer site-footer" aria-label="Υποσέλιδο">
       <div className="shell site-footer-main">
         <div className="site-footer-intro">
-          <section className="site-footer-brand-block" aria-label="ΚΟΝΤΑ ΜΟΥ Sparta">
-            <Link className="brand footer-brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Sparta · αρχική">
+          <section className="site-footer-brand-block" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη">
+            <Link className="brand footer-brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη · αρχική">
               <img
                 src="/brand/kontamou-sparta-logo.webp"
-                alt="ΚΟΝΤΑ ΜΟΥ Sparta"
+                alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη"
                 width={108}
                 height={72}
                 style={{ display: "block", width: "108px", height: "72px", objectFit: "contain" }}
@@ -88,7 +88,7 @@ export function SiteFooter() {
       </div>
 
       <div className="shell site-footer-bottom">
-        <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Sparta · {BUSINESS_NAME}</span>
+        <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Σπάρτη · {BUSINESS_NAME}</span>
         <nav className="site-footer-legal-links" aria-label={LEGAL_FOOTER_NAVIGATION.title}>
           {LEGAL_FOOTER_NAVIGATION.links.map((link) => <Link href={link.href} key={link.href}>{link.label}</Link>)}
           <CookieSettingsButton className="site-footer-cookie-button" />
