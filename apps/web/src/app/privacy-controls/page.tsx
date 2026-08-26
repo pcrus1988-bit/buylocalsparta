@@ -9,7 +9,7 @@ import { DATA_ACCESS_EXAMPLES } from "../../lib/legal-transparency";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/privacy-controls", {
   title: "Έλεγχοι ιδιωτικότητας λογαριασμού",
-  description: "Ρυθμίσεις προσωποποίησης, cookies, δικαιώματα δεδομένων και σαφής εικόνα για το ποιος βλέπει τι στο ΚΟΝΤΑ ΜΟΥ Sparta."
+  description: "Ρυθμίσεις προσωποποίησης, cookies, δικαιώματα δεδομένων και σαφής εικόνα για το ποιος βλέπει τι στο ΚΟΝΤΑ ΜΟΥ Σπάρτη."
   });
 }
 
