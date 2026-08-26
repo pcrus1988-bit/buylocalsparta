@@ -65,6 +65,10 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: settings.defaultTitle, template: settings.titleTemplate },
     description: settings.defaultDescription,
     keywords: ["Σπάρτη", "τοπικά καταστήματα", "ΚΟΝΤΑ ΜΟΥ", "marketplace", "Λακωνία", "online αγορές"],
+    icons: {
+      icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+      shortcut: "/favicon.svg"
+    },
     openGraph: {
       title: settings.defaultOpenGraphTitle,
       description: settings.defaultOpenGraphDescription,
@@ -79,8 +83,24 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const websiteStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: settings.siteName,
+    alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU"],
+    url: settings.canonicalOrigin,
+    inLanguage: "el-GR"
+  };
+
   return <html lang="el" className={comfortaa.variable}>
+    <head>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteStructuredData) }}
+      />
+    </head>
     <body>
       <PrivacyConsentProvider><CartProvider>{children}</CartProvider></PrivacyConsentProvider>
       <AccessibilityPreferences />
