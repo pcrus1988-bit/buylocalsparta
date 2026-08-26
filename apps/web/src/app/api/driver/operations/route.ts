@@ -11,16 +11,18 @@ import {
   setDeliveryDriverAvailability,
   type DeliveryDriverAvailability,
 } from "../../../../lib/delivery-driver-presence";
+import { clockInDeliveryDriverForToday, getDeliveryDriverMobileMeta } from "../../../../lib/delivery-driver-mobile-runtime";
 import { requireDeliveryDriverSession } from "../../../../lib/delivery-driver-session";
 
 export async function GET() {
   try {
     const principal = await requireDeliveryDriverSession();
-    const [workspace, driver] = await Promise.all([
+    const [workspace, driver, meta] = await Promise.all([
       deliveryDriverDispatchWorkspace(principal),
       getDeliveryDriverPresenceState(principal),
+      getDeliveryDriverMobileMeta(principal),
     ]);
-    return Response.json({ ...workspace, driver }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ...workspace, driver, meta }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "driver_auth_required" }, { status: 401 });
   }
@@ -38,6 +40,12 @@ export async function POST(request: Request) {
       const result = await declineDeliveryAssignmentOffer(principal, String(body.jobId ?? ""), String(body.reason ?? ""));
       await runAdaptiveDeliveryDispatcher(Date.now(), 4);
       return Response.json(result);
+    }
+    if (action === "clock_in") {
+      const meta = await clockInDeliveryDriverForToday(principal);
+      const driver = await getDeliveryDriverPresenceState(principal);
+      await runAdaptiveDeliveryDispatcher(Date.now(), 4);
+      return Response.json({ ok: true, driver, meta });
     }
     if (action === "availability") {
       const availability = String(body.availability ?? "") as DeliveryDriverAvailability;
