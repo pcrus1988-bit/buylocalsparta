@@ -1,5 +1,5 @@
-export const PRIVACY_CONSENT_VERSION = "2026-08-21";
-export const PRIVACY_POLICY_VERSION = "2026-08-21";
+export const PRIVACY_CONSENT_VERSION = "2026-08-28";
+export const PRIVACY_POLICY_VERSION = "2026-08-28";
 export const PRIVACY_CONSENT_COOKIE = "bls_consent_v1";
 export const PRIVACY_CONSENT_RECEIPT_COOKIE = "bls_consent_receipt";
 export const ANALYTICS_ID_COOKIE = "bls_analytics";
