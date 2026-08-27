@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NON_INDEXABLE_PAGE_ROUTES, PRIMARY_NAVIGATION } from "../lib/site-navigation";
+import { isCustomerMobileCommercePath } from "../lib/customer-mobile-commerce";
 import { useCart } from "./CartProvider";
 
 const PRIVATE_VENDOR_ROUTES = new Set(NON_INDEXABLE_PAGE_ROUTES.filter((route) => route.startsWith("/vendor/")) as ReadonlyArray<string>);
@@ -59,6 +60,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { count } = useCart();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const relocateMobileCommerceActions = isCustomerMobileCommercePath(pathname);
 
   return (
     <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
@@ -101,7 +103,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
         })}
       </nav>
 
-      <div className="header-actions">
+      <div className={`header-actions${relocateMobileCommerceActions ? " customer-mobile-relocatable-actions" : ""}`}>
         <Link
           className={`cart-button account-button${pathname.startsWith("/account") ? " is-active" : ""}`}
           href="/account"
