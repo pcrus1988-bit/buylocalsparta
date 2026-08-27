@@ -21,9 +21,9 @@
     bottom: calc(10px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: stretch;
-    width: min(calc(100% - 20px), 520px);
+    width: min(calc(100% - 20px), 560px);
     min-height: 68px;
     padding: 6px;
     border: 1px solid rgba(24, 48, 39, .16);
@@ -36,7 +36,7 @@
   }
 
   .customer-mobile-commerce-nav.has-product-action {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .customer-mobile-commerce-nav.is-search-open {
@@ -81,6 +81,11 @@
   .customer-mobile-commerce-item.is-active {
     color: var(--ink);
     background: rgba(24, 48, 39, .07);
+  }
+
+  .customer-mobile-commerce-ask-local svg {
+    width: 22px;
+    height: 22px;
   }
 
   .customer-mobile-commerce-item:focus-visible,
@@ -256,7 +261,8 @@
   }
 
   .customer-mobile-commerce-item {
-    font-size: 8.8px;
+    padding-inline: 1px;
+    font-size: 8.2px;
   }
 
   .customer-mobile-commerce-search-submit {
