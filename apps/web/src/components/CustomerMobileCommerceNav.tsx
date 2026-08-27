@@ -48,7 +48,7 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmation, setConfirmation] = useState<string>();
-  const confirmationTimer = useRef<number>();
+  const confirmationTimer = useRef<number | undefined>(undefined);
   const productPage = pathname.startsWith("/product/");
   const showProductAction = productPage && Boolean(product);
 
@@ -75,7 +75,7 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
 
   return (
     <>
-      {confirmation ? <div className="customer-mobile-commerce-confirmation" role="status" aria-live="polite">{confirmation}</div> : null}
+      {confirmation ? <div className={`customer-mobile-commerce-confirmation${searchOpen ? " is-search-open" : ""}`} role="status" aria-live="polite">{confirmation}</div> : null}
       <nav className={`customer-mobile-commerce-nav${showProductAction ? " has-product-action" : ""}${searchOpen ? " is-search-open" : ""}`} aria-label="Γρήγορες αγορές">
         {searchOpen ? (
           <form className="customer-mobile-commerce-search-panel" role="search" onSubmit={runSearch}>
