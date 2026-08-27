@@ -1,6 +1,6 @@
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 
-export const LEGAL_LAST_UPDATED = "21 Αυγούστου 2026";
+export const LEGAL_LAST_UPDATED = "28 Αυγούστου 2026";
 export const CONTROLLER = KONTA_MOY_EMAIL_COMPANY;
 
 export type CookieCategory = "necessary" | "personalisation" | "analytics" | "marketing";
@@ -56,10 +56,28 @@ export const COOKIE_REGISTRY: readonly CookieRegistryEntry[] = [
   {
     name: "bls_analytics",
     category: "analytics",
-    purpose: "Ξεχωριστό ψευδωνυμικό αναγνωριστικό για μέτρηση page views, engagement και product performance. Δεν χρησιμοποιείται ως essential marketplace identity.",
+    purpose: "Ξεχωριστό ψευδωνυμικό first-party αναγνωριστικό για μέτρηση page views, engagement και product performance. Δεν χρησιμοποιείται ως essential marketplace identity.",
     duration: "Έως 180 ημέρες, διαγράφεται αμέσως όταν ανακληθεί Analytics consent",
     whenSet: "Μόνο μετά από ρητή αποδοχή Analytics και έγκυρη υπογεγραμμένη consent receipt",
     httpOnly: true,
+    consentRequired: true
+  },
+  {
+    name: "_ga",
+    category: "analytics",
+    purpose: "Google Analytics 4 first-party cookie για διάκριση ψευδωνυμικών επισκέψεων και βασική μέτρηση χρήσης του δημόσιου marketplace.",
+    duration: "Έως 2 έτη σύμφωνα με τη ρύθμιση του Google Analytics",
+    whenSet: "Μόνο αφού ο επισκέπτης αποδεχθεί Analytics",
+    httpOnly: false,
+    consentRequired: true
+  },
+  {
+    name: "_ga_<container-id>",
+    category: "analytics",
+    purpose: "Google Analytics 4 first-party cookie που διατηρεί την κατάσταση της συγκεκριμένης GA4 ιδιοκτησίας/ροής μέτρησης.",
+    duration: "Έως 2 έτη σύμφωνα με τη ρύθμιση του Google Analytics",
+    whenSet: "Μόνο αφού ο επισκέπτης αποδεχθεί Analytics",
+    httpOnly: false,
     consentRequired: true
   },
   {
@@ -109,6 +127,24 @@ export const TRACKER_REGISTRY: readonly TrackerRegistryEntry[] = [
     purpose: "Μέτρηση page views, engagement και add-to-cart/product performance.",
     data: "Ψευδωνυμικό analytics hash, product/offer references, surface και περιορισμένο engagement metadata. Όχι όνομα, email, τηλέφωνο, διεύθυνση ή στοιχεία πληρωμής.",
     activation: "Μόνο όταν το browser preference επιτρέπει Analytics και ο server επαληθεύσει έγκυρη HttpOnly υπογεγραμμένη consent receipt."
+  },
+  {
+    name: "Vercel Analytics",
+    provider: "Vercel",
+    category: "analytics",
+    technology: "Vercel Web Analytics",
+    purpose: "Συγκεντρωτική μέτρηση επισκεψιμότητας και απόδοσης του web application.",
+    data: "Τεχνικά και συγκεντρωτικά δεδομένα επίσκεψης/σελίδας όπως παρέχονται από το Vercel Analytics. Δεν χρησιμοποιείται από το ΚΟΝΤΑ ΜΟΥ για advertising profile.",
+    activation: "Μόνο μετά από αποδοχή Analytics στο consent layer."
+  },
+  {
+    name: "Google Analytics 4",
+    provider: "Google LLC",
+    category: "analytics",
+    technology: "Google tag (gtag.js) · Measurement ID G-NC8QWH2WTD",
+    purpose: "Μέτρηση page views, πλοήγησης, engagement και απόδοσης του δημόσιου marketplace.",
+    data: "Ψευδωνυμικά online identifiers και τεχνικά δεδομένα επίσκεψης/συσκευής που απαιτούνται για GA4 reporting. Δεν αποστέλλουμε στοιχεία πληρωμής και έχουμε απενεργοποιήσει Google signals και ad-personalisation signals στον tag configuration.",
+    activation: "Δεν φορτώνεται πριν από αποδοχή Analytics. Δεν καταγράφει τα operational workspaces /admin, /vendor, /driver, /delivery/manage και /daily."
   }
 ] as const;
 
@@ -127,6 +163,11 @@ export const DATA_RECIPIENTS = [
     name: "Resend",
     purpose: "Αποστολή και, όπου χρησιμοποιείται, λήψη transactional email",
     data: "Διεύθυνση email και περιεχόμενο/μεταδεδομένα της σχετικής επικοινωνίας"
+  },
+  {
+    name: "Google Analytics",
+    purpose: "Μέτρηση επισκεψιμότητας, πλοήγησης και engagement μετά από προαιρετική συγκατάθεση Analytics",
+    data: "Ψευδωνυμικά online identifiers και τεχνικά δεδομένα χρήσης/συσκευής που απαιτούνται για GA4 reporting· όχι στοιχεία πληρωμής"
   },
   {
     name: "AADE / myDATA",
