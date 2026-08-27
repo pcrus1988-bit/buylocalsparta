@@ -22,12 +22,20 @@ function analyticsWindow(): GoogleAnalyticsWindow {
   return window as GoogleAnalyticsWindow;
 }
 
+function expireCookie(name: string, domain?: string): void {
+  const domainPart = domain ? `; Domain=${domain}` : "";
+  document.cookie = `${name}=; Max-Age=0; Path=/${domainPart}; SameSite=Lax`;
+}
+
 function expireGoogleAnalyticsCookies(): void {
+  const hostname = window.location.hostname;
   for (const part of document.cookie.split(";")) {
     const separator = part.indexOf("=");
     const name = (separator >= 0 ? part.slice(0, separator) : part).trim();
     if (name !== "_ga" && !name.startsWith("_ga_")) continue;
-    document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax`;
+    expireCookie(name);
+    expireCookie(name, hostname);
+    if (hostname === "kontamou.site" || hostname.endsWith(".kontamou.site")) expireCookie(name, ".kontamou.site");
   }
 }
 
