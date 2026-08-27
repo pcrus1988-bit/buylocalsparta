@@ -29,6 +29,10 @@ function AccountIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></svg>;
 }
 
+function AskLocalIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4.5 3v-3H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" /><path d="m12 8 .65 1.35L14 10l-1.35.65L12 12l-.65-1.35L10 10l1.35-.65L12 8Z" /></svg>;
+}
+
 function AddIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>;
 }
@@ -108,6 +112,10 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
         <Link className={`customer-mobile-commerce-item${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός">
           <AccountIcon />
           <span>Λογαριασμός</span>
+        </Link>
+        <Link className={`customer-mobile-commerce-item customer-mobile-commerce-ask-local${pathname.startsWith("/ask-local") ? " is-active" : ""}`} href="/ask-local" aria-label="Ask Local — ζήτησε βοήθεια για να βρεις προϊόν">
+          <AskLocalIcon />
+          <span>Ask Local</span>
         </Link>
         {showProductAction ? (
           <button
