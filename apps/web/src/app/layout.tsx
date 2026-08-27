@@ -50,7 +50,9 @@ import "./privacy-consent.css";
 import "./legal-pages.css";
 import "./accessibility-controls.css";
 import "./site-utility-launcher.css";
+import "./customer-mobile-commerce.css";
 import { CartProvider } from "../components/CartProvider";
+import { CustomerMobileCommerceProvider } from "../components/CustomerMobileCommerceNav";
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
@@ -102,7 +104,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       />
     </head>
     <body>
-      <PrivacyConsentProvider><CartProvider>{children}</CartProvider></PrivacyConsentProvider>
+      <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}</CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
     </body>
