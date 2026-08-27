@@ -233,6 +233,10 @@
     animation: customer-mobile-confirmation-in .18s ease-out;
   }
 
+  .customer-mobile-commerce-confirmation.is-search-open {
+    bottom: calc(146px + env(safe-area-inset-bottom));
+  }
+
   @keyframes customer-mobile-search-expand {
     from { opacity: 0; transform: translateY(5px) scale(.985); }
     to { opacity: 1; transform: translateY(0) scale(1); }
@@ -262,5 +266,9 @@
   .customer-mobile-commerce-confirmation {
     bottom: calc(84px + env(safe-area-inset-bottom));
     width: calc(100% - 18px);
+  }
+
+  .customer-mobile-commerce-confirmation.is-search-open {
+    bottom: calc(142px + env(safe-area-inset-bottom));
   }
 }
