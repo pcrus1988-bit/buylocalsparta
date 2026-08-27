@@ -13,17 +13,21 @@ import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { productPublicPath } from "../../../lib/product-url";
+import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
-export async function generateStaticParams() {
-  return (await getAvailableStorefrontCategories("23100")).map((category) => ({ slug: category.slug }));
+export function generateStaticParams() {
+  return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const category = (await getAvailableStorefrontCategories("23100")).find((item) => item.slug === slug);
+  const category = storefrontCategoryBySlug(slug);
   if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
+
+  const availableCategories = await getAvailableStorefrontCategories("23100");
+  const entityEligible = availableCategories.some((item) => item.slug === category.slug);
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
   return buildGovernedSeoMetadata({
@@ -35,41 +39,43 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`,
       canonicalPath: `/category/${category.slug}`
     },
-    entityEligible: true,
-    defaultIndexAllowed: true
+    entityEligible,
+    defaultIndexAllowed: entityEligible
   });
 }
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
-  const availableCategories = await getAvailableStorefrontCategories("23100");
-  const category = availableCategories.find((item) => item.slug === slug);
+  const category = storefrontCategoryBySlug(slug);
   if (!category) notFound();
 
   const settingsPromise = getSeoGlobalSettingsSnapshot();
   const overridesPromise = getSeoEntityOverridesSnapshot();
+  const availableCategoriesPromise = getAvailableStorefrontCategories("23100");
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const [products, { settings }, overrideSnapshot] = await Promise.all([
+  const [products, availableCategories, { settings }, overrideSnapshot] = await Promise.all([
     readOnlyCrawler
       ? getCrawlerCatalogCards("23100", "", category.slug)
       : getCatalogCards(visitorKey, "23100", "", category.slug),
+    availableCategoriesPromise,
     settingsPromise,
     overridesPromise
   ]);
   const siblings = availableCategories.filter((item) => item.slug !== category.slug);
+  const availableProducts = products.filter((product) => product.available);
+  const entityEligible = availableProducts.length > 0;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
   const seoControl = resolveSeoEntityControl({
     settings,
     kind: reference.kind,
-    entityEligible: true,
-    defaultIndexAllowed: true,
-    defaultSchemaAllowed: true,
+    entityEligible,
+    defaultIndexAllowed: entityEligible,
+    defaultSchemaAllowed: entityEligible,
     override
   });
   const categoryUrl = new URL(override?.canonicalPath ?? `/category/${category.slug}`, `${settings.canonicalOrigin}/`).toString();
-  const availableProducts = products.filter((product) => product.available);
   const merchants = [...new Map(availableProducts.flatMap((product) =>
     product.vendorId && product.vendorName ? [[product.vendorId, product.vendorName] as const] : []
   )).entries()];
@@ -158,7 +164,7 @@ export default async function CategoryPage({ params }: Props) {
           {products.length ? (
             <CategoryCatalogBrowser products={products} categoryName={category.label} />
           ) : (
-            <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Η σελίδα είναι έτοιμη για το πραγματικό catalog. Μέχρι τότε, το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
+            <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Η σελίδα παραμένει διαθέσιμη ακόμη και όταν δεν υπάρχει ενεργό απόθεμα. Το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
           )}
         </div>
       </section>
