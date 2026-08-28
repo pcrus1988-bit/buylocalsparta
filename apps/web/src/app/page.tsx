@@ -21,16 +21,36 @@ export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/", { canonicalPath: "/" });
 }
 
+async function homepageSectionOrFallback<T>(label: string, operation: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    // The homepage is an SEO-critical public entry point. A transient database or
+    // downstream failure in one dynamic block must not turn the whole document
+    // into HTTP 500. Keep the failure visible in runtime logs and render the
+    // affected block's existing empty state until the next request succeeds.
+    console.error(`[homepage] ${label} unavailable; rendering fallback`, error);
+    return fallback;
+  }
+}
+
 export default async function Home() {
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
+  const visitorKey = readOnlyCrawler
+    ? ""
+    : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
+
   const [featuredProducts, heroSlides, promoCtas, visibleCategories] = await Promise.all([
-    readOnlyCrawler
-      ? getCrawlerHomepageCatalogCards("23100", FEATURED_PRODUCT_LIMIT)
-      : getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
-    listHomepageHeroSlides({ visibleOnly: true }),
-    listHomepagePromoCtas({ visibleOnly: true }),
-    getAvailableStorefrontCategories("23100")
+    homepageSectionOrFallback(
+      "featured-products",
+      () => readOnlyCrawler
+        ? getCrawlerHomepageCatalogCards("23100", FEATURED_PRODUCT_LIMIT)
+        : getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
+      []
+    ),
+    homepageSectionOrFallback("hero-slides", () => listHomepageHeroSlides({ visibleOnly: true }), []),
+    homepageSectionOrFallback("promo-ctas", () => listHomepagePromoCtas({ visibleOnly: true }), []),
+    homepageSectionOrFallback("visible-categories", () => getAvailableStorefrontCategories("23100"), [])
   ]);
   const promoCta = promoCtas[0] ?? null;
 
