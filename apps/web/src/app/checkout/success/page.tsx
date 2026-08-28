@@ -33,5 +33,7 @@ export default async function Page({ searchParams }: Props) {
     orderNumber = finalized?.orderNumber;
   }
 
-  return <main><div className="announcement">Πληρωμή · η κατάσταση της παραγγελίας βασίζεται στην επιβεβαίωση του παρόχου.</div><SiteHeader compact /><section className="shell section checkout-result-page"><VivaPaymentResultClient confirmed={confirmed}/><div className="eyebrow">Επιβεβαίωση πληρωμής</div><h1>{confirmed ? "Η πληρωμή ολοκληρώθηκε" : "Η πληρωμή ελέγχεται"}</h1><p className="lead compact">{message}</p>{orderId && <p><strong>Παραγγελία:</strong> {orderNumber ?? orderId}</p>}<div className="hero-actions"><a className="button" href="/account">Ο λογαριασμός μου</a><a className="button button-secondary" href="/shop">Συνέχεια στις αγορές</a></div></section><SiteFooter /></main>;
+  const analyticsTransactionId = confirmed ? (orderNumber ?? orderId ?? transactionId) : undefined;
+
+  return <main><div className="announcement">Πληρωμή · η κατάσταση της παραγγελίας βασίζεται στην επιβεβαίωση του παρόχου.</div><SiteHeader compact /><section className="shell section checkout-result-page"><VivaPaymentResultClient confirmed={confirmed} transactionId={analyticsTransactionId}/><div className="eyebrow">Επιβεβαίωση πληρωμής</div><h1>{confirmed ? "Η πληρωμή ολοκληρώθηκε" : "Η πληρωμή ελέγχεται"}</h1><p className="lead compact">{message}</p>{orderId && <p><strong>Παραγγελία:</strong> {orderNumber ?? orderId}</p>}<div className="hero-actions"><a className="button" href="/account">Ο λογαριασμός μου</a><a className="button button-secondary" href="/shop">Συνέχεια στις αγορές</a></div></section><SiteFooter /></main>;
 }
