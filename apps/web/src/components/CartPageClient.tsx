@@ -1,8 +1,19 @@
 "use client";
 
-import { useCart } from "./CartProvider";
+import { useCart, type CartItem } from "./CartProvider";
+import { googleAnalyticsItem, trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
 
 function money(minor: number) { return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100); }
+
+function trackCartDelta(eventName: "add_to_cart" | "remove_from_cart", item: CartItem, quantity: number) {
+  if (quantity <= 0) return;
+  trackGoogleAnalyticsEvent(eventName, {
+    currency: "EUR",
+    value: item.priceMinor * quantity / 100,
+    items: [googleAnalyticsItem({ id: item.canonicalVariantId, name: item.title, priceMinor: item.priceMinor, quantity })],
+    surface: "cart"
+  });
+}
 
 export function CartPageClient() {
   const { items, count, subtotalMinor, hydrated, setQuantity, removeItem } = useCart();
@@ -25,14 +36,23 @@ export function CartPageClient() {
             {item.gtin ? <span><b>GTIN</b>{item.gtin}</span> : null}
           </div>
           <div className="cart-unit-price">{money(item.priceMinor)} / τεμ.</div>
-          <button className="text-button cart-remove-button" type="button" onClick={() => removeItem(item.canonicalVariantId)}>Αφαίρεση</button>
+          <button className="text-button cart-remove-button" type="button" onClick={() => {
+            trackCartDelta("remove_from_cart", item, item.quantity);
+            removeItem(item.canonicalVariantId);
+          }}>Αφαίρεση</button>
         </div>
         <div className="cart-line-controls">
           <span className="cart-quantity-label">Ποσότητα</span>
           <div className="quantity-stepper" role="group" aria-label={`Ποσότητα για ${item.title}`}>
-            <button type="button" aria-label="Μείωση ποσότητας" disabled={item.quantity <= 1} onClick={() => setQuantity(item.canonicalVariantId, item.quantity - 1)}>−</button>
+            <button type="button" aria-label="Μείωση ποσότητας" disabled={item.quantity <= 1} onClick={() => {
+              trackCartDelta("remove_from_cart", item, 1);
+              setQuantity(item.canonicalVariantId, item.quantity - 1);
+            }}>−</button>
             <output aria-live="polite">{item.quantity}</output>
-            <button type="button" aria-label="Αύξηση ποσότητας" disabled={item.quantity >= 99} onClick={() => setQuantity(item.canonicalVariantId, item.quantity + 1)}>+</button>
+            <button type="button" aria-label="Αύξηση ποσότητας" disabled={item.quantity >= 99} onClick={() => {
+              trackCartDelta("add_to_cart", item, 1);
+              setQuantity(item.canonicalVariantId, item.quantity + 1);
+            }}>+</button>
           </div>
           <strong className="cart-line-total">{money(item.priceMinor * item.quantity)}</strong>
         </div>
