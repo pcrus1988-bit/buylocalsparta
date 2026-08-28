@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import type { SeoGlobalSettings } from "./seo-settings";
 import { getSeoGlobalSettingsSnapshot, localizeSeoBranding } from "./seo-settings";
 import { getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
+import { fitSeoTitleToTemplate } from "./seo-title";
 import {
   findSeoEntityOverride,
   resolveSeoEntityControl,
@@ -40,7 +41,10 @@ export function buildGovernedSeoMetadata(input: {
     defaultIndexAllowed: input.defaultIndexAllowed,
     override: input.override
   });
-  const title = localizeOptionalSeoText(input.override?.title ?? input.defaults.title);
+  const rawTitle = localizeOptionalSeoText(input.override?.title ?? input.defaults.title);
+  const title = rawTitle && !input.override?.title
+    ? fitSeoTitleToTemplate(rawTitle, input.settings.titleTemplate)
+    : rawTitle;
   const description = localizeOptionalSeoText(input.override?.description ?? input.defaults.description);
   const canonical = input.override?.canonicalPath ?? input.defaults.canonicalPath ?? routeForSeoEntity(input.reference);
   const openGraphTitle = localizeOptionalSeoText(input.override?.openGraphTitle ?? input.defaults.openGraphTitle ?? title);
