@@ -1,0 +1,101 @@
+name: SEO Production Crawl Guard
+
+on:
+  pull_request:
+    paths:
+      - "scripts/seo-production-crawl.mjs"
+      - "scripts/seo-production-crawl.test.mjs"
+      - ".github/workflows/seo-production-crawl.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/seo-production-crawl.mjs"
+      - "scripts/seo-production-crawl.test.mjs"
+      - ".github/workflows/seo-production-crawl.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify production crawler contracts
+        run: node --test scripts/seo-production-crawl.test.mjs
+
+  crawl-production:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SEO_ORIGIN: https://kontamou.site
+      SEO_CRAWL_CONCURRENCY: "8"
+      SEO_CRAWL_TIMEOUT_MS: "18000"
+      SEO_CRAWL_MAX_URLS: "5000"
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Crawl live sitemap and canonical documents
+        id: crawl
+        shell: bash
+        run: |
+          set +e
+          node scripts/seo-production-crawl.mjs
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload crawl evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-production-crawl-${{ github.run_id }}
+          path: artifacts/seo-production-crawl/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Open or refresh critical SEO issue
+        if: steps.crawl.outputs.exit_code != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="SEO production crawl: critical issues"
+          number="$(gh issue list --state open --search "${title} in:title" --json number,title --jq '.[] | select(.title == "SEO production crawl: critical issues") | .number' | head -n1)"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file artifacts/seo-production-crawl/report.md
+            gh issue comment "$number" --body "Daily production crawl still detects critical SEO/indexability defects. Evidence refreshed by run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID."
+          else
+            gh issue create --title "$title" --body-file artifacts/seo-production-crawl/report.md
+          fi
+
+      - name: Close recovered SEO crawl issue
+        if: steps.crawl.outputs.exit_code == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="SEO production crawl: critical issues"
+          number="$(gh issue list --state open --search "${title} in:title" --json number,title --jq '.[] | select(.title == "SEO production crawl: critical issues") | .number' | head -n1)"
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "Production SEO crawl is healthy again. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+
+      - name: Fail workflow on critical crawl defects
+        if: steps.crawl.outputs.exit_code != '0'
+        run: |
+          echo "Critical production SEO crawl defects detected. See uploaded report and the tracking issue."
+          exit 1
