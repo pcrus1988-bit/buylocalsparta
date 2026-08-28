@@ -57,6 +57,7 @@ import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
+import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 
@@ -87,20 +88,63 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { settings } = await getSeoGlobalSettingsSnapshot();
-  const websiteStructuredData = {
+  const origin = settings.canonicalOrigin.replace(/\/$/, "");
+  const websiteId = `${origin}/#website`;
+  const organizationId = `${origin}/#organization`;
+  const rootStructuredData = {
     "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: settings.siteName,
-    alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU"],
-    url: settings.canonicalOrigin,
-    inLanguage: "el-GR"
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": websiteId,
+        name: settings.siteName,
+        alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU"],
+        url: origin,
+        inLanguage: "el-GR",
+        publisher: { "@id": organizationId }
+      },
+      {
+        "@type": "OnlineStore",
+        "@id": organizationId,
+        name: settings.siteName,
+        alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU", KONTA_MOY_EMAIL_COMPANY.descriptor],
+        legalName: KONTA_MOY_EMAIL_COMPANY.legalName,
+        url: origin,
+        description: settings.defaultDescription,
+        email: KONTA_MOY_EMAIL_COMPANY.email,
+        telephone: `+30${KONTA_MOY_EMAIL_COMPANY.phone}`,
+        taxID: KONTA_MOY_EMAIL_COMPANY.taxNumber,
+        identifier: {
+          "@type": "PropertyValue",
+          name: "ΓΕΜΗ",
+          value: KONTA_MOY_EMAIL_COMPANY.gemiNumber
+        },
+        logo: {
+          "@type": "ImageObject",
+          url: `${origin}/brand/kontamou-sparta-logo.webp`
+        },
+        address: KONTA_MOY_EMAIL_COMPANY.address,
+        areaServed: [
+          { "@type": "City", name: "Σπάρτη" },
+          { "@type": "AdministrativeArea", name: "Λακωνία" },
+          { "@type": "Country", name: "Ελλάδα" }
+        ],
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "customer service",
+          email: KONTA_MOY_EMAIL_COMPANY.email,
+          telephone: `+30${KONTA_MOY_EMAIL_COMPANY.phone}`,
+          availableLanguage: ["el"]
+        }
+      }
+    ]
   };
 
   return <html lang="el" className={comfortaa.variable}>
     <head>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteStructuredData) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(rootStructuredData).replaceAll("<", "\\u003c") }}
       />
     </head>
     <body>
