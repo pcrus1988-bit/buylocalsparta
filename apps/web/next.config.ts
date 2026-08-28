@@ -17,7 +17,7 @@ const CONTENT_SECURITY_POLICY = [
   // HTTPS and exact source-host equality. The CSP therefore permits HTTPS images
   // generically instead of requiring a code deploy for every governed supplier host.
   "img-src 'self' data: blob: https:",
-  `connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com${MEDIA_UPLOAD_ORIGIN ? ` ${MEDIA_UPLOAD_ORIGIN}` : ""}${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr https://map.boxnow.gr" : ""}${GOOGLE_MAPS_BROWSER_ENABLED ? " https://maps.googleapis.com https://maps.gstatic.com" : ""}`,
+  `connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com${MEDIA_UPLOAD_ORIGIN ? ` ${MEDIA_UPLOAD_ORIGIN}` : ""}${BOXNOW_WIDGET_ENABLED ? " https://widget-cdn.boxnow.gr https://map.boxnow.gr" : ""}${GOOGLE_MAPS_BROWSER_ENABLED ? " https://maps.googleapis.com https://maps.gstatic.com" : ""}`,
   `font-src 'self' data:${GOOGLE_MAPS_BROWSER_ENABLED ? " https://fonts.gstatic.com" : ""}`,
   `frame-src 'self'${BOXNOW_WIDGET_ENABLED ? " https://map.boxnow.gr https://widget-v4.boxnow.gr https://widget-v5.boxnow.gr" : ""}`,
   "frame-ancestors 'none'",
