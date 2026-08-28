@@ -6,13 +6,16 @@ const failures: string[] = [];
 const requireText = (source: string, contract: string, message: string) => {
   if (!source.includes(contract)) failures.push(message);
 };
+const requirePattern = (source: string, contract: RegExp, message: string) => {
+  if (!contract.test(source)) failures.push(message);
+};
 
 const homepage = read("apps/web/src/app/page.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
 const metadata = read("apps/web/src/lib/seo-metadata.ts");
 
 for (const label of ["visitor-key", "featured-products", "hero-slides", "promo-ctas", "visible-categories"]) {
-  requireText(homepage, `homepageSectionOrFallback(\"${label}\"`, `Homepage must fail soft for ${label}`);
+  requirePattern(homepage, new RegExp(`homepageSectionOrFallback\\(\\s*\\"${label}\\"`), `Homepage must fail soft for ${label}`);
 }
 requireText(homepage, "console.error(`[homepage] ${label} unavailable; rendering fallback`, error)", "Homepage fail-soft paths must remain observable in runtime logs");
 requireText(homepage, "getCrawlerHomepageCatalogCards", "Crawler homepage projection must remain intact after resilience hardening");
