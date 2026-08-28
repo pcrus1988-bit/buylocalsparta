@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { isCustomerMobileCommercePath } from "../lib/customer-mobile-commerce";
 import { recordProductAnalyticsEvent } from "../lib/product-analytics-client";
+import { googleAnalyticsItem, trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
 import { useCart } from "./CartProvider";
 
 export type CustomerMobileProductAction = Readonly<{
@@ -64,6 +65,7 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
     event.preventDefault();
     const query = searchQuery.trim();
     if (!query) return;
+    trackGoogleAnalyticsEvent("search", { search_term: query, surface: "mobile_sticky_search" });
     setSearchOpen(false);
     router.push(`/shop?q=${encodeURIComponent(query)}`);
   }, [router, searchQuery]);
@@ -72,6 +74,12 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
     if (!product?.available) return;
     addItem({ canonicalVariantId: product.id, title: product.title, priceMinor: product.priceMinor, price: product.price }, 1);
     recordProductAnalyticsEvent({ eventType: "add_to_cart", canonicalVariantId: product.id, surface: "product_page" });
+    trackGoogleAnalyticsEvent("add_to_cart", {
+      currency: "EUR",
+      value: product.priceMinor / 100,
+      items: [googleAnalyticsItem({ id: product.id, name: product.title, priceMinor: product.priceMinor, quantity: 1 })],
+      surface: "product_page_mobile"
+    });
     setConfirmation(`Προστέθηκε 1 × ${product.title} στο καλάθι.`);
     if (confirmationTimer.current) window.clearTimeout(confirmationTimer.current);
     confirmationTimer.current = window.setTimeout(() => setConfirmation(undefined), 3000);
@@ -84,54 +92,25 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
         {searchOpen ? (
           <form className="customer-mobile-commerce-search-panel" role="search" onSubmit={runSearch}>
             <SearchIcon />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Τι προϊόν ψάχνεις;"
-              aria-label="Αναζήτηση σε όλα τα προϊόντα"
-              autoComplete="off"
-              autoFocus
-              maxLength={120}
-            />
+            <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Τι προϊόν ψάχνεις;" aria-label="Αναζήτηση σε όλα τα προϊόντα" autoComplete="off" autoFocus maxLength={120} />
             <button className="customer-mobile-commerce-search-submit" type="submit" aria-label="Εκτέλεση αναζήτησης"><span>Enter</span></button>
             <button className="customer-mobile-commerce-search-close" type="button" aria-label="Κλείσιμο αναζήτησης" onClick={() => setSearchOpen(false)}><CloseIcon /></button>
           </form>
         ) : null}
 
-        <button
-          className={`customer-mobile-commerce-item${searchOpen ? " is-active" : ""}`}
-          type="button"
-          aria-label="Άνοιγμα αναζήτησης προϊόντων"
-          aria-expanded={searchOpen}
-          onClick={() => setSearchOpen((current) => !current)}
-        >
+        <button className={`customer-mobile-commerce-item${searchOpen ? " is-active" : ""}`} type="button" aria-label="Άνοιγμα αναζήτησης προϊόντων" aria-expanded={searchOpen} onClick={() => setSearchOpen((current) => !current)}>
           <SearchIcon />
           <span>Αναζήτηση</span>
         </button>
-        <Link className={`customer-mobile-commerce-item${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός">
-          <AccountIcon />
-          <span>Λογαριασμός</span>
-        </Link>
-        <Link className={`customer-mobile-commerce-item customer-mobile-commerce-ask-local${pathname.startsWith("/ask-local") ? " is-active" : ""}`} href="/ask-local" aria-label="Ask Local — ζήτησε βοήθεια για να βρεις προϊόν">
-          <AskLocalIcon />
-          <span>Ask Local</span>
-        </Link>
+        <Link className={`customer-mobile-commerce-item${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός"><AccountIcon /><span>Λογαριασμός</span></Link>
+        <Link className={`customer-mobile-commerce-item customer-mobile-commerce-ask-local${pathname.startsWith("/ask-local") ? " is-active" : ""}`} href="/ask-local" aria-label="Ask Local — ζήτησε βοήθεια για να βρεις προϊόν"><AskLocalIcon /><span>Ask Local</span></Link>
         {showProductAction ? (
-          <button
-            className="customer-mobile-commerce-item customer-mobile-commerce-add"
-            type="button"
-            disabled={!product?.available}
-            onClick={addProduct}
-            aria-label={product?.available ? `Προσθήκη ενός ${product.title} στο καλάθι` : "Το προϊόν δεν είναι διαθέσιμο"}
-          >
-            <span className="customer-mobile-commerce-add-icon"><AddIcon /></span>
-            <span>{product?.available ? "+1 προϊόν" : "Μη διαθέσιμο"}</span>
+          <button className="customer-mobile-commerce-item customer-mobile-commerce-add" type="button" disabled={!product?.available} onClick={addProduct} aria-label={product?.available ? `Προσθήκη ενός ${product.title} στο καλάθι` : "Το προϊόν δεν είναι διαθέσιμο"}>
+            <span className="customer-mobile-commerce-add-icon"><AddIcon /></span><span>{product?.available ? "+1 προϊόν" : "Μη διαθέσιμο"}</span>
           </button>
         ) : null}
         <Link className={`customer-mobile-commerce-item customer-mobile-commerce-cart${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
-          <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span>
-          <span>Καλάθι</span>
+          <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span><span>Καλάθι</span>
         </Link>
       </nav>
     </>
@@ -145,12 +124,7 @@ export function CustomerMobileCommerceProvider({ children }: { children: ReactNo
   const value = useMemo(() => ({ registerProduct }), [registerProduct]);
   const eligible = isCustomerMobileCommercePath(pathname);
 
-  return (
-    <CustomerMobileCommerceContext.Provider value={value}>
-      {children}
-      {eligible ? <><div className="customer-mobile-commerce-spacer" aria-hidden="true" /><CustomerMobileCommerceNav product={product} /></> : null}
-    </CustomerMobileCommerceContext.Provider>
-  );
+  return <CustomerMobileCommerceContext.Provider value={value}>{children}{eligible ? <><div className="customer-mobile-commerce-spacer" aria-hidden="true" /><CustomerMobileCommerceNav product={product} /></> : null}</CustomerMobileCommerceContext.Provider>;
 }
 
 export function useCustomerMobileCommerce() {
