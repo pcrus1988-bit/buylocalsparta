@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
+import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
@@ -58,6 +59,12 @@ async function contentRedirectResponse(request: NextRequest): Promise<NextRespon
   }
 }
 
+function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): NextResponse {
+  const robots = seoDocumentRobotsHeader(request.nextUrl.pathname, request.nextUrl.searchParams);
+  if (robots) response.headers.set("X-Robots-Tag", robots);
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
@@ -104,7 +111,7 @@ export async function proxy(request: NextRequest) {
       maxAge: 0
     });
   }
-  return response;
+  return applySeoDocumentHeaders(request, response);
 }
 
 export const config = {
