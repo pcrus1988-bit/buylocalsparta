@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname } from "next/navigation";
-
-const GOOGLE_ANALYTICS_ID = "G-NC8QWH2WTD";
-const GOOGLE_ANALYTICS_SCRIPT_ID = "kontamou-google-analytics";
-const INTERNAL_PREFIXES = ["/admin", "/vendor", "/driver", "/delivery/manage", "/daily"] as const;
+import { Suspense, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import {
+  GOOGLE_ANALYTICS_ID,
+  ensureGoogleAnalytics,
+  googleAnalyticsCartPayload,
+  isGoogleAnalyticsPublicPath,
+  readGoogleAnalyticsCart
+} from "../lib/google-analytics-client";
 
 type GoogleAnalyticsWindow = Window & typeof globalThis & {
-  dataLayer?: unknown[];
   gtag?: (...args: unknown[]) => void;
-  __kontamouGaInitialized?: boolean;
   [key: `ga-disable-${string}`]: boolean | undefined;
 };
-
-function isTrackablePath(pathname: string): boolean {
-  return !INTERNAL_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-}
 
 function analyticsWindow(): GoogleAnalyticsWindow {
   return window as GoogleAnalyticsWindow;
@@ -39,73 +36,75 @@ function expireGoogleAnalyticsCookies(): void {
   }
 }
 
-function ensureGoogleAnalytics(): GoogleAnalyticsWindow {
+function disableGoogleAnalyticsForCurrentRoute(): void {
   const target = analyticsWindow();
-  target.dataLayer = target.dataLayer ?? [];
-  target.gtag = target.gtag ?? function gtag(..._args: unknown[]) {
-    target.dataLayer?.push(arguments);
-  };
-  target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = false;
-
-  if (!target.__kontamouGaInitialized) {
-    target.__kontamouGaInitialized = true;
-    target.gtag("consent", "default", {
-      analytics_storage: "granted",
-      ad_storage: "denied",
-      ad_user_data: "denied",
-      ad_personalization: "denied"
-    });
-    target.gtag("js", new Date());
-    target.gtag("config", GOOGLE_ANALYTICS_ID, {
-      send_page_view: false,
-      allow_google_signals: false,
-      allow_ad_personalization_signals: false
-    });
-  } else {
-    target.gtag("consent", "update", {
-      analytics_storage: "granted",
-      ad_storage: "denied",
-      ad_user_data: "denied",
-      ad_personalization: "denied"
-    });
-  }
-
-  if (!document.getElementById(GOOGLE_ANALYTICS_SCRIPT_ID)) {
-    const script = document.createElement("script");
-    script.id = GOOGLE_ANALYTICS_SCRIPT_ID;
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_ID)}`;
-    document.head.appendChild(script);
-  }
-
-  return target;
+  target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = true;
+  target.gtag?.("consent", "update", {
+    analytics_storage: "denied",
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied"
+  });
 }
 
-export function GoogleAnalytics() {
+function GoogleAnalyticsInner() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryString = searchParams.toString();
 
   useEffect(() => {
-    if (!isTrackablePath(pathname)) return;
+    if (!isGoogleAnalyticsPublicPath(pathname)) {
+      disableGoogleAnalyticsForCurrentRoute();
+      return;
+    }
 
     const target = ensureGoogleAnalytics();
-    target.gtag?.("event", "page_view", {
+    if (!target?.gtag) return;
+
+    target.gtag("event", "page_view", {
       page_title: document.title,
       page_location: window.location.href,
       page_path: `${pathname}${window.location.search}`
     });
-  }, [pathname]);
+
+    if (pathname === "/shop") {
+      const searchTerm = searchParams.get("q")?.trim();
+      if (searchTerm) {
+        target.gtag("event", "search", {
+          search_term: searchTerm,
+          surface: "shop"
+        });
+      }
+    }
+
+    if (pathname === "/cart" || pathname === "/checkout") {
+      const cart = readGoogleAnalyticsCart();
+      if (cart.length > 0) {
+        target.gtag("event", pathname === "/cart" ? "view_cart" : "begin_checkout", {
+          ...googleAnalyticsCartPayload(cart),
+          surface: pathname === "/cart" ? "cart" : "checkout"
+        });
+      }
+    }
+
+    if (pathname === "/ask-local") {
+      target.gtag("event", "view_ask_local", { surface: "ask_local" });
+    }
+
+    if (pathname.startsWith("/vendor/")) {
+      const storeId = pathname.split("/")[2];
+      if (storeId) target.gtag("event", "view_store", { store_id: decodeURIComponent(storeId), surface: "public_vendor_page" });
+    }
+  }, [pathname, queryString, searchParams]);
 
   useEffect(() => () => {
-    const target = analyticsWindow();
-    target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = true;
-    target.gtag?.("consent", "update", {
-      analytics_storage: "denied",
-      ad_storage: "denied",
-      ad_user_data: "denied",
-      ad_personalization: "denied"
-    });
+    disableGoogleAnalyticsForCurrentRoute();
     expireGoogleAnalyticsCookies();
   }, []);
 
   return null;
+}
+
+export function GoogleAnalytics() {
+  return <Suspense fallback={null}><GoogleAnalyticsInner /></Suspense>;
 }
