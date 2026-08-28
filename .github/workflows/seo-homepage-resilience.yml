@@ -1,0 +1,36 @@
+name: SEO Homepage Resilience
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/page.tsx"
+      - "apps/web/src/app/layout.tsx"
+      - "apps/web/src/lib/seo-metadata.ts"
+      - "apps/web/src/lib/seo-title.ts"
+      - "scripts/verify-seo-homepage-resilience.ts"
+      - ".github/workflows/seo-homepage-resilience.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/page.tsx"
+      - "apps/web/src/app/layout.tsx"
+      - "apps/web/src/lib/seo-metadata.ts"
+      - "apps/web/src/lib/seo-title.ts"
+      - "scripts/verify-seo-homepage-resilience.ts"
+      - ".github/workflows/seo-homepage-resilience.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify homepage resilience, title quality and entity graph
+        run: node --experimental-strip-types scripts/verify-seo-homepage-resilience.ts
