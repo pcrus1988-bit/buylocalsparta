@@ -1,0 +1,36 @@
+name: SEO Indexability Defense
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/lib/seo-request-indexing.ts"
+      - "apps/web/src/lib/seo-visibility-policy.ts"
+      - "apps/web/src/lib/site-navigation.ts"
+      - "apps/web/src/proxy.ts"
+      - "scripts/verify-seo-indexability-defense.ts"
+      - ".github/workflows/seo-indexability-defense.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/lib/seo-request-indexing.ts"
+      - "apps/web/src/lib/seo-visibility-policy.ts"
+      - "apps/web/src/lib/site-navigation.ts"
+      - "apps/web/src/proxy.ts"
+      - "scripts/verify-seo-indexability-defense.ts"
+      - ".github/workflows/seo-indexability-defense.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify route and response indexability policy
+        run: node --experimental-strip-types scripts/verify-seo-indexability-defense.ts
