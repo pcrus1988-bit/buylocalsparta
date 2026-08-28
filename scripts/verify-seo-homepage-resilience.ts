@@ -24,6 +24,9 @@ requireText(homepage, "getHomepageCatalogCards", "Customer homepage projection m
 const template = "%s | ΚΟΝΤΑ ΜΟΥ Σπάρτη";
 const shortTitle = "Βιβλιοπωλείο Σπάρτης";
 if (fitSeoTitleToTemplate(shortTitle, template) !== shortTitle) failures.push("Short generated SEO titles must remain unchanged");
+const vendorTitle = "AD CAR DESIGN (Δαμιανός Αλέξανδρος Ν.) · Τοπική επιχείρηση";
+const fittedVendorTitle = fitSeoTitleToTemplate(vendorTitle, template);
+if (fittedVendorTitle !== "AD CAR DESIGN (Δαμιανός Αλέξανδρος Ν.)") failures.push("Generated vendor titles must remove the redundant local-business suffix before fitting the title template");
 const longTitle = "Εξαιρετικά Μεγάλη Επωνυμία Τοπικής Επιχείρησης Με Πολλά Πρόσθετα Περιγραφικά Στοιχεία Και Νομική Μορφή";
 const fitted = fitSeoTitleToTemplate(longTitle, template);
 const rendered = template.replace("%s", fitted);
