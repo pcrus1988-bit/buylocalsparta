@@ -42,8 +42,8 @@ function expireGoogleAnalyticsCookies(): void {
 function ensureGoogleAnalytics(): GoogleAnalyticsWindow {
   const target = analyticsWindow();
   target.dataLayer = target.dataLayer ?? [];
-  target.gtag = target.gtag ?? function gtag(...args: unknown[]) {
-    target.dataLayer?.push(args);
+  target.gtag = target.gtag ?? function gtag(..._args: unknown[]) {
+    target.dataLayer?.push(arguments);
   };
   target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = false;
 
