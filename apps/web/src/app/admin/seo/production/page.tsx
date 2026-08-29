@@ -35,7 +35,8 @@ export default async function AdminSeoProductionPage() {
   const incompleteBackfills = signals.providers.filter((provider) => !provider.backfillComplete).length;
   const latestCrawl = crawl.runs[0];
   const merchantAttention = signals.merchant.status !== "healthy";
-  const attention = !signals.persistenceAvailable || providerErrors > 0 || crawl.metrics.criticalOpen > 0 || merchantAttention;
+  const missingGoogleEvidence = !signals.gsc.latestDay || !signals.ga4.latestDay;
+  const attention = !signals.persistenceAvailable || !crawl.persistenceAvailable || missingGoogleEvidence || providerErrors > 0 || crawl.metrics.criticalOpen > 0 || merchantAttention;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
@@ -56,7 +57,7 @@ export default async function AdminSeoProductionPage() {
     <WorkspaceMetricStrip items={[
       { label: "GSC latest day", value: signals.gsc.latestDay ?? "No data", tone: signals.gsc.latestDay ? "positive" : "attention", hint: `${number(signals.gsc.impressions)} impressions · ${number(signals.gsc.clicks)} clicks` },
       { label: "GA4 latest day", value: signals.ga4.latestDay ?? "No data", tone: signals.ga4.latestDay ? "positive" : "attention", hint: `${number(signals.ga4.organicSessions)} organic sessions` },
-      { label: "Crawl issues", value: crawl.metrics.open, tone: crawl.metrics.criticalOpen ? "attention" : crawl.metrics.open ? "attention" : "positive", hint: `${crawl.metrics.criticalOpen} critical` },
+      { label: "Crawl issues", value: crawl.persistenceAvailable ? crawl.metrics.open : "No data", tone: !crawl.persistenceAvailable || crawl.metrics.criticalOpen || crawl.metrics.open ? "attention" : "positive", hint: crawl.persistenceAvailable ? `${crawl.metrics.criticalOpen} critical` : "persistence unavailable" },
       { label: "Merchant feed", value: signals.merchant.itemCount ?? "—", tone: merchantAttention ? "attention" : "positive", hint: signals.merchant.status }
     ]} />
 
@@ -71,6 +72,7 @@ export default async function AdminSeoProductionPage() {
             <article className="admin-domain-card"><span>GA4 outcomes</span><strong>Organic conversion signals</strong><p>Aggregate server-retained organic landing metrics.</p><b>{number(signals.ga4.ecommercePurchases)}</b><i>Purchases · {number(signals.ga4.keyEvents)} key events</i></article>
             <article className="admin-domain-card"><span>Backfill</span><strong>{incompleteBackfills ? `${incompleteBackfills} incomplete` : "Complete"}</strong><p>{signals.providers.length} configured production metric providers currently represented in sync state.</p><b>{providerErrors}</b><i>Provider errors</i></article>
           </div>
+          {missingGoogleEvidence && <div className="workspace-inline-note" style={{ marginTop: 18 }}><strong>Automated Google history is incomplete.</strong> A missing retained GSC or GA4 day keeps Production SEO in attention state until the collector establishes evidence.</div>}
           <div className="workspace-queue-list" style={{ marginTop: 20 }}>
             {signals.providers.length === 0
               ? <div className="workspace-empty-state"><strong>No automated provider state retained yet.</strong><span>The scheduled collector will establish GSC and GA4 provider state after its first successful production run.</span></div>
@@ -86,9 +88,10 @@ export default async function AdminSeoProductionPage() {
 
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Autonomous crawl evidence" title="Production crawl health" note="The autonomous production crawler and operator-triggered crawls feed durable crawl evidence and issue history. This summary makes the latest retained result visible from the SEO control centre." />
+      {!crawl.persistenceAvailable && <div className="workspace-empty-state" style={{ marginBottom: 18 }}><strong>Crawl persistence is unavailable.</strong><span>Production SEO remains in attention state until durable crawl evidence can be read again.</span></div>}
       <div className="admin-domain-card-grid">
         <article className="admin-domain-card"><span>Latest run</span><strong>{latestCrawl ? when(latestCrawl.completedAt) : "No crawl yet"}</strong><p>{latestCrawl ? `${latestCrawl.completed} URLs checked in the retained run.` : "No persisted production crawl evidence is available."}</p><b>{crawl.metrics.latestRunIssues}</b><i>Latest-run issues</i></article>
-        <article className="admin-domain-card"><span>Issue lifecycle</span><strong>{crawl.metrics.criticalOpen ? "Critical attention" : crawl.metrics.open ? "Open findings" : "Healthy"}</strong><p>Stable issue fingerprints preserve recurring and resolved history instead of creating duplicate findings.</p><b>{crawl.metrics.open}</b><i>Open · {crawl.metrics.criticalOpen} critical</i></article>
+        <article className="admin-domain-card"><span>Issue lifecycle</span><strong>{!crawl.persistenceAvailable ? "Unavailable" : crawl.metrics.criticalOpen ? "Critical attention" : crawl.metrics.open ? "Open findings" : "Healthy"}</strong><p>Stable issue fingerprints preserve recurring and resolved history instead of creating duplicate findings.</p><b>{crawl.metrics.open}</b><i>Open · {crawl.metrics.criticalOpen} critical</i></article>
       </div>
       <div className="workspace-action-bar" style={{ marginTop: 18 }}><span>Inspect crawl history, trigger bounded verification and manage issue evidence in the Crawl workspace.</span><Link className="button button-secondary" href="/admin/seo/crawl">Open Crawl</Link></div>
     </div></section>
