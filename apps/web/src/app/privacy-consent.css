@@ -129,6 +129,16 @@
 
 @media (max-width: 760px) {
   .privacy-consent-banner { grid-template-columns: 1fr; bottom: .6rem; width: calc(100vw - 1.2rem); }
+  body:has(.customer-mobile-commerce-nav) .privacy-consent-banner {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 100px - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  body:has(.customer-mobile-commerce-nav.is-search-open) .privacy-consent-banner {
+    bottom: calc(146px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 158px - env(safe-area-inset-bottom));
+  }
   .privacy-consent-actions { justify-content: stretch; }
   .privacy-consent-actions button { flex: 1 1 100%; }
   .privacy-consent-dialog-actions { display: grid; grid-template-columns: 1fr; }
