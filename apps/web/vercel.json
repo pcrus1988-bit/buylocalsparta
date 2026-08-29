@@ -10,8 +10,16 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/delivery-dispatch",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/order-sla",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/seo-production-metrics",
+      "schedule": "* * * * *"
     }
   ]
 }
