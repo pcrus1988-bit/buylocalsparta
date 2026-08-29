@@ -47,12 +47,12 @@ export function VendorArchivedProductsPanel({ products, csrfToken }: { products:
 
   if (!products.length) return null;
   return <section className="shell vendor-section">
-    <WorkspaceSectionHeading eyebrow="Αρχείο" title="Αρχειοθετημένα προϊόντα" note="Τα προϊόντα παραμένουν ορατά σε εσένα και στο ΚΟΝΤΑ ΜΟΥ, αλλά δεν πωλούνται. Μπορείς να ζητήσεις επανενεργοποίηση από τον Admin." />
+    <WorkspaceSectionHeading eyebrow="Αρχείο Admin" title="Προϊόντα που χρειάζονται επανέγκριση" note="Εδώ εμφανίζονται μόνο προϊόντα που δεν μπορούν να επανέλθουν από τον δικό σου διακόπτη ορατότητας. Για αυτά απαιτείται αίτημα επανενεργοποίησης προς το ΚΟΝΤΑ ΜΟΥ." />
     {error && <div className="form-error" role="alert">{error}</div>}
     <div className="workspace-queue-list">{products.map((product) => {
       const requested = pending.has(product.offerId);
       return <article className="workspace-queue-card" key={product.offerId}>
-        <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{product.vendorSku ? `SKU ${product.vendorSku} · ` : ""}{product.offerId}</small></div><span className="vendor-merchant-status">Αρχειοθετημένο</span></div>
+        <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{product.vendorSku ? `SKU ${product.vendorSku} · ` : ""}{product.offerId}</small></div><span className="vendor-merchant-status">Χρειάζεται επανέγκριση</span></div>
         <div className="workspace-action-bar"><span>{requested ? "Έχει σταλεί αίτημα επανενεργοποίησης στον Admin." : "Το προϊόν είναι εκτός πώλησης μέχρι να εγκριθεί η επανενεργοποίηση."}</span><div className="workspace-action-buttons"><button type="button" className="button" disabled={requested || Boolean(busy)} onClick={() => void requestActivation(product)}>{requested ? "Αίτημα σε αναμονή" : busy === product.offerId ? "Αποστολή…" : "Ζήτα επανενεργοποίηση"}</button></div></div>
       </article>;
     })}</div>
