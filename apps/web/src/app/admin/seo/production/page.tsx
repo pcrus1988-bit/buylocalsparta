@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../../lib/admin-session";
+import { getMerchantCenterEligibilityDiagnostics } from "../../../../lib/merchant-center-admin-diagnostics";
 import { getSeoCrawlHistorySnapshot } from "../../../../lib/seo-crawl-history";
 import { getSeoProductionSignals } from "../../../../lib/seo-production-admin";
 
@@ -27,16 +28,17 @@ export default async function AdminSeoProductionPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
 
-  const [signals, crawl] = await Promise.all([
+  const [signals, crawl, merchantDiagnostics] = await Promise.all([
     getSeoProductionSignals(principal),
-    getSeoCrawlHistorySnapshot(principal)
+    getSeoCrawlHistorySnapshot(principal),
+    getMerchantCenterEligibilityDiagnostics(principal)
   ]);
   const providerErrors = signals.providers.filter((provider) => provider.error).length;
   const incompleteBackfills = signals.providers.filter((provider) => !provider.backfillComplete).length;
   const latestCrawl = crawl.runs[0];
   const merchantAttention = signals.merchant.status !== "healthy";
   const missingGoogleEvidence = !signals.gsc.latestDay || !signals.ga4.latestDay;
-  const attention = !signals.persistenceAvailable || !crawl.persistenceAvailable || missingGoogleEvidence || providerErrors > 0 || crawl.metrics.criticalOpen > 0 || merchantAttention;
+  const attention = !signals.persistenceAvailable || !crawl.persistenceAvailable || !merchantDiagnostics.persistenceAvailable || missingGoogleEvidence || providerErrors > 0 || crawl.metrics.criticalOpen > 0 || merchantAttention;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
@@ -101,7 +103,25 @@ export default async function AdminSeoProductionPage() {
       <div className="admin-domain-card-grid">
         <article className="admin-domain-card"><span>Feed status</span><strong>{signals.merchant.status === "healthy" ? "Healthy" : signals.merchant.status === "empty" ? "Empty" : "Error"}</strong><p>{signals.merchant.error ?? `HTTP ${signals.merchant.httpStatus ?? "—"}`}</p><b>{signals.merchant.itemCount ?? "—"}</b><i>Eligible feed items</i></article>
         <article className="admin-domain-card"><span>Production source</span><strong>RSS 2.0 product feed</strong><p>Public, governed source for Google Merchant Center and free product listings.</p><b>{signals.merchant.httpStatus ?? "—"}</b><i>HTTP status</i></article>
+        <article className="admin-domain-card"><span>Active canonicals</span><strong>{merchantDiagnostics.persistenceAvailable ? number(merchantDiagnostics.summary.activeCanonicals) : "Unavailable"}</strong><p>Active, non-suppressed and non-recalled public catalogue records in the Sparta market.</p><b>{number(merchantDiagnostics.summary.merchantReadyCanonicals)}</b><i>Commerce-ready canonicals</i></article>
+        <article className="admin-domain-card"><span>Offer workflow</span><strong>{number(merchantDiagnostics.summary.archivedOffers)} archived</strong><p>{number(merchantDiagnostics.summary.hiddenOrPausedOffers)} offers are hidden or merchant-paused.</p><b>{number(merchantDiagnostics.summary.draftOffers)}</b><i>Draft offers · {number(merchantDiagnostics.summary.staleStockOffers)} stale stocked offers</i></article>
       </div>
+
+      {!merchantDiagnostics.persistenceAvailable
+        ? <div className="workspace-empty-state" style={{ marginTop: 18 }}><strong>Merchant commerce diagnostics are unavailable.</strong><span>The public feed probe still runs independently, but product-level offer readiness cannot currently be inspected.</span></div>
+        : <div className="workspace-queue-list" style={{ marginTop: 20 }}>
+          {merchantDiagnostics.products.length === 0
+            ? <div className="workspace-empty-state"><strong>No active canonical products.</strong><span>There are no active public catalogue records to evaluate for Merchant Center.</span></div>
+            : merchantDiagnostics.products.map((product) => <article className="workspace-queue-card" key={product.id}>
+              <div className="workspace-queue-head">
+                <div><strong>{product.title}</strong><small>{product.brand ? `${product.brand} · ` : ""}{product.categoryCode}</small></div>
+                <span className="status-pill">{product.merchantReadyOffers > 0 ? "Commerce ready" : "Blocked"}</span>
+              </div>
+              <div className="workspace-queue-primary"><span>{product.approvedOffers} approved · {product.archivedOffers} archived · {product.draftOffers} draft · {product.hiddenOrPausedOffers} hidden/paused</span></div>
+              {product.blockers.length > 0 && <div className="workspace-inline-note"><strong>Merchant blockers:</strong> {product.blockers.join(" · ")}</div>}
+            </article>)}
+        </div>}
+
       <div className="workspace-action-bar" style={{ marginTop: 18 }}><span><code>{signals.merchant.url}</code></span><div className="workspace-action-buttons"><a className="button button-secondary" href={signals.merchant.url} target="_blank" rel="noreferrer">Open feed ↗</a><Link className="button button-secondary" href="/admin/seo/reports">Unified SEO report</Link></div></div>
     </section>
   </main>;
