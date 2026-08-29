@@ -12,12 +12,12 @@ function requireText(text: string, fragment: string, label: string): void {
 }
 
 const [migration, googleClient, syncRuntime, cronRoute, vercel, checksum] = await Promise.all([
-  source("db/migrations/0155_seo_production_metrics.sql"),
+  source("db/migrations/0156_seo_production_metrics.sql"),
   source("apps/web/src/lib/seo-google-metrics.ts"),
   source("apps/web/src/lib/seo-production-metrics.ts"),
   source("apps/web/src/app/api/cron/seo-production-metrics/route.ts"),
   source("vercel.json"),
-  source("db/migrations/checksums.0155.json")
+  source("db/migrations/checksums.0156.json")
 ]);
 
 for (const table of [
@@ -30,7 +30,7 @@ for (const table of [
 }
 requireText(migration, "CHECK (provider IN ('gsc','ga4'))", "SEO metrics migration");
 requireText(migration, "bls_private.is_platform_runtime()", "SEO metrics migration");
-requireText(checksum, "0155_seo_production_metrics.sql", "SEO migration checksum fragment");
+requireText(checksum, "0156_seo_production_metrics.sql", "SEO migration checksum fragment");
 
 requireText(googleClient, "https://www.googleapis.com/auth/webmasters.readonly", "Google metrics client");
 requireText(googleClient, "https://www.googleapis.com/auth/analytics.readonly", "Google metrics client");
