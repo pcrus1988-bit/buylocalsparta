@@ -9,8 +9,8 @@ on:
       - "apps/web/src/components/VendorApplicationForm.tsx"
       - "apps/web/src/lib/seo-public-visibility.ts"
       - "apps/web/src/lib/vendor-application-runtime.ts"
-      - "db/migrations/0156_vendor_application_profile_claims.sql"
-      - "db/migrations/checksums.0156.json"
+      - "db/migrations/0157_vendor_application_profile_claims.sql"
+      - "db/migrations/checksums.0157.json"
       - "scripts/verify-seo-indexed-vendor-claims.ts"
       - ".github/workflows/seo-indexed-vendor-claims.yml"
   workflow_dispatch:
@@ -98,5 +98,5 @@ jobs:
           END;
           $$;
           SQL
-      - name: Apply full PostgreSQL/PostGIS migration chain including 0156
+      - name: Apply full PostgreSQL/PostGIS migration chain including 0157
         run: npm run db:migrate
