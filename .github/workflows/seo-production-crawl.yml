@@ -8,8 +8,12 @@ on:
       - "apps/web/src/lib/**"
       - "apps/web/src/proxy.ts"
       - "packages/resend-notifications/src/index.ts"
+      - "db/migrations/0155_seo_production_metrics.sql"
+      - "db/migrations/checksums.0155.json"
       - "scripts/seo-production-crawl.mjs"
       - "scripts/seo-production-crawl.test.mjs"
+      - "scripts/verify-seo-production-metrics.ts"
+      - "vercel.json"
       - ".github/workflows/seo-production-crawl.yml"
   push:
     branches: [main]
@@ -19,8 +23,12 @@ on:
       - "apps/web/src/lib/**"
       - "apps/web/src/proxy.ts"
       - "packages/resend-notifications/src/index.ts"
+      - "db/migrations/0155_seo_production_metrics.sql"
+      - "db/migrations/checksums.0155.json"
       - "scripts/seo-production-crawl.mjs"
       - "scripts/seo-production-crawl.test.mjs"
+      - "scripts/verify-seo-production-metrics.ts"
+      - "vercel.json"
       - ".github/workflows/seo-production-crawl.yml"
   schedule:
     - cron: "17 3 * * *"
@@ -41,6 +49,10 @@ jobs:
           node-version: 24
       - name: Verify production crawler contracts
         run: node --test scripts/seo-production-crawl.test.mjs
+      - name: Verify production metrics automation contracts
+        run: node --experimental-strip-types scripts/verify-seo-production-metrics.ts
+      - name: Verify migration integrity
+        run: node --experimental-strip-types scripts/verify-migrations.ts
 
   crawl-production:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
