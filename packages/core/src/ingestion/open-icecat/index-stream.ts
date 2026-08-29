@@ -19,12 +19,11 @@ export async function* parseOpenIcecatIndexStream(
   filter: OpenIcecatIndexFilter = {},
   options: OpenIcecatIndexStreamOptions = {}
 ): AsyncGenerator<OpenIcecatIndexEntry> {
-  const decoder = new TextDecoder();
   let header: readonly string[] | undefined;
   let delimiter = ",";
   const maxRecordChars = normalizeMaximumRecordChars(options.maxRecordChars);
 
-  for await (const record of streamDelimitedRecords(chunks, decoder, maxRecordChars)) {
+  for await (const record of streamDelimitedRecords(chunks, maxRecordChars)) {
     if (!record.trim()) continue;
     if (!header) {
       delimiter = detectDelimiter(record);
@@ -38,9 +37,9 @@ export async function* parseOpenIcecatIndexStream(
 
 async function* streamDelimitedRecords(
   chunks: AsyncIterable<OpenIcecatIndexChunk>,
-  decoder: TextDecoder,
   maxRecordChars: number
 ): AsyncGenerator<string> {
+  const decoder = new TextDecoder();
   let record = "";
   let quoted = false;
   let quotePending = false;
