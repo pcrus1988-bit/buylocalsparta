@@ -39,7 +39,8 @@ async function* streamDelimitedRecords(
   chunks: AsyncIterable<OpenIcecatIndexChunk>,
   maxRecordChars: number
 ): AsyncGenerator<string> {
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const encoder = new TextEncoder();
   let record = "";
   let quoted = false;
   let quotePending = false;
@@ -88,8 +89,9 @@ async function* streamDelimitedRecords(
   };
 
   for await (const chunk of chunks) {
-    const text = typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
-    yield* consume(text);
+    const bytes = typeof chunk === "string" ? encoder.encode(chunk) : chunk;
+    const text = decoder.decode(bytes, { stream: true });
+    if (text) yield* consume(text);
   }
   const tail = decoder.decode();
   if (tail) yield* consume(tail);
