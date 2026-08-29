@@ -184,7 +184,7 @@ async function mirrorOperationalNotifications(now: number) {
       n.template_version,n.locale,n.title,n.body,n.payload,'queued','daily-push:'||n.public_id,$1
     FROM notifications n
     WHERE n.channel='in_app' AND n.vendor_id IS NOT NULL AND n.purpose IN ('transactional','service')
-      AND n.created_at >= $1 - interval '48 hours'
+      AND n.created_at >= $1::timestamptz - interval '48 hours'
       AND EXISTS (SELECT 1 FROM vendor_daily_push_subscriptions ps WHERE ps.vendor_id=n.vendor_id AND ps.active=true)
       AND NOT EXISTS (SELECT 1 FROM notifications p WHERE p.dedupe_key='daily-push:'||n.public_id)
     ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
