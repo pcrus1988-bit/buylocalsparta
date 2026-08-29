@@ -16,6 +16,7 @@ export type CatalogueAttributeMappingGroup = Readonly<{
   sourceId: string;
   sourceName: string;
   sourceAttributeKey: string;
+  sourceTaxonomyNodeId?: string;
   categoryPath?: string;
   sourceUnit?: string;
   observationCount: number;
@@ -42,7 +43,7 @@ export type CatalogueAttributeMappingWorkspace = Readonly<{
 export type ResolveCatalogueAttributeMappingInput = Readonly<{
   sourceId: string;
   sourceAttributeKey: string;
-  categoryPath?: string;
+  sourceTaxonomyNodeId?: string;
   sourceUnit?: string;
   decision: "mapped" | "review_required" | "rejected";
   attributeId?: string;
@@ -92,23 +93,23 @@ export async function adminCatalogueAttributeMappingWorkspace(
           count(*) FILTER (WHERE a.mapping_status='unmapped')::integer AS unmapped_observations,
           count(*) FILTER (WHERE a.mapping_status='review_required')::integer AS review_required_observations,
           count(DISTINCT (
-            ss.source_id,
+            sp.source_id,
             public.catalog_attribute_mapping_key(a.source_attribute_key),
-            public.catalog_attribute_mapping_key(sp.category_path),
+            coalesce(sp.source_taxonomy_node_id::text,''),
             public.catalog_attribute_mapping_key(a.source_unit)
           )) FILTER (WHERE a.mapping_status=$2)::integer AS group_count,
           count(DISTINCT sp.id) FILTER (WHERE a.mapping_status=$2)::integer AS affected_products
         FROM public.catalog_source_attribute_observations a
         JOIN public.catalog_source_products sp ON sp.id=a.source_product_id
-        JOIN public.catalog_source_snapshots ss ON ss.id=sp.snapshot_id
         WHERE ($1::uuid IS NULL OR sp.snapshot_id=$1::uuid)
       `, [snapshotId ?? null, queueStatus]),
       tx.query<SqlRow>(`
         SELECT
-          ss.source_id::text AS source_id,
+          sp.source_id::text AS source_id,
           source.name AS source_name,
           a.source_attribute_key,
-          NULLIF(btrim(sp.category_path),'') AS category_path,
+          sp.source_taxonomy_node_id::text AS source_taxonomy_node_id,
+          COALESCE(NULLIF(array_to_string(node.path_labels,' › '),''),node.source_label) AS category_path,
           NULLIF(btrim(a.source_unit),'') AS source_unit,
           count(*)::integer AS observation_count,
           count(DISTINCT sp.id)::integer AS product_count,
@@ -116,11 +117,11 @@ export async function adminCatalogueAttributeMappingWorkspace(
           (array_agg(DISTINCT sp.source_product_key))[1:5] AS sample_product_keys
         FROM public.catalog_source_attribute_observations a
         JOIN public.catalog_source_products sp ON sp.id=a.source_product_id
-        JOIN public.catalog_source_snapshots ss ON ss.id=sp.snapshot_id
-        JOIN public.catalog_sources source ON source.id=ss.source_id
+        JOIN public.catalog_sources source ON source.id=sp.source_id
+        LEFT JOIN public.catalog_source_taxonomy_nodes node ON node.id=sp.source_taxonomy_node_id
         WHERE a.mapping_status=$2
           AND ($1::uuid IS NULL OR sp.snapshot_id=$1::uuid)
-        GROUP BY ss.source_id,source.name,a.source_attribute_key,NULLIF(btrim(sp.category_path),''),NULLIF(btrim(a.source_unit),'')
+        GROUP BY sp.source_id,source.name,a.source_attribute_key,sp.source_taxonomy_node_id,node.path_labels,node.source_label,NULLIF(btrim(a.source_unit),'')
         ORDER BY count(*) DESC,source.name,a.source_attribute_key
         LIMIT 200
       `, [snapshotId ?? null, queueStatus]),
@@ -144,11 +145,13 @@ export async function adminCatalogueAttributeMappingWorkspace(
     }
 
     const groups = groupsResult.rows.map((row) => {
-      const suggested = definitionsBySuggestionKey.get(suggestionKey(required(row.source_attribute_key, "source_attribute_key")));
+      const sourceAttributeKey = required(row.source_attribute_key, "source_attribute_key");
+      const suggested = definitionsBySuggestionKey.get(suggestionKey(sourceAttributeKey));
       return {
         sourceId: required(row.source_id, "source_id"),
         sourceName: required(row.source_name, "source_name"),
-        sourceAttributeKey: required(row.source_attribute_key, "source_attribute_key"),
+        sourceAttributeKey,
+        sourceTaxonomyNodeId: optional(row.source_taxonomy_node_id),
         categoryPath: optional(row.category_path),
         sourceUnit: optional(row.source_unit),
         observationCount: integer(row.observation_count),
@@ -185,7 +188,7 @@ export async function resolveCatalogueAttributeMapping(
 
   const sourceId = input.sourceId.trim();
   const sourceAttributeKey = input.sourceAttributeKey.trim();
-  const categoryPath = input.categoryPath?.trim() || null;
+  const sourceTaxonomyNodeId = input.sourceTaxonomyNodeId?.trim() || null;
   const sourceUnit = input.sourceUnit?.trim() || null;
   const decision = input.decision;
   const attributeId = input.attributeId?.trim() || null;
@@ -199,33 +202,37 @@ export async function resolveCatalogueAttributeMapping(
       SELECT
         EXISTS(SELECT 1 FROM public.catalog_sources WHERE id=$1::uuid) AS source_exists,
         CASE WHEN $2::uuid IS NULL THEN true ELSE EXISTS(SELECT 1 FROM public.attribute_definitions WHERE id=$2::uuid) END AS attribute_exists,
+        CASE WHEN $3::uuid IS NULL THEN true ELSE EXISTS(
+          SELECT 1 FROM public.catalog_source_taxonomy_nodes WHERE id=$3::uuid AND source_id=$1::uuid
+        ) END AS taxonomy_exists,
         (SELECT code FROM public.attribute_definitions WHERE id=$2::uuid) AS attribute_code
-    `, [sourceId, attributeId]);
+    `, [sourceId, attributeId, sourceTaxonomyNodeId]);
     const row = validation.rows[0];
     if (row?.source_exists !== true) throw new Error("Catalogue source no longer exists");
     if (row?.attribute_exists !== true) throw new Error("Canonical attribute no longer exists");
+    if (row?.taxonomy_exists !== true) throw new Error("Supplier taxonomy context no longer exists");
     const canonicalAttributeCode = optional(row?.attribute_code);
 
     await tx.query(`
       INSERT INTO public.catalog_source_attribute_mapping_rules (
-        source_id,source_attribute_key,category_path,source_unit,attribute_id,mapping_status,decided_by
+        source_id,source_attribute_key,source_taxonomy_node_id,source_unit,attribute_id,mapping_status,decided_by
       )
       VALUES (
-        $1::uuid,$2,$3,$4,
+        $1::uuid,$2,$3::uuid,$4,
         CASE WHEN $5::text='mapped' THEN $6::uuid ELSE NULL END,
         $5,$7::uuid
       )
       ON CONFLICT (
-        source_id,source_attribute_key_normalized,category_path_normalized,source_unit_normalized
+        source_id,source_attribute_key_normalized,source_taxonomy_node_key,source_unit_normalized
       ) DO UPDATE SET
         source_attribute_key=EXCLUDED.source_attribute_key,
-        category_path=EXCLUDED.category_path,
+        source_taxonomy_node_id=EXCLUDED.source_taxonomy_node_id,
         source_unit=EXCLUDED.source_unit,
         attribute_id=EXCLUDED.attribute_id,
         mapping_status=EXCLUDED.mapping_status,
         decided_by=EXCLUDED.decided_by,
         updated_at=now()
-    `, [sourceId, sourceAttributeKey, categoryPath, sourceUnit, decision, attributeId, principal.userId]);
+    `, [sourceId, sourceAttributeKey, sourceTaxonomyNodeId, sourceUnit, decision, attributeId, principal.userId]);
 
     const updated = await tx.query<SqlRow>(`
       WITH changed AS (
@@ -234,17 +241,16 @@ export async function resolveCatalogueAttributeMapping(
           attribute_id=CASE WHEN $5::text='mapped' THEN $6::uuid ELSE NULL END,
           mapping_status=$5
         FROM public.catalog_source_products sp
-        JOIN public.catalog_source_snapshots ss ON ss.id=sp.snapshot_id
         WHERE a.source_product_id=sp.id
-          AND ss.source_id=$1::uuid
+          AND sp.source_id=$1::uuid
           AND public.catalog_attribute_mapping_key(a.source_attribute_key)=public.catalog_attribute_mapping_key($2)
-          AND public.catalog_attribute_mapping_key(sp.category_path)=public.catalog_attribute_mapping_key($3)
+          AND coalesce(sp.source_taxonomy_node_id::text,'')=coalesce(($3::uuid)::text,'')
           AND public.catalog_attribute_mapping_key(a.source_unit)=public.catalog_attribute_mapping_key($4)
           AND a.mapping_status IN ('unmapped','review_required')
         RETURNING a.id
       )
       SELECT count(*)::integer AS affected_observations FROM changed
-    `, [sourceId, sourceAttributeKey, categoryPath, sourceUnit, decision, attributeId]);
+    `, [sourceId, sourceAttributeKey, sourceTaxonomyNodeId, sourceUnit, decision, attributeId]);
 
     return {
       decision,
