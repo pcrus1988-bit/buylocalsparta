@@ -34,9 +34,10 @@ export function VendorStockFreshnessPanel({ snapshot }: { snapshot: VendorStockF
             <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>Τελευταία επιβεβαίωση: {when(item.stockConfirmedAt)} · ισχύς {duration(item.freshnessTtlSeconds)}</small></div><span className="status-pill">Χρειάζεται επιβεβαίωση</span></div>
             <div className="workspace-queue-primary"><span>{item.availableToSell} διαθέσιμα τεμάχια στο τελευταίο καταγεγραμμένο stock</span></div>
             {item.merchantPauseActive && <div className="workspace-inline-note"><strong>Το προϊόν είναι επίσης κρυφό από εσένα.</strong> Επανέφερέ το από τον διακόπτη ορατότητας και επιβεβαίωσε το stock πριν θεωρηθεί ξανά διαθέσιμο.</div>}
+            {!item.merchantPauseActive && item.offerStatus !== "approved" && <div className="workspace-inline-note"><strong>Το προϊόν χρειάζεται επίσης επανέγκριση.</strong> Μπορείς να επιβεβαιώσεις το stock τώρα, αλλά η δημόσια πώληση θα επιστρέψει μόνο αφού εγκριθεί η επανενεργοποίηση.</div>}
           </article>)}
         </div>
-        <div className="workspace-action-bar" style={{ marginTop: 18 }}><span>Η επιβεβαίωση γίνεται μέσα στον κατάλογο, χωρίς νέο προϊόν ή αίτημα Admin.</span><a className="button button-secondary" href="#live-catalog">Πήγαινε στο απόθεμα</a></div>
+        <div className="workspace-action-bar" style={{ marginTop: 18 }}><span>Η επιβεβαίωση γίνεται μέσα στον κατάλογο. Αίτημα Admin χρειάζεται μόνο όταν το προϊόν εμφανίζεται στην ξεχωριστή ενότητα επανέγκρισης.</span><a className="button button-secondary" href="#live-catalog">Πήγαινε στο απόθεμα</a></div>
       </>
       : <div className="workspace-inline-note" style={{ marginTop: 18 }}><strong>Όλο το καταγεγραμμένο stock είναι πρόσφατα επιβεβαιωμένο.</strong> Δεν υπάρχει αυτή τη στιγμή προϊόν που να μπλοκάρεται μόνο λόγω παλιάς επιβεβαίωσης αποθέματος.</div>}
   </section>;
