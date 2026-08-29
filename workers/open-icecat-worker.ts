@@ -214,7 +214,7 @@ async function fetchIndex(sourceId: string, importKind: OpenIcecatImportKind, so
   try {
     const response = await fetch(sourceUrl, {
       method: "GET",
-      redirect: "follow",
+      redirect: "error",
       headers: {
         ...authHeaders,
         accept: "text/csv, application/gzip, application/octet-stream;q=0.9, */*;q=0.1",
@@ -324,13 +324,11 @@ function icecatAuthenticationHeaders(source: NodeJS.ProcessEnv): Record<string, 
   const apiToken = source.ICECAT_API_TOKEN?.trim();
   const username = source.ICECAT_USERNAME?.trim();
   const password = source.ICECAT_PASSWORD?.trim();
-  if (!apiToken && !(username && password)) {
-    throw new Error("Open Icecat worker requires ICECAT_API_TOKEN or ICECAT_USERNAME + ICECAT_PASSWORD");
+  if (apiToken) return { "api-token": apiToken };
+  if (username && password) {
+    return { authorization: `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}` };
   }
-  const headers: Record<string, string> = {};
-  if (apiToken) headers["api-token"] = apiToken;
-  if (username && password) headers.authorization = `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
-  return headers;
+  throw new Error("Open Icecat worker requires ICECAT_API_TOKEN or ICECAT_USERNAME + ICECAT_PASSWORD");
 }
 
 function safeIcecatIndexUrl(raw: string): string {
