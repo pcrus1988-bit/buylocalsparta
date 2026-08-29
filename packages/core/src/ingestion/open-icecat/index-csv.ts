@@ -1,4 +1,8 @@
-import type { OpenIcecatIndexEntry, OpenIcecatIndexFilter } from "./types.ts";
+import type {
+  OpenIcecatIndexEntry,
+  OpenIcecatIndexFilter,
+  OpenIcecatIndexFilterReason
+} from "./types.ts";
 import { asBoolean, firstText, isValidGtin, normalizeGtin, stripContentToken } from "./utils.ts";
 
 export function parseOpenIcecatIndexCsv(csv: string, filter: OpenIcecatIndexFilter = {}): OpenIcecatIndexEntry[] {
@@ -14,20 +18,29 @@ export function parseOpenIcecatIndexCsv(csv: string, filter: OpenIcecatIndexFilt
   return entries;
 }
 
-export function matchesOpenIcecatIndexFilter(entry: OpenIcecatIndexEntry, filter: OpenIcecatIndexFilter): boolean {
+export function getOpenIcecatIndexFilterReason(
+  entry: OpenIcecatIndexEntry,
+  filter: OpenIcecatIndexFilter
+): OpenIcecatIndexFilterReason | undefined {
   const removed = entry.quality?.toUpperCase() === "REMOVED";
-  if (removed && !filter.includeRemoved) return false;
-  if (!removed && filter.requireOnMarket && entry.onMarket !== true) return false;
-  if (!removed && filter.requireApprovedGtin && (entry.gtinsApproved !== true || entry.gtins.length === 0)) return false;
+  if (removed && !filter.includeRemoved) return "removed";
+  if (!removed && filter.requireOnMarket && entry.onMarket !== true) return "off_market";
+  if (!removed && filter.requireApprovedGtin && (entry.gtinsApproved !== true || entry.gtins.length === 0)) {
+    return "unapproved_gtin";
+  }
   if (!removed && filter.country) {
     const country = filter.country.trim().toUpperCase();
-    if (country && !entry.countryMarkets.includes(country)) return false;
+    if (country && !entry.countryMarkets.includes(country)) return "country";
   }
   if (!removed && filter.qualities?.length) {
     const allowed = new Set(filter.qualities.map((quality) => quality.trim().toUpperCase()).filter(Boolean));
-    if (!entry.quality || !allowed.has(entry.quality.toUpperCase())) return false;
+    if (!entry.quality || !allowed.has(entry.quality.toUpperCase())) return "quality";
   }
-  return true;
+  return undefined;
+}
+
+export function matchesOpenIcecatIndexFilter(entry: OpenIcecatIndexEntry, filter: OpenIcecatIndexFilter): boolean {
+  return getOpenIcecatIndexFilterReason(entry, filter) === undefined;
 }
 
 export function openIcecatIndexEntryFromRecord(
