@@ -13,8 +13,27 @@ export async function GET(request: Request) {
   try {
     const sync = await syncSeoProductionMetrics();
     const hasProviderError = sync.providers.some((provider) => provider.status === "error");
+    const logPayload = {
+      event: "seo.production_metrics_run",
+      status: sync.status,
+      retentionStart: sync.retentionStart,
+      providers: sync.providers.map((provider) => ({
+        provider: provider.provider,
+        status: provider.status,
+        recentStart: provider.recentStart,
+        recentEnd: provider.recentEnd,
+        recentRows: provider.recentRows,
+        backfillRows: provider.backfillRows,
+        backfillChunks: provider.backfillChunks,
+        backfillComplete: provider.backfillComplete,
+        reason: provider.reason,
+        error: provider.error
+      }))
+    };
     if (hasProviderError) {
-      console.error(JSON.stringify({ level: "error", event: "seo.production_metrics_partial_failure", sync }));
+      console.error(JSON.stringify({ level: "error", ...logPayload }));
+    } else {
+      console.info(JSON.stringify({ level: "info", ...logPayload }));
     }
     return Response.json(
       { ok: !hasProviderError, sync },
