@@ -8,11 +8,10 @@ import {
   type OpenIcecatBulkRepository,
   type OpenIcecatBulkRunIdentity,
   type OpenIcecatBulkRunState,
-  type OpenIcecatIndexChunk,
   type OpenIcecatIndexEntry
 } from "../src/index.ts";
 
-async function* chunks(values: readonly OpenIcecatIndexChunk[]): AsyncGenerator<OpenIcecatIndexChunk> {
+async function* sequence<T>(values: readonly T[]): AsyncGenerator<T> {
   for (const value of values) yield value;
 }
 
@@ -45,7 +44,7 @@ function storedIdentity(overrides: Partial<OpenIcecatBulkRunIdentity> = {}): Ope
 
 test("Open Icecat stream preserves multiline and doubled-quote fields across chunks", async () => {
   const csv = 'path,product_id,quality,model_name\nfiles/1.xml,1,ICECAT,"Line one\nLine two ""quoted"""\n';
-  const parsed = await collect(parseOpenIcecatIndexStream(chunks([
+  const parsed = await collect(parseOpenIcecatIndexStream(sequence<string | Uint8Array>([
     csv.slice(0, 41),
     new TextEncoder().encode(csv.slice(41, 57)),
     csv.slice(57, 70),
@@ -58,7 +57,7 @@ test("Open Icecat stream preserves multiline and doubled-quote fields across chu
 });
 
 test("Open Icecat stream rejects an oversized unterminated record", async () => {
-  const source = chunks([
+  const source = sequence([
     "path,product_id\n",
     'files/1.xml,"' + "x".repeat(64)
   ]);
@@ -71,7 +70,7 @@ test("Open Icecat stream rejects an oversized unterminated record", async () => 
 
 test("Open Icecat stream can retain daily removal rows", async () => {
   const csv = "path,product_id,quality\nfiles/removed.xml,removed,REMOVED\n";
-  const parsed = await collect(parseOpenIcecatIndexStream(chunks([csv]), { includeRemoved: true }));
+  const parsed = await collect(parseOpenIcecatIndexStream(sequence([csv]), { includeRemoved: true }));
 
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0]?.productId, "removed");
@@ -107,7 +106,7 @@ test("Open Icecat bulk runner resumes after the durable checkpoint and separates
 
   const result = await runOpenIcecatBulkImport({
     identity,
-    entries: chunks([entry("first"), entry("second"), entry("gone", "REMOVED")]),
+    entries: sequence([entry("first"), entry("second"), entry("gone", "REMOVED")]),
     repository,
     batchSize: 1
   });
@@ -145,7 +144,7 @@ test("Open Icecat bulk runner refuses a checkpoint from another processing versi
   };
 
   await assert.rejects(
-    () => runOpenIcecatBulkImport({ identity, entries: chunks([entry("new")]), repository }),
+    () => runOpenIcecatBulkImport({ identity, entries: sequence([entry("new")]), repository }),
     /resume identity mismatch for processingVersion/
   );
   assert.equal(commitCalls, 0);
@@ -185,7 +184,7 @@ test("Open Icecat bulk runner safely replays a batch after an atomic commit fail
     }
   };
 
-  const makeEntries = () => chunks([entry("one"), entry("two")]);
+  const makeEntries = () => sequence([entry("one"), entry("two")]);
 
   await assert.rejects(
     () => runOpenIcecatBulkImport({ identity, entries: makeEntries(), repository, batchSize: 1 }),
