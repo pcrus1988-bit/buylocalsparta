@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/seo-production-metrics",
-      "schedule": "37 4 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
