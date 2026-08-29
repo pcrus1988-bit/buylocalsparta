@@ -75,7 +75,8 @@ expect(form.includes('headers: { "x-csrf-token": csrfToken }'), "Supplier import
 expect(form.includes("Δεν δημιουργεί offer, stock, assortment, canonical product ή public listing"), "Supplier import form must preserve no-publication operator warning");
 expect(aiForm.includes('headers: { "x-csrf-token": csrfToken }'), "AI product import form must send Admin CSRF token");
 expect(aiForm.includes("No offer, live stock or public listing is created here"), "AI product import form must preserve no-publication warning");
-expect(workspaceNavigation.includes('{ label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" }'), "Supplier import workspace must be catalog.write gated in Admin navigation");
+const sourceImportNav = workspaceNavigation.match(/\{\s*label:\s*"Source Import",\s*href:\s*"\/admin\/catalogue-intake\/import",[^}]*\}/)?.[0] ?? "";
+expect(sourceImportNav.includes('permission: "catalog.write"'), "Supplier import workspace must be catalog.write gated in Admin navigation");
 expect(siteNavigation.includes('"/admin/catalogue-intake/import"'), "Supplier import workspace must be registered as non-indexable/private");
 
 for (const contract of [

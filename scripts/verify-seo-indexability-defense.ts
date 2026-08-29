@@ -9,6 +9,10 @@ function examplePath(pattern: string): string {
   return pattern.replace(/\[[^/]+\]/g, "seo-example");
 }
 
+function robotsDirectives(header: string | undefined): Set<string> {
+  return new Set((header ?? "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean));
+}
+
 for (const route of INDEXABLE_STATIC_ROUTES) {
   const decision = seoRequestIndexingDecision(route.href);
   if (!decision.index) fail(`Clean indexable route ${route.href} was classified noindex (${decision.source}: ${decision.reason})`);
@@ -19,8 +23,8 @@ for (const pattern of NON_INDEXABLE_PAGE_ROUTES) {
   const pathname = examplePath(pattern);
   const decision = seoRequestIndexingDecision(pathname);
   if (decision.index) fail(`Explicit non-indexable route ${pattern} (${pathname}) was classified indexable`);
-  const header = seoDocumentRobotsHeader(pathname);
-  if (!header?.startsWith("noindex")) fail(`Explicit non-indexable route ${pattern} (${pathname}) does not emit a noindex document header`);
+  const directives = robotsDirectives(seoDocumentRobotsHeader(pathname));
+  if (!directives.has("noindex")) fail(`Explicit non-indexable route ${pattern} (${pathname}) does not emit a noindex document header`);
 }
 
 const cleanPublicRoutes = [
@@ -39,7 +43,11 @@ const privateFutureRoutes = ["/driver/history", "/driver/reports/daily", "/deliv
 for (const pathname of privateFutureRoutes) {
   const decision = seoRequestIndexingDecision(pathname);
   if (decision.index || decision.follow) fail(`Private operational route ${pathname} must be noindex,nofollow`);
-  if (seoDocumentRobotsHeader(pathname) !== "noindex, nofollow") fail(`Private operational route ${pathname} must emit noindex, nofollow`);
+  const directives = robotsDirectives(seoDocumentRobotsHeader(pathname));
+  for (const required of ["noindex", "nofollow", "noarchive"]) {
+    if (!directives.has(required)) fail(`Private operational route ${pathname} must emit ${required}`);
+  }
+  if (directives.has("follow")) fail(`Private operational route ${pathname} must not emit follow`);
 }
 
 const queryCases: ReadonlyArray<readonly [string, string, boolean]> = [
@@ -56,7 +64,12 @@ for (const [pathname, query, expectedIndex] of queryCases) {
   if (decision.index !== expectedIndex) fail(`${pathname}?${query} index=${decision.index}; expected ${expectedIndex}`);
   const header = seoDocumentRobotsHeader(pathname, params);
   if (expectedIndex && header !== undefined) fail(`${pathname}?${query} should not emit X-Robots-Tag`);
-  if (!expectedIndex && header !== "noindex, follow") fail(`${pathname}?${query} should emit noindex, follow`);
+  if (!expectedIndex) {
+    const directives = robotsDirectives(header);
+    if (!directives.has("noindex") || !directives.has("follow") || directives.has("nofollow")) {
+      fail(`${pathname}?${query} should emit noindex, follow semantics`);
+    }
+  }
 }
 
 // API/media crawl policy remains owned by robots.ts. The request-level fallback is
@@ -81,4 +94,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`SEO indexability defense passed: ${INDEXABLE_STATIC_ROUTES.length} clean static routes, ${NON_INDEXABLE_PAGE_ROUTES.length} explicit noindex routes, query-state controls and API/media exceptions verified.`);
+console.log(`SEO indexability defense passed: ${INDEXABLE_STATIC_ROUTES.length} clean static routes, ${NON_INDEXABLE_PAGE_ROUTES.length} explicit noindex routes, private noarchive defense, query-state controls and API/media exceptions verified.`);

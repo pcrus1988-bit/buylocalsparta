@@ -16,7 +16,7 @@ const page = existsSync(pagePath) ? read(pagePath) : "";
 const component = existsSync(componentPath) ? read(componentPath) : "";
 
 for (const token of ["/admin/quickadd", "Quick Add", "catalog.write"]) if (!navigation.includes(token)) failures.push(`Admin navigation is missing ${token}`);
-for (const token of ["canQuickAdd", "/admin/quickadd", "Άνοιγμα Admin Quick Add"]) if (!adminHome.includes(token)) failures.push(`Admin home is missing ${token}`);
+for (const token of ["canQuickAdd", 'hasAdminPermission(principal, "catalog.write")', 'id: "quick-add"', 'label: "Quick Add"', 'href: "/admin/quickadd"', 'defaultVisible: false']) if (!adminHome.includes(token)) failures.push(`Admin home Quick Add widget is missing ${token}`);
 for (const token of ["AdminQuickAddWorkbench", "adminQuickAddWorkspace", "hasAdminPermission", "force-dynamic"]) if (!page.includes(token)) failures.push(`Admin Quick Add page is missing ${token}`);
 for (const token of ["/api/admin/quickadd", "x-csrf-token", "BarcodeDetector", "canonicalVariantId", "vendorId", "customerPriceMinor", "safetyStock", "searchedQuery === query.trim()"]) if (!component.includes(token)) failures.push(`Admin Quick Add workbench is missing ${token}`);
 for (const token of ['permission: "catalog.write"', "csrf: true"]) if (!api.includes(token)) failures.push(`Admin Quick Add API is missing ${token}`);
@@ -27,4 +27,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Admin Quick Add checks passed: visible Catalogue navigation, protected page/API, canonical lookup/reuse, barcode scan, vendor assignment, publishing and stock controls verified.");
+console.log("Admin Quick Add checks passed: permission-gated Admin dashboard widget, Catalogue navigation, protected page/API, canonical lookup/reuse, barcode scan, vendor assignment, publishing and stock controls verified.");

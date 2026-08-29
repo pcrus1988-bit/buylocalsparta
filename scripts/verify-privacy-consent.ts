@@ -19,6 +19,8 @@ const files = {
   consentMigration: read("db/migrations/0102_cookie_consent_receipts.sql"),
   analyticsClient: read("apps/web/src/lib/product-analytics-client.ts"),
   analyticsApi: read("apps/web/src/app/api/analytics/product/route.ts"),
+  googleAnalyticsClient: read("apps/web/src/lib/google-analytics-client.ts"),
+  googleAnalyticsComponent: read("apps/web/src/components/GoogleAnalytics.tsx"),
   legalTransparency: read("apps/web/src/lib/legal-transparency.ts"),
   cookiesPage: read("apps/web/src/app/cookies/page.tsx"),
   footer: read("apps/web/src/components/SiteFooter.tsx")
@@ -104,14 +106,50 @@ expect(files.consentUi, 'checked={false} disabled aria-label="Browser προσω
 expect(files.consentUi, "Αποδοχή όλων", "accept-all choice available");
 expect(files.consentUi, "Απόρριψη προαιρετικών", "reject-optional choice available");
 expect(files.consentUi, "Ρυθμίσεις", "granular settings choice available");
+expect(files.consentUi, "consent?.analytics", "third-party analytics components mount only after Analytics consent");
+expect(files.consentUi, "<GoogleAnalytics />", "registered Google Analytics component is mounted through consent provider");
 expect(files.utilityLauncher, "requestCookieSettings", "withdrawal/settings action remains reachable from the utility launcher");
 expect(files.utilityLauncher, "Ρυθμίσεις cookies", "cookie settings remain visibly labelled in the utility launcher");
 expect(files.footer, "CookieSettingsButton", "footer consent withdrawal/settings control available");
 expect(files.legalTransparency, "TRACKER_REGISTRY", "non-cookie tracking has a published registry");
 expect(files.legalTransparency, 'name: "bls_consent_receipt"', "signed consent receipt is disclosed in cookie registry");
+expect(files.legalTransparency, 'name: "Google Analytics 4"', "Google Analytics is disclosed in tracker registry");
+expect(files.legalTransparency, 'provider: "Google LLC"', "Google Analytics provider is disclosed in tracker registry");
+expect(files.legalTransparency, 'technology: "Google tag (gtag.js) · Measurement ID G-NC8QWH2WTD"', "Google Analytics implementation is disclosed in tracker registry");
+expect(files.legalTransparency, 'activation: "Δεν φορτώνεται πριν από αποδοχή Analytics.', "Google Analytics activation boundary is disclosed in tracker registry");
 expect(files.cookiesPage, "Μητρώο trackers και event capture", "cookie policy exposes tracking technologies, not only cookies");
 expect(files.cookiesPage, "Δεν συλλέγουμε γενική συγκατάθεση", "cookie policy explicitly rejects generic future marketing consent");
 
+for (const contract of [
+  "hasAnalyticsConsent(document.cookie)",
+  "isGoogleAnalyticsPublicPath(window.location.pathname)",
+  'target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = false',
+  'analytics_storage: "granted"',
+  'ad_storage: "denied"',
+  'ad_user_data: "denied"',
+  'ad_personalization: "denied"',
+  "allow_google_signals: false",
+  "allow_ad_personalization_signals: false",
+  'script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_ID)}`'
+]) expect(files.googleAnalyticsClient, contract, `Google Analytics client is missing consent/privacy boundary ${contract}`);
+for (const contract of [
+  "disableGoogleAnalyticsForCurrentRoute",
+  "expireGoogleAnalyticsCookies",
+  'analytics_storage: "denied"',
+  "ensureGoogleAnalytics()",
+  "isGoogleAnalyticsPublicPath(pathname)"
+]) expect(files.googleAnalyticsComponent, contract, `Google Analytics lifecycle is missing ${contract}`);
+
+const thirdPartyTrackerRegistrations = [
+  {
+    name: "Google Analytics 4",
+    provider: "Google LLC",
+    markers: ["googletagmanager.com", "google-analytics.com"],
+    implementationFiles: new Set([
+      "apps/web/src/lib/google-analytics-client.ts"
+    ])
+  }
+] as const;
 const blockedTrackerMarkers = [
   "googletagmanager.com",
   "google-analytics.com",
@@ -127,7 +165,14 @@ const blockedTrackerMarkers = [
 for (const file of sourceFiles("apps/web/src")) {
   const content = read(file).toLowerCase();
   for (const marker of blockedTrackerMarkers) {
-    if (content.includes(marker)) failures.push(`${file}: unregistered third-party tracker marker ${marker}`);
+    if (!content.includes(marker)) continue;
+    const registration = thirdPartyTrackerRegistrations.find((item) => item.markers.includes(marker as never));
+    const disclosed = registration
+      && files.legalTransparency.includes(`name: "${registration.name}"`)
+      && files.legalTransparency.includes(`provider: "${registration.provider}"`);
+    if (!registration || !disclosed || !registration.implementationFiles.has(file as never)) {
+      failures.push(`${file}: unregistered or unauthorized third-party tracker marker ${marker}`);
+    }
   }
 }
 
@@ -135,7 +180,7 @@ if (failures.length) {
   console.error("Privacy consent checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Privacy consent, signed receipt, persistence compatibility, specific scope, withdrawal and tracker-registry checks passed.");
+console.log("Privacy consent, signed receipt, specific scope, withdrawal, registered GA4 consent gating and tracker-registry checks passed.");
 
 function read(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");

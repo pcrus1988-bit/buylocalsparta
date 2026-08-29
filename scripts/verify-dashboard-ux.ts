@@ -53,7 +53,8 @@ for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/retur
 if (!vendorDashboard.includes('density="compact"')) failures.push("Vendor dashboard quick actions must use compact density");
 if (vendorDashboard.includes('fetch("/api/vendor/logout"')) failures.push("Vendor logout must stay in the shared header");
 
-requireText("apps/web/src/app/admin/page.tsx", ["admin-attention-list", "dashboard-insight-grid", "WorkspaceMetricStrip", "/admin/partners/pipeline", "/admin/matching", "/admin/trust", "/admin/finance", "/admin/fairness"]);
+requireText("apps/web/src/app/admin/page.tsx", ["AdminDashboardCanvas", 'id: "attention"', "totalAttention", 'kind: "metric"', "/admin/partners/pipeline", "/admin/matching", "/admin/trust", "/admin/finance", "/admin/fairness"]);
+requireText("apps/web/src/components/AdminDashboardCanvas.tsx", ["STORAGE_KEY", "defaultLayout", "mergeLayout", "saveCurrentView", "resetLayout", "widgetQuery", "admin-dashboard-canvas", "admin-dashboard-widget-stats", "admin-dashboard-widget-list", "admin-dashboard-widget-controls"]);
 if (read("apps/web/src/app/admin/page.tsx").includes("Admin directory")) failures.push("Admin Command Centre must not duplicate the sidebar directory");
 
 for (const path of [
@@ -138,4 +139,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, lightweight attention badges, semantic record-state versus attention indicators, entity-aware Admin detail breadcrumbs, Action Centre, commercial readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, permission-aware customizable Admin Command Centre, lightweight attention badges, semantic record-state versus attention indicators, entity-aware Admin detail breadcrumbs, Action Centre, commercial readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);

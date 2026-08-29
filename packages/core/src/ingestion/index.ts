@@ -2,6 +2,7 @@ export * from "./types.ts";
 export * from "./security.ts";
 export * from "./canonicalization.ts";
 export * from "./discovery.ts";
+export * from "./open-icecat/index.ts";
 
 import { analyzeHtmlProductPage as analyzeHtmlProductPageBase, type HtmlProductAnalysis } from "./html-product-extraction.ts";
 export type { HtmlProductAnalysis } from "./html-product-extraction.ts";

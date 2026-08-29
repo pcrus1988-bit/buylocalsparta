@@ -1,0 +1,35 @@
+name: SEO Production Metrics
+
+on:
+  schedule:
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seo-production-metrics
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      SEO_PRODUCTION_METRICS_URL: https://kontamou.site/api/cron/seo-production-metrics
+    steps:
+      - name: Verify scheduler secret
+        shell: bash
+        run: test -n "$CRON_SECRET"
+      - name: Sync SEO production metrics
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --max-time 70 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --output /tmp/seo-production-metrics.json \
+            "$SEO_PRODUCTION_METRICS_URL"
+          cat /tmp/seo-production-metrics.json
