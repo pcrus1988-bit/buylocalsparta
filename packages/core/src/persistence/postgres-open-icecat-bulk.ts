@@ -146,7 +146,8 @@ export class PostgresOpenIcecatBulkRepository implements OpenIcecatBulkRepositor
   async complete(runId: string, checkpoint: number): Promise<void> {
     await this.#uow.withTransaction({ platformAccess: true }, async (tx) => {
       const run = requireSingleRow(await tx.query<SqlRow>(`
-        SELECT id::text, source_id::text, import_kind, source_fingerprint, checkpoint, status
+        SELECT id::text, source_id::text, import_kind, source_fingerprint,
+               checkpoint, rejected, filtered, status
         FROM public.open_icecat_bulk_ingestion_runs
         WHERE id=$1::uuid
         FOR UPDATE
@@ -155,7 +156,11 @@ export class PostgresOpenIcecatBulkRepository implements OpenIcecatBulkRepositor
         throw new Error("Open Icecat bulk run could not be completed at the requested checkpoint");
       }
 
-      if (stringField(run.import_kind) === "full") {
+      const losslessFullSnapshot =
+        stringField(run.import_kind) === "full" &&
+        integerField(run.rejected) === 0 &&
+        integerField(run.filtered) === 0;
+      if (losslessFullSnapshot) {
         const sourceId = stringField(run.source_id);
         const fingerprint = stringField(run.source_fingerprint);
         await tx.query(`
@@ -177,7 +182,7 @@ export class PostgresOpenIcecatBulkRepository implements OpenIcecatBulkRepositor
               lease_owner=NULL,
               lease_until=NULL,
               completed_at=now(),
-              last_error='product absent from completed full provider index',
+              last_error='product absent from completed lossless full provider index',
               updated_at=now()
           FROM retired r
           WHERE j.source_id=$1::uuid AND j.product_id=r.product_id
