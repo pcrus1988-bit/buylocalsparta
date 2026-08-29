@@ -152,8 +152,9 @@ expect(siteNavigation.includes('"/admin/seo/reports"'), "SEO Reports page must b
 expect(siteNavigation.includes('"/admin/seo/search-console/index-coverage"'), "Google index coverage evidence owner must remain a private/non-indexable Admin route");
 for (const contract of [
   '{ label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" }',
-  '{ label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" }'
-]) expect(workspaceNavigation.includes(contract), `Admin Content navigation is missing ${contract}`);
+  '{ label: "Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" }',
+  '{ label: "Production", href: "/admin/seo/production", icon: "◉", permission: "content.read" }'
+]) expect(workspaceNavigation.includes(contract), `Admin SEO navigation is missing ${contract}`);
 
 for (const contract of [
   '"apps/web/src/lib/seo-gsc-index-coverage.ts"',

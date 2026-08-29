@@ -12,6 +12,7 @@ const expected = new Map([
   ["/admin/trust", "trust"],
   ["/admin/finance", "finance"],
   ["/admin/content", "content"],
+  ["/admin/seo", "search"],
   ["/admin/analytics", "analytics"],
   ["/admin/platform", "platform"]
 ]);
@@ -41,4 +42,4 @@ if (failures.length) {
   console.error("Admin domain icon checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Admin domain icon checks passed: ten semantic SVG domain icons, one stable renderer and reduced-motion styling verified.");
+console.log("Admin domain icon checks passed: eleven semantic SVG domain icons, one stable renderer and reduced-motion styling verified.");
