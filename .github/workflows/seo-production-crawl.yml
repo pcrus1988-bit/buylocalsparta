@@ -3,12 +3,22 @@ name: SEO Production Crawl Guard
 on:
   pull_request:
     paths:
+      - "apps/web/src/app/**"
+      - "apps/web/src/components/**"
+      - "apps/web/src/lib/**"
+      - "apps/web/src/proxy.ts"
+      - "packages/resend-notifications/src/index.ts"
       - "scripts/seo-production-crawl.mjs"
       - "scripts/seo-production-crawl.test.mjs"
       - ".github/workflows/seo-production-crawl.yml"
   push:
     branches: [main]
     paths:
+      - "apps/web/src/app/**"
+      - "apps/web/src/components/**"
+      - "apps/web/src/lib/**"
+      - "apps/web/src/proxy.ts"
+      - "packages/resend-notifications/src/index.ts"
       - "scripts/seo-production-crawl.mjs"
       - "scripts/seo-production-crawl.test.mjs"
       - ".github/workflows/seo-production-crawl.yml"
