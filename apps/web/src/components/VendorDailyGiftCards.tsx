@@ -68,7 +68,8 @@ export function VendorDailyGiftCards({ csrfToken }: { csrfToken: string }) {
 
   async function issue(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const amount = Number(String(form.get("valueEuro") ?? "").replace(",", "."));
     const customerName = String(form.get("customerName") ?? "").trim();
     const customerEmail = String(form.get("customerEmail") ?? "").trim();
@@ -85,7 +86,7 @@ export function VendorDailyGiftCards({ csrfToken }: { csrfToken: string }) {
       });
       const payload = await response.json() as { result?: VendorPhysicalGiftCardIssueResult; email?: EmailStatus; error?: string };
       if (!response.ok || !payload.result) throw new Error(payload.error ?? "Η έκδοση της Gift Card απέτυχε.");
-      setIssued(payload.result); setIssueEmail(payload.email); event.currentTarget.reset();
+      setIssued(payload.result); setIssueEmail(payload.email); formElement.reset();
       setMessage(payload.email?.sent ? "Η Gift Card εκδόθηκε και στάλθηκε στον πελάτη." : "Η Gift Card εκδόθηκε. Ο κωδικός εμφανίζεται παρακάτω, αλλά το email δεν στάλθηκε.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η έκδοση της Gift Card απέτυχε.");
