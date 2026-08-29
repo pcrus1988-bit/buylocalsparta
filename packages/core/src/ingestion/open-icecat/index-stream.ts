@@ -8,15 +8,23 @@ import {
 
 export type OpenIcecatIndexChunk = string | Uint8Array;
 
+export const DEFAULT_OPEN_ICECAT_MAX_RECORD_CHARS = 8 * 1024 * 1024;
+
+export type OpenIcecatIndexStreamOptions = Readonly<{
+  maxRecordChars?: number;
+}>;
+
 export async function* parseOpenIcecatIndexStream(
   chunks: AsyncIterable<OpenIcecatIndexChunk>,
-  filter: OpenIcecatIndexFilter = {}
+  filter: OpenIcecatIndexFilter = {},
+  options: OpenIcecatIndexStreamOptions = {}
 ): AsyncGenerator<OpenIcecatIndexEntry> {
   const decoder = new TextDecoder();
   let header: readonly string[] | undefined;
   let delimiter = ",";
+  const maxRecordChars = normalizeMaximumRecordChars(options.maxRecordChars);
 
-  for await (const record of streamDelimitedRecords(chunks, decoder)) {
+  for await (const record of streamDelimitedRecords(chunks, decoder, maxRecordChars)) {
     if (!record.trim()) continue;
     if (!header) {
       delimiter = detectDelimiter(record);
@@ -30,12 +38,20 @@ export async function* parseOpenIcecatIndexStream(
 
 async function* streamDelimitedRecords(
   chunks: AsyncIterable<OpenIcecatIndexChunk>,
-  decoder: TextDecoder
+  decoder: TextDecoder,
+  maxRecordChars: number
 ): AsyncGenerator<string> {
   let record = "";
   let quoted = false;
   let quotePending = false;
   let skipLeadingLf = false;
+
+  const append = (value: string): void => {
+    record += value;
+    if (record.length > maxRecordChars) {
+      throw new Error(`Open Icecat index record exceeds maximum size of ${maxRecordChars} characters.`);
+    }
+  };
 
   const consume = function* (text: string): Generator<string> {
     for (const char of text) {
@@ -46,7 +62,7 @@ async function* streamDelimitedRecords(
 
       if (quotePending) {
         if (char === '"') {
-          record += '"';
+          append('"');
           quotePending = false;
           continue;
         }
@@ -55,7 +71,7 @@ async function* streamDelimitedRecords(
       }
 
       if (char === '"') {
-        record += char;
+        append(char);
         if (quoted) quotePending = true;
         else quoted = true;
         continue;
@@ -68,7 +84,7 @@ async function* streamDelimitedRecords(
         continue;
       }
 
-      record += char;
+      append(char);
     }
   };
 
@@ -79,4 +95,12 @@ async function* streamDelimitedRecords(
   const tail = decoder.decode();
   if (tail) yield* consume(tail);
   if (record.length) yield record;
+}
+
+function normalizeMaximumRecordChars(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_OPEN_ICECAT_MAX_RECORD_CHARS;
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error("Open Icecat maximum record size must be a positive finite number.");
+  }
+  return Math.floor(value);
 }
