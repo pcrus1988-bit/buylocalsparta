@@ -28,6 +28,7 @@ export type VendorApplicationInput = Readonly<{
   primaryCategory: string;
   shopStory?: string;
   requestedPlanCode: "founding_2026" | "annual" | "monthly";
+  claimedResearchVendorId?: string;
 }>;
 
 export type VendorApplicationReceipt = Readonly<{
@@ -35,6 +36,12 @@ export type VendorApplicationReceipt = Readonly<{
   state: "verification_pending";
   ownerIdentity: "authenticated" | "provisional";
   accountClaimRequired: boolean;
+}>;
+
+type ClaimableResearchVendor = Readonly<{
+  uuid: string;
+  publicId: string;
+  tradingName: string;
 }>;
 
 export function vendorApplicationReadiness(): { ready: boolean; message: string } {
@@ -71,14 +78,25 @@ export async function submitVendorApplication(input: {
       const plan = await tx.query<SqlRow>("SELECT 1 AS present FROM vendor_plans WHERE market_id=$1 AND code=$2 AND status='active' LIMIT 1", [marketUuid, application.requestedPlanCode]);
       if (!plan.rowCount) throw new Error("PLAN_UNAVAILABLE");
 
-      // One legal business must not be able to create parallel applicant/vendor identities.
-      // Keep the public error generic so the endpoint does not disclose who owns an AFM.
+      const claimedVendor = application.claimedResearchVendorId
+        ? await claimableResearchVendor(tx, application.claimedResearchVendorId, marketUuid)
+        : undefined;
+
+      // One legal business must not create parallel unrelated applicant/vendor identities.
+      // A claim against this exact research vendor is allowed to coexist with another
+      // unverified claim for the same profile so spam cannot reserve a public page forever.
       const duplicateBusiness = await tx.query<SqlRow>(`
-        SELECT 1 AS present FROM vendor_applications WHERE tax_number=$1
+        SELECT 1 AS present
+        FROM vendor_applications
+        WHERE tax_number=$1
+          AND ($2::uuid IS NULL OR vendor_id IS DISTINCT FROM $2::uuid)
         UNION ALL
-        SELECT 1 AS present FROM vendor_businesses WHERE tax_number=$1
+        SELECT 1 AS present
+        FROM vendor_businesses
+        WHERE tax_number=$1
+          AND ($2::uuid IS NULL OR id<>$2::uuid)
         LIMIT 1
-      `, [application.taxNumber]);
+      `, [application.taxNumber, claimedVendor?.uuid ?? null]);
       if (duplicateBusiness.rowCount) throw new Error("BUSINESS_ALREADY_REGISTERED");
 
       const owner = input.principal
@@ -93,16 +111,27 @@ export async function submitVendorApplication(input: {
       const createdAt = new Date(input.now);
       await tx.query(`
         INSERT INTO vendor_applications (
-          id,public_id,owner_user_id,market_id,legal_name,trading_name,tax_number,gemi_number,
+          id,public_id,owner_user_id,market_id,vendor_id,legal_name,trading_name,tax_number,gemi_number,
           contact_email,phone,address_line1,postcode,primary_category,shop_story,requested_plan_code,
           status,created_at,updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'verification_pending',$16,$16)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'verification_pending',$17,$17)
       `, [
-        applicationUuid, applicationId, owner.uuid, marketUuid, application.legalName, application.tradingName,
-        application.taxNumber, application.gemiNumber ?? null, application.contactEmail, application.phone,
-        application.address, application.postcode, application.primaryCategory, application.shopStory ?? null,
-        application.requestedPlanCode, createdAt
+        applicationUuid, applicationId, owner.uuid, marketUuid, claimedVendor?.uuid ?? null,
+        application.legalName, application.tradingName, application.taxNumber, application.gemiNumber ?? null,
+        application.contactEmail, application.phone, application.address, application.postcode,
+        application.primaryCategory, application.shopStory ?? null, application.requestedPlanCode, createdAt
       ]);
+
+      if (claimedVendor) {
+        await tx.query(`
+          INSERT INTO vendor_application_profile_claims(
+            id,public_id,application_id,research_vendor_id,claimed_route,claim_status,created_at,updated_at
+          ) VALUES($1,$2,$3,$4,$5,'pending',$6,$6)
+        `, [
+          randomUUID(), id("vclaim"), applicationUuid, claimedVendor.uuid,
+          `/vendor/${claimedVendor.publicId}`, createdAt
+        ]);
+      }
 
       await insertApplicationEvent(tx, {
         applicationUuid,
@@ -110,7 +139,9 @@ export async function submitVendorApplication(input: {
         to: "application_started",
         actorUuid: owner.uuid,
         actorPublicId: owner.publicId,
-        reason: "merchant started public application",
+        reason: claimedVendor
+          ? `merchant started public application claiming existing profile ${claimedVendor.publicId}`
+          : "merchant started public application",
         at: input.now
       });
       await insertApplicationEvent(tx, {
@@ -132,6 +163,26 @@ export async function submitVendorApplication(input: {
     },
     { isolation: "serializable" }
   );
+}
+
+async function claimableResearchVendor(tx: SqlExecutor, publicVendorId: string, marketUuid: string): Promise<ClaimableResearchVendor> {
+  const result = await tx.query<SqlRow>(`
+    SELECT vendor.id::text AS vendor_uuid,vendor.public_id,vendor.trading_name
+    FROM vendor_businesses vendor
+    JOIN vendor_research_profiles research ON research.vendor_id=vendor.id
+    WHERE vendor.market_id=$1::uuid
+      AND vendor.public_id=$2
+      AND vendor.status='invited'
+      AND vendor.public_id LIKE 'vendor_research_%'
+    LIMIT 1
+    FOR UPDATE OF vendor
+  `, [marketUuid, publicVendorId]);
+  if (!result.rowCount) throw new Error("RESEARCH_PROFILE_NOT_CLAIMABLE");
+  return {
+    uuid: requiredText(result.rows[0].vendor_uuid, "research_vendor.id"),
+    publicId: requiredText(result.rows[0].public_id, "research_vendor.public_id"),
+    tradingName: requiredText(result.rows[0].trading_name, "research_vendor.trading_name")
+  };
 }
 
 async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal): Promise<{ uuid: string; publicId: string; provisional: false }> {
@@ -191,7 +242,24 @@ function normalizeApplication(input: VendorApplicationInput): VendorApplicationI
   if (!ALLOWED_CATEGORIES.has(primaryCategory)) throw new Error("Επίλεξε έγκυρη κατηγορία καταστήματος.");
   const shopStory = limitedOptional(input.shopStory, 1500);
   if (!APPROVED_PAID_PLANS.has(input.requestedPlanCode)) throw new Error("Μη έγκυρη επιλογή προγράμματος.");
-  return { legalName, tradingName, taxNumber, gemiNumber, contactEmail, phone, address, postcode, primaryCategory, shopStory, requestedPlanCode: input.requestedPlanCode };
+  const claimedResearchVendorId = limitedOptional(input.claimedResearchVendorId, 180);
+  if (claimedResearchVendorId && !/^vendor_research_[A-Za-z0-9_-]{3,160}$/.test(claimedResearchVendorId)) {
+    throw new Error("RESEARCH_PROFILE_NOT_CLAIMABLE");
+  }
+  return {
+    legalName,
+    tradingName,
+    taxNumber,
+    gemiNumber,
+    contactEmail,
+    phone,
+    address,
+    postcode,
+    primaryCategory,
+    shopStory,
+    requestedPlanCode: input.requestedPlanCode,
+    claimedResearchVendorId
+  };
 }
 
 function requiredLimited(value: string, label: string, max: number): string {
