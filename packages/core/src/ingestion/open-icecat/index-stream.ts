@@ -1,7 +1,11 @@
-import type { OpenIcecatIndexEntry, OpenIcecatIndexFilter } from "./types.ts";
+import type {
+  OpenIcecatIndexEntry,
+  OpenIcecatIndexFilter,
+  OpenIcecatIndexSourceEvent
+} from "./types.ts";
 import {
   detectDelimiter,
-  matchesOpenIcecatIndexFilter,
+  getOpenIcecatIndexFilterReason,
   openIcecatIndexEntryFromRecord,
   parseDelimitedLine
 } from "./index-csv.ts";
@@ -14,13 +18,19 @@ export type OpenIcecatIndexStreamOptions = Readonly<{
   maxRecordChars?: number;
 }>;
 
-export async function* parseOpenIcecatIndexStream(
+/**
+ * Streams every non-empty Open Icecat data record as a terminal source event.
+ * sourceOffset is zero-based and excludes the header. It is stable across
+ * filtering/rejection and is therefore safe to use as the durable resume cursor.
+ */
+export async function* parseOpenIcecatIndexSourceEvents(
   chunks: AsyncIterable<OpenIcecatIndexChunk>,
   filter: OpenIcecatIndexFilter = {},
   options: OpenIcecatIndexStreamOptions = {}
-): AsyncGenerator<OpenIcecatIndexEntry> {
+): AsyncGenerator<OpenIcecatIndexSourceEvent> {
   let header: readonly string[] | undefined;
   let delimiter = ",";
+  let sourceOffset = 0;
   const maxRecordChars = normalizeMaximumRecordChars(options.maxRecordChars);
 
   for await (const record of streamDelimitedRecords(chunks, maxRecordChars)) {
@@ -30,8 +40,37 @@ export async function* parseOpenIcecatIndexStream(
       header = parseDelimitedLine(record, delimiter).map((value) => value.trim().toLowerCase());
       continue;
     }
+
+    const currentOffset = sourceOffset;
+    sourceOffset += 1;
     const entry = openIcecatIndexEntryFromRecord(record, header, delimiter);
-    if (entry && matchesOpenIcecatIndexFilter(entry, filter)) yield entry;
+    if (!entry) {
+      yield { kind: "rejected", sourceOffset: currentOffset, reason: "invalid_record" };
+      continue;
+    }
+
+    const filterReason = getOpenIcecatIndexFilterReason(entry, filter);
+    if (filterReason) {
+      yield { kind: "filtered", sourceOffset: currentOffset, reason: filterReason, entry };
+      continue;
+    }
+
+    yield { kind: "entry", sourceOffset: currentOffset, entry };
+  }
+}
+
+/**
+ * Compatibility entry-only view of the source stream. Resumable ingestion must
+ * consume parseOpenIcecatIndexSourceEvents so rejected and filtered source rows
+ * remain visible to the durable checkpoint.
+ */
+export async function* parseOpenIcecatIndexStream(
+  chunks: AsyncIterable<OpenIcecatIndexChunk>,
+  filter: OpenIcecatIndexFilter = {},
+  options: OpenIcecatIndexStreamOptions = {}
+): AsyncGenerator<OpenIcecatIndexEntry> {
+  for await (const event of parseOpenIcecatIndexSourceEvents(chunks, filter, options)) {
+    if (event.kind === "entry") yield event.entry;
   }
 }
 
