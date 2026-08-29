@@ -22,6 +22,22 @@ COMMENT ON TABLE public.user_external_identities IS
 COMMENT ON COLUMN public.user_external_identities.provider_subject IS
   'Stable provider subject identifier (Google OpenID Connect sub). Never derive authorization roles from this value.';
 
+ALTER TABLE public.user_external_identities ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS bls_external_identity_runtime_all ON public.user_external_identities;
+CREATE POLICY bls_external_identity_runtime_all ON public.user_external_identities
+  FOR ALL
+  TO bls_app_runtime, bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
+
+REVOKE ALL ON TABLE public.user_external_identities
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON public.user_external_identities
+  TO bls_app_runtime, bls_platform_runtime;
+
 CREATE OR REPLACE FUNCTION public.remove_external_identities_when_user_closed()
 RETURNS trigger
 LANGUAGE plpgsql
