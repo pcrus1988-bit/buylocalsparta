@@ -5,17 +5,22 @@ import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
 import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
 import { VendorPriceManager } from "../../../components/VendorPriceManager";
+import { VendorStockFreshnessPanel } from "../../../components/VendorStockFreshnessPanel";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceHowItWorks, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { vendorCatalogWorkspace } from "../../../lib/vendor-backoffice-service";
+import { getVendorStockFreshness } from "../../../lib/vendor-stock-freshness";
 
 export const metadata: Metadata = { title: "Προϊόντα, τιμές & απόθεμα", robots: { index: false, follow: false } };
 
 export default async function VendorCatalogPage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
-  const workspace = await vendorCatalogWorkspace(principal);
+  const [workspace, stockFreshness] = await Promise.all([
+    vendorCatalogWorkspace(principal),
+    getVendorStockFreshness(principal)
+  ]);
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
   const hasProducts = workspace.catalogMetrics.totalProducts > 0;
   const hasVisibleProducts = workspace.catalogMetrics.visibleProducts > 0;
@@ -52,6 +57,7 @@ export default async function VendorCatalogPage() {
       <VendorPriceManager csrfToken={workspace.csrfToken} products={workspace.catalogProducts} />
     </section>
 
+    <VendorStockFreshnessPanel snapshot={stockFreshness} />
     <VendorCatalogClient initial={workspace} />
     <VendorArchivedProductsPanel products={archivedProducts} csrfToken={workspace.csrfToken} />
   </main>;
