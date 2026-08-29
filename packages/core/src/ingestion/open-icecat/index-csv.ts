@@ -2,36 +2,46 @@ import type { OpenIcecatIndexEntry, OpenIcecatIndexFilter } from "./types.ts";
 import { asBoolean, firstText, isValidGtin, normalizeGtin, stripContentToken } from "./utils.ts";
 
 export function parseOpenIcecatIndexCsv(csv: string, filter: OpenIcecatIndexFilter = {}): OpenIcecatIndexEntry[] {
-  const lines = csv.split(/\r?\n/).filter((line) => line.trim());
-  if (!lines.length) return [];
-  const delimiter = detectDelimiter(lines[0]);
-  const headers = parseDelimitedLine(lines[0], delimiter).map((value) => value.trim().toLowerCase());
+  const records = splitDelimitedRecords(csv).filter((record) => record.trim());
+  if (!records.length) return [];
+  const delimiter = detectDelimiter(records[0]);
+  const headers = parseDelimitedLine(records[0], delimiter).map((value) => value.trim().toLowerCase());
   const entries: OpenIcecatIndexEntry[] = [];
-  for (const line of lines.slice(1)) {
-    const values = parseDelimitedLine(line, delimiter);
-    const row: Record<string, string> = {};
-    for (let index = 0; index < headers.length; index += 1) row[headers[index]] = values[index]?.trim() ?? "";
-    const entry = openIcecatIndexEntryFromRow(row);
+  for (const record of records.slice(1)) {
+    const entry = openIcecatIndexEntryFromRecord(record, headers, delimiter);
     if (entry && matchesOpenIcecatIndexFilter(entry, filter)) entries.push(entry);
   }
   return entries;
 }
 
 export function matchesOpenIcecatIndexFilter(entry: OpenIcecatIndexEntry, filter: OpenIcecatIndexFilter): boolean {
-  if (filter.requireOnMarket && entry.onMarket !== true) return false;
-  if (filter.requireApprovedGtin && (entry.gtinsApproved !== true || entry.gtins.length === 0)) return false;
-  if (filter.country) {
+  const removed = entry.quality?.toUpperCase() === "REMOVED";
+  if (removed && !filter.includeRemoved) return false;
+  if (!removed && filter.requireOnMarket && entry.onMarket !== true) return false;
+  if (!removed && filter.requireApprovedGtin && (entry.gtinsApproved !== true || entry.gtins.length === 0)) return false;
+  if (!removed && filter.country) {
     const country = filter.country.trim().toUpperCase();
     if (country && !entry.countryMarkets.includes(country)) return false;
   }
-  if (filter.qualities?.length) {
+  if (!removed && filter.qualities?.length) {
     const allowed = new Set(filter.qualities.map((quality) => quality.trim().toUpperCase()).filter(Boolean));
     if (!entry.quality || !allowed.has(entry.quality.toUpperCase())) return false;
   }
-  return entry.quality?.toUpperCase() !== "REMOVED";
+  return true;
 }
 
-function openIcecatIndexEntryFromRow(row: Readonly<Record<string, string>>): OpenIcecatIndexEntry | undefined {
+export function openIcecatIndexEntryFromRecord(
+  record: string,
+  headers: readonly string[],
+  delimiter: string
+): OpenIcecatIndexEntry | undefined {
+  const values = parseDelimitedLine(record, delimiter);
+  const row: Record<string, string> = {};
+  for (let index = 0; index < headers.length; index += 1) row[headers[index]] = values[index]?.trim() ?? "";
+  return openIcecatIndexEntryFromRow(row);
+}
+
+export function openIcecatIndexEntryFromRow(row: Readonly<Record<string, string>>): OpenIcecatIndexEntry | undefined {
   const path = row.path?.trim();
   const productId = firstText(row.product_id, row.productid);
   if (!path || !productId) return undefined;
@@ -67,7 +77,7 @@ function optionalBoolean(value: string | undefined): boolean | undefined {
   return asBoolean(value);
 }
 
-function detectDelimiter(header: string): string {
+export function detectDelimiter(header: string): string {
   const candidates = ["\t", ",", ";"] as const;
   let winner: string = ",";
   let highest = -1;
@@ -81,7 +91,7 @@ function detectDelimiter(header: string): string {
   return winner;
 }
 
-function parseDelimitedLine(line: string, delimiter: string): string[] {
+export function parseDelimitedLine(line: string, delimiter: string): string[] {
   const values: string[] = [];
   let current = "";
   let quoted = false;
@@ -105,4 +115,32 @@ function parseDelimitedLine(line: string, delimiter: string): string[] {
   }
   values.push(current);
   return values;
+}
+
+export function splitDelimitedRecords(input: string): string[] {
+  const records: string[] = [];
+  let record = "";
+  let quoted = false;
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === '"') {
+      record += char;
+      if (quoted && input[index + 1] === '"') {
+        record += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    if ((char === "\n" || char === "\r") && !quoted) {
+      records.push(record);
+      record = "";
+      if (char === "\r" && input[index + 1] === "\n") index += 1;
+      continue;
+    }
+    record += char;
+  }
+  if (record.length) records.push(record);
+  return records;
 }
