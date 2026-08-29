@@ -7,6 +7,7 @@ const entrypoint = await readFile(new URL("../deploy/worker-entrypoint.sh", impo
 const dockerfile = await readFile(new URL("../deploy/worker.Dockerfile", import.meta.url), "utf8");
 const docs = await readFile(new URL("../docs/DEPLOYMENT_TOPOLOGY.md", import.meta.url), "utf8");
 const crawlerDocs = await readFile(new URL("../docs/CATALOG_CRAWLER_WORKER.md", import.meta.url), "utf8");
+const icecatDocs = await readFile(new URL("../docs/OPEN_ICECAT_INGESTION_WORKER.md", import.meta.url), "utf8");
 const nextConfig = await readFile(new URL("../apps/web/next.config.ts", import.meta.url), "utf8");
 const productionCi = await readFile(new URL("../.github/workflows/production-ci.yml", import.meta.url), "utf8");
 const stagingActivation = await readFile(new URL("../.github/workflows/staging-activation.yml", import.meta.url), "utf8");
@@ -45,7 +46,7 @@ for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
   assert(workflow.includes("npm ci --ignore-scripts"), "release/staging workflows must consume the committed npm lockfile");
   assert(!workflow.includes("npm install --ignore-scripts"), "release/staging workflows must not re-resolve dependencies with npm install");
 }
-for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
+for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "icecat"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
 assert(entrypoint.includes("Unsupported BLS_WORKER_ROLE"), "worker entrypoint must fail closed on unknown roles");
 assert(dockerfile.includes("FROM node:24-"), "worker container must run Node 24");
 assert(dockerfile.includes("COPY package.json package-lock.json ./"), "worker image must copy the committed root lockfile before installing dependencies");
@@ -61,6 +62,9 @@ assert(crawlerDocs.includes("BLS_WORKER_ROLE=crawler"), "crawler runbook must do
 assert(crawlerDocs.includes("DNS") && crawlerDocs.includes("pinned"), "crawler runbook must document DNS pinning protection");
 assert(crawlerDocs.includes("DATABASE_URL") && crawlerDocs.includes("BLS_CRAWLER_LEASE_SECONDS"), "crawler runbook must document worker database and lease configuration");
 assert(crawlerDocs.includes("never become public products") || crawlerDocs.includes("never become") || crawlerDocs.includes("never become public"), "crawler runbook must preserve the staging/publication boundary");
+assert(icecatDocs.includes("BLS_WORKER_ROLE=icecat"), "Open Icecat runbook must document the isolated ingestion worker role");
+assert(icecatDocs.includes("ICECAT_API_TOKEN") && icecatDocs.includes("advisory lock"), "Open Icecat runbook must document credentials and single-worker locking");
+assert(icecatDocs.includes("provider-index staging only") && icecatDocs.includes("Greek-quality"), "Open Icecat runbook must preserve the staging/publication boundary");
 assert(nextConfig.includes("outputFileTracingRoot"), "Next.js monorepo build must trace workspace files from repository root");
 assert(nextConfig.includes("\"img-src 'self' data: blob: https:\""), "CSP must permit HTTPS catalogue source images after the product-detail source-host guard without hard-coding each supplier hostname");
 assert(!nextConfig.includes("nikolaoutools.gr"), "CSP must not require supplier-specific image host deployments");
@@ -80,10 +84,11 @@ for (const path of [
   "../workers/notification-worker.ts",
   "../workers/media-worker.ts",
   "../workers/report-worker.ts",
-  "../workers/catalog-crawler-worker.ts"
+  "../workers/catalog-crawler-worker.ts",
+  "../workers/open-icecat-worker.ts"
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery cron, web build and six isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery cron, web build and seven isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
