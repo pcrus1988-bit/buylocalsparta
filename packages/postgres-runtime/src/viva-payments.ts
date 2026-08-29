@@ -26,6 +26,7 @@ export class PostgresVivaPaymentsService {
     if (!/^[A-Za-z0-9_-]{16,128}$/.test(input.visitorKey)) throw new Error("Trusted visitor identity is required");
     const prepared = await this.#uow.withTransaction({ actorUserId: input.customerId, marketId:"sparta", platformAccess:true }, async (tx) => {
       const result = await tx.query<SqlRow>(`SELECT o.id::text AS order_uuid,o.public_id AS order_id,o.status::text,o.total_minor,o.currency,o.visitor_hash,
+          GREATEST(0,o.total_minor-COALESCE((SELECT SUM(-gcl.amount_minor) FROM gift_card_ledger gcl WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'),0)) AS payable_minor,
           u.public_id AS customer_public_id,u.email,u.phone,u.preferred_locale,cp.first_name,cp.last_name,
           p.id::text AS payment_uuid,p.public_id AS payment_id,p.provider,p.provider_order_code,p.provider_correlation_id,p.provider_payload,p.status::text AS payment_status
         FROM customer_orders o JOIN payments p ON p.order_id=o.id LEFT JOIN users u ON u.id=o.user_id LEFT JOIN customer_profiles cp ON cp.user_id=u.id
@@ -38,7 +39,8 @@ export class PostgresVivaPaymentsService {
       const storedCustomer = optionalText(row.customer_public_id);
       if (storedCustomer && storedCustomer !== input.customerId) throw new Error("Payment order belongs to another customer");
       if (!storedCustomer && text(row.visitor_hash,"visitor_hash") !== visitorHash(input.visitorKey)) throw new Error("Payment order belongs to another visitor");
-      const amountMinor = integer(row.total_minor,"total_minor");
+      const amountMinor = integer(row.payable_minor,"payable_minor");
+      if (amountMinor <= 0) throw new Error("Order has no remaining amount for Viva payment");
       const existing = optionalText(row.provider_order_code);
       if (existing) return { kind:"existing" as const, value:{ orderId:input.orderId, orderCode:existing, checkoutUrl:this.#client.checkoutUrl(existing), amountMinor } };
       if (!["pending_psp","viva"].includes(text(row.provider,"payment.provider"))) throw new Error("Order payment is assigned to a different provider");
@@ -170,7 +172,7 @@ export class PostgresVivaPaymentsService {
       if (!result.transactionId) throw new Error("Viva reported a successful refund without a provider transaction id");
       return await this.#uow.withTransaction({marketId:"sparta",platformAccess:true},async(tx)=>{
         await tx.query(`UPDATE refunds SET status='completed',provider_refund_id=$2,provider_status=$3,provider_event_id=$2,provider_payload=$4::jsonb,completed_at=$5,updated_at=$5 WHERE id=$1`,[prepared.refundUuid,result.transactionId??null,result.statusId,JSON.stringify(result),new Date(now)]);
-        const payment=await tx.query<SqlRow>(`UPDATE payments SET refunded_minor=LEAST(captured_minor,refunded_minor+$2),status=(CASE WHEN refunded_minor+$2>=captured_minor THEN 'refunded' ELSE 'partially_refunded' END)::payment_status,updated_at=$3 WHERE id=$1 RETURNING refunded_minor,captured_minor,status::text`,[prepared.paymentUuid,input.amountMinor,new Date(now)]);
+        await tx.query<SqlRow>(`UPDATE payments SET refunded_minor=LEAST(captured_minor,refunded_minor+$2),status=(CASE WHEN refunded_minor+$2>=captured_minor THEN 'refunded' ELSE 'partially_refunded' END)::payment_status,updated_at=$3 WHERE id=$1 RETURNING refunded_minor,captured_minor,status::text`,[prepared.paymentUuid,input.amountMinor,new Date(now)]);
         await this.#paymentEvent(tx,prepared.paymentUuid,result.transactionId?`reversal:${result.transactionId}`:`refund:${prepared.refundId}`,"refund_completed",{refundId:prepared.refundId,amountMinor:input.amountMinor,statusId:result.statusId},now);
         await this.#enqueueOrderNotification(tx,{paymentUuid:prepared.paymentUuid,eventType:"order.refund_completed",dedupeKey:`refund:${prepared.refundId}:completed`,title:"Η επιστροφή χρημάτων ολοκληρώθηκε",body:`Η επιστροφή χρημάτων για την παραγγελία σας ολοκληρώθηκε.`,payload:{refundId:prepared.refundId,amountMinor:input.amountMinor,providerRefundId:result.transactionId},now});
         return {id:prepared.refundId,status:"completed",amountMinor:input.amountMinor,providerRefundId:result.transactionId};
@@ -212,10 +214,11 @@ export class PostgresVivaPaymentsService {
   }
 
   async #applyTransaction(tx:SqlExecutor, provider:VivaTransaction, source:string, now:number):Promise<VivaPaymentReconciliation>{
-    const found=await tx.query<SqlRow>(`SELECT p.id::text AS payment_uuid,p.status::text AS payment_status,p.captured_minor,p.refunded_minor,o.id::text AS order_uuid,o.public_id AS order_id,o.user_id::text AS customer_uuid,o.status::text AS order_status,o.total_minor,o.currency
+    const found=await tx.query<SqlRow>(`SELECT p.id::text AS payment_uuid,p.status::text AS payment_status,p.captured_minor,p.refunded_minor,o.id::text AS order_uuid,o.public_id AS order_id,o.user_id::text AS customer_uuid,o.status::text AS order_status,o.total_minor,o.currency,
+      GREATEST(0,o.total_minor-COALESCE((SELECT SUM(-gcl.amount_minor) FROM gift_card_ledger gcl WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'),0)) AS payable_minor
       FROM payments p JOIN customer_orders o ON o.id=p.order_id WHERE p.provider='viva' AND p.provider_order_code=$1 FOR UPDATE OF p,o`,[provider.orderCode]);
     if(!found.rowCount) throw new Error("Unknown Viva order code");
-    const row=found.rows[0], total=integer(row.total_minor,"order.total_minor");
+    const row=found.rows[0], total=integer(row.payable_minor,"order.payable_minor");
     if(text(row.currency,"order.currency")!=="EUR"||provider.currencyCode!==978) throw new Error("Viva currency mismatch");
     if(provider.amountMinor!==total) throw new Error(`Viva amount mismatch: expected ${total}, received ${provider.amountMinor}`);
     const paymentUuid=text(row.payment_uuid,"payment_uuid"), orderUuid=text(row.order_uuid,"order_uuid"), orderId=text(row.order_id,"order_id");
