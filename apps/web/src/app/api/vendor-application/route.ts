@@ -60,7 +60,8 @@ export async function POST(request: Request) {
       postcode: stringField(body.postcode),
       primaryCategory: stringField(body.primaryCategory),
       shopStory: optionalStringField(body.shopStory),
-      requestedPlanCode: vendorPlanField(body.requestedPlanCode)
+      requestedPlanCode: vendorPlanField(body.requestedPlanCode),
+      claimedResearchVendorId: optionalStringField(body.claimedResearchVendorId)
     };
     const receipt = await submitVendorApplication({ application, principal, now });
 
@@ -84,7 +85,9 @@ export async function POST(request: Request) {
         status: "verification_pending",
         reference: receipt.applicationId,
         accountClaimRequired: receipt.accountClaimRequired,
-        message: "Η αίτηση καταχωρίστηκε και περιμένει έλεγχο από το Buy Local Sparta. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
+        message: application.claimedResearchVendorId
+          ? "Η αίτηση καταχωρίστηκε και συνδέθηκε με την υπάρχουσα δημόσια σελίδα για έλεγχο ιδιοκτησίας. Η σελίδα παραμένει στην ίδια διεύθυνση όσο διαρκεί η επαλήθευση."
+          : "Η αίτηση καταχωρίστηκε και περιμένει έλεγχο από το Buy Local Sparta. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
@@ -98,6 +101,9 @@ export async function POST(request: Request) {
     }
     if (code === "APPLICATION_EXISTS") {
       return Response.json({ code: "application_exists", error: "Υπάρχει ήδη αίτηση εμπόρου για αυτόν τον ιδιοκτήτη. Η ομάδα μας θα συνεχίσει από την υπάρχουσα αίτηση." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
+    if (code === "RESEARCH_PROFILE_NOT_CLAIMABLE") {
+      return Response.json({ code: "profile_not_claimable", error: "Αυτή η δημόσια σελίδα δεν είναι πλέον διαθέσιμη για νέα διεκδίκηση. Ανανέωσε τη σελίδα ή επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ για ασφαλή ταυτοποίηση." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
     if (["MARKET_UNAVAILABLE", "PLAN_UNAVAILABLE"].includes(code)) {
       return Response.json({ code: "configuration_unavailable", error: "Η αίτηση δεν μπορεί να υποβληθεί αυτή τη στιγμή λόγω ρύθμισης της αγοράς. Επικοινώνησε με την ομάδα Buy Local Sparta." }, { status: 503, headers: { "Cache-Control": "no-store" } });
