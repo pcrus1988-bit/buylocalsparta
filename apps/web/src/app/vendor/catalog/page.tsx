@@ -19,7 +19,9 @@ export default async function VendorCatalogPage() {
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
   const hasProducts = workspace.catalogMetrics.totalProducts > 0;
   const hasVisibleProducts = workspace.catalogMetrics.visibleProducts > 0;
-  const archivedProducts = workspace.catalogProducts.filter((item) => item.offerStatus === "archived").map((item) => ({ offerId: item.offerId, title: item.title, vendorSku: item.vendorSku }));
+  const archivedProducts = workspace.catalogProducts
+    .filter((item) => item.offerStatus === "archived" && !item.merchantPauseActive)
+    .map((item) => ({ offerId: item.offerId, title: item.title, vendorSku: item.vendorSku }));
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -39,11 +41,12 @@ export default async function VendorCatalogPage() {
       <WorkspaceHowItWorks>
         <p><strong>Τιμή πώλησης:</strong> είναι η τελική τιμή του δικού σου offer. Κάθε πραγματική αλλαγή κρατιέται στο ιστορικό και ενημερώνει τον admin.</p>
         <p><strong>Φυσικό απόθεμα:</strong> πόσα τεμάχια υπάρχουν πραγματικά στο κατάστημα.</p>
+        <p><strong>Επιβεβαίωση αποθέματος:</strong> κάθε αποθήκευση επιβεβαιώνει ξανά ότι το stock είναι πραγματικό και πρόσφατο, ακόμη κι αν η ποσότητα δεν άλλαξε. Η πρόσφατη επιβεβαίωση είναι απαραίτητη για δημόσια διαθεσιμότητα και Google Merchant Center.</p>
         <p><strong>Απόθεμα ασφαλείας:</strong> τεμάχια που θέλεις να μένουν εκτός online πώλησης για να μειώνεται ο κίνδυνος overselling.</p>
         <p><strong>Δεσμευμένα:</strong> τεμάχια που έχουν ήδη κρατηθεί προσωρινά για ενεργές παραγγελίες.</p>
         <p><strong>Διαθέσιμα προς πώληση:</strong> το ποσό που μπορεί πραγματικά να προσφερθεί online μετά τις δεσμεύσεις και το απόθεμα ασφαλείας.</p>
         <p><strong>Τοπική παράδοση:</strong> είναι ενεργή από προεπιλογή. Μπορείς να ορίσεις συγκεκριμένο προϊόν ως «μόνο παραλαβή», χωρίς να επηρεάζεται η διαθεσιμότητα των υπόλοιπων προϊόντων σου.</p>
-        <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή stock· απλώς σταματά προσωρινά τη δημόσια πώληση.</p>
+        <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή stock· απλώς σταματά προσωρινά τη δημόσια πώληση. Προϊόν που έκρυψες εσύ το επαναφέρεις από τον ίδιο διακόπτη· δεν χρειάζεται έγκριση Admin.</p>
       </WorkspaceHowItWorks>
       <VendorDeliveryEligibilityPanel csrfToken={workspace.csrfToken} />
       <VendorPriceManager csrfToken={workspace.csrfToken} products={workspace.catalogProducts} />
