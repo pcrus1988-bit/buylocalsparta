@@ -9,7 +9,9 @@ function when(value?: number): string {
 function duration(seconds: number): string {
   if (!seconds) return "χωρίς έγκυρο όριο";
   const hours = Math.round(seconds / 3600);
-  return hours % 24 === 0 ? `${hours / 24} ημέρα${hours === 24 ? "" : "ς"}` : `${hours} ώρες`;
+  if (hours % 24 !== 0) return `${hours} ώρες`;
+  const days = hours / 24;
+  return days === 1 ? "1 ημέρα" : `${days} ημέρες`;
 }
 
 export function VendorStockFreshnessPanel({ snapshot }: { snapshot: VendorStockFreshnessSnapshot }) {
