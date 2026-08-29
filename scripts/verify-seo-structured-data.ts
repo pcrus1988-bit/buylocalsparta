@@ -19,6 +19,7 @@ const issueGuidance = read("apps/web/src/lib/seo-issue-guidance.ts");
 const navigation = read("apps/web/src/lib/site-navigation.ts");
 const productPage = read("apps/web/src/app/product/[id]/page.tsx");
 const vendorPage = read("apps/web/src/app/vendor/[id]/page.tsx");
+const vendorLayout = read("apps/web/src/app/vendor/[id]/layout.tsx");
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0122_seo_structured_data_observations.sql"] === migrationHash,
@@ -112,10 +113,19 @@ for (const contract of ['"@type": "Product"', '"@type": "Offer"', '"@type": "Bre
   expect(productPage.includes(contract), `Product renderer is missing ${contract}`);
 }
 expect(vendorPage.includes('"@type": "LocalBusiness"'), "Vendor renderer is missing LocalBusiness structured data");
+for (const contract of [
+  '"@type": "ProfilePage"',
+  '"@type": "DefinedTerm"',
+  'mainEntity: { "@id": businessId }',
+  'publisher: { "@id": `${origin}/#organization` }',
+  'const relationshipLabel = "Δημόσια καταχώριση · όχι ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ"',
+  'Η παρουσία εδώ δεν σημαίνει ενεργή συνεργασία ή πωλήσεις μέσω ΚΟΝΤΑ ΜΟΥ',
+  'seoControl.schemaAllowed ? <script type="application/ld+json"'
+]) expect(vendorLayout.includes(contract), `Research-vendor relationship schema is missing ${contract}`);
 
 if (failures.length) {
   console.error("SEO structured-data checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
 
-console.log(`SEO structured-data checks passed: migration checksum ${migrationHash}; governed schema expectations, immutable JSON-LD evidence, issue lifecycle and Admin diagnostics verified.`);
+console.log(`SEO structured-data checks passed: migration checksum ${migrationHash}; governed schema expectations, immutable JSON-LD evidence, vendor relationship semantics, issue lifecycle and Admin diagnostics verified.`);
