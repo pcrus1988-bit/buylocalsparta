@@ -2,7 +2,7 @@ import type { OpenIcecatIndexEntry, OpenIcecatIndexSourceEvent } from "./types.t
 
 export type OpenIcecatImportKind = "full" | "daily";
 
-export const OPEN_ICECAT_BULK_PROCESSING_VERSION = "open-icecat-bulk-v1";
+export const OPEN_ICECAT_BULK_PROCESSING_VERSION = "open-icecat-bulk-v2-source-rows";
 
 export type OpenIcecatBulkRunIdentity = Readonly<{
   sourceId: string;
