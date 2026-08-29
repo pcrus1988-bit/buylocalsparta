@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type LegalKey = "terms" | "privacy";
 type LegalDocument = LegalKey | null;
@@ -12,7 +12,12 @@ const LEGAL_DOCUMENTS: Record<LegalKey, { title: string; src: string }> = {
 };
 
 export function RegisterForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const googlePending = searchParams.get("google") === "1";
+  const requested = searchParams.get("next") ?? "";
+  const safeNext = requested.startsWith("/") && !requested.startsWith("//") ? requested : undefined;
+  const googleHref = `/api/account/google/start${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`;
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,12 +79,23 @@ export function RegisterForm() {
     setSuccess("");
     setVerificationUrl("");
     try {
-      const requested = searchParams.get("next") ?? "";
-      const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : undefined;
+      if (googlePending) {
+        const response = await fetch("/api/account/google/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ fullName, acceptedTerms, acceptedPrivacy })
+        });
+        const data = await response.json() as { error?: string; next?: string };
+        if (!response.ok) throw new Error(data.error ?? "Η εγγραφή με Google απέτυχε.");
+        router.replace(data.next && data.next.startsWith("/") && !data.next.startsWith("//") ? data.next : "/account");
+        router.refresh();
+        return;
+      }
+
       const response = await fetch("/api/account/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fullName, email, password, passwordConfirmation, acceptedTerms, acceptedPrivacy, next })
+        body: JSON.stringify({ fullName, email, password, passwordConfirmation, acceptedTerms, acceptedPrivacy, next: safeNext })
       });
       const data = await response.json() as { error?: string; email?: string; resent?: boolean; verificationUrl?: string };
       if (!response.ok) throw new Error(data.error ?? "Η εγγραφή απέτυχε.");
@@ -97,7 +113,7 @@ export function RegisterForm() {
       setAcceptedTerms(false);
       setAcceptedPrivacy(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Η εγγραφή απέτυχε.");
+      setError(cause instanceof Error ? cause.message : googlePending ? "Η εγγραφή με Google απέτυχε." : "Η εγγραφή απέτυχε.");
     } finally {
       setBusy(false);
     }
@@ -117,18 +133,31 @@ export function RegisterForm() {
 
   return <>
     <form className="login-form" onSubmit={submit}>
+      {googlePending ? <div className="account-gate" role="status">
+        <strong>Ο λογαριασμός Google επιβεβαιώθηκε.</strong>
+        <p>Συμπλήρωσε το ονοματεπώνυμό σου και αποδέξου τα υποχρεωτικά έγγραφα για να ολοκληρώσεις τη δημιουργία λογαριασμού ΚΟΝΤΑ ΜΟΥ.</p>
+      </div> : <>
+        <a className="button" href={googleHref} style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.65rem", textDecoration: "none" }}>
+          <span aria-hidden="true" style={{ fontWeight: 800 }}>G</span>
+          Εγγραφή με Google
+        </a>
+        <div aria-hidden="true" style={{ textAlign: "center", opacity: 0.65, fontSize: "0.9rem" }}>ή με email</div>
+      </>}
+
       <label htmlFor="register-name">Ονοματεπώνυμο</label>
       <input id="register-name" type="text" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={3} maxLength={160} placeholder="Όνομα και επώνυμο" />
 
-      <label htmlFor="register-email">Email</label>
-      <input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+      {!googlePending && <>
+        <label htmlFor="register-email">Email</label>
+        <input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
 
-      <label htmlFor="register-password">Κωδικός</label>
-      <input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={10} aria-describedby="register-password-hint" />
-      <small id="register-password-hint">Τουλάχιστον 10 χαρακτήρες. Χρησιμοποίησε έναν μοναδικό κωδικό που δεν χρησιμοποιείς αλλού.</small>
+        <label htmlFor="register-password">Κωδικός</label>
+        <input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={10} aria-describedby="register-password-hint" />
+        <small id="register-password-hint">Τουλάχιστον 10 χαρακτήρες. Χρησιμοποίησε έναν μοναδικό κωδικό που δεν χρησιμοποιείς αλλού.</small>
 
-      <label htmlFor="register-password-confirmation">Επανάληψη κωδικού</label>
-      <input id="register-password-confirmation" type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required minLength={10} />
+        <label htmlFor="register-password-confirmation">Επανάληψη κωδικού</label>
+        <input id="register-password-confirmation" type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required minLength={10} />
+      </>}
 
       <div className="registration-legal-consents" aria-label="Υποχρεωτικές αποδοχές">
         <label className="checkbox-row" htmlFor="register-terms">
@@ -144,7 +173,7 @@ export function RegisterForm() {
 
       {error && <p className="form-error" role="alert">{error}</p>}
 
-      <button className="button" type="submit" disabled={busy}>{busy ? "Δημιουργία…" : "Δημιουργία λογαριασμού"}</button>
+      <button className="button" type="submit" disabled={busy}>{busy ? (googlePending ? "Ολοκλήρωση…" : "Δημιουργία…") : (googlePending ? "Ολοκλήρωση εγγραφής" : "Δημιουργία λογαριασμού")}</button>
       <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href={`/login${safeNextQuery(searchParams.get("next"))}`}>Συνδέσου →</a></p>
     </form>
 
