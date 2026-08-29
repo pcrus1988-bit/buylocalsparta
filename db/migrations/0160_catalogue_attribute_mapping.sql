@@ -17,15 +17,17 @@ CREATE TABLE public.catalog_source_attribute_mapping_rules (
   source_id UUID NOT NULL REFERENCES public.catalog_sources(id) ON DELETE CASCADE,
   source_attribute_key TEXT NOT NULL,
   source_attribute_key_normalized TEXT GENERATED ALWAYS AS (public.catalog_attribute_mapping_key(source_attribute_key)) STORED,
-  source_taxonomy_node_id UUID REFERENCES public.catalog_source_taxonomy_nodes(id) ON DELETE CASCADE,
+  source_taxonomy_node_id UUID,
   source_taxonomy_node_key TEXT GENERATED ALWAYS AS (coalesce(source_taxonomy_node_id::text, '')) STORED,
   source_unit TEXT,
   source_unit_normalized TEXT GENERATED ALWAYS AS (public.catalog_attribute_mapping_key(source_unit)) STORED,
-  attribute_id UUID REFERENCES public.attribute_definitions(id) ON DELETE SET NULL,
+  attribute_id UUID REFERENCES public.attribute_definitions(id),
   mapping_status TEXT NOT NULL CHECK (mapping_status IN ('mapped', 'review_required', 'rejected')),
   decided_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  FOREIGN KEY (source_taxonomy_node_id, source_id)
+    REFERENCES public.catalog_source_taxonomy_nodes(id, source_id) ON DELETE CASCADE,
   CHECK (length(btrim(source_attribute_key)) > 0),
   CHECK (
     (mapping_status = 'mapped' AND attribute_id IS NOT NULL)
