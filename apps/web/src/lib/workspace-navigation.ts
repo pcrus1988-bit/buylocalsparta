@@ -201,6 +201,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read", contextHidden: true },
       { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read", contextHidden: true },
       { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read", contextHidden: true },
+      { label: "Merchant Center", href: "/admin/seo/merchant-center", icon: "▦", permission: "content.read", contextHidden: true },
       { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read", contextHidden: true }
     ]
   },
