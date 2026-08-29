@@ -11,12 +11,13 @@ function requireText(text: string, fragment: string, label: string): void {
   if (!text.includes(fragment)) throw new Error(`${label} is missing required contract: ${fragment}`);
 }
 
-const [migration, googleClient, syncRuntime, cronRoute, vercel, checksum] = await Promise.all([
+const [migration, googleClient, syncRuntime, cronRoute, vercel, scheduler, checksum] = await Promise.all([
   source("db/migrations/0156_seo_production_metrics.sql"),
   source("apps/web/src/lib/seo-google-metrics.ts"),
   source("apps/web/src/lib/seo-production-metrics.ts"),
   source("apps/web/src/app/api/cron/seo-production-metrics/route.ts"),
   source("vercel.json"),
+  source(".github/workflows/seo-production-metrics.yml"),
   source("db/migrations/checksums.0156.json")
 ]);
 
@@ -52,8 +53,16 @@ requireText(cronRoute, "syncSeoProductionMetrics", "SEO metrics cron execution")
 requireText(cronRoute, 'status: hasProviderError ? 502 : 200', "SEO metrics cron health signaling");
 
 const vercelConfig = JSON.parse(vercel) as { crons?: readonly { path?: string; schedule?: string }[] };
-const cron = vercelConfig.crons?.find((item) => item.path === "/api/cron/seo-production-metrics");
-if (!cron) throw new Error("Vercel configuration does not schedule the SEO production metrics cron.");
-if (!/^\d+ \d+ \* \* \*$/.test(cron.schedule ?? "")) throw new Error("SEO production metrics cron must run daily at a deterministic time.");
+if (vercelConfig.crons?.some((item) => item.path === "/api/cron/seo-production-metrics")) {
+  throw new Error("SEO production metrics must not run as a Vercel cron; keep long-running automation outside the web deployment topology.");
+}
 
-console.log("SEO production metrics automation contracts OK.");
+requireText(scheduler, 'cron: "37 4 * * *"', "SEO production metrics scheduler");
+requireText(scheduler, "workflow_dispatch:", "SEO production metrics scheduler");
+requireText(scheduler, 'CRON_SECRET: ${{ secrets.CRON_SECRET }}', "SEO production metrics scheduler");
+requireText(scheduler, "https://kontamou.site/api/cron/seo-production-metrics", "SEO production metrics scheduler");
+requireText(scheduler, "curl --fail-with-body --silent --show-error", "SEO production metrics scheduler");
+requireText(scheduler, '--header "Authorization: Bearer ${CRON_SECRET}"', "SEO production metrics scheduler");
+requireText(scheduler, "--max-time 70", "SEO production metrics scheduler");
+
+console.log("SEO production metrics automation contracts OK: daily scheduler is isolated from Vercel cron topology.");
