@@ -22,13 +22,16 @@ CREATE TABLE vendor_application_profile_claims (
   CHECK (resolution_note IS NULL OR length(resolution_note) <= 1000)
 );
 
--- Deliberately not unique on research_vendor_id: an unverified/spam claim must not
--- permanently reserve a public business profile against its legitimate owner.
+-- Pending claims deliberately do not reserve a profile. Only a verified claim is
+-- unique, so several ownership requests may be reviewed but only one can win.
 CREATE INDEX vendor_application_profile_claims_vendor_status_idx
   ON vendor_application_profile_claims(research_vendor_id,claim_status,created_at DESC);
+CREATE UNIQUE INDEX vendor_application_profile_claims_verified_vendor_uidx
+  ON vendor_application_profile_claims(research_vendor_id)
+  WHERE claim_status='verified';
 
 COMMENT ON TABLE vendor_application_profile_claims IS
-  'Auditable applications claiming an existing indexed research-vendor profile. Pending claims do not reserve the profile globally.';
+  'Auditable applications claiming an existing indexed research-vendor profile. Pending claims do not reserve the profile globally; only one claim may become verified.';
 
 ALTER TABLE vendor_application_profile_claims ENABLE ROW LEVEL SECURITY;
 
@@ -56,6 +59,7 @@ AS $$
 DECLARE
   claim_found boolean := false;
   membership_uuid uuid;
+  location_uuid uuid;
   actor_uuid uuid;
 BEGIN
   IF NEW.status = 'active'
@@ -67,6 +71,16 @@ BEGIN
     WHERE public_id = nullif(current_setting('app.actor_user_id', true), '')
        OR id::text = nullif(current_setting('app.actor_user_id', true), '')
     LIMIT 1;
+
+    IF EXISTS (
+      SELECT 1
+      FROM vendor_application_profile_claims
+      WHERE research_vendor_id=NEW.vendor_id
+        AND application_id<>NEW.id
+        AND claim_status='verified'
+    ) THEN
+      RAISE EXCEPTION 'RESEARCH_PROFILE_ALREADY_CLAIMED';
+    END IF;
 
     UPDATE vendor_application_profile_claims
     SET claim_status='verified',
@@ -81,6 +95,16 @@ BEGIN
     claim_found := FOUND;
 
     IF claim_found THEN
+      UPDATE vendor_application_profile_claims
+      SET claim_status='superseded',
+          resolved_by=actor_uuid,
+          resolved_at=now(),
+          resolution_note='Another ownership claim for this indexed profile was verified',
+          updated_at=now()
+      WHERE research_vendor_id=NEW.vendor_id
+        AND application_id<>NEW.id
+        AND claim_status='pending';
+
       -- Keep the indexed vendor identity but replace research-era identity fields with
       -- the verified application values. Research provenance remains available in its
       -- separate dossier tables.
@@ -121,9 +145,13 @@ BEGIN
       VALUES(membership_uuid,'vendor_owner')
       ON CONFLICT DO NOTHING;
 
-      IF NOT EXISTS (
-        SELECT 1 FROM vendor_locations WHERE vendor_id=NEW.vendor_id
-      ) THEN
+      SELECT id INTO location_uuid
+      FROM vendor_locations
+      WHERE vendor_id=NEW.vendor_id
+      ORDER BY is_primary DESC,verified_at DESC NULLS LAST,created_at,id
+      LIMIT 1;
+
+      IF location_uuid IS NULL THEN
         INSERT INTO vendor_locations(
           id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,
           country_code,phone,public_email,active,verified_at,created_at,updated_at
@@ -144,6 +172,17 @@ BEGIN
           now(),
           now()
         );
+      ELSE
+        UPDATE vendor_locations
+        SET name=NEW.trading_name,
+            address_line1=NEW.address_line1,
+            postcode=NEW.postcode,
+            phone=NEW.phone,
+            public_email=NEW.contact_email,
+            active=true,
+            verified_at=now(),
+            updated_at=now()
+        WHERE id=location_uuid;
       END IF;
 
       IF NEW.shop_story IS NOT NULL AND length(btrim(NEW.shop_story)) > 0 THEN
