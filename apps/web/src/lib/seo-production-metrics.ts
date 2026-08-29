@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import {
   fetchAnalyticsOrganicLandingMetrics,
@@ -79,6 +79,10 @@ function shiftDate(day: string, days: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function laterDate(left: string, right: string): string {
+  return left >= right ? left : right;
 }
 
 function zonedDate(daysAgo: number, timeZone: string): string {
@@ -193,10 +197,10 @@ function errorText(error: unknown): string {
   return (error instanceof Error ? error.message : String(error || "Unknown SEO metrics sync error")).replace(/\s+/g, " ").trim().slice(0, 1000);
 }
 
-async function withPlatformTransaction<T>(fn: Parameters<PostgresUnitOfWork["withTransaction"]>[1]): Promise<T> {
+async function withPlatformTransaction<T>(fn: (tx: SqlExecutor) => Promise<T>): Promise<T> {
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 20_000, lockTimeoutMs: 3_000 });
-  return uow.withTransaction({ marketId: marketCode(), platformAccess: true }, fn) as Promise<T>;
+  return uow.withTransaction({ marketId: marketCode(), platformAccess: true }, fn);
 }
 
 async function readSyncState(provider: Provider): Promise<Readonly<{ cursor?: string; complete: boolean }>> {
@@ -339,7 +343,7 @@ async function syncGsc(canonicalOrigin: string, oldestDay: string): Promise<SeoP
   await persistGscRows(recentRows);
   await markRecentSuccess(provider, recent.start, recent.end);
 
-  let state = await readSyncState(provider);
+  const state = await readSyncState(provider);
   let cursor = state.cursor ?? shiftDate(recent.start, -1);
   let backfillRows = 0;
   let backfillChunks = 0;
@@ -347,7 +351,7 @@ async function syncGsc(canonicalOrigin: string, oldestDay: string): Promise<SeoP
 
   if (!backfillComplete) {
     for (let index = 0; index < BACKFILL_CHUNKS_PER_RUN && cursor >= oldestDay; index += 1) {
-      const start = [shiftDate(cursor, -(BACKFILL_CHUNK_DAYS - 1)), oldestDay].sort().reverse()[0];
+      const start = laterDate(shiftDate(cursor, -(BACKFILL_CHUNK_DAYS - 1)), oldestDay);
       const historical = await fetchSearchConsoleDailyPageMetrics(start, cursor);
       if (historical.error) {
         await markProviderError(provider, historical.error);
@@ -384,7 +388,7 @@ async function syncGa4(oldestDay: string): Promise<SeoProductionProviderSync> {
   await persistGa4Rows(recentRows);
   await markRecentSuccess(provider, recent.start, recent.end);
 
-  let state = await readSyncState(provider);
+  const state = await readSyncState(provider);
   let cursor = state.cursor ?? shiftDate(recent.start, -1);
   let backfillRows = 0;
   let backfillChunks = 0;
@@ -392,7 +396,7 @@ async function syncGa4(oldestDay: string): Promise<SeoProductionProviderSync> {
 
   if (!backfillComplete) {
     for (let index = 0; index < BACKFILL_CHUNKS_PER_RUN && cursor >= oldestDay; index += 1) {
-      const start = [shiftDate(cursor, -(BACKFILL_CHUNK_DAYS - 1)), oldestDay].sort().reverse()[0];
+      const start = laterDate(shiftDate(cursor, -(BACKFILL_CHUNK_DAYS - 1)), oldestDay);
       const historical = await fetchAnalyticsOrganicLandingMetrics(start, cursor);
       if (historical.error) {
         await markProviderError(provider, historical.error);
