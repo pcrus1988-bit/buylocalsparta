@@ -1,0 +1,33 @@
+.accountPage :global(.dashboard-toolbar-refined) {
+  color: var(--ink);
+}
+
+.accountPage :global(.dashboard-toolbar-refined .account-identity) {
+  color: var(--ink);
+}
+
+.accountPage :global(.dashboard-toolbar-refined .account-avatar) {
+  color: var(--olive-dark);
+  border-color: rgba(89, 97, 67, 0.35);
+  background: rgba(109, 118, 81, 0.08);
+}
+
+.accountPage :global(.dashboard-toolbar-refined .account-identity small) {
+  color: var(--olive);
+}
+
+.accountPage :global(.dashboard-toolbar-refined .account-identity strong) {
+  color: var(--ink);
+}
+
+.accountPage :global(.dashboard-toolbar-refined .button-secondary) {
+  color: var(--ink);
+  border-color: rgba(24, 48, 39, 0.22);
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.accountPage :global(.dashboard-toolbar-refined .button-secondary:hover) {
+  color: var(--ink);
+  border-color: rgba(24, 48, 39, 0.36);
+  background: var(--white);
+}
