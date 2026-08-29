@@ -138,3 +138,28 @@ export type OpenIcecatIndexFilter = Readonly<{
   qualities?: readonly string[];
   includeRemoved?: boolean;
 }>;
+
+export type OpenIcecatIndexFilterReason =
+  | "removed"
+  | "off_market"
+  | "unapproved_gtin"
+  | "country"
+  | "quality";
+
+export type OpenIcecatIndexSourceEvent =
+  | Readonly<{
+      kind: "entry";
+      sourceOffset: number;
+      entry: OpenIcecatIndexEntry;
+    }>
+  | Readonly<{
+      kind: "rejected";
+      sourceOffset: number;
+      reason: "invalid_record";
+    }>
+  | Readonly<{
+      kind: "filtered";
+      sourceOffset: number;
+      reason: OpenIcecatIndexFilterReason;
+      entry: OpenIcecatIndexEntry;
+    }>;
