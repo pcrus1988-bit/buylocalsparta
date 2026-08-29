@@ -35,7 +35,7 @@ async function resolveAttributeAction(formData: FormData) {
   const status = queueStatus(String(formData.get("queueStatus") ?? ""));
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const sourceAttributeKey = String(formData.get("sourceAttributeKey") ?? "").trim();
-  const categoryPath = String(formData.get("categoryPath") ?? "").trim() || undefined;
+  const sourceTaxonomyNodeId = String(formData.get("sourceTaxonomyNodeId") ?? "").trim() || undefined;
   const sourceUnit = String(formData.get("sourceUnit") ?? "").trim() || undefined;
   const attributeId = String(formData.get("attributeId") ?? "").trim() || undefined;
   const decision = String(formData.get("decision") ?? "").trim();
@@ -48,7 +48,7 @@ async function resolveAttributeAction(formData: FormData) {
     const result = await resolveCatalogueAttributeMapping(principal, {
       sourceId,
       sourceAttributeKey,
-      categoryPath,
+      sourceTaxonomyNodeId,
       sourceUnit,
       attributeId,
       decision
@@ -109,7 +109,7 @@ export default async function AttributeMappingPage({ searchParams }: { searchPar
       <WorkspaceSectionHeading
         eyebrow="Scope"
         title="Resolve once, reuse on future imports"
-        note="Rules are exact and source-scoped: supplier source + source attribute key + source category path + source unit. Future matching observations reuse the approved decision automatically; fuzzy matching is never auto-applied."
+        note="Rules are exact and source-scoped: supplier source + source attribute key + supplier taxonomy node + source unit. Future matching observations reuse the approved decision automatically; fuzzy matching is never auto-applied."
       />
       <div className="workspace-action-bar">
         <span>{selectedSnapshot ? `Snapshot: ${selectedSnapshot.sourceName} · ${selectedSnapshot.productCount.toLocaleString("el-GR")} products` : "All Supplier PIM snapshots"}</span>
@@ -155,7 +155,7 @@ export default async function AttributeMappingPage({ searchParams }: { searchPar
         body="New observations that match a saved rule will be resolved automatically during ingestion."
       /> : <div className="workspace-queue-list">{mapper.groups.map((group) => <article
         className="workspace-queue-card"
-        key={`${group.sourceId}:${group.sourceAttributeKey}:${group.categoryPath ?? ""}:${group.sourceUnit ?? ""}`}
+        key={`${group.sourceId}:${group.sourceAttributeKey}:${group.sourceTaxonomyNodeId ?? ""}:${group.sourceUnit ?? ""}`}
       >
         <div className="workspace-queue-head">
           <div>
@@ -178,7 +178,7 @@ export default async function AttributeMappingPage({ searchParams }: { searchPar
           <input type="hidden" name="queueStatus" value={status} />
           <input type="hidden" name="sourceId" value={group.sourceId} />
           <input type="hidden" name="sourceAttributeKey" value={group.sourceAttributeKey} />
-          <input type="hidden" name="categoryPath" value={group.categoryPath ?? ""} />
+          <input type="hidden" name="sourceTaxonomyNodeId" value={group.sourceTaxonomyNodeId ?? ""} />
           <input type="hidden" name="sourceUnit" value={group.sourceUnit ?? ""} />
           <label>
             <span>Canonical attribute</span>
