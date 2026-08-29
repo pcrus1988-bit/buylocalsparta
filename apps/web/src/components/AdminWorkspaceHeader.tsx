@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { adminDomainAttentionBadges } from "../lib/admin-attention-projection";
 import { adminNavigationForPrincipal } from "../lib/admin-navigation";
 import { getAdminSession } from "../lib/admin-session";
@@ -11,5 +12,11 @@ export async function AdminWorkspaceHeader({ csrfToken, entityLabel }: { csrfTok
   const principal = await getAdminSession();
   if (!principal) return null;
   const attentionBadges = await adminDomainAttentionBadges(principal).catch(() => ({}));
-  return <AdminWorkspaceHeaderClient csrfToken={csrfToken} groups={adminNavigationForPrincipal(principal, attentionBadges)} entityLabel={entityLabel} />;
+  return <>
+    <AdminWorkspaceHeaderClient csrfToken={csrfToken} groups={adminNavigationForPrincipal(principal, attentionBadges)} entityLabel={entityLabel} />
+    {entityLabel === "Supplier PIM Intake" && <div className="shell workspace-action-bar">
+      <span>Unmapped supplier attributes can be resolved once and reused on future imports.</span>
+      <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Map attributes</Link>
+    </div>}
+  </>;
 }
