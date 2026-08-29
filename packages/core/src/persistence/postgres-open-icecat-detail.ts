@@ -109,7 +109,9 @@ export class PostgresOpenIcecatDetailRepository {
 
       const skipped = await tx.query(`
         UPDATE public.open_icecat_detail_enrichment_jobs j
-        SET status='skipped',
+        SET last_run_id=i.last_run_id,
+            source_updated=i.source_updated,
+            status='skipped',
             lease_owner=NULL,
             lease_until=NULL,
             completed_at=now(),
@@ -145,9 +147,13 @@ export class PostgresOpenIcecatDetailRepository {
           FROM public.open_icecat_detail_enrichment_jobs j
           JOIN public.open_icecat_index_products i
             ON i.source_id=j.source_id AND i.product_id=j.product_id
+          JOIN public.open_icecat_bulk_ingestion_runs r
+            ON r.id=j.last_run_id AND r.source_id=j.source_id AND r.status='completed'
           WHERE j.source_id=$1::uuid
             AND j.processing_version=$2
             AND i.record_state='active'
+            AND i.last_run_id=j.last_run_id
+            AND i.source_updated IS NOT DISTINCT FROM j.source_updated
             AND j.next_attempt_at <= now()
             AND (
               j.status IN ('pending','retry')
@@ -209,8 +215,9 @@ export class PostgresOpenIcecatDetailRepository {
       const indexRunId = String(current.index_last_run_id);
       const currentUpdated = optionalString(current.source_updated);
       const indexUpdated = optionalString(current.index_source_updated);
+      const recordState = String(current.record_state);
       const stale =
-        String(current.record_state) !== "active" ||
+        recordState !== "active" ||
         currentRunId !== job.lastRunId ||
         indexRunId !== job.lastRunId ||
         currentUpdated !== job.sourceUpdated ||
@@ -220,13 +227,19 @@ export class PostgresOpenIcecatDetailRepository {
       if (stale) {
         await tx.query(`
           UPDATE public.open_icecat_detail_enrichment_jobs
-          SET status=CASE WHEN $3='active' THEN 'pending' ELSE 'skipped' END,
-              lease_owner=NULL, lease_until=NULL, next_attempt_at=now(),
+          SET last_run_id=$4::uuid,
+              source_updated=$5,
+              status=CASE WHEN $3='active' THEN 'pending' ELSE 'skipped' END,
+              attempt_count=CASE WHEN $3='active' THEN 0 ELSE attempt_count END,
+              lease_owner=NULL,
+              lease_until=NULL,
+              next_attempt_at=now(),
+              source_product_id=CASE WHEN $3='active' THEN NULL ELSE source_product_id END,
               completed_at=CASE WHEN $3='active' THEN NULL ELSE now() END,
               last_error=CASE WHEN $3='active' THEN 'index version changed during detail fetch' ELSE 'provider index row removed during detail fetch' END,
               updated_at=now()
           WHERE source_id=$1::uuid AND product_id=$2
-        `, [job.sourceId, job.productId, String(current.record_state)]);
+        `, [job.sourceId, job.productId, recordState, indexRunId, indexUpdated ?? null]);
         return { stale: true };
       }
 
