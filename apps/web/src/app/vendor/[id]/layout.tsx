@@ -51,12 +51,15 @@ export default async function PublicVendorProfileLayout({ children, params }: Pr
     getPublicVendorDirectoryEntry(id),
     getVendorCurrentMonthSeoVisibility(id)
   ]);
-  const showClaim = vendor?.directoryStatus === "research" && visibility;
 
-  return (
-    <>
-      {showClaim ? <VendorSeoVisibilityClaim vendorId={vendor.id} vendorName={vendor.name} visibility={visibility} /> : null}
-      {children}
-    </>
-  );
+  if (vendor?.directoryStatus === "research" && visibility) {
+    return (
+      <>
+        <VendorSeoVisibilityClaim vendorId={vendor.id} vendorName={vendor.name} visibility={visibility} />
+        {children}
+      </>
+    );
+  }
+
+  return children;
 }
