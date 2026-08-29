@@ -6,6 +6,7 @@ import { AccountDashboardClient } from "../../components/AccountDashboardClient"
 import { AccountSectionNavigation } from "../../components/AccountSectionNavigation";
 import { CustomerAccountSetupChecklist } from "../../components/CustomerAccountSetupChecklist";
 import styles from "../../components/CustomerAccountExperience.module.css";
+import contrastStyles from "./account-contrast.module.css";
 import { accountDashboard } from "../../lib/account-view";
 import { customerAccountSetup } from "../../lib/customer-account-onboarding";
 import { getAccountSession } from "../../lib/account-session";
@@ -17,7 +18,7 @@ export default async function AccountPage() {
   if (!principal) redirect("/login?next=/account");
   const [dashboard, setup] = await Promise.all([accountDashboard(principal), customerAccountSetup(principal)]);
 
-  return <main className="account-app">
+  return <main className={`account-app ${contrastStyles.accountPage}`}>
     <div className="announcement">Οι αγορές και οι τοπικές υπηρεσίες σου, σε ένα σημείο.</div>
     <SiteHeader compact />
     <AccountSectionNavigation />
