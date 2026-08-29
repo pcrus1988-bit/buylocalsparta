@@ -4,6 +4,9 @@ import { buildMerchantCenterRss, validMerchantCenterGtin } from "../apps/web/src
 
 const root = process.cwd();
 const route = readFileSync(`${root}/apps/web/src/app/merchant-center/products.xml/route.ts`, "utf8");
+const catalogue = readFileSync(`${root}/apps/web/src/lib/merchant-center-catalog.ts`, "utf8");
+const adminPage = readFileSync(`${root}/apps/web/src/app/admin/seo/merchant-center/page.tsx`, "utf8");
+const workspaceNavigation = readFileSync(`${root}/apps/web/src/lib/workspace-navigation.ts`, "utf8");
 const robots = readFileSync(`${root}/apps/web/src/app/robots.ts`, "utf8");
 
 assert.equal(validMerchantCenterGtin("4006381333931"), "4006381333931", "valid EAN-13 should be exported");
@@ -48,27 +51,55 @@ for (const expected of [
 assert.ok(!xml.includes("<18V>"), "product text must be XML escaped");
 
 for (const contract of [
-  'getCrawlerCatalogCards(SPARTA_POSTCODE)',
-  'getPublicProductSeoInventory()',
-  'productIndexEligibility(record)',
-  'resolveSeoEntityControl({',
-  'if (!control.indexAllowed) continue',
-  '!card.available',
-  'card.priceMinor <= 0',
-  'publicCatalogueCardDescription(record.description ?? "")',
-  'new URL(override?.canonicalPath ?? productPublicPath(record)',
-  'availability: "in_stock"',
+  "getMerchantCenterCatalogueProjection()",
+  "projection.feedOperational",
+  "products: projection.products",
   '"Content-Type": "application/rss+xml; charset=utf-8"',
   '"Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=900"',
-  'if (!inventory.mediaProjectionAvailable) throw new Error',
   'status: 503',
   '"Retry-After": "300"',
   'event: "merchant_center.product_feed_failed"'
 ]) assert.ok(route.includes(contract), `Merchant Center route is missing ${contract}`);
+
+for (const contract of [
+  'MERCHANT_CENTER_FEED_PATH = "/merchant-center/products.xml"',
+  "getCrawlerCatalogCards(MERCHANT_CENTER_POSTCODE)",
+  "getPublicProductSeoInventory()",
+  "productIndexEligibility(record)",
+  "resolveSeoEntityControl({",
+  "control.indexAllowed",
+  "card?.available",
+  "card.priceMinor <= 0",
+  'publicCatalogueCardDescription(record.description ?? "")',
+  "publicImageUrl(record, origin)",
+  'availability: "in_stock"',
+  "validMerchantCenterGtin(record.gtin)",
+  "No public GTIN, MPN or brand is available. No identifier_exists claim is manufactured.",
+  "Public product media projection is unavailable; the feed must return 503",
+  "feedEligible",
+  "governedIndexAllowed",
+  "qualityHeld",
+  "governanceHeld",
+  "noPublicIdentifiers"
+]) assert.ok(catalogue.includes(contract), `Merchant Center catalogue projection is missing ${contract}`);
+
+for (const contract of [
+  'title: "Merchant Center · SEO Admin"',
+  'robots: { index: false, follow: false, nocache: true }',
+  "getMerchantCenterCatalogueProjection()",
+  "Google product-feed readiness",
+  "One feed, one commerce projection",
+  "This page proves application-side feed readiness.",
+  "Identifier warnings",
+  "Non-blocking data-quality warnings",
+  "Open XML feed"
+]) assert.ok(adminPage.includes(contract), `Merchant Center Admin readiness page is missing ${contract}`);
+
+assert.ok(workspaceNavigation.includes('{ label: "Merchant Center", href: "/admin/seo/merchant-center"'), "Merchant Center Admin route must be registered in governed workspace navigation");
 
 for (const publicMediaPath of ["/api/media/", "/api/catalog-source-image/"]) {
   assert.ok(robots.includes(publicMediaPath), `robots policy must explicitly allow Merchant Center image path ${publicMediaPath}`);
 }
 assert.ok(robots.includes('disallow: ["/api/"]') || robots.includes('disallow: "/api/"'), "robots policy must continue protecting the rest of /api");
 
-console.log("Merchant Center feed checks passed: RSS 2.0 structure, XML escaping, GTIN validation, governed product admission, crawler-price alignment, media crawl access and fail-closed outage behavior verified.");
+console.log("Merchant Center checks passed: RSS 2.0 structure, XML escaping, GTIN validation, shared governed catalogue admission, crawler-price alignment, Admin readiness diagnostics, media crawl access and fail-closed outage behavior verified.");
