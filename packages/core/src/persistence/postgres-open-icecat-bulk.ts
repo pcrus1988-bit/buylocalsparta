@@ -145,12 +145,51 @@ export class PostgresOpenIcecatBulkRepository implements OpenIcecatBulkRepositor
 
   async complete(runId: string, checkpoint: number): Promise<void> {
     await this.#uow.withTransaction({ platformAccess: true }, async (tx) => {
+      const run = requireSingleRow(await tx.query<SqlRow>(`
+        SELECT id::text, source_id::text, import_kind, source_fingerprint, checkpoint, status
+        FROM public.open_icecat_bulk_ingestion_runs
+        WHERE id=$1::uuid
+        FOR UPDATE
+      `, [runId]), "Open Icecat bulk run not found");
+      if (stringField(run.status) !== "running" || integerField(run.checkpoint) !== checkpoint) {
+        throw new Error("Open Icecat bulk run could not be completed at the requested checkpoint");
+      }
+
+      if (stringField(run.import_kind) === "full") {
+        const sourceId = stringField(run.source_id);
+        const fingerprint = stringField(run.source_fingerprint);
+        await tx.query(`
+          WITH retired AS (
+            UPDATE public.open_icecat_index_products
+            SET record_state='removed',
+                last_source_fingerprint=$3,
+                last_run_id=$2::uuid,
+                last_seen_at=now(),
+                removed_at=now()
+            WHERE source_id=$1::uuid
+              AND record_state='active'
+              AND last_run_id <> $2::uuid
+            RETURNING product_id
+          )
+          UPDATE public.open_icecat_detail_enrichment_jobs j
+          SET last_run_id=$2::uuid,
+              status='skipped',
+              lease_owner=NULL,
+              lease_until=NULL,
+              completed_at=now(),
+              last_error='product absent from completed full provider index',
+              updated_at=now()
+          FROM retired r
+          WHERE j.source_id=$1::uuid AND j.product_id=r.product_id
+        `, [sourceId, runId, fingerprint]);
+      }
+
       const result = await tx.query(`
         UPDATE public.open_icecat_bulk_ingestion_runs
         SET status='completed', completed_at=now(), failed_at=NULL, last_error=NULL, updated_at=now()
         WHERE id=$1::uuid AND status='running' AND checkpoint=$2
       `, [runId, checkpoint]);
-      if (result.rowCount !== 1) throw new Error("Open Icecat bulk run could not be completed at the requested checkpoint");
+      if (result.rowCount !== 1) throw new Error("Open Icecat bulk run completion update failed");
     });
   }
 
@@ -263,7 +302,8 @@ async function upsertIndexEntries(
   if (state === "removed") {
     await tx.query(`
       UPDATE public.open_icecat_detail_enrichment_jobs j
-      SET status='skipped',
+      SET last_run_id=$3::uuid,
+          status='skipped',
           lease_owner=NULL,
           lease_until=NULL,
           completed_at=now(),
@@ -273,7 +313,7 @@ async function upsertIndexEntries(
       WHERE j.source_id=$1::uuid
         AND j.product_id=item->>'productId'
         AND j.status <> 'skipped'
-    `, [sourceId, payload]);
+    `, [sourceId, payload, runId]);
     return;
   }
 
@@ -316,7 +356,8 @@ async function upsertIndexEntries(
 
   await tx.query(`
     UPDATE public.open_icecat_detail_enrichment_jobs j
-    SET status='skipped',
+    SET last_run_id=$3::uuid,
+        status='skipped',
         lease_owner=NULL,
         lease_until=NULL,
         completed_at=now(),
@@ -330,7 +371,7 @@ async function upsertIndexEntries(
       AND i.record_state='active'
       AND cardinality(i.gtins)=0
       AND j.status <> 'skipped'
-  `, [sourceId, payload]);
+  `, [sourceId, payload, runId]);
 }
 
 function mapRunStatus(row: SqlRow): OpenIcecatBulkRunStatus {
