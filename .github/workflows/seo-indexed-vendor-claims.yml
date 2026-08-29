@@ -1,0 +1,35 @@
+name: SEO Indexed Vendor Claims
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/vendor/**"
+      - "apps/web/src/app/join/apply/**"
+      - "apps/web/src/app/api/vendor-application/**"
+      - "apps/web/src/components/VendorApplicationForm.tsx"
+      - "apps/web/src/lib/seo-public-visibility.ts"
+      - "apps/web/src/lib/vendor-application-runtime.ts"
+      - "db/migrations/0156_vendor_application_profile_claims.sql"
+      - "db/migrations/checksums.0156.json"
+      - "scripts/verify-seo-indexed-vendor-claims.ts"
+      - ".github/workflows/seo-indexed-vendor-claims.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify indexed vendor visibility and claim continuity
+        run: node --experimental-strip-types scripts/verify-seo-indexed-vendor-claims.ts
+      - name: Verify migration chain and checksums
+        run: npm run db:verify
