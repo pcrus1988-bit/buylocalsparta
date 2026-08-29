@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/delivery-dispatch",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/seo-production-metrics",
+      "schedule": "37 4 * * *"
     }
   ]
 }
