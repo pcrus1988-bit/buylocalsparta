@@ -3,6 +3,7 @@ import { hasAdminPermission } from "./admin-runtime";
 import { ADMIN_WORKSPACE_NAVIGATION, type WorkspaceNavGroup, type WorkspaceNavLink } from "./workspace-navigation";
 
 export function canAccessAdminNavLink(principal: SessionPrincipal, link: WorkspaceNavLink): boolean {
+  if (link.roles?.length && !link.roles.some((role) => principal.roles.includes(role as never))) return false;
   return !link.permission || hasAdminPermission(principal, link.permission);
 }
 
