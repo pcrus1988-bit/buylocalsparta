@@ -56,6 +56,24 @@ test("Open Icecat stream preserves multiline and doubled-quote fields across chu
   assert.equal(parsed[0]?.modelName, 'Line one\nLine two "quoted"');
 });
 
+test("Open Icecat mixed chunk stream fails closed instead of reordering partial UTF-8", async () => {
+  const encoder = new TextEncoder();
+  const prefix = encoder.encode('path,product_id,model_name\nfiles/1.xml,1,"');
+  const alpha = encoder.encode("α");
+  const suffix = encoder.encode('"\n');
+  const first = new Uint8Array(prefix.length + 1);
+  first.set(prefix, 0);
+  first[prefix.length] = alpha[0];
+  const last = new Uint8Array(1 + suffix.length);
+  last[0] = alpha[1];
+  last.set(suffix, 1);
+
+  await assert.rejects(
+    async () => collect(parseOpenIcecatIndexStream(sequence<string | Uint8Array>([first, "X", last]))),
+    TypeError
+  );
+});
+
 test("Open Icecat stream rejects an oversized unterminated record", async () => {
   const source = sequence([
     "path,product_id\n",
