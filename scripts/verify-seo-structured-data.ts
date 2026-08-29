@@ -20,6 +20,8 @@ const navigation = read("apps/web/src/lib/site-navigation.ts");
 const productPage = read("apps/web/src/app/product/[id]/page.tsx");
 const vendorPage = read("apps/web/src/app/vendor/[id]/page.tsx");
 const vendorLayout = read("apps/web/src/app/vendor/[id]/layout.tsx");
+const rootLayout = read("apps/web/src/app/layout.tsx");
+const aboutPage = read("apps/web/src/app/about/page.tsx");
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 expect(checksums["0122_seo_structured_data_observations.sql"] === migrationHash,
@@ -123,9 +125,30 @@ for (const contract of [
   'seoControl.schemaAllowed ? <script type="application/ld+json"'
 ]) expect(vendorLayout.includes(contract), `Research-vendor relationship schema is missing ${contract}`);
 
+for (const contract of [
+  'const serviceId = `${origin}/#local-commerce-service`',
+  '"@type": "Service"',
+  'serviceType: "Local-commerce marketplace and merchant e-commerce infrastructure"',
+  'provider: { "@id": organizationId }',
+  'about: { "@id": serviceId }',
+  'με ένα καλάθι και ένα checkout',
+  'διαχείριση παραγγελιών και εκπλήρωσης',
+  'πανελλαδική online ορατότητα',
+  'χωρίς να χρειάζεται να λειτουργούν δικό τους e-shop'
+]) expect(rootLayout.includes(contract), `Root marketplace AEO schema is missing ${contract}`);
+
+for (const contract of [
+  'title: "Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη"',
+  'id="what-is-kontamou"',
+  'Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη.',
+  'με ένα καλάθι και ένα checkout',
+  'Υποδομή για μικρές επιχειρήσεις',
+  'χωρίς να χρειάζεται να συντηρεί μόνο του ένα πλήρες e-shop'
+]) expect(aboutPage.includes(contract), `About-page AEO positioning is missing ${contract}`);
+
 if (failures.length) {
   console.error("SEO structured-data checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
 
-console.log(`SEO structured-data checks passed: migration checksum ${migrationHash}; governed schema expectations, immutable JSON-LD evidence, vendor relationship semantics, issue lifecycle and Admin diagnostics verified.`);
+console.log(`SEO structured-data checks passed: migration checksum ${migrationHash}; governed schema expectations, immutable JSON-LD evidence, vendor relationship semantics, marketplace AEO positioning, issue lifecycle and Admin diagnostics verified.`);
