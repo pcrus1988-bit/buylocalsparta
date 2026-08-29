@@ -1,6 +1,8 @@
 -- Durable, source-scoped catalogue attribute mapping rules.
 -- Raw supplier observations remain evidence; rules only set canonical attribute_id + mapping_status.
 
+BEGIN;
+
 CREATE OR REPLACE FUNCTION public.catalog_attribute_mapping_key(value TEXT)
 RETURNS TEXT
 LANGUAGE sql
@@ -10,13 +12,13 @@ AS $$
   SELECT lower(btrim(coalesce(value, '')));
 $$;
 
-CREATE TABLE IF NOT EXISTS public.catalog_source_attribute_mapping_rules (
+CREATE TABLE public.catalog_source_attribute_mapping_rules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_id UUID NOT NULL REFERENCES public.catalog_sources(id) ON DELETE CASCADE,
   source_attribute_key TEXT NOT NULL,
   source_attribute_key_normalized TEXT GENERATED ALWAYS AS (public.catalog_attribute_mapping_key(source_attribute_key)) STORED,
-  category_path TEXT,
-  category_path_normalized TEXT GENERATED ALWAYS AS (public.catalog_attribute_mapping_key(category_path)) STORED,
+  source_taxonomy_node_id UUID REFERENCES public.catalog_source_taxonomy_nodes(id) ON DELETE CASCADE,
+  source_taxonomy_node_key TEXT GENERATED ALWAYS AS (coalesce(source_taxonomy_node_id::text, '')) STORED,
   source_unit TEXT,
   source_unit_normalized TEXT GENERATED ALWAYS AS (public.catalog_attribute_mapping_key(source_unit)) STORED,
   attribute_id UUID REFERENCES public.attribute_definitions(id) ON DELETE SET NULL,
@@ -24,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.catalog_source_attribute_mapping_rules (
   decided_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (length(btrim(source_attribute_key)) > 0),
   CHECK (
     (mapping_status = 'mapped' AND attribute_id IS NOT NULL)
     OR (mapping_status IN ('review_required', 'rejected') AND attribute_id IS NULL)
@@ -31,36 +34,27 @@ CREATE TABLE IF NOT EXISTS public.catalog_source_attribute_mapping_rules (
   UNIQUE (
     source_id,
     source_attribute_key_normalized,
-    category_path_normalized,
+    source_taxonomy_node_key,
     source_unit_normalized
   )
 );
 
-CREATE INDEX IF NOT EXISTS catalog_source_attribute_mapping_rules_source_status_idx
+CREATE INDEX catalog_source_attribute_mapping_rules_source_status_idx
   ON public.catalog_source_attribute_mapping_rules(source_id, mapping_status, updated_at DESC);
 
-DROP TRIGGER IF EXISTS catalog_source_attribute_mapping_rules_touch_updated_at
-  ON public.catalog_source_attribute_mapping_rules;
-CREATE TRIGGER catalog_source_attribute_mapping_rules_touch_updated_at
-BEFORE UPDATE ON public.catalog_source_attribute_mapping_rules
-FOR EACH ROW
-EXECUTE FUNCTION public.catalogue_touch_updated_at();
+COMMENT ON TABLE public.catalog_source_attribute_mapping_rules IS
+  'Admin-confirmed source attribute decisions scoped by source, source taxonomy node and unit. Rules preserve raw observations and may only govern attribute_id/mapping_status.';
 
 ALTER TABLE public.catalog_source_attribute_mapping_rules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY bls_platform_runtime_all ON public.catalog_source_attribute_mapping_rules
+  FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
+  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
 
-DROP POLICY IF EXISTS catalog_source_attribute_mapping_rules_admin_all
-  ON public.catalog_source_attribute_mapping_rules;
-CREATE POLICY catalog_source_attribute_mapping_rules_admin_all
-ON public.catalog_source_attribute_mapping_rules
-FOR ALL
-USING (public.catalogue_is_admin())
-WITH CHECK (public.catalogue_is_admin());
-
-CREATE OR REPLACE FUNCTION public.apply_catalog_source_attribute_mapping_rule()
+CREATE OR REPLACE FUNCTION bls_private.apply_catalog_source_attribute_mapping_rule()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path=pg_catalog,public,bls_private
 AS $$
 DECLARE
   resolved_attribute_id UUID;
@@ -76,11 +70,9 @@ BEGIN
   FROM public.catalog_source_attribute_mapping_rules rule
   JOIN public.catalog_source_products source_product
     ON source_product.id = NEW.source_product_id
-  JOIN public.catalog_source_snapshots snapshot
-    ON snapshot.id = source_product.snapshot_id
-  WHERE rule.source_id = snapshot.source_id
+  WHERE rule.source_id = source_product.source_id
     AND rule.source_attribute_key_normalized = public.catalog_attribute_mapping_key(NEW.source_attribute_key)
-    AND rule.category_path_normalized = public.catalog_attribute_mapping_key(source_product.category_path)
+    AND rule.source_taxonomy_node_key = coalesce(source_product.source_taxonomy_node_id::text, '')
     AND rule.source_unit_normalized = public.catalog_attribute_mapping_key(NEW.source_unit)
   ORDER BY rule.updated_at DESC, rule.id DESC
   LIMIT 1;
@@ -102,4 +94,9 @@ DROP TRIGGER IF EXISTS catalog_source_attribute_observations_apply_mapping_rule
 CREATE TRIGGER catalog_source_attribute_observations_apply_mapping_rule
 BEFORE INSERT ON public.catalog_source_attribute_observations
 FOR EACH ROW
-EXECUTE FUNCTION public.apply_catalog_source_attribute_mapping_rule();
+EXECUTE FUNCTION bls_private.apply_catalog_source_attribute_mapping_rule();
+
+GRANT EXECUTE ON FUNCTION bls_private.apply_catalog_source_attribute_mapping_rule()
+  TO bls_app_runtime,bls_platform_runtime;
+
+COMMIT;
