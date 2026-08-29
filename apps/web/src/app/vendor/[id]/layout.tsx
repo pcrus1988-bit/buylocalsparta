@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { VendorSeoVisibilityClaim } from "../../../components/VendorSeoVisibilityClaim";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { getVendorCurrentMonthSeoVisibility } from "../../../lib/seo-vendor-visibility";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 
 type Props = Readonly<{
@@ -14,10 +16,9 @@ type Props = Readonly<{
 /**
  * Search-index governance layer for the existing public /vendor/[id] namespace.
  *
- * The storefront page itself stays untouched. Active partner profiles remain
- * indexable. Research profiles are indexable only when they pass the Model C
- * quality gate; lower-quality records may still be human-visible in the directory
- * while Google receives an explicit noindex signal.
+ * Active partner profiles remain indexable. Research profiles are indexable only
+ * when they pass the Model C quality gate; lower-quality records may still be
+ * human-visible while Google receives an explicit noindex signal.
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -44,6 +45,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default function PublicVendorProfileLayout({ children }: Props) {
-  return children;
+export default async function PublicVendorProfileLayout({ children, params }: Props) {
+  const { id } = await params;
+  const [vendor, visibility] = await Promise.all([
+    getPublicVendorDirectoryEntry(id),
+    getVendorCurrentMonthSeoVisibility(id)
+  ]);
+  const showClaim = vendor?.directoryStatus === "research" && visibility;
+
+  return (
+    <>
+      {showClaim ? <VendorSeoVisibilityClaim vendorId={vendor.id} vendorName={vendor.name} visibility={visibility} /> : null}
+      {children}
+    </>
+  );
 }
