@@ -5,6 +5,7 @@ export type WorkspaceNavLink = Readonly<{
   href: string;
   icon: string;
   permission?: Permission;
+  roles?: ReadonlyArray<string>;
   contextHidden?: boolean;
 }>;
 
@@ -162,10 +163,11 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/finance",
     icon: "finance",
     section: "Εμπορική διαχείριση",
-    description: "Settlements, vendor billing και myDATA",
+    description: "Settlements, vendor billing, gift cards και myDATA",
     links: [
       { label: "Οικονομική επισκόπηση", href: "/admin/finance", icon: "€", permission: "finance.read" },
       { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
+      { label: "Gift Cards", href: "/admin/gift-cards", icon: "◇", permission: "finance.read", roles: ["super_admin"] },
       { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" }
     ]
   },
@@ -185,23 +187,34 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   {
-    label: "Περιεχόμενο & SEO",
+    label: "Περιεχόμενο",
     href: "/admin/content",
     icon: "content",
     section: "Διακυβέρνηση & ανάπτυξη",
-    description: "CMS, homepage, email και οργανική ορατότητα",
+    description: "CMS, homepage και email operations",
     links: [
       { label: "Content Operations", href: "/admin/content", icon: "✎", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
-      { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" },
-      { label: "SEO & Visibility", href: "/admin/seo", icon: "⌕", permission: "content.read" },
-      { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read", contextHidden: true },
-      { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read", contextHidden: true },
-      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read", contextHidden: true },
-      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read", contextHidden: true },
-      { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read", contextHidden: true },
-      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read", contextHidden: true },
-      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read", contextHidden: true }
+      { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" }
+    ]
+  },
+  {
+    label: "SEO & Visibility",
+    href: "/admin/seo",
+    icon: "search",
+    section: "Διακυβέρνηση & ανάπτυξη",
+    description: "Indexability, Google, crawl, schema και production visibility",
+    links: [
+      { label: "Overview", href: "/admin/seo", icon: "⌕", permission: "content.read" },
+      { label: "Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
+      { label: "Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
+      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read" },
+      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read" },
+      { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
+      { label: "Google Coverage", href: "/admin/seo/search-console/index-coverage", icon: "◎", permission: "content.read" },
+      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" },
+      { label: "Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" },
+      { label: "Production", href: "/admin/seo/production", icon: "◉", permission: "content.read" }
     ]
   },
   {
