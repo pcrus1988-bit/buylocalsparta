@@ -6,6 +6,7 @@ import { AdminAiProductImportForm } from "../../../../components/AdminAiProductI
 import { AdminCatalogueImportForm } from "../../../../components/AdminCatalogueImportForm";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { adminCatalogueImportWorkspace } from "../../../../lib/admin-catalogue-import";
+import { adminOpenIcecatIngestionStatus } from "../../../../lib/admin-open-icecat-ingestion";
 import { getAdminSession } from "../../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · AI Product Import", robots: { index: false, follow: false, nocache: true } };
@@ -14,8 +15,12 @@ export const dynamic = "force-dynamic";
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
-  const data = await adminCatalogueImportWorkspace(principal);
+  const [data, icecat] = await Promise.all([
+    adminCatalogueImportWorkspace(principal),
+    adminOpenIcecatIngestionStatus(principal)
+  ]);
   const current = data.payloads.find((item) => item.sourceCode === data.contract.sourceCode && item.expectedSourceSha256 === data.contract.expectedSourceSha256 && item.importerVersion === data.contract.importerVersion);
+  const latestIcecat = icecat.runs[0];
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="AI Product Import" />
@@ -29,8 +34,28 @@ export default async function Page() {
       { label: "Inference engine", value: "v1" },
       { label: "Automatic writes", value: "disabled", tone: "attention" },
       { label: "Trusted adapter", value: "Nikolaou v2" },
-      { label: "Trusted payload", value: current?.status ?? "not staged", tone: current?.status === "staging" ? "attention" : "default" }
+      { label: "Trusted payload", value: current?.status ?? "not staged", tone: current?.status === "staging" ? "attention" : "default" },
+      { label: "Open Icecat", value: latestIcecat?.status ?? "not started", tone: latestIcecat?.status === "failed" ? "attention" : "default" }
     ]} />
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Open Icecat · resumable bulk index" title="Ingestion status" note="The cursor counts terminal source rows, including rejected and filtered rows. Each checkpoint is committed atomically with index staging, so a failed batch resumes from the last durable source row instead of replaying the entire accepted-entry history." />
+      <div className="workspace-inline-note">Index ingestion is operational staging only. A successful run does not publish a product: full product evidence must still enter the existing source-product workflow and pass the Greek-quality gate before any governed canonical publication can be considered.</div>
+      {icecat.runs.length === 0 ? <WorkspaceEmptyState title="No Open Icecat bulk run has been recorded yet." body="The first full or daily index run will appear here after migration 0160 is applied and the ingestion worker starts." /> : <div className="workspace-queue-list">{icecat.runs.map((run) => <article className="workspace-queue-card" key={run.runId}>
+        <div className="workspace-queue-head"><div><strong>{run.sourceName} · {run.importKind.toUpperCase()}</strong><small>{run.sourceCode} · started {when(run.startedAt)}</small></div><span className="status-pill">{run.status}</span></div>
+        <div className="workspace-compact-list">
+          <div className="workspace-compact-row"><strong>Durable checkpoint</strong><span>{formatCount(run.checkpoint)} source rows</span></div>
+          <div className="workspace-compact-row"><strong>Index writes</strong><span>{formatCount(run.persisted)} staged · {formatCount(run.removed)} removed</span></div>
+          <div className="workspace-compact-row"><strong>Not staged</strong><span>{formatCount(run.rejected)} rejected · {formatCount(run.filtered)} filtered</span></div>
+          <div className="workspace-compact-row"><strong>Current index</strong><span>{formatCount(run.activeIndexProducts)} active · {formatCount(run.removedIndexProducts)} removed</span></div>
+          <div className="workspace-compact-row"><strong>Fingerprint</strong><span title={run.sourceFingerprint}>{compactFingerprint(run.sourceFingerprint)}</span></div>
+          <div className="workspace-compact-row"><strong>Last update</strong><span>{when(run.updatedAt)}</span></div>
+          {run.completedAt && <div className="workspace-compact-row"><strong>Completed</strong><span>{when(run.completedAt)}</span></div>}
+          {run.failedAt && <div className="workspace-compact-row"><strong>Failed</strong><span>{when(run.failedAt)}</span></div>}
+          {run.lastError && <div className="workspace-compact-row"><strong>Last error</strong><span>{run.lastError}</span></div>}
+        </div>
+      </article>)}</div>}
+    </section>
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Step 1 · understand any supplier file" title="Schema & identity analysis" note="The inference layer is deliberately source-agnostic. It detects delimiters, profiles values, understands common Greek/English commerce headers, validates GTINs and scores whether each row has enough identity evidence to enter canonical matching." />
@@ -70,4 +95,6 @@ export default async function Page() {
   </main>;
 }
 
+function formatCount(value: number): string { return new Intl.NumberFormat("el-GR").format(value); }
+function compactFingerprint(value: string): string { return value.length > 32 ? `${value.slice(0, 29)}…` : value; }
 function when(value: number): string { return new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value)); }
