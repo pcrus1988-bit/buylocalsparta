@@ -73,7 +73,11 @@ export function seoRequestIndexingDecision(pathname: string, searchParams?: Sear
   if (routePolicy.visibility !== "PUBLIC_INDEXABLE") {
     return {
       index: false,
-      follow: routePolicy.visibility === "PUBLIC_NOINDEX",
+      // Utility/transaction pages such as registration and checkout have no
+      // independent crawl graph value. Keep their request-level response policy
+      // as restrictive as authenticated/private workspaces. Filtered public
+      // discovery states are handled separately below and remain noindex,follow.
+      follow: false,
       routePolicy,
       reason: routePolicy.reason,
       source: "route-policy"
@@ -129,5 +133,5 @@ export function seoDocumentRobotsHeader(pathname: string, searchParams?: SearchP
   if (normalized === "/api" || normalized.startsWith("/api/")) return undefined;
   const decision = seoRequestIndexingDecision(normalized, searchParams);
   if (decision.index) return undefined;
-  return decision.follow ? "noindex, follow" : "noindex, nofollow";
+  return decision.follow ? "noindex, follow, noarchive" : "noindex, nofollow, noarchive";
 }
