@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { formatMoney } from "@buy-local-sparta/core";
 import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
-import { checkoutCustomer, postgresCommerceEnabled } from "../../../lib/customer-commerce-runtime";
+import { checkoutCustomer, postgresCommerceEnabled, syncPersistentCustomerCart } from "../../../lib/customer-commerce-runtime";
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
+import { redeemGiftCardForOrder } from "../../../lib/gift-card-service";
 import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
 import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runtime";
 
-type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown }>;
+type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
 const VIVA_MINIMUM_AMOUNT_MINOR = 30;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
 
     const body = await request.json() as CheckoutBody;
     const checkoutKey = boundedString(body.checkoutKey, "", 128);
+    const giftCardId = boundedString(body.giftCardId, "", 128) || undefined;
     if (!checkoutKey) throw new Error("checkoutKey is required");
     const visitorKey = request.headers.get("x-bls-visitor")?.trim();
     if (!visitorKey || !/^[A-Za-z0-9_-]{16,128}$/.test(visitorKey)) throw new Error("Trusted visitor identity is required");
@@ -136,7 +138,7 @@ export async function POST(request: Request) {
       shipping
     });
 
-    if (vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
+    if (!giftCardId && vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
       let pickupTotalMinor = 0;
       for (const item of items) {
         const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
@@ -151,6 +153,18 @@ export async function POST(request: Request) {
     const now = Date.now();
     const order = await checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now });
     await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined, now });
+
+    if (giftCardId) {
+      try {
+        const redemption = await redeemGiftCardForOrder(principal, { giftCardId, orderId: order.id, now });
+        await syncPersistentCustomerCart(principal, [], now).catch(() => undefined);
+        await createCustomerNotification({ userId: principal.userId, eventType: "order.payment_confirmed", title: "Η πληρωμή με δωροκάρτα επιβεβαιώθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardId: redemption.card.id, amountMinor: redemption.amountMinor }, dedupeKey: `web-order:${order.id}:gift-card-confirmed`, now });
+        return Response.json({ ...order, status: "confirmed", giftCard: { id: redemption.card.id, suffix: redemption.card.suffix, balanceMinor: redemption.card.balanceMinor, amountMinor: redemption.amountMinor }, payment: { provider: "gift_card", amountMinor: redemption.amountMinor } }, { status: 201 });
+      } catch (error) {
+        await syncPersistentCustomerCart(principal, items, now).catch(() => undefined);
+        throw error;
+      }
+    }
 
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
