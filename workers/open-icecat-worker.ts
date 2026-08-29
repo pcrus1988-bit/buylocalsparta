@@ -1,11 +1,13 @@
 import { createServer, type Server } from "node:http";
 import { hostname } from "node:os";
 import {
+  OPEN_ICECAT_BULK_PROCESSING_VERSION,
   OPEN_ICECAT_GREEK_DAILY_INDEX_URL,
   OPEN_ICECAT_GREEK_FULL_INDEX_URL,
   PostgresUnitOfWork,
   parseOpenIcecatIndexSourceEvents,
   runOpenIcecatBulkImport,
+  type OpenIcecatBulkRunResult,
   type OpenIcecatImportKind,
   type OpenIcecatIndexFilter,
   type SqlRow
@@ -32,8 +34,6 @@ const batchSize = bounded(process.env.BLS_OPEN_ICECAT_BATCH_SIZE, 500, 1, 10_000
 const maxRecordChars = bounded(process.env.BLS_OPEN_ICECAT_MAX_RECORD_CHARS, 8 * 1024 * 1024, 1024, 64 * 1024 * 1024, "BLS_OPEN_ICECAT_MAX_RECORD_CHARS");
 const healthPort = bounded(process.env.BLS_OPEN_ICECAT_HEALTH_PORT, 8082, 1, 65535, "BLS_OPEN_ICECAT_HEALTH_PORT");
 const runOnce = process.env.BLS_OPEN_ICECAT_RUN_ONCE === "true";
-const country = optionalCountry(process.env.BLS_OPEN_ICECAT_COUNTRY);
-const requireApprovedGtin = process.env.BLS_OPEN_ICECAT_REQUIRE_APPROVED_GTIN === "true";
 const authHeaders = icecatAuthenticationHeaders(process.env);
 const sourceUow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 3_000 });
 
@@ -59,15 +59,15 @@ console.log(JSON.stringify({
   event: "open_icecat.worker_started",
   workerId,
   schema: readiness.appliedSchemaVersion,
+  processingVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION,
   batchSize,
-  country: country ?? null,
-  requireApprovedGtin,
   runOnce
 }));
 
 try {
   if (runOnce) {
-    await runCycle();
+    const ran = await runCycle();
+    if (!ran) throw new Error("Open Icecat one-shot run skipped because another ingestion worker holds the advisory lock");
   } else {
     while (!stopping) {
       let nextDelay = successIntervalMs;
@@ -108,17 +108,110 @@ async function runCycle(): Promise<boolean> {
     }
 
     const source = await loadSourceConfiguration();
-    const importKind: OpenIcecatImportKind = source.hasCompletedFull ? "daily" : "full";
-    currentImportKind = importKind;
     currentRunStartedAt = Date.now();
     lastActivityAt = currentRunStartedAt;
-    const sourceUrl = importKind === "full" ? source.fullUrl : source.dailyUrl;
-    const controller = new AbortController();
-    activeAbortController = controller;
-    const timeoutSignal = AbortSignal.timeout(fetchTimeoutMs);
-    const signal = AbortSignal.any([controller.signal, timeoutSignal]);
 
-    console.log(JSON.stringify({ level: "info", event: "open_icecat.index_fetch_started", workerId, importKind, sourceId: source.sourceId }));
+    if (!source.hasCompletedFull) {
+      currentImportKind = "full";
+      await ingestIndex(source.sourceId, "full", source.fullUrl);
+      return true;
+    }
+
+    currentImportKind = "daily";
+    const daily = await fetchIndex(source.sourceId, "daily", source.dailyUrl);
+    if (source.incompleteDailyFingerprint && source.incompleteDailyFingerprint !== daily.sourceFingerprint) {
+      await closeFetchedIndex(daily);
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "open_icecat.daily_snapshot_changed_after_failure",
+        workerId,
+        sourceId: source.sourceId,
+        failedFingerprint: source.incompleteDailyFingerprint,
+        currentFingerprint: daily.sourceFingerprint,
+        action: "full_reconciliation"
+      }));
+      currentImportKind = "full";
+      await ingestIndex(source.sourceId, "full", source.fullUrl);
+      return true;
+    }
+
+    await ingestFetchedIndex(source.sourceId, "daily", source.dailyUrl, daily);
+    return true;
+  } finally {
+    activeAbortController = undefined;
+    currentRunStartedAt = undefined;
+    currentImportKind = undefined;
+    if (locked) {
+      try {
+        await lockClient.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", ["buy-local-sparta:open-icecat-index-ingestion"]);
+      } catch (error) {
+        console.error(JSON.stringify({ level: "error", event: "open_icecat.lock_release_failed", workerId, message: error instanceof Error ? error.message : String(error) }));
+      }
+    }
+    lockClient.release();
+  }
+}
+
+async function ingestIndex(sourceId: string, importKind: OpenIcecatImportKind, sourceUrl: string): Promise<OpenIcecatBulkRunResult> {
+  const fetched = await fetchIndex(sourceId, importKind, sourceUrl);
+  return ingestFetchedIndex(sourceId, importKind, sourceUrl, fetched);
+}
+
+async function ingestFetchedIndex(
+  sourceId: string,
+  importKind: OpenIcecatImportKind,
+  sourceUrl: string,
+  fetched: FetchedIndex
+): Promise<OpenIcecatBulkRunResult> {
+  const filter: OpenIcecatIndexFilter = { includeRemoved: importKind === "daily" };
+  try {
+    const result = await runOpenIcecatBulkImport({
+      identity: {
+        sourceId,
+        importKind,
+        sourceUrl,
+        sourceFingerprint: fetched.sourceFingerprint
+      },
+      events: parseOpenIcecatIndexSourceEvents(gunzipChunks(fetched.response.body!), filter, { maxRecordChars }),
+      repository: runtime.persistence.openIcecatBulk,
+      batchSize
+    });
+    lastActivityAt = Date.now();
+    console.log(JSON.stringify({
+      level: "info",
+      event: "open_icecat.index_ingestion_completed",
+      workerId,
+      importKind,
+      sourceId,
+      fingerprint: fetched.sourceFingerprint,
+      runId: result.runId,
+      resumedFrom: result.resumedFrom,
+      checkpoint: result.checkpoint,
+      sourceRows: result.sourceRows,
+      candidates: result.candidates,
+      removals: result.removals,
+      rejected: result.rejected,
+      filtered: result.filtered
+    }));
+    return result;
+  } finally {
+    await closeFetchedIndex(fetched);
+  }
+}
+
+type FetchedIndex = Readonly<{
+  response: Response;
+  controller: AbortController;
+  sourceFingerprint: string;
+}>;
+
+async function fetchIndex(sourceId: string, importKind: OpenIcecatImportKind, sourceUrl: string): Promise<FetchedIndex> {
+  const controller = new AbortController();
+  activeAbortController = controller;
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(fetchTimeoutMs)]);
+
+  console.log(JSON.stringify({ level: "info", event: "open_icecat.index_fetch_started", workerId, importKind, sourceId }));
+  try {
     const response = await fetch(sourceUrl, {
       method: "GET",
       redirect: "follow",
@@ -136,64 +229,27 @@ async function runCycle(): Promise<boolean> {
       throw new Error(`Open Icecat ${importKind} index request failed with HTTP ${response.status}`);
     }
     if (!response.body) throw new Error(`Open Icecat ${importKind} index response has no body`);
-
-    const sourceFingerprint = fingerprintFromHeaders(response.headers);
-    const filter: OpenIcecatIndexFilter = {
-      requireOnMarket: true,
-      requireApprovedGtin,
-      country,
-      includeRemoved: importKind === "daily"
-    };
-
-    try {
-      const result = await runOpenIcecatBulkImport({
-        identity: {
-          sourceId: source.sourceId,
-          importKind,
-          sourceUrl,
-          sourceFingerprint
-        },
-        events: parseOpenIcecatIndexSourceEvents(gunzipChunks(response.body), filter, { maxRecordChars }),
-        repository: runtime.persistence.openIcecatBulk,
-        batchSize
-      });
-      lastActivityAt = Date.now();
-      console.log(JSON.stringify({
-        level: "info",
-        event: "open_icecat.index_ingestion_completed",
-        workerId,
-        importKind,
-        sourceId: source.sourceId,
-        fingerprint: sourceFingerprint,
-        runId: result.runId,
-        resumedFrom: result.resumedFrom,
-        checkpoint: result.checkpoint,
-        sourceRows: result.sourceRows,
-        candidates: result.candidates,
-        removals: result.removals,
-        rejected: result.rejected,
-        filtered: result.filtered
-      }));
-      return true;
-    } finally {
-      await cancelBody(response);
-      activeAbortController = undefined;
-      currentRunStartedAt = undefined;
-      currentImportKind = undefined;
-    }
-  } finally {
-    if (locked) {
-      try {
-        await lockClient.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", ["buy-local-sparta:open-icecat-index-ingestion"]);
-      } catch (error) {
-        console.error(JSON.stringify({ level: "error", event: "open_icecat.lock_release_failed", workerId, message: error instanceof Error ? error.message : String(error) }));
-      }
-    }
-    lockClient.release();
+    return { response, controller, sourceFingerprint: fingerprintFromHeaders(response.headers) };
+  } catch (error) {
+    controller.abort();
+    if (activeAbortController === controller) activeAbortController = undefined;
+    throw error;
   }
 }
 
-async function loadSourceConfiguration(): Promise<{ sourceId: string; fullUrl: string; dailyUrl: string; hasCompletedFull: boolean }> {
+async function closeFetchedIndex(fetched: FetchedIndex): Promise<void> {
+  fetched.controller.abort();
+  await cancelBody(fetched.response);
+  if (activeAbortController === fetched.controller) activeAbortController = undefined;
+}
+
+async function loadSourceConfiguration(): Promise<{
+  sourceId: string;
+  fullUrl: string;
+  dailyUrl: string;
+  hasCompletedFull: boolean;
+  incompleteDailyFingerprint?: string;
+}> {
   return sourceUow.withTransaction({ platformAccess: true }, async (tx) => {
     const result = await tx.query<SqlRow>(`
       SELECT s.id::text AS source_id,
@@ -202,20 +258,41 @@ async function loadSourceConfiguration(): Promise<{ sourceId: string; fullUrl: s
              EXISTS (
                SELECT 1
                FROM public.open_icecat_bulk_ingestion_runs r
-               WHERE r.source_id=s.id AND r.import_kind='full' AND r.status='completed'
-             ) AS has_completed_full
+               WHERE r.source_id=s.id
+                 AND r.import_kind='full'
+                 AND r.status='completed'
+                 AND r.processing_version=$3
+             ) AS has_completed_full,
+             (
+               SELECT failed.source_fingerprint
+               FROM public.open_icecat_bulk_ingestion_runs failed
+               WHERE failed.source_id=s.id
+                 AND failed.import_kind='daily'
+                 AND failed.status='failed'
+                 AND failed.processing_version=$3
+                 AND failed.failed_at > COALESCE((
+                   SELECT MAX(done.completed_at)
+                   FROM public.open_icecat_bulk_ingestion_runs done
+                   WHERE done.source_id=s.id
+                     AND done.status='completed'
+                     AND done.processing_version=$3
+                 ), '-infinity'::timestamptz)
+               ORDER BY failed.failed_at DESC
+               LIMIT 1
+             ) AS incomplete_daily_fingerprint
       FROM public.catalog_sources s
       JOIN public.markets m ON m.id=s.market_id
       WHERE s.code='open_icecat' AND s.active=true AND m.code='sparta'
       LIMIT 1
-    `, [OPEN_ICECAT_GREEK_FULL_INDEX_URL, OPEN_ICECAT_GREEK_DAILY_INDEX_URL]);
+    `, [OPEN_ICECAT_GREEK_FULL_INDEX_URL, OPEN_ICECAT_GREEK_DAILY_INDEX_URL, OPEN_ICECAT_BULK_PROCESSING_VERSION]);
     if (result.rowCount !== 1 || !result.rows[0]) throw new Error("Active Sparta Open Icecat source configuration not found");
     const row = result.rows[0];
     return {
       sourceId: requiredString(row.source_id, "source_id"),
       fullUrl: safeIcecatIndexUrl(requiredString(row.full_url, "full_url")),
       dailyUrl: safeIcecatIndexUrl(requiredString(row.daily_url, "daily_url")),
-      hasCompletedFull: row.has_completed_full === true
+      hasCompletedFull: row.has_completed_full === true,
+      incompleteDailyFingerprint: optionalString(row.incomplete_daily_fingerprint)
     };
   }, { readOnly: true });
 }
@@ -289,7 +366,8 @@ async function startHealthServer(port: number): Promise<Server> {
       currentImportKind: currentImportKind ?? null,
       currentRunStartedAt: currentRunStartedAt ? new Date(currentRunStartedAt).toISOString() : null,
       lastActivityAt: new Date(lastActivityAt).toISOString(),
-      schema: readiness.appliedSchemaVersion
+      schema: readiness.appliedSchemaVersion,
+      processingVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION
     }));
   });
   await new Promise<void>((resolve, reject) => {
@@ -300,16 +378,20 @@ async function startHealthServer(port: number): Promise<Server> {
 }
 
 function closeServer(server: Server): Promise<void> { return new Promise((resolve) => server.close(() => resolve())); }
-function delay(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
+async function delay(ms: number): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!stopping) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(1_000, remaining)));
+  }
+}
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`Open Icecat source ${field} is missing`);
   return value.trim();
 }
-function optionalCountry(raw: string | undefined): string | undefined {
-  const value = raw?.trim().toUpperCase();
-  if (!value) return undefined;
-  if (!/^[A-Z]{2}$/.test(value)) throw new Error("BLS_OPEN_ICECAT_COUNTRY must be a two-letter country code");
-  return value;
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 function positive(raw: string | undefined, fallback: number, name: string): number {
   if (!raw?.trim()) return fallback;
