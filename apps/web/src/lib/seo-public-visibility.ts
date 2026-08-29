@@ -9,6 +9,7 @@ export type PublicVendorSearchVisibility = Readonly<{
   endDate: string;
   impressions: number;
   clicks: number;
+  organicSessions: number;
 }>;
 
 type VisibilityRow = SqlRow & {
@@ -16,8 +17,17 @@ type VisibilityRow = SqlRow & {
   end_day?: string | null;
   impressions?: string | number | null;
   clicks?: string | number | null;
+  organic_sessions?: string | number | null;
 };
 
+/**
+ * Returns month-to-date public search visibility for an indexed vendor page.
+ *
+ * Search Console is the reporting clock because it is the source of the public
+ * Google-impression claim and naturally has a small reporting delay. GA4 is
+ * aggregated over the exact same date window so the numbers remain directly
+ * comparable even when Analytics has data available one day earlier or later.
+ */
 export async function getPublicVendorSearchVisibility(
   publicVendorId: string,
   now = Date.now()
@@ -38,20 +48,39 @@ export async function getPublicVendorSearchVisibility(
         ), latest AS (
           SELECT max(day) AS end_day
           FROM seo_gsc_daily_page_metrics
-          WHERE market_id=(SELECT id FROM market) AND route=$1
+          WHERE market_id=(SELECT id FROM market)
+        ), period AS (
+          SELECT
+            date_trunc('month', latest.end_day)::date AS start_day,
+            latest.end_day AS end_day
+          FROM latest
+          WHERE latest.end_day IS NOT NULL
         )
         SELECT
-          (latest.end_day - 27)::text AS start_day,
-          latest.end_day::text AS end_day,
-          COALESCE(sum(metrics.impressions),0)::bigint AS impressions,
-          COALESCE(sum(metrics.clicks),0)::bigint AS clicks
-        FROM latest
-        LEFT JOIN seo_gsc_daily_page_metrics metrics
-          ON metrics.market_id=(SELECT id FROM market)
-         AND metrics.route=$1
-         AND latest.end_day IS NOT NULL
-         AND metrics.day BETWEEN latest.end_day - 27 AND latest.end_day
-        GROUP BY latest.end_day
+          period.start_day::text AS start_day,
+          period.end_day::text AS end_day,
+          COALESCE((
+            SELECT sum(metrics.impressions)
+            FROM seo_gsc_daily_page_metrics metrics
+            WHERE metrics.market_id=(SELECT id FROM market)
+              AND metrics.route=$1
+              AND metrics.day BETWEEN period.start_day AND period.end_day
+          ),0)::bigint AS impressions,
+          COALESCE((
+            SELECT sum(metrics.clicks)
+            FROM seo_gsc_daily_page_metrics metrics
+            WHERE metrics.market_id=(SELECT id FROM market)
+              AND metrics.route=$1
+              AND metrics.day BETWEEN period.start_day AND period.end_day
+          ),0)::bigint AS clicks,
+          COALESCE((
+            SELECT sum(metrics.organic_sessions)
+            FROM seo_ga4_daily_landing_metrics metrics
+            WHERE metrics.market_id=(SELECT id FROM market)
+              AND metrics.route=$1
+              AND metrics.day BETWEEN period.start_day AND period.end_day
+          ),0)::bigint AS organic_sessions
+        FROM period
       `, [route]),
       { readOnly: true }
     );
@@ -62,12 +91,13 @@ export async function getPublicVendorSearchVisibility(
     const endDate = optionalDateText(row.end_day);
     const impressions = nonNegativeSafeInteger(row.impressions);
     const clicks = nonNegativeSafeInteger(row.clicks);
+    const organicSessions = nonNegativeSafeInteger(row.organic_sessions);
     if (!startDate || !endDate || !impressions) return undefined;
 
     const latestAt = Date.parse(`${endDate}T00:00:00Z`);
     if (!Number.isFinite(latestAt) || now - latestAt > MAX_DATA_AGE_DAYS * DAY_MS) return undefined;
 
-    return { startDate, endDate, impressions, clicks };
+    return { startDate, endDate, impressions, clicks, organicSessions };
   } catch (error) {
     console.warn(JSON.stringify({
       level: "warn",
