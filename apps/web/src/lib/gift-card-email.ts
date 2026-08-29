@@ -35,9 +35,9 @@ function notification(input: {
 }
 
 async function send(destination: string, message: Notification, idempotencyKey: string): Promise<GiftCardEmailStatus> {
-  const emailProvider = provider();
-  if (!emailProvider) return { sent: false, error: "Η αποστολή email δεν είναι διαθέσιμη αυτή τη στιγμή." };
   try {
+    const emailProvider = provider();
+    if (!emailProvider) return { sent: false, error: "Η αποστολή email δεν είναι διαθέσιμη αυτή τη στιγμή." };
     await emailProvider.send({ notification: message, destination, idempotencyKey });
     return { sent: true };
   } catch (error) {
