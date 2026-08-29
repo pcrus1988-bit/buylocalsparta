@@ -234,7 +234,7 @@ function memoryActOnVendorFulfilment(principal: SessionPrincipal, input: { fulfi
     return commerceRuntime.commerce.markReadyForHandover(order.id, fulfilment.id);
   }
   if (input.action === "delivered") {
-    throw new Error("Local delivery completion is confirmed by the delivery driver after scanning the customer QR.");
+    throw new Error("Vendor delivery confirmation is disabled: shipping delivery is carrier-confirmed, and KONTA MOY local delivery is confirmed by the delivery driver after scanning the customer QR.");
   }
   throw new Error("Unsupported fulfilment action");
 }
