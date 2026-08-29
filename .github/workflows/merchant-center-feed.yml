@@ -4,9 +4,11 @@ on:
   pull_request:
     paths:
       - "apps/web/src/app/merchant-center/**"
+      - "apps/web/src/app/admin/seo/merchant-center/**"
       - "apps/web/src/app/robots.ts"
       - "apps/web/src/lib/catalog-view.ts"
       - "apps/web/src/lib/crawler-catalog.ts"
+      - "apps/web/src/lib/merchant-center-catalog.ts"
       - "apps/web/src/lib/merchant-center-feed.ts"
       - "apps/web/src/lib/product-url.ts"
       - "apps/web/src/lib/public-data-integrity.ts"
@@ -14,6 +16,7 @@ on:
       - "apps/web/src/lib/seo-entity-overrides.ts"
       - "apps/web/src/lib/seo-settings.ts"
       - "apps/web/src/lib/seo-visibility-policy.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
       - "scripts/verify-merchant-center-feed.ts"
       - ".github/workflows/merchant-center-feed.yml"
 
@@ -30,7 +33,7 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Verify Merchant Center feed contracts
+      - name: Verify Merchant Center feed and Admin readiness contracts
         run: node --experimental-strip-types scripts/verify-merchant-center-feed.ts
-      - name: Build public web app
+      - name: Build public and Admin web app
         run: npm --workspace @buy-local-sparta/web run build
