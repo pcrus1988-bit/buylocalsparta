@@ -5,6 +5,7 @@ import type {
   OpenIcecatBulkRunState
 } from "../ingestion/open-icecat/bulk-runner.ts";
 import type { OpenIcecatIndexEntry } from "../ingestion/open-icecat/types.ts";
+import { OPEN_ICECAT_DETAIL_PROCESSING_VERSION } from "./postgres-open-icecat-detail.ts";
 import { PostgresUnitOfWork, requireSingleRow, type SqlExecutor, type SqlPool, type SqlRow } from "./sql.ts";
 
 export type OpenIcecatBulkRunStatus = Readonly<{
@@ -258,6 +259,78 @@ async function upsertIndexEntries(
         last_seen_at=now(),
         removed_at=CASE WHEN EXCLUDED.record_state='removed' THEN now() ELSE NULL END
   `, [sourceId, fingerprint, runId, payload, state]);
+
+  if (state === "removed") {
+    await tx.query(`
+      UPDATE public.open_icecat_detail_enrichment_jobs j
+      SET status='skipped',
+          lease_owner=NULL,
+          lease_until=NULL,
+          completed_at=now(),
+          last_error='provider index row removed',
+          updated_at=now()
+      FROM jsonb_array_elements($2::jsonb) AS item
+      WHERE j.source_id=$1::uuid
+        AND j.product_id=item->>'productId'
+        AND j.status <> 'skipped'
+    `, [sourceId, payload]);
+    return;
+  }
+
+  await tx.query(`
+    INSERT INTO public.open_icecat_detail_enrichment_jobs (
+      source_id, product_id, last_run_id, source_updated, processing_version,
+      status, attempt_count, lease_owner, lease_until, next_attempt_at,
+      source_product_id, last_error, last_attempt_at, completed_at, updated_at
+    )
+    SELECT i.source_id, i.product_id, i.last_run_id, i.source_updated, $3,
+           'pending', 0, NULL, NULL, now(), NULL, NULL, NULL, NULL, now()
+    FROM public.open_icecat_index_products i
+    JOIN jsonb_array_elements($2::jsonb) AS item
+      ON i.product_id=item->>'productId'
+    WHERE i.source_id=$1::uuid
+      AND i.record_state='active'
+      AND cardinality(i.gtins)>0
+    ON CONFLICT (source_id,product_id) DO UPDATE
+    SET last_run_id=EXCLUDED.last_run_id,
+        source_updated=EXCLUDED.source_updated,
+        processing_version=EXCLUDED.processing_version,
+        status='pending',
+        attempt_count=0,
+        lease_owner=NULL,
+        lease_until=NULL,
+        next_attempt_at=now(),
+        source_product_id=NULL,
+        last_error=NULL,
+        last_attempt_at=NULL,
+        completed_at=NULL,
+        updated_at=now()
+    WHERE public.open_icecat_detail_enrichment_jobs.processing_version IS DISTINCT FROM EXCLUDED.processing_version
+       OR public.open_icecat_detail_enrichment_jobs.source_updated IS DISTINCT FROM EXCLUDED.source_updated
+       OR (
+         public.open_icecat_detail_enrichment_jobs.source_updated IS NULL
+         AND EXCLUDED.source_updated IS NULL
+         AND public.open_icecat_detail_enrichment_jobs.last_run_id IS DISTINCT FROM EXCLUDED.last_run_id
+       )
+  `, [sourceId, payload, OPEN_ICECAT_DETAIL_PROCESSING_VERSION]);
+
+  await tx.query(`
+    UPDATE public.open_icecat_detail_enrichment_jobs j
+    SET status='skipped',
+        lease_owner=NULL,
+        lease_until=NULL,
+        completed_at=now(),
+        last_error='provider index row has no GTIN for detail lookup',
+        updated_at=now()
+    FROM public.open_icecat_index_products i
+    JOIN jsonb_array_elements($2::jsonb) AS item
+      ON i.product_id=item->>'productId'
+    WHERE i.source_id=$1::uuid
+      AND j.source_id=i.source_id AND j.product_id=i.product_id
+      AND i.record_state='active'
+      AND cardinality(i.gtins)=0
+      AND j.status <> 'skipped'
+  `, [sourceId, payload]);
 }
 
 function mapRunStatus(row: SqlRow): OpenIcecatBulkRunStatus {
