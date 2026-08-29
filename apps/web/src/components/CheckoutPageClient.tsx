@@ -49,6 +49,7 @@ type AddressDraft = {
   isDefaultBilling: boolean;
   isDefaultDelivery: boolean;
 };
+type ClaimedGiftCard = Readonly<{ id: string; suffix: string; balanceMinor: number }>;
 
 function blankAddress(fullName = ""): AddressDraft {
   return { label: "Σπίτι", fullName, companyName: "", vatNumber: "", line1: "", line2: "", locality: "Σπάρτη", region: "Λακωνία", postcode: "23100", countryCode: "GR", phone: "", isDefaultBilling: false, isDefaultDelivery: false };
@@ -89,6 +90,8 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const [draft, setDraft] = useState<AddressDraft>(() => blankAddress());
   const [addressBusy, setAddressBusy] = useState(false);
   const [addressError, setAddressError] = useState("");
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [giftCardHint, setGiftCardHint] = useState("");
 
   const effectiveDeliveryAddressId = sameAsBilling ? billingAddressId : deliveryAddressId;
   const needsDeliveryAddress = fulfilmentMode === "local_delivery";
@@ -266,12 +269,20 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     event.preventDefault();
     if (!checkoutKey || accountState !== "authenticated" || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId)) return;
     if (needsBoxNowRecipient && (!boxNowLocker || !recipientName.trim() || !recipientEmail.trim() || !recipientPhone.trim())) return;
-    setBusy(true); setResult(null);
+    setBusy(true); setResult(null); setGiftCardHint("");
     try {
       const headers = new Headers({ "content-type": "application/json", "x-csrf-token": csrfToken });
+      let giftCard: ClaimedGiftCard | undefined;
+      if (giftCardCode.trim()) {
+        const claimResponse = await fetch("/api/account/gift-cards/claim", { method: "POST", headers, body: JSON.stringify({ code: giftCardCode }) });
+        const claimBody = await claimResponse.json() as { card?: ClaimedGiftCard; error?: string };
+        if (!claimResponse.ok || !claimBody.card) throw new Error(claimBody.error ?? "Η δωροκάρτα δεν αναγνωρίστηκε.");
+        giftCard = claimBody.card;
+        setGiftCardHint(`Δωροκάρτα •••${giftCard.suffix} · διαθέσιμο ${money(giftCard.balanceMinor)}`);
+      }
       const shipping = fulfilmentMode === "shipping" ? { provider: boxNowLocker ? "boxnow" : undefined, providerDestinationId: boxNowLocker?.id, providerDestinationLabel: boxNowLocker ? `${boxNowLocker.address} · ${boxNowLocker.postcode}` : undefined, providerDestinationPostcode: boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone } : undefined;
-      const response = await fetch("/api/checkout", { method: "POST", headers, body: JSON.stringify({ checkoutKey, postcode, fulfilmentMode, billingAddressId, deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : undefined, shipping, items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) }) });
-      const body = await response.json() as { id?: string; orderId?: string; error?: string; total?: { minor?: number; currency?: string }; payment?: { provider?: string; redirectUrl?: string; orderCode?: string; amountMinor?: number } };
+      const response = await fetch("/api/checkout", { method: "POST", headers, body: JSON.stringify({ checkoutKey, postcode, fulfilmentMode, billingAddressId, deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : undefined, shipping, giftCardId: giftCard?.id, items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) }) });
+      const body = await response.json() as { id?: string; orderId?: string; error?: string; total?: { minor?: number; currency?: string }; giftCard?: { suffix?: string; balanceMinor?: number; amountMinor?: number }; payment?: { provider?: string; redirectUrl?: string; orderCode?: string; amountMinor?: number } };
       if (!response.ok) throw new Error(body.error ?? "Το checkout δεν ολοκληρώθηκε.");
       const orderId = body.id ?? body.orderId ?? "created";
       if (body.payment?.provider === "viva" && body.payment.redirectUrl) {
@@ -279,7 +290,11 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         return;
       }
       window.sessionStorage.removeItem("buy-local-sparta-checkout-v1");
-      clear(); setResult({ ok: true, orderId, totalMinor: Number.isSafeInteger(body.total?.minor) ? body.total?.minor : undefined, message: paymentMode === "development" ? "Η δοκιμαστική παραγγελία δημιουργήθηκε επιτυχώς." : "Η παραγγελία δημιουργήθηκε." });
+      clear();
+      const giftCardMessage = body.payment?.provider === "gift_card"
+        ? `Η παραγγελία πληρώθηκε με τη δωροκάρτα σου${Number.isSafeInteger(body.giftCard?.balanceMinor) ? ` · νέο υπόλοιπο ${money(body.giftCard!.balanceMinor!)}` : ""}.`
+        : paymentMode === "development" ? "Η δοκιμαστική παραγγελία δημιουργήθηκε επιτυχώς." : "Η παραγγελία δημιουργήθηκε.";
+      setResult({ ok: true, orderId, totalMinor: Number.isSafeInteger(body.total?.minor) ? body.total?.minor : undefined, message: giftCardMessage });
     } catch (error) {
       setResult({ ok: false, message: error instanceof Error ? error.message : "Το checkout απέτυχε." });
     } finally { setBusy(false); }
@@ -362,8 +377,14 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         <div className="eyebrow">03 · Πληρωμή</div>
         <h2>{paymentMode === "viva" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2>
         <div className="payment-placeholder"><strong>{paymentMode === "viva" ? "Viva Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "viva" ? "Θα μεταφερθείς στη Viva για την πληρωμή. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
+        <div className="shipping-provider-fields">
+          <div className="account-card-head"><div><strong>Έχεις δωροκάρτα ΚΟΝΤΑ ΜΟΥ;</strong><small>Βάλε τον κωδικό που δημιουργήθηκε από το ΚΟΝΤΑ ΜΟΥ.</small></div></div>
+          <label>Κωδικός δωροκάρτας <small>προαιρετικό</small><input aria-label="Κωδικός δωροκάρτας" autoComplete="off" value={giftCardCode} onChange={(event) => { setGiftCardCode(event.target.value); setGiftCardHint(""); }} placeholder="KM-XXXXXX-XXXXXX-XXXXXX-XXXXXX" /></label>
+          <p className="workspace-inline-note">Η δωροκάρτα συνδέεται με τον λογαριασμό σου και εξαργυρώνεται με ασφάλεια. Σε αυτή τη ροή πρέπει να καλύπτει ολόκληρο το τελικό ποσό της παραγγελίας.</p>
+          {giftCardHint ? <p className="workspace-inline-note" role="status">{giftCardHint}</p> : null}
+        </div>
       </div>
-      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : paymentMode === "viva" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
+      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εξαργύρωση δωροκάρτας" : paymentMode === "viva" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
       {result && <div className={`checkout-result ${result.ok ? "success" : "error"}`} role="status"><strong>{result.ok ? "Έτοιμο" : "Δεν ολοκληρώθηκε"}</strong><p>{result.message}</p>{result.totalMinor !== undefined && <p><strong>Σύνολο: {money(result.totalMinor)}</strong></p>}{result.orderId && <code>Order: {result.orderId}</code>}</div>}
     </form>
     {summary}
