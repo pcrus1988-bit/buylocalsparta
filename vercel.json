@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron/seo-production-metrics",
-      "schedule": "* * * * *"
+      "schedule": "37 4 * * *"
     }
   ]
 }
