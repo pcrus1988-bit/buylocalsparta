@@ -4,15 +4,23 @@ import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
 import { checkoutCustomer, postgresCommerceEnabled, syncPersistentCustomerCart } from "../../../lib/customer-commerce-runtime";
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
-import { redeemGiftCardForOrder } from "../../../lib/gift-card-service";
+import { GiftCardRemainderBelowMinimumError, redeemGiftCardForOrder } from "../../../lib/gift-card-service";
 import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
 import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runtime";
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
-const VIVA_MINIMUM_AMOUNT_MINOR = 30;
+const VIVA_MINIMUM_AMOUNT_MINOR = 100;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
 function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
+function belowMinimumPaymentResponse(remainingMinor: number) {
+  return Response.json({
+    error: `Απομένουν ${(remainingMinor / 100).toFixed(2)} € για online πληρωμή. Η ελάχιστη online πληρωμή είναι 1,00 €.`,
+    code: "PAYMENT_REMAINDER_BELOW_MINIMUM",
+    remainingMinor,
+    minimumMinor: VIVA_MINIMUM_AMOUNT_MINOR
+  }, { status: 422 });
+}
 
 async function assertCheckoutRequestIntegrity(
   runtime: ReturnType<typeof getProductionPostgresRuntime>,
@@ -145,34 +153,50 @@ export async function POST(request: Request) {
         if (!availability) throw new Error(`Product ${item.canonicalVariantId} is unavailable`);
         pickupTotalMinor += availability.product.priceMinor * item.quantity;
       }
-      if (pickupTotalMinor < VIVA_MINIMUM_AMOUNT_MINOR) {
-        return Response.json({ error: "Η ελάχιστη αξία παραγγελίας για online πληρωμή μέσω Viva είναι 0,30 €. Αύξησε την ποσότητα ή την αξία του καλαθιού και δοκίμασε ξανά." }, { status: 422 });
-      }
+      if (pickupTotalMinor > 0 && pickupTotalMinor < VIVA_MINIMUM_AMOUNT_MINOR) return belowMinimumPaymentResponse(pickupTotalMinor);
     }
 
     const now = Date.now();
     const order = await checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now });
     await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined, now });
 
+    let giftCard: { id: string; suffix: string; balanceMinor: number; amountMinor: number; deliveryMinor: number; remainingPayableMinor: number } | undefined;
     if (giftCardId) {
       try {
-        const redemption = await redeemGiftCardForOrder(principal, { giftCardId, orderId: order.id, now });
-        await syncPersistentCustomerCart(principal, [], now).catch(() => undefined);
-        await createCustomerNotification({ userId: principal.userId, eventType: "order.payment_confirmed", title: "Η πληρωμή με δωροκάρτα επιβεβαιώθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardId: redemption.card.id, amountMinor: redemption.amountMinor }, dedupeKey: `web-order:${order.id}:gift-card-confirmed`, now });
-        return Response.json({ ...order, status: "confirmed", giftCard: { id: redemption.card.id, suffix: redemption.card.suffix, balanceMinor: redemption.card.balanceMinor, amountMinor: redemption.amountMinor }, payment: { provider: "gift_card", amountMinor: redemption.amountMinor } }, { status: 201 });
+        const redemption = await redeemGiftCardForOrder(principal, { giftCardId, orderId: order.id, minimumExternalPaymentMinor: VIVA_MINIMUM_AMOUNT_MINOR, now });
+        giftCard = {
+          id: redemption.card.id,
+          suffix: redemption.card.suffix,
+          balanceMinor: redemption.card.balanceMinor,
+          amountMinor: redemption.amountMinor,
+          deliveryMinor: redemption.deliveryMinor,
+          remainingPayableMinor: redemption.remainingPayableMinor
+        };
+        if (redemption.paymentComplete) {
+          await syncPersistentCustomerCart(principal, [], now).catch(() => undefined);
+          await createCustomerNotification({ userId: principal.userId, eventType: "order.payment_confirmed", title: "Η πληρωμή με δωροκάρτα επιβεβαιώθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardId: redemption.card.id, amountMinor: redemption.amountMinor }, dedupeKey: `web-order:${order.id}:gift-card-confirmed`, now });
+          return Response.json({ ...order, status: "confirmed", giftCard, payment: { provider: "gift_card", amountMinor: 0 } }, { status: 201 });
+        }
       } catch (error) {
         await syncPersistentCustomerCart(principal, items, now).catch(() => undefined);
+        if (error instanceof GiftCardRemainderBelowMinimumError) return belowMinimumPaymentResponse(error.remainingMinor);
         throw error;
       }
     }
 
+    const payableMinor = giftCard?.remainingPayableMinor ?? order.total.minor;
+    if (payableMinor > 0 && payableMinor < VIVA_MINIMUM_AMOUNT_MINOR) {
+      await syncPersistentCustomerCart(principal, items, now).catch(() => undefined);
+      return belowMinimumPaymentResponse(payableMinor);
+    }
+
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
-    await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
+    await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardAmountMinor: giftCard?.amountMinor ?? 0, remainingPayableMinor: payableMinor }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
     if (postgresCommerceEnabled() && vivaPaymentsEnabled()) {
       const payment = await requireVivaPayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
-      return Response.json({ ...order, payment: { provider:"viva", orderCode:payment.orderCode, redirectUrl:payment.checkoutUrl, amountMinor:payment.amountMinor } }, { status: 201 });
+      return Response.json({ ...order, giftCard, payment: { provider:"viva", orderCode:payment.orderCode, redirectUrl:payment.checkoutUrl, amountMinor:payment.amountMinor } }, { status: 201 });
     }
-    return Response.json(order, { status: 201 });
+    return Response.json({ ...order, giftCard }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "checkout_failed" }, { status: 400 });
   }
