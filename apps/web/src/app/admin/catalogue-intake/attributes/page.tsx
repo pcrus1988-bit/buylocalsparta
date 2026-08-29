@@ -44,6 +44,8 @@ async function resolveAttributeAction(formData: FormData) {
     redirect(mappingHref({ snapshot, status, error: "Unsupported attribute mapping decision" }));
   }
 
+  let affectedObservations = 0;
+  let canonicalAttributeCode: string | undefined;
   try {
     const result = await resolveCatalogueAttributeMapping(principal, {
       sourceId,
@@ -53,18 +55,21 @@ async function resolveAttributeAction(formData: FormData) {
       attributeId,
       decision
     });
-    revalidatePath("/admin/catalogue-intake");
-    revalidatePath("/admin/catalogue-intake/attributes");
-    redirect(mappingHref({
-      snapshot,
-      status,
-      saved: result.decision,
-      affected: String(result.affectedObservations),
-      attribute: result.canonicalAttributeCode
-    }));
+    affectedObservations = result.affectedObservations;
+    canonicalAttributeCode = result.canonicalAttributeCode;
   } catch (error) {
     redirect(mappingHref({ snapshot, status, error: errorMessage(error) }));
   }
+
+  revalidatePath("/admin/catalogue-intake");
+  revalidatePath("/admin/catalogue-intake/attributes");
+  redirect(mappingHref({
+    snapshot,
+    status,
+    saved: decision,
+    affected: String(affectedObservations),
+    attribute: canonicalAttributeCode
+  }));
 }
 
 export default async function AttributeMappingPage({ searchParams }: { searchParams: Promise<Params> }) {
