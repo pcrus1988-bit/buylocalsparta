@@ -121,8 +121,20 @@ try {
   assert(refreshed[0]?.sourceUpdated === "2026-08-29T02:00:00Z", "stale refresh must advance the provider update marker");
   await runtime.persistence.openIcecatDetail.skip(refreshed[0]!, workerId, "CI stale-version lifecycle completed");
 
-  // A completed full snapshot is authoritative for provider-index presence. An empty
-  // later full snapshot therefore retires the previously active row and its detail job.
+  // Rejected/filtered rows make a full snapshot unsuitable as authoritative absence.
+  // Preserve old active rows in that case rather than risk deleting a row that merely
+  // failed parsing/classification in the new source file.
+  const lossyFull = await insertRun(sourceId, "full", "running", 1, 1, 0, { rejected: 1 });
+  await runtime.persistence.openIcecatBulk.complete(lossyFull.runId, 1);
+  const preserved = await runtime.nativePool.query<{ record_state: string }>(`
+    SELECT record_state
+    FROM public.open_icecat_index_products
+    WHERE source_id=$1::uuid AND product_id=$2
+  `, [sourceId, productId]);
+  assert(preserved.rows[0]?.record_state === "active", "lossy full index must not infer removal from absence");
+
+  // A lossless completed full snapshot is authoritative for provider-index presence.
+  // An empty later full snapshot therefore retires the previously active row and job.
   const fullRun4 = await insertRun(sourceId, "full", "running", 0, 0, 0);
   await runtime.persistence.openIcecatBulk.complete(fullRun4.runId, 0);
   const retired = await runtime.nativePool.query<{ record_state: string; job_status: string; job_run_id: string }>(`
@@ -132,7 +144,7 @@ try {
       ON j.source_id=i.source_id AND j.product_id=i.product_id
     WHERE i.source_id=$1::uuid AND i.product_id=$2
   `, [sourceId, productId]);
-  assert(retired.rows[0]?.record_state === "removed", "full reconciliation must retire an index row absent from the completed full snapshot");
+  assert(retired.rows[0]?.record_state === "removed", "lossless full reconciliation must retire an index row absent from the completed full snapshot");
   assert(retired.rows[0]?.job_status === "skipped", "full reconciliation must stop detail work for a retired row");
   assert(retired.rows[0]?.job_run_id === fullRun4.runId, "retired detail state must point at the authoritative full run");
 
@@ -157,20 +169,25 @@ async function insertRun(
   status: "running" | "completed",
   checkpoint: number,
   sourceRows: number,
-  persisted: number
+  persisted: number,
+  counts: Readonly<{ removed?: number; rejected?: number; filtered?: number }> = {}
 ): Promise<{ runId: string; fingerprint: string }> {
   const fingerprint = `ci:${importKind}:${randomUUID()}`;
+  const removed = counts.removed ?? 0;
+  const rejected = counts.rejected ?? 0;
+  const filtered = counts.filtered ?? 0;
+  assert(persisted + removed + rejected + filtered === sourceRows, "bulk smoke fixture counters must classify every source row");
   const result = await runtime.nativePool.query<{ run_id: string }>(`
     INSERT INTO public.open_icecat_bulk_ingestion_runs (
       source_id,import_kind,source_url,source_fingerprint,processing_version,status,
       checkpoint,source_rows,persisted,removed,rejected,filtered,completed_at
     ) VALUES (
       $1::uuid,$2,'https://data.icecat.biz/export/freexml/EL/ci.index.csv.gz',$3,
-      'ci-detail-smoke-bulk-v1',$4,$5,$6,$7,0,0,0,
+      'ci-detail-smoke-bulk-v1',$4,$5,$6,$7,$8,$9,$10,
       CASE WHEN $4='completed' THEN now() ELSE NULL END
     )
     RETURNING id::text AS run_id
-  `, [sourceId, importKind, fingerprint, status, checkpoint, sourceRows, persisted]);
+  `, [sourceId, importKind, fingerprint, status, checkpoint, sourceRows, persisted, removed, rejected, filtered]);
   const runId = result.rows[0]?.run_id;
   assert(runId, "bulk smoke fixture run insert must return an id");
   return { runId, fingerprint };
