@@ -46,10 +46,15 @@ if (checksum[migrationName] !== actualDigest) {
 requireText(migration, "CREATE TABLE vendor_application_profile_claims", "Profile claim migration");
 requireText(migration, "application_id uuid NOT NULL UNIQUE", "Profile claim migration");
 requireText(migration, "vendor_application_profile_claims_vendor_status_idx", "Profile claim migration");
+requireText(migration, "CREATE UNIQUE INDEX vendor_application_profile_claims_verified_vendor_uidx", "Verified-claim exclusivity");
+requireText(migration, "WHERE claim_status='verified'", "Verified-claim exclusivity");
+requireText(migration, "RESEARCH_PROFILE_ALREADY_CLAIMED", "Competing claim activation guard");
+requireText(migration, "claim_status='superseded'", "Competing claim resolution");
 requireText(migration, "finalize_vendor_profile_claim_on_activation", "Profile claim activation continuity");
 requireText(migration, "AFTER UPDATE OF status ON vendor_applications", "Profile claim activation continuity");
 requireText(migration, "VALUES(membership_uuid,'vendor_owner')", "Profile claim owner access continuity");
-forbidText(migration, "UNIQUE(research_vendor_id)", "Profile claim migration");
+requireText(migration, "UPDATE vendor_locations", "Verified profile location refresh");
+forbidText(migration, "UNIQUE(research_vendor_id)", "Pending profile claim migration");
 
 requireText(visibility, "seo_gsc_daily_page_metrics", "Public Search Console visibility");
 requireText(visibility, "metrics.day BETWEEN latest.end_day - 27 AND latest.end_day", "Public Search Console visibility");
