@@ -61,6 +61,8 @@ import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications"
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 
+const LOCAL_COMMERCE_DESCRIPTION = "Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και ένα checkout. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική online ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους e-shop.";
+
 export async function generateMetadata(): Promise<Metadata> {
   const { settings } = await getSeoGlobalSettingsSnapshot();
   return {
@@ -91,6 +93,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const origin = settings.canonicalOrigin.replace(/\/$/, "");
   const websiteId = `${origin}/#website`;
   const organizationId = `${origin}/#organization`;
+  const serviceId = `${origin}/#local-commerce-service`;
   const rootStructuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -100,8 +103,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         name: settings.siteName,
         alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU"],
         url: origin,
+        description: LOCAL_COMMERCE_DESCRIPTION,
         inLanguage: "el-GR",
-        publisher: { "@id": organizationId }
+        publisher: { "@id": organizationId },
+        about: { "@id": serviceId }
       },
       {
         "@type": "OnlineStore",
@@ -110,7 +115,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         alternateName: ["ΚΟΝΤΑ ΜΟΥ", "KONTA MOU", KONTA_MOY_EMAIL_COMPANY.descriptor],
         legalName: KONTA_MOY_EMAIL_COMPANY.legalName,
         url: origin,
-        description: settings.defaultDescription,
+        description: LOCAL_COMMERCE_DESCRIPTION,
         email: KONTA_MOY_EMAIL_COMPANY.email,
         telephone: `+30${KONTA_MOY_EMAIL_COMPANY.phone}`,
         taxID: KONTA_MOY_EMAIL_COMPANY.taxNumber,
@@ -136,6 +141,25 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           telephone: `+30${KONTA_MOY_EMAIL_COMPANY.phone}`,
           availableLanguage: ["el"]
         }
+      },
+      {
+        "@type": "Service",
+        "@id": serviceId,
+        name: "ΚΟΝΤΑ ΜΟΥ · Υποδομή τοπικού εμπορίου",
+        alternateName: "KONTA MOU local-commerce platform",
+        serviceType: "Local-commerce marketplace and merchant e-commerce infrastructure",
+        description: LOCAL_COMMERCE_DESCRIPTION,
+        url: `${origin}/about`,
+        provider: { "@id": organizationId },
+        areaServed: [
+          { "@type": "City", name: "Σπάρτη" },
+          { "@type": "AdministrativeArea", name: "Λακωνία" },
+          { "@type": "Country", name: "Ελλάδα" }
+        ],
+        audience: [
+          { "@type": "Audience", audienceType: "Πελάτες που θέλουν να αγοράζουν από τοπικά καταστήματα" },
+          { "@type": "BusinessAudience", audienceType: "Μικρές και μεσαίες τοπικές επιχειρήσεις λιανικής" }
+        ]
       }
     ]
   };
