@@ -26,8 +26,8 @@ const [
   applicationRoute,
   applicationRuntime
 ] = await Promise.all([
-  source("db/migrations/0156_vendor_application_profile_claims.sql"),
-  source("db/migrations/checksums.0156.json"),
+  source("db/migrations/0157_vendor_application_profile_claims.sql"),
+  source("db/migrations/checksums.0157.json"),
   source("apps/web/src/lib/seo-public-visibility.ts"),
   source("apps/web/src/app/vendor/[id]/layout.tsx"),
   source("apps/web/src/app/join/apply/page.tsx"),
@@ -37,7 +37,7 @@ const [
 ]);
 
 const checksum = JSON.parse(checksumSource) as Record<string, string>;
-const migrationName = "0156_vendor_application_profile_claims.sql";
+const migrationName = "0157_vendor_application_profile_claims.sql";
 const actualDigest = createHash("sha256").update(migration, "utf8").digest("hex");
 if (checksum[migrationName] !== actualDigest) {
   throw new Error(`Migration checksum mismatch for ${migrationName}: expected ${checksum[migrationName] ?? "missing"}, got ${actualDigest}`);
