@@ -136,4 +136,5 @@ export type OpenIcecatIndexFilter = Readonly<{
   requireApprovedGtin?: boolean;
   country?: string;
   qualities?: readonly string[];
+  includeRemoved?: boolean;
 }>;
