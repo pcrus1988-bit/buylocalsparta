@@ -139,7 +139,11 @@ async function merchantSignals(): Promise<SeoProductionSignals["merchant"]> {
   const { settings } = await getSeoGlobalSettingsSnapshot();
   const url = new URL("/merchant-center/products.xml", `${settings.canonicalOrigin.replace(/\/$/, "")}/`).toString();
   try {
-    const response = await fetch(url, { cache: "no-store", headers: { "user-agent": "KONTA-MOU-Admin-SEO/1.0" } });
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+      headers: { "user-agent": "KONTA-MOU-Admin-SEO/1.0" }
+    });
     const parsedCount = Number(response.headers.get("x-kontamou-merchant-items"));
     const itemCount = Number.isFinite(parsedCount) && parsedCount >= 0 ? Math.round(parsedCount) : undefined;
     return { url, status: !response.ok ? "error" : itemCount === 0 ? "empty" : "healthy", httpStatus: response.status, itemCount };
