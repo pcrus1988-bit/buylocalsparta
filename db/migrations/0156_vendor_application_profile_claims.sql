@@ -148,7 +148,7 @@ BEGIN
       SELECT id INTO location_uuid
       FROM vendor_locations
       WHERE vendor_id=NEW.vendor_id
-      ORDER BY is_primary DESC,verified_at DESC NULLS LAST,created_at,id
+      ORDER BY verified_at DESC NULLS LAST,created_at,id
       LIMIT 1;
 
       IF location_uuid IS NULL THEN
