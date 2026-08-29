@@ -298,7 +298,11 @@ async function loadSourceConfiguration(): Promise<{
 }
 
 async function* gunzipChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
-  const decompressed = body.pipeThrough(new DecompressionStream("gzip"));
+  // Node's DecompressionStream runtime consumes Uint8Array chunks, while the DOM
+  // declaration widens its writable side to BufferSource. Narrow that declaration
+  // at this boundary without buffering or changing the streaming data path.
+  const gunzip = new DecompressionStream("gzip") as unknown as TransformStream<Uint8Array, Uint8Array>;
+  const decompressed = body.pipeThrough(gunzip);
   const reader = decompressed.getReader();
   try {
     while (true) {
