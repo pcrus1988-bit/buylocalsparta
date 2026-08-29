@@ -20,11 +20,27 @@ type Receipt = Readonly<{
   message: string;
 }>;
 
-export function VendorApplicationForm({ csrfToken, signedInEmail, initialPlanCode = "annual" }: { csrfToken?: string; signedInEmail?: string; initialPlanCode?: RequestedPlanCode }) {
+type VendorApplicationFormProps = Readonly<{
+  csrfToken?: string;
+  signedInEmail?: string;
+  initialPlanCode?: RequestedPlanCode;
+  claimedResearchVendorId?: string;
+  claimTargetName?: string;
+}>;
+
+export function VendorApplicationForm({
+  csrfToken,
+  signedInEmail,
+  initialPlanCode = "annual",
+  claimedResearchVendorId,
+  claimTargetName
+}: VendorApplicationFormProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [errorCode, setErrorCode] = useState("");
   const [receipt, setReceipt] = useState<Receipt | undefined>();
+  const returnPath = `/join/apply?plan=${encodeURIComponent(initialPlanCode)}${claimedResearchVendorId ? `&claim=${encodeURIComponent(claimedResearchVendorId)}` : ""}`;
+  const loginHref = `/login?next=${encodeURIComponent(returnPath)}`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,12 +95,20 @@ export function VendorApplicationForm({ csrfToken, signedInEmail, initialPlanCod
   }
 
   return <form className={`login-form ${styles.form}`} onSubmit={submit}>
+    {claimedResearchVendorId && <>
+      <input type="hidden" name="claimedResearchVendorId" value={claimedResearchVendorId} />
+      <div className="fairness-note">
+        <strong>Διεκδίκηση υπάρχουσας σελίδας{claimTargetName ? ` · ${claimTargetName}` : ""}</strong>
+        <p>Η αίτηση θα συνδεθεί με το ήδη δημοσιευμένο προφίλ <code>{claimedResearchVendorId}</code>. Η διεκδίκηση παραμένει σε έλεγχο μέχρι την επιβεβαίωση από Admin και δεν αλλάζει αυτόματα το δημόσιο περιεχόμενο.</p>
+      </div>
+    </>}
+
     <div className="eyebrow">1 · Επιχείρηση</div>
     <label htmlFor="vendor-legal-name">Νομική επωνυμία *</label>
     <input id="vendor-legal-name" name="legalName" required maxLength={160} autoComplete="organization" />
 
     <label htmlFor="vendor-trading-name">Εμπορική ονομασία / διακριτικός τίτλος *</label>
-    <input id="vendor-trading-name" name="tradingName" required maxLength={120} />
+    <input id="vendor-trading-name" name="tradingName" required maxLength={120} defaultValue={claimTargetName ?? ""} />
 
     <div className={styles.twoColumn}>
       <label htmlFor="vendor-tax-number"><span>ΑΦΜ *</span><input id="vendor-tax-number" name="taxNumber" required inputMode="numeric" pattern="[0-9]{9}" maxLength={9} placeholder="9 ψηφία" /></label>
@@ -136,8 +160,8 @@ export function VendorApplicationForm({ csrfToken, signedInEmail, initialPlanCod
 
     <div className={styles.honeypot} aria-hidden="true"><label htmlFor="vendor-website">Website</label><input id="vendor-website" name="website" tabIndex={-1} autoComplete="off" /></div>
     {error && <p className="form-error" role="alert">{error}</p>}
-    {errorCode === "login_required" && <a className="button button-secondary" href="/login?next=%2Fjoin%2Fapply">Σύνδεση και επιστροφή στην αίτηση</a>}
+    {errorCode === "login_required" && <a className="button button-secondary" href={loginHref}>Σύνδεση και επιστροφή στην αίτηση</a>}
     <button className="button" type="submit" disabled={busy}>{busy ? "Καταχώριση…" : "Υποβολή για έλεγχο"}</button>
-    {!signedInEmail && <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href="/login?next=%2Fjoin%2Fapply">Συνδέσου πριν την αίτηση →</a></p>}
+    {!signedInEmail && <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href={loginHref}>Συνδέσου πριν την αίτηση →</a></p>}
   </form>;
 }
