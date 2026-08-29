@@ -156,7 +156,7 @@ SELECT
     'ai_training_prohibited',true
   )
 FROM public.markets m
-WHERE m.slug='sparta'
+WHERE m.code='sparta'
 ON CONFLICT (market_id,code) DO UPDATE
 SET
   name=EXCLUDED.name,
