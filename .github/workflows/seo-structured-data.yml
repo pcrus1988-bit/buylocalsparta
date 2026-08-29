@@ -6,6 +6,7 @@ on:
       - "apps/web/src/app/admin/seo/schema/**"
       - "apps/web/src/app/admin/seo/issues/**"
       - "apps/web/src/app/api/admin/seo/crawl/**"
+      - "apps/web/src/app/vendor/**"
       - "apps/web/src/lib/seo-live-crawl.ts"
       - "apps/web/src/lib/seo-schema-policy.ts"
       - "apps/web/src/lib/seo-schema-diagnostics.ts"
