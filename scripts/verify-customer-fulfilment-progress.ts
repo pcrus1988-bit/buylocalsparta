@@ -85,13 +85,17 @@ for (const contract of [
 
 for (const contract of [
   "function customerSafeDeliveryJob",
-  "latestLocation: undefined",
+  "const customerDropoffActive =",
+  'stop.kind === "customer_dropoff" && stop.status === "ready"',
+  "const exposeLiveLocation =",
+  "latestLocation: exposeLiveLocation ? job.latestLocation : undefined",
   "customerQr: exposeDeliveryProof ? job.customerQr : undefined",
   "returnPickupQr: exposeReturnPickupProof ? job.returnPickupQr : undefined",
   'job.status === "in_progress"',
   "vendorPickupsComplete",
-  "customerDropoffOpen"
+  "customerDropoffActive"
 ]) expect(customerDeliveryView.includes(contract), `Customer delivery server projection is missing privacy/proof contract ${contract}`);
+expect(!customerDeliveryView.includes("latestLocation: job.latestLocation"), "Customer delivery projection must not expose driver GPS without active final-leg gating");
 
 for (const contract of [
   ".customer-fulfilment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))",
@@ -112,4 +116,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer fulfilment progress checks passed: local-driver custody is distinct from customer completion, proof exposure is final-leg gated, customer GPS uses the privacy-aware live endpoint, lifecycle states and responsive presentation are verified.");
+console.log("Customer fulfilment progress checks passed: local-driver custody is distinct from customer completion, delivery proof and exact GPS are active-final-leg gated, return proof remains governed, lifecycle states and responsive presentation are verified.");
