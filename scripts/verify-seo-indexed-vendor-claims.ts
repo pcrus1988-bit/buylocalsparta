@@ -70,7 +70,9 @@ for (const privateSurface of ["seo_gsc_query_metrics", "seo_gsc_inspections", "i
 requireText(vendorLayout, "getPublicVendorSearchVisibility", "Vendor conversion layout");
 requireText(vendorLayout, "/join/apply?claim=", "Vendor conversion layout");
 requireText(vendorLayout, "vendor.directoryStatus !== \"research\"", "Vendor conversion layout");
-requireText(vendorLayout, "Επαληθευμένα συγκεντρωτικά δεδομένα Search Console", "Vendor conversion layout");
+requireText(vendorLayout, "Επαληθευμένα συγκεντρωτικά δεδομένα Google Search Console + GA4", "Vendor conversion layout");
+requireText(vendorLayout, "visibility.organicSessions", "Vendor conversion GA4 metric");
+requireText(vendorLayout, "consent-aware GA4 sessions", "Vendor conversion GA4 disclosure");
 requireText(vendorLayout, "resolveSeoEntityControl", "Existing vendor index governance");
 
 requireText(applyPage, "claim?: string | string[]", "Claim-aware application page");
