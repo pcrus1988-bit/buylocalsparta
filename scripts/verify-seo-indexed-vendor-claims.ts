@@ -57,7 +57,10 @@ requireText(migration, "UPDATE vendor_locations", "Verified profile location ref
 forbidText(migration, "UNIQUE(research_vendor_id)", "Pending profile claim migration");
 
 requireText(visibility, "seo_gsc_daily_page_metrics", "Public Search Console visibility");
-requireText(visibility, "metrics.day BETWEEN latest.end_day - 27 AND latest.end_day", "Public Search Console visibility");
+requireText(visibility, "date_trunc('month', latest.end_day)::date AS start_day", "Public Search Console month-to-date window");
+requireText(visibility, "metrics.day BETWEEN period.start_day AND period.end_day", "Public Search Console aligned reporting window");
+requireText(visibility, "seo_ga4_daily_landing_metrics", "Public GA4 visibility");
+requireText(visibility, "organicSessions", "Public GA4 visibility projection");
 requireText(visibility, "const MAX_DATA_AGE_DAYS = 14", "Public Search Console freshness guard");
 requireText(visibility, "if (!startDate || !endDate || !impressions) return undefined", "Public Search Console fail-closed guard");
 for (const privateSurface of ["seo_gsc_query_metrics", "seo_gsc_inspections", "inspection_result", "query_text"]) {
@@ -67,7 +70,9 @@ for (const privateSurface of ["seo_gsc_query_metrics", "seo_gsc_inspections", "i
 requireText(vendorLayout, "getPublicVendorSearchVisibility", "Vendor conversion layout");
 requireText(vendorLayout, "/join/apply?claim=", "Vendor conversion layout");
 requireText(vendorLayout, "vendor.directoryStatus !== \"research\"", "Vendor conversion layout");
-requireText(vendorLayout, "Επαληθευμένα συγκεντρωτικά δεδομένα Search Console", "Vendor conversion layout");
+requireText(vendorLayout, "Επαληθευμένα συγκεντρωτικά δεδομένα Google Search Console + GA4", "Vendor conversion layout");
+requireText(vendorLayout, "visibility.organicSessions", "Vendor conversion GA4 metric");
+requireText(vendorLayout, "consent-aware GA4 sessions", "Vendor conversion GA4 disclosure");
 requireText(vendorLayout, "resolveSeoEntityControl", "Existing vendor index governance");
 
 requireText(applyPage, "claim?: string | string[]", "Claim-aware application page");

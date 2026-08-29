@@ -5,21 +5,35 @@ import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
 import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
 import { VendorPriceManager } from "../../../components/VendorPriceManager";
+import { VendorStockFreshnessPanel } from "../../../components/VendorStockFreshnessPanel";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceHowItWorks, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { vendorCatalogWorkspace } from "../../../lib/vendor-backoffice-service";
+import { getVendorAdminArchivedOfferIds } from "../../../lib/vendor-offer-reactivation-state";
+import { getVendorStockFreshness } from "../../../lib/vendor-stock-freshness";
 
 export const metadata: Metadata = { title: "Προϊόντα, τιμές & απόθεμα", robots: { index: false, follow: false } };
 
 export default async function VendorCatalogPage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
-  const workspace = await vendorCatalogWorkspace(principal);
+  const [workspace, stockFreshness, adminArchivedOfferIds] = await Promise.all([
+    vendorCatalogWorkspace(principal),
+    getVendorStockFreshness(principal),
+    getVendorAdminArchivedOfferIds(principal)
+  ]);
+  const catalogProducts = workspace.catalogProducts.map((item) => ({
+    ...item,
+    canToggleVisibility: item.canToggleVisibility && !adminArchivedOfferIds.has(item.offerId)
+  }));
+  const catalogWorkspace = { ...workspace, catalogProducts };
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
   const hasProducts = workspace.catalogMetrics.totalProducts > 0;
   const hasVisibleProducts = workspace.catalogMetrics.visibleProducts > 0;
-  const archivedProducts = workspace.catalogProducts.filter((item) => item.offerStatus === "archived").map((item) => ({ offerId: item.offerId, title: item.title, vendorSku: item.vendorSku }));
+  const archivedProducts = catalogProducts
+    .filter((item) => item.offerStatus === "archived" && adminArchivedOfferIds.has(item.offerId))
+    .map((item) => ({ offerId: item.offerId, title: item.title, vendorSku: item.vendorSku }));
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -39,17 +53,19 @@ export default async function VendorCatalogPage() {
       <WorkspaceHowItWorks>
         <p><strong>Τιμή πώλησης:</strong> είναι η τελική τιμή του δικού σου offer. Κάθε πραγματική αλλαγή κρατιέται στο ιστορικό και ενημερώνει τον admin.</p>
         <p><strong>Φυσικό απόθεμα:</strong> πόσα τεμάχια υπάρχουν πραγματικά στο κατάστημα.</p>
+        <p><strong>Επιβεβαίωση αποθέματος:</strong> κάθε αποθήκευση επιβεβαιώνει ξανά ότι το stock είναι πραγματικό και πρόσφατο, ακόμη κι αν η ποσότητα δεν άλλαξε. Η πρόσφατη επιβεβαίωση είναι απαραίτητη για δημόσια διαθεσιμότητα και Google Merchant Center.</p>
         <p><strong>Απόθεμα ασφαλείας:</strong> τεμάχια που θέλεις να μένουν εκτός online πώλησης για να μειώνεται ο κίνδυνος overselling.</p>
         <p><strong>Δεσμευμένα:</strong> τεμάχια που έχουν ήδη κρατηθεί προσωρινά για ενεργές παραγγελίες.</p>
         <p><strong>Διαθέσιμα προς πώληση:</strong> το ποσό που μπορεί πραγματικά να προσφερθεί online μετά τις δεσμεύσεις και το απόθεμα ασφαλείας.</p>
         <p><strong>Τοπική παράδοση:</strong> είναι ενεργή από προεπιλογή. Μπορείς να ορίσεις συγκεκριμένο προϊόν ως «μόνο παραλαβή», χωρίς να επηρεάζεται η διαθεσιμότητα των υπόλοιπων προϊόντων σου.</p>
-        <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή stock· απλώς σταματά προσωρινά τη δημόσια πώληση.</p>
+        <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή stock· απλώς σταματά προσωρινά τη δημόσια πώληση. Προϊόν που έκρυψες εσύ το επαναφέρεις από τον ίδιο διακόπτη· προϊόν που αρχειοθέτησε ο Admin εμφανίζεται ξεχωριστά και χρειάζεται επανέγκριση.</p>
       </WorkspaceHowItWorks>
       <VendorDeliveryEligibilityPanel csrfToken={workspace.csrfToken} />
-      <VendorPriceManager csrfToken={workspace.csrfToken} products={workspace.catalogProducts} />
+      <VendorPriceManager csrfToken={workspace.csrfToken} products={catalogProducts} />
     </section>
 
-    <VendorCatalogClient initial={workspace} />
+    <VendorStockFreshnessPanel snapshot={stockFreshness} />
+    <VendorCatalogClient initial={catalogWorkspace} />
     <VendorArchivedProductsPanel products={archivedProducts} csrfToken={workspace.csrfToken} />
   </main>;
 }
