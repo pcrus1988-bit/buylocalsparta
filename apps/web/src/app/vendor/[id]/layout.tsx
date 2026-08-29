@@ -109,8 +109,13 @@ export default async function PublicVendorProfileLayout({ children, params }: Pr
         <div className={styles.copy}>
           <span className={styles.eyebrow}>{relationshipLabel}</span>
           {visibility ? <>
-            <strong className={styles.headline}>Η σελίδα της {vendor.name} εμφανίστηκε {numberFormat.format(visibility.impressions)} φορές στα αποτελέσματα Google και έλαβε {numberFormat.format(visibility.clicks)} κλικ.</strong>
-            <span className={styles.detail}>Επαληθευμένα συγκεντρωτικά δεδομένα Search Console για {formatDate(visibility.startDate)}–{formatDate(visibility.endDate)}. Η καταχώριση είναι ενημερωτική και δεν αποτελεί ενεργό marketplace κατάστημα. Διεκδικήστε την υπάρχουσα σελίδα ώστε η ορατότητα να συνεχίσει στην ίδια διεύθυνση μετά την ενεργοποίηση.</span>
+            <strong className={styles.headline}>Η Google ήδη δείχνει τη σελίδα της {vendor.name}: {numberFormat.format(visibility.impressions)} εμφανίσεις αυτόν τον μήνα.</strong>
+            <div className={styles.metrics} aria-label={`Οργανική ορατότητα για ${vendor.name}`}>
+              <span className={styles.metric}><strong>{numberFormat.format(visibility.impressions)}</strong><small>εμφανίσεις στη Google</small></span>
+              <span className={styles.metric}><strong>{numberFormat.format(visibility.clicks)}</strong><small>κλικ από Google</small></span>
+              <span className={styles.metric}><strong>{numberFormat.format(visibility.organicSessions)}</strong><small>οργανικές επισκέψεις</small></span>
+            </div>
+            <span className={styles.detail}>Επαληθευμένα συγκεντρωτικά δεδομένα Google Search Console + GA4 για {formatDate(visibility.startDate)}–{formatDate(visibility.endDate)}. Οι επισκέψεις είναι consent-aware GA4 sessions και μπορεί να είναι χαμηλότερες από τα Search Console clicks. Διεκδικήστε την υπάρχουσα σελίδα ώστε η ορατότητα να συνεχίσει στην ίδια διεύθυνση μετά την ενεργοποίηση.</span>
           </> : <>
             <strong className={styles.headline}>Η {vendor.name} έχει ήδη δημόσια ενημερωτική σελίδα στο ΚΟΝΤΑ ΜΟΥ.</strong>
             <span className={styles.detail}>Η παρουσία εδώ δεν σημαίνει ενεργή συνεργασία ή πωλήσεις μέσω ΚΟΝΤΑ ΜΟΥ. Αν εκπροσωπείτε την επιχείρηση, συνδέστε αυτή την υπάρχουσα σελίδα με την αίτησή σας· η διεύθυνση της σελίδας διατηρείται και μετά την ενεργοποίηση.</span>
