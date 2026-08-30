@@ -41,7 +41,7 @@ const lowScore = recommendationScore({ finding: { id: "low", severity: "info", c
 const criticalScore = recommendationScore({ finding: { id: "critical", severity: "critical", category: "test", title: "Critical", detail: "Critical", evidence: [], affectedCount: 100, confidence: "high" }, dimensions: { urgency: 10, complianceRisk: 10, customerImpact: 8, effort: 2 } });
 assert.ok(criticalScore > lowScore, "Operationally critical evidence must outrank low-impact information");
 
-const [prompt, contextRoute, messageRoute, conversationsRoute, repository, service, tools, migration, shell, actionButton, pageRegistry, recommendations, intelligence, operationalSnapshot, orderIntelligence, ingestionIntelligence, vendorIntelligence, phase1Snapshot, toolRegistry, investigation] = await Promise.all([
+const [prompt, contextRoute, messageRoute, conversationsRoute, repository, service, tools, migration, shell, actionButton, actionEvents, pageRegistry, recommendations, intelligence, operationalSnapshot, orderIntelligence, ingestionIntelligence, vendorIntelligence, taxCrossDomain, taxIntelligence, phase1Snapshot, toolRegistry, investigation] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/prompt.ts"),
   read("apps/web/src/app/api/admin/assistant/context/route.ts"),
   read("apps/web/src/app/api/admin/assistant/message/route.ts"),
@@ -52,6 +52,7 @@ const [prompt, contextRoute, messageRoute, conversationsRoute, repository, servi
   read("db/migrations/0168_admin_assistant.sql"),
   read("apps/web/src/components/AdminAssistantShell.tsx"),
   read("apps/web/src/components/AdminActionButton.tsx"),
+  read("apps/web/src/lib/admin-action-events.ts"),
   read("apps/web/src/lib/admin-assistant/page-registry.ts"),
   read("apps/web/src/lib/admin-assistant/recommendations.ts"),
   read("apps/web/src/lib/admin-assistant/intelligence.ts"),
@@ -59,6 +60,8 @@ const [prompt, contextRoute, messageRoute, conversationsRoute, repository, servi
   read("apps/web/src/lib/admin-assistant/order-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/ingestion-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/vendor-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/tax-cross-domain.ts"),
+  read("apps/web/src/lib/admin-assistant/tax-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts")
@@ -88,6 +91,7 @@ assert.match(service, /ADMIN_ASSISTANT_SYSTEM_PROMPT_V1/);
 assert.match(service, /collectSources/);
 assert.match(service, /url\.protocol === "https:"/);
 assert.match(service, /deterministicAnswer/);
+assert.match(service, /Recent audited Admin changes/);
 assert.match(service, /authorizedInvestigation/);
 assert.match(service, /structuredRecommendations/);
 assert.doesNotMatch(service, /eval\(|new Function|javascript:/i);
@@ -140,8 +144,20 @@ for (const rule of ["vendor_active_without_agreement", "vendor_active_with_expir
 assert.match(vendorIntelligence, /adminVendorShopsWorkspace/);
 assert.match(vendorIntelligence, /adminOrdersReturnsWorkspace/);
 assert.doesNotMatch(vendorIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
+assert.match(taxCrossDomain, /platformScope\(principal\.userId\)/);
+assert.match(taxCrossDomain, /latest_payment/);
+assert.match(taxCrossDomain, /HAVING COUNT\(td\.id\)=0 OR o\.status::text='pending_payment'/);
+assert.match(taxCrossDomain, /LIMIT 100/);
+assert.match(taxCrossDomain, /readOnly: true/);
+assert.doesNotMatch(taxCrossDomain, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+assert.match(taxIntelligence, /paid_order_missing_tax_document/);
+assert.match(taxIntelligence, /payment_order_state_mismatch/);
+assert.match(taxIntelligence, /document creation and transmission are separate/i);
+
 assert.match(phase1Snapshot, /openIcecatIngestionIntelligence/);
 assert.match(phase1Snapshot, /vendorOperationalIntelligence/);
+assert.match(phase1Snapshot, /taxCrossDomainIntelligence/);
 
 for (const toolName of ["getCatalogueHealth", "getAttributeMappingIntelligence", "getOpenIcecatIngestionStatus", "getOrderLifecycleIntelligence", "getVendorOperationalIntelligence", "getTaxDocumentStatus", "getSeoHealth", "getGiftCardHealth", "getSystemHealth"]) assert.match(toolRegistry, new RegExp(toolName));
 assert.match(toolRegistry, /capabilityAllowed/);
@@ -167,7 +183,14 @@ assert.match(shell, /External\/public information/);
 assert.match(shell, /Recommended next actions/);
 assert.match(shell, /Evidence-backed findings/);
 assert.match(shell, /confidence/);
+assert.match(actionButton, /inferAdminActionEntity/);
+assert.match(actionButton, /inferAdminActionAfterState/);
 assert.match(actionButton, /publishAdminActionCompleted/);
 assert.doesNotMatch(actionButton, /publishAdminActionCompleted\(\{[^}]*payload/);
+assert.match(actionEvents, /ENTITY_KEYS/);
+assert.match(actionEvents, /orderId/);
+assert.match(actionEvents, /vendorId/);
+assert.match(actionEvents, /documentId/);
+assert.doesNotMatch(actionEvents, /reason|csrf|password|api[_-]?key/i);
 
 console.log("Admin Personal Assistant acceptance verifier passed.");
