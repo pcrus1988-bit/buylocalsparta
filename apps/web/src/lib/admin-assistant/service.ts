@@ -3,12 +3,8 @@ import { adminAssistantExternalResearchEnabled, adminAssistantMaxOutputTokens, a
 import type { AdminAssistantInvestigationResult } from "./investigation";
 import { ADMIN_ASSISTANT_SYSTEM_PROMPT_V1 } from "./prompt";
 import { recordAssistantToolAudit } from "./repository";
+import { planExternalResearch } from "./research-policy";
 import { safeAdminHref, type AdminAssistantAction, type AdminAssistantResponsePayload, type AdminAssistantSnapshot, type AdminAssistantSource, type AdminAssistantStoredMessage } from "./types";
-
-function researchRequested(question: string): boolean {
-  if (!adminAssistantExternalResearchEnabled()) return false;
-  return /(official|manufacturer|public source|web|online|verify|verification|gtin|ean|regulat|aade|mydata|government|documentation|search intent)/i.test(question);
-}
 
 function outputText(value: unknown): string {
   if (!value || typeof value !== "object") return "";
@@ -191,7 +187,11 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
   signal?: AbortSignal;
 }): Promise<AdminAssistantResponsePayload> {
   if (!adminAssistantProviderConfigured()) return deterministicAnswer(input.question, input.snapshot, input.investigation);
-  const useResearch = researchRequested(input.question);
+
+  const researchDecision = adminAssistantExternalResearchEnabled()
+    ? planExternalResearch(input.question, input.snapshot, input.investigation ?? [])
+    : { useExternalResearch: false, reason: "feature_disabled", sourcePriority: [] as const };
+  const useResearch = researchDecision.useExternalResearch;
   const compactHistory = input.history.slice(-12).map((message) => ({ role: message.role, content: message.content.slice(0, 2_000) }));
   const providerInput = JSON.stringify({
     currentAdminContext: input.snapshot.context,
@@ -203,6 +203,11 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
       recentActions: input.snapshot.recentActions
     },
     authorizedInvestigation: input.investigation?.map((item) => ({ toolName: item.toolName, state: item.state, data: item.data, error: item.error })) ?? [],
+    externalResearchPolicy: {
+      enabledForThisQuestion: useResearch,
+      reason: researchDecision.reason,
+      sourcePriority: researchDecision.sourcePriority
+    },
     recentConversation: compactHistory,
     adminQuestion: input.question
   });
@@ -221,10 +226,35 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
     const text = outputText(data);
     const parsed = parseModelPayload(text, collectSources(data));
     if (!parsed) throw new Error("AI provider returned invalid structured output");
-    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain, investigationTools: input.investigation?.map((item) => item.toolName) ?? [] }, resultState: "ok", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, {
+      conversationId: input.conversationId,
+      toolName: useResearch ? "openai.responses.web_search" : "openai.responses",
+      parameters: {
+        model: adminAssistantModel(),
+        externalResearch: useResearch,
+        researchReason: researchDecision.reason ?? "not_required",
+        contextDomain: input.snapshot.context.domain,
+        investigationTools: input.investigation?.map((item) => item.toolName) ?? []
+      },
+      resultState: "ok",
+      durationMs: Date.now() - startedAt
+    }).catch(() => undefined);
     return parsed;
   } catch (cause) {
-    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain, investigationTools: input.investigation?.map((item) => item.toolName) ?? [] }, resultState: "error", error: cause instanceof Error ? cause.message : "provider_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, {
+      conversationId: input.conversationId,
+      toolName: useResearch ? "openai.responses.web_search" : "openai.responses",
+      parameters: {
+        model: adminAssistantModel(),
+        externalResearch: useResearch,
+        researchReason: researchDecision.reason ?? "not_required",
+        contextDomain: input.snapshot.context.domain,
+        investigationTools: input.investigation?.map((item) => item.toolName) ?? []
+      },
+      resultState: "error",
+      error: cause instanceof Error ? cause.message : "provider_failed",
+      durationMs: Date.now() - startedAt
+    }).catch(() => undefined);
     return deterministicAnswer(input.question, input.snapshot, input.investigation);
   }
 }
