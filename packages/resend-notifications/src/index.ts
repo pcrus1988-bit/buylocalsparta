@@ -183,7 +183,10 @@ export function resendDeliveryEnabled(env:NodeJS.ProcessEnv=process.env):boolean
 export function resendConfigFromEnv(env:NodeJS.ProcessEnv=process.env):ResendConfig{
   const apiKey=required(env.RESEND_API_KEY,"RESEND_API_KEY");
   const domain=env.BLS_EMAIL_DOMAIN?.trim()||"kontamou.site";
-  const from=env.RESEND_FROM?.trim()||`ΚΟΝΤΑ ΜΟΥ <notifications@${domain}>`;
+  const configuredFrom=env.RESEND_FROM?.trim()||`notifications@${domain}`;
+  const configuredAddressMatch=configuredFrom.match(/<([^<>]+)>\s*$/);
+  const configuredAddress=(configuredAddressMatch?.[1]??configuredFrom).trim();
+  const from=`ΚΟΝΤΑ ΜΟΥ <${configuredAddress}>`;
   const replyTo=env.RESEND_REPLY_TO?.trim()||`reply@${domain}`;
   return{apiKey,from,replyTo,baseUrl:env.RESEND_BASE_URL?.trim()||"https://api.resend.com",timeoutMs:positive(env.RESEND_TIMEOUT_MS,8_000,"RESEND_TIMEOUT_MS"),webhookSecret:env.RESEND_WEBHOOK_SECRET?.trim()||undefined};
 }
