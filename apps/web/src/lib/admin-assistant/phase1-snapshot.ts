@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { categoryGovernanceIntelligence, controlledValueIntelligence } from "./catalog-governance-intelligence";
 import { suggestedQuestionsForContext } from "./context";
+import { dashboardOperationalIntelligence } from "./dashboard-intelligence";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
 import { productMatchingIntelligence } from "./matching-intelligence";
 import { buildAdminAssistantOperationalSnapshot } from "./operational-snapshot";
@@ -14,6 +15,10 @@ export async function buildAdminAssistantPhase1Snapshot(
   client: AdminAssistantClientContext
 ): Promise<AdminAssistantSnapshot> {
   let snapshot = await buildAdminAssistantOperationalSnapshot(principal, client);
+
+  if (snapshot.context.pageType === "dashboard") {
+    snapshot = await dashboardOperationalIntelligence(principal, snapshot);
+  }
 
   if (snapshot.context.pageType === "catalogue_import") {
     snapshot = await openIcecatIngestionIntelligence(principal, snapshot);
