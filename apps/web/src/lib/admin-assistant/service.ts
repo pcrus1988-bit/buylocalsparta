@@ -65,12 +65,28 @@ function deterministicAnswer(question: string, snapshot: AdminAssistantSnapshot)
     ? structuredRecommendations.map((item) => item.explanation).slice(0, 5)
     : snapshot.findings.map((item) => item.recommendation).filter((item): item is string => Boolean(item)).slice(0, 5);
   let summary = snapshot.summary;
-  if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && structuredRecommendations.length) {
+  let facts = snapshot.facts;
+
+  if (/what changed|changed recently|recent changes|what happened recently|τι.*άλλαξε|αλλαγ.*πρόσφατ/i.test(normalized)) {
+    const recent = snapshot.recentActions.slice(0, 6);
+    if (recent.length) {
+      const actionFacts = recent.map((item) => {
+        const when = item.createdAt ? new Date(item.createdAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" }) : "time unavailable";
+        return `${item.action} · ${item.entityType} ${item.entityId} · ${when}`;
+      });
+      summary = `Recent audited Admin changes: ${recent.map((item) => `${item.action} on ${item.entityType} ${item.entityId}`).join("; ")}.`;
+      facts = actionFacts;
+    } else {
+      summary = `No recent audited Admin action is available to this assistant for ${snapshot.context.contextLabel}.`;
+      facts = snapshot.facts;
+    }
+  } else if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && structuredRecommendations.length) {
     const top = structuredRecommendations[0];
     summary = `Highest priority: ${top.title}. ${top.explanation}`;
   } else if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && snapshot.findings.length) {
     summary = `Highest priority: ${snapshot.findings[0]?.title}. ${snapshot.findings[0]?.detail}`;
   }
+
   if (/explain.*page|explain.*screen|εξήγη/i.test(normalized)) {
     const purpose = snapshot.context.pagePurpose ? `${snapshot.context.pagePurpose} ` : "";
     const attention = snapshot.context.attentionAreas?.length ? `Pay attention to ${snapshot.context.attentionAreas.join(", ")}. ` : "";
@@ -78,7 +94,7 @@ function deterministicAnswer(question: string, snapshot: AdminAssistantSnapshot)
   }
   return {
     summary,
-    facts: snapshot.facts,
+    facts,
     interpretation: snapshot.findings[0]?.detail,
     recommendations: recommendations.length ? recommendations : ["No additional action is justified by the deterministic checks currently available for this page."],
     structuredRecommendations,
