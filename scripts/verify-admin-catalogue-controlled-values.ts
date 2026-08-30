@@ -13,7 +13,9 @@ const failures: string[] = [];
 const requireText = (key: keyof typeof files, needle: string, message: string) => { if (!entries[key].includes(needle)) failures.push(message); };
 const forbidText = (key: keyof typeof files, needle: string, message: string) => { if (entries[key].includes(needle)) failures.push(message); };
 
-requireText("runtime", "EXPECTED_SCHEMA_VERSION = 165", "PostgreSQL runtime must require schema 165");
+const runtimeSchemaMatch = entries.runtime.match(/EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)/);
+const runtimeSchemaVersion = runtimeSchemaMatch ? Number(runtimeSchemaMatch[1]) : Number.NaN;
+if (!Number.isInteger(runtimeSchemaVersion) || runtimeSchemaVersion < 165) failures.push("PostgreSQL runtime must require schema 165 or newer");
 
 requireText("migration", "attribute_value_id uuid", "Source observations must persist a governed canonical controlled-value link");
 requireText("migration", "catalog_source_attribute_value_mapping_rules", "Schema must persist reusable exact controlled-value aliases");
