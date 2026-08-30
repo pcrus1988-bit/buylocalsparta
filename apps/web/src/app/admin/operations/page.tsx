@@ -5,7 +5,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 import { adminOperationsWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
-export const metadata: Metadata = { title: "Admin · System Health & Audit · Production Mission Control", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · System Health & Audit", robots: { index: false, follow: false } };
 
 const HEALTHY_STATES = new Set(["ready", "healthy", "ok", "disabled"]);
 const STRICT_HEALTHY_STATES = new Set(["ready", "healthy", "ok"]);
@@ -33,9 +33,9 @@ export default async function Page() {
       ? "Core commerce is reachable, but at least one operational signal needs attention."
       : "No current dependency or high-severity security signal requires operator action.";
 
-  return <main className="vendor-app admin-app">
+  return <main className="vendor-app admin-app admin-platform-health">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · System Health & Audit · operations</div><h1>Production Mission Control</h1><p className="lead">Ζωντανή εικόνα της λειτουργικής υγείας του ΚΟΝΤΑ ΜΟΥ: database, catalogue, commerce, onboarding, finance, payments, outbox, security telemetry και audit trail σε μία ενιαία επιφάνεια.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · Health & Audit</div><h1>System Health & Audit</h1><p className="lead">Incident-focused view of live dependencies, security telemetry, audit evidence and privacy-access accountability. Platform Overview owns the technical summary; this workspace owns investigation evidence.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Platform state", value: missionState, tone: missionState === "GREEN" ? "positive" : "attention", hint: missionNote },
@@ -47,13 +47,14 @@ export default async function Page() {
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Operator board" title={missionState === "GREEN" ? "No active operational incident" : `${attentionChecks.length} signal${attentionChecks.length === 1 ? "" : "s"} need attention`} note={missionNote} />
-      {attentionChecks.length === 0 ? <WorkspaceEmptyState title="Mission control is green." body="All current dependency checks are healthy or intentionally disabled, and no high-severity security signal is present in the current window." /> : <div className="workspace-queue-list">{attentionChecks.map((check) => <article className="workspace-queue-card" key={`incident-${check.name}`}>
+      <WorkspaceSectionHeading eyebrow="Active signals" title={missionState === "GREEN" ? "No active operational incident" : `${attentionChecks.length} signal${attentionChecks.length === 1 ? "" : "s"} need attention`} note={missionNote} />
+      {attentionChecks.length === 0 ? <WorkspaceEmptyState title="System health is green." body="All current dependency checks are healthy or intentionally disabled, and no high-severity security signal is present in the current window." /> : <div className="workspace-queue-list">{attentionChecks.map((check) => <article className="workspace-queue-card" key={`incident-${check.name}`}>
         <div className="workspace-queue-head"><div><strong>{check.critical ? "Critical" : "Operational"} · {check.name}</strong><small>{check.message ?? "Dependency reported a non-ready state."}</small></div><span className="status-pill needs-attention">{check.state}</span></div>
         <div className="workspace-queue-primary"><span>{check.latencyMs} ms</span><span>{check.critical ? "commerce gate" : "follow-up required"}</span></div>
       </article>)}</div>}
       <div className="workspace-inline-actions">
-        <a className="button button-secondary" href="/admin/activation">Activation Center</a>
+        <a className="button button-secondary" href="/admin/platform">Platform Overview</a>
+        <a className="button button-secondary" href="/admin/activation">Production Readiness</a>
         <a className="button button-secondary" href="/admin/delivery">Delivery</a>
         <a className="button button-secondary" href="/admin/catalogue-crawler">Crawler</a>
         <a className="button button-secondary" href="/admin/finance">Finance</a>
