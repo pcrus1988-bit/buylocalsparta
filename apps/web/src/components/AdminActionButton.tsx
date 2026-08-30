@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { publishAdminActionCompleted } from "../lib/admin-action-events";
 
 export function AdminActionButton({ label, endpoint, csrfToken, body = {}, reasonPrompt, extraPrompt, danger = false }: {
   label: string; endpoint: string; csrfToken: string; body?: Record<string, unknown>; reasonPrompt?: string; extraPrompt?: { field: string; message: string }; danger?: boolean;
@@ -29,6 +30,7 @@ export function AdminActionButton({ label, endpoint, csrfToken, body = {}, reaso
       if (!response.ok) throw new Error(data.error ?? "Admin action failed");
       if (data.warning) setError(data.warning);
       else if (data.notificationWarning) setError(`Η ενέργεια ολοκληρώθηκε, αλλά το email δεν στάλθηκε: ${data.notificationWarning}`);
+      publishAdminActionCompleted({ actionType: label, endpoint, occurredAt: Date.now() });
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Admin action failed"); }
     finally { setBusy(false); }
