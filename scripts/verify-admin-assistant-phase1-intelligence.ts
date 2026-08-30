@@ -27,7 +27,7 @@ for (const rule of [
   "canonical_link_not_offer_ready"
 ]) assert.match(matching, new RegExp(rule));
 assert.match(matching, /adminMatchingWorkspace/);
-assert.match(matching, /AMBI GUITY_DELTA/.source.replace(" ", "") ? /AMBIGUITY_DELTA/ : /AMBIGUITY_DELTA/);
+assert.match(matching, /AMBIGUITY_DELTA/);
 assert.match(matching, /absence of a candidate is not proof/i);
 assert.match(matching, /linkage and offer approval are separate governance steps/i);
 assert.doesNotMatch(matching, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
