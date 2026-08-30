@@ -61,6 +61,9 @@ export function planAssistantInvestigation(
   if (context.pageType === "catalogue_import" || contains(question, /icecat|ingestion|checkpoint|rejected row|reject|filtered row|enrichment|gtin|εισαγωγ|απόρριψ/)) {
     add("getOpenIcecatIngestionStatus");
   }
+  if (context.pageType === "catalogue_crawler" || contains(question, /crawler|website import|crawl job|source drift|extract(?:ion|or)|expired lease|robots|fetched page|scrap(?:e|ing)|ιστοσελίδ.*εισαγωγ|ανίχνευσ.*ιστοσελίδ/)) {
+    add("getCatalogueCrawlerIntelligence");
+  }
   if (context.pageType === "attribute_mapping" || contains(question, /unmapped|attribute|mapping|unit|icecat attribute|χαρακτηρισ|αντιστοιχ/)) {
     add("getAttributeMappingIntelligence", context.filters.snapshot ? { snapshotId: context.filters.snapshot } : {});
   }
@@ -81,6 +84,7 @@ export function planAssistantInvestigation(
   if (!candidates.length) {
     if (context.domain === "catalogue") {
       if (context.pageType === "catalogue_import") add("getOpenIcecatIngestionStatus");
+      else if (context.pageType === "catalogue_crawler") add("getCatalogueCrawlerIntelligence");
       else if (context.pageType === "product_matching") add("getProductMatchingIntelligence", context.filters.submission ? { submissionId: context.filters.submission } : {});
       else add("getCatalogueHealth");
     } else if (context.domain === "partners" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
