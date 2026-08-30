@@ -30,15 +30,15 @@ requireText("mapping", "product_type_attributes", "Attribute choices and approva
 requireText("mapping", "scopeKind", "Attribute mapping must carry an exact source context scope");
 requireText("mapping", "source_taxonomy_node_id", "Supplier taxonomy-node context must be supported");
 requireText("mapping", "provider_category", "Provider category context must be supported when no taxonomy node exists");
-requireText("mapping", "catalog_source_attribute_mapping_status", "Backfill must use datatype/unit compatibility classification");
-requireText("mapping", "a.mapping_status='unmapped'", "Attribute mapping backfill must be limited to unresolved observations");
-requireText("mapping", "a.attribute_id IS NULL", "Attribute mapping must not overwrite observations that already have a canonical attribute");
+requireText("mapping", "backfill_catalog_source_attribute_mapping_rule", "Admin backfill must use the same schema rule engine as future inserts");
+requireText("mapping", "a.mapping_status='unmapped'", "Attribute mapping conflict checks must preserve unresolved evidence boundaries");
+requireText("mapping", "a.attribute_id IS NULL", "Attribute mapping conflict checks must not overwrite observations that already have a canonical attribute");
 requireText("mapping", "Supersede that rule explicitly", "Attribute mapping must reject silent rule retargeting");
 requireText("mapping", "already has evidence linked", "Attribute mapping must reject conflicting historical meanings inside the same context");
 requireText("mapping", "recordAdminAudit", "Approved mapping rules must emit an Admin audit record");
-forbidText("mapping", "raw_value=", "Attribute mapping must not rewrite raw source values");
-forbidText("mapping", "normalized_value=", "Attribute mapping must not rewrite normalized source evidence");
-forbidText("mapping", "source_unit=", "Attribute mapping must not rewrite source units");
+forbidText("mapping", "raw_value=", "Attribute mapping service must not rewrite raw source values directly");
+forbidText("mapping", "normalized_value=", "Attribute mapping service must not rewrite normalized source evidence directly");
+forbidText("mapping", "source_unit=", "Attribute mapping service must not rewrite source units directly");
 
 requireText("migration", "catalog_source_attribute_mapping_rules", "Schema must persist reusable source attribute rules");
 requireText("migration", "scope_kind", "Rules must store exact source-context kind");
@@ -46,6 +46,7 @@ requireText("migration", "scope_key", "Rules must store exact source-context key
 requireText("migration", "FOREIGN KEY (product_type_id, attribute_id)", "Rules must reference an allowed Product Type attribute pair");
 requireText("migration", "WHERE status='approved'", "Only one approved meaning may exist per source key/context");
 requireText("migration", "catalog_source_attribute_mapping_status", "Schema must conservatively classify datatype/unit compatibility");
+requireText("migration", "backfill_catalog_source_attribute_mapping_rule", "Schema must expose the shared backfill rule engine");
 requireText("migration", "BEFORE INSERT ON public.catalog_source_attribute_observations", "Future source observations must apply reviewed rules at the schema boundary");
 requireText("migration", "ad.active=true", "Future auto-mapping must ignore inactive canonical attributes");
 requireText("migration", "pt.status='active'", "Future auto-mapping must ignore retired Product Types");
