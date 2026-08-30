@@ -3,7 +3,7 @@ import { adminCatalogueAttributeReviewWorkspace } from "../admin-catalogue-attri
 import { adminCatalogueOverviewWorkspace } from "../admin-catalogue-overview-runtime";
 import { adminMaintenanceWorkspace, adminOrdersReturnsWorkspace } from "../admin-governance-runtime";
 import { adminOpenIcecatIngestionStatus } from "../admin-open-icecat-ingestion";
-import { adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from "../admin-runtime";
+import { adminMatchingWorkspace, adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from "../admin-runtime";
 import { adminSeoWorkspace } from "../admin-seo-runtime";
 import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
 import { getSearchConsoleHistoryWorkspace } from "../seo-gsc-history";
@@ -124,6 +124,36 @@ const TOOLS: readonly ToolDefinition[] = [
           failed: data.detail.failed,
           skipped: data.detail.skipped
         } : undefined
+      };
+    }
+  },
+  {
+    name: "getProductMatchingIntelligence",
+    family: "catalogue",
+    description: "Return bounded source-product submissions, canonical candidates, confidence and offer-link lifecycle state from Product Matching.",
+    capability: "catalog.read",
+    pageTypes: ["product_matching"],
+    execute: async (principal, args) => {
+      const data = await adminMatchingWorkspace(principal);
+      const submissionId = textArg(args, "submissionId");
+      const rows = submissionId ? data.submissions.filter((item) => item.id === submissionId) : data.submissions;
+      return {
+        submissions: rows.slice(0, 100).map((submission) => ({
+          id: submission.id,
+          title: submission.title,
+          vendorId: submission.vendorId,
+          categoryCode: submission.categoryCode,
+          supplierPrice: submission.supplierPrice,
+          status: submission.status,
+          canonicalVariantId: submission.canonicalVariantId,
+          candidates: submission.candidates.slice(0, 12).map((candidate) => ({
+            id: candidate.id,
+            level: candidate.level,
+            canonicalVariantId: candidate.canonicalVariantId,
+            confidence: candidate.confidence,
+            status: candidate.status
+          }))
+        }))
       };
     }
   },
