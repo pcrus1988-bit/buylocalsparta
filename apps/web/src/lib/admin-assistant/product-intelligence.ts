@@ -42,8 +42,11 @@ export type AdminAssistantProductState = Readonly<{
     safetyStock: number;
     blocked: number;
     inventoryUpdatedAt?: number;
+    stockConfirmedAt?: number;
+    freshnessTtlSeconds?: number;
+    freshnessStatus?: string;
   }>[];
-  sourceLinks: readonly Readonly<{ sourceName: string; sourceProductId: string; confidence?: number; status: string }>[];
+  sourceLinks: readonly Readonly<{ sourceName: string; sourceProductId: string; sourceProductKey?: string; confidence?: number; status: string }>[];
   unmappedAttributeCount: number;
   seo?: Readonly<{ id: string; route: string; desiredIndexable: boolean; desiredSitemap: boolean; active: boolean }>;
 }>;
@@ -51,6 +54,7 @@ export type AdminAssistantProductState = Readonly<{
 function text(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
 function optionalText(value: unknown): string | undefined { const valueText = text(value); return valueText || undefined; }
 function integer(value: unknown): number { const parsed = Number(value ?? 0); return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0; }
+function optionalInteger(value: unknown): number | undefined { if (value == null || value === "") return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : undefined; }
 function decimal(value: unknown): number | undefined { if (value == null) return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; }
 function epoch(value: unknown): number | undefined { if (!value) return undefined; const parsed = value instanceof Date ? value.getTime() : new Date(String(value)).getTime(); return Number.isFinite(parsed) ? parsed : undefined; }
 function bool(value: unknown): boolean { return value === true || value === "true"; }
@@ -174,7 +178,8 @@ export async function getAdminAssistantProductState(principal: SessionPrincipal,
                COALESCE(ib.on_hand,0)::integer AS on_hand,
                COALESCE(ib.active_reservations,0)::integer AS active_reservations,
                COALESCE(ib.safety_stock,0)::integer AS safety_stock,
-               COALESCE(ib.blocked,0)::integer AS blocked,ib.updated_at AS inventory_updated_at
+               COALESCE(ib.blocked,0)::integer AS blocked,ib.updated_at AS inventory_updated_at,
+               ib.stock_confirmed_at,ib.freshness_ttl_seconds,ib.freshness_status
         FROM public.vendor_offers vo
         JOIN public.vendor_businesses vb ON vb.id=vo.vendor_id
         LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
@@ -184,7 +189,8 @@ export async function getAdminAssistantProductState(principal: SessionPrincipal,
         LIMIT 50
       `, [canonicalUuid]),
       tx.query<SqlRow>(`
-        SELECT s.name AS source_name,csp.public_id AS source_product_id,cspl.confidence,cspl.link_status::text AS link_status
+        SELECT s.name AS source_name,csp.id::text AS source_product_id,csp.source_product_key,
+               cspl.confidence,cspl.link_status::text AS link_status
         FROM public.catalog_source_product_links cspl
         JOIN public.catalog_source_products csp ON csp.id=cspl.source_product_id
         JOIN public.catalog_sources s ON s.id=csp.source_id
@@ -235,11 +241,15 @@ export async function getAdminAssistantProductState(principal: SessionPrincipal,
         activeReservations: integer(item.active_reservations),
         safetyStock: integer(item.safety_stock),
         blocked: integer(item.blocked),
-        inventoryUpdatedAt: epoch(item.inventory_updated_at)
+        inventoryUpdatedAt: epoch(item.inventory_updated_at),
+        stockConfirmedAt: epoch(item.stock_confirmed_at),
+        freshnessTtlSeconds: optionalInteger(item.freshness_ttl_seconds),
+        freshnessStatus: optionalText(item.freshness_status)
       })),
       sourceLinks: sourceResult.rows.map((item) => ({
         sourceName: text(item.source_name),
         sourceProductId: text(item.source_product_id),
+        sourceProductKey: optionalText(item.source_product_key),
         confidence: decimal(item.confidence),
         status: text(item.link_status)
       })),
@@ -268,11 +278,12 @@ export async function productOperationalIntelligence(
   const add = (finding: AdminAssistantFinding, dimensions: RecommendationCandidate["dimensions"]) => { findings.push(finding); candidates.push({ finding, dimensions }); };
   const approvedOffers = product.offers.filter((offer) => offer.status === "approved");
   const visibleOffers = approvedOffers.filter((offer) => offer.merchantVisible && !offer.merchantPauseActive);
+  const staleVisibleOffers = visibleOffers.filter((offer) => offer.freshnessStatus === "stale" || offer.freshnessStatus === "expired");
   const sellableStock = visibleOffers.reduce((sum, offer) => sum + Math.max(0, offer.onHand - offer.activeReservations - offer.safetyStock - offer.blocked), 0);
 
   evidence.push(
     { id: "product:identity", kind: "kontamou", label: "Canonical identity", detail: `${product.id} · ${product.title ?? "missing Greek title"} · ${product.categoryName ?? product.categoryCode ?? "no category"}.`, metric: product.id, sourceTool: "getProductIntelligence" },
-    { id: "product:offers", kind: "kontamou", label: "Vendor offers", detail: `${product.offers.length} offer(s), ${approvedOffers.length} approved, ${visibleOffers.length} merchant-visible; sellable stock estimate ${sellableStock}.`, metric: product.offers.length, sourceTool: "getProductIntelligence" },
+    { id: "product:offers", kind: "kontamou", label: "Vendor offers", detail: `${product.offers.length} offer(s), ${approvedOffers.length} approved, ${visibleOffers.length} merchant-visible; sellable stock estimate ${sellableStock}; ${staleVisibleOffers.length} visible offer(s) have stale/expired inventory freshness.`, metric: product.offers.length, sourceTool: "getProductIntelligence" },
     { id: "product:sources", kind: "kontamou", label: "Source evidence", detail: `${product.sourceLinks.length} source link(s); ${product.unmappedAttributeCount} unresolved attribute observation(s) remain on approved linked source evidence.`, metric: product.unmappedAttributeCount, sourceTool: "getProductIntelligence" }
   );
 
@@ -281,6 +292,7 @@ export async function productOperationalIntelligence(
   if (product.unmappedAttributeCount > 0) add({ id: "product-unmapped-attributes", ruleId: "product_unmapped_attributes", severity: "warning", category: "data_quality", title: `${product.unmappedAttributeCount} linked source attribute observation(s) remain unmapped`, detail: "Approved source evidence for this canonical still contains unresolved attribute semantics.", evidence: [`unmappedAttributeCount = ${product.unmappedAttributeCount}`], evidenceIds: ["product:sources"], recommendation: "Open Attribute Mapping and prioritize the source contexts affecting this canonical before manually copying values into the product.", href: "/admin/catalogue-intake/attributes", affectedCount: product.unmappedAttributeCount, confidence: "high" }, { dataQualityImpact: 9, customerImpact: 5, seoImpact: 5, urgency: 6, effort: 5 });
   if (!approvedOffers.length) add({ id: "product-no-approved-offers", ruleId: "product_no_approved_vendor_offer", severity: "warning", category: "catalog", title: "Canonical product has no approved vendor offer", detail: "The product identity may be valid, but there is no approved commercial vendor offer attached to it.", evidence: [`offerCount = ${product.offers.length}`, "approvedOffers = 0"], evidenceIds: ["product:offers"], recommendation: "Use vendor catalogue assignment/Quick Add only after confirming the correct local partner and commercial evidence.", href: "/admin/partners", affectedCount: 1, confidence: "high" }, { vendorImpact: 8, customerImpact: 7, urgency: 5, effort: 5 });
   else if (visibleOffers.length && sellableStock <= 0) add({ id: "product-visible-without-sellable-stock", ruleId: "product_visible_without_sellable_stock", severity: "warning", category: "catalog", title: "Visible approved offers have no sellable stock", detail: "At least one approved offer is merchant-visible, but on-hand stock minus reservations, safety stock and blocked quantity is not positive.", evidence: [`visibleApprovedOffers = ${visibleOffers.length}`, `sellableStock = ${sellableStock}`], evidenceIds: ["product:offers"], recommendation: "Confirm current vendor stock before treating this product as commercially available.", href: "/admin/partners", affectedCount: visibleOffers.length, confidence: "high" }, { customerImpact: 9, vendorImpact: 7, urgency: 8, effort: 3 });
+  if (staleVisibleOffers.length) add({ id: "product-stale-inventory", ruleId: "inventory_stale", severity: "warning", category: "catalog", title: `${staleVisibleOffers.length} visible approved offer(s) have stale inventory`, detail: "KONTA MOY inventory freshness policy marks these merchant-visible offers as stale or expired. The assistant does not invent its own age threshold.", evidence: staleVisibleOffers.slice(0, 5).map((offer) => `${offer.vendorName}: freshness=${offer.freshnessStatus ?? "unknown"}, confirmedAt=${offer.stockConfirmedAt ?? "missing"}, ttlSeconds=${offer.freshnessTtlSeconds ?? "default"}`), evidenceIds: ["product:offers"], recommendation: "Ask the affected partner(s) to reconfirm physical stock before relying on storefront availability.", href: "/admin/partners", affectedCount: staleVisibleOffers.length, confidence: "high" }, { customerImpact: 9, vendorImpact: 8, dataQualityImpact: 8, urgency: 8, effort: 3 });
   if (product.active && (product.suppressed || product.recalled)) add({ id: "product-active-safety-suppression", ruleId: "product_active_but_suppressed", severity: "critical", category: "compliance", title: product.recalled ? "Product is active but recalled" : "Product is active but suppressed", detail: "Canonical active state does not override suppression/recall. Commerce and publication must continue to respect the safety/governance hold.", evidence: [`active = ${product.active}`, `suppressed = ${product.suppressed}`, `recalled = ${product.recalled}`], evidenceIds: ["product:identity"], recommendation: "Investigate the existing safety/governance hold; do not reactivate publication by changing offer state.", href: "/admin/catalogue", affectedCount: 1, confidence: "high" }, { complianceRisk: 10, customerImpact: 10, urgency: 10, effort: 5 });
   if (product.seo && product.seo.desiredIndexable && (!product.active || product.suppressed || product.recalled || !product.title)) add({ id: "product-seo-indexability-contradiction", ruleId: "seo_non_indexable_product", severity: "warning", category: "seo", title: "SEO intent conflicts with current product readiness", detail: "The SEO registry currently desires indexability while the canonical product has a publication/readiness blocker.", evidence: [`desiredIndexable = ${product.seo.desiredIndexable}`, `active = ${product.active}`, `suppressed = ${product.suppressed}`, `recalled = ${product.recalled}`, `greekTitle = ${product.title ? "present" : "missing"}`], evidenceIds: ["product:identity"], recommendation: "Review the SEO page evidence and product quality gate together before changing index policy.", href: `/admin/seo/pages/${encodeURIComponent(product.seo.id)}`, affectedCount: 1, confidence: "high" }, { seoImpact: 9, dataQualityImpact: 7, urgency: 7, effort: 4 });
 
@@ -290,12 +302,13 @@ export async function productOperationalIntelligence(
   for (const item of [...findings, ...base.findings]) if (!byId.has(item.id)) byId.set(item.id, item);
   return {
     ...base,
-    summary: `${product.title ?? product.id}: ${approvedOffers.length} approved offer(s), ${visibleOffers.length} visible, sellable stock ${sellableStock}; ${product.unmappedAttributeCount} unresolved linked attribute observation(s). ${findings.length ? `${findings.length} deterministic product issue(s) need attention.` : "No high-signal product contradiction crossed the current checks."}`,
+    summary: `${product.title ?? product.id}: ${approvedOffers.length} approved offer(s), ${visibleOffers.length} visible, sellable stock ${sellableStock}; ${product.unmappedAttributeCount} unresolved linked attribute observation(s); ${staleVisibleOffers.length} stale/expired visible inventory record(s). ${findings.length ? `${findings.length} deterministic product issue(s) need attention.` : "No high-signal product contradiction crossed the current checks."}`,
     facts: [
       `Canonical: ${product.id} · ${product.categoryName ?? product.categoryCode ?? "uncategorized"}.`,
       `Identity: GTIN ${product.gtin ?? "missing"} · brand ${product.brand ?? "missing"} · model ${product.model ?? "missing"}.`,
       `Commerce: ${approvedOffers.length} approved offer(s) · ${visibleOffers.length} visible · sellable stock ${sellableStock}.`,
-      `Source evidence: ${product.sourceLinks.length} approved/reviewed link(s) · ${product.unmappedAttributeCount} unmapped observation(s).`,
+      `Inventory freshness: ${staleVisibleOffers.length} visible offer(s) stale/expired according to persisted freshness state.`,
+      `Source evidence: ${product.sourceLinks.length} link(s) · ${product.unmappedAttributeCount} unmapped observation(s).`,
       `SEO: ${product.seo ? `${product.seo.route} · desired index=${product.seo.desiredIndexable}` : "no registry record resolved"}.`
     ],
     evidence,
