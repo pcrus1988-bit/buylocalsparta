@@ -4,6 +4,7 @@ export type AdminAssistantConfidence = "high" | "medium" | "low";
 export type AdminAssistantDomain = "dashboard" | "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "platform" | "generic";
 export type AdminAssistantEvidenceKind = "kontamou" | "external" | "admin_event" | "derived";
 export type AdminAssistantActionKind = "open" | "inspect" | "compare" | "diagnostic" | "preview" | "prepare" | "execute";
+export type AdminAssistantRecommendationState = "active" | "accepted" | "dismissed" | "snoozed" | "resolved" | "intentional";
 
 export type AdminAssistantClientContext = Readonly<{
   route: string;
@@ -90,6 +91,10 @@ export type AdminAssistantRecommendation = Readonly<{
   evidenceIds: readonly string[];
   affectedEntities: readonly AdminAssistantEntityRef[];
   actions: readonly AdminAssistantAction[];
+  lifecycleState?: AdminAssistantRecommendationState;
+  evidenceFingerprint?: string;
+  stateUpdatedAt?: number;
+  snoozedUntil?: number;
   dimensions: Readonly<{
     financialImpact?: number;
     customerImpact?: number;
