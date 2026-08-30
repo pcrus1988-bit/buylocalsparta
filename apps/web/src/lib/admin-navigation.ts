@@ -15,18 +15,45 @@ const PARTNER_DRILLDOWN_ROUTES = new Set([
   "/admin/finance/agreements/sla"
 ]);
 
+const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string; contextHidden?: boolean }>([
+  ["/admin/catalogue", { order: 0, label: "Overview" }],
+  ["/admin/quickadd", { order: 1, label: "Quick Add" }],
+  ["/admin/catalogue-crawler", { order: 2, label: "Website Import" }],
+  ["/admin/catalogue-intake/import", { order: 3, label: "Files & Icecat", contextHidden: false }],
+  ["/admin/catalogue-intake", { order: 4, label: "Supplier PIM" }],
+  ["/admin/catalogue-intake/attributes", { order: 5, label: "Attributes" }],
+  ["/admin/matching", { order: 6, label: "Matching" }],
+  ["/admin/categories", { order: 7, label: "Categories & Policies" }]
+]);
+
 export function canAccessAdminNavLink(principal: SessionPrincipal, link: WorkspaceNavLink): boolean {
   if (link.roles?.length && !principal.roles.some((role) => link.roles?.includes(String(role)))) return false;
   return !link.permission || hasAdminPermission(principal, link.permission);
 }
 
 function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<WorkspaceNavLink>): ReadonlyArray<WorkspaceNavLink> {
-  if (group.href !== "/admin/partners") return links;
-  return links.map((link) => {
-    if (PARTNER_PRIMARY_ROUTES.has(link.href)) return { ...link, contextHidden: false };
-    if (PARTNER_DRILLDOWN_ROUTES.has(link.href)) return { ...link, contextHidden: true };
-    return link;
-  });
+  if (group.href === "/admin/partners") {
+    return links.map((link) => {
+      if (PARTNER_PRIMARY_ROUTES.has(link.href)) return { ...link, contextHidden: false };
+      if (PARTNER_DRILLDOWN_ROUTES.has(link.href)) return { ...link, contextHidden: true };
+      return link;
+    });
+  }
+
+  if (group.href === "/admin/catalogue") {
+    return links
+      .map((link) => {
+        const presentation = CATALOGUE_OPERATOR_LINKS.get(link.href);
+        return presentation ? {
+          ...link,
+          label: presentation.label ?? link.label,
+          contextHidden: presentation.contextHidden ?? link.contextHidden
+        } : link;
+      })
+      .sort((a, b) => (CATALOGUE_OPERATOR_LINKS.get(a.href)?.order ?? 99) - (CATALOGUE_OPERATOR_LINKS.get(b.href)?.order ?? 99));
+  }
+
+  return links;
 }
 
 export function adminNavigationForPrincipal(principal: SessionPrincipal, attentionBadges: Readonly<Record<string, number>> = {}): ReadonlyArray<WorkspaceNavGroup> {

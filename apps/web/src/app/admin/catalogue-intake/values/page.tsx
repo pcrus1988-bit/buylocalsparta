@@ -66,8 +66,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   const sourceCount = new Set(queue.map((item) => item.sourceName)).size;
   const attributeCount = new Set(queue.map((item) => `${item.productTypeId}:${item.attributeId}`)).size;
 
-  return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Supplier PIM Controlled Values" />
+  return <main className="vendor-app admin-app admin-catalogue-values">
+    <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Controlled Values" />
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
@@ -90,9 +90,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
     ]} />
 
     <section className="shell vendor-section">
-      <div className="workspace-action-bar" style={{marginBottom:"1rem"}}>
-        <span>Attribute meaning is reviewed first in Supplier PIM Intake; controlled values are resolved here only after that mapping exists.</span>
-        <Link className="button button-secondary" href="/admin/catalogue-intake">Back to Supplier PIM Intake</Link>
+      <div className="workspace-action-bar catalogue-stage-handoff">
+        <span>Step 1 is attribute meaning. Come here only after the source key is mapped to an approved Product Type attribute.</span>
+        <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Back to Attributes</Link>
       </div>
 
       {params.mapped === "1" && <div className="workspace-queue-card" role="status" style={{marginBottom:"1rem"}}>
