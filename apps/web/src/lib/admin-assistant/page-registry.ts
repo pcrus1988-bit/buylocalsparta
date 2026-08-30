@@ -107,6 +107,20 @@ export function adminAssistantPageDefinition(route: string): AdminAssistantPageD
     };
   }
 
+  const customerMatch = /^\/admin\/customers\/([^/]+)$/.exec(normalized);
+  if (customerMatch) {
+    const customerId = decoded(customerMatch[1]);
+    return {
+      route: normalized,
+      pageType: "customer_detail",
+      domain: "generic",
+      contextLabel: `Customers > ${customerId}`,
+      entityType: "customer",
+      purpose: "Investigate one customer across account security, orders, support, privacy and communication health while keeping execution in the specialist workspaces.",
+      attention: ["account state", "email verification", "active sessions", "open support", "privacy deadlines", "notification failures", "recent orders"]
+    };
+  }
+
   return NAV_PAGES.get(normalized) ?? {
     route: normalized,
     pageType: "admin_page",
