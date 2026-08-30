@@ -13,5 +13,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Verify read-only PIM intake governance
+      - name: Verify governed PIM intake and attribute mapping
         run: node --experimental-strip-types scripts/verify-admin-catalogue-intake.ts
