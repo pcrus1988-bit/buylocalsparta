@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { suggestedQuestionsForContext } from "./context";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
+import { productMatchingIntelligence } from "./matching-intelligence";
 import { buildAdminAssistantOperationalSnapshot } from "./operational-snapshot";
 import { searchConsoleIntelligence } from "./search-console-intelligence";
 import { taxCrossDomainIntelligence } from "./tax-intelligence";
@@ -15,6 +16,10 @@ export async function buildAdminAssistantPhase1Snapshot(
 
   if (snapshot.context.pageType === "catalogue_import") {
     snapshot = await openIcecatIngestionIntelligence(principal, snapshot);
+  }
+
+  if (snapshot.context.pageType === "product_matching") {
+    snapshot = await productMatchingIntelligence(principal, snapshot);
   }
 
   if (["vendor_detail", "vendor_catalogue"].includes(snapshot.context.pageType)) {
