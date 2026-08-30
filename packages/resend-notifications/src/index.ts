@@ -157,6 +157,7 @@ function absoluteUrl(base:string,value:string):string{
 function escapeHtml(value:unknown):string{
   return String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]??char));
 }
+
 function publicBaseUrlFromEnv(env:NodeJS.ProcessEnv=process.env):string{
   const explicit=env.BLS_PUBLIC_BASE_URL?.trim()||env.NEXT_PUBLIC_SITE_URL?.trim();
   if(explicit)return explicit.replace(/\/$/,"");
