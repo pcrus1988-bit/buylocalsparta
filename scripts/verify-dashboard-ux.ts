@@ -77,8 +77,12 @@ for (const path of [
   "apps/web/src/app/admin/email-lab/page.tsx"
 ]) requireText(path, ["dashboard-hero-refined", "AdminWorkspaceHeader"]);
 
-requireText("apps/web/src/app/admin/partners/page.tsx", ["Commercial readiness", "commercialAgreementWorkspace", "adminSlaPolicyWorkspace", "adminVendorBillingWorkspace", "admin-insight-table", "Agreement → SLA → billing", "/admin/finance/vendor-billing"]);
-requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "adminVendorFiscalWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "partner-documents", "entityLabel={shop.tradingName}"]);
+// Partner lifecycle stays in Partners; billing and fiscal execution stay in their source workspaces.
+requireText("apps/web/src/app/admin/partners/page.tsx", ["Partner operations", "commercialAgreementWorkspace", "adminSlaPolicyWorkspace", "partner-workflow-grid", "Agreement & SLA blockers", "/admin/finance/vendor-billing", "/admin/tax"]);
+requireText("apps/web/src/app/admin/partners/[id]/page.tsx", ["admin-local-tabs", "VendorToggleControl", "VendorAgreementForm", "adminOrdersReturnsWorkspace", "marketplaceReferenceMap", "Agreement & SLA", "Catalogue / DEMO", "/admin/finance/vendor-billing", "/admin/tax", "entityLabel={shop.tradingName}"]);
+requireText("apps/web/src/app/admin/applications/page.tsx", ["Applications", "governed intake", "/admin/partners/pipeline", "/admin/research-vendors", "/admin/vendors"]);
+requireText("apps/web/src/app/admin/prospects/page.tsx", ["Verified prospects & onboarding", "/admin/applications", "/admin/research-vendors", "/admin/finance/agreements"]);
+requireText("apps/web/src/app/admin/finance/vendor-billing/page.tsx", ["adminVendorBillingWorkspace", "Vendor invoicing", "Prepared for AADE", "VendorBillingClient"]);
 requireText("apps/web/src/app/admin/vendors/page.tsx", ["admin-partner-directory", "/admin/partners/${encodeURIComponent(shop.id)}", "Partner saved views", "view=active", "view=attention", "view=public", "view=hidden", "AdminStatusStack", "partnerAttention", "Agreement gap", "State / attention"]);
 requireText("apps/web/src/app/admin/customers/page.tsx", ["admin-directory-table", "Customer 360", "Customer saved views", "view=attention", "view=new", "view=orders", "view=unverified", "AdminStatusStack", "customerAttention", "Verification pending", "State / attention"]);
 requireText("apps/web/src/app/admin/orders/page.tsx", ["admin-orders-directory", "marketplaceReferenceMap", "Returns & refunds", "Order saved views", "view=open", "view=returns", "view=completed", "/admin/orders/${encodeURIComponent(reference)}", "Open order", "AdminStatusStack", "orderAttention", "order.returns.length ?", "State / attention"]);
@@ -139,4 +143,4 @@ if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, permission-aware customizable Admin Command Centre, lightweight attention badges, semantic record-state versus attention indicators, entity-aware Admin detail breadcrumbs, Action Centre, commercial readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);
+console.log(`Dashboard UX checks passed: ${WORKSPACE_PAGE_ROUTES.length} canonical destinations, domain-based Admin IA, permission-aware customizable Admin Command Centre, lightweight attention badges, semantic record-state versus attention indicators, entity-aware Admin detail breadcrumbs, Action Centre, partner lifecycle readiness, content operations, saved directory views, partner records, public-number order records, global search, dense directories, focused queues, fiscal document register, local tabs, insight tables and existing customer/vendor safety controls verified.`);

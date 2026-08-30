@@ -1,0 +1,154 @@
+/* Partners operational cleanup.
+ * Presentation and information architecture only: partner states, permissions, transitions,
+ * agreements, catalogue actions, fulfilment, billing and fiscal behavior remain unchanged.
+ */
+
+.partner-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.partner-workflow-card {
+  min-width: 0;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px 16px;
+  color: var(--dash-ink);
+  border: 1px solid var(--dash-line);
+  border-radius: 13px;
+  background: var(--dash-panel);
+  box-shadow: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.partner-workflow-card:hover,
+.partner-workflow-card:focus-visible,
+.partner-record-command:hover,
+.partner-record-command:focus-visible {
+  border-color: rgba(185, 148, 81, .68);
+  background: #fffaf0;
+}
+
+.partner-workflow-card.needs-attention,
+.partner-record-command.needs-attention {
+  border-color: rgba(159, 73, 62, .34);
+  box-shadow: inset 3px 0 0 rgba(159, 73, 62, .72);
+}
+
+.partner-workflow-card > span,
+.partner-record-command > span {
+  color: var(--dash-gold);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.partner-workflow-card > strong,
+.partner-record-command > strong {
+  margin-top: 7px;
+  color: var(--dash-navy);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.partner-workflow-card > p {
+  margin: 6px 0 14px;
+  color: var(--dash-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.partner-workflow-card > b {
+  margin-top: auto;
+  color: var(--dash-navy);
+  font-size: 19px;
+  font-weight: 850;
+}
+
+.partner-workflow-card > i,
+.partner-record-command > i {
+  margin-top: 3px;
+  color: var(--dash-muted);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.partner-pipeline-handoff {
+  margin-top: 10px;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--dash-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .62);
+  color: var(--dash-muted);
+  font-size: 10px;
+}
+
+.partner-readiness-table .admin-insight-head,
+.partner-readiness-table .admin-insight-row {
+  grid-template-columns: minmax(190px, 1.25fr) minmax(180px, 1fr) minmax(160px, .9fr);
+}
+
+.partner-record-command-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 12px 0;
+}
+
+.partner-record-command {
+  min-width: 0;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  padding: 13px 14px;
+  color: var(--dash-ink);
+  border: 1px solid var(--dash-line);
+  border-radius: 12px;
+  background: var(--dash-panel);
+  box-shadow: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.partner-record-command > small {
+  margin-top: 5px;
+  color: var(--dash-muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.partner-record-command > i {
+  margin-top: auto;
+}
+
+.admin-partners-overview .workspace-metric-strip,
+.admin-partner-record .workspace-metric-strip {
+  margin-top: 8px;
+}
+
+/* The catalogue/DEMO partner subpage has its own local navigation. Keep it secondary and compact. */
+.admin-app .admin-local-tabs:has(a[href^="/admin/partners/"][href$="/catalogue"]) {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 1180px) {
+  .partner-workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .partner-record-command-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .partner-workflow-grid,
+  .partner-record-command-grid { grid-template-columns: 1fr; }
+  .partner-workflow-card { min-height: 126px; }
+  .partner-record-command { min-height: 100px; }
+  .partner-pipeline-handoff { align-items: flex-start; flex-direction: column; }
+  .partner-readiness-table .admin-insight-head,
+  .partner-readiness-table .admin-insight-row { grid-template-columns: 1fr; }
+}

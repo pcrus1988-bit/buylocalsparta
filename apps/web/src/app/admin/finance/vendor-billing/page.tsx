@@ -72,7 +72,7 @@ export default async function VendorBillingPage({ searchParams }: { searchParams
         </div>
         <aside className="admin-decision-panel">
           {selected ? <>
-            <WorkspaceSectionHeading eyebrow="Selected invoice" title={selected.documentNumber ?? "Billing draft"} note={`${selected.vendorName} · ${selected.periodStart} → ${selected.periodEnd}`} action={<Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(selected.vendorId)}#partner-documents`}>Open Partner record</Link>} />
+            <WorkspaceSectionHeading eyebrow="Selected invoice" title={selected.documentNumber ?? "Billing draft"} note={`${selected.vendorName} · ${selected.periodStart} → ${selected.periodEnd}`} action={<Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(selected.vendorId)}`}>Open Partner record</Link>} />
             <AdminStatusStack state={selected.status} stateTone={invoiceTone(selected.status, selected.lastError)} attention={invoiceAttention(selected)} attentionSeverity={selected.lastError ? "critical" : "attention"} />
             {selected.lastError && <div className="workspace-inline-note"><strong>Fiscal error</strong> {selected.lastError}</div>}
             <div className="workspace-compact-list">
