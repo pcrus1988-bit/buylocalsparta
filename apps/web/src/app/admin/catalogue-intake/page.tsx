@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminCatalogueIntakeWorkspace } from "../../../lib/admin-catalogue-intake";
+import { adminCatalogueAttributeDefinitions, mapCatalogueSourceAttribute } from "../../../lib/admin-catalogue-attribute-mapping";
 import { adminCatalogueVendorOptions, assignCatalogueSnapshotToVendor } from "../../../lib/admin-catalogue-vendor-assignment";
 import { getAdminSession } from "../../../lib/admin-session";
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: "Admin · Supplier PIM Intake", robot
 type Params = {
   snapshot?: string; q?: string; price?: string; classification?: string; product?: string;
   assigned?: string; assignedRows?: string; alreadyAssigned?: string; vendorName?: string; assignmentError?: string;
+  attributeMapped?: string; mappedRows?: string; reviewRows?: string; mappedKey?: string; mappedCode?: string; mappedType?: string; attributeMappingError?: string;
 };
 
 async function assignCatalogueAction(formData: FormData) {
@@ -40,11 +42,48 @@ async function assignCatalogueAction(formData: FormData) {
   redirect(`/admin/catalogue-intake?${search.toString()}`);
 }
 
+async function mapCatalogueAttributeAction(formData: FormData) {
+  "use server";
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  const snapshotId = String(formData.get("snapshotId") ?? "").trim();
+  const productId = String(formData.get("productId") ?? "").trim();
+  const sourceProductId = String(formData.get("sourceProductId") ?? "").trim();
+  const sourceAttributeKey = String(formData.get("sourceAttributeKey") ?? "").trim();
+  const mappingTarget = String(formData.get("mappingTarget") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  const separator = mappingTarget.indexOf("|");
+  const productTypeId = separator > 0 ? mappingTarget.slice(0, separator) : "";
+  const attributeId = separator > 0 ? mappingTarget.slice(separator + 1) : "";
+  let result;
+  try {
+    result = await mapCatalogueSourceAttribute(principal, { sourceProductId, sourceAttributeKey, productTypeId, attributeId, reason });
+  } catch (error) {
+    const search = new URLSearchParams();
+    if (snapshotId) search.set("snapshot", snapshotId);
+    if (productId) search.set("product", productId);
+    search.set("attributeMappingError", errorMessage(error));
+    redirect(`/admin/catalogue-intake?${search.toString()}`);
+  }
+  revalidatePath("/admin/catalogue-intake");
+  const search = new URLSearchParams({
+    snapshot: snapshotId,
+    product: productId || result.sourceProductId,
+    attributeMapped: "1",
+    mappedRows: String(result.mappedObservations),
+    reviewRows: String(result.reviewRequiredObservations),
+    mappedKey: result.sourceAttributeKey,
+    mappedCode: result.attributeCode,
+    mappedType: result.productTypeCode
+  });
+  redirect(`/admin/catalogue-intake?${search.toString()}`);
+}
+
 export default async function Page({ searchParams }: { searchParams: Promise<Params> }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const params = await searchParams;
-  const [data, vendors] = await Promise.all([
+  const [data, vendors, attributeDefinitions] = await Promise.all([
     adminCatalogueIntakeWorkspace(principal, {
       snapshotId: params.snapshot,
       q: params.q,
@@ -52,12 +91,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       classificationStatus: params.classification,
       productId: params.product
     }),
-    adminCatalogueVendorOptions(principal)
+    adminCatalogueVendorOptions(principal),
+    adminCatalogueAttributeDefinitions(principal)
   ]);
   const snapshot = data.snapshots.find((item) => item.id === data.effectiveSnapshotId) ?? data.snapshots[0];
   const selected = data.selected;
   const hasFilters = Boolean(params.q?.trim() || params.price?.trim() || params.classification?.trim());
   const assignmentSuccess = params.assigned === "1";
+  const attributeMappingSuccess = params.attributeMapped === "1";
   const hrefFor = (productId: string) => {
     const search = new URLSearchParams();
     if (data.effectiveSnapshotId) search.set("snapshot", data.effectiveSnapshotId);
@@ -132,7 +173,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Quality queue" title="Evidence requiring review" note="Priority: price conflicts → price review → classification → unmapped attributes → compatibility/canonical candidates. Η λίστα περιορίζεται στα 120 υψηλότερης προτεραιότητας records ανά filter." />
-      <div className="workspace-inline-note">The evidence review below remains read-only. Bulk vendor assignment above does not approve questionable canonical matches or publish products.</div>
+      <div className="workspace-inline-note">Source evidence remains non-public. Attribute rules are reusable only inside the selected supplier taxonomy node or provider category. Every approval targets an attribute that is explicitly allowed by a Product Type; datatype/unit ambiguity remains review-required instead of being guessed.</div>
+      {attributeMappingSuccess && <div className="workspace-queue-card" role="status" style={{marginBottom:"1rem"}}><strong>Attribute mapping saved</strong><p>{params.mappedKey} → {params.mappedType} / {params.mappedCode} · {Number(params.mappedRows ?? 0).toLocaleString("el-GR")} mapped · {Number(params.reviewRows ?? 0).toLocaleString("el-GR")} need value/unit review.</p><small>The approved exact-context rule also applies to future source observations. Raw source evidence is unchanged, and no product is published by this action.</small></div>}
+      {params.attributeMappingError && <div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}><strong>Could not map source attribute</strong><p>{params.attributeMappingError}</p></div>}
       <form method="get" className="admin-directory-filters">
         {data.effectiveSnapshotId && <input type="hidden" name="snapshot" value={data.effectiveSnapshotId} />}
         <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Title, supplier code, model, brand…" /></label>
@@ -161,7 +204,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
           <WorkspaceRecordDetails label={`Price evidence · ${selected.prices.length}`} open>{selected.prices.length === 0 ? <div className="workspace-inline-note">No price observation is attached to this source row.</div> : <div className="workspace-compact-list">{selected.prices.map((price, index) => <div className="workspace-compact-row" key={`${price.kind}-${price.amountMinor}-${index}`}><strong>{money(price.amountMinor, price.currency)}</strong><span>{price.kind} · {price.status}{price.confidence !== undefined ? ` · ${Math.round(price.confidence * 100)}%` : ""}{price.sourceReference ? ` · ${price.sourceReference}` : ""}</span></div>)}</div>}</WorkspaceRecordDetails>
 
-          <WorkspaceRecordDetails label={`Attributes · ${selected.attributes.length}`}><div className="workspace-compact-list">{selected.attributes.slice(0, 80).map((attribute, index) => <div className="workspace-compact-row" key={`${attribute.sourceKey}-${index}`}><strong>{attribute.attributeCode ?? attribute.sourceKey}</strong><span>{compactValue(attribute.normalizedValue ?? attribute.rawValue)} · {attribute.mappingStatus}{attribute.sourceUnit ? ` · ${attribute.sourceUnit}` : ""}</span></div>)}</div>{selected.attributes.length > 80 && <div className="workspace-inline-note">Showing first 80 of {selected.attributes.length} attributes.</div>}</WorkspaceRecordDetails>
+          <WorkspaceRecordDetails label={`Attributes · ${selected.attributes.length}`} open><div className="workspace-compact-list">{selected.attributes.slice(0, 80).map((attribute, index) => <div className="workspace-compact-row" key={`${attribute.sourceKey}-${index}`}><strong>{attribute.attributeCode ?? attribute.sourceKey}</strong><div><span>{compactValue(attribute.normalizedValue ?? attribute.rawValue)} · {attribute.mappingStatus}{attribute.sourceUnit ? ` · source unit ${attribute.sourceUnit}` : ""}</span>{attribute.mappingStatus === "unmapped" && <form action={mapCatalogueAttributeAction} className="workspace-action-buttons" style={{marginTop:"0.45rem"}}><input type="hidden" name="snapshotId" value={data.effectiveSnapshotId ?? ""} /><input type="hidden" name="productId" value={selected.product.id} /><input type="hidden" name="sourceProductId" value={selected.product.id} /><input type="hidden" name="sourceAttributeKey" value={attribute.sourceKey} /><select name="mappingTarget" required defaultValue="" aria-label={`Product Type and canonical attribute for ${attribute.sourceKey}`}><option value="" disabled>Select Product Type → attribute…</option>{attributeDefinitions.map((definition)=><option key={`${definition.productTypeId}:${definition.attributeId}`} value={`${definition.productTypeId}|${definition.attributeId}`}>{definition.productTypeName} · {definition.attributeCode} · {definition.dataType}{definition.unit ? ` ${definition.unit}` : ""} · {definition.valueLevel}{definition.allowMultiple ? " · multi" : ""}</option>)}</select><input name="reason" maxLength={240} placeholder="Review note (optional)" aria-label={`Review note for ${attribute.sourceKey}`} /><button className="button button-secondary" type="submit" disabled={attributeDefinitions.length===0}>Approve mapping</button></form>}</div></div>)}</div>{selected.attributes.length > 80 && <div className="workspace-inline-note">Showing first 80 of {selected.attributes.length} attributes.</div>}</WorkspaceRecordDetails>
 
           <WorkspaceRecordDetails label={`Compatibility · ${selected.compatibility.length}`}><div className="workspace-compact-list">{selected.compatibility.map((claim, index) => <div className="workspace-compact-row" key={`${claim.targetKind}-${claim.targetReference ?? claim.platformName}-${index}`}><strong>{claim.platformName ?? claim.targetReference ?? claim.targetKind}</strong><span>{claim.relationshipType} · {claim.evidenceLevel} · {claim.reviewStatus} · {Math.round(claim.confidence * 100)}%</span></div>)}</div></WorkspaceRecordDetails>
 
@@ -185,4 +228,4 @@ function compactValue(value: unknown): string {
   const raw = JSON.stringify(value);
   return raw.length > 240 ? `${raw.slice(0, 237)}…` : raw;
 }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Catalogue assignment failed"); }
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Catalogue action failed"); }
