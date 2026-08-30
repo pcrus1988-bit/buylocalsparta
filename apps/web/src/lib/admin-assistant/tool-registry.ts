@@ -9,6 +9,7 @@ import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
 import { getSearchConsoleHistoryWorkspace } from "../seo-gsc-history";
 import { searchConsoleReadiness } from "../seo-search-console";
 import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
+import { getAdminAssistantCustomerState } from "./customer-intelligence";
 import { searchAdminEntities } from "./global-search";
 import { getAdminAssistantOrderIntelligence } from "./order-intelligence";
 import { getAdminAssistantProductState } from "./product-intelligence";
@@ -16,7 +17,7 @@ import { recordAssistantToolAudit } from "./repository";
 import { getAdminAssistantTaxCrossDomain } from "./tax-cross-domain";
 import type { AdminAssistantContext } from "./types";
 
-type ToolFamily = "search" | "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "system";
+type ToolFamily = "search" | "catalogue" | "orders" | "partners" | "customers" | "tax" | "seo" | "gift_cards" | "system";
 type ToolArguments = Readonly<Record<string, unknown>>;
 type ToolResult = Readonly<Record<string, unknown>>;
 
@@ -239,6 +240,19 @@ const TOOLS: readonly ToolDefinition[] = [
     }
   },
   {
+    name: "getCustomerOperationalIntelligence",
+    family: "customers",
+    description: "Return minimized Customer 360 operational state: account security, order summaries, support/privacy status, notification failures and account audit context without contact/address/note content.",
+    capability: "customers.read",
+    execute: async (principal, args) => {
+      const customerId = textArg(args, "customerId");
+      if (!customerId) throw new Error("customerId is required");
+      const customer = await getAdminAssistantCustomerState(principal, customerId);
+      if (!customer) throw new Error("CUSTOMER_NOT_FOUND");
+      return { customer };
+    }
+  },
+  {
     name: "getTaxCrossDomainReconciliation",
     family: "tax",
     description: "Return bounded paid/captured orders whose order/payment/fiscal state is inconsistent.",
@@ -350,6 +364,7 @@ function capabilityAllowed(principal: SessionPrincipal, capability: string): boo
   if (capability === "catalog.read") return hasAdminPermission(principal, "catalog.read");
   if (capability === "orders.read") return hasAdminPermission(principal, "fulfilment.read");
   if (capability === "partners.read") return hasAdminPermission(principal, "vendor.manage");
+  if (capability === "customers.read") return hasAdminPermission(principal, "customer.read");
   if (capability === "finance.read") return hasAdminPermission(principal, "finance.read");
   if (capability === "seo.read") return hasAdminPermission(principal, "content.read");
   if (capability === "audit.read") return hasAdminPermission(principal, "admin.audit.read");
