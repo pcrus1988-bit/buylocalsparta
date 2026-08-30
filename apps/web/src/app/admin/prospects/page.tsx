@@ -31,7 +31,7 @@ export default async function ProspectsPage() {
         <h1>Prospects</h1>
         <p className="lead">Μόλις μια επίσημη αίτηση περάσει verification, παύει να είναι pending application και μεταφέρεται εδώ ως verified prospect. Από εδώ συνεχίζονται contract, catalog/test readiness και τελική activation.</p>
         <div className="hero-actions">
-          <Link className="button" href="/admin/vendors">Νέες αιτήσεις</Link>
+          <Link className="button" href="/admin/applications">Νέες αιτήσεις</Link>
           <Link className="button button-secondary" href="/admin/research-vendors">Research leads</Link>
           <Link className="text-link" href="/admin/finance/agreements">Vendor agreements →</Link>
         </div>
@@ -56,7 +56,7 @@ export default async function ProspectsPage() {
         eyebrow="No verified prospects"
         title="Δεν υπάρχουν prospects μετά το verification."
         body="Οι νέες αιτήσεις παραμένουν στην ουρά αιτήσεων μέχρι να πατήσεις Pass verification."
-        action={<Link className="button button-secondary" href="/admin/vendors">Άνοιγμα αιτήσεων</Link>}
+        action={<Link className="button button-secondary" href="/admin/applications">Άνοιγμα αιτήσεων</Link>}
       /> : <div className="workspace-queue-list">{data.prospects.map((prospect) => <article className="workspace-queue-card" key={prospect.applicationId}>
         <div className="workspace-queue-head">
           <div><strong>{prospect.tradingName}</strong><small>{prospect.legalName} · {prospect.id}</small></div>
