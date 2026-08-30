@@ -157,7 +157,6 @@ function absoluteUrl(base:string,value:string):string{
 function escapeHtml(value:unknown):string{
   return String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]??char));
 }
-
 function publicBaseUrlFromEnv(env:NodeJS.ProcessEnv=process.env):string{
   const explicit=env.BLS_PUBLIC_BASE_URL?.trim()||env.NEXT_PUBLIC_SITE_URL?.trim();
   if(explicit)return explicit.replace(/\/$/,"");
@@ -183,7 +182,7 @@ export function resendDeliveryEnabled(env:NodeJS.ProcessEnv=process.env):boolean
 export function resendConfigFromEnv(env:NodeJS.ProcessEnv=process.env):ResendConfig{
   const apiKey=required(env.RESEND_API_KEY,"RESEND_API_KEY");
   const domain=env.BLS_EMAIL_DOMAIN?.trim()||"kontamou.site";
-  const from=env.RESEND_FROM?.trim()||`Buy Local Sparta <notifications@${domain}>`;
+  const from=env.RESEND_FROM?.trim()||`ΚΟΝΤΑ ΜΟΥ <notifications@${domain}>`;
   const replyTo=env.RESEND_REPLY_TO?.trim()||`reply@${domain}`;
   return{apiKey,from,replyTo,baseUrl:env.RESEND_BASE_URL?.trim()||"https://api.resend.com",timeoutMs:positive(env.RESEND_TIMEOUT_MS,8_000,"RESEND_TIMEOUT_MS"),webhookSecret:env.RESEND_WEBHOOK_SECRET?.trim()||undefined};
 }
