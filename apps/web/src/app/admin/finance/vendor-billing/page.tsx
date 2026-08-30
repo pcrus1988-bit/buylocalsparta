@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AdminFinanceTabs } from "../../../../components/AdminFinanceTabs";
 import { AdminStatusStack, type AdminRecordStateTone } from "../../../../components/AdminRecordStatus";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { VendorBillingClient } from "../../../../components/VendorBillingClient";
@@ -41,7 +40,6 @@ export default async function VendorBillingPage({ searchParams }: { searchParams
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Finance · platform services · commissions</div><h1>Vendor invoicing</h1><p className="lead">Invoice register first: partner, period, fiscal state, settlement offset and AADE evidence are visible before opening any action. Draft creation and transmission remain explicitly governed.</p></div></section>
-    <section className="shell admin-local-tabs-shell"><AdminFinanceTabs /></section>
     <WorkspaceMetricStrip items={[
       { label: "Uninvoiced commission", value: euro(eligible), tone: eligible ? "attention" : "positive" },
       { label: "Prepared for AADE", value: ready, tone: ready ? "attention" : "default" },
