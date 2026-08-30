@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { createPostgresRuntimeFromEnv, EXPECTED_SCHEMA_VERSION } from "../packages/postgres-runtime/src/index.ts";
 import { confirmVendorAssignedCatalogueEvidence, vendorAssignedCatalogueWorkspace } from "../apps/web/src/lib/vendor-assigned-catalogue-service.ts";
 
@@ -137,7 +138,7 @@ try {
   await runtime.close();
 }
 
-function principal(userId: string, vendorId: string) {
+function principal(userId: string, vendorId: string): SessionPrincipal {
   return {
     sessionId: `ci-session-${userId}`,
     userId,
@@ -147,7 +148,7 @@ function principal(userId: string, vendorId: string) {
     csrfToken: "ci-csrf-token",
     issuedAt: Date.now(),
     expiresAt: Date.now() + 60_000
-  } as const;
+  };
 }
 function required(value: unknown, label: string): string {
   const text = String(value ?? "").trim();
