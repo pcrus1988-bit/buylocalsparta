@@ -6,7 +6,14 @@ import { postgresAdminRuntimeEnabled } from "../admin-runtime";
 import type { AdminAssistantContext, AdminAssistantConversationSummary, AdminAssistantResponsePayload, AdminAssistantStoredMessage } from "./types";
 
 const memoryKey = "__kontamouAdminAssistantMemory" as const;
-type MemoryConversation = AdminAssistantConversationSummary & { adminUserId: string; messages: AdminAssistantStoredMessage[] };
+type MemoryConversation = Omit<AdminAssistantConversationSummary, "lastRoute" | "entityType" | "entityId" | "updatedAt"> & {
+  adminUserId: string;
+  messages: AdminAssistantStoredMessage[];
+  lastRoute?: string;
+  entityType?: string;
+  entityId?: string;
+  updatedAt: number;
+};
 type MemoryState = { conversations: Map<string, MemoryConversation>; toolAudit: Array<Record<string, unknown>> };
 type Globals = typeof globalThis & { [memoryKey]?: MemoryState };
 const globals = globalThis as Globals;
