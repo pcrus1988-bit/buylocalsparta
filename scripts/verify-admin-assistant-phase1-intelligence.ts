@@ -43,7 +43,7 @@ assert.equal(planExternalResearch("What does KONTA MOY currently know?", product
 for (const symbol of ["dashboardOperationalIntelligence", "productMatchingIntelligence", "searchConsoleIntelligence", "categoryGovernanceIntelligence", "controlledValueIntelligence", "customerOperationalIntelligence", "crawlerOperationalIntelligence", "applyRecommendationLifecycle"]) assert.match(phase1, new RegExp(symbol));
 for (const pageType of ["dashboard", "product_matching", "category_governance", "controlled_values", "customer_detail", "catalogue_crawler"]) assert.match(phase1, new RegExp(pageType));
 assert.match(phase1, /\["seo_overview", "search_console"\]/);
-assert.match(phase1, /snapshot = await applyRecommendationLifecycle\(principal, snapshot\)/);
+assert.match(phase1, /applyRecommendationLifecycle\(principal, snapshot\)\.catch\(\(\) => snapshot\)/);
 
 for (const rule of ["return_refund_ready", "paid_order_missing_tax_document", "payment_order_state_mismatch", "product_unmapped_attributes", "vendor_active_without_agreement", "vendor_no_active_location", "seo_critical_diagnostic", "failed_background_job"]) assert.match(dashboard, new RegExp(rule));
 assert.match(dashboard, /Promise\.all/);
@@ -158,7 +158,6 @@ assert.match(service, /researchReason/);
 assert.match(service, /tools: \[\{ type: "web_search" \}\]/);
 assert.match(config, /ADMIN_ASSISTANT_EXTERNAL_RESEARCH", true/);
 
-// Recommendation lifecycle is assistant metadata, scoped per Admin and evidence fingerprint.
 assert.match(recommendationLifecycle, /recommendationEvidenceFingerprint/);
 assert.match(recommendationLifecycle, /createHash\("sha256"\)/);
 assert.match(recommendationLifecycle, /admin_user_id=\$1 AND recommendation_key=\$2/);
@@ -174,6 +173,8 @@ assert.doesNotMatch(recommendationLifecycle, /UPDATE (?:users|customer_orders|ve
 
 assert.match(recommendationRoute, /requireAdminSession\(request, \{ csrf: true \}\)/);
 assert.match(recommendationRoute, /setRecommendationLifecycleState/);
+assert.match(recommendationRoute, /recordAssistantToolAudit/);
+assert.match(recommendationRoute, /assistant\.recommendation\.state/);
 assert.match(recommendationRoute, /"active", "dismissed", "snoozed", "intentional"/);
 assert.doesNotMatch(recommendationRoute, /"accepted"|"resolved"/);
 assert.match(recommendationRoute, /cache-control/);
@@ -186,7 +187,6 @@ assert.match(shell, />Snooze 1d<\/button>/);
 assert.match(shell, />Intentional<\/button>/);
 assert.match(shell, /underlying evidence changes/i);
 
-// Main owns schema 169; assistant lifecycle must remain schema 170.
 assert.match(migration169, /pack_quantity/);
 assert.match(checksum169, /0169_pack_quantity_product_type_contracts\.sql/);
 assert.match(checksum169, /22062286c8a2f34b8d8181a6079c3babba91f3f75dc91cda10f9a528adf33fa6/);
