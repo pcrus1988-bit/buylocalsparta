@@ -49,15 +49,15 @@ export async function adminCatalogueAttributeDefinitions(
 
 export async function mapCatalogueSourceAttribute(
   principal: SessionPrincipal,
-  input: { sourceProductId: string; sourceAttributeKey: string; attributeId: string }
+  input: { sourceProductId: string; sourceAttributeKey: string; attributeCode: string }
 ): Promise<CatalogueSourceAttributeMappingResult> {
   assertAdminPermission(principal, "catalog.write");
   if (!postgresAdminRuntimeEnabled()) throw new Error("Postgres catalogue runtime is not enabled");
 
   const sourceProductId = input.sourceProductId.trim();
   const sourceAttributeKey = input.sourceAttributeKey.trim();
-  const attributeId = input.attributeId.trim();
-  if (!sourceProductId || !sourceAttributeKey || !attributeId) throw new Error("Source product, source attribute and canonical attribute are required");
+  const requestedAttributeCode = input.attributeCode.trim();
+  if (!sourceProductId || !sourceAttributeKey || !requestedAttributeCode) throw new Error("Source product, source attribute and canonical attribute are required");
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 30_000, lockTimeoutMs: 3_000 });
@@ -84,11 +84,12 @@ export async function mapCatalogueSourceAttribute(
     const targetResult = await tx.query<SqlRow>(`
       SELECT id::text AS id, code
       FROM public.attribute_definitions
-      WHERE id=$1::uuid AND active=true
+      WHERE code=$1::text AND active=true
       LIMIT 1
-    `, [attributeId]);
+    `, [requestedAttributeCode]);
     const target = targetResult.rows[0];
-    if (!target) throw new Error("The selected canonical attribute is missing or inactive");
+    if (!target) throw new Error(`Canonical attribute ${requestedAttributeCode} is missing or inactive`);
+    const attributeId = required(target.id, "attribute.id");
     const attributeCode = required(target.code, "attribute.code");
 
     const conflictingMappedResult = await tx.query<SqlRow>(`
