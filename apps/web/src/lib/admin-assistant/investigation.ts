@@ -28,7 +28,7 @@ function lookupQuery(question: string, context: AdminAssistantContext): string |
   if (!contains(question, /\b(find|search|look\s*up|lookup|open|where is|show me|check|inspect|analyse|analyze)\b|βρες|αναζήτη|άνοιξε|δείξε μου|έλεγξε|επιθεώρησε/)) return undefined;
   const stripped = question
     .replace(/^\s*(?:please\s+)?(?:find|search(?:\s+for)?|look\s*up|lookup|open|where\s+is|show\s+me|check|inspect|analyse|analyze|βρες|αναζήτησε|άνοιξε|δείξε\s+μου|έλεγξε|επιθεώρησε)\s+/i, "")
-    .replace(/^(?:product|canonical product|προϊόν)\s+/i, "")
+    .replace(/^(?:product|canonical product|προϊόν|customer|πελάτη|πελάτης)\s+/i, "")
     .replace(/[?.!]+$/g, "")
     .trim();
   return stripped.length >= 2 ? stripped.slice(0, 200) : undefined;
@@ -54,6 +54,9 @@ export function planAssistantInvestigation(
   }
   if (["vendor_detail", "vendor_catalogue"].includes(context.pageType) || contains(question, /partner|vendor|agreement|activation|location|approved offer|onboarding|συνεργάτ|συμφων|ενεργοποι/)) {
     if (context.entityType === "vendor" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
+  }
+  if (context.pageType === "customer_detail" || contains(question, /customer|account state|support case|privacy request|active session|notification failure|πελάτ|λογαριασμ|υποστήριξ|απόρρητ/)) {
+    if (context.entityType === "customer" && context.entityId) add("getCustomerOperationalIntelligence", { customerId: context.entityId });
   }
   if (context.pageType === "catalogue_import" || contains(question, /icecat|ingestion|checkpoint|rejected row|reject|filtered row|enrichment|gtin|εισαγωγ|απόρριψ/)) {
     add("getOpenIcecatIngestionStatus");
@@ -81,6 +84,7 @@ export function planAssistantInvestigation(
       else if (context.pageType === "product_matching") add("getProductMatchingIntelligence", context.filters.submission ? { submissionId: context.filters.submission } : {});
       else add("getCatalogueHealth");
     } else if (context.domain === "partners" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
+    else if (context.pageType === "customer_detail" && context.entityId) add("getCustomerOperationalIntelligence", { customerId: context.entityId });
     else if (context.domain === "seo") add(context.pageType === "search_console" ? "getSearchConsoleIntelligence" : "getSeoHealth");
     else if (context.domain === "tax") add("getTaxCrossDomainReconciliation");
     else if (context.domain === "gift_cards") add("getGiftCardHealth");
@@ -115,6 +119,7 @@ function followUpFromSearch(result: AdminAssistantInvestigationResult): Readonly
   if (row.kind === "product") return { name: "getProductIntelligence", args: { productId: id } };
   if (row.kind === "order") return { name: "getOrderLifecycleIntelligence", args: { orderId: id } };
   if (row.kind === "vendor") return { name: "getVendorOperationalIntelligence", args: { vendorId: id } };
+  if (row.kind === "customer") return { name: "getCustomerOperationalIntelligence", args: { customerId: id } };
   return undefined;
 }
 
