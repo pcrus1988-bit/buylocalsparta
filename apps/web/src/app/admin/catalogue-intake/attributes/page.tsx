@@ -7,6 +7,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } fr
 import { adminCatalogueIntakeWorkspace } from "../../../../lib/admin-catalogue-intake";
 import { adminCatalogueAttributeReviewWorkspace } from "../../../../lib/admin-catalogue-attribute-review";
 import { mapCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-mapping";
+import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Attribute Review Centre", robots: { index: false, follow: false, nocache: true } };
@@ -50,6 +51,7 @@ async function approveSuggestionAction(formData: FormData) {
 
   revalidatePath("/admin/catalogue-intake");
   revalidatePath("/admin/catalogue-intake/attributes");
+  revalidatePath("/admin/catalogue");
   redirect(reviewHref({
     snapshot: snapshotId,
     saved: "1",
@@ -70,6 +72,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
     adminCatalogueIntakeWorkspace(principal, { snapshotId })
   ]);
   const selectedSnapshot = snapshotId ? intake.snapshots.find((item) => item.id === snapshotId) : undefined;
+  const canWrite = hasAdminPermission(principal, "catalog.write");
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={review.csrfToken} entityLabel="Attribute Review Centre" />
@@ -98,6 +101,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       <WorkspaceSectionHeading eyebrow="Review scope" title="Exact source context, governed Product Types" note="Groups use the same source + attribute key + taxonomy/provider-category boundary as schema 164. Taxonomy groups only suggest Product Types attached to the approved KONTAMOU category. Open Icecat/provider-only groups remain isolated by provider category." />
       <div className="workspace-action-bar">
         <span>{selectedSnapshot ? `${selectedSnapshot.sourceName} · ${selectedSnapshot.productCount.toLocaleString("el-GR")} products` : "All Supplier PIM snapshots"}</span>
+        <Link className="button button-secondary" href="/admin/catalogue">Catalogue Overview</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake">Back to Supplier PIM Intake</Link>
       </div>
       <form method="get" className="admin-directory-filters">
@@ -111,6 +115,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
         <div><button className="button button-secondary" type="submit">Apply scope</button></div>
       </form>
       <div className="workspace-inline-note">Suggestions are not bulk automation. A score is evidence for review, not permission to map. The existing server mapping service re-checks category/Product Type validity, historical conflicts, and rule identity on every approval.</div>
+      {!canWrite && <div className="workspace-inline-note">Read-only review mode: your Admin role can inspect mapping evidence and suggestions but cannot approve reusable mapping rules.</div>}
       {params.saved === "1" && <div className="workspace-queue-card" role="status" style={{marginTop:"1rem"}}><strong>Grouped mapping approved</strong><p>{params.key} → {params.target} · {Number(params.mapped ?? 0).toLocaleString("el-GR")} mapped · {Number(params.review ?? 0).toLocaleString("el-GR")} retained for value/unit review.</p></div>}
       {params.error && <div className="workspace-queue-card" role="alert" style={{marginTop:"1rem"}}><strong>Mapping was not approved</strong><p>{params.error}</p></div>}
     </section>
@@ -133,7 +138,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
           {!group.actionable ? <div className="workspace-inline-note">{group.blocker}</div> : group.suggestions.length === 0 ? <div className="workspace-inline-note">No sufficiently relevant candidate could be suggested safely. Review one representative product manually.</div> : <div className="workspace-queue-list" style={{marginTop:"0.75rem"}}>{group.suggestions.map((suggestion) => <div className="workspace-queue-card" key={`${suggestion.productTypeId}:${suggestion.attributeId}`}>
             <div className="workspace-queue-head"><div><strong>{suggestion.productTypeName} · {suggestion.attributeCode}</strong><small>{suggestion.dataType}{suggestion.unit ? ` · ${suggestion.unit}` : ""} · {suggestion.reasons.join(" · ") || "candidate"}</small></div><span className="status-pill">{Math.round(suggestion.score * 100)}% advisory</span></div>
-            <form action={approveSuggestionAction} className="workspace-action-bar">
+            {canWrite ? <form action={approveSuggestionAction} className="workspace-action-bar">
               <input type="hidden" name="snapshotId" value={snapshotId ?? ""} />
               <input type="hidden" name="sourceProductId" value={group.representativeProductId} />
               <input type="hidden" name="sourceAttributeKey" value={group.sourceAttributeKey} />
@@ -143,7 +148,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
               <input type="hidden" name="attributeCode" value={suggestion.attributeCode} />
               <label style={{flex:"1 1 18rem"}}><span>Review note</span><input name="reason" maxLength={240} placeholder="Optional reason for this approval" /></label>
               <button className="button button-primary" type="submit">Approve this mapping</button>
-            </form>
+            </form> : <div className="workspace-inline-note">Read-only suggestion. Approval requires catalog.write permission.</div>}
           </div>)}</div>}
 
           <div className="workspace-action-bar"><span>Need full product context or a different Product Type?</span><Link className="button button-secondary" href={`/admin/catalogue-intake?${manual.toString()}`}>Review representative product</Link></div>
