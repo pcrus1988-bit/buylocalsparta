@@ -26,6 +26,15 @@ const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string
   ["/admin/categories", { order: 7, label: "Categories & Policies" }]
 ]);
 
+const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
+  ["/admin/trust", { order: 0, label: "Media & Compliance" }],
+  ["/admin/recalls", { order: 1, label: "Product Safety" }],
+  ["/admin/reviews", { order: 2, label: "Reviews" }],
+  ["/admin/privacy", { order: 3, label: "Privacy" }],
+  ["/admin/accessibility", { order: 4, label: "Accessibility" }],
+  ["/admin/fairness", { order: 5, label: "Fairness" }]
+]);
+
 export function canAccessAdminNavLink(principal: SessionPrincipal, link: WorkspaceNavLink): boolean {
   if (link.roles?.length && !principal.roles.some((role) => link.roles?.includes(String(role)))) return false;
   return !link.permission || hasAdminPermission(principal, link.permission);
@@ -51,6 +60,15 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
         } : link;
       })
       .sort((a, b) => (CATALOGUE_OPERATOR_LINKS.get(a.href)?.order ?? 99) - (CATALOGUE_OPERATOR_LINKS.get(b.href)?.order ?? 99));
+  }
+
+  if (group.href === "/admin/trust") {
+    return links
+      .map((link) => {
+        const presentation = TRUST_OPERATOR_LINKS.get(link.href);
+        return presentation ? { ...link, label: presentation.label ?? link.label } : link;
+      })
+      .sort((a, b) => (TRUST_OPERATOR_LINKS.get(a.href)?.order ?? 99) - (TRUST_OPERATOR_LINKS.get(b.href)?.order ?? 99));
   }
 
   return links;
