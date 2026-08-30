@@ -59,7 +59,7 @@ export async function buildAdminAssistantPhase1Snapshot(
     snapshot = await searchConsoleIntelligence(principal, snapshot);
   }
 
-  snapshot = await applyRecommendationLifecycle(principal, snapshot);
+  snapshot = await applyRecommendationLifecycle(principal, snapshot).catch(() => snapshot);
 
   return {
     ...snapshot,
