@@ -4,10 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const financeTabs = [
-  { href: "/admin/finance", label: "Settlements" },
+  { href: "/admin/finance", label: "Payables & Settlements" },
   { href: "/admin/finance/vendor-billing", label: "Vendor Billing" },
-  { href: "/admin/finance/agreements", label: "Agreements" },
-  { href: "/admin/finance/agreements/sla", label: "SLA" },
   { href: "/admin/tax", label: "Tax & myDATA" }
 ] as const;
 
