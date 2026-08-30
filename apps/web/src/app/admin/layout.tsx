@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "../admin-operational-ux.css";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 
 export const metadata: Metadata = {
