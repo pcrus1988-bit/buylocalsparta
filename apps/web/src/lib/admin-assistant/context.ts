@@ -15,6 +15,7 @@ function safeDecode(value: string | undefined): string | undefined {
 
 function entityIdFromRoute(route: string, entityType?: string): string | undefined {
   if (entityType === "order") return safeDecode(/^\/admin\/orders\/([^/]+)$/.exec(route)?.[1]);
+  if (entityType === "vendor") return safeDecode(/^\/admin\/partners\/([^/]+)/.exec(route)?.[1]);
   return undefined;
 }
 
@@ -56,6 +57,8 @@ export function suggestedQuestionsForContext(context: AdminAssistantContext): re
     product_matching: ["Find duplicate-risk products.", "Which offers still need canonical matching?", "Show identifier conflicts.", "What can safely be resolved next?"],
     category_governance: ["Which categories need attention?", "Find empty or weak categories.", "Show taxonomy consistency problems.", "What category work has the highest impact?"],
     order_detail: ["Check everything related to this order.", "Is payment consistent with fulfilment?", "Does this order have a valid tax document?", "What is unusual about this order?"],
+    vendor_detail: ["Check this partner's operational readiness.", "Is the agreement valid for this partner state?", "Are active orders safe for this partner?", "What should I fix first?"],
+    vendor_catalogue: ["Is this partner ready to sell?", "What catalogue gaps block this partner?", "Does this partner have enough approved offers?", "What should I improve first?"],
     tax_mydata: ["Find paid orders missing tax documents.", "Show missing MARK documents.", "Which AADE failures need attention?", "What should I resolve first?"],
     gift_cards: ["Find gift cards that cannot be redeemed.", "Check checkout redemption readiness.", "Show state/value inconsistencies.", "What should I verify before launch?"],
     search_console: ["Which search queries are opportunities?", "Where are impressions not turning into clicks?", "Match search demand to catalogue coverage.", "What should I improve first?"],
