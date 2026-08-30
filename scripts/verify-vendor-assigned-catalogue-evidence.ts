@@ -71,7 +71,9 @@ for (const contract of [
   "demo vendor must see assigned catalogue rows"
 ]) expect(smoke.includes(contract), `Live Postgres smoke is missing contract: ${contract}`);
 
-expect(runtime.includes("EXPECTED_SCHEMA_VERSION = 166"), "PostgreSQL runtime must require schema 166");
+const runtimeSchemaMatch = runtime.match(/EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)/);
+const runtimeSchemaVersion = runtimeSchemaMatch ? Number(runtimeSchemaMatch[1]) : 0;
+expect(runtimeSchemaVersion >= 166, `PostgreSQL runtime must include schema 166 or later (found ${runtimeSchemaVersion || "none"})`);
 
 if (failures.length) {
   console.error(`Vendor assigned catalogue evidence acceptance failed (${failures.length}):`);
