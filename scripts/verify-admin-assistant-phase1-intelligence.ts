@@ -4,12 +4,14 @@ import { planExternalResearch } from "../apps/web/src/lib/admin-assistant/resear
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, dashboard, matching, searchConsole, catalogGovernance, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy] = await Promise.all([
+const [phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/search-console-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/catalog-governance-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/product-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/global-search.ts"),
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts"),
   read("apps/web/src/lib/admin-assistant/context.ts"),
@@ -97,7 +99,37 @@ assert.match(catalogGovernance, /non-standard commerce policy\/ies are treated a
 assert.match(catalogGovernance, /fuzzy synonym inference, multienum splitting and unit conversion remain review-required/i);
 assert.doesNotMatch(catalogGovernance, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
 
-for (const tool of ["getProductMatchingIntelligence", "getSearchConsoleIntelligence"]) assert.match(toolRegistry, new RegExp(tool));
+for (const rule of [
+  "product_missing_greek_title",
+  "product_missing_greek_description",
+  "product_unmapped_attributes",
+  "product_no_approved_vendor_offer",
+  "product_visible_without_sellable_stock",
+  "inventory_stale",
+  "product_active_but_suppressed",
+  "seo_non_indexable_product"
+]) assert.match(productIntelligence, new RegExp(rule));
+assert.match(productIntelligence, /assertAdminPermission\(principal, "catalog\.read"\)/);
+assert.match(productIntelligence, /platformScope\(principal\.userId, "sparta"\)/);
+assert.match(productIntelligence, /product_identifiers/);
+assert.match(productIntelligence, /vendor_offers/);
+assert.match(productIntelligence, /inventory_balances/);
+assert.match(productIntelligence, /catalog_source_product_links/);
+assert.match(productIntelligence, /catalog_source_attribute_observations/);
+assert.match(productIntelligence, /freshness_status/);
+assert.match(productIntelligence, /stock_confirmed_at/);
+assert.match(productIntelligence, /freshness_ttl_seconds/);
+assert.match(productIntelligence, /csp\.id::text AS source_product_id/);
+assert.doesNotMatch(productIntelligence, /csp\.public_id/);
+assert.match(productIntelligence, /readOnly: true/);
+assert.doesNotMatch(productIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
+assert.match(globalSearch, /searchAdminProducts/);
+assert.match(globalSearch, /kind: "order" \| "product"/);
+assert.match(globalSearch, /hasAdminPermission\(principal, "catalog\.read"\)/);
+
+for (const tool of ["getProductMatchingIntelligence", "getProductIntelligence", "getSearchConsoleIntelligence"]) assert.match(toolRegistry, new RegExp(tool));
+assert.match(toolRegistry, /getAdminAssistantProductState/);
 assert.match(toolRegistry, /adminMatchingWorkspace/);
 assert.match(toolRegistry, /getSearchConsoleHistoryWorkspace/);
 assert.match(toolRegistry, /pageTypes: \["product_matching"\]/);
@@ -107,9 +139,19 @@ assert.match(toolRegistry, /ASSISTANT_TOOL_PERMISSION_REQUIRED/);
 
 assert.match(investigation, /getProductMatchingIntelligence/);
 assert.match(investigation, /context\.filters\.submission/);
+assert.match(investigation, /row\.kind === "product"/);
+assert.match(investigation, /getProductIntelligence/);
+assert.match(investigation, /\bcv_/);
+assert.match(investigation, /\d\{8,14\}/);
 assert.match(investigation, /getSearchConsoleIntelligence/);
 assert.match(investigation, /candidates\.slice\(0, 3\)/);
 assert.match(investigation, /availableAssistantTools/);
+
+assert.match(service, /rows\[0\]\?\.kind === "product"/);
+assert.match(service, /getProductIntelligence/);
+assert.match(service, /sellableStock=/);
+assert.match(service, /staleInventory=/);
+assert.match(service, /no identifier was inferred by the model/i);
 
 assert.match(researchPolicy, /private_tool_failure/);
 assert.match(researchPolicy, /Public web research must never be used to compensate for a failed private database\/tool read/i);
