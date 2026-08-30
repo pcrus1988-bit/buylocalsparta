@@ -11,6 +11,7 @@ import { searchConsoleReadiness } from "../seo-search-console";
 import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
 import { searchAdminEntities } from "./global-search";
 import { getAdminAssistantOrderIntelligence } from "./order-intelligence";
+import { getAdminAssistantProductState } from "./product-intelligence";
 import { recordAssistantToolAudit } from "./repository";
 import { getAdminAssistantTaxCrossDomain } from "./tax-cross-domain";
 import type { AdminAssistantContext } from "./types";
@@ -37,7 +38,7 @@ const TOOLS: readonly ToolDefinition[] = [
   {
     name: "getGlobalAdminSearch",
     family: "search",
-    description: "Resolve orders, customers, support tickets, partners, applications and research leads through permission-aware Admin search.",
+    description: "Resolve products, orders, customers, support tickets, partners, applications and research leads through permission-aware Admin search.",
     capability: "assistant.read",
     execute: async (principal, args) => {
       const query = textArg(args, "query");
@@ -154,6 +155,39 @@ const TOOLS: readonly ToolDefinition[] = [
             status: candidate.status
           }))
         }))
+      };
+    }
+  },
+  {
+    name: "getProductIntelligence",
+    family: "catalogue",
+    description: "Return one canonical product's identity, Greek content, identifiers, vendor offers, inventory freshness, source links, unresolved source attributes and SEO intent.",
+    capability: "catalog.read",
+    execute: async (principal, args) => {
+      const productId = textArg(args, "productId");
+      if (!productId) throw new Error("productId is required");
+      const product = await getAdminAssistantProductState(principal, productId);
+      if (!product) throw new Error("PRODUCT_NOT_FOUND");
+      return {
+        product: {
+          id: product.id,
+          title: product.title,
+          descriptionPresent: Boolean(product.description),
+          gtin: product.gtin,
+          brand: product.brand,
+          model: product.model,
+          mpn: product.mpn,
+          categoryCode: product.categoryCode,
+          categoryName: product.categoryName,
+          active: product.active,
+          suppressed: product.suppressed,
+          recalled: product.recalled,
+          identifiers: product.identifiers.slice(0, 20),
+          offers: product.offers.slice(0, 25),
+          sourceLinks: product.sourceLinks.slice(0, 20),
+          unmappedAttributeCount: product.unmappedAttributeCount,
+          seo: product.seo
+        }
       };
     }
   },
