@@ -1,0 +1,166 @@
+/* SEO & Visibility operational cleanup.
+ * Presentation and information-architecture only: routes, permissions, APIs and SEO decisions are unchanged.
+ */
+
+/* The Admin context bar already owns cross-page SEO navigation. Remove the legacy duplicate rows. */
+.admin-app section.admin-local-tabs-shell:has(> nav[aria-label="SEO page registry navigation"]),
+.admin-app section.admin-local-tabs-shell:has(> nav[aria-label="SEO issue workspace navigation"]),
+.admin-app section.admin-local-tabs-shell:has(> nav[aria-label="SEO sitemap workspace navigation"]),
+.admin-app section.admin-local-tabs-shell:has(> nav[aria-label="Structured-data workspace navigation"]),
+.admin-app section.admin-local-tabs-shell:has(> nav[aria-label="SEO report workspace navigation"]),
+.admin-app section.admin-local-tabs-shell:has(> nav[aria-label="Google index coverage navigation"]) {
+  display: none;
+}
+
+/* Crawl and Search Console keep local anchor navigation, but cross-page links are redundant with the Admin context bar. */
+.admin-app nav[aria-label="Crawl workspace sections"] a[href="/admin/seo/issues"],
+.admin-app nav[aria-label="Crawl workspace sections"] a[href="/admin/seo/search-console"],
+.admin-app nav[aria-label="Crawl workspace sections"] a[href="/admin/seo"],
+.admin-app nav[aria-label="Search Console sections"] a[href="/admin/seo/pages"],
+.admin-app nav[aria-label="Search Console sections"] a[href="/admin/seo/crawl"],
+.admin-app nav[aria-label="Search Console sections"] a[href="/admin/seo"] {
+  display: none;
+}
+
+/* Overview workflow launchers replace the previous all-in-one wall of settings, reports and queues. */
+.seo-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.seo-workflow-card {
+  position: relative;
+  min-width: 0;
+  min-height: 142px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px 16px;
+  color: var(--dash-ink);
+  border: 1px solid var(--dash-line);
+  border-radius: 13px;
+  background: var(--dash-panel);
+  box-shadow: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.seo-workflow-card:hover,
+.seo-workflow-card:focus-visible {
+  border-color: rgba(185, 148, 81, .68);
+  background: #fffaf0;
+}
+
+.seo-workflow-card.needs-attention {
+  border-color: rgba(159, 73, 62, .34);
+  box-shadow: inset 3px 0 0 rgba(159, 73, 62, .72);
+}
+
+.seo-workflow-card > span {
+  color: var(--dash-gold);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.seo-workflow-card > strong {
+  margin-top: 7px;
+  color: var(--dash-navy);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.seo-workflow-card > p {
+  margin: 6px 0 14px;
+  color: var(--dash-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.seo-workflow-card > b {
+  margin-top: auto;
+  color: var(--dash-navy);
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.seo-workflow-card > i {
+  margin-top: 2px;
+  color: var(--dash-muted);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.seo-overview-attention .workspace-queue-card {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.seo-overview-more {
+  margin: 10px 0 0;
+  color: var(--dash-muted);
+  font-size: 10px;
+}
+
+.seo-inventory-grid .admin-domain-card {
+  min-height: 145px;
+}
+
+.seo-public-endpoints {
+  margin-top: 14px;
+}
+
+/* Configuration, eligibility and governance are secondary work; disclose them only on demand. */
+.seo-admin-disclosure {
+  overflow: hidden;
+  border: 1px solid var(--dash-line);
+  border-radius: 13px;
+  background: var(--dash-panel);
+}
+
+.seo-admin-disclosure + .seo-admin-disclosure {
+  margin-top: 8px;
+}
+
+.seo-admin-disclosure > summary {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 15px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.seo-admin-disclosure > summary::-webkit-details-marker { display: none; }
+.seo-admin-disclosure > summary > span { min-width: 0; }
+.seo-admin-disclosure > summary strong,
+.seo-admin-disclosure > summary small { display: block; }
+.seo-admin-disclosure > summary strong { color: var(--dash-navy); font-size: 12px; }
+.seo-admin-disclosure > summary small { margin-top: 4px; color: var(--dash-muted); font-size: 9.5px; line-height: 1.45; }
+.seo-admin-disclosure > summary > b { flex: 0 0 auto; color: var(--dash-gold); font-size: 10px; }
+.seo-admin-disclosure > summary::after { content: "+"; width: 25px; height: 25px; flex: 0 0 25px; display: grid; place-items: center; color: var(--dash-gold); border: 1px solid var(--dash-line); border-radius: 50%; font: 700 14px/1 Arial, sans-serif; }
+.seo-admin-disclosure[open] > summary::after { content: "−"; }
+.seo-admin-disclosure[open] > summary { border-bottom: 1px solid var(--dash-line); background: rgba(185, 148, 81, .045); }
+.seo-admin-disclosure-body { padding: 15px; }
+.seo-disclosure-subheading { margin: 24px 0 10px; color: var(--dash-navy); font-size: 17px; }
+
+/* SEO pages often carry long technical tokens; keep them readable without blowing out the layout. */
+.admin-app code,
+.admin-app .seo-admin-disclosure span,
+.admin-app .seo-admin-disclosure small {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1180px) {
+  .seo-workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .seo-workflow-grid { grid-template-columns: 1fr; }
+  .seo-workflow-card { min-height: 122px; }
+  .seo-admin-disclosure > summary { align-items: flex-start; gap: 10px; }
+  .seo-admin-disclosure > summary > b { display: none; }
+  .seo-admin-disclosure-body { padding: 12px; }
+}

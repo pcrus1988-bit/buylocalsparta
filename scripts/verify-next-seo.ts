@@ -39,6 +39,7 @@ const monitoringRuntime = read("apps/web/src/lib/seo-diagnostic-monitoring.ts");
 const reportRunner = read("apps/web/src/components/AdminSeoReportRunner.tsx");
 const reportExportRoute = read("apps/web/src/app/api/admin/seo/reports/[id]/route.ts");
 const adminSeoPage = read("apps/web/src/app/admin/seo/page.tsx");
+const adminSeoReportsPage = read("apps/web/src/app/admin/seo/reports/page.tsx");
 const adminCrawlPage = read("apps/web/src/app/admin/seo/crawl/page.tsx");
 const adminSearchConsolePage = read("apps/web/src/app/admin/seo/search-console/page.tsx");
 const catalogRuntime = read("apps/web/src/lib/catalog-view.ts");
@@ -244,7 +245,8 @@ for (const forbidden of ["cookie", "password", "credential", "customer"]) if (re
 for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) requireText(settingsAction, contract, `SEO report Server Action is missing ${contract}`);
 for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) requireText(reportRunner, contract, `SEO report runner is missing ${contract}`);
 for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) requireText(reportExportRoute, contract, `Protected SEO report export is missing ${contract}`);
-for (const contract of ["Persisted diagnostic reports", "scoreDelta", "Changed since last run", "regressionSignals", "?format=json", "?format=csv", "Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO UI is missing ${contract}`);
+for (const contract of ["Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO overview is missing ${contract}`);
+for (const contract of ["Unified SEO release report", "AdminSeoReportRunner", "data.regressionSignals", "Changed since the previous saved baseline", "Persisted diagnostic history", "?format=json", "?format=csv"]) requireText(adminSeoReportsPage, contract, `Admin SEO reports workspace is missing ${contract}`);
 for (const contract of ["critical-diagnostic:", "health-score-drop", "product-runtime-loss", "vendor-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change", "routeClassChanges", "comparableCurrentFormat", "materialDrop", "materialWeakGrowth"]) requireText(monitoringRuntime, contract, `SEO regression monitoring is missing ${contract}`);
 
 const baselineReport = {
