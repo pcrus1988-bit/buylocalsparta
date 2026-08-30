@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { ADMIN_ACTION_COMPLETED_EVENT, type AdminActionCompletedDetail } from "../lib/admin-action-events";
-import { safeAdminHref, type AdminAssistantAction, type AdminAssistantClientContext, type AdminAssistantConversationSummary, type AdminAssistantResponsePayload, type AdminAssistantSnapshot, type AdminAssistantStoredMessage } from "../lib/admin-assistant/types";
+import { safeAdminHref, type AdminAssistantAction, type AdminAssistantClientContext, type AdminAssistantConversationSummary, type AdminAssistantRecommendationState, type AdminAssistantResponsePayload, type AdminAssistantSnapshot, type AdminAssistantStoredMessage } from "../lib/admin-assistant/types";
 
 type UiMessage = Readonly<{ id: string; role: "user" | "assistant"; content: string; payload?: AdminAssistantResponsePayload }>;
 
@@ -38,6 +38,7 @@ export function AdminAssistantShell({ children, csrfToken }: { children: ReactNo
   const [history, setHistory] = useState<readonly AdminAssistantConversationSummary[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [recommendationBusy, setRecommendationBusy] = useState<string>();
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [transitionNotice, setTransitionNotice] = useState("");
@@ -153,6 +154,24 @@ export function AdminAssistantShell({ children, csrfToken }: { children: ReactNo
     } finally { abortRef.current = null; setBusy(false); setStatus(""); }
   }
 
+  async function updateRecommendationState(recommendationKey: string, state: AdminAssistantRecommendationState, snoozedUntil?: number) {
+    if (recommendationBusy) return;
+    setRecommendationBusy(recommendationKey); setError(""); setStatus("Updating recommendation…");
+    try {
+      const response = await fetch("/api/admin/assistant/recommendations", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ recommendationKey, state, snoozedUntil })
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Recommendation update failed");
+      setTransitionNotice(state === "dismissed" ? "Recommendation dismissed. It will return if the underlying evidence changes." : state === "snoozed" ? "Recommendation snoozed for one day." : state === "intentional" ? "Recommendation marked intentional. It will return if the underlying evidence changes." : "Recommendation reactivated.");
+      await loadSnapshot("Refreshing recommendations…");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Recommendation update failed");
+    } finally { setRecommendationBusy(undefined); setStatus(""); }
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); void sendQuestion(input); }
   function closePanel() { setOpen(false); window.setTimeout(() => openButtonRef.current?.focus(), 0); }
 
@@ -182,6 +201,11 @@ export function AdminAssistantShell({ children, csrfToken }: { children: ReactNo
                 <div><span>{item.priority}</span><b>{item.confidence} confidence</b></div>
                 <strong>{item.title}</strong><p>{item.explanation}</p>
                 {item.actions.slice(0, 2).map((action) => { const href = safeReadActionHref(action); return href ? <Link key={action.id} href={href}>{action.label} →</Link> : null; })}
+                <div className="admin-assistant-rec-actions" aria-label={`Manage recommendation ${item.title}`}>
+                  <button type="button" disabled={recommendationBusy === item.id} onClick={() => void updateRecommendationState(item.id, "dismissed")}>Dismiss</button>
+                  <button type="button" disabled={recommendationBusy === item.id} onClick={() => void updateRecommendationState(item.id, "snoozed", Date.now() + 24 * 60 * 60 * 1_000)}>Snooze 1d</button>
+                  <button type="button" disabled={recommendationBusy === item.id} onClick={() => void updateRecommendationState(item.id, "intentional")}>Intentional</button>
+                </div>
               </article>)}</div>
             </> : null}
             {snapshot.findings.length > 0 && <>
