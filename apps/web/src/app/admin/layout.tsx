@@ -8,6 +8,7 @@ import "../admin-customers-operational.css";
 import "../admin-finance-operational.css";
 import "../admin-trust-operational.css";
 import "../admin-analytics-operational.css";
+import "../admin-content-operational.css";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 
 export const metadata: Metadata = {
