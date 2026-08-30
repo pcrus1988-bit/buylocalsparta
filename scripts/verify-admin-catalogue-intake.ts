@@ -30,6 +30,10 @@ requireText("mapping", "product_type_attributes", "Attribute choices and approva
 requireText("mapping", "scopeKind", "Attribute mapping must carry an exact source context scope");
 requireText("mapping", "source_taxonomy_node_id", "Supplier taxonomy-node context must be supported");
 requireText("mapping", "provider_category", "Provider category context must be supported when no taxonomy node exists");
+requireText("mapping", "catalog_source_category_mappings", "Taxonomy-scoped mapping must consult governed canonical category mapping");
+requireText("mapping", "category_product_types", "Taxonomy-scoped mapping must validate Product Type against the approved category");
+requireText("mapping", "m.mapping_status='approved'", "Only approved source-category mappings may authorize a taxonomy-scoped Product Type");
+requireText("mapping", "not allowed for approved category", "Invalid Product Type/category combinations must be rejected explicitly");
 requireText("mapping", "backfill_catalog_source_attribute_mapping_rule", "Admin backfill must use the same schema rule engine as future inserts");
 requireText("mapping", "a.mapping_status='unmapped'", "Attribute mapping conflict checks must preserve unresolved evidence boundaries");
 requireText("mapping", "a.attribute_id IS NULL", "Attribute mapping conflict checks must not overwrite observations that already have a canonical attribute");
@@ -70,4 +74,4 @@ requireText("navigation", 'href: "/admin/catalogue-intake"', "Supplier PIM intak
 requireText("navigation", 'permission: "catalog.read"', "Supplier PIM navigation must stay visible to catalog.read reviewers");
 
 if (failures.length) throw new Error(`Admin Supplier PIM intake verification failed:\n- ${failures.join("\n- ")}`);
-console.log("Admin Supplier PIM intake verification passed: read-only source evidence plus exact-context, Product-Type-governed attribute mapping are registered and evidence-preserving.");
+console.log("Admin Supplier PIM intake verification passed: read-only source evidence plus exact-context, category-bound Product-Type-governed attribute mapping are registered and evidence-preserving.");
