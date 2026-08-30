@@ -227,50 +227,16 @@ export async function mapCatalogueSourceAttribute(
       ruleId = required(ruleResult.rows[0]?.id, "mapping rule.id");
     }
 
-    const mappedResult = await tx.query<SqlRow>(`
-      WITH target AS (
-        SELECT ad.data_type,
-               COALESCE(pta.unit_override,ad.unit) AS effective_unit
-        FROM public.product_type_attributes pta
-        JOIN public.attribute_definitions ad ON ad.id=pta.attribute_id
-        WHERE pta.product_type_id=$5::uuid AND pta.attribute_id=$6::uuid
-      )
-      UPDATE public.catalog_source_attribute_observations AS a
-      SET attribute_id=$6::uuid,
-          mapping_status=bls_private.catalog_source_attribute_mapping_status(
-            target.data_type,target.effective_unit,a.source_unit,a.raw_value,a.normalized_value
-          ),
-          confidence=1,
-          metadata=COALESCE(a.metadata,'{}'::jsonb) || jsonb_build_object(
-            'mappingRuleId',$7::uuid,
-            'mappingMethod','admin_exact_context',
-            'mappingScopeKind',$3,
-            'mappingScopeKey',$4,
-            'productTypeId',$5::uuid,
-            'mappedBy',$8::text,
-            'mappedAt',now(),
-            'backfilled',true
-          )
-      FROM public.catalog_source_products AS sp, target
-      WHERE sp.id=a.source_product_id
-        AND sp.source_id=$1::uuid
-        AND a.source_attribute_key=$2::text
-        AND (
-          ($3='taxonomy_node' AND sp.source_taxonomy_node_id::text=$4)
-          OR
-          ($3='source_category' AND sp.source_taxonomy_node_id IS NULL AND COALESCE(
-            NULLIF(btrim(sp.source_identity->>'categoryId'),''),
-            NULLIF(btrim(sp.source_identity->>'category_id'),''),
-            NULLIF(btrim(sp.normalized_payload->>'sourceCategoryId'),'')
-          )=$4)
-        )
-        AND a.mapping_status='unmapped'
-        AND a.attribute_id IS NULL
-      RETURNING a.mapping_status
-    `, [sourceId, sourceAttributeKey, scopeKind, scopeKey, productTypeId, attributeId, ruleId, principal.userId]);
-
-    const mappedObservations = mappedResult.rows.filter((row) => row.mapping_status === "mapped").length;
-    const reviewRequiredObservations = mappedResult.rows.filter((row) => row.mapping_status === "review_required").length;
+    const backfillResult = await tx.query<SqlRow>(`
+      SELECT mapping_status,row_count
+      FROM bls_private.backfill_catalog_source_attribute_mapping_rule($1::uuid,$2::uuid)
+    `, [ruleId, principal.userId]);
+    const mappedObservations = backfillResult.rows
+      .filter((row) => row.mapping_status === "mapped")
+      .reduce((total, row) => total + numberValue(row.row_count), 0);
+    const reviewRequiredObservations = backfillResult.rows
+      .filter((row) => row.mapping_status === "review_required")
+      .reduce((total, row) => total + numberValue(row.row_count), 0);
 
     return {
       sourceProductId,
