@@ -38,7 +38,7 @@ export function parseAssistantClientContext(input: unknown): AdminAssistantClien
 export function suggestedQuestionsForDomain(domain: AdminAssistantDomain): readonly string[] {
   switch (domain) {
     case "dashboard": return ["What should I do next?", "What changed recently?", "Show only critical problems.", "Explain this overview."];
-    case "catalogue": return ["What should I prioritize here?", "Explain this catalogue state.", "Show the highest-impact data-quality issues.", "Check everything related to this context."];
+    case "catalogue": return ["What should I prioritize here?", "Explain unmapped attributes.", "Show the highest-impact data-quality issues.", "Check everything related to this context."];
     case "orders": return ["Which orders need attention?", "Find payment and fulfilment inconsistencies.", "Check everything related to this order.", "What should I fix first?"];
     case "partners": return ["Which partners need attention?", "Show onboarding blockers.", "Explain this partner state.", "What should I follow up next?"];
     case "tax": return ["Which fiscal documents need attention?", "Show missing MARK or transmission issues.", "Explain this tax screen.", "What is safe to do next?"];
