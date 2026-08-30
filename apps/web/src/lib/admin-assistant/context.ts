@@ -56,6 +56,7 @@ export function suggestedQuestionsForContext(context: AdminAssistantContext): re
     global_search: ["Find a product by title, model or GTIN.", "Find an order by its public reference.", "Look up a customer or support ticket.", "Find a partner and inspect its readiness."],
     attribute_mapping: ["Show the highest-impact unmapped attributes.", "Suggest safe mappings.", "Find inconsistent units.", "What should I map first?"],
     catalogue_import: ["Is ingestion stalled?", "Why are rows being rejected?", "What changed in the latest ingestion?", "Show the highest-impact ingestion problem."],
+    catalogue_crawler: ["Did the latest website crawl fail or stall?", "Is there evidence of possible source drift?", "Which extracted products still need review?", "Is a completed crawl ready for the PIM hand-off?"],
     product_matching: ["Find duplicate-risk products.", "Which offers still need canonical matching?", "Show identifier conflicts.", "What can safely be resolved next?"],
     category_governance: ["Which categories need attention?", "Find empty or weak categories.", "Show taxonomy consistency problems.", "What category work has the highest impact?"],
     order_detail: ["Check everything related to this order.", "Is payment consistent with fulfilment?", "Does this order have a valid tax document?", "What is unusual about this order?"],
