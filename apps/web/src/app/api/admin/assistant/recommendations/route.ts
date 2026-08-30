@@ -1,5 +1,6 @@
 import { adminAssistantEnabled } from "../../../../../lib/admin-assistant/config";
 import { setRecommendationLifecycleState } from "../../../../../lib/admin-assistant/recommendation-lifecycle";
+import { recordAssistantToolAudit } from "../../../../../lib/admin-assistant/repository";
 import type { AdminAssistantRecommendationState } from "../../../../../lib/admin-assistant/types";
 import { requireAdminSession } from "../../../../../lib/admin-session";
 
@@ -16,7 +17,14 @@ export async function POST(request: Request) {
     const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : undefined;
     if (!recommendationKey) return Response.json({ error: "Recommendation key is required" }, { status: 400, headers: { "cache-control": "private, no-store" } });
     if (!state || !ALLOWED_STATES.has(state)) return Response.json({ error: "Invalid recommendation state" }, { status: 400, headers: { "cache-control": "private, no-store" } });
+    const startedAt = Date.now();
     const updated = await setRecommendationLifecycleState(principal, { recommendationKey, state, snoozedUntil, reason });
+    await recordAssistantToolAudit(principal, {
+      toolName: "assistant.recommendation.state",
+      parameters: { recommendationKey, state, ...(state === "snoozed" && snoozedUntil ? { snoozedUntil } : {}) },
+      resultState: "ok",
+      durationMs: Date.now() - startedAt
+    }).catch(() => undefined);
     return Response.json({ recommendation: updated }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "assistant_recommendation_state_failed";
