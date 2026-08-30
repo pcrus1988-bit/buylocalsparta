@@ -6,9 +6,10 @@ import { adminVendorsWorkspace, hasAdminPermission } from "../admin-runtime";
 import { marketplaceReferenceMap } from "../public-reference-service";
 import { researchVendorsWorkspace } from "../research-vendors-runtime";
 import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
+import { searchAdminProducts } from "./product-intelligence";
 
 export type AdminAssistantSearchResult = Readonly<{
-  kind: "order" | "customer" | "support" | "vendor" | "vendor_application" | "research_vendor";
+  kind: "order" | "product" | "customer" | "support" | "vendor" | "vendor_application" | "research_vendor";
   id: string;
   label: string;
   detail: string;
@@ -26,10 +27,12 @@ export async function searchAdminEntities(
   const query = norm(queryText);
   if (!query) return [];
 
+  const canCatalog = hasAdminPermission(principal, "catalog.read");
   const canCustomer = hasAdminPermission(principal, "customer.read");
   const canFulfil = hasAdminPermission(principal, "fulfilment.read");
   const canVendor = hasAdminPermission(principal, "vendor.manage");
-  const [customers, support, orderData, applications, shops, research] = await Promise.all([
+  const [products, customers, support, orderData, applications, shops, research] = await Promise.all([
+    canCatalog ? searchAdminProducts(principal, queryText).catch(() => []) : [],
     canCustomer ? adminCustomersWorkspace(principal, { query: queryText }).catch(() => undefined) : undefined,
     canCustomer ? adminCustomerSupportQueue(principal, { query: queryText }).catch(() => undefined) : undefined,
     canFulfil ? adminOrdersReturnsWorkspace(principal).catch(() => undefined) : undefined,
@@ -45,6 +48,10 @@ export async function searchAdminEntities(
     const reference = orderReferences.get(order.id) ?? order.id;
     results.push({ kind: "order", id: order.id, label: reference, detail: `${order.status} · ${order.lines.length} line(s) · ${order.customerId ?? "guest"}`, href: `/admin/orders/${encodeURIComponent(reference)}` });
     if (results.filter((item) => item.kind === "order").length >= 12) break;
+  }
+
+  for (const product of products.slice(0, 12)) {
+    results.push({ kind: "product", id: product.id, label: product.title, detail: product.detail, href: product.href });
   }
 
   for (const customer of customers?.customers.slice(0, 12) ?? []) {
