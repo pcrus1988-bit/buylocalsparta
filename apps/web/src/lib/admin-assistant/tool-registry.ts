@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminCatalogueAttributeReviewWorkspace } from "../admin-catalogue-attribute-review";
 import { adminCatalogueOverviewWorkspace } from "../admin-catalogue-overview-runtime";
+import { adminCrawlerDashboard } from "../admin-catalogue-crawler";
 import { adminMaintenanceWorkspace, adminOrdersReturnsWorkspace } from "../admin-governance-runtime";
 import { adminOpenIcecatIngestionStatus } from "../admin-open-icecat-ingestion";
 import { adminMatchingWorkspace, adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from "../admin-runtime";
@@ -126,6 +127,41 @@ const TOOLS: readonly ToolDefinition[] = [
           failed: data.detail.failed,
           skipped: data.detail.skipped
         } : undefined
+      };
+    }
+  },
+  {
+    name: "getCatalogueCrawlerIntelligence",
+    family: "catalogue",
+    description: "Return bounded Website Import crawler queue, worker lease, page outcome, extraction/review and PIM-promotion evidence for source-drift investigation.",
+    capability: "catalog.read",
+    pageTypes: ["catalogue_crawler"],
+    execute: async (principal) => {
+      const data = await adminCrawlerDashboard(principal);
+      return {
+        health: data.health,
+        jobs: data.jobs.slice(0, 40).map((job) => ({
+          id: job.id,
+          profileId: job.profileId,
+          sourceName: job.sourceName,
+          profileCode: job.profileCode,
+          rootUrl: job.rootUrl,
+          crawlMode: job.crawlMode,
+          status: job.status,
+          attemptCount: job.attemptCount,
+          discovered: job.discovered,
+          fetched: job.fetched,
+          skipped: job.skipped,
+          failed: job.failed,
+          extracted: job.extracted,
+          review: job.review,
+          promoted: job.promoted,
+          leaseExpiresAt: job.leaseExpiresAt,
+          lastHeartbeatAt: job.lastHeartbeatAt,
+          createdAt: job.createdAt,
+          completedAt: job.completedAt,
+          failureReason: job.failureReason
+        }))
       };
     }
   },
