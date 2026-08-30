@@ -4,7 +4,11 @@ import { planExternalResearch } from "../apps/web/src/lib/admin-assistant/resear
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence, crawlerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy] = await Promise.all([
+const [
+  phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence,
+  crawlerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config,
+  researchPolicy, recommendationLifecycle, recommendationRoute, migration169, checksum169, postgresRuntime, shell
+] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
@@ -20,7 +24,13 @@ const [phase1, dashboard, matching, searchConsole, catalogGovernance, productInt
   read("apps/web/src/lib/admin-assistant/page-registry.ts"),
   read("apps/web/src/lib/admin-assistant/service.ts"),
   read("apps/web/src/lib/admin-assistant/config.ts"),
-  read("apps/web/src/lib/admin-assistant/research-policy.ts")
+  read("apps/web/src/lib/admin-assistant/research-policy.ts"),
+  read("apps/web/src/lib/admin-assistant/recommendation-lifecycle.ts"),
+  read("apps/web/src/app/api/admin/assistant/recommendations/route.ts"),
+  read("db/migrations/0169_admin_assistant_recommendation_states.sql"),
+  read("db/migrations/checksums.0169.json"),
+  read("packages/postgres-runtime/src/index.ts"),
+  read("apps/web/src/components/AdminAssistantShell.tsx")
 ]);
 
 const productSnapshot = { context: { domain: "catalogue", pageType: "product_matching" }, findings: [{ ruleId: "product_no_canonical_candidate" }] } as any;
@@ -28,9 +38,10 @@ assert.equal(planExternalResearch("Should I create a new canonical for this genu
 assert.equal(planExternalResearch("Should I create a new canonical for this product?", productSnapshot, [{ toolName: "getProductMatchingIntelligence", state: "error" } as any]).useExternalResearch, false);
 assert.equal(planExternalResearch("What does KONTA MOY currently know?", productSnapshot, []).useExternalResearch, false);
 
-for (const symbol of ["dashboardOperationalIntelligence", "productMatchingIntelligence", "searchConsoleIntelligence", "categoryGovernanceIntelligence", "controlledValueIntelligence", "customerOperationalIntelligence", "crawlerOperationalIntelligence"]) assert.match(phase1, new RegExp(symbol));
+for (const symbol of ["dashboardOperationalIntelligence", "productMatchingIntelligence", "searchConsoleIntelligence", "categoryGovernanceIntelligence", "controlledValueIntelligence", "customerOperationalIntelligence", "crawlerOperationalIntelligence", "applyRecommendationLifecycle"]) assert.match(phase1, new RegExp(symbol));
 for (const pageType of ["dashboard", "product_matching", "category_governance", "controlled_values", "customer_detail", "catalogue_crawler"]) assert.match(phase1, new RegExp(pageType));
 assert.match(phase1, /\["seo_overview", "search_console"\]/);
+assert.match(phase1, /snapshot = await applyRecommendationLifecycle\(principal, snapshot\)/);
 
 for (const rule of ["return_refund_ready", "paid_order_missing_tax_document", "payment_order_state_mismatch", "product_unmapped_attributes", "vendor_active_without_agreement", "vendor_no_active_location", "seo_critical_diagnostic", "failed_background_job"]) assert.match(dashboard, new RegExp(rule));
 assert.match(dashboard, /Promise\.all/);
@@ -144,6 +155,45 @@ assert.match(service, /externalResearchPolicy/);
 assert.match(service, /researchReason/);
 assert.match(service, /tools: \[\{ type: "web_search" \}\]/);
 assert.match(config, /ADMIN_ASSISTANT_EXTERNAL_RESEARCH", true/);
+
+// Recommendation lifecycle is assistant metadata, scoped per Admin and evidence fingerprint.
+assert.match(recommendationLifecycle, /recommendationEvidenceFingerprint/);
+assert.match(recommendationLifecycle, /createHash\("sha256"\)/);
+assert.match(recommendationLifecycle, /admin_user_id=\$1 AND recommendation_key=\$2/);
+assert.match(recommendationLifecycle, /platformScope\(principal\.userId\)/);
+assert.match(recommendationLifecycle, /prior\.fingerprint !== fingerprint/);
+assert.match(recommendationLifecycle, /state='active'/);
+assert.match(recommendationLifecycle, /state === "dismissed" \|\| state\.state === "resolved" \|\| state\.state === "intentional"/);
+assert.match(recommendationLifecycle, /state === "snoozed"/);
+assert.match(recommendationLifecycle, /90 \* 24 \* 60 \* 60 \* 1_000/);
+assert.match(recommendationLifecycle, /ASSISTANT_RECOMMENDATION_NOT_FOUND/);
+assert.match(recommendationLifecycle, /admin_assistant_recommendation_states/g);
+assert.doesNotMatch(recommendationLifecycle, /UPDATE (?:users|customer_orders|vendor_offers|vendor_businesses|canonical_variants|tax_documents)|INSERT INTO (?:users|customer_orders|vendor_offers|vendor_businesses|canonical_variants|tax_documents)|DELETE FROM (?:users|customer_orders|vendor_offers|vendor_businesses|canonical_variants|tax_documents)/i);
+
+assert.match(recommendationRoute, /requireAdminSession\(request, \{ csrf: true \}\)/);
+assert.match(recommendationRoute, /setRecommendationLifecycleState/);
+assert.match(recommendationRoute, /"active", "dismissed", "snoozed", "intentional"/);
+assert.doesNotMatch(recommendationRoute, /"accepted"|"resolved"/);
+assert.match(recommendationRoute, /cache-control/);
+assert.doesNotMatch(recommendationRoute, /\/api\/admin\/(?:orders|customers|vendors|tax|catalog)/i);
+
+assert.match(shell, /\/api\/admin\/assistant\/recommendations/);
+assert.match(shell, /"x-csrf-token": csrfToken/);
+assert.match(shell, />Dismiss<\/button>/);
+assert.match(shell, />Snooze 1d<\/button>/);
+assert.match(shell, />Intentional<\/button>/);
+assert.match(shell, /underlying evidence changes/i);
+
+assert.match(migration169, /admin_assistant_recommendation_states/);
+assert.match(migration169, /ENABLE ROW LEVEL SECURITY/);
+assert.match(migration169, /bls_private\.is_platform_runtime\(\)/);
+assert.match(migration169, /REVOKE ALL .* FROM PUBLIC/i);
+assert.match(migration169, /idx_admin_assistant_tool_audit_conversation/);
+assert.match(migration169, /This is assistant metadata only/i);
+assert.doesNotMatch(migration169, /GRANT .* TO anon|GRANT .* TO authenticated/i);
+assert.match(checksum169, /0169_admin_assistant_recommendation_states\.sql/);
+assert.match(checksum169, /e580518d6f43a98924365ad172c6c5c4560777200a6d3cc5f547761c1c3b8b43/);
+assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 169/);
 
 assert.match(pageRegistry, /dashboard/);
 assert.match(pageRegistry, /product_matching/);
