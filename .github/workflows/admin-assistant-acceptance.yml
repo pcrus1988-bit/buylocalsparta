@@ -37,6 +37,6 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify Admin assistant security and context contracts
-        run: node --experimental-strip-types scripts/verify-admin-assistant.ts
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/verify-admin-assistant.ts
       - name: Verify migrations
         run: npm run db:verify
