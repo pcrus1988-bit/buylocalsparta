@@ -35,6 +35,12 @@ const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>(
   ["/admin/fairness", { order: 5, label: "Fairness" }]
 ]);
 
+const ANALYTICS_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
+  ["/admin/analytics", { order: 0, label: "Performance" }],
+  ["/admin/demand", { order: 1, label: "Demand" }],
+  ["/admin/reports", { order: 2, label: "Reports" }]
+]);
+
 export function canAccessAdminNavLink(principal: SessionPrincipal, link: WorkspaceNavLink): boolean {
   if (link.roles?.length && !principal.roles.some((role) => link.roles?.includes(String(role)))) return false;
   return !link.permission || hasAdminPermission(principal, link.permission);
@@ -69,6 +75,15 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
         return presentation ? { ...link, label: presentation.label ?? link.label } : link;
       })
       .sort((a, b) => (TRUST_OPERATOR_LINKS.get(a.href)?.order ?? 99) - (TRUST_OPERATOR_LINKS.get(b.href)?.order ?? 99));
+  }
+
+  if (group.href === "/admin/analytics") {
+    return links
+      .map((link) => {
+        const presentation = ANALYTICS_OPERATOR_LINKS.get(link.href);
+        return presentation ? { ...link, label: presentation.label ?? link.label } : link;
+      })
+      .sort((a, b) => (ANALYTICS_OPERATOR_LINKS.get(a.href)?.order ?? 99) - (ANALYTICS_OPERATOR_LINKS.get(b.href)?.order ?? 99));
   }
 
   return links;

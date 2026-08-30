@@ -27,9 +27,6 @@ function downloadHref(report: AdminVendorAnalyticsReport): string {
   return `/api/admin/analytics/report?${params.toString()}`;
 }
 
-const thStyle = { textAlign: "left", padding: "10px 12px", whiteSpace: "nowrap", borderBottom: "1px solid var(--border, #ddd)" } as const;
-const tdStyle = { padding: "10px 12px", whiteSpace: "nowrap", borderBottom: "1px solid var(--border, #eee)" } as const;
-
 export default async function Page({ searchParams }: PageProps) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -53,7 +50,7 @@ export default async function Page({ searchParams }: PageProps) {
   try {
     report = await adminVendorAnalyticsReport(principal, filters);
   } catch (error) {
-    reportError = error instanceof Error ? error.message : "Vendor analytics report is unavailable";
+    reportError = error instanceof Error ? error.message : "Vendor analytics are unavailable";
   }
 
   let data: Awaited<ReturnType<typeof adminMarketAnalyticsWorkspace>> | undefined;
@@ -66,20 +63,23 @@ export default async function Page({ searchParams }: PageProps) {
 
   const selectedVendor = report?.vendors.find((vendor) => vendor.id === report.filters.vendorId);
   const selectedCategory = report?.categories.find((category) => category.code === report.filters.categoryCode);
+  const zeroResultSignals = data?.topZeroResultQueries.reduce((sum, query) => sum + query.zeroResults, 0) ?? 0;
+  const demandClusters = (data?.topZeroResultQueries.length ?? 0) + (data?.categoryDemand.length ?? 0);
 
-  return <main className="vendor-app admin-app">
+  return <main className="vendor-app admin-app admin-analytics-operations">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
-      <div className="eyebrow">Market intelligence · vendor reporting</div>
-      <h1>Analytics & Reports</h1>
-      <p className="lead">Δημιούργησε, προέβαλε και κατέβασε reports ανά vendor, ημερομηνία και κατηγορία. Τα δεδομένα είναι aggregate και δεν εκθέτουν customer-level πληροφορίες.</p>
+      <div className="eyebrow">Analytics · live marketplace performance</div>
+      <h1>Marketplace Performance</h1>
+      <p className="lead">Παρακολούθησε το aggregate funnel impression → view → cart → checkout → purchase, σύγκρινε vendors και κάνε product drill-down χωρίς customer-level δεδομένα.</p>
+      <div className="hero-actions"><Link className="button button-secondary" href="/admin/demand">Demand Intelligence</Link><Link className="button button-secondary" href="/admin/reports">Saved & auditable reports</Link></div>
     </div></section>
 
     {report ? <WorkspaceMetricStrip items={[
-      { label: "Vendors", value: report.summary.vendorCount, hint: `${report.summary.activeProducts} active offers` },
+      { label: "Active offers", value: report.summary.activeProducts, hint: `${report.summary.vendorCount} vendors in scope` },
       { label: "Impressions", value: report.summary.impressions, hint: `${report.summary.productViews} views · ${pct(report.summary.viewRate)} view rate` },
-      { label: "Cart adds", value: report.summary.cartAdds, hint: `${pct(report.summary.cartRate)} of product views` },
-      { label: "Attributed orders", value: report.summary.attributedOrders, hint: `${report.summary.revenue} · ${pct(report.summary.conversionRate)} conversion` }
+      { label: "Cart adds", value: report.summary.cartAdds, hint: `${report.summary.checkoutStarts} checkout starts · ${pct(report.summary.cartRate)} view→cart` },
+      { label: "Attributed orders", value: report.summary.attributedOrders, hint: `${report.summary.revenue} · ${pct(report.summary.conversionRate)} view→order` }
     ]} /> : data ? <WorkspaceMetricStrip items={[
       { label: "Searches", value: data.searches },
       { label: "Search success", value: `${Math.round(data.searchSuccessRate * 100)}%` },
@@ -88,16 +88,34 @@ export default async function Page({ searchParams }: PageProps) {
     ]} /> : null}
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Report builder" title="Vendor performance report" note="Date range: έως 366 ημέρες. Η επιλογή parent category συμπεριλαμβάνει αυτόματα τις υποκατηγορίες της." />
-      <form method="get" className="workspace-queue-card" style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
-          <label><span className="eyebrow">From</span><input type="date" name="from" defaultValue={filters.from} style={{ width: "100%" }} /></label>
-          <label><span className="eyebrow">To</span><input type="date" name="to" defaultValue={filters.to} style={{ width: "100%" }} /></label>
-          <label><span className="eyebrow">Vendor</span><select name="vendor" defaultValue={filters.vendorId ?? ""} style={{ width: "100%" }}>
+      <WorkspaceSectionHeading eyebrow="Analytics workflow" title="Use the right intelligence workspace" note="Live performance, unmet demand and durable reporting are separate jobs with different evidence boundaries." />
+      <div className="analytics-workflow-grid">
+        <Link className="analytics-workflow-card is-current" href="/admin/analytics"><span>Performance</span><strong>How the marketplace converts</strong><small>Live aggregate vendor/product funnel, category filters and CSV export of the current view.</small></Link>
+        <Link className={`analytics-workflow-card${demandClusters ? " needs-attention" : ""}`} href="/admin/demand"><span>Demand</span><strong>What Sparta wants but cannot find</strong><small>{demandClusters ? `${demandClusters} current demand signal groups · ${zeroResultSignals} zero-result events in the market analytics window.` : "Privacy-thresholded Local Watch, Ask Local, search, Quick Add and saved-search signals."}</small></Link>
+        <Link className="analytics-workflow-card" href="/admin/reports"><span>Reports</span><strong>What should be saved, repeated or delivered</strong><small>Declarative report definitions, generated PDFs, email delivery and retained audit history.</small></Link>
+      </div>
+    </section>
+
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Market pulse" title="Search & commerce health" note="These are aggregate health signals. Detailed acquisition gaps belong in Demand Intelligence." />
+      {marketError ? <WorkspaceEmptyState title="Market pulse is temporarily unavailable." body={marketError} /> : data ? <div className="analytics-pulse-grid">
+        <article className="analytics-pulse-card"><span>Discovery</span><strong>{data.searches} searches</strong><small>{Math.round(data.searchSuccessRate * 100)}% success · {Math.round(data.searchClickThroughRate * 100)}% search click-through.</small></article>
+        <article className="analytics-pulse-card"><span>Commerce</span><strong>{data.authorisedOrders} authorised orders</strong><small>{data.gmv} GMV · {data.averageOrderValue} average order value.</small></article>
+        <article className={`analytics-pulse-card${demandClusters ? " needs-attention" : ""}`}><span>Demand hand-off</span><strong>{demandClusters} signal groups</strong><small>{zeroResultSignals} zero-result events represented here. Open Demand Intelligence for ranked, privacy-qualified acquisition opportunities.</small><Link className="text-link" href="/admin/demand">Open Demand Intelligence →</Link></article>
+      </div> : <WorkspaceEmptyState title="No market pulse is available yet." />}
+    </div></section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Performance filters" title="Choose the live analysis scope" note="Date range έως 366 ημέρες. Parent category includes its descendants. This changes the current analysis only; use Reports for saved/repeatable definitions." />
+      <form method="get" className="workspace-queue-card analytics-filter-card">
+        <div className="analytics-filter-grid">
+          <label><span className="eyebrow">From</span><input type="date" name="from" defaultValue={filters.from} /></label>
+          <label><span className="eyebrow">To</span><input type="date" name="to" defaultValue={filters.to} /></label>
+          <label><span className="eyebrow">Vendor</span><select name="vendor" defaultValue={filters.vendorId ?? ""}>
             <option value="">All vendors</option>
             {(report?.vendors ?? []).map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
           </select></label>
-          <label><span className="eyebrow">Category</span><select name="category" defaultValue={filters.categoryCode ?? ""} style={{ width: "100%" }}>
+          <label><span className="eyebrow">Category</span><select name="category" defaultValue={filters.categoryCode ?? ""}>
             <option value="">All categories</option>
             {(report?.categories ?? []).map((category) => <option key={category.code} value={category.code}>{`${"— ".repeat(category.depth)}${category.label}`}</option>)}
           </select></label>
@@ -105,18 +123,17 @@ export default async function Page({ searchParams }: PageProps) {
         <div className="workspace-action-bar">
           <span>{selectedVendor ? selectedVendor.name : "All vendors"} · {selectedCategory ? selectedCategory.label : "All categories"} · {filters.from} → {filters.to}</span>
           <div className="workspace-action-buttons">
-            <button className="button" type="submit">Create / view report</button>
-            {report ? <a className="button button-secondary" href={downloadHref(report)}>Download CSV</a> : null}
-            <Link className="text-link" href="/admin/reports">Saved reports & history</Link>
+            <button className="button" type="submit">Apply filters</button>
+            {report ? <a className="button button-secondary" href={downloadHref(report)}>Export current CSV</a> : null}
             <Link className="text-link" href="/admin/analytics">Reset</Link>
           </div>
         </div>
       </form>
-      {reportError ? <div className="workspace-queue-card" style={{ marginTop: 14 }}><strong>Report could not be generated.</strong><p>{reportError}</p></div> : null}
+      {reportError ? <div className="workspace-queue-card analytics-error-card"><strong>Performance view could not be generated.</strong><p>{reportError}</p><Link className="text-link" href="/admin/reports">Open Reports →</Link></div> : null}
     </section>
 
     {report ? <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Generated report" title={selectedVendor ? selectedVendor.name : "All vendors"} note={`Generated ${new Date(report.generatedAt).toLocaleString("el-GR")} · ${report.filters.from} έως ${report.filters.to}`} />
+      <WorkspaceSectionHeading eyebrow="Performance view" title={selectedVendor ? selectedVendor.name : "Marketplace vendors"} note={`Aggregate performance · ${report.filters.from} έως ${report.filters.to} · refreshed ${new Date(report.generatedAt).toLocaleString("el-GR")}`} />
       {report.rows.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν vendors για τα επιλεγμένα φίλτρα." /> : <>
         <div className="admin-insight-table" role="table" aria-label="Vendor conversion overview">
           <div className="admin-insight-head" role="row"><span>Vendor</span><span>Orders</span><span>Revenue</span><span>Conversion</span></div>
@@ -126,46 +143,41 @@ export default async function Page({ searchParams }: PageProps) {
             <progress max={1} value={row.conversionRate} aria-label={`${row.vendorName} conversion ${pct(row.conversionRate)}`} />
           </div>)}
         </div>
-        <div className="workspace-queue-card" style={{ overflowX: "auto", padding: 0, marginTop: 14 }}>
-        <table style={{ width: "100%", minWidth: 1260, borderCollapse: "collapse" }}>
-          <thead><tr>
-            <th style={thStyle}>Vendor</th><th style={thStyle}>Products</th><th style={thStyle}>Impressions</th><th style={thStyle}>Views</th><th style={thStyle}>Unique</th><th style={thStyle}>Engaged</th><th style={thStyle}>Cart</th><th style={thStyle}>Checkout</th><th style={thStyle}>Orders</th><th style={thStyle}>Units</th><th style={thStyle}>Revenue</th><th style={thStyle}>Conversion</th>
-          </tr></thead>
-          <tbody>{report.rows.map((row) => <tr key={row.vendorId}>
-            <td style={tdStyle}><strong>{row.vendorName}</strong><br /><small>{row.vendorId}</small></td>
-            <td style={tdStyle}>{row.activeProducts}</td><td style={tdStyle}>{row.impressions}</td><td style={tdStyle}>{row.productViews}<br /><small>{pct(row.viewRate)} from impressions</small></td><td style={tdStyle}>{row.uniqueViewers}</td><td style={tdStyle}>{row.engagedSeconds}s<br /><small>{row.averageEngagedSeconds}s avg / viewer</small></td><td style={tdStyle}>{row.cartAdds}<br /><small>{pct(row.cartRate)} view→cart</small></td><td style={tdStyle}>{row.checkoutStarts}</td><td style={tdStyle}>{row.attributedOrders}</td><td style={tdStyle}>{row.unitsSold}</td><td style={tdStyle}><strong>{row.revenue}</strong></td><td style={tdStyle}>{pct(row.conversionRate)}</td>
-          </tr>)}</tbody>
-        </table>
-        </div>
+        <WorkspaceRecordDetails label={`Full vendor funnel · ${report.rows.length} vendors`}>
+          <div className="analytics-table-shell"><table className="analytics-data-table">
+            <thead><tr><th>Vendor</th><th>Products</th><th>Impressions</th><th>Views</th><th>Unique</th><th>Engaged</th><th>Cart</th><th>Checkout</th><th>Orders</th><th>Units</th><th>Revenue</th><th>Conversion</th></tr></thead>
+            <tbody>{report.rows.map((row) => <tr key={row.vendorId}>
+              <td><strong>{row.vendorName}</strong><small>{row.vendorId}</small></td>
+              <td>{row.activeProducts}</td><td>{row.impressions}</td><td>{row.productViews}<small>{pct(row.viewRate)} from impressions</small></td><td>{row.uniqueViewers}</td><td>{row.engagedSeconds}s<small>{row.averageEngagedSeconds}s avg / viewer</small></td><td>{row.cartAdds}<small>{pct(row.cartRate)} view→cart</small></td><td>{row.checkoutStarts}</td><td>{row.attributedOrders}</td><td>{row.unitsSold}</td><td><strong>{row.revenue}</strong></td><td>{pct(row.conversionRate)}</td>
+            </tr>)}</tbody>
+          </table></div>
+        </WorkspaceRecordDetails>
       </>}
     </div></section> : null}
 
     {report?.filters.vendorId ? <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Product funnel" title={`${selectedVendor?.name ?? report.filters.vendorId} · products`} note="Per-product breakdown for the same date/category filters. Engagement counts active, focused product-page time." />
-      {report.products.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ενεργά products για τα επιλεγμένα φίλτρα." /> : <div className="workspace-queue-card" style={{ overflowX: "auto", padding: 0 }}>
-        <table style={{ width: "100%", minWidth: 1200, borderCollapse: "collapse" }}>
-          <thead><tr><th style={thStyle}>Product</th><th style={thStyle}>Category</th><th style={thStyle}>Impressions</th><th style={thStyle}>Views</th><th style={thStyle}>Unique</th><th style={thStyle}>Engagement</th><th style={thStyle}>Cart</th><th style={thStyle}>Checkout</th><th style={thStyle}>Orders</th><th style={thStyle}>Units</th><th style={thStyle}>Revenue</th><th style={thStyle}>Conversion</th></tr></thead>
-          <tbody>{report.products.map((row) => <tr key={row.canonicalVariantId}>
-            <td style={tdStyle}><strong>{row.productTitle}</strong><br /><small>{row.canonicalVariantId}</small></td><td style={tdStyle}>{row.categoryName}<br /><small>{row.categoryCode}</small></td><td style={tdStyle}>{row.impressions}</td><td style={tdStyle}>{row.productViews}</td><td style={tdStyle}>{row.uniqueViewers}</td><td style={tdStyle}>{row.engagedSeconds}s<br /><small>{row.averageEngagedSeconds}s avg / viewer</small></td><td style={tdStyle}>{row.cartAdds}</td><td style={tdStyle}>{row.checkoutStarts}</td><td style={tdStyle}>{row.attributedOrders}</td><td style={tdStyle}>{row.unitsSold}</td><td style={tdStyle}><strong>{row.revenue}</strong></td><td style={tdStyle}>{pct(row.conversionRate)}</td>
-          </tr>)}</tbody>
-        </table>
-      </div>}
+      <WorkspaceSectionHeading eyebrow="Product drill-down" title={`${selectedVendor?.name ?? report.filters.vendorId} · products`} note="Same date/category scope. Engagement counts active, focused product-page time." />
+      {report.products.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ενεργά products για τα επιλεγμένα φίλτρα." /> : <>
+        <div className="admin-insight-table" role="table" aria-label="Product conversion overview">
+          <div className="admin-insight-head" role="row"><span>Product</span><span>Views</span><span>Orders</span><span>Conversion</span></div>
+          {report.products.slice(0, 10).map((row) => <div className="admin-insight-row" role="row" key={`product-insight:${row.canonicalVariantId}`}>
+            <span><strong>{row.productTitle}</strong><small>{row.categoryName}</small></span><span>{row.productViews}</span><span>{row.attributedOrders}</span><progress max={1} value={row.conversionRate} aria-label={`${row.productTitle} conversion ${pct(row.conversionRate)}`} />
+          </div>)}
+        </div>
+        <WorkspaceRecordDetails label={`Full product funnel · ${report.products.length} products`}>
+          <div className="analytics-table-shell"><table className="analytics-data-table">
+            <thead><tr><th>Product</th><th>Category</th><th>Impressions</th><th>Views</th><th>Unique</th><th>Engagement</th><th>Cart</th><th>Checkout</th><th>Orders</th><th>Units</th><th>Revenue</th><th>Conversion</th></tr></thead>
+            <tbody>{report.products.map((row) => <tr key={row.canonicalVariantId}>
+              <td><strong>{row.productTitle}</strong><small>{row.canonicalVariantId}</small></td><td>{row.categoryName}<small>{row.categoryCode}</small></td><td>{row.impressions}</td><td>{row.productViews}</td><td>{row.uniqueViewers}</td><td>{row.engagedSeconds}s<small>{row.averageEngagedSeconds}s avg / viewer</small></td><td>{row.cartAdds}</td><td>{row.checkoutStarts}</td><td>{row.attributedOrders}</td><td>{row.unitsSold}</td><td><strong>{row.revenue}</strong></td><td>{pct(row.conversionRate)}</td>
+            </tr>)}</tbody>
+          </table></div>
+        </WorkspaceRecordDetails>
+      </>}
     </section> : null}
 
-    <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Unmet demand" title="Zero-result searches" note="Οι συχνότερες αποτυχημένες αναζητήσεις είναι άμεσο input για acquisition και catalog coverage." />
-      {marketError ? <WorkspaceEmptyState title="Market search analytics are temporarily unavailable." body={marketError} /> : !data || data.topZeroResultQueries.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν zero-result queries στο τρέχον window." /> : <div className="workspace-queue-list">{data.topZeroResultQueries.map((query) => <article className="workspace-queue-card" key={query.normalizedQuery}>
-        <div className="workspace-queue-head"><div><strong>{query.query}</strong><small>{query.searches} total searches</small></div><span className="status-pill">{query.zeroResults} zero results</span></div>
-        <WorkspaceRecordDetails label="Normalized demand key"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Normalized query</strong><span>{query.normalizedQuery}</span></div></div></WorkspaceRecordDetails>
-      </article>)}</div>}
+    <section className="shell vendor-section analytics-handoff-section">
+      <WorkspaceSectionHeading eyebrow="Durable output" title="Need a board pack, recurring analysis or audit trail?" note="Analytics is intentionally live and exploratory. Reports owns saved definitions, comprehensive PDFs, delivery and retention history." />
+      <div className="workspace-action-bar"><span>Keep ad-hoc exploration here; move repeatable or delivered analysis into the reporting engine.</span><div className="workspace-action-buttons"><Link className="button button-secondary" href="/admin/reports">Open Reports</Link><Link className="text-link" href="/admin/demand">Open Demand Intelligence</Link></div></div>
     </section>
-
-    <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Category demand" title="Search → view → cart" note="Compact funnel signals ανά category code χωρίς customer-level analytics." />
-      {!data || data.categoryDemand.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχει ακόμη category demand data." /> : <div className="workspace-queue-list">{data.categoryDemand.map((category) => <article className="workspace-queue-card" key={category.categoryCode}>
-        <div className="workspace-queue-head"><div><strong>{category.categoryCode}</strong><small>Aggregate demand</small></div><span className="status-pill">{category.searches} searches</span></div>
-        <div className="workspace-queue-primary"><span>{category.productViews} views</span><span>{category.cartAdds} cart adds</span></div>
-      </article>)}</div>}
-    </div></section>
   </main>;
 }
