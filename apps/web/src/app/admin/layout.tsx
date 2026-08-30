@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "../admin-operational-ux.css";
 import "../admin-operational-dashboard.css";
 import "../admin-seo-operational.css";
+import "../admin-partners-operational.css";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 
 export const metadata: Metadata = {
