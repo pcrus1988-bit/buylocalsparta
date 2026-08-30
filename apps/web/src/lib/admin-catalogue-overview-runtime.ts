@@ -16,6 +16,28 @@ type CatalogueSourceCategory = Readonly<{
   active: boolean;
   directProducts: number;
   directLiveProducts: number;
+  directIcecatLinkedProducts?: number;
+  directIcecatGreekReadyProducts?: number;
+  directAttributeObservations?: number;
+  directMappedAttributeObservations?: number;
+  directUnmappedAttributeObservations?: number;
+  directReviewRequiredAttributeObservations?: number;
+}>;
+
+export type CatalogueOverviewHealth = Readonly<{
+  available: boolean;
+  sourceProducts: number;
+  unlinkedSourceProducts: number;
+  attributeObservations: number;
+  mappedAttributeObservations: number;
+  unmappedAttributeObservations: number;
+  reviewRequiredAttributeObservations: number;
+  icecatSourceProducts: number;
+  icecatGreekReadySourceProducts: number;
+  icecatQueued: number;
+  icecatReady: number;
+  icecatNeedsEnrichment: number;
+  icecatFailed: number;
 }>;
 
 export type CatalogueOverviewCategory = Readonly<{
@@ -30,11 +52,24 @@ export type CatalogueOverviewCategory = Readonly<{
   subtreeProducts: number;
   subtreeLiveProducts: number;
   childCount: number;
+  directIcecatLinkedProducts: number;
+  directIcecatGreekReadyProducts: number;
+  subtreeIcecatLinkedProducts: number;
+  subtreeIcecatGreekReadyProducts: number;
+  directAttributeObservations: number;
+  directMappedAttributeObservations: number;
+  directUnmappedAttributeObservations: number;
+  directReviewRequiredAttributeObservations: number;
+  subtreeAttributeObservations: number;
+  subtreeMappedAttributeObservations: number;
+  subtreeUnmappedAttributeObservations: number;
+  subtreeReviewRequiredAttributeObservations: number;
 }>;
 
 export type CatalogueOverviewWorkspace = Readonly<{
   csrfToken: string;
   categories: readonly CatalogueOverviewCategory[];
+  health: CatalogueOverviewHealth;
   metrics: Readonly<{
     totalCategories: number;
     activeCategories: number;
@@ -46,6 +81,22 @@ export type CatalogueOverviewWorkspace = Readonly<{
     taxonomyLevels: number;
   }>;
 }>;
+
+const unavailableHealth: CatalogueOverviewHealth = {
+  available: false,
+  sourceProducts: 0,
+  unlinkedSourceProducts: 0,
+  attributeObservations: 0,
+  mappedAttributeObservations: 0,
+  unmappedAttributeObservations: 0,
+  reviewRequiredAttributeObservations: 0,
+  icecatSourceProducts: 0,
+  icecatGreekReadySourceProducts: 0,
+  icecatQueued: 0,
+  icecatReady: 0,
+  icecatNeedsEnrichment: 0,
+  icecatFailed: 0
+};
 
 function text(row: SqlRow, field: string): string {
   const value = row[field];
@@ -107,9 +158,21 @@ function normalizedParents(source: readonly CatalogueSourceCategory[]): Map<stri
   return parents;
 }
 
+type BranchAggregate = {
+  products: number;
+  liveProducts: number;
+  icecatLinkedProducts: number;
+  icecatGreekReadyProducts: number;
+  attributeObservations: number;
+  mappedAttributeObservations: number;
+  unmappedAttributeObservations: number;
+  reviewRequiredAttributeObservations: number;
+};
+
 export function buildCatalogueOverview(
   csrfToken: string,
-  source: readonly CatalogueSourceCategory[]
+  source: readonly CatalogueSourceCategory[],
+  health: CatalogueOverviewHealth = unavailableHealth
 ): CatalogueOverviewWorkspace {
   const byCode = new Map(source.map((category) => [category.categoryCode, category] as const));
   const parents = normalizedParents(source);
@@ -123,21 +186,45 @@ export function buildCatalogueOverview(
   }
   for (const siblings of children.values()) siblings.sort(compareCategories);
 
-  const aggregateMemo = new Map<string, { products: number; liveProducts: number }>();
-  function aggregate(categoryCode: string): { products: number; liveProducts: number } {
+  const aggregateMemo = new Map<string, BranchAggregate>();
+  function aggregate(categoryCode: string): BranchAggregate {
     const cached = aggregateMemo.get(categoryCode);
     if (cached) return cached;
     const category = byCode.get(categoryCode);
-    if (!category) return { products: 0, liveProducts: 0 };
+    if (!category) {
+      return {
+        products: 0,
+        liveProducts: 0,
+        icecatLinkedProducts: 0,
+        icecatGreekReadyProducts: 0,
+        attributeObservations: 0,
+        mappedAttributeObservations: 0,
+        unmappedAttributeObservations: 0,
+        reviewRequiredAttributeObservations: 0
+      };
+    }
 
-    let products = category.directProducts;
-    let liveProducts = category.directLiveProducts;
+    const result: BranchAggregate = {
+      products: category.directProducts,
+      liveProducts: category.directLiveProducts,
+      icecatLinkedProducts: category.directIcecatLinkedProducts ?? 0,
+      icecatGreekReadyProducts: category.directIcecatGreekReadyProducts ?? 0,
+      attributeObservations: category.directAttributeObservations ?? 0,
+      mappedAttributeObservations: category.directMappedAttributeObservations ?? 0,
+      unmappedAttributeObservations: category.directUnmappedAttributeObservations ?? 0,
+      reviewRequiredAttributeObservations: category.directReviewRequiredAttributeObservations ?? 0
+    };
     for (const child of children.get(categoryCode) ?? []) {
       const childAggregate = aggregate(child.categoryCode);
-      products += childAggregate.products;
-      liveProducts += childAggregate.liveProducts;
+      result.products += childAggregate.products;
+      result.liveProducts += childAggregate.liveProducts;
+      result.icecatLinkedProducts += childAggregate.icecatLinkedProducts;
+      result.icecatGreekReadyProducts += childAggregate.icecatGreekReadyProducts;
+      result.attributeObservations += childAggregate.attributeObservations;
+      result.mappedAttributeObservations += childAggregate.mappedAttributeObservations;
+      result.unmappedAttributeObservations += childAggregate.unmappedAttributeObservations;
+      result.reviewRequiredAttributeObservations += childAggregate.reviewRequiredAttributeObservations;
     }
-    const result = { products, liveProducts };
     aggregateMemo.set(categoryCode, result);
     return result;
   }
@@ -162,7 +249,19 @@ export function buildCatalogueOverview(
       directLiveProducts: category.directLiveProducts,
       subtreeProducts: branch.products,
       subtreeLiveProducts: branch.liveProducts,
-      childCount: directChildren.length
+      childCount: directChildren.length,
+      directIcecatLinkedProducts: category.directIcecatLinkedProducts ?? 0,
+      directIcecatGreekReadyProducts: category.directIcecatGreekReadyProducts ?? 0,
+      subtreeIcecatLinkedProducts: branch.icecatLinkedProducts,
+      subtreeIcecatGreekReadyProducts: branch.icecatGreekReadyProducts,
+      directAttributeObservations: category.directAttributeObservations ?? 0,
+      directMappedAttributeObservations: category.directMappedAttributeObservations ?? 0,
+      directUnmappedAttributeObservations: category.directUnmappedAttributeObservations ?? 0,
+      directReviewRequiredAttributeObservations: category.directReviewRequiredAttributeObservations ?? 0,
+      subtreeAttributeObservations: branch.attributeObservations,
+      subtreeMappedAttributeObservations: branch.mappedAttributeObservations,
+      subtreeUnmappedAttributeObservations: branch.unmappedAttributeObservations,
+      subtreeReviewRequiredAttributeObservations: branch.reviewRequiredAttributeObservations
     });
 
     for (const child of directChildren) visit(child, depth + 1, pathLabels);
@@ -177,6 +276,7 @@ export function buildCatalogueOverview(
   return {
     csrfToken,
     categories: ordered,
+    health,
     metrics: {
       totalCategories: ordered.length,
       activeCategories: ordered.filter((category) => category.active).length,
@@ -195,42 +295,143 @@ async function postgresCatalogueOverview(principal: SessionPrincipal): Promise<C
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
 
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
-    const result = await tx.query<SqlRow>(
-      `SELECT
-         c.code,
-         COALESCE(ct.name, c.code) AS label,
-         p.code AS parent_code,
-         c.active,
-         COUNT(cv.id)::int AS direct_products,
-         COUNT(cv.id) FILTER (
-           WHERE cv.active = TRUE
-             AND cv.suppressed = FALSE
-             AND cv.recalled = FALSE
-         )::int AS direct_live_products
-       FROM categories c
-       JOIN markets m ON m.id = c.market_id
-       LEFT JOIN categories p ON p.id = c.parent_id
-       LEFT JOIN category_translations ct
-         ON ct.category_id = c.id
-        AND ct.locale = 'el'
-       LEFT JOIN canonical_variants cv
-         ON cv.category_id = c.id
-        AND cv.market_id = m.id
-       WHERE m.code = 'sparta'
-       GROUP BY c.id, c.code, c.parent_id, p.code, c.active, ct.name
-       ORDER BY label ASC, c.code ASC`
-    );
+    const [categoryResult, healthResult] = await Promise.all([
+      tx.query<SqlRow>(
+        `WITH canonical_counts AS (
+           SELECT
+             cv.category_id,
+             COUNT(*)::int AS direct_products,
+             COUNT(*) FILTER (
+               WHERE cv.active = TRUE
+                 AND cv.suppressed = FALSE
+                 AND cv.recalled = FALSE
+             )::int AS direct_live_products
+           FROM canonical_variants cv
+           JOIN markets m ON m.id=cv.market_id
+           WHERE m.code='sparta'
+           GROUP BY cv.category_id
+         ), linked_health AS (
+           SELECT
+             cv.category_id,
+             COUNT(DISTINCT cv.id) FILTER (WHERE cs.code='open_icecat')::int AS direct_icecat_linked_products,
+             COUNT(DISTINCT cv.id) FILTER (
+               WHERE cs.code='open_icecat' AND loc.publish_eligible=TRUE
+             )::int AS direct_icecat_greek_ready_products,
+             COUNT(a.id)::int AS direct_attribute_observations,
+             COUNT(a.id) FILTER (WHERE a.mapping_status='mapped')::int AS direct_mapped_attribute_observations,
+             COUNT(a.id) FILTER (WHERE a.mapping_status='unmapped')::int AS direct_unmapped_attribute_observations,
+             COUNT(a.id) FILTER (WHERE a.mapping_status='review_required')::int AS direct_review_required_attribute_observations
+           FROM canonical_variants cv
+           JOIN markets m ON m.id=cv.market_id
+           JOIN catalog_source_product_links link
+             ON link.canonical_variant_id=cv.id
+            AND link.link_status='approved'
+           JOIN catalog_source_products sp ON sp.id=link.source_product_id
+           JOIN catalog_sources cs ON cs.id=sp.source_id AND cs.market_id=m.id
+           LEFT JOIN catalog_source_product_localizations loc
+             ON loc.source_product_id=sp.id
+            AND loc.locale='EL'
+           LEFT JOIN catalog_source_attribute_observations a ON a.source_product_id=sp.id
+           WHERE m.code='sparta'
+           GROUP BY cv.category_id
+         )
+         SELECT
+           c.code,
+           COALESCE(ct.name, c.code) AS label,
+           p.code AS parent_code,
+           c.active,
+           COALESCE(cc.direct_products,0)::int AS direct_products,
+           COALESCE(cc.direct_live_products,0)::int AS direct_live_products,
+           COALESCE(lh.direct_icecat_linked_products,0)::int AS direct_icecat_linked_products,
+           COALESCE(lh.direct_icecat_greek_ready_products,0)::int AS direct_icecat_greek_ready_products,
+           COALESCE(lh.direct_attribute_observations,0)::int AS direct_attribute_observations,
+           COALESCE(lh.direct_mapped_attribute_observations,0)::int AS direct_mapped_attribute_observations,
+           COALESCE(lh.direct_unmapped_attribute_observations,0)::int AS direct_unmapped_attribute_observations,
+           COALESCE(lh.direct_review_required_attribute_observations,0)::int AS direct_review_required_attribute_observations
+         FROM categories c
+         JOIN markets m ON m.id=c.market_id
+         LEFT JOIN categories p ON p.id=c.parent_id
+         LEFT JOIN category_translations ct
+           ON ct.category_id=c.id
+          AND ct.locale='el'
+         LEFT JOIN canonical_counts cc ON cc.category_id=c.id
+         LEFT JOIN linked_health lh ON lh.category_id=c.id
+         WHERE m.code='sparta'
+         ORDER BY label ASC, c.code ASC`
+      ),
+      tx.query<SqlRow>(
+        `WITH source_health AS (
+           SELECT
+             COUNT(DISTINCT sp.id)::int AS source_products,
+             COUNT(DISTINCT sp.id) FILTER (WHERE link.id IS NULL)::int AS unlinked_source_products,
+             COUNT(a.id)::int AS attribute_observations,
+             COUNT(a.id) FILTER (WHERE a.mapping_status='mapped')::int AS mapped_attribute_observations,
+             COUNT(a.id) FILTER (WHERE a.mapping_status='unmapped')::int AS unmapped_attribute_observations,
+             COUNT(a.id) FILTER (WHERE a.mapping_status='review_required')::int AS review_required_attribute_observations,
+             COUNT(DISTINCT sp.id) FILTER (WHERE cs.code='open_icecat')::int AS icecat_source_products,
+             COUNT(DISTINCT sp.id) FILTER (
+               WHERE cs.code='open_icecat' AND loc.publish_eligible=TRUE
+             )::int AS icecat_greek_ready_source_products
+           FROM catalog_source_products sp
+           JOIN catalog_sources cs ON cs.id=sp.source_id
+           JOIN markets m ON m.id=cs.market_id
+           LEFT JOIN catalog_source_product_links link
+             ON link.source_product_id=sp.id
+            AND link.link_status='approved'
+           LEFT JOIN catalog_source_product_localizations loc
+             ON loc.source_product_id=sp.id
+            AND loc.locale='EL'
+           LEFT JOIN catalog_source_attribute_observations a ON a.source_product_id=sp.id
+           WHERE m.code='sparta'
+         ), icecat_jobs AS (
+           SELECT
+             COUNT(*) FILTER (WHERE job.status IN ('pending','processing','retry'))::int AS icecat_queued,
+             COUNT(*) FILTER (WHERE job.status='ready')::int AS icecat_ready,
+             COUNT(*) FILTER (WHERE job.status='needs_enrichment')::int AS icecat_needs_enrichment,
+             COUNT(*) FILTER (WHERE job.status='failed')::int AS icecat_failed
+           FROM open_icecat_detail_enrichment_jobs job
+           JOIN catalog_sources cs ON cs.id=job.source_id
+           JOIN markets m ON m.id=cs.market_id
+           WHERE m.code='sparta' AND cs.code='open_icecat'
+         )
+         SELECT * FROM source_health CROSS JOIN icecat_jobs`
+      )
+    ]);
+
+    const healthRow = healthResult.rows[0] ?? {};
+    const health: CatalogueOverviewHealth = {
+      available: true,
+      sourceProducts: integer(healthRow, "source_products"),
+      unlinkedSourceProducts: integer(healthRow, "unlinked_source_products"),
+      attributeObservations: integer(healthRow, "attribute_observations"),
+      mappedAttributeObservations: integer(healthRow, "mapped_attribute_observations"),
+      unmappedAttributeObservations: integer(healthRow, "unmapped_attribute_observations"),
+      reviewRequiredAttributeObservations: integer(healthRow, "review_required_attribute_observations"),
+      icecatSourceProducts: integer(healthRow, "icecat_source_products"),
+      icecatGreekReadySourceProducts: integer(healthRow, "icecat_greek_ready_source_products"),
+      icecatQueued: integer(healthRow, "icecat_queued"),
+      icecatReady: integer(healthRow, "icecat_ready"),
+      icecatNeedsEnrichment: integer(healthRow, "icecat_needs_enrichment"),
+      icecatFailed: integer(healthRow, "icecat_failed")
+    };
 
     return buildCatalogueOverview(
       principal.csrfToken,
-      result.rows.map((row) => ({
+      categoryResult.rows.map((row) => ({
         categoryCode: text(row, "code"),
         labelEl: text(row, "label"),
         parentCategoryCode: optionalText(row, "parent_code"),
         active: booleanValue(row, "active"),
         directProducts: integer(row, "direct_products"),
-        directLiveProducts: integer(row, "direct_live_products")
-      }))
+        directLiveProducts: integer(row, "direct_live_products"),
+        directIcecatLinkedProducts: integer(row, "direct_icecat_linked_products"),
+        directIcecatGreekReadyProducts: integer(row, "direct_icecat_greek_ready_products"),
+        directAttributeObservations: integer(row, "direct_attribute_observations"),
+        directMappedAttributeObservations: integer(row, "direct_mapped_attribute_observations"),
+        directUnmappedAttributeObservations: integer(row, "direct_unmapped_attribute_observations"),
+        directReviewRequiredAttributeObservations: integer(row, "direct_review_required_attribute_observations")
+      })),
+      health
     );
   }, { readOnly: true });
 }
