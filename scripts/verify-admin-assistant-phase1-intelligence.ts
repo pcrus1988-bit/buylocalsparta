@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, matching, searchConsole, catalogGovernance, toolRegistry, investigation, context, pageRegistry] = await Promise.all([
+const [phase1, dashboard, matching, searchConsole, catalogGovernance, toolRegistry, investigation, context, pageRegistry] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
+  read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/search-console-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/catalog-governance-intelligence.ts"),
@@ -14,14 +15,33 @@ const [phase1, matching, searchConsole, catalogGovernance, toolRegistry, investi
   read("apps/web/src/lib/admin-assistant/page-registry.ts")
 ]);
 
+assert.match(phase1, /dashboardOperationalIntelligence/);
 assert.match(phase1, /productMatchingIntelligence/);
 assert.match(phase1, /searchConsoleIntelligence/);
 assert.match(phase1, /categoryGovernanceIntelligence/);
 assert.match(phase1, /controlledValueIntelligence/);
+assert.match(phase1, /pageType === "dashboard"/);
 assert.match(phase1, /pageType === "product_matching"/);
 assert.match(phase1, /pageType === "category_governance"/);
 assert.match(phase1, /pageType === "controlled_values"/);
 assert.match(phase1, /\["seo_overview", "search_console"\]/);
+
+for (const rule of [
+  "return_refund_ready",
+  "paid_order_missing_tax_document",
+  "payment_order_state_mismatch",
+  "product_unmapped_attributes",
+  "vendor_active_without_agreement",
+  "vendor_no_active_location",
+  "seo_critical_diagnostic",
+  "failed_background_job"
+]) assert.match(dashboard, new RegExp(rule));
+assert.match(dashboard, /Promise\.all/);
+assert.match(dashboard, /hasAdminPermission/);
+assert.match(dashboard, /prioritizeRecommendations\(candidates, 5\)/);
+assert.match(dashboard, /Command Centre briefing/);
+assert.match(dashboard, /This is a document-creation gap, not an AADE transmission retry problem/i);
+assert.doesNotMatch(dashboard, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
 
 for (const rule of [
   "canonical_conflict",
@@ -79,6 +99,7 @@ assert.match(investigation, /getSearchConsoleIntelligence/);
 assert.match(investigation, /candidates\.slice\(0, 3\)/);
 assert.match(investigation, /availableAssistantTools/);
 
+assert.match(pageRegistry, /dashboard/);
 assert.match(pageRegistry, /product_matching/);
 assert.match(pageRegistry, /category_governance/);
 assert.match(pageRegistry, /controlled_values/);
