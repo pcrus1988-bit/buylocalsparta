@@ -1,0 +1,248 @@
+/* Catalogue operational cleanup.
+ * UX / information architecture only. Catalogue ingestion, matching, taxonomy, attribute,
+ * publication, vendor-assignment and persistence behavior remain unchanged.
+ */
+
+.catalogue-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.catalogue-workflow-card {
+  min-width: 0;
+  min-height: 158px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px 16px;
+  color: var(--dash-ink);
+  border: 1px solid var(--dash-line);
+  border-radius: 13px;
+  background: var(--dash-panel);
+  box-shadow: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.catalogue-workflow-card:hover,
+.catalogue-workflow-card:focus-visible {
+  border-color: rgba(185, 148, 81, .68);
+  background: #fffaf0;
+}
+
+.catalogue-workflow-card.needs-attention {
+  border-color: rgba(159, 73, 62, .34);
+  box-shadow: inset 3px 0 0 rgba(159, 73, 62, .72);
+}
+
+.catalogue-workflow-card > span {
+  color: var(--dash-gold);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.catalogue-workflow-card > strong {
+  margin-top: 7px;
+  color: var(--dash-navy);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.catalogue-workflow-card > p {
+  margin: 6px 0 12px;
+  color: var(--dash-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.catalogue-workflow-card > b {
+  margin-top: auto;
+  color: var(--dash-navy);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.catalogue-workflow-card > i {
+  margin-top: auto;
+  color: var(--dash-muted);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.catalogue-workflow-card > b + i {
+  margin-top: 2px;
+}
+
+.catalogue-attention-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.catalogue-attention-grid .workspace-queue-card {
+  margin: 0;
+}
+
+.catalogue-taxonomy-list {
+  overflow: hidden;
+  border: 1px solid var(--dash-line);
+  border-radius: 12px;
+  background: var(--dash-panel);
+}
+
+.catalogue-taxonomy-row {
+  display: block;
+  border-bottom: 1px solid var(--dash-line);
+}
+
+.catalogue-taxonomy-row:last-child {
+  border-bottom: 0;
+}
+
+.catalogue-taxonomy-row > summary {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(70px, .42fr) minmax(70px, .42fr) minmax(70px, .42fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.catalogue-taxonomy-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.catalogue-taxonomy-row > summary:hover,
+.catalogue-taxonomy-row[open] > summary {
+  background: rgba(255, 250, 240, .72);
+}
+
+.catalogue-taxonomy-row > summary > span:not(.catalogue-taxonomy-identity) {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.catalogue-taxonomy-row > summary > span > strong,
+.catalogue-taxonomy-identity > strong {
+  color: var(--dash-navy);
+  font-size: 10.5px;
+}
+
+.catalogue-taxonomy-row > summary small,
+.catalogue-taxonomy-identity > small {
+  color: var(--dash-muted);
+  font-size: 8.5px;
+  line-height: 1.35;
+}
+
+.catalogue-taxonomy-identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.catalogue-taxonomy-identity > strong,
+.catalogue-taxonomy-identity > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalogue-taxonomy-row.depth-1 > summary { padding-left: 24px; }
+.catalogue-taxonomy-row.depth-2 > summary { padding-left: 38px; }
+.catalogue-taxonomy-row.depth-3 > summary { padding-left: 52px; }
+.catalogue-taxonomy-row.depth-4 > summary { padding-left: 66px; }
+.catalogue-taxonomy-row.depth-5 > summary { padding-left: 80px; }
+
+.catalogue-taxonomy-row > .workspace-compact-list {
+  margin: 0 11px 10px;
+  border-top: 1px dashed var(--dash-line);
+}
+
+.admin-catalogue-overview .workspace-metric-strip {
+  margin-top: 8px;
+}
+
+/* All Catalogue-domain pages inherit this context navigation. Keep eight operational destinations
+ * scan-friendly without allowing the top chrome to grow vertically. */
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .admin-context-nav {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .admin-context-nav a {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Visual separators mirror the operator stages after the runtime reorders the links:
+ * Overview | Quick Add / Website / Files | PIM / Attributes | Matching | Categories. */
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .admin-context-nav a:nth-child(5),
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .admin-context-nav a:nth-child(7),
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .admin-context-nav a:nth-child(8) {
+  border-left: 1px solid var(--dash-line);
+  margin-left: 3px;
+  padding-left: 11px;
+}
+
+/* Catalogue tools contain a lot of governed evidence. Keep the page dense and let progressive
+ * disclosure carry technical context rather than expanding presentation chrome. */
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .dashboard-health-card {
+  min-width: 220px;
+  max-width: 300px;
+  padding: 12px 14px;
+}
+
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .dashboard-health-card strong {
+  font-size: 15px;
+}
+
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .dashboard-health-card p {
+  margin-top: 4px;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .workspace-queue-list {
+  gap: 8px;
+}
+
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .workspace-tool-panel,
+main.admin-app:has(.admin-context-nav a[href="/admin/catalogue-intake/attributes"]) .workspace-record-details {
+  box-shadow: none;
+}
+
+@media (max-width: 1180px) {
+  .catalogue-workflow-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 860px) {
+  .catalogue-workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .catalogue-attention-grid { grid-template-columns: 1fr; }
+  .catalogue-taxonomy-row > summary {
+    grid-template-columns: minmax(170px, 1fr) repeat(2, minmax(58px, auto)) auto;
+  }
+  .catalogue-taxonomy-row > summary > span:nth-of-type(4) { display: none; }
+}
+
+@media (max-width: 620px) {
+  .catalogue-workflow-grid { grid-template-columns: 1fr; }
+  .catalogue-workflow-card { min-height: 124px; }
+  .catalogue-taxonomy-row > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .catalogue-taxonomy-row > summary > span:not(.catalogue-taxonomy-identity),
+  .catalogue-taxonomy-row > summary > .status-pill { display: none; }
+  .catalogue-taxonomy-row.depth-1 > summary { padding-left: 18px; }
+  .catalogue-taxonomy-row.depth-2 > summary { padding-left: 26px; }
+  .catalogue-taxonomy-row.depth-3 > summary { padding-left: 34px; }
+  .catalogue-taxonomy-row.depth-4 > summary { padding-left: 42px; }
+  .catalogue-taxonomy-row.depth-5 > summary { padding-left: 50px; }
+}
