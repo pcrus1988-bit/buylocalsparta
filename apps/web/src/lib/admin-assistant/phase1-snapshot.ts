@@ -1,4 +1,5 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
+import { categoryGovernanceIntelligence, controlledValueIntelligence } from "./catalog-governance-intelligence";
 import { suggestedQuestionsForContext } from "./context";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
 import { productMatchingIntelligence } from "./matching-intelligence";
@@ -20,6 +21,14 @@ export async function buildAdminAssistantPhase1Snapshot(
 
   if (snapshot.context.pageType === "product_matching") {
     snapshot = await productMatchingIntelligence(principal, snapshot);
+  }
+
+  if (snapshot.context.pageType === "category_governance") {
+    snapshot = await categoryGovernanceIntelligence(principal, snapshot);
+  }
+
+  if (snapshot.context.pageType === "controlled_values") {
+    snapshot = await controlledValueIntelligence(principal, snapshot);
   }
 
   if (["vendor_detail", "vendor_catalogue"].includes(snapshot.context.pageType)) {
