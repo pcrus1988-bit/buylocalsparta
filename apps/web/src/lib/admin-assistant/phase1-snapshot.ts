@@ -7,6 +7,7 @@ import { dashboardOperationalIntelligence } from "./dashboard-intelligence";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
 import { productMatchingIntelligence } from "./matching-intelligence";
 import { buildAdminAssistantOperationalSnapshot } from "./operational-snapshot";
+import { applyRecommendationLifecycle } from "./recommendation-lifecycle";
 import { searchConsoleIntelligence } from "./search-console-intelligence";
 import { taxCrossDomainIntelligence } from "./tax-intelligence";
 import type { AdminAssistantClientContext, AdminAssistantSnapshot } from "./types";
@@ -57,6 +58,8 @@ export async function buildAdminAssistantPhase1Snapshot(
   if (["seo_overview", "search_console"].includes(snapshot.context.pageType)) {
     snapshot = await searchConsoleIntelligence(principal, snapshot);
   }
+
+  snapshot = await applyRecommendationLifecycle(principal, snapshot);
 
   return {
     ...snapshot,
