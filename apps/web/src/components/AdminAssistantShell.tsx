@@ -37,10 +37,10 @@ export function AdminAssistantShell({ children, csrfToken }: { children: ReactNo
   const [error, setError] = useState("");
   const [transitionNotice, setTransitionNotice] = useState("");
   const [input, setInput] = useState("");
-  const abortRef = useRef<AbortController>();
+  const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const openButtonRef = useRef<HTMLButtonElement>(null);
-  const previousContextLabel = useRef<string>();
+  const previousContextLabel = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const storedOpen = window.localStorage.getItem("kontamou.admin.assistant.open");
@@ -143,7 +143,7 @@ export function AdminAssistantShell({ children, csrfToken }: { children: ReactNo
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") setError("Assistant operation stopped.");
       else setError(cause instanceof Error ? cause.message : "Assistant request failed");
-    } finally { abortRef.current = undefined; setBusy(false); setStatus(""); }
+    } finally { abortRef.current = null; setBusy(false); setStatus(""); }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); void sendQuestion(input); }
