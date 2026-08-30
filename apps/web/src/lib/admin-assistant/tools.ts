@@ -142,6 +142,7 @@ export async function buildAdminAssistantSnapshot(principal: SessionPrincipal, c
   if (context.domain === "generic" && facts.length === 0) facts.push("This page is context-aware, but no dedicated deterministic domain diagnostic has been registered for it yet.");
 
   const recentActions = await recentAdminActions(principal);
-  const sorted = findings.sort((a, b) => ({ critical: 0, warning: 1, opportunity: 2, info: 3 }[a.severity] - { critical: 0, warning: 1, opportunity: 2, info: 3 }[b.severity]).slice(0, 5);
+  const priority = { critical: 0, warning: 1, opportunity: 2, info: 3 } as const;
+  const sorted = findings.sort((a, b) => priority[a.severity] - priority[b.severity]).slice(0, 5);
   return { context, summary: summaryFrom(context.contextLabel, facts, sorted), facts: facts.slice(0, 6), findings: sorted, recentActions, suggestedQuestions: suggestedQuestionsForDomain(context.domain), generatedAt: Date.now() };
 }
