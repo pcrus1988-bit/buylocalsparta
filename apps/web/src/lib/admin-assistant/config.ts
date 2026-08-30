@@ -6,7 +6,7 @@ function enabled(name: string, fallback: boolean): boolean {
 
 export function adminAssistantEnabled(): boolean { return enabled("ADMIN_ASSISTANT_ENABLED", true); }
 export function adminAssistantProactiveEnabled(): boolean { return enabled("ADMIN_ASSISTANT_PROACTIVE_INSIGHTS", true); }
-export function adminAssistantExternalResearchEnabled(): boolean { return enabled("ADMIN_ASSISTANT_EXTERNAL_RESEARCH", false); }
+export function adminAssistantExternalResearchEnabled(): boolean { return enabled("ADMIN_ASSISTANT_EXTERNAL_RESEARCH", true); }
 export function adminAssistantActionsEnabled(): boolean { return enabled("ADMIN_ASSISTANT_ACTIONS", false); }
 export function adminAssistantModel(): string { return process.env.ADMIN_ASSISTANT_MODEL?.trim() || "gpt-5.6-luna"; }
 export function adminAssistantMaxOutputTokens(): number {
