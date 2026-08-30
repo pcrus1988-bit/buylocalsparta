@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { planExternalResearch } from "../apps/web/src/lib/admin-assistant/research-policy.ts";
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, dashboard, matching, searchConsole, catalogGovernance, toolRegistry, investigation, context, pageRegistry] = await Promise.all([
+const [phase1, dashboard, matching, searchConsole, catalogGovernance, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
@@ -12,8 +13,19 @@ const [phase1, dashboard, matching, searchConsole, catalogGovernance, toolRegist
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts"),
   read("apps/web/src/lib/admin-assistant/context.ts"),
-  read("apps/web/src/lib/admin-assistant/page-registry.ts")
+  read("apps/web/src/lib/admin-assistant/page-registry.ts"),
+  read("apps/web/src/lib/admin-assistant/service.ts"),
+  read("apps/web/src/lib/admin-assistant/config.ts"),
+  read("apps/web/src/lib/admin-assistant/research-policy.ts")
 ]);
+
+const productSnapshot = {
+  context: { domain: "catalogue", pageType: "product_matching" },
+  findings: [{ ruleId: "product_no_canonical_candidate" }]
+} as any;
+assert.equal(planExternalResearch("Should I create a new canonical for this genuinely new product?", productSnapshot, []).useExternalResearch, true);
+assert.equal(planExternalResearch("Should I create a new canonical for this product?", productSnapshot, [{ toolName: "getProductMatchingIntelligence", state: "error" } as any]).useExternalResearch, false);
+assert.equal(planExternalResearch("What does KONTA MOY currently know?", productSnapshot, []).useExternalResearch, false);
 
 assert.match(phase1, /dashboardOperationalIntelligence/);
 assert.match(phase1, /productMatchingIntelligence/);
@@ -98,6 +110,17 @@ assert.match(investigation, /context\.filters\.submission/);
 assert.match(investigation, /getSearchConsoleIntelligence/);
 assert.match(investigation, /candidates\.slice\(0, 3\)/);
 assert.match(investigation, /availableAssistantTools/);
+
+assert.match(researchPolicy, /private_tool_failure/);
+assert.match(researchPolicy, /Public web research must never be used to compensate for a failed private database\/tool read/i);
+assert.match(researchPolicy, /new_canonical_identity_check/);
+assert.match(researchPolicy, /official_tax_guidance_verification/);
+assert.match(researchPolicy, /public_search_intent_verification/);
+assert.match(service, /planExternalResearch/);
+assert.match(service, /externalResearchPolicy/);
+assert.match(service, /researchReason/);
+assert.match(service, /tools: \[\{ type: "web_search" \}\]/);
+assert.match(config, /ADMIN_ASSISTANT_EXTERNAL_RESEARCH", true/);
 
 assert.match(pageRegistry, /dashboard/);
 assert.match(pageRegistry, /product_matching/);
