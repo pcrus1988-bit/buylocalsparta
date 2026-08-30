@@ -1,10 +1,11 @@
+import { randomUUID } from "node:crypto";
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminCatalogueOverviewWorkspace } from "../apps/web/src/lib/admin-catalogue-overview-runtime.ts";
 import { getProductionPostgresRuntime } from "../apps/web/src/lib/postgres-runtime.ts";
 
 const principal: SessionPrincipal = {
   sessionId: "ci-admin-catalogue-health",
-  userId: "ci-admin-catalogue-health",
+  userId: randomUUID(),
   email: "ci-admin-catalogue-health@example.test",
   roles: ["super_admin"],
   csrfToken: "ci-csrf-token"
