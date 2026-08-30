@@ -1,7 +1,7 @@
 import { adminAssistantEnabled } from "../../../../../lib/admin-assistant/config";
 import { parseAssistantClientContext } from "../../../../../lib/admin-assistant/context";
 import { runAssistantInvestigation } from "../../../../../lib/admin-assistant/investigation";
-import { buildAdminAssistantOperationalSnapshot } from "../../../../../lib/admin-assistant/operational-snapshot";
+import { buildAdminAssistantPhase1Snapshot } from "../../../../../lib/admin-assistant/phase1-snapshot";
 import { consumeAdminAssistantRateLimit } from "../../../../../lib/admin-assistant/rate-limit";
 import { answerAdminAssistant } from "../../../../../lib/admin-assistant/service";
 import { boundedText } from "../../../../../lib/admin-assistant/types";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const question = boundedText(body.message, 4_000);
     if (!question) return Response.json({ error: "Message is required" }, { status: 400 });
     const clientContext = parseAssistantClientContext(body.context);
-    const snapshot = await buildAdminAssistantOperationalSnapshot(principal, clientContext);
+    const snapshot = await buildAdminAssistantPhase1Snapshot(principal, clientContext);
     const conversation = await ensureAssistantConversation(principal, { conversationId: typeof body.conversationId === "string" ? body.conversationId : undefined, title: titleFor(question), context: snapshot.context });
     await saveAssistantMessage(principal, conversation.id, { role: "user", content: question, context: snapshot.context });
     const [history, investigation] = await Promise.all([
