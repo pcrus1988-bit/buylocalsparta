@@ -168,12 +168,24 @@ export function AdminAssistantShell({ children, csrfToken }: { children: ReactNo
           {snapshot && <section className="admin-assistant-briefing">
             <div className="admin-assistant-section-title"><strong>Current context</strong><span>{snapshot.findings.length ? `${snapshot.findings.length} finding${snapshot.findings.length === 1 ? "" : "s"}` : "clear"}</span></div>
             <p className="admin-assistant-summary">{snapshot.summary}</p>
-            {snapshot.findings.length > 0 && <div className="admin-assistant-findings">{snapshot.findings.map((item) => <article key={item.id} data-severity={item.severity}>
-              <div><span>{item.severity}</span>{item.affectedCount !== undefined && <b>{item.affectedCount.toLocaleString("el-GR")}</b>}</div>
-              <strong>{item.title}</strong><p>{item.detail}</p>
-              {item.recommendation && <small><b>Next:</b> {item.recommendation}</small>}
-              {item.href && <Link href={item.href}>Inspect →</Link>}
-            </article>)}</div>}
+            {snapshot.context.pagePurpose && <small className="admin-assistant-context-purpose">{snapshot.context.pagePurpose}</small>}
+            {snapshot.recommendations?.length ? <>
+              <div className="admin-assistant-section-title"><strong>Recommended next actions</strong><span>{snapshot.recommendations.length}</span></div>
+              <div className="admin-assistant-findings">{snapshot.recommendations.map((item) => <article key={item.id} data-severity={item.priority === "critical" ? "critical" : item.priority === "high" ? "warning" : item.priority === "medium" ? "opportunity" : "info"}>
+                <div><span>{item.priority}</span><b>{item.confidence} confidence</b></div>
+                <strong>{item.title}</strong><p>{item.explanation}</p>
+                {item.actions.filter((action) => action.href && !action.requiresApproval).slice(0, 2).map((action) => <Link key={action.id} href={action.href!}>{action.label} →</Link>)}
+              </article>)}</div>
+            </> : null}
+            {snapshot.findings.length > 0 && <>
+              <div className="admin-assistant-section-title"><strong>Evidence-backed findings</strong><span>{snapshot.findings.length}</span></div>
+              <div className="admin-assistant-findings">{snapshot.findings.map((item) => <article key={item.id} data-severity={item.severity}>
+                <div><span>{item.severity}</span>{item.affectedCount !== undefined && <b>{item.affectedCount.toLocaleString("el-GR")}</b>}</div>
+                <strong>{item.title}</strong><p>{item.detail}</p>
+                {item.recommendation && <small><b>Next:</b> {item.recommendation}</small>}
+                {item.href && <Link href={item.href}>Inspect →</Link>}
+              </article>)}</div>
+            </>}
             {snapshot.recentActions.length > 0 && <details className="admin-assistant-recent"><summary>Recent Admin actions</summary>{snapshot.recentActions.slice(0, 5).map((action, index) => <div key={`${action.action}-${action.entityId}-${index}`}><strong>{action.action}</strong><span>{action.entityType} · {action.entityId}</span></div>)}</details>}
           </section>}
 
