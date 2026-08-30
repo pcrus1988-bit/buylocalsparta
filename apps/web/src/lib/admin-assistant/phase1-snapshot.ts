@@ -2,6 +2,7 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { suggestedQuestionsForContext } from "./context";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
 import { buildAdminAssistantOperationalSnapshot } from "./operational-snapshot";
+import { taxCrossDomainIntelligence } from "./tax-intelligence";
 import type { AdminAssistantClientContext, AdminAssistantSnapshot } from "./types";
 import { vendorOperationalIntelligence } from "./vendor-intelligence";
 
@@ -17,6 +18,10 @@ export async function buildAdminAssistantPhase1Snapshot(
 
   if (["vendor_detail", "vendor_catalogue"].includes(snapshot.context.pageType)) {
     snapshot = await vendorOperationalIntelligence(principal, snapshot);
+  }
+
+  if (snapshot.context.pageType === "tax_mydata") {
+    snapshot = await taxCrossDomainIntelligence(principal, snapshot);
   }
 
   return {
