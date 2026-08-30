@@ -11,6 +11,8 @@ on:
       - "apps/web/src/app/admin/layout.tsx"
       - "apps/web/src/app/admin-assistant.css"
       - "db/migrations/0168_admin_assistant.sql"
+      - "db/migrations/0170_admin_assistant_recommendation_states.sql"
+      - "db/migrations/checksums.0170.json"
       - "scripts/verify-admin-assistant.ts"
       - "scripts/verify-admin-assistant-phase1-intelligence.ts"
       - ".github/workflows/admin-assistant-acceptance.yml"
@@ -21,6 +23,8 @@ on:
       - "apps/web/src/components/AdminAssistantShell.tsx"
       - "apps/web/src/app/api/admin/assistant/**"
       - "db/migrations/0168_admin_assistant.sql"
+      - "db/migrations/0170_admin_assistant_recommendation_states.sql"
+      - "db/migrations/checksums.0170.json"
       - "scripts/verify-admin-assistant.ts"
       - "scripts/verify-admin-assistant-phase1-intelligence.ts"
 
