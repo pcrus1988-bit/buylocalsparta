@@ -26,6 +26,16 @@ export type VendorAssignedCatalogueProduct = Readonly<{
   updatedAt: number;
 }>;
 
+export type VendorAssignedCatalogueWorkspace = Readonly<{
+  products: readonly VendorAssignedCatalogueProduct[];
+  totalAssigned: number;
+  pendingPrice: number;
+  pendingStock: number;
+  canonicalMatched: number;
+  offset: number;
+  limit: number;
+}>;
+
 function requiredVendorId(principal: SessionPrincipal): string {
   if (!principal.vendorId || !principal.roles.some((role) => role.startsWith("vendor_"))) throw new Error("VENDOR_AUTH_REQUIRED");
   return principal.vendorId;
@@ -57,10 +67,34 @@ function epoch(value: unknown): number {
 }
 const euro = (minor: number) => formatMoney(money(minor, "EUR"));
 
-export async function vendorAssignedCatalogueWorkspace(principal: SessionPrincipal): Promise<readonly VendorAssignedCatalogueProduct[]> {
-  if (!postgresVendorRuntimeEnabled()) return [];
+export async function vendorAssignedCatalogueWorkspace(
+  principal: SessionPrincipal,
+  input: Readonly<{ offset?: number; limit?: number }> = {}
+): Promise<VendorAssignedCatalogueWorkspace> {
+  const limit = Number.isSafeInteger(input.limit) ? Math.max(1, Math.min(100, Number(input.limit))) : 40;
+  const offset = Number.isSafeInteger(input.offset) ? Math.max(0, Number(input.offset)) : 0;
+  if (!postgresVendorRuntimeEnabled()) return { products: [], totalAssigned: 0, pendingPrice: 0, pendingStock: 0, canonicalMatched: 0, offset, limit };
   const vendorId = requiredVendorId(principal);
   return unitOfWork().withTransaction(vendorScope(principal), async (tx) => {
+    const summary = await tx.query<SqlRow>(`
+      SELECT count(*)::integer AS total_assigned,
+             count(*) FILTER (WHERE vca.price_check_status='pending')::integer AS pending_price,
+             count(*) FILTER (WHERE vca.stock_check_status='pending')::integer AS pending_stock,
+             count(*) FILTER (
+               WHERE vca.canonical_variant_id IS NOT NULL
+                  OR EXISTS (
+                    SELECT 1 FROM public.catalog_source_product_links l
+                    WHERE l.source_product_id=vca.source_product_id AND l.link_status='approved'
+                  )
+             )::integer AS canonical_matched
+      FROM public.vendor_catalog_assortments vca
+      JOIN public.vendor_businesses vb ON vb.id=vca.vendor_id
+      WHERE vca.vendor_id=(SELECT id FROM public.vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
+        AND vca.source_product_id IS NOT NULL
+        AND vca.assortment_status NOT IN ('rejected','discontinued')
+        AND (vb.demo_mode=true OR vb.status='active')
+    `, [vendorId]);
+
     const result = await tx.query<SqlRow>(`
       SELECT vca.public_id,
              sp.title,
@@ -115,9 +149,10 @@ export async function vendorAssignedCatalogueWorkspace(principal: SessionPrincip
         vca.updated_at DESC,
         sp.title,
         vca.id
-      LIMIT 2500
-    `, [vendorId]);
-    return result.rows.map((row) => {
+      LIMIT $2 OFFSET $3
+    `, [vendorId, limit, offset]);
+
+    const products = result.rows.map((row) => {
       const sourcePriceMinor = optionalInteger(row.source_price_minor);
       const verifiedSupplierPriceMinor = optionalInteger(row.verified_supplier_price_minor);
       const priceCheckStatus = text(row.price_check_status, "price check status");
@@ -146,8 +181,18 @@ export async function vendorAssignedCatalogueWorkspace(principal: SessionPrincip
         demoMode: row.demo_mode === true,
         vendorStatus: text(row.vendor_status, "vendor status"),
         updatedAt: epoch(row.updated_at)
-      };
+      } satisfies VendorAssignedCatalogueProduct;
     });
+    const row = summary.rows[0] ?? {};
+    return {
+      products,
+      totalAssigned: integer(row.total_assigned ?? 0, "total assigned"),
+      pendingPrice: integer(row.pending_price ?? 0, "pending price"),
+      pendingStock: integer(row.pending_stock ?? 0, "pending stock"),
+      canonicalMatched: integer(row.canonical_matched ?? 0, "canonical matched"),
+      offset,
+      limit
+    };
   }, { readOnly: true, statementTimeoutMs: 12_000 });
 }
 
@@ -162,7 +207,7 @@ export async function confirmVendorAssignedCatalogueEvidence(
   const hasPrice = input.supplierPriceMinor !== undefined;
   const hasStock = input.stockOnHand !== undefined || input.stockUnavailable === true;
   if (!hasPrice && !hasStock) throw new Error("Enter a supplier price or physical stock confirmation");
-  if (hasPrice && (!Number.isSafeInteger(input.supplierPriceMinor) || Number(input.supplierPriceMinor) < 0 || Number(input.supplierPriceMinor) > 100_000_000_00)) {
+  if (hasPrice && (!Number.isSafeInteger(input.supplierPriceMinor) || Number(input.supplierPriceMinor) < 0 || Number(input.supplierPriceMinor) > 10_000_000_000)) {
     throw new Error("Supplier price must be a non-negative amount in cents");
   }
   if (input.stockOnHand !== undefined && (!Number.isSafeInteger(input.stockOnHand) || input.stockOnHand < 0 || input.stockOnHand > 1_000_000)) {
