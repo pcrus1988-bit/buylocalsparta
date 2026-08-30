@@ -1,15 +1,17 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminCatalogueAttributeReviewWorkspace } from "../admin-catalogue-attribute-review";
 import { adminCatalogueOverviewWorkspace } from "../admin-catalogue-overview-runtime";
-import { adminMaintenanceWorkspace } from "../admin-governance-runtime";
+import { adminMaintenanceWorkspace, adminOrdersReturnsWorkspace } from "../admin-governance-runtime";
+import { adminOpenIcecatIngestionStatus } from "../admin-open-icecat-ingestion";
 import { adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from "../admin-runtime";
 import { adminSeoWorkspace } from "../admin-seo-runtime";
 import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
+import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
 import { getAdminAssistantOrderIntelligence } from "./order-intelligence";
 import { recordAssistantToolAudit } from "./repository";
 import type { AdminAssistantContext } from "./types";
 
-type ToolFamily = "catalogue" | "orders" | "tax" | "seo" | "gift_cards" | "system";
+type ToolFamily = "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "system";
 type ToolArguments = Readonly<Record<string, unknown>>;
 type ToolResult = Readonly<Record<string, unknown>>;
 
@@ -71,6 +73,46 @@ const TOOLS: readonly ToolDefinition[] = [
     }
   },
   {
+    name: "getOpenIcecatIngestionStatus",
+    family: "catalogue",
+    description: "Return bounded Open Icecat bulk checkpoints, rejection/filtered counts and Greek detail queue health.",
+    capability: "catalog.read",
+    pageTypes: ["catalogue_import"],
+    execute: async (principal) => {
+      const data = await adminOpenIcecatIngestionStatus(principal);
+      return {
+        runs: data.runs.slice(0, 6).map((run) => ({
+          runId: run.runId,
+          sourceName: run.sourceName,
+          importKind: run.importKind,
+          status: run.status,
+          checkpoint: run.checkpoint,
+          persisted: run.persisted,
+          removed: run.removed,
+          rejected: run.rejected,
+          filtered: run.filtered,
+          activeIndexProducts: run.activeIndexProducts,
+          removedIndexProducts: run.removedIndexProducts,
+          updatedAt: run.updatedAt,
+          completedAt: run.completedAt,
+          failedAt: run.failedAt,
+          lastError: run.lastError
+        })),
+        detail: data.detail ? {
+          activeIndexProducts: data.detail.activeIndexProducts,
+          unqueueableWithoutGtin: data.detail.unqueueableWithoutGtin,
+          pending: data.detail.pending,
+          processing: data.detail.processing,
+          retry: data.detail.retry,
+          ready: data.detail.ready,
+          needsEnrichment: data.detail.needsEnrichment,
+          failed: data.detail.failed,
+          skipped: data.detail.skipped
+        } : undefined
+      };
+    }
+  },
+  {
     name: "getOrderLifecycleIntelligence",
     family: "orders",
     description: "Correlate one order with payment, fulfilment, returns and linked tax documents.",
@@ -80,6 +122,43 @@ const TOOLS: readonly ToolDefinition[] = [
       const orderId = textArg(args, "orderId");
       if (!orderId) throw new Error("orderId is required");
       return await getAdminAssistantOrderIntelligence(principal, orderId) as unknown as ToolResult;
+    }
+  },
+  {
+    name: "getVendorOperationalIntelligence",
+    family: "partners",
+    description: "Return one partner's bounded operational, agreement, location, catalogue and assigned-order state.",
+    capability: "partners.read",
+    pageTypes: ["vendor_detail", "vendor_catalogue"],
+    execute: async (principal, args) => {
+      const vendorId = textArg(args, "vendorId");
+      if (!vendorId) throw new Error("vendorId is required");
+      const [workspace, orderData] = await Promise.all([
+        adminVendorShopsWorkspace(principal),
+        hasAdminPermission(principal, "fulfilment.read") ? adminOrdersReturnsWorkspace(principal).catch(() => undefined) : undefined
+      ]);
+      const shop = workspace.shops.find((item) => item.id === vendorId);
+      if (!shop) throw new Error("VENDOR_NOT_FOUND");
+      const orders = orderData?.orders.filter((order) => order.lines.some((line) => line.vendorId === shop.id)) ?? [];
+      return {
+        vendor: {
+          id: shop.id,
+          tradingName: shop.tradingName,
+          legalName: shop.legalName,
+          status: shop.status,
+          operationalActive: shop.operationalActive,
+          publicDirectoryVisible: shop.publicDirectoryVisible,
+          applicationId: shop.applicationId,
+          applicationState: shop.applicationState,
+          researchVendor: shop.researchVendor,
+          locationCount: shop.locationCount,
+          activeLocationCount: shop.activeLocationCount,
+          approvedOfferCount: shop.approvedOfferCount,
+          cooperationDocumented: shop.cooperationDocumented,
+          agreement: shop.agreement
+        },
+        orders: orders.slice(0, 25).map((order) => ({ id: order.id, status: order.status, fulfilmentMode: order.fulfilmentMode, partnerLineCount: order.lines.filter((line) => line.vendorId === shop.id).length }))
+      };
     }
   },
   {
@@ -143,6 +222,7 @@ const TOOLS: readonly ToolDefinition[] = [
 function capabilityAllowed(principal: SessionPrincipal, capability: string): boolean {
   if (capability === "catalog.read") return hasAdminPermission(principal, "catalog.read");
   if (capability === "orders.read") return hasAdminPermission(principal, "fulfilment.read");
+  if (capability === "partners.read") return hasAdminPermission(principal, "vendor.manage");
   if (capability === "finance.read") return hasAdminPermission(principal, "finance.read");
   if (capability === "seo.read") return hasAdminPermission(principal, "content.read");
   if (capability === "audit.read") return hasAdminPermission(principal, "admin.audit.read");
