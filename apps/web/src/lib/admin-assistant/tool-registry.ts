@@ -7,12 +7,13 @@ import { adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from 
 import { adminSeoWorkspace } from "../admin-seo-runtime";
 import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
 import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
+import { searchAdminEntities } from "./global-search";
 import { getAdminAssistantOrderIntelligence } from "./order-intelligence";
 import { recordAssistantToolAudit } from "./repository";
 import { getAdminAssistantTaxCrossDomain } from "./tax-cross-domain";
 import type { AdminAssistantContext } from "./types";
 
-type ToolFamily = "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "system";
+type ToolFamily = "search" | "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "system";
 type ToolArguments = Readonly<Record<string, unknown>>;
 type ToolResult = Readonly<Record<string, unknown>>;
 
@@ -31,6 +32,17 @@ function textArg(args: ToolArguments, key: string, max = 200): string | undefine
 }
 
 const TOOLS: readonly ToolDefinition[] = [
+  {
+    name: "getGlobalAdminSearch",
+    family: "search",
+    description: "Resolve orders, customers, support tickets, partners, applications and research leads through permission-aware Admin search.",
+    capability: "assistant.read",
+    execute: async (principal, args) => {
+      const query = textArg(args, "query");
+      if (!query) throw new Error("query is required");
+      return { results: await searchAdminEntities(principal, query) };
+    }
+  },
   {
     name: "getCatalogueHealth",
     family: "catalogue",
@@ -118,7 +130,6 @@ const TOOLS: readonly ToolDefinition[] = [
     family: "orders",
     description: "Correlate one order with payment, fulfilment, returns and linked tax documents.",
     capability: "orders.read",
-    pageTypes: ["order_detail", "orders"],
     execute: async (principal, args) => {
       const orderId = textArg(args, "orderId");
       if (!orderId) throw new Error("orderId is required");
@@ -130,7 +141,6 @@ const TOOLS: readonly ToolDefinition[] = [
     family: "partners",
     description: "Return one partner's bounded operational, agreement, location, catalogue and assigned-order state.",
     capability: "partners.read",
-    pageTypes: ["vendor_detail", "vendor_catalogue"],
     execute: async (principal, args) => {
       const vendorId = textArg(args, "vendorId");
       if (!vendorId) throw new Error("vendorId is required");
@@ -244,6 +254,7 @@ const TOOLS: readonly ToolDefinition[] = [
 ];
 
 function capabilityAllowed(principal: SessionPrincipal, capability: string): boolean {
+  if (capability === "assistant.read") return true;
   if (capability === "catalog.read") return hasAdminPermission(principal, "catalog.read");
   if (capability === "orders.read") return hasAdminPermission(principal, "fulfilment.read");
   if (capability === "partners.read") return hasAdminPermission(principal, "vendor.manage");
