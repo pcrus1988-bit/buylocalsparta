@@ -69,9 +69,9 @@ function deterministicLookupAnswer(
   if (!rows.length) {
     return {
       summary: "No authorized KONTA MOY Admin entity matched that lookup.",
-      facts: ["The permission-aware Admin search returned zero matching orders, customers, support cases, partners, applications or research leads."],
+      facts: ["The permission-aware Admin search returned zero matching products, orders, customers, support cases, partners, applications or research leads."],
       interpretation: "No identifier should be guessed when the authorized search has no match.",
-      recommendations: ["Try a public order/ticket reference, email address, partner name or technical identifier."],
+      recommendations: ["Try a canonical product ID, GTIN/EAN, model, product title, public order/ticket reference, email address, partner name or technical identifier."],
       actions: [],
       sources: [],
       provider: "deterministic"
@@ -89,6 +89,26 @@ function deterministicLookupAnswer(
     ? `Found one authorized match: ${String(rows[0]?.label ?? rows[0]?.id ?? "entity")}. ${String(rows[0]?.detail ?? "")}`
     : `Found ${rows.length} authorized matches. ${rows.slice(0, 3).map((row) => String(row.label ?? row.id ?? "entity")).join(", ")}${rows.length > 3 ? "…" : "."}`;
   const recommendations = rows.length === 1 ? ["Open the matched record or continue with the attached operational inspection."] : ["Choose the intended entity before making any operational conclusion."];
+
+  if (rows.length === 1 && rows[0]?.kind === "product") {
+    const productResult = investigationResult(investigation, "getProductIntelligence");
+    const product = productResult?.data?.product;
+    if (product && typeof product === "object") {
+      const productRow = product as Record<string, unknown>;
+      const offers = Array.isArray(productRow.offers) ? productRow.offers.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      const approved = offers.filter((offer) => offer.status === "approved");
+      const visible = approved.filter((offer) => offer.merchantVisible === true && offer.merchantPauseActive !== true);
+      const stale = visible.filter((offer) => offer.freshnessStatus === "stale" || offer.freshnessStatus === "expired");
+      const sellable = visible.reduce((sum, offer) => sum + Math.max(0, Number(offer.onHand ?? 0) - Number(offer.activeReservations ?? 0) - Number(offer.safetyStock ?? 0) - Number(offer.blocked ?? 0)), 0);
+      summary += ` Product state: active=${productRow.active === true ? "yes" : "no"}, suppressed=${productRow.suppressed === true ? "yes" : "no"}, recalled=${productRow.recalled === true ? "yes" : "no"}; ${approved.length} approved offer(s), ${visible.length} visible, sellable stock ${sellable}, ${stale.length} stale/expired visible inventory record(s), ${String(productRow.unmappedAttributeCount ?? 0)} unresolved linked attribute observation(s).`;
+      facts.push(`Product inspection: Greek title=${productRow.title ? "present" : "missing"}, description=${productRow.descriptionPresent === true ? "present" : "missing"}, approvedOffers=${approved.length}, visibleOffers=${visible.length}, sellableStock=${sellable}, staleInventory=${stale.length}, unmappedAttributes=${String(productRow.unmappedAttributeCount ?? 0)}.`);
+      const seo = productRow.seo;
+      if (seo && typeof seo === "object") {
+        const seoRow = seo as Record<string, unknown>;
+        facts.push(`SEO intent: route=${String(seoRow.route ?? "unknown")}, desiredIndexable=${seoRow.desiredIndexable === true ? "yes" : "no"}.`);
+      }
+    }
+  }
 
   if (rows.length === 1 && rows[0]?.kind === "order") {
     const orderResult = investigationResult(investigation, "getOrderLifecycleIntelligence");
