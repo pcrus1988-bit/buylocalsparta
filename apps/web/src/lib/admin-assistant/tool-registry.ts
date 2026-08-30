@@ -9,6 +9,7 @@ import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
 import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
 import { getAdminAssistantOrderIntelligence } from "./order-intelligence";
 import { recordAssistantToolAudit } from "./repository";
+import { getAdminAssistantTaxCrossDomain } from "./tax-cross-domain";
 import type { AdminAssistantContext } from "./types";
 
 type ToolFamily = "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "system";
@@ -158,6 +159,29 @@ const TOOLS: readonly ToolDefinition[] = [
           agreement: shop.agreement
         },
         orders: orders.slice(0, 25).map((order) => ({ id: order.id, status: order.status, fulfilmentMode: order.fulfilmentMode, partnerLineCount: order.lines.filter((line) => line.vendorId === shop.id).length }))
+      };
+    }
+  },
+  {
+    name: "getTaxCrossDomainReconciliation",
+    family: "tax",
+    description: "Return bounded paid/captured orders whose order/payment/fiscal state is inconsistent.",
+    capability: "finance.read",
+    pageTypes: ["tax_mydata"],
+    execute: async (principal) => {
+      const rows = await getAdminAssistantTaxCrossDomain(principal);
+      return {
+        rows: rows.slice(0, 100).map((row) => ({
+          orderId: row.orderId,
+          displayReference: row.displayReference,
+          orderStatus: row.orderStatus,
+          paymentStatus: row.paymentStatus,
+          paymentProvider: row.paymentProvider,
+          capturedMinor: row.capturedMinor,
+          taxDocumentCount: row.taxDocumentCount,
+          acceptedMarkCount: row.acceptedMarkCount,
+          createdAt: row.createdAt
+        }))
       };
     }
   },
