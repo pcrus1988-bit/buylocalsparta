@@ -139,6 +139,7 @@ try {
 
 function principal(userId: string, vendorId: string) {
   return {
+    sessionId: `ci-session-${userId}`,
     userId,
     email: `ci-${userId}@example.test`,
     roles: ["vendor_owner"],
