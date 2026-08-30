@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { categoryGovernanceIntelligence, controlledValueIntelligence } from "./catalog-governance-intelligence";
 import { suggestedQuestionsForContext } from "./context";
+import { crawlerOperationalIntelligence } from "./crawler-intelligence";
 import { customerOperationalIntelligence } from "./customer-intelligence";
 import { dashboardOperationalIntelligence } from "./dashboard-intelligence";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
@@ -23,6 +24,10 @@ export async function buildAdminAssistantPhase1Snapshot(
 
   if (snapshot.context.pageType === "catalogue_import") {
     snapshot = await openIcecatIngestionIntelligence(principal, snapshot);
+  }
+
+  if (snapshot.context.pageType === "catalogue_crawler") {
+    snapshot = await crawlerOperationalIntelligence(principal, snapshot);
   }
 
   if (snapshot.context.pageType === "product_matching") {
