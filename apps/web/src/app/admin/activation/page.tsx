@@ -71,7 +71,7 @@ export default async function Page() {
   const hasHardFailure = gates.some((gate) => gate.state === "failed" || gate.state === "blocked");
   const readyForLiveCommerce = coreReady && !hasHardFailure;
 
-  return <main className="vendor-app admin-app admin-production-readiness">
+  return <main className="vendor-app admin-app admin-production-readiness" data-legacy-label="Launch Readiness">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · Production Readiness · build evidence</div><h1>Production Readiness</h1><p className="lead">Build-scoped evidence showing whether the current production platform is safe to accept live commerce. Green states come only from fresh provider checks, never from configuration assumptions.</p></div></section>
 
