@@ -26,6 +26,12 @@ export function planAssistantInvestigation(
   if (context.pageType === "order_detail" || contains(question, /order|payment|fulfil|fulfill|tax document|mark|refund|return|παραγγελ|πληρω|επιστροφ/)) {
     if (context.entityId) add("getOrderLifecycleIntelligence", { orderId: context.entityId });
   }
+  if (["vendor_detail", "vendor_catalogue"].includes(context.pageType) || contains(question, /partner|vendor|agreement|activation|location|approved offer|onboarding|συνεργάτ|συμφων|ενεργοποι/)) {
+    if (context.entityType === "vendor" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
+  }
+  if (context.pageType === "catalogue_import" || contains(question, /icecat|ingestion|checkpoint|rejected row|reject|filtered row|enrichment|gtin|εισαγωγ|απόρριψ/)) {
+    add("getOpenIcecatIngestionStatus");
+  }
   if (context.pageType === "attribute_mapping" || contains(question, /unmapped|attribute|mapping|unit|icecat attribute|χαρακτηρισ|αντιστοιχ/)) {
     add("getAttributeMappingIntelligence", context.filters.snapshot ? { snapshotId: context.filters.snapshot } : {});
   }
@@ -36,7 +42,8 @@ export function planAssistantInvestigation(
   if (context.domain === "platform" || contains(question, /system|job|queue|worker|health|failure|failed|background|σύστημα|εργασία/)) add("getSystemHealth");
 
   if (!candidates.length) {
-    if (context.domain === "catalogue") add("getCatalogueHealth");
+    if (context.domain === "catalogue") add(context.pageType === "catalogue_import" ? "getOpenIcecatIngestionStatus" : "getCatalogueHealth");
+    else if (context.domain === "partners" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
     else if (context.domain === "seo") add("getSeoHealth");
     else if (context.domain === "tax") add("getTaxDocumentStatus");
     else if (context.domain === "gift_cards") add("getGiftCardHealth");
