@@ -124,6 +124,8 @@ function followUpFromSearch(result: AdminAssistantInvestigationResult): Readonly
   if (row.kind === "order") return { name: "getOrderLifecycleIntelligence", args: { orderId: id } };
   if (row.kind === "vendor") return { name: "getVendorOperationalIntelligence", args: { vendorId: id } };
   if (row.kind === "customer") return { name: "getCustomerOperationalIntelligence", args: { customerId: id } };
+  const relatedCustomerId = typeof row.relatedCustomerId === "string" ? row.relatedCustomerId : undefined;
+  if (row.kind === "support" && relatedCustomerId) return { name: "getCustomerOperationalIntelligence", args: { customerId: relatedCustomerId } };
   return undefined;
 }
 
