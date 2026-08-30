@@ -26,6 +26,8 @@ assert.ok((malicious.selectedTab?.length ?? 0) <= 120);
 assert.ok(suggestedQuestionsForDomain("catalogue").some((item) => /unmapped/i.test(item)));
 assert.ok(suggestedQuestionsForDomain("tax").some((item) => /MARK/i.test(item)));
 
+assert.equal(adminAssistantPageDefinition("/admin/search").pageType, "global_search");
+assert.match(adminAssistantPageDefinition("/admin/search").purpose, /resolve.*orders|human-readable/i);
 assert.equal(adminAssistantPageDefinition("/admin/catalogue-intake/attributes").pageType, "attribute_mapping");
 assert.equal(adminAssistantPageDefinition("/admin/catalogue-intake/attributes").domain, "catalogue");
 assert.equal(adminAssistantPageDefinition("/admin/catalogue-intake/import").pageType, "catalogue_import");
@@ -41,7 +43,7 @@ const lowScore = recommendationScore({ finding: { id: "low", severity: "info", c
 const criticalScore = recommendationScore({ finding: { id: "critical", severity: "critical", category: "test", title: "Critical", detail: "Critical", evidence: [], affectedCount: 100, confidence: "high" }, dimensions: { urgency: 10, complianceRisk: 10, customerImpact: 8, effort: 2 } });
 assert.ok(criticalScore > lowScore, "Operationally critical evidence must outrank low-impact information");
 
-const [prompt, contextRoute, messageRoute, conversationsRoute, repository, service, tools, migration, shell, actionButton, actionEvents, pageRegistry, recommendations, intelligence, operationalSnapshot, orderIntelligence, ingestionIntelligence, vendorIntelligence, taxCrossDomain, taxIntelligence, phase1Snapshot, toolRegistry, investigation] = await Promise.all([
+const [prompt, contextRoute, messageRoute, conversationsRoute, repository, service, tools, migration, shell, actionButton, actionEvents, pageRegistry, recommendations, intelligence, operationalSnapshot, orderIntelligence, ingestionIntelligence, vendorIntelligence, taxCrossDomain, taxIntelligence, globalSearch, phase1Snapshot, toolRegistry, investigation] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/prompt.ts"),
   read("apps/web/src/app/api/admin/assistant/context/route.ts"),
   read("apps/web/src/app/api/admin/assistant/message/route.ts"),
@@ -62,6 +64,7 @@ const [prompt, contextRoute, messageRoute, conversationsRoute, repository, servi
   read("apps/web/src/lib/admin-assistant/vendor-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/tax-cross-domain.ts"),
   read("apps/web/src/lib/admin-assistant/tax-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/global-search.ts"),
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts")
@@ -91,9 +94,13 @@ assert.match(service, /ADMIN_ASSISTANT_SYSTEM_PROMPT_V1/);
 assert.match(service, /collectSources/);
 assert.match(service, /url\.protocol === "https:"/);
 assert.match(service, /deterministicAnswer/);
+assert.match(service, /deterministicLookupAnswer/);
+assert.match(service, /No authorized KONTA MOY Admin entity matched/);
+assert.match(service, /no identifier was inferred by the model/i);
 assert.match(service, /Recent audited Admin changes/);
 assert.match(service, /authorizedInvestigation/);
 assert.match(service, /structuredRecommendations/);
+assert.match(service, /safeAdminHref/);
 assert.doesNotMatch(service, /eval\(|new Function|javascript:/i);
 
 assert.match(tools, /adminCatalogueOverviewWorkspace/);
@@ -104,6 +111,7 @@ assert.match(tools, /adminMaintenanceWorkspace/);
 assert.doesNotMatch(tools, /SELECT |INSERT |UPDATE |DELETE /i);
 
 assert.match(pageRegistry, /ADMIN_WORKSPACE_NAVIGATION/);
+assert.match(pageRegistry, /global_search/);
 assert.match(pageRegistry, /attribute_mapping/);
 assert.match(pageRegistry, /catalogue_import/);
 assert.match(pageRegistry, /order_detail/);
@@ -155,17 +163,34 @@ assert.match(taxIntelligence, /paid_order_missing_tax_document/);
 assert.match(taxIntelligence, /payment_order_state_mismatch/);
 assert.match(taxIntelligence, /document creation and transmission are separate/i);
 
+assert.match(globalSearch, /adminCustomersWorkspace/);
+assert.match(globalSearch, /adminCustomerSupportQueue/);
+assert.match(globalSearch, /adminOrdersReturnsWorkspace/);
+assert.match(globalSearch, /adminVendorShopsWorkspace/);
+assert.match(globalSearch, /researchVendorsWorkspace/);
+assert.match(globalSearch, /marketplaceReferenceMap/);
+assert.match(globalSearch, /hasAdminPermission\(principal, "customer\.read"\)/);
+assert.match(globalSearch, /hasAdminPermission\(principal, "fulfilment\.read"\)/);
+assert.match(globalSearch, /hasAdminPermission\(principal, "vendor\.manage"\)/);
+assert.match(globalSearch, /results\.slice\(0, 40\)/);
+assert.doesNotMatch(globalSearch, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
 assert.match(phase1Snapshot, /openIcecatIngestionIntelligence/);
 assert.match(phase1Snapshot, /vendorOperationalIntelligence/);
 assert.match(phase1Snapshot, /taxCrossDomainIntelligence/);
 
-for (const toolName of ["getCatalogueHealth", "getAttributeMappingIntelligence", "getOpenIcecatIngestionStatus", "getOrderLifecycleIntelligence", "getVendorOperationalIntelligence", "getTaxDocumentStatus", "getSeoHealth", "getGiftCardHealth", "getSystemHealth"]) assert.match(toolRegistry, new RegExp(toolName));
+for (const toolName of ["getGlobalAdminSearch", "getCatalogueHealth", "getAttributeMappingIntelligence", "getOpenIcecatIngestionStatus", "getOrderLifecycleIntelligence", "getVendorOperationalIntelligence", "getTaxCrossDomainReconciliation", "getTaxDocumentStatus", "getSeoHealth", "getGiftCardHealth", "getSystemHealth"]) assert.match(toolRegistry, new RegExp(toolName));
+assert.match(toolRegistry, /capability === "assistant\.read"/);
 assert.match(toolRegistry, /capabilityAllowed/);
 assert.match(toolRegistry, /recordAssistantToolAudit/);
 assert.match(toolRegistry, /ASSISTANT_TOOL_PERMISSION_REQUIRED/);
 assert.match(toolRegistry, /ASSISTANT_TOOL_NOT_AVAILABLE_IN_CONTEXT/);
 assert.match(toolRegistry, /slice\(0, 250\)/);
 assert.match(investigation, /candidates\.slice\(0, 3\)/);
+assert.match(investigation, /lookupQuery/);
+assert.match(investigation, /getGlobalAdminSearch/);
+assert.match(investigation, /followUpFromSearch/);
+assert.match(investigation, /rows\.length !== 1/);
 assert.match(investigation, /getOpenIcecatIngestionStatus/);
 assert.match(investigation, /getVendorOperationalIntelligence/);
 assert.match(investigation, /availableAssistantTools/);
