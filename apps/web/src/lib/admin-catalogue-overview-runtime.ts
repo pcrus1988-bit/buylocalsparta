@@ -212,7 +212,7 @@ async function postgresCatalogueOverview(principal: SessionPrincipal): Promise<C
        LEFT JOIN categories p ON p.id = c.parent_id
        LEFT JOIN category_translations ct
          ON ct.category_id = c.id
-        AND ct.locale = 'el-GR'
+        AND ct.locale = 'el'
        LEFT JOIN canonical_variants cv
          ON cv.category_id = c.id
         AND cv.market_id = m.id
@@ -232,7 +232,7 @@ async function postgresCatalogueOverview(principal: SessionPrincipal): Promise<C
         directLiveProducts: integer(row, "direct_live_products")
       }))
     );
-  });
+  }, { readOnly: true });
 }
 
 function memoryCatalogueOverview(principal: SessionPrincipal): CatalogueOverviewWorkspace {
