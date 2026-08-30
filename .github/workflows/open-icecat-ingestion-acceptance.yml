@@ -13,10 +13,10 @@ on:
       - "packages/core/test/open-icecat*.test.ts"
       - "db/migrations/0158_open_icecat_greek_product_intelligence.sql"
       - "db/migrations/0160_open_icecat_bulk_ingestion_runs.sql"
-      - "db/migrations/0161_open_icecat_detail_enrichment.sql"
+      - "db/migrations/0163_open_icecat_detail_enrichment.sql"
       - "db/migrations/checksums.0158.json"
       - "db/migrations/checksums.0160.json"
-      - "db/migrations/checksums.0161.json"
+      - "db/migrations/checksums.0163.json"
       - "packages/postgres-runtime/src/index.ts"
       - "deploy/worker-entrypoint.sh"
       - "deploy/worker.env.example"
@@ -57,7 +57,7 @@ jobs:
       - name: Verify migration ledger and deployment topology
         run: |
           sha256sum db/migrations/0160_open_icecat_bulk_ingestion_runs.sql
-          sha256sum db/migrations/0161_open_icecat_detail_enrichment.sql
+          sha256sum db/migrations/0163_open_icecat_detail_enrichment.sql
           npm run db:verify
           node --experimental-strip-types scripts/verify-deployment-topology.ts
       - name: Bootstrap Supabase-compatible roles and Vault contract
@@ -87,7 +87,7 @@ jobs:
           END;
           $$;
           SQL
-      - name: Apply schema 161 and verify readiness
+      - name: Apply current schema and verify readiness
         run: |
           npm run db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"

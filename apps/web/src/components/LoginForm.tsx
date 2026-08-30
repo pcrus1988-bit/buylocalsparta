@@ -13,9 +13,11 @@ export function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
   const verified = searchParams.get("verified") === "1";
   const reset = searchParams.get("reset") === "1";
   const emailChanged = searchParams.get("emailChanged") === "1";
+  const googleError = searchParams.get("googleError");
   const requestedNext = searchParams.get("next");
   const safeNext = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : undefined;
   const registerHref = safeNext ? `/register?next=${encodeURIComponent(safeNext)}` : "/register";
+  const googleHref = `/api/account/google/start${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -39,6 +41,14 @@ export function LoginForm({ demoEnabled }: { demoEnabled: boolean }) {
     {verified && <div className="account-gate" role="status"><strong>Το email επιβεβαιώθηκε.</strong><p>Συνδέσου για να συνεχίσεις.</p></div>}
     {reset && <div className="account-gate" role="status"><strong>Ο κωδικός άλλαξε.</strong><p>Συνδέσου τώρα με τον νέο κωδικό σου.</p></div>}
     {emailChanged && <div className="account-gate" role="status"><strong>Το email σύνδεσης άλλαξε.</strong><p>Συνδέσου με τη νέα διεύθυνση email και τον υπάρχοντα κωδικό σου.</p></div>}
+    {googleError && <div className="account-gate" role="alert"><strong>Η σύνδεση με Google δεν ολοκληρώθηκε.</strong><p>{googleError === "cancelled" ? "Η διαδικασία ακυρώθηκε. Μπορείς να δοκιμάσεις ξανά." : googleError === "unavailable" ? "Η σύνδεση με Google δεν είναι διαθέσιμη αυτή τη στιγμή." : "Δοκίμασε ξανά ή συνδέσου με email και κωδικό."}</p></div>}
+
+    <a className="button" href={googleHref} style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.65rem", textDecoration: "none" }}>
+      <span aria-hidden="true" style={{ fontWeight: 800 }}>G</span>
+      Συνέχεια με Google
+    </a>
+    <div aria-hidden="true" style={{ textAlign: "center", opacity: 0.65, fontSize: "0.9rem" }}>ή με email</div>
+
     <label htmlFor="login-email">Email</label>
     <input id="login-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
     <label htmlFor="login-password">Κωδικός</label>

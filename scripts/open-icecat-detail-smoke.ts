@@ -8,7 +8,10 @@ import { createPostgresRuntimeFromEnv, EXPECTED_SCHEMA_VERSION } from "../packag
 const runtime = createPostgresRuntimeFromEnv({ applicationName: "open-icecat-detail-smoke" });
 try {
   const readiness = await runtime.readiness(EXPECTED_SCHEMA_VERSION);
-  assert(readiness.ok && readiness.appliedSchemaVersion === 161, `schema 161 is required: ${readiness.message}`);
+  assert(
+    readiness.ok && readiness.appliedSchemaVersion === EXPECTED_SCHEMA_VERSION,
+    `schema ${EXPECTED_SCHEMA_VERSION} is required: ${readiness.message}`
+  );
 
   const source = await runtime.nativePool.query<{ source_id: string }>(`
     SELECT s.id::text AS source_id

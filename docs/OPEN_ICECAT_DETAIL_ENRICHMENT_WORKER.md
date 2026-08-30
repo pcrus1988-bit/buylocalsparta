@@ -31,7 +31,7 @@ The first detail-worker release deliberately does not invent or automatically tr
 
 ## Durable queue
 
-Migration `0161_open_icecat_detail_enrichment.sql` creates `open_icecat_detail_enrichment_jobs`.
+Migration `0163_open_icecat_detail_enrichment.sql` creates `open_icecat_detail_enrichment_jobs`.
 
 Jobs are keyed by `(source_id, product_id)` and are version-bound to:
 
