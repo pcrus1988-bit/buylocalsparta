@@ -213,12 +213,88 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION bls_private.backfill_catalog_source_attribute_mapping_rule(
+  rule_uuid uuid,
+  actor_user_id uuid
+)
+RETURNS TABLE(mapping_status text, row_count bigint)
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path=pg_catalog,public,bls_private
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.catalog_source_attribute_mapping_rules r
+    JOIN public.product_types pt ON pt.id=r.product_type_id AND pt.status='active'
+    JOIN public.product_type_attributes pta
+      ON pta.product_type_id=r.product_type_id AND pta.attribute_id=r.attribute_id
+    JOIN public.attribute_definitions ad ON ad.id=r.attribute_id AND ad.active=true
+    WHERE r.id=rule_uuid AND r.status='approved'
+  ) THEN
+    RAISE EXCEPTION 'approved source attribute mapping rule is missing or inactive';
+  END IF;
+
+  RETURN QUERY
+  WITH rule_data AS (
+    SELECT r.source_id, r.source_attribute_key, r.scope_kind, r.scope_key,
+           r.product_type_id, r.attribute_id, ad.data_type,
+           COALESCE(pta.unit_override,ad.unit) AS effective_unit
+    FROM public.catalog_source_attribute_mapping_rules r
+    JOIN public.product_types pt ON pt.id=r.product_type_id AND pt.status='active'
+    JOIN public.product_type_attributes pta
+      ON pta.product_type_id=r.product_type_id AND pta.attribute_id=r.attribute_id
+    JOIN public.attribute_definitions ad ON ad.id=r.attribute_id AND ad.active=true
+    WHERE r.id=rule_uuid AND r.status='approved'
+  ), updated AS (
+    UPDATE public.catalog_source_attribute_observations a
+    SET attribute_id=rd.attribute_id,
+        mapping_status=bls_private.catalog_source_attribute_mapping_status(
+          rd.data_type,rd.effective_unit,a.source_unit,a.raw_value,a.normalized_value
+        ),
+        confidence=1,
+        metadata=COALESCE(a.metadata,'{}'::jsonb) || jsonb_build_object(
+          'mappingRuleId',rule_uuid,
+          'mappingMethod','admin_exact_context',
+          'mappingScopeKind',rd.scope_kind,
+          'mappingScopeKey',rd.scope_key,
+          'productTypeId',rd.product_type_id,
+          'mappedBy',actor_user_id::text,
+          'mappedAt',now(),
+          'backfilled',true
+        )
+    FROM public.catalog_source_products sp, rule_data rd
+    WHERE sp.id=a.source_product_id
+      AND sp.source_id=rd.source_id
+      AND a.source_attribute_key=rd.source_attribute_key
+      AND (
+        (rd.scope_kind='taxonomy_node' AND sp.source_taxonomy_node_id::text=rd.scope_key)
+        OR
+        (rd.scope_kind='source_category' AND sp.source_taxonomy_node_id IS NULL AND COALESCE(
+          NULLIF(btrim(sp.source_identity->>'categoryId'),''),
+          NULLIF(btrim(sp.source_identity->>'category_id'),''),
+          NULLIF(btrim(sp.normalized_payload->>'sourceCategoryId'),'')
+        )=rd.scope_key)
+      )
+      AND a.mapping_status='unmapped'
+      AND a.attribute_id IS NULL
+    RETURNING a.mapping_status
+  )
+  SELECT u.mapping_status, count(*)::bigint
+  FROM updated u
+  GROUP BY u.mapping_status
+  ORDER BY u.mapping_status;
+END;
+$$;
+
 REVOKE ALL ON FUNCTION bls_private.catalog_source_attribute_scalar(jsonb,jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION bls_private.catalog_source_attribute_mapping_status(text,text,text,jsonb,jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION bls_private.apply_catalog_source_attribute_mapping_rule() FROM PUBLIC;
+REVOKE ALL ON FUNCTION bls_private.backfill_catalog_source_attribute_mapping_rule(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION bls_private.catalog_source_attribute_scalar(jsonb,jsonb) TO bls_platform_runtime;
 GRANT EXECUTE ON FUNCTION bls_private.catalog_source_attribute_mapping_status(text,text,text,jsonb,jsonb) TO bls_platform_runtime;
 GRANT EXECUTE ON FUNCTION bls_private.apply_catalog_source_attribute_mapping_rule() TO bls_platform_runtime;
+GRANT EXECUTE ON FUNCTION bls_private.backfill_catalog_source_attribute_mapping_rule(uuid,uuid) TO bls_platform_runtime;
 
 DROP TRIGGER IF EXISTS catalog_source_attribute_apply_mapping_rule
   ON public.catalog_source_attribute_observations;
