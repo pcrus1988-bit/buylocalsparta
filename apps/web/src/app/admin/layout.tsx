@@ -10,7 +10,11 @@ import "../admin-trust-operational.css";
 import "../admin-analytics-operational.css";
 import "../admin-content-operational.css";
 import "../admin-platform-operational.css";
+import "../admin-assistant.css";
+import { AdminAssistantShell } from "../../components/AdminAssistantShell";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
+import { adminAssistantEnabled } from "../../lib/admin-assistant/config";
+import { getAdminSession } from "../../lib/admin-session";
 
 export const metadata: Metadata = {
   applicationName: "KONTA MOY Admin",
@@ -23,9 +27,13 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false }
 };
 
-export default function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const principal = await getAdminSession();
+  const workspace = principal && adminAssistantEnabled()
+    ? <AdminAssistantShell csrfToken={principal.csrfToken}>{children}</AdminAssistantShell>
+    : children;
   return <>
-    {children}
+    {workspace}
     <ScopedPwaInstallClient appName="Admin" serviceWorkerPath="/admin-sw.js" scope="/admin" />
   </>;
 }
