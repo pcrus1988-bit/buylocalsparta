@@ -160,6 +160,30 @@ export async function mapCatalogueSourceAttribute(
     const attributeCode = required(target.attribute_code, "attribute.code");
     const productTypeCode = required(target.product_type_code, "product type.code");
 
+    if (scopeKind === "taxonomy_node") {
+      const categoryResult = await tx.query<SqlRow>(`
+        SELECT c.code AS category_code,
+               EXISTS (
+                 SELECT 1
+                 FROM public.category_product_types cpt
+                 WHERE cpt.category_id=m.category_id
+                   AND cpt.product_type_id=$2::uuid
+               ) AS product_type_allowed
+        FROM public.catalog_source_category_mappings m
+        JOIN public.categories c ON c.id=m.category_id
+        WHERE m.source_taxonomy_node_id=$1::uuid
+          AND m.mapping_status='approved'
+        LIMIT 1
+      `, [scopeKey, productTypeId]);
+      const approvedCategory = categoryResult.rows[0];
+      if (!approvedCategory) {
+        throw new Error("Map this supplier taxonomy node to an approved KONTAMOU category before approving reusable attribute mappings.");
+      }
+      if (approvedCategory.product_type_allowed !== true) {
+        throw new Error(`Product Type ${productTypeCode} is not allowed for approved category ${required(approvedCategory.category_code, "category.code")}. Choose a Product Type attached to that category.`);
+      }
+    }
+
     const conflictingMappedResult = await tx.query<SqlRow>(`
       SELECT a.attribute_id::text AS attribute_id, d.code AS attribute_code
       FROM public.catalog_source_attribute_observations a
