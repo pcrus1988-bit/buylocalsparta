@@ -6,10 +6,12 @@ on:
       - "apps/web/src/app/admin/catalogue-intake/**"
       - "apps/web/src/lib/admin-catalogue-intake.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-mapping.ts"
+      - "apps/web/src/lib/admin-catalogue-attribute-review.ts"
       - "db/migrations/0164_catalog_source_attribute_mapping_rules.sql"
       - "db/migrations/checksums.0164.json"
       - "packages/postgres-runtime/src/index.ts"
       - "scripts/verify-admin-catalogue-intake.ts"
+      - "scripts/verify-admin-catalogue-attribute-review.ts"
       - "scripts/catalog-source-attribute-mapping-smoke.ts"
       - ".github/workflows/admin-catalogue-intake-acceptance.yml"
   push:
@@ -47,6 +49,7 @@ jobs:
         run: |
           sha256sum db/migrations/0164_catalog_source_attribute_mapping_rules.sql
           node --experimental-strip-types scripts/verify-admin-catalogue-intake.ts
+          node --experimental-strip-types scripts/verify-admin-catalogue-attribute-review.ts
           npm run db:verify
       - name: Bootstrap Supabase-compatible roles and Vault contract
         run: |
@@ -80,8 +83,8 @@ jobs:
           npm run db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
           npm run db:ready
-      - name: Typecheck mapping service and database smoke
+      - name: Typecheck mapping, grouped review and database smoke
         run: |
-          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck apps/web/src/lib/admin-catalogue-attribute-mapping.ts scripts/catalog-source-attribute-mapping-smoke.ts
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck apps/web/src/lib/admin-catalogue-attribute-mapping.ts apps/web/src/lib/admin-catalogue-attribute-review.ts scripts/catalog-source-attribute-mapping-smoke.ts
       - name: Exercise exact-context Product Type mapping governance
         run: node --experimental-strip-types scripts/catalog-source-attribute-mapping-smoke.ts
