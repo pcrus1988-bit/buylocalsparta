@@ -28,8 +28,12 @@ assert.ok(suggestedQuestionsForDomain("tax").some((item) => /MARK/i.test(item)))
 
 assert.equal(adminAssistantPageDefinition("/admin/catalogue-intake/attributes").pageType, "attribute_mapping");
 assert.equal(adminAssistantPageDefinition("/admin/catalogue-intake/attributes").domain, "catalogue");
+assert.equal(adminAssistantPageDefinition("/admin/catalogue-intake/import").pageType, "catalogue_import");
 assert.equal(adminAssistantPageDefinition("/admin/orders/ORD-10012").pageType, "order_detail");
 assert.equal(adminAssistantPageDefinition("/admin/orders/ORD-10012").entityType, "order");
+assert.equal(adminAssistantPageDefinition("/admin/partners/vendor_demo").pageType, "vendor_detail");
+assert.equal(adminAssistantPageDefinition("/admin/partners/vendor_demo").entityType, "vendor");
+assert.equal(adminAssistantPageDefinition("/admin/partners/vendor_demo/catalogue").pageType, "vendor_catalogue");
 assert.match(adminAssistantPageDefinition("/admin/maintenance").purpose, /jobs|projections/i);
 assert.match(adminAssistantPageDefinition("/admin/gift-cards").purpose, /redemption/i);
 
@@ -37,7 +41,7 @@ const lowScore = recommendationScore({ finding: { id: "low", severity: "info", c
 const criticalScore = recommendationScore({ finding: { id: "critical", severity: "critical", category: "test", title: "Critical", detail: "Critical", evidence: [], affectedCount: 100, confidence: "high" }, dimensions: { urgency: 10, complianceRisk: 10, customerImpact: 8, effort: 2 } });
 assert.ok(criticalScore > lowScore, "Operationally critical evidence must outrank low-impact information");
 
-const [prompt, contextRoute, messageRoute, conversationsRoute, repository, service, tools, migration, shell, actionButton, pageRegistry, recommendations, intelligence, operationalSnapshot, orderIntelligence, toolRegistry, investigation] = await Promise.all([
+const [prompt, contextRoute, messageRoute, conversationsRoute, repository, service, tools, migration, shell, actionButton, pageRegistry, recommendations, intelligence, operationalSnapshot, orderIntelligence, ingestionIntelligence, vendorIntelligence, phase1Snapshot, toolRegistry, investigation] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/prompt.ts"),
   read("apps/web/src/app/api/admin/assistant/context/route.ts"),
   read("apps/web/src/app/api/admin/assistant/message/route.ts"),
@@ -53,6 +57,9 @@ const [prompt, contextRoute, messageRoute, conversationsRoute, repository, servi
   read("apps/web/src/lib/admin-assistant/intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/operational-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/order-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/ingestion-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/vendor-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts")
 ]);
@@ -65,11 +72,11 @@ assert.match(prompt, /Never reveal chain-of-thought/i);
 for (const route of [contextRoute, messageRoute]) {
   assert.match(route, /requireAdminSession\(request, \{ csrf: true \}\)/);
   assert.match(route, /cache-control/);
+  assert.match(route, /buildAdminAssistantPhase1Snapshot/);
 }
 assert.match(conversationsRoute, /requireAdminSession\(\)/);
 assert.doesNotMatch(messageRoute, /action\/execute|direct SQL|DELETE FROM|UPDATE public\./i);
 assert.match(messageRoute, /runAssistantInvestigation/);
-assert.match(messageRoute, /buildAdminAssistantOperationalSnapshot/);
 
 assert.match(repository, /admin_user_id=\$2/);
 assert.match(repository, /platformScope\(principal\.userId\)/);
@@ -94,7 +101,10 @@ assert.doesNotMatch(tools, /SELECT |INSERT |UPDATE |DELETE /i);
 
 assert.match(pageRegistry, /ADMIN_WORKSPACE_NAVIGATION/);
 assert.match(pageRegistry, /attribute_mapping/);
+assert.match(pageRegistry, /catalogue_import/);
 assert.match(pageRegistry, /order_detail/);
+assert.match(pageRegistry, /vendor_detail/);
+assert.match(pageRegistry, /vendor_catalogue/);
 assert.match(pageRegistry, /tax_mydata/);
 assert.match(pageRegistry, /gift_cards/);
 assert.match(pageRegistry, /search_console/);
@@ -120,13 +130,28 @@ assert.match(orderIntelligence, /LIMIT 20/);
 assert.match(orderIntelligence, /readOnly: true/);
 assert.doesNotMatch(orderIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
 
-for (const toolName of ["getCatalogueHealth", "getAttributeMappingIntelligence", "getOrderLifecycleIntelligence", "getTaxDocumentStatus", "getSeoHealth", "getGiftCardHealth", "getSystemHealth"]) assert.match(toolRegistry, new RegExp(toolName));
+for (const rule of ["ingestion_failed", "ingestion_stalled", "ingestion_systematic_rejection", "ingestion_detail_failures", "ingestion_retry_backlog", "icecat_greek_quality_incomplete", "icecat_unqueueable_without_gtin"]) assert.match(ingestionIntelligence, new RegExp(rule));
+assert.match(ingestionIntelligence, /adminOpenIcecatIngestionStatus/);
+assert.match(ingestionIntelligence, /durable checkpoint/i);
+assert.match(ingestionIntelligence, /Greek quality gate/i);
+assert.doesNotMatch(ingestionIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
+for (const rule of ["vendor_active_without_agreement", "vendor_active_with_expired_agreement", "inactive_vendor_has_active_orders", "vendor_visibility_state_mismatch", "vendor_no_active_location", "vendor_no_approved_offers", "vendor_application_state_conflict"]) assert.match(vendorIntelligence, new RegExp(rule));
+assert.match(vendorIntelligence, /adminVendorShopsWorkspace/);
+assert.match(vendorIntelligence, /adminOrdersReturnsWorkspace/);
+assert.doesNotMatch(vendorIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+assert.match(phase1Snapshot, /openIcecatIngestionIntelligence/);
+assert.match(phase1Snapshot, /vendorOperationalIntelligence/);
+
+for (const toolName of ["getCatalogueHealth", "getAttributeMappingIntelligence", "getOpenIcecatIngestionStatus", "getOrderLifecycleIntelligence", "getVendorOperationalIntelligence", "getTaxDocumentStatus", "getSeoHealth", "getGiftCardHealth", "getSystemHealth"]) assert.match(toolRegistry, new RegExp(toolName));
 assert.match(toolRegistry, /capabilityAllowed/);
 assert.match(toolRegistry, /recordAssistantToolAudit/);
 assert.match(toolRegistry, /ASSISTANT_TOOL_PERMISSION_REQUIRED/);
 assert.match(toolRegistry, /ASSISTANT_TOOL_NOT_AVAILABLE_IN_CONTEXT/);
 assert.match(toolRegistry, /slice\(0, 250\)/);
 assert.match(investigation, /candidates\.slice\(0, 3\)/);
+assert.match(investigation, /getOpenIcecatIngestionStatus/);
+assert.match(investigation, /getVendorOperationalIntelligence/);
 assert.match(investigation, /availableAssistantTools/);
 assert.match(investigation, /executeAssistantTool/);
 
