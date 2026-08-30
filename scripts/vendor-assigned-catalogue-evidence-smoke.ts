@@ -145,9 +145,7 @@ function principal(userId: string, vendorId: string): SessionPrincipal {
     email: `ci-${userId}@example.test`,
     roles: ["vendor_owner"],
     vendorId,
-    csrfToken: "ci-csrf-token",
-    issuedAt: Date.now(),
-    expiresAt: Date.now() + 60_000
+    csrfToken: "ci-csrf-token"
   };
 }
 function required(value: unknown, label: string): string {
