@@ -18,7 +18,7 @@ import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 import { PostgresCartRecoveryService } from "./cart-recovery.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 169;
+export const EXPECTED_SCHEMA_VERSION = 170;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
