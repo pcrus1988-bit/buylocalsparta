@@ -71,7 +71,7 @@ forbidText("page", "canonical-attribute-codes", "Global free-text canonical-attr
 forbidText("page", "AdminActionButton", "Supplier PIM page must not bypass its dedicated governed server actions");
 forbidText("page", "catalog.write", "Permission enforcement must stay inside the mapping service instead of client/page markup");
 requireText("navigation", 'href: "/admin/catalogue-intake"', "Supplier PIM intake must be registered in Admin navigation");
-requireText("navigation", 'permission: "catalog.read"', "Supplier PIM navigation must stay visible to catalog.read reviewers");
+requireText("navigation", '{ label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read" }', "Grouped Supplier PIM Attribute Mapping must be a visible catalog.read Admin navigation entry");
 
 if (failures.length) throw new Error(`Admin Supplier PIM intake verification failed:\n- ${failures.join("\n- ")}`);
-console.log("Admin Supplier PIM intake verification passed: read-only source evidence plus exact-context, category-bound Product-Type-governed attribute mapping are registered and evidence-preserving.");
+console.log("Admin Supplier PIM intake verification passed: read-only source evidence plus exact-context, category-bound Product-Type-governed attribute mapping and review navigation are registered and evidence-preserving.");
