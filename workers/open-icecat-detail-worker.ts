@@ -23,6 +23,8 @@ if (!readiness.ok) {
 
 const workerId = process.env.BLS_OPEN_ICECAT_DETAIL_WORKER_ID?.trim() || `${hostname()}:${process.pid}`;
 const pollMs = positive(process.env.BLS_OPEN_ICECAT_DETAIL_POLL_MS, 2_000, "BLS_OPEN_ICECAT_DETAIL_POLL_MS");
+const syncIntervalMs = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS, 300_000, 10_000, 86_400_000, "BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS");
+const syncRetryMs = Math.min(syncIntervalMs, 60_000);
 const batchSize = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE, 5, 1, 50, "BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE");
 const leaseSeconds = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS, 300, 30, 3600, "BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS");
 const requestTimeoutMs = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS, 15_000, 250, 60_000, "BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS");
@@ -54,12 +56,15 @@ let currentProductId: string | undefined;
 let currentGtin: string | undefined;
 let lastActivityAt = Date.now();
 let lastQueueSyncAt: number | undefined;
+let lastQueueSyncError: string | undefined;
+let nextQueueSyncAt: number | undefined;
 let activeAbortController: AbortController | undefined;
 
 const sourceId = await loadSourceId();
 const initialSync = await repository.sync(sourceId, OPEN_ICECAT_DETAIL_PROCESSING_VERSION);
 lastQueueSyncAt = Date.now();
 lastActivityAt = lastQueueSyncAt;
+nextQueueSyncAt = runOnce ? undefined : lastQueueSyncAt + syncIntervalMs;
 
 const healthServer = await startHealthServer(healthPort);
 const stop = (signal: string): void => {
@@ -83,6 +88,7 @@ console.log(JSON.stringify({
   leaseSeconds,
   requestTimeoutMs,
   rateDelayMs,
+  syncIntervalMs,
   minimumGreekScore,
   initialQueuedOrRefreshed: initialSync.queuedOrRefreshed,
   initialRemovedSkipped: initialSync.removedSkipped,
@@ -91,6 +97,8 @@ console.log(JSON.stringify({
 
 try {
   do {
+    await maybeSyncQueue();
+
     const jobs = await repository.claim({
       sourceId,
       workerId,
@@ -114,6 +122,42 @@ try {
 } finally {
   await closeServer(healthServer);
   await runtime.close();
+}
+
+async function maybeSyncQueue(): Promise<void> {
+  if (runOnce || stopping) return;
+  const now = Date.now();
+  if (nextQueueSyncAt !== undefined && now < nextQueueSyncAt) return;
+
+  try {
+    const result = await repository.sync(sourceId, OPEN_ICECAT_DETAIL_PROCESSING_VERSION);
+    lastQueueSyncAt = Date.now();
+    lastActivityAt = lastQueueSyncAt;
+    lastQueueSyncError = undefined;
+    nextQueueSyncAt = lastQueueSyncAt + syncIntervalMs;
+    console.log(JSON.stringify({
+      level: "info",
+      event: "open_icecat.detail_queue_synced",
+      workerId,
+      sourceId,
+      queuedOrRefreshed: result.queuedOrRefreshed,
+      removedSkipped: result.removedSkipped,
+      nextQueueSyncAt: new Date(nextQueueSyncAt).toISOString()
+    }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    lastActivityAt = Date.now();
+    lastQueueSyncError = message;
+    nextQueueSyncAt = lastActivityAt + syncRetryMs;
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "open_icecat.detail_queue_sync_failed",
+      workerId,
+      sourceId,
+      message,
+      retryInMs: syncRetryMs
+    }));
+  }
 }
 
 async function processJob(job: OpenIcecatDetailJob): Promise<void> {
@@ -212,6 +256,8 @@ async function startHealthServer(port: number): Promise<Server> {
         currentGtin: currentGtin ?? null,
         lastActivityAt: new Date(lastActivityAt).toISOString(),
         lastQueueSyncAt: lastQueueSyncAt ? new Date(lastQueueSyncAt).toISOString() : null,
+        lastQueueSyncError: lastQueueSyncError ?? null,
+        nextQueueSyncAt: nextQueueSyncAt ? new Date(nextQueueSyncAt).toISOString() : null,
         schema: readiness.appliedSchemaVersion,
         processingVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
         queue: stats
