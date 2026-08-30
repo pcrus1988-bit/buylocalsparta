@@ -36,6 +36,7 @@ export function planAssistantInvestigation(
     add("getAttributeMappingIntelligence", context.filters.snapshot ? { snapshotId: context.filters.snapshot } : {});
   }
   if (context.domain === "catalogue" || contains(question, /catalog|category|canonical|product quality|taxonomy|κατάλογ|κατηγορ/)) add("getCatalogueHealth");
+  if (context.pageType === "tax_mydata" || contains(question, /paid order.*missing|missing.*tax document|payment.*pending|captured.*pending|χωρίς.*παραστατικ/)) add("getTaxCrossDomainReconciliation");
   if (context.domain === "tax" || contains(question, /aade|mydata|mark|invoice|fiscal|tax|φορο|παραστατικ/)) add("getTaxDocumentStatus");
   if (context.domain === "seo" || contains(question, /seo|index|canonical|sitemap|search console|visibility|google|ορατότητα/)) add("getSeoHealth");
   if (context.domain === "gift_cards" || contains(question, /gift.?card|voucher|redemption|redeem|δωροκάρτ|εξαργ/)) add("getGiftCardHealth");
@@ -45,7 +46,7 @@ export function planAssistantInvestigation(
     if (context.domain === "catalogue") add(context.pageType === "catalogue_import" ? "getOpenIcecatIngestionStatus" : "getCatalogueHealth");
     else if (context.domain === "partners" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
     else if (context.domain === "seo") add("getSeoHealth");
-    else if (context.domain === "tax") add("getTaxDocumentStatus");
+    else if (context.domain === "tax") add("getTaxCrossDomainReconciliation");
     else if (context.domain === "gift_cards") add("getGiftCardHealth");
     else if (context.domain === "platform") add("getSystemHealth");
   }
