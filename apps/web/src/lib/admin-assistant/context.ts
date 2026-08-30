@@ -52,6 +52,7 @@ export function suggestedQuestionsForDomain(domain: AdminAssistantDomain): reado
 
 export function suggestedQuestionsForContext(context: AdminAssistantContext): readonly string[] {
   const specific: Readonly<Record<string, readonly string[]>> = {
+    global_search: ["Find an order by its public reference.", "Look up a customer or support ticket.", "Find a partner and inspect its readiness.", "Explain the best matching result."],
     attribute_mapping: ["Show the highest-impact unmapped attributes.", "Suggest safe mappings.", "Find inconsistent units.", "What should I map first?"],
     catalogue_import: ["Is ingestion stalled?", "Why are rows being rejected?", "What changed in the latest ingestion?", "Show the highest-impact ingestion problem."],
     product_matching: ["Find duplicate-risk products.", "Which offers still need canonical matching?", "Show identifier conflicts.", "What can safely be resolved next?"],
