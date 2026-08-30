@@ -16,6 +16,7 @@ import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient"
 import { adminAssistantEnabled } from "../../lib/admin-assistant/config";
 import { getAdminSession } from "../../lib/admin-session";
 
+// Deployment sync: production schema 168 is live; keep this layout behavior unchanged.
 export const metadata: Metadata = {
   applicationName: "KONTA MOY Admin",
   manifest: "/admin/manifest.webmanifest",
