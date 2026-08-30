@@ -1,11 +1,22 @@
 export type AdminAssistantSeverity = "info" | "opportunity" | "warning" | "critical";
+export type AdminAssistantPriority = "low" | "medium" | "high" | "critical";
+export type AdminAssistantConfidence = "high" | "medium" | "low";
 export type AdminAssistantDomain = "dashboard" | "catalogue" | "orders" | "partners" | "tax" | "seo" | "gift_cards" | "platform" | "generic";
+export type AdminAssistantEvidenceKind = "kontamou" | "external" | "admin_event" | "derived";
+export type AdminAssistantActionKind = "open" | "inspect" | "compare" | "diagnostic" | "preview" | "prepare" | "execute";
 
 export type AdminAssistantClientContext = Readonly<{
   route: string;
   filters?: Readonly<Record<string, string>>;
   searchQuery?: string;
   selectedTab?: string;
+}>;
+
+export type AdminAssistantEntityRef = Readonly<{
+  type: string;
+  id: string;
+  label: string;
+  href?: string;
 }>;
 
 export type AdminAssistantContext = Readonly<{
@@ -21,6 +32,35 @@ export type AdminAssistantContext = Readonly<{
   capabilities: readonly string[];
 }>;
 
+export type AdminAssistantEvidence = Readonly<{
+  id: string;
+  kind: AdminAssistantEvidenceKind;
+  label: string;
+  detail: string;
+  metric?: number | string | boolean;
+  entity?: AdminAssistantEntityRef;
+  sourceTool?: string;
+  observedAt?: number;
+}>;
+
+export type AdminAssistantFact = Readonly<{
+  id: string;
+  label: string;
+  value: string;
+  evidenceIds: readonly string[];
+  entity?: AdminAssistantEntityRef;
+}>;
+
+export type AdminAssistantAction = Readonly<{
+  id: string;
+  kind: AdminAssistantActionKind;
+  label: string;
+  href?: string;
+  command?: string;
+  entity?: AdminAssistantEntityRef;
+  requiresApproval: boolean;
+}>;
+
 export type AdminAssistantFinding = Readonly<{
   id: string;
   severity: AdminAssistantSeverity;
@@ -28,10 +68,35 @@ export type AdminAssistantFinding = Readonly<{
   title: string;
   detail: string;
   evidence: readonly string[];
+  evidenceIds?: readonly string[];
   recommendation?: string;
   href?: string;
   affectedCount?: number;
-  confidence?: "high" | "medium" | "low";
+  affectedEntities?: readonly AdminAssistantEntityRef[];
+  confidence?: AdminAssistantConfidence;
+  ruleId?: string;
+}>;
+
+export type AdminAssistantRecommendation = Readonly<{
+  id: string;
+  title: string;
+  explanation: string;
+  priority: AdminAssistantPriority;
+  confidence: AdminAssistantConfidence;
+  evidenceIds: readonly string[];
+  affectedEntities: readonly AdminAssistantEntityRef[];
+  actions: readonly AdminAssistantAction[];
+  dimensions: Readonly<{
+    financialImpact?: number;
+    customerImpact?: number;
+    vendorImpact?: number;
+    complianceRisk?: number;
+    dataQualityImpact?: number;
+    seoImpact?: number;
+    urgency?: number;
+    effort?: number;
+    reversibility?: number;
+  }>;
 }>;
 
 export type AdminAssistantRecentAction = Readonly<{
@@ -45,7 +110,10 @@ export type AdminAssistantSnapshot = Readonly<{
   context: AdminAssistantContext;
   summary: string;
   facts: readonly string[];
+  structuredFacts?: readonly AdminAssistantFact[];
+  evidence?: readonly AdminAssistantEvidence[];
   findings: readonly AdminAssistantFinding[];
+  recommendations?: readonly AdminAssistantRecommendation[];
   recentActions: readonly AdminAssistantRecentAction[];
   suggestedQuestions: readonly string[];
   generatedAt: number;
@@ -62,6 +130,8 @@ export type AdminAssistantResponsePayload = Readonly<{
   facts: readonly string[];
   interpretation?: string;
   recommendations: readonly string[];
+  structuredRecommendations?: readonly AdminAssistantRecommendation[];
+  actions?: readonly AdminAssistantAction[];
   sources: readonly AdminAssistantSource[];
   provider: "deterministic" | "openai";
 }>;
