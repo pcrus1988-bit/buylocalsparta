@@ -56,6 +56,9 @@ export function planAssistantInvestigation(
   if (context.pageType === "attribute_mapping" || contains(question, /unmapped|attribute|mapping|unit|icecat attribute|χαρακτηρισ|αντιστοιχ/)) {
     add("getAttributeMappingIntelligence", context.filters.snapshot ? { snapshotId: context.filters.snapshot } : {});
   }
+  if (context.pageType === "product_matching" || contains(question, /product match|canonical candidate|duplicate product|match confidence|auto.?link|canonical conflict|matching submission|αντιστοίχιση.*προϊόν|διπλότυπ.*προϊόν/)) {
+    add("getProductMatchingIntelligence", context.filters.submission ? { submissionId: context.filters.submission } : {});
+  }
   if (context.domain === "catalogue" || contains(question, /catalog|category|canonical|product quality|taxonomy|κατάλογ|κατηγορ/)) add("getCatalogueHealth");
   if (context.pageType === "tax_mydata" || contains(question, /paid order.*missing|missing.*tax document|payment.*pending|captured.*pending|χωρίς.*παραστατικ/)) add("getTaxCrossDomainReconciliation");
   if (context.domain === "tax" || contains(question, /aade|mydata|mark|invoice|fiscal|tax|φορο|παραστατικ/)) add("getTaxDocumentStatus");
@@ -68,8 +71,11 @@ export function planAssistantInvestigation(
   if (context.domain === "platform" || contains(question, /system|job|queue|worker|health|failure|failed|background|σύστημα|εργασία/)) add("getSystemHealth");
 
   if (!candidates.length) {
-    if (context.domain === "catalogue") add(context.pageType === "catalogue_import" ? "getOpenIcecatIngestionStatus" : "getCatalogueHealth");
-    else if (context.domain === "partners" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
+    if (context.domain === "catalogue") {
+      if (context.pageType === "catalogue_import") add("getOpenIcecatIngestionStatus");
+      else if (context.pageType === "product_matching") add("getProductMatchingIntelligence", context.filters.submission ? { submissionId: context.filters.submission } : {});
+      else add("getCatalogueHealth");
+    } else if (context.domain === "partners" && context.entityId) add("getVendorOperationalIntelligence", { vendorId: context.entityId });
     else if (context.domain === "seo") add(context.pageType === "search_console" ? "getSearchConsoleIntelligence" : "getSeoHealth");
     else if (context.domain === "tax") add("getTaxCrossDomainReconciliation");
     else if (context.domain === "gift_cards") add("getGiftCardHealth");
