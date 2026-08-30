@@ -94,7 +94,8 @@ requireText("apps/web/src/app/admin/customers/support/page.tsx", ["admin-work-qu
 requireText("apps/web/src/app/admin/tax/page.tsx", ["admin-local-tabs", "#tax-documents", "admin-tax-documents", "Automatic resend remains blocked", "/api/admin/tax/reconcile", "#tax-reconciliation", "#tax-configuration", "#tax-policy", "#tax-vat", "#tax-connection"]);
 requireText("apps/web/src/app/admin/reports/page.tsx", ["admin-local-tabs", "#reports-saved", "#reports-history", "admin-report-history"]);
 requireText("apps/web/src/app/admin/analytics/page.tsx", ["admin-insight-table", "progress", "/admin/reports"]);
-requireText("apps/web/src/app/admin/content/page.tsx", ["Content operations", "admin-local-tabs", "#content-pages", "#content-stories", "Email templates & delivery", "/admin/hero", "/admin/email-lab"]);
+requireText("apps/web/src/app/admin/content/page.tsx", ["Editorial operations", "admin-local-tabs", "#content-pages", "#content-redirects", "#content-stories", "content-workflow-grid", "/admin/hero", "/admin/email-lab", "/admin/seo"]);
+requireText("apps/web/src/lib/admin-navigation.ts", ["CONTENT_OPERATOR_LINKS", "CMS & Routing", '"/admin/hero"', "Homepage", '"/admin/email-lab"', "Email"]);
 
 for (const [path, title] of [
   ["apps/web/src/app/admin/notifications/page.tsx", "SLA & Escalations"],
