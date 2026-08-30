@@ -35,11 +35,7 @@ const TOOLS: readonly ToolDefinition[] = [
     capability: "catalog.read",
     execute: async (principal) => {
       const data = await adminCatalogueOverviewWorkspace(principal);
-      return {
-        metrics: data.metrics,
-        attributes: data.attributes,
-        highestImpactUnmapped: data.unmappedAttributes.slice(0, 10)
-      };
+      return { metrics: data.metrics, attributes: data.attributes, highestImpactUnmapped: data.unmappedAttributes.slice(0, 10) };
     }
   },
   {
@@ -122,21 +118,13 @@ const TOOLS: readonly ToolDefinition[] = [
     name: "getGiftCardHealth",
     family: "gift_cards",
     description: "Return bounded stored-value status needed to assess checkout redemption readiness.",
-    capability: "finance.read",
+    capability: "gift_cards.read",
     pageTypes: ["gift_cards"],
     execute: async (principal) => {
       const cards = await adminGiftCards(principal);
       return {
         publicPurchaseEnabled: giftCardsLiveEnabled(),
-        cards: cards.slice(0, 250).map((card) => ({
-          id: card.id,
-          suffix: card.suffix,
-          status: card.status,
-          initialValueMinor: card.initialValueMinor,
-          balanceMinor: card.balanceMinor,
-          issuedAt: card.issuedAt,
-          expiresAt: card.expiresAt
-        }))
+        cards: cards.slice(0, 250).map((card) => ({ id: card.id, suffix: card.suffix, status: card.status, initialValueMinor: card.initialValueMinor, balanceMinor: card.balanceMinor, issuedAt: card.issuedAt, expiresAt: card.expiresAt }))
       };
     }
   },
@@ -147,10 +135,7 @@ const TOOLS: readonly ToolDefinition[] = [
     capability: "audit.read",
     execute: async (principal) => {
       const [operations, maintenance] = await Promise.all([adminOperationsWorkspace(principal), adminMaintenanceWorkspace(principal)]);
-      return {
-        checks: operations.health.checks,
-        jobs: maintenance.jobNames.slice(0, 100).map((job) => ({ name: job.name, state: job.state }))
-      };
+      return { checks: operations.health.checks, jobs: maintenance.jobNames.slice(0, 100).map((job) => ({ name: job.name, state: job.state })) };
     }
   }
 ];
@@ -161,6 +146,7 @@ function capabilityAllowed(principal: SessionPrincipal, capability: string): boo
   if (capability === "finance.read") return hasAdminPermission(principal, "finance.read");
   if (capability === "seo.read") return hasAdminPermission(principal, "content.read");
   if (capability === "audit.read") return hasAdminPermission(principal, "admin.audit.read");
+  if (capability === "gift_cards.read") return principal.roles.includes("super_admin");
   return false;
 }
 
@@ -171,24 +157,18 @@ export function availableAssistantTools(principal: SessionPrincipal, context: Ad
     .map(({ name, family, description }) => ({ name, family, description }));
 }
 
-export async function executeAssistantTool(
-  principal: SessionPrincipal,
-  context: AdminAssistantContext,
-  name: string,
-  args: ToolArguments = {}
-): Promise<ToolResult> {
+export async function executeAssistantTool(principal: SessionPrincipal, context: AdminAssistantContext, name: string, args: ToolArguments = {}): Promise<ToolResult> {
   const tool = TOOLS.find((candidate) => candidate.name === name);
   if (!tool) throw new Error("ASSISTANT_TOOL_NOT_FOUND");
   if (!capabilityAllowed(principal, tool.capability)) throw new Error("ASSISTANT_TOOL_PERMISSION_REQUIRED");
-  const available = availableAssistantTools(principal, context).some((candidate) => candidate.name === name);
-  if (!available) throw new Error("ASSISTANT_TOOL_NOT_AVAILABLE_IN_CONTEXT");
+  if (!availableAssistantTools(principal, context).some((candidate) => candidate.name === name)) throw new Error("ASSISTANT_TOOL_NOT_AVAILABLE_IN_CONTEXT");
   const startedAt = Date.now();
   try {
     const result = await tool.execute(principal, args);
-    await recordAssistantToolAudit(principal, { toolName: name, parameters: args, resultState: "ok", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, { toolName: name, parameters: { ...args }, resultState: "ok", durationMs: Date.now() - startedAt }).catch(() => undefined);
     return result;
   } catch (error) {
-    await recordAssistantToolAudit(principal, { toolName: name, parameters: args, resultState: "error", error: error instanceof Error ? error.message : "tool_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, { toolName: name, parameters: { ...args }, resultState: "error", error: error instanceof Error ? error.message : "tool_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
     throw error;
   }
 }
