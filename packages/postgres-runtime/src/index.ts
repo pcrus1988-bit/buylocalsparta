@@ -18,7 +18,7 @@ import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 import { PostgresCartRecoveryService } from "./cart-recovery.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 169;
+export const EXPECTED_SCHEMA_VERSION = 170;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
@@ -222,8 +222,7 @@ function requiredSecret(raw: string | undefined, name: string): string { const v
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
   if (raw == null || raw.trim() === "") return fallback;
   const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
-  return value;
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`); return value;
 }
 
 export * from "./customer-auth.ts";
