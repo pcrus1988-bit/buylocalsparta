@@ -1,6 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { categoryGovernanceIntelligence, controlledValueIntelligence } from "./catalog-governance-intelligence";
 import { suggestedQuestionsForContext } from "./context";
+import { customerOperationalIntelligence } from "./customer-intelligence";
 import { dashboardOperationalIntelligence } from "./dashboard-intelligence";
 import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
 import { productMatchingIntelligence } from "./matching-intelligence";
@@ -38,6 +39,10 @@ export async function buildAdminAssistantPhase1Snapshot(
 
   if (["vendor_detail", "vendor_catalogue"].includes(snapshot.context.pageType)) {
     snapshot = await vendorOperationalIntelligence(principal, snapshot);
+  }
+
+  if (snapshot.context.pageType === "customer_detail" && snapshot.context.entityId) {
+    snapshot = await customerOperationalIntelligence(principal, snapshot, snapshot.context.entityId);
   }
 
   if (snapshot.context.pageType === "tax_mydata") {
