@@ -50,6 +50,11 @@ function domainForGroupHref(href?: string): AdminAssistantDomain {
   return "generic";
 }
 
+function decoded(value: string | undefined): string {
+  if (!value) return "";
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+
 const NAV_PAGE_ENTRIES: Array<[string, AdminAssistantPageDefinition]> = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) =>
   group.links.map((link): [string, AdminAssistantPageDefinition] => [
     link.href,
@@ -76,11 +81,30 @@ export function adminAssistantPageDefinition(route: string): AdminAssistantPageD
     route: normalized,
     pageType: "order_detail",
     domain: "orders",
-    contextLabel: `Operations > Order ${decodeURIComponent(orderMatch[1] ?? "")}`,
+    contextLabel: `Operations > Order ${decoded(orderMatch[1])}`,
     entityType: "order",
     purpose: "Investigate the complete lifecycle of a single order across payment, fulfilment, tax, accounting and notifications.",
     attention: ["payment state", "fulfilment state", "tax document and MARK", "refund/return state", "timeline anomalies"]
   };
+
+  const partnerMatch = /^\/admin\/partners\/([^/]+)(?:\/(catalogue))?$/.exec(normalized);
+  if (partnerMatch) {
+    const vendorId = decoded(partnerMatch[1]);
+    const catalogue = partnerMatch[2] === "catalogue";
+    return {
+      route: normalized,
+      pageType: catalogue ? "vendor_catalogue" : "vendor_detail",
+      domain: "partners",
+      contextLabel: catalogue ? `Partners > ${vendorId} > Catalogue` : `Partners > ${vendorId}`,
+      entityType: "vendor",
+      purpose: catalogue
+        ? "Investigate this partner's catalogue participation, approved offers and readiness without duplicating the canonical catalogue workflow."
+        : "Investigate one partner across operational state, onboarding, agreement, catalogue readiness and assigned orders.",
+      attention: catalogue
+        ? ["approved offers", "catalogue readiness", "assignment gaps", "commercial gate"]
+        : ["operational state", "agreement validity", "onboarding state", "active locations", "approved offers", "assigned orders"]
+    };
+  }
 
   return NAV_PAGES.get(normalized) ?? {
     route: normalized,
