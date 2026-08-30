@@ -83,4 +83,4 @@ jobs:
         run: |
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck apps/web/src/lib/vendor-assigned-catalogue-service.ts scripts/vendor-assigned-catalogue-evidence-smoke.ts
       - name: Exercise assigned catalogue evidence against live PostgreSQL
-        run: node --experimental-strip-types scripts/vendor-assigned-catalogue-evidence-smoke.ts
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/vendor-assigned-catalogue-evidence-smoke.ts
