@@ -14,6 +14,7 @@ export type AdminAssistantSearchResult = Readonly<{
   label: string;
   detail: string;
   href: string;
+  relatedCustomerId?: string;
 }>;
 
 function norm(value: unknown): string { return String(value ?? "").trim().toLocaleLowerCase("el-GR"); }
@@ -60,7 +61,7 @@ export async function searchAdminEntities(
   }
 
   for (const item of support?.cases.slice(0, 12) ?? []) {
-    results.push({ kind: "support", id: item.id, label: item.referenceNumber, detail: `${item.subject} · ${item.customerName} · ${item.status}`, href: `/admin/customers/${encodeURIComponent(item.customerId)}` });
+    results.push({ kind: "support", id: item.id, label: item.referenceNumber, detail: `${item.subject} · ${item.customerName} · ${item.status}`, href: `/admin/customers/${encodeURIComponent(item.customerId)}`, relatedCustomerId: item.customerId });
   }
 
   for (const shop of shops?.shops.filter((item) => contains(query, item.id, item.tradingName, item.legalName)).slice(0, 12) ?? []) {
