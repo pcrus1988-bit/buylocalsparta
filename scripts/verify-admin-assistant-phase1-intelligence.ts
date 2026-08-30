@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, matching, searchConsole, toolRegistry, investigation, context, pageRegistry] = await Promise.all([
+const [phase1, matching, searchConsole, catalogGovernance, toolRegistry, investigation, context, pageRegistry] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/search-console-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/catalog-governance-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts"),
   read("apps/web/src/lib/admin-assistant/context.ts"),
@@ -15,7 +16,11 @@ const [phase1, matching, searchConsole, toolRegistry, investigation, context, pa
 
 assert.match(phase1, /productMatchingIntelligence/);
 assert.match(phase1, /searchConsoleIntelligence/);
+assert.match(phase1, /categoryGovernanceIntelligence/);
+assert.match(phase1, /controlledValueIntelligence/);
 assert.match(phase1, /pageType === "product_matching"/);
+assert.match(phase1, /pageType === "category_governance"/);
+assert.match(phase1, /pageType === "controlled_values"/);
 assert.match(phase1, /\["seo_overview", "search_console"\]/);
 
 for (const rule of [
@@ -46,6 +51,20 @@ assert.match(searchConsole, /privacy-minimized/i);
 assert.match(searchConsole, /do not infer causality/i);
 assert.doesNotMatch(searchConsole, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
 
+for (const rule of [
+  "category_inactive_with_live_products",
+  "category_nonassignable_with_direct_products",
+  "category_empty_active_leaf",
+  "controlled_value_no_target",
+  "controlled_value_unmapped"
+]) assert.match(catalogGovernance, new RegExp(rule));
+assert.match(catalogGovernance, /adminCatalogueOverviewWorkspace/);
+assert.match(catalogGovernance, /adminCategoryWorkspace/);
+assert.match(catalogGovernance, /adminCatalogueControlledValueQueue/);
+assert.match(catalogGovernance, /non-standard commerce policy\/ies are treated as deliberate configuration, not errors/i);
+assert.match(catalogGovernance, /fuzzy synonym inference, multienum splitting and unit conversion remain review-required/i);
+assert.doesNotMatch(catalogGovernance, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
 for (const tool of ["getProductMatchingIntelligence", "getSearchConsoleIntelligence"]) assert.match(toolRegistry, new RegExp(tool));
 assert.match(toolRegistry, /adminMatchingWorkspace/);
 assert.match(toolRegistry, /getSearchConsoleHistoryWorkspace/);
@@ -61,6 +80,8 @@ assert.match(investigation, /candidates\.slice\(0, 3\)/);
 assert.match(investigation, /availableAssistantTools/);
 
 assert.match(pageRegistry, /product_matching/);
+assert.match(pageRegistry, /category_governance/);
+assert.match(pageRegistry, /controlled_values/);
 assert.match(pageRegistry, /canonical readiness/i);
 assert.match(context, /Find duplicate-risk products/i);
 assert.match(context, /Which search queries are opportunities/i);
