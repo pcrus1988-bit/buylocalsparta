@@ -222,7 +222,8 @@ function requiredSecret(raw: string | undefined, name: string): string { const v
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
   if (raw == null || raw.trim() === "") return fallback;
   const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`); return value;
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
+  return value;
 }
 
 export * from "./customer-auth.ts";
