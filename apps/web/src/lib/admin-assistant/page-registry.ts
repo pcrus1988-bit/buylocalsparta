@@ -50,14 +50,21 @@ function domainForGroupHref(href?: string): AdminAssistantDomain {
   return "generic";
 }
 
-const NAV_PAGES = new Map(ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links.map((link) => [link.href, {
-  route: link.href,
-  pageType: link.href === "/admin" ? "dashboard" : link.href.replace(/^\/admin\/?/, "").replaceAll("/", "_"),
-  domain: domainForGroupHref(group.href),
-  contextLabel: `${group.label} > ${link.label}`,
-  purpose: group.description ?? `Admin workspace for ${link.label}`,
-  attention: [] as readonly string[]
-} satisfies AdminAssistantPageDefinition] as const))));
+const NAV_PAGE_ENTRIES: Array<[string, AdminAssistantPageDefinition]> = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) =>
+  group.links.map((link): [string, AdminAssistantPageDefinition] => [
+    link.href,
+    {
+      route: link.href,
+      pageType: link.href === "/admin" ? "dashboard" : link.href.replace(/^\/admin\/?/, "").replaceAll("/", "_"),
+      domain: domainForGroupHref(group.href),
+      contextLabel: `${group.label} > ${link.label}`,
+      purpose: group.description ?? `Admin workspace for ${link.label}`,
+      attention: []
+    }
+  ])
+);
+
+const NAV_PAGES = new Map<string, AdminAssistantPageDefinition>(NAV_PAGE_ENTRIES);
 
 export function adminAssistantPageDefinition(route: string): AdminAssistantPageDefinition {
   const normalized = route === "/admin" ? route : route.replace(/\/$/, "");
