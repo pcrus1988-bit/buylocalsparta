@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminCommercialAgreementsClient } from "../../../../components/AdminCommercialAgreementsClient";
-import { AdminFinanceTabs } from "../../../../components/AdminFinanceTabs";
 import { AdminStatusStack, type AdminRecordStateTone } from "../../../../components/AdminRecordStatus";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
@@ -41,8 +40,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Commercial governance</div><h1>Vendor agreements & commissions</h1><p className="lead">Directory-first εικόνα της συμβατικής κατάστασης κάθε partner. Το PDF → gov.gr → verification → activation workflow παραμένει ακριβώς το ίδιο και ανοίγει μόνο όταν χρειάζεται ενέργεια.</p></div></section>
-    <section className="shell admin-local-tabs-shell"><AdminFinanceTabs /></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Partner governance · commercial terms</div><h1>Vendor agreements & commissions</h1><p className="lead">Directory-first εικόνα της συμβατικής κατάστασης κάθε partner. Το PDF → gov.gr → verification → activation workflow παραμένει ακριβώς το ίδιο και ανοίγει μόνο όταν χρειάζεται ενέργεια.</p></div></section>
     <WorkspaceMetricStrip items={[
       { label: "Vendors", value: workspace.vendors.length },
       { label: "Agreements", value: workspace.agreements.length },
