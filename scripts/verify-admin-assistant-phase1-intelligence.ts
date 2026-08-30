@@ -7,7 +7,7 @@ const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), 
 const [
   phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence,
   crawlerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config,
-  researchPolicy, recommendationLifecycle, recommendationRoute, migration169, checksum169, postgresRuntime, shell
+  researchPolicy, recommendationLifecycle, recommendationRoute, migration169, checksum169, migration170, checksum170, postgresRuntime, shell
 ] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
@@ -27,8 +27,10 @@ const [
   read("apps/web/src/lib/admin-assistant/research-policy.ts"),
   read("apps/web/src/lib/admin-assistant/recommendation-lifecycle.ts"),
   read("apps/web/src/app/api/admin/assistant/recommendations/route.ts"),
-  read("db/migrations/0169_admin_assistant_recommendation_states.sql"),
+  read("db/migrations/0169_pack_quantity_product_type_contracts.sql"),
   read("db/migrations/checksums.0169.json"),
+  read("db/migrations/0170_admin_assistant_recommendation_states.sql"),
+  read("db/migrations/checksums.0170.json"),
   read("packages/postgres-runtime/src/index.ts"),
   read("apps/web/src/components/AdminAssistantShell.tsx")
 ]);
@@ -184,16 +186,20 @@ assert.match(shell, />Snooze 1d<\/button>/);
 assert.match(shell, />Intentional<\/button>/);
 assert.match(shell, /underlying evidence changes/i);
 
-assert.match(migration169, /admin_assistant_recommendation_states/);
-assert.match(migration169, /ENABLE ROW LEVEL SECURITY/);
-assert.match(migration169, /bls_private\.is_platform_runtime\(\)/);
-assert.match(migration169, /REVOKE ALL .* FROM PUBLIC/i);
-assert.match(migration169, /idx_admin_assistant_tool_audit_conversation/);
-assert.match(migration169, /This is assistant metadata only/i);
-assert.doesNotMatch(migration169, /GRANT .* TO anon|GRANT .* TO authenticated/i);
-assert.match(checksum169, /0169_admin_assistant_recommendation_states\.sql/);
-assert.match(checksum169, /e580518d6f43a98924365ad172c6c5c4560777200a6d3cc5f547761c1c3b8b43/);
-assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 169/);
+// Main owns schema 169; assistant lifecycle must remain schema 170.
+assert.match(migration169, /pack_quantity/);
+assert.match(checksum169, /0169_pack_quantity_product_type_contracts\.sql/);
+assert.match(checksum169, /22062286c8a2f34b8d8181a6079c3babba91f3f75dc91cda10f9a528adf33fa6/);
+assert.match(migration170, /admin_assistant_recommendation_states/);
+assert.match(migration170, /ENABLE ROW LEVEL SECURITY/);
+assert.match(migration170, /bls_private\.is_platform_runtime\(\)/);
+assert.match(migration170, /REVOKE ALL .* FROM PUBLIC/i);
+assert.match(migration170, /idx_admin_assistant_tool_audit_conversation/);
+assert.match(migration170, /This is assistant metadata only/i);
+assert.doesNotMatch(migration170, /GRANT .* TO anon|GRANT .* TO authenticated/i);
+assert.match(checksum170, /0170_admin_assistant_recommendation_states\.sql/);
+assert.match(checksum170, /e580518d6f43a98924365ad172c6c5c4560777200a6d3cc5f547761c1c3b8b43/);
+assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 170/);
 
 assert.match(pageRegistry, /dashboard/);
 assert.match(pageRegistry, /product_matching/);
