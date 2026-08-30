@@ -6,6 +6,8 @@ import { adminOpenIcecatIngestionStatus } from "../admin-open-icecat-ingestion";
 import { adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from "../admin-runtime";
 import { adminSeoWorkspace } from "../admin-seo-runtime";
 import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
+import { getSearchConsoleHistoryWorkspace } from "../seo-gsc-history";
+import { searchConsoleReadiness } from "../seo-search-console";
 import { adminVendorShopsWorkspace } from "../vendor-admin-controls";
 import { searchAdminEntities } from "./global-search";
 import { getAdminAssistantOrderIntelligence } from "./order-intelligence";
@@ -225,6 +227,32 @@ const TOOLS: readonly ToolDefinition[] = [
     execute: async (principal) => {
       const data = await adminSeoWorkspace(principal);
       return { metrics: data.metrics, diagnostics: data.diagnostics.slice(0, 50) };
+    }
+  },
+  {
+    name: "getSearchConsoleIntelligence",
+    family: "seo",
+    description: "Return bounded retained Google Search Console readiness, immutable sync comparison and privacy-safe demand evidence.",
+    capability: "seo.read",
+    pageTypes: ["seo_overview", "search_console"],
+    execute: async (principal) => {
+      const [history, readiness] = await Promise.all([
+        getSearchConsoleHistoryWorkspace(principal),
+        Promise.resolve(searchConsoleReadiness())
+      ]);
+      return {
+        readiness: {
+          enabled: readiness.enabled,
+          ready: readiness.ready,
+          credentialsConfigured: readiness.credentialsConfigured,
+          siteUrl: readiness.siteUrl
+        },
+        persistenceAvailable: history.persistenceAvailable,
+        latest: history.latest,
+        previous: history.previous,
+        queries: history.queries.slice(0, 50),
+        pages: history.pages.slice(0, 50)
+      };
     }
   },
   {
