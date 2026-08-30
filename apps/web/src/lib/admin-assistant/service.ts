@@ -3,7 +3,7 @@ import { adminAssistantExternalResearchEnabled, adminAssistantMaxOutputTokens, a
 import type { AdminAssistantInvestigationResult } from "./investigation";
 import { ADMIN_ASSISTANT_SYSTEM_PROMPT_V1 } from "./prompt";
 import { recordAssistantToolAudit } from "./repository";
-import type { AdminAssistantResponsePayload, AdminAssistantSnapshot, AdminAssistantSource, AdminAssistantStoredMessage } from "./types";
+import { safeAdminHref, type AdminAssistantAction, type AdminAssistantResponsePayload, type AdminAssistantSnapshot, type AdminAssistantSource, type AdminAssistantStoredMessage } from "./types";
 
 function researchRequested(question: string): boolean {
   if (!adminAssistantExternalResearchEnabled()) return false;
@@ -58,7 +58,85 @@ function parseModelPayload(text: string, sources: readonly AdminAssistantSource[
   } catch { return undefined; }
 }
 
-function deterministicAnswer(question: string, snapshot: AdminAssistantSnapshot): AdminAssistantResponsePayload {
+function investigationResult(investigation: readonly AdminAssistantInvestigationResult[] | undefined, toolName: string): AdminAssistantInvestigationResult | undefined {
+  return investigation?.find((item) => item.toolName === toolName && item.state === "ok");
+}
+
+function deterministicLookupAnswer(
+  investigation: readonly AdminAssistantInvestigationResult[] | undefined
+): AdminAssistantResponsePayload | undefined {
+  const search = investigationResult(investigation, "getGlobalAdminSearch");
+  if (!search) return undefined;
+  const rawResults = search.data?.results;
+  if (!Array.isArray(rawResults)) return undefined;
+  const rows = rawResults.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").slice(0, 8);
+  if (!rows.length) {
+    return {
+      summary: "No authorized KONTA MOY Admin entity matched that lookup.",
+      facts: ["The permission-aware Admin search returned zero matching orders, customers, support cases, partners, applications or research leads."],
+      interpretation: "No identifier should be guessed when the authorized search has no match.",
+      recommendations: ["Try a public order/ticket reference, email address, partner name or technical identifier."],
+      actions: [],
+      sources: [],
+      provider: "deterministic"
+    };
+  }
+
+  const facts = rows.map((row) => `${String(row.kind ?? "entity")}: ${String(row.label ?? row.id ?? "match")} · ${String(row.detail ?? "")}`.slice(0, 800));
+  const actions: AdminAssistantAction[] = rows.flatMap((row, index) => {
+    const href = safeAdminHref(row.href);
+    if (!href) return [];
+    return [{ id: `search-open-${index}`, kind: "open" as const, label: `Open ${String(row.label ?? row.id ?? "result")}`.slice(0, 160), href, requiresApproval: false }];
+  }).slice(0, 6);
+
+  let summary = rows.length === 1
+    ? `Found one authorized match: ${String(rows[0]?.label ?? rows[0]?.id ?? "entity")}. ${String(rows[0]?.detail ?? "")}`
+    : `Found ${rows.length} authorized matches. ${rows.slice(0, 3).map((row) => String(row.label ?? row.id ?? "entity")).join(", ")}${rows.length > 3 ? "…" : "."}`;
+  const recommendations = rows.length === 1 ? ["Open the matched record or continue with the attached operational inspection."] : ["Choose the intended entity before making any operational conclusion."];
+
+  if (rows.length === 1 && rows[0]?.kind === "order") {
+    const orderResult = investigationResult(investigation, "getOrderLifecycleIntelligence");
+    const order = orderResult?.data?.order;
+    const payment = orderResult?.data?.payment;
+    const taxDocuments = orderResult?.data?.taxDocuments;
+    if (order && typeof order === "object") {
+      const orderRow = order as Record<string, unknown>;
+      const paymentRow = payment && typeof payment === "object" ? payment as Record<string, unknown> : undefined;
+      summary += ` Order state: ${String(orderRow.status ?? "unknown")}; fulfilment: ${String(orderRow.fulfilmentMode ?? "unknown")}; payment: ${String(paymentRow?.status ?? "unavailable")}; fiscal documents: ${Array.isArray(taxDocuments) ? taxDocuments.length : 0}.`;
+      facts.push(`Operational inspection: order=${String(orderRow.status ?? "unknown")}, payment=${String(paymentRow?.status ?? "unavailable")}, fiscalDocuments=${Array.isArray(taxDocuments) ? taxDocuments.length : 0}.`);
+    }
+  }
+
+  if (rows.length === 1 && rows[0]?.kind === "vendor") {
+    const vendorResult = investigationResult(investigation, "getVendorOperationalIntelligence");
+    const vendor = vendorResult?.data?.vendor;
+    const orders = vendorResult?.data?.orders;
+    if (vendor && typeof vendor === "object") {
+      const vendorRow = vendor as Record<string, unknown>;
+      summary += ` Partner state: ${String(vendorRow.status ?? "unknown")}; agreement documented: ${vendorRow.cooperationDocumented === true ? "yes" : "no"}; approved offers: ${String(vendorRow.approvedOfferCount ?? 0)}; linked order sample: ${Array.isArray(orders) ? orders.length : 0}.`;
+      facts.push(`Operational inspection: status=${String(vendorRow.status ?? "unknown")}, agreementDocumented=${vendorRow.cooperationDocumented === true ? "yes" : "no"}, approvedOffers=${String(vendorRow.approvedOfferCount ?? 0)}.`);
+    }
+  }
+
+  return {
+    summary: summary.slice(0, 1_500),
+    facts: facts.slice(0, 8),
+    interpretation: rows.length === 1 ? "The entity was resolved through authorized KONTA MOY data; no identifier was inferred by the model." : "Multiple authorized entities match, so a deeper operational conclusion would be ambiguous.",
+    recommendations,
+    actions,
+    sources: [],
+    provider: "deterministic"
+  };
+}
+
+function deterministicAnswer(
+  question: string,
+  snapshot: AdminAssistantSnapshot,
+  investigation?: readonly AdminAssistantInvestigationResult[]
+): AdminAssistantResponsePayload {
+  const lookup = deterministicLookupAnswer(investigation);
+  if (lookup) return lookup;
+
   const normalized = question.toLocaleLowerCase("en");
   const structuredRecommendations = snapshot.recommendations ?? [];
   const recommendations = structuredRecommendations.length
@@ -112,7 +190,7 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
   investigation?: readonly AdminAssistantInvestigationResult[];
   signal?: AbortSignal;
 }): Promise<AdminAssistantResponsePayload> {
-  if (!adminAssistantProviderConfigured()) return deterministicAnswer(input.question, input.snapshot);
+  if (!adminAssistantProviderConfigured()) return deterministicAnswer(input.question, input.snapshot, input.investigation);
   const useResearch = researchRequested(input.question);
   const compactHistory = input.history.slice(-12).map((message) => ({ role: message.role, content: message.content.slice(0, 2_000) }));
   const providerInput = JSON.stringify({
@@ -147,6 +225,6 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
     return parsed;
   } catch (cause) {
     await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain, investigationTools: input.investigation?.map((item) => item.toolName) ?? [] }, resultState: "error", error: cause instanceof Error ? cause.message : "provider_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
-    return deterministicAnswer(input.question, input.snapshot);
+    return deterministicAnswer(input.question, input.snapshot, input.investigation);
   }
 }
