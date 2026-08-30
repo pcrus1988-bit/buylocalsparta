@@ -1,0 +1,86 @@
+name: Vendor Assigned Catalogue Evidence Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/vendor/catalog/page.tsx"
+      - "apps/web/src/lib/vendor-assigned-catalogue-service.ts"
+      - "apps/web/src/lib/admin-catalogue-vendor-assignment.ts"
+      - "db/migrations/0165_vendor_assigned_catalogue_evidence.sql"
+      - "db/migrations/checksums.0165.json"
+      - "packages/postgres-runtime/src/index.ts"
+      - "scripts/verify-vendor-assigned-catalogue-evidence.ts"
+      - "scripts/vendor-assigned-catalogue-evidence-smoke.ts"
+      - ".github/workflows/vendor-assigned-catalogue-evidence-acceptance.yml"
+  push:
+    branches: [main]
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: buy_local_sparta
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: buy_local_sparta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buy_local_sparta -d buy_local_sparta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://buy_local_sparta:ci-password@127.0.0.1:5432/buy_local_sparta
+      BLS_AUTH_SECRET: ci-only-auth-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      BLS_ENABLE_DEMO_ACCOUNTS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install locked workspace
+        run: npm ci --ignore-scripts
+      - name: Verify evidence-only contracts and migration ledger
+        run: |
+          sha256sum db/migrations/0165_vendor_assigned_catalogue_evidence.sql
+          node --experimental-strip-types scripts/verify-vendor-assigned-catalogue-evidence.ts
+          npm run db:verify
+      - name: Bootstrap Supabase-compatible roles and Vault contract
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF;
+          END
+          $$;
+          CREATE SCHEMA IF NOT EXISTS vault;
+          CREATE TABLE IF NOT EXISTS vault.secrets (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text UNIQUE, description text,
+            secret text NOT NULL, key_id uuid, nonce bytea,
+            created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE OR REPLACE VIEW vault.decrypted_secrets AS
+            SELECT id,name,description,secret,secret AS decrypted_secret,key_id,nonce,created_at,updated_at FROM vault.secrets;
+          CREATE OR REPLACE FUNCTION vault.create_secret(new_secret text,new_name text,new_description text,new_key_id uuid)
+          RETURNS uuid LANGUAGE plpgsql AS $$
+          DECLARE created_id uuid := gen_random_uuid();
+          BEGIN
+            INSERT INTO vault.secrets(id,secret,name,description,key_id) VALUES(created_id,new_secret,new_name,new_description,new_key_id);
+            RETURN created_id;
+          END;
+          $$;
+          SQL
+      - name: Apply schema 165 and verify readiness
+        run: |
+          npm run db:migrate
+          npm run db:ready
+      - name: Typecheck assigned catalogue evidence service and smoke
+        run: |
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck apps/web/src/lib/vendor-assigned-catalogue-service.ts scripts/vendor-assigned-catalogue-evidence-smoke.ts
+      - name: Exercise assigned catalogue evidence against live PostgreSQL
+        run: node --experimental-strip-types scripts/vendor-assigned-catalogue-evidence-smoke.ts
