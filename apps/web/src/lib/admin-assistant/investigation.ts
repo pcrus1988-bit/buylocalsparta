@@ -11,6 +11,24 @@ export type AdminAssistantInvestigationResult = Readonly<{
 
 function contains(question: string, pattern: RegExp): boolean { return pattern.test(question.toLocaleLowerCase("en")); }
 
+function lookupQuery(question: string, context: AdminAssistantContext): string | undefined {
+  if (context.pageType === "global_search" && context.searchQuery?.trim()) return context.searchQuery.trim().slice(0, 200);
+  const quoted = question.match(/["“”]([^"“”]{2,120})["“”]/)?.[1]?.trim();
+  if (quoted) return quoted;
+  const reference = question.match(/\b(?:ORD|TKT)-[A-Z0-9-]+\b/i)?.[0];
+  if (reference) return reference;
+  const email = question.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+  if (email) return email;
+  const technical = question.match(/\b(?:vendor|order|customer|application|gift|tax)_[a-z0-9_-]{3,}\b/i)?.[0];
+  if (technical) return technical;
+  if (!contains(question, /\b(find|search|look\s*up|lookup|open|where is|show me)\b|βρες|αναζήτη|άνοιξε|δείξε μου/)) return undefined;
+  const stripped = question
+    .replace(/^\s*(?:please\s+)?(?:find|search(?:\s+for)?|look\s*up|lookup|open|where\s+is|show\s+me|βρες|αναζήτησε|άνοιξε|δείξε\s+μου)\s+/i, "")
+    .replace(/[?.!]+$/g, "")
+    .trim();
+  return stripped.length >= 2 ? stripped.slice(0, 200) : undefined;
+}
+
 export function planAssistantInvestigation(
   principal: SessionPrincipal,
   context: AdminAssistantContext,
@@ -22,6 +40,9 @@ export function planAssistantInvestigation(
     if (!available.has(name) || candidates.some((item) => item.name === name)) return;
     candidates.push({ name, args });
   };
+
+  const lookup = lookupQuery(question, context);
+  if (lookup) add("getGlobalAdminSearch", { query: lookup });
 
   if (context.pageType === "order_detail" || contains(question, /order|payment|fulfil|fulfill|tax document|mark|refund|return|παραγγελ|πληρω|επιστροφ/)) {
     if (context.entityId) add("getOrderLifecycleIntelligence", { orderId: context.entityId });
@@ -54,18 +75,46 @@ export function planAssistantInvestigation(
   return candidates.slice(0, 3);
 }
 
+async function runOne(
+  principal: SessionPrincipal,
+  context: AdminAssistantContext,
+  item: Readonly<{ name: string; args: Readonly<Record<string, unknown>> }>
+): Promise<AdminAssistantInvestigationResult> {
+  try {
+    const data = await executeAssistantTool(principal, context, item.name, item.args);
+    return { toolName: item.name, state: "ok", data };
+  } catch (error) {
+    return { toolName: item.name, state: "error", error: error instanceof Error ? error.message.slice(0, 300) : "tool_failed" };
+  }
+}
+
+function followUpFromSearch(result: AdminAssistantInvestigationResult): Readonly<{ name: string; args: Readonly<Record<string, unknown>> }> | undefined {
+  if (result.toolName !== "getGlobalAdminSearch" || result.state !== "ok") return undefined;
+  const rows = result.data?.results;
+  if (!Array.isArray(rows) || rows.length !== 1) return undefined;
+  const item = rows[0];
+  if (!item || typeof item !== "object") return undefined;
+  const row = item as Record<string, unknown>;
+  const id = typeof row.id === "string" ? row.id : undefined;
+  if (!id) return undefined;
+  if (row.kind === "order") return { name: "getOrderLifecycleIntelligence", args: { orderId: id } };
+  if (row.kind === "vendor") return { name: "getVendorOperationalIntelligence", args: { vendorId: id } };
+  return undefined;
+}
+
 export async function runAssistantInvestigation(
   principal: SessionPrincipal,
   context: AdminAssistantContext,
   question: string
 ): Promise<readonly AdminAssistantInvestigationResult[]> {
   const plan = planAssistantInvestigation(principal, context, question);
-  return Promise.all(plan.map(async (item) => {
-    try {
-      const data = await executeAssistantTool(principal, context, item.name, item.args);
-      return { toolName: item.name, state: "ok" as const, data };
-    } catch (error) {
-      return { toolName: item.name, state: "error" as const, error: error instanceof Error ? error.message.slice(0, 300) : "tool_failed" };
-    }
-  }));
+  const results = await Promise.all(plan.map((item) => runOne(principal, context, item)));
+  if (results.length >= 3) return results;
+
+  const search = results.find((item) => item.toolName === "getGlobalAdminSearch");
+  const followUp = search ? followUpFromSearch(search) : undefined;
+  if (!followUp || results.some((item) => item.toolName === followUp.name)) return results;
+  const available = new Set(availableAssistantTools(principal, context).map((tool) => tool.name));
+  if (!available.has(followUp.name)) return results;
+  return [...results, await runOne(principal, context, followUp)].slice(0, 3);
 }
