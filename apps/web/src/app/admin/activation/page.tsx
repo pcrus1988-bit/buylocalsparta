@@ -7,7 +7,7 @@ import { adminActivationWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { WEB_BUILD_VERSION } from "../../../lib/build";
 
-export const metadata: Metadata = { title: "Admin · Launch Readiness · Production Activation Center", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · Production Readiness", robots: { index: false, follow: false } };
 
 type ActivationEvidence = Awaited<ReturnType<typeof adminActivationWorkspace>>["evidence"][number];
 type GateState = "passed" | "failed" | "blocked" | "skipped" | "missing" | "expired";
@@ -71,9 +71,9 @@ export default async function Page() {
   const hasHardFailure = gates.some((gate) => gate.state === "failed" || gate.state === "blocked");
   const readyForLiveCommerce = coreReady && !hasHardFailure;
 
-  return <main className="vendor-app admin-app">
+  return <main className="vendor-app admin-app admin-production-readiness" data-legacy-label="Launch Readiness">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · Launch Readiness · production evidence</div><h1>Production Activation Center</h1><p className="lead">Ένα ενιαίο control room για να ξέρουμε αν το ΚΟΝΤΑ ΜΟΥ είναι πραγματικά έτοιμο να δεχθεί live παραγγελίες. Τα πράσινα states προέρχονται μόνο από φρέσκο, build-scoped provider evidence.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Platform · Production Readiness · build evidence</div><h1>Production Readiness</h1><p className="lead">Build-scoped evidence showing whether the current production platform is safe to accept live commerce. Green states come only from fresh provider checks, never from configuration assumptions.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Live commerce", value: readyForLiveCommerce ? "READY" : "NOT READY", tone: readyForLiveCommerce ? "positive" : "attention", hint: readyForLiveCommerce ? "Core production gates are green." : "At least one core gate needs evidence or attention." },
@@ -84,7 +84,7 @@ export default async function Page() {
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Go-live decision" title={readyForLiveCommerce ? "READY FOR LIVE COMMERCE" : "LIVE COMMERCE REMAINS GATED"} note={readyForLiveCommerce ? "Payments, tax, email, database and deployed-web evidence are fresh for this build, with no failed or blocked provider gate." : "No operator should infer readiness from configuration alone. Run the checks and clear every failed/blocked core gate before real customer money is accepted."} />
+      <WorkspaceSectionHeading eyebrow="Production decision" title={readyForLiveCommerce ? "READY FOR LIVE COMMERCE" : "LIVE COMMERCE REMAINS GATED"} note={readyForLiveCommerce ? "Payments, tax, email, database and deployed-web evidence are fresh for this build, with no failed or blocked provider gate." : "No operator should infer readiness from configuration alone. Run the checks and clear every failed/blocked core gate before real customer money is accepted."} />
       <div className="workspace-queue-list">{gates.map((gate) => <article className="workspace-queue-card" key={gate.key}>
         <div className="workspace-queue-head"><div><strong>{gateSymbol(gate.state)} {gate.label}</strong><small>{gate.hint}</small></div><span className="status-pill">{gate.state}</span></div>
         <div className="workspace-queue-primary"><span>{gate.rows.length ? `${gate.rows.length} evidence record${gate.rows.length === 1 ? "" : "s"}` : "No current-build evidence"}</span>{CORE_GATE_KEYS.has(gate.key) && <span>Core commerce gate</span>}</div>
@@ -92,15 +92,15 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Production verification" title="Run fresh provider checks" note="Ελέγχει PostgreSQL, Viva, AADE myDATA, Resend, search, object storage, BOX NOW και το deployed web. Δεν δημιουργεί πληρωμή, τιμολόγιο, email ή αποστολή." />
+      <WorkspaceSectionHeading eyebrow="Production verification" title="Run fresh provider checks" note="Checks PostgreSQL, Viva, AADE myDATA, Resend, search, object storage, BOX NOW and the deployed web. It does not create a payment, invoice, email or shipment." />
       {canRun ? <div className="workspace-inline-actions">
         <AdminActionButton label="Run production readiness checks" endpoint="/api/admin/activation/run" csrfToken={data.csrfToken} />
-      </div> : <p className="workspace-muted">Η εκτέλεση και καταγραφή production evidence επιτρέπεται μόνο σε super admin. Το evidence παραμένει διαθέσιμο για ανάγνωση σύμφωνα με τα admin permissions.</p>}
+      </div> : <p className="workspace-muted">Running and recording production evidence is restricted to super admin. Existing evidence remains readable according to Admin permissions.</p>}
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Durable evidence" title="Activation evidence" note="Κάθε εκτέλεση γράφει append-only, build-scoped evidence με expiry και SHA-256 digest. Secrets και credentials δεν αποθηκεύονται στα details." />
-      {data.evidence.length === 0 ? <WorkspaceEmptyState title="Δεν έχει καταγραφεί launch readiness evidence." body="Ο super admin μπορεί να εκτελέσει τους production readiness checks από την ενότητα παραπάνω. Μόνο οι έλεγχοι που εκτελέστηκαν επιτυχώς καταγράφονται ως passed." /> : <div className="workspace-queue-list">{data.evidence.map((row) => {
+      <WorkspaceSectionHeading eyebrow="Activation evidence ledger" title="Production readiness evidence" note="Each run writes append-only, build-scoped evidence with expiry and SHA-256 digest. Secrets and credentials are not stored in the details." />
+      {data.evidence.length === 0 ? <WorkspaceEmptyState title="No production-readiness evidence has been recorded." body="A super admin can run the production readiness checks above. Only checks that actually execute successfully are recorded as passed." /> : <div className="workspace-queue-list">{data.evidence.map((row) => {
         const isExpired = rowExpired(row, now);
         const isCurrent = row.buildVersion === WEB_BUILD_VERSION;
         const details = Object.entries(row.details ?? {}).filter(([, value]) => value !== undefined && value !== null);
