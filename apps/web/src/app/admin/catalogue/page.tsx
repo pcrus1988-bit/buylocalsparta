@@ -50,7 +50,7 @@ export default async function Page() {
         {
           label: "Σύνολο προϊόντων",
           value: data.metrics.totalProducts,
-          hint: `${data.metrics.liveProducts} ενεργά / δημοσιεύσιμα`
+          hint: `${data.metrics.liveProducts} ενεργά canonical`
         },
         {
           label: "Κατηγορίες",
