@@ -1,5 +1,6 @@
 import { adminAssistantEnabled } from "../../../../../lib/admin-assistant/config";
 import { parseAssistantClientContext } from "../../../../../lib/admin-assistant/context";
+import { runAssistantInvestigation } from "../../../../../lib/admin-assistant/investigation";
 import { buildAdminAssistantOperationalSnapshot } from "../../../../../lib/admin-assistant/operational-snapshot";
 import { consumeAdminAssistantRateLimit } from "../../../../../lib/admin-assistant/rate-limit";
 import { answerAdminAssistant } from "../../../../../lib/admin-assistant/service";
@@ -22,10 +23,13 @@ export async function POST(request: Request) {
     const snapshot = await buildAdminAssistantOperationalSnapshot(principal, clientContext);
     const conversation = await ensureAssistantConversation(principal, { conversationId: typeof body.conversationId === "string" ? body.conversationId : undefined, title: titleFor(question), context: snapshot.context });
     await saveAssistantMessage(principal, conversation.id, { role: "user", content: question, context: snapshot.context });
-    const history = await getAssistantConversationMessages(principal, conversation.id, 16);
-    const answer = await answerAdminAssistant(principal, { question, snapshot, history, conversationId: conversation.id, signal: request.signal });
+    const [history, investigation] = await Promise.all([
+      getAssistantConversationMessages(principal, conversation.id, 16),
+      runAssistantInvestigation(principal, snapshot.context, question)
+    ]);
+    const answer = await answerAdminAssistant(principal, { question, snapshot, history, investigation, conversationId: conversation.id, signal: request.signal });
     const stored = await saveAssistantMessage(principal, conversation.id, { role: "assistant", content: answer.summary, structured: answer, context: snapshot.context });
-    return Response.json({ conversationId: conversation.id, message: stored, answer, snapshot }, { headers: { "cache-control": "private, no-store" } });
+    return Response.json({ conversationId: conversation.id, message: stored, answer, snapshot, investigation: investigation.map((item) => ({ toolName: item.toolName, state: item.state })) }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {
     return Response.json({ error: cause instanceof Error ? cause.message : "assistant_message_failed" }, { status: 400, headers: { "cache-control": "private, no-store" } });
   }
