@@ -24,11 +24,15 @@ export type AdminAssistantContext = Readonly<{
   pageType: string;
   domain: AdminAssistantDomain;
   contextLabel: string;
+  pagePurpose?: string;
+  attentionAreas?: readonly string[];
   entityType?: string;
   entityId?: string;
   entityName?: string;
   selectedTab?: string;
+  searchQuery?: string;
   filters: Readonly<Record<string, string>>;
+  permissions?: readonly string[];
   capabilities: readonly string[];
 }>;
 
