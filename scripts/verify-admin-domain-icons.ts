@@ -7,7 +7,7 @@ const expected = new Map([
   ["/admin", "overview"],
   ["/admin/work", "operations"],
   ["/admin/partners", "partners"],
-  ["/admin/matching", "catalog"],
+  ["/admin/catalogue", "catalog"],
   ["/admin/customers", "customers"],
   ["/admin/trust", "trust"],
   ["/admin/finance", "finance"],
