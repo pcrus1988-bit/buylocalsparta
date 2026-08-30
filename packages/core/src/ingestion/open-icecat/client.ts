@@ -28,16 +28,16 @@ export class OpenIcecatClient {
 
   async lookupByGtin(
     inputGtin: string,
-    options: Readonly<{ localize?: GreekProductLocalizer; minimumGreekScore?: number }> = {}
+    options: Readonly<{ localize?: GreekProductLocalizer; minimumGreekScore?: number; signal?: AbortSignal }> = {}
   ): Promise<OpenIcecatProductDraft> {
     const gtin = normalizeGtin(inputGtin);
     if (!isValidGtin(gtin)) throw new Error("GTIN checksum is invalid");
 
-    const greekPayload = await this.#request(gtin, OPEN_ICECAT_GREEK_LOCALE);
+    const greekPayload = await this.#request(gtin, OPEN_ICECAT_GREEK_LOCALE, options.signal);
     let draft = normalizeOpenIcecatGreekProduct(greekPayload, gtin, options.minimumGreekScore);
     if (draft.greekQuality.status === "READY" || !options.localize) return draft;
 
-    const englishPayload = await this.#request(gtin, "EN");
+    const englishPayload = await this.#request(gtin, "EN", options.signal);
     const source = normalizeOpenIcecatSourceProduct(englishPayload, gtin);
     const localized = await options.localize({
       gtin,
@@ -52,7 +52,7 @@ export class OpenIcecatClient {
     return draft;
   }
 
-  async #request(gtin: string, locale: string): Promise<Record<string, unknown>> {
+  async #request(gtin: string, locale: string, externalSignal?: AbortSignal): Promise<Record<string, unknown>> {
     const url = new URL(this.#endpoint);
     url.searchParams.set("lang", locale);
     url.searchParams.set("shopname", this.#username);
@@ -60,11 +60,14 @@ export class OpenIcecatClient {
     url.searchParams.set("content", "");
     const headers: Record<string, string> = { accept: "application/json", "api-token": this.#apiToken };
     if (this.#contentToken) headers["content-token"] = this.#contentToken;
+    const timeoutSignal = AbortSignal.timeout(this.#requestTimeoutMs);
+    const signal = externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal;
 
     const response = await this.#fetch(url, {
       method: "GET",
+      redirect: "error",
       headers,
-      signal: AbortSignal.timeout(this.#requestTimeoutMs)
+      signal
     });
     const bodyText = await response.text();
     let payload: unknown;

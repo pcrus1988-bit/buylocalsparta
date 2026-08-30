@@ -24,8 +24,11 @@ case "$role" in
   icecat)
     exec node --experimental-strip-types workers/open-icecat-worker.ts
     ;;
+  icecat-detail)
+    exec node --experimental-strip-types workers/open-icecat-detail-worker.ts
+    ;;
   "")
-    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|icecat)" >&2
+    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|icecat|icecat-detail)" >&2
     exit 64
     ;;
   *)

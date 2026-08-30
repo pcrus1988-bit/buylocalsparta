@@ -65,7 +65,7 @@
     "test:preview-auth": "node --experimental-strip-types scripts/verify-preview-auth.ts",
     "check:deployment": "node --experimental-strip-types scripts/verify-deployment-topology.ts",
     "build:web": "npm --workspace @buy-local-sparta/web run build",
-    "typecheck:workers": "tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/postgres-worker.ts workers/search-worker.ts workers/notification-worker.ts workers/media-worker.ts workers/report-worker.ts",
+    "typecheck:workers": "tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/postgres-worker.ts workers/search-worker.ts workers/notification-worker.ts workers/media-worker.ts workers/report-worker.ts workers/catalog-crawler-worker.ts workers/open-icecat-worker.ts workers/open-icecat-detail-worker.ts",
     "check:storefront": "node --experimental-strip-types scripts/verify-storefront-taxonomy.ts",
     "check:research-seed": "node --experimental-strip-types scripts/verify-research-seed.ts",
     "check:merchants": "node --experimental-strip-types scripts/verify-merchant-directory.ts",
