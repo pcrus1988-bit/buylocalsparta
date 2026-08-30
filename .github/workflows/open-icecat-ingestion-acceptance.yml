@@ -166,5 +166,10 @@ jobs:
           grep -q 'BLS_WORKER_ROLE=icecat-detail' docs/OPEN_ICECAT_DETAIL_ENRICHMENT_WORKER.md
           grep -q 'ICECAT_API_TOKEN=' deploy/worker.env.example
           grep -q 'ICECAT_CONTENT_TOKEN=' deploy/worker.env.example
+          grep -q 'BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS=300000' deploy/worker.env.example
+          grep -q 'BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS' docs/OPEN_ICECAT_DETAIL_ENRICHMENT_WORKER.md
+          grep -q 'BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS' workers/open-icecat-detail-worker.ts
+          grep -q 'lastQueueSyncError' workers/open-icecat-detail-worker.ts
+          grep -q 'nextQueueSyncAt' workers/open-icecat-detail-worker.ts
           grep -q 'full_reconciliation' workers/open-icecat-worker.ts
           grep -q 'OPEN_ICECAT_DETAIL_PROCESSING_VERSION' workers/open-icecat-detail-worker.ts

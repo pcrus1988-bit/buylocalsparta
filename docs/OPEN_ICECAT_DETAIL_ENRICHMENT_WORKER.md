@@ -39,7 +39,11 @@ Jobs are keyed by `(source_id, product_id)` and are version-bound to:
 - the provider `source_updated` marker when present;
 - `OPEN_ICECAT_DETAIL_PROCESSING_VERSION`.
 
-New/changed index rows are queued incrementally during bulk ingestion. Removed rows are skipped immediately. Existing index rows can be backfilled once through the repository sync performed at detail-worker startup.
+New/changed index rows are queued incrementally during bulk ingestion. Removed rows are skipped immediately. Existing index rows are backfilled through the repository sync performed at detail-worker startup.
+
+A continuously running detail worker also repeats the same idempotent repository sync every `BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS` (default five minutes). This closes the handoff gap for index evidence created after the detail worker started, without requiring a worker restart. The sync only creates or refreshes work when the index identity or processing version requires it; already-current completed work remains completed.
+
+Periodic synchronization failures are recoverable. The worker records the failure in health/log output, retries the sync after at most one minute, and continues processing jobs that are already queued. Startup synchronization remains fail-fast so a deployment cannot report healthy before it has established the initial queue state. `BLS_OPEN_ICECAT_DETAIL_RUN_ONCE=true` retains the original behavior: perform the initial sync, process one claimed batch, and exit without periodic resynchronization.
 
 Workers claim rows with `FOR UPDATE SKIP LOCKED`. Processing leases can be reclaimed after expiry. Before evidence is committed, the current index version is checked again; a product that changed or was removed during the API request is not committed as the stale version.
 
@@ -73,6 +77,7 @@ Recommended defaults:
 
 ```text
 BLS_OPEN_ICECAT_DETAIL_POLL_MS=2000
+BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS=300000
 BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE=5
 BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS=300
 BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS=15000
@@ -84,7 +89,7 @@ BLS_OPEN_ICECAT_DETAIL_RUN_ONCE=false
 BLS_OPEN_ICECAT_MIN_GREEK_SCORE=0.9
 ```
 
-The worker refuses to start when the configured lease is too short for the worst-case batch request/rate-delay budget.
+The synchronization interval must be between 10 seconds and 24 hours. The worker refuses to start when the configured lease is too short for the worst-case batch request/rate-delay budget.
 
 ## Runtime behavior
 
@@ -109,7 +114,10 @@ The worker exposes `/healthz` on `BLS_OPEN_ICECAT_DETAIL_HEALTH_PORT` and report
 - worker/source identity;
 - current product and GTIN;
 - schema and processing version;
-- last activity/queue-sync time;
+- last activity time;
+- last successful queue-sync time;
+- last queue-sync error, if any;
+- next scheduled queue-sync time;
 - active provider-index count;
 - unqueueable rows without GTIN;
 - pending, processing, retry, ready, needs-enrichment, failed and skipped queue counts.
