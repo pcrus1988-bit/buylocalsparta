@@ -99,7 +99,7 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Durable evidence" title="Production readiness evidence" note="Each run writes append-only, build-scoped evidence with expiry and SHA-256 digest. Secrets and credentials are not stored in the details." />
+      <WorkspaceSectionHeading eyebrow="Activation evidence ledger" title="Production readiness evidence" note="Each run writes append-only, build-scoped evidence with expiry and SHA-256 digest. Secrets and credentials are not stored in the details." />
       {data.evidence.length === 0 ? <WorkspaceEmptyState title="No production-readiness evidence has been recorded." body="A super admin can run the production readiness checks above. Only checks that actually execute successfully are recorded as passed." /> : <div className="workspace-queue-list">{data.evidence.map((row) => {
         const isExpired = rowExpired(row, now);
         const isCurrent = row.buildVersion === WEB_BUILD_VERSION;
