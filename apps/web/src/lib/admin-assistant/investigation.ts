@@ -19,11 +19,16 @@ function lookupQuery(question: string, context: AdminAssistantContext): string |
   if (reference) return reference;
   const email = question.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
   if (email) return email;
+  const canonical = question.match(/\bcv_[a-z0-9_-]{3,}\b/i)?.[0];
+  if (canonical) return canonical;
   const technical = question.match(/\b(?:vendor|order|customer|application|gift|tax)_[a-z0-9_-]{3,}\b/i)?.[0];
   if (technical) return technical;
-  if (!contains(question, /\b(find|search|look\s*up|lookup|open|where is|show me)\b|βρες|αναζήτη|άνοιξε|δείξε μου/)) return undefined;
+  const gtin = question.match(/(?<!\d)\d{8,14}(?!\d)/)?.[0];
+  if (gtin && contains(question, /product|gtin|ean|barcode|model|προϊόν|κωδικ|γραμμωτ/)) return gtin;
+  if (!contains(question, /\b(find|search|look\s*up|lookup|open|where is|show me|check|inspect|analyse|analyze)\b|βρες|αναζήτη|άνοιξε|δείξε μου|έλεγξε|επιθεώρησε/)) return undefined;
   const stripped = question
-    .replace(/^\s*(?:please\s+)?(?:find|search(?:\s+for)?|look\s*up|lookup|open|where\s+is|show\s+me|βρες|αναζήτησε|άνοιξε|δείξε\s+μου)\s+/i, "")
+    .replace(/^\s*(?:please\s+)?(?:find|search(?:\s+for)?|look\s*up|lookup|open|where\s+is|show\s+me|check|inspect|analyse|analyze|βρες|αναζήτησε|άνοιξε|δείξε\s+μου|έλεγξε|επιθεώρησε)\s+/i, "")
+    .replace(/^(?:product|canonical product|προϊόν)\s+/i, "")
     .replace(/[?.!]+$/g, "")
     .trim();
   return stripped.length >= 2 ? stripped.slice(0, 200) : undefined;
@@ -107,6 +112,7 @@ function followUpFromSearch(result: AdminAssistantInvestigationResult): Readonly
   const row = item as Record<string, unknown>;
   const id = typeof row.id === "string" ? row.id : undefined;
   if (!id) return undefined;
+  if (row.kind === "product") return { name: "getProductIntelligence", args: { productId: id } };
   if (row.kind === "order") return { name: "getOrderLifecycleIntelligence", args: { orderId: id } };
   if (row.kind === "vendor") return { name: "getVendorOperationalIntelligence", args: { vendorId: id } };
   return undefined;
