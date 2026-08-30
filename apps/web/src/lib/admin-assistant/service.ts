@@ -123,6 +123,22 @@ function deterministicLookupAnswer(
     }
   }
 
+  if (rows.length === 1 && (rows[0]?.kind === "customer" || rows[0]?.kind === "support")) {
+    const customerResult = investigationResult(investigation, "getCustomerOperationalIntelligence");
+    const customer = customerResult?.data?.customer;
+    if (customer && typeof customer === "object") {
+      const customerRow = customer as Record<string, unknown>;
+      const engagement = customerRow.engagement && typeof customerRow.engagement === "object" ? customerRow.engagement as Record<string, unknown> : {};
+      const openSupportCases = Number(engagement.openSupportCases ?? 0);
+      const openPrivacyRequests = Number(engagement.openPrivacyRequests ?? 0);
+      const notificationFailures = Number(engagement.notificationFailures ?? 0);
+      const supportCases = Array.isArray(customerRow.supportCases) ? customerRow.supportCases.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      const urgentOpen = supportCases.filter((item) => item.priority === "urgent" && !["resolved", "closed"].includes(String(item.status ?? ""))).length;
+      summary += ` Customer state: ${String(customerRow.status ?? "unknown")}; email verified: ${customerRow.emailVerified === true ? "yes" : "no"}; active sessions: ${String(customerRow.activeSessionCount ?? 0)}; orders: ${String(customerRow.orderCount ?? 0)}; open support: ${openSupportCases}; open privacy: ${openPrivacyRequests}; failed notifications: ${notificationFailures}.`;
+      facts.push(`Customer 360 inspection: status=${String(customerRow.status ?? "unknown")}, emailVerified=${customerRow.emailVerified === true ? "yes" : "no"}, activeSessions=${String(customerRow.activeSessionCount ?? 0)}, orders=${String(customerRow.orderCount ?? 0)}, openSupport=${openSupportCases}, urgentOpenSupport=${urgentOpen}, openPrivacy=${openPrivacyRequests}, notificationFailures=${notificationFailures}.`);
+    }
+  }
+
   if (rows.length === 1 && rows[0]?.kind === "vendor") {
     const vendorResult = investigationResult(investigation, "getVendorOperationalIntelligence");
     const vendor = vendorResult?.data?.vendor;
