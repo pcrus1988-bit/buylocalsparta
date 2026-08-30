@@ -4,7 +4,7 @@ import { planExternalResearch } from "../apps/web/src/lib/admin-assistant/resear
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy] = await Promise.all([
+const [phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence, crawlerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
@@ -12,6 +12,7 @@ const [phase1, dashboard, matching, searchConsole, catalogGovernance, productInt
   read("apps/web/src/lib/admin-assistant/catalog-governance-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/product-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/customer-intelligence.ts"),
+  read("apps/web/src/lib/admin-assistant/crawler-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/global-search.ts"),
   read("apps/web/src/lib/admin-assistant/tool-registry.ts"),
   read("apps/web/src/lib/admin-assistant/investigation.ts"),
@@ -27,8 +28,8 @@ assert.equal(planExternalResearch("Should I create a new canonical for this genu
 assert.equal(planExternalResearch("Should I create a new canonical for this product?", productSnapshot, [{ toolName: "getProductMatchingIntelligence", state: "error" } as any]).useExternalResearch, false);
 assert.equal(planExternalResearch("What does KONTA MOY currently know?", productSnapshot, []).useExternalResearch, false);
 
-for (const symbol of ["dashboardOperationalIntelligence", "productMatchingIntelligence", "searchConsoleIntelligence", "categoryGovernanceIntelligence", "controlledValueIntelligence", "customerOperationalIntelligence"]) assert.match(phase1, new RegExp(symbol));
-for (const pageType of ["dashboard", "product_matching", "category_governance", "controlled_values", "customer_detail"]) assert.match(phase1, new RegExp(pageType));
+for (const symbol of ["dashboardOperationalIntelligence", "productMatchingIntelligence", "searchConsoleIntelligence", "categoryGovernanceIntelligence", "controlledValueIntelligence", "customerOperationalIntelligence", "crawlerOperationalIntelligence"]) assert.match(phase1, new RegExp(symbol));
+for (const pageType of ["dashboard", "product_matching", "category_governance", "controlled_values", "customer_detail", "catalogue_crawler"]) assert.match(phase1, new RegExp(pageType));
 assert.match(phase1, /\["seo_overview", "search_console"\]/);
 
 for (const rule of ["return_refund_ready", "paid_order_missing_tax_document", "payment_order_state_mismatch", "product_unmapped_attributes", "vendor_active_without_agreement", "vendor_no_active_location", "seo_critical_diagnostic", "failed_background_job"]) assert.match(dashboard, new RegExp(rule));
@@ -84,18 +85,29 @@ assert.doesNotMatch(customerIntelligence, /email:/);
 assert.doesNotMatch(customerIntelligence, /note:/);
 assert.doesNotMatch(customerIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
 
+for (const rule of ["crawler_expired_worker_lease", "crawler_systemic_failures", "crawler_latest_failed", "crawler_high_page_failure_ratio", "crawler_zero_products_extracted", "crawler_possible_source_drift", "crawler_review_heavy_extraction", "crawler_completed_not_promoted"]) assert.match(crawlerIntelligence, new RegExp(rule));
+assert.match(crawlerIntelligence, /adminCrawlerDashboard/);
+assert.match(crawlerIntelligence, /previousComparableJob/);
+assert.match(crawlerIntelligence, /possible source-template\/content-shape drift or extractor regression/i);
+assert.match(crawlerIntelligence, /does not establish causality/i);
+assert.match(crawlerIntelligence, /expired worker leases.*stronger evidence/i);
+assert.match(crawlerIntelligence, /Promotion remains a separate governed step/i);
+assert.doesNotMatch(crawlerIntelligence, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
 assert.match(globalSearch, /searchAdminProducts/);
 assert.match(globalSearch, /kind: "order" \| "product"/);
 assert.match(globalSearch, /hasAdminPermission\(principal, "catalog\.read"\)/);
 
-for (const tool of ["getProductMatchingIntelligence", "getProductIntelligence", "getCustomerOperationalIntelligence", "getSearchConsoleIntelligence"]) assert.match(toolRegistry, new RegExp(tool));
+for (const tool of ["getProductMatchingIntelligence", "getProductIntelligence", "getCustomerOperationalIntelligence", "getCatalogueCrawlerIntelligence", "getSearchConsoleIntelligence"]) assert.match(toolRegistry, new RegExp(tool));
 assert.match(toolRegistry, /getAdminAssistantProductState/);
 assert.match(toolRegistry, /getAdminAssistantCustomerState/);
+assert.match(toolRegistry, /adminCrawlerDashboard/);
 assert.match(toolRegistry, /customers\.read/);
 assert.match(toolRegistry, /hasAdminPermission\(principal, "customer\.read"\)/);
 assert.match(toolRegistry, /adminMatchingWorkspace/);
 assert.match(toolRegistry, /getSearchConsoleHistoryWorkspace/);
 assert.match(toolRegistry, /pageTypes: \["product_matching"\]/);
+assert.match(toolRegistry, /pageTypes: \["catalogue_crawler"\]/);
 assert.match(toolRegistry, /pageTypes: \["seo_overview", "search_console"\]/);
 assert.match(toolRegistry, /recordAssistantToolAudit/);
 assert.match(toolRegistry, /ASSISTANT_TOOL_PERMISSION_REQUIRED/);
@@ -107,6 +119,9 @@ assert.match(investigation, /getProductIntelligence/);
 assert.match(investigation, /row\.kind === "customer"/);
 assert.match(investigation, /getCustomerOperationalIntelligence/);
 assert.match(investigation, /customer_detail/);
+assert.match(investigation, /getCatalogueCrawlerIntelligence/);
+assert.match(investigation, /catalogue_crawler/);
+assert.match(investigation, /source drift/);
 assert.match(investigation, /cv_/);
 assert.match(investigation, /8,14/);
 assert.match(investigation, /getSearchConsoleIntelligence/);
@@ -135,11 +150,13 @@ assert.match(pageRegistry, /product_matching/);
 assert.match(pageRegistry, /category_governance/);
 assert.match(pageRegistry, /controlled_values/);
 assert.match(pageRegistry, /customer_detail/);
+assert.match(pageRegistry, /catalogue_crawler/);
 assert.match(pageRegistry, /entityType: "customer"/);
 assert.match(pageRegistry, /canonical readiness/i);
 assert.match(context, /Find duplicate-risk products/i);
 assert.match(context, /Which search queries are opportunities/i);
 assert.match(context, /Check this customer's account and support state/i);
+assert.match(context, /evidence of possible source drift/i);
 assert.match(context, /add\("customer\.read", "customers\.read"\)/);
 
 console.log("Admin Assistant Phase 1 intelligence acceptance verifier passed.");
