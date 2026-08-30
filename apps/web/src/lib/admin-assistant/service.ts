@@ -1,5 +1,6 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminAssistantExternalResearchEnabled, adminAssistantMaxOutputTokens, adminAssistantModel, adminAssistantProviderConfigured } from "./config";
+import type { AdminAssistantInvestigationResult } from "./investigation";
 import { ADMIN_ASSISTANT_SYSTEM_PROMPT_V1 } from "./prompt";
 import { recordAssistantToolAudit } from "./repository";
 import type { AdminAssistantResponsePayload, AdminAssistantSnapshot, AdminAssistantSource, AdminAssistantStoredMessage } from "./types";
@@ -59,18 +60,58 @@ function parseModelPayload(text: string, sources: readonly AdminAssistantSource[
 
 function deterministicAnswer(question: string, snapshot: AdminAssistantSnapshot): AdminAssistantResponsePayload {
   const normalized = question.toLocaleLowerCase("en");
-  const recommendations = snapshot.findings.map((item) => item.recommendation).filter((item): item is string => Boolean(item)).slice(0, 5);
+  const structuredRecommendations = snapshot.recommendations ?? [];
+  const recommendations = structuredRecommendations.length
+    ? structuredRecommendations.map((item) => item.explanation).slice(0, 5)
+    : snapshot.findings.map((item) => item.recommendation).filter((item): item is string => Boolean(item)).slice(0, 5);
   let summary = snapshot.summary;
-  if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && snapshot.findings.length) summary = `Highest priority: ${snapshot.findings[0]?.title}. ${snapshot.findings[0]?.detail}`;
-  if (/explain.*page|explain.*screen|εξήγη/i.test(normalized)) summary = `${snapshot.context.contextLabel} is currently supported by ${snapshot.context.capabilities.join(", ") || "read-only context"}. ${snapshot.summary}`;
-  return { summary, facts: snapshot.facts, interpretation: snapshot.findings[0]?.detail, recommendations: recommendations.length ? recommendations : ["No additional action is justified by the deterministic checks currently available for this page."], sources: [], provider: "deterministic" };
+  if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && structuredRecommendations.length) {
+    const top = structuredRecommendations[0];
+    summary = `Highest priority: ${top.title}. ${top.explanation}`;
+  } else if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && snapshot.findings.length) {
+    summary = `Highest priority: ${snapshot.findings[0]?.title}. ${snapshot.findings[0]?.detail}`;
+  }
+  if (/explain.*page|explain.*screen|εξήγη/i.test(normalized)) {
+    const purpose = snapshot.context.pagePurpose ? `${snapshot.context.pagePurpose} ` : "";
+    const attention = snapshot.context.attentionAreas?.length ? `Pay attention to ${snapshot.context.attentionAreas.join(", ")}. ` : "";
+    summary = `${snapshot.context.contextLabel}. ${purpose}${attention}${snapshot.summary}`;
+  }
+  return {
+    summary,
+    facts: snapshot.facts,
+    interpretation: snapshot.findings[0]?.detail,
+    recommendations: recommendations.length ? recommendations : ["No additional action is justified by the deterministic checks currently available for this page."],
+    structuredRecommendations,
+    actions: structuredRecommendations.flatMap((item) => item.actions).filter((action) => !action.requiresApproval).slice(0, 6),
+    sources: [],
+    provider: "deterministic"
+  };
 }
 
-export async function answerAdminAssistant(principal: SessionPrincipal, input: { question: string; snapshot: AdminAssistantSnapshot; history: readonly AdminAssistantStoredMessage[]; conversationId: string; signal?: AbortSignal }): Promise<AdminAssistantResponsePayload> {
+export async function answerAdminAssistant(principal: SessionPrincipal, input: {
+  question: string;
+  snapshot: AdminAssistantSnapshot;
+  history: readonly AdminAssistantStoredMessage[];
+  conversationId: string;
+  investigation?: readonly AdminAssistantInvestigationResult[];
+  signal?: AbortSignal;
+}): Promise<AdminAssistantResponsePayload> {
   if (!adminAssistantProviderConfigured()) return deterministicAnswer(input.question, input.snapshot);
   const useResearch = researchRequested(input.question);
   const compactHistory = input.history.slice(-12).map((message) => ({ role: message.role, content: message.content.slice(0, 2_000) }));
-  const providerInput = JSON.stringify({ currentAdminContext: input.snapshot.context, deterministicSnapshot: { summary: input.snapshot.summary, facts: input.snapshot.facts, findings: input.snapshot.findings, recentActions: input.snapshot.recentActions }, recentConversation: compactHistory, adminQuestion: input.question });
+  const providerInput = JSON.stringify({
+    currentAdminContext: input.snapshot.context,
+    deterministicSnapshot: {
+      summary: input.snapshot.summary,
+      facts: input.snapshot.facts,
+      findings: input.snapshot.findings,
+      recommendations: input.snapshot.recommendations,
+      recentActions: input.snapshot.recentActions
+    },
+    authorizedInvestigation: input.investigation?.map((item) => ({ toolName: item.toolName, state: item.state, data: item.data, error: item.error })) ?? [],
+    recentConversation: compactHistory,
+    adminQuestion: input.question
+  });
   const startedAt = Date.now();
   try {
     const timeout = AbortSignal.timeout(25_000);
@@ -86,10 +127,10 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
     const text = outputText(data);
     const parsed = parseModelPayload(text, collectSources(data));
     if (!parsed) throw new Error("AI provider returned invalid structured output");
-    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain }, resultState: "ok", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain, investigationTools: input.investigation?.map((item) => item.toolName) ?? [] }, resultState: "ok", durationMs: Date.now() - startedAt }).catch(() => undefined);
     return parsed;
   } catch (cause) {
-    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain }, resultState: "error", error: cause instanceof Error ? cause.message : "provider_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain, investigationTools: input.investigation?.map((item) => item.toolName) ?? [] }, resultState: "error", error: cause instanceof Error ? cause.message : "provider_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
     return deterministicAnswer(input.question, input.snapshot);
   }
 }
