@@ -16,6 +16,7 @@ function safeDecode(value: string | undefined): string | undefined {
 function entityIdFromRoute(route: string, entityType?: string): string | undefined {
   if (entityType === "order") return safeDecode(/^\/admin\/orders\/([^/]+)$/.exec(route)?.[1]);
   if (entityType === "vendor") return safeDecode(/^\/admin\/partners\/([^/]+)/.exec(route)?.[1]);
+  if (entityType === "customer") return safeDecode(/^\/admin\/customers\/([^/]+)$/.exec(route)?.[1]);
   return undefined;
 }
 
@@ -52,7 +53,7 @@ export function suggestedQuestionsForDomain(domain: AdminAssistantDomain): reado
 
 export function suggestedQuestionsForContext(context: AdminAssistantContext): readonly string[] {
   const specific: Readonly<Record<string, readonly string[]>> = {
-    global_search: ["Find an order by its public reference.", "Look up a customer or support ticket.", "Find a partner and inspect its readiness.", "Explain the best matching result."],
+    global_search: ["Find a product by title, model or GTIN.", "Find an order by its public reference.", "Look up a customer or support ticket.", "Find a partner and inspect its readiness."],
     attribute_mapping: ["Show the highest-impact unmapped attributes.", "Suggest safe mappings.", "Find inconsistent units.", "What should I map first?"],
     catalogue_import: ["Is ingestion stalled?", "Why are rows being rejected?", "What changed in the latest ingestion?", "Show the highest-impact ingestion problem."],
     product_matching: ["Find duplicate-risk products.", "Which offers still need canonical matching?", "Show identifier conflicts.", "What can safely be resolved next?"],
@@ -60,6 +61,7 @@ export function suggestedQuestionsForContext(context: AdminAssistantContext): re
     order_detail: ["Check everything related to this order.", "Is payment consistent with fulfilment?", "Does this order have a valid tax document?", "What is unusual about this order?"],
     vendor_detail: ["Check this partner's operational readiness.", "Is the agreement valid for this partner state?", "Are active orders safe for this partner?", "What should I fix first?"],
     vendor_catalogue: ["Is this partner ready to sell?", "What catalogue gaps block this partner?", "Does this partner have enough approved offers?", "What should I improve first?"],
+    customer_detail: ["Check this customer's account and support state.", "Are there overdue support or privacy actions?", "Is this account state consistent with its sessions?", "What needs attention for this customer?"],
     tax_mydata: ["Find paid orders missing tax documents.", "Show missing MARK documents.", "Which AADE failures need attention?", "What should I resolve first?"],
     gift_cards: ["Find gift cards that cannot be redeemed.", "Check checkout redemption readiness.", "Show state/value inconsistencies.", "What should I verify before launch?"],
     search_console: ["Which search queries are opportunities?", "Where are impressions not turning into clicks?", "Match search demand to catalogue coverage.", "What should I improve first?"],
@@ -82,6 +84,7 @@ export function buildAdminAssistantContext(principal: SessionPrincipal, client: 
   add("catalog.write", "catalog.prepare");
   add("fulfilment.read", "orders.read");
   add("vendor.manage", "partners.read");
+  add("customer.read", "customers.read");
   add("finance.read", "finance.read");
   add("content.read", "seo.read");
   add("admin.audit.read", "audit.read");
