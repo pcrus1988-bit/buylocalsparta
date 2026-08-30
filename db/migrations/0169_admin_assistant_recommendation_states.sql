@@ -32,6 +32,10 @@ CREATE INDEX IF NOT EXISTS idx_admin_assistant_recommendation_states_user_entity
   ON public.admin_assistant_recommendation_states (admin_user_id, entity_type, entity_id)
   WHERE entity_type IS NOT NULL AND entity_id IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_admin_assistant_tool_audit_conversation
+  ON public.admin_assistant_tool_audit (conversation_id)
+  WHERE conversation_id IS NOT NULL;
+
 ALTER TABLE public.admin_assistant_recommendation_states ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS admin_assistant_recommendation_states_platform_scope
