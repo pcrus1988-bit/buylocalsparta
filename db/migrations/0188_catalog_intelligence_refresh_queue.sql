@@ -1,6 +1,7 @@
 -- Buy Local Sparta — autonomous catalogue intelligence refresh queue.
 -- Import evidence schedules a debounced refresh. A lease-safe worker processes
--- due snapshots; pg_cron runs it every minute where the extension is available.
+-- due snapshots. Cron activation is intentionally deferred to schema 0189 so
+-- safety overrides are installed before any autonomous execution can occur.
 
 BEGIN;
 
@@ -134,7 +135,6 @@ $$;
 REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_from_source_product() FROM PUBLIC;
 REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_from_attribute_observation() FROM PUBLIC;
-
 GRANT EXECUTE ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) TO bls_platform_runtime;
 
 COMMENT ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) IS
@@ -250,7 +250,8 @@ GRANT EXECUTE ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue
 COMMENT ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue(text,integer,integer) IS
   'Claims due catalogue-intelligence snapshots with SKIP LOCKED, processes them exactly by source UUID, deletes successes, and retries failures with bounded backoff.';
 
--- Seed only the newest unresolved snapshot per active source.
+-- Seed only the newest unresolved snapshot per active source. The queue remains
+-- dormant until schema 0189 activates the cron worker after safety overrides.
 WITH unresolved_snapshots AS (
   SELECT DISTINCT s.source_id,s.id AS snapshot_id,s.observed_at,s.created_at
   FROM public.catalog_source_snapshots s
@@ -287,27 +288,5 @@ FROM latest_per_source
 ON CONFLICT (snapshot_id) DO UPDATE
 SET not_before=LEAST(public.catalog_intelligence_refresh_queue.not_before,now()),
     updated_at=now();
-
--- Production has pg_cron; other environments may omit it and call the worker
--- from their normal background runner instead.
-DO $cron$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN
-    IF EXISTS (
-      SELECT 1
-      FROM cron.job
-      WHERE jobname='bls_catalog_intelligence_1m'
-    ) THEN
-      PERFORM cron.unschedule('bls_catalog_intelligence_1m');
-    END IF;
-
-    PERFORM cron.schedule(
-      'bls_catalog_intelligence_1m',
-      '* * * * *',
-      $job$SELECT bls_private.process_catalog_intelligence_refresh_queue('pg_cron:catalog-intelligence',10,180);$job$
-    );
-  END IF;
-END
-$cron$;
 
 COMMIT;
