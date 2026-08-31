@@ -3,6 +3,7 @@ import type { PublicProductVariantAttribute, PublicProductVariantKind, PublicPro
 import type { PublicProductSuitability, PublicSuitableProduct, PublicSuitabilityItem, PublicSuitabilityKind } from "./public-product-suitability";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { getDemoVendorCatalogProduct, type DemoCatalogProduct, type DemoStorefrontVendor, type DemoTechnicalAttribute } from "./demo-storefront";
+import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "./product-presentation-guards";
 
 type DemoClaimRow = SqlRow & {
   target_kind: string;
@@ -78,6 +79,12 @@ const SUITABILITY_KEYS: Readonly<Record<string, PublicSuitabilityKind | "meta">>
   works_with: "model",
   works_with_models: "model",
   designed_for: "model",
+  explicit_fitment_models: "model",
+  explicit_compatible_models: "model",
+  explicit_compatible_models_all: "model",
+  explicit_compatible_models_validated: "model",
+  external_compatible_models: "model",
+  platform_compatible_models: "model",
   καταλληλο_για: "model",
   συμβατα_μοντελα: "model",
   compatible_brands: "brand",
@@ -93,7 +100,15 @@ const SUITABILITY_KEYS: Readonly<Record<string, PublicSuitabilityKind | "meta">>
   compatibility_type: "meta",
   compatibility: "meta",
   compatibility_note: "meta",
-  compatibility_notes: "meta"
+  compatibility_notes: "meta",
+  compatibility_confidence: "meta",
+  compatibility_claims_json: "meta",
+  compatibility_relationship_json: "meta",
+  compatibility_interface_json: "meta",
+  compatibility_evidence_url: "meta",
+  compatibility_evidence_basis: "meta",
+  compatibility_discrepancy_flags: "meta",
+  unresolved_compatibility_tokens: "meta"
 };
 
 function normalizedKey(value: string): string {
@@ -199,7 +214,8 @@ function variantPresentation(options: readonly PublicProductVariantOption[]): Re
 }
 
 export function isDemoSuitabilityAttribute(attribute: DemoTechnicalAttribute): boolean {
-  return Boolean(SUITABILITY_KEYS[normalizedKey(attribute.key)]);
+  const key = normalizedKey(attribute.key);
+  return Boolean(SUITABILITY_KEYS[key]) || isCompatibilityPresentationKey(key);
 }
 
 function suitabilityItemsFromAttributes(attributes: readonly DemoTechnicalAttribute[]): readonly PublicSuitabilityItem[] {
@@ -259,7 +275,7 @@ async function demoManualUrl(canonicalVariantId: string): Promise<string | undef
     if (!row) return undefined;
     const normalized = objectValue(row.normalized_payload);
     const raw = objectValue(row.raw_payload);
-    return safeSameSourceUrl(row.source_website, normalized.manualUrl ?? normalized.manual_url ?? raw.manual_url);
+    return plausibleProductManualUrl(safeSameSourceUrl(row.source_website, normalized.manualUrl ?? normalized.manual_url ?? raw.manual_url));
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "demo_storefront.manual_projection_failed", canonicalVariantId, message: error instanceof Error ? error.message : String(error) }));
     return undefined;
