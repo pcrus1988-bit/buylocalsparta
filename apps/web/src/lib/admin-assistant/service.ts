@@ -177,18 +177,28 @@ function deterministicAnswer(
   let summary = snapshot.summary;
   let facts = snapshot.facts;
 
-  if (/what changed|changed recently|recent changes|what happened recently|τι.*άλλαξε|αλλαγ.*πρόσφατ/i.test(normalized)) {
-    const recent = snapshot.recentActions.slice(0, 6);
-    if (recent.length) {
-      const actionFacts = recent.map((item) => {
-        const when = item.createdAt ? new Date(item.createdAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" }) : "time unavailable";
-        return `${item.action} · ${item.entityType} ${item.entityId} · ${when}`;
-      });
-      summary = `Recent audited Admin changes: ${recent.map((item) => `${item.action} on ${item.entityType} ${item.entityId}`).join("; ")}.`;
-      facts = actionFacts;
+  if (/what changed|changed recently|recent changes|what happened recently|did that work|did it work|impact of.*action|τι.*άλλαξε|αλλαγ.*πρόσφατ|πέτυχε/i.test(normalized)) {
+    const evaluations = snapshot.actionEvaluations?.slice(0, 3) ?? [];
+    if (evaluations.length) {
+      const latest = evaluations[0];
+      summary = `Latest Admin action evaluation: ${latest.summary} ${latest.recommendation}`;
+      facts = [
+        ...(latest.changes.length ? latest.changes : ["The action is audited, but no allowlisted scalar before/after transition was stored."]),
+        ...(latest.residualFindings.length ? latest.residualFindings.map((item) => `Remaining finding: ${item}`) : ["No warning/critical finding remains in the refreshed deterministic context."])
+      ].slice(0, 8);
     } else {
-      summary = `No recent audited Admin action is available to this assistant for ${snapshot.context.contextLabel}.`;
-      facts = snapshot.facts;
+      const recent = snapshot.recentActions.slice(0, 6);
+      if (recent.length) {
+        const actionFacts = recent.map((item) => {
+          const when = item.createdAt ? new Date(item.createdAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" }) : "time unavailable";
+          return `${item.action} · ${item.entityType} ${item.entityId} · ${when}`;
+        });
+        summary = `Recent audited Admin changes: ${recent.map((item) => `${item.action} on ${item.entityType} ${item.entityId}`).join("; ")}. No current-page impact evaluation is available for these events.`;
+        facts = actionFacts;
+      } else {
+        summary = `No recent audited Admin action is available to this assistant for ${snapshot.context.contextLabel}.`;
+        facts = snapshot.facts;
+      }
     }
   } else if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && structuredRecommendations.length) {
     const top = structuredRecommendations[0];
@@ -236,7 +246,8 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
       facts: input.snapshot.facts,
       findings: input.snapshot.findings,
       recommendations: input.snapshot.recommendations,
-      recentActions: input.snapshot.recentActions
+      recentActions: input.snapshot.recentActions,
+      actionEvaluations: input.snapshot.actionEvaluations
     },
     authorizedInvestigation: input.investigation?.map((item) => ({ toolName: item.toolName, state: item.state, data: item.data, error: item.error })) ?? [],
     externalResearchPolicy: {
