@@ -250,8 +250,9 @@ GRANT EXECUTE ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue
 COMMENT ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue(text,integer,integer) IS
   'Claims due catalogue-intelligence snapshots with SKIP LOCKED, processes them exactly by source UUID, deletes successes, and retries failures with bounded backoff.';
 
--- Seed only the newest unresolved snapshot per active source. The queue remains
--- dormant until schema 0189 activates the cron worker after safety overrides.
+-- Seed only the newest unresolved snapshot per active source. The initial seed
+-- is delayed so schemas 0189-0190 can install safety/controlled-value overrides
+-- before any autonomous worker sees existing unresolved evidence.
 WITH unresolved_snapshots AS (
   SELECT DISTINCT s.source_id,s.id AS snapshot_id,s.observed_at,s.created_at
   FROM public.catalog_source_snapshots s
@@ -283,10 +284,10 @@ latest_per_source AS (
 INSERT INTO public.catalog_intelligence_refresh_queue(
   snapshot_id,source_id,not_before,attempt_count,created_at,updated_at
 )
-SELECT snapshot_id,source_id,now(),0,now(),now()
+SELECT snapshot_id,source_id,now()+interval '10 minutes',0,now(),now()
 FROM latest_per_source
 ON CONFLICT (snapshot_id) DO UPDATE
-SET not_before=LEAST(public.catalog_intelligence_refresh_queue.not_before,now()),
+SET not_before=GREATEST(public.catalog_intelligence_refresh_queue.not_before,now()+interval '10 minutes'),
     updated_at=now();
 
 COMMIT;
