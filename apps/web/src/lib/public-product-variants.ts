@@ -364,7 +364,7 @@ async function governedAxes(productTypeId: string): Promise<readonly GovernedAxi
            ad.code AS attribute_code,
            ad.data_type,
            COALESCE(pta.unit_override,ad.unit) AS unit,
-           COALESCE(pta.group_code,ad.group_code) AS group_code,
+           ad.group_code AS group_code,
            COALESCE(NULLIF(at.label,''),ad.code) AS label_el,
            pta.variant_axis_order
     FROM product_type_attributes pta
