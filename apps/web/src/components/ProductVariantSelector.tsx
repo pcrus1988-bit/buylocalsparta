@@ -6,6 +6,8 @@ type ProductVariantSelectorProps = Readonly<{
   title: string;
   options: readonly PublicProductVariantOption[];
   varyingKeys: ReadonlySet<string>;
+  hrefForOption?: (option: PublicProductVariantOption) => string;
+  availabilityMode?: "live" | "preview";
 }>;
 
 function visibleAttributes(option: PublicProductVariantOption, varyingKeys: ReadonlySet<string>) {
@@ -38,7 +40,14 @@ function swatchStyle(color: NonNullable<ReturnType<typeof optionColor>>) {
   return { backgroundColor: color.hex };
 }
 
-export function ProductVariantSelector({ currentVariantId, title, options, varyingKeys }: ProductVariantSelectorProps) {
+export function ProductVariantSelector({
+  currentVariantId,
+  title,
+  options,
+  varyingKeys,
+  hrefForOption = (option) => `/product/${encodeURIComponent(option.slug)}`,
+  availabilityMode = "live"
+}: ProductVariantSelectorProps) {
   if (options.length <= 1) return null;
 
   return (
@@ -52,15 +61,16 @@ export function ProductVariantSelector({ currentVariantId, title, options, varyi
           const selected = option.canonicalVariantId === currentVariantId;
           const label = optionDisplayName(option, varyingKeys);
           const color = optionColor(option, varyingKeys);
-          const className = [styles.option, selected ? styles.selected : "", !option.available ? styles.unavailable : "", option.imageSrc ? styles.withImage : ""]
+          const unavailable = availabilityMode === "live" && !option.available;
+          const className = [styles.option, selected ? styles.selected : "", unavailable ? styles.unavailable : "", option.imageSrc ? styles.withImage : ""]
             .filter(Boolean)
             .join(" ");
-          const accessibilityLabel = `${label}${selected ? ", επιλεγμένο" : ""}${option.available ? "" : ", μη διαθέσιμο"}`;
+          const accessibilityLabel = `${label}${selected ? ", επιλεγμένο" : ""}${unavailable ? ", μη διαθέσιμο" : ""}`;
 
           return (
             <a
               key={option.canonicalVariantId}
-              href={`/product/${encodeURIComponent(option.slug)}`}
+              href={hrefForOption(option)}
               className={className}
               aria-current={selected ? "page" : undefined}
               aria-label={accessibilityLabel}
