@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATALOG_COLOR_INDEX, normalizeCatalogColorText, resolveCatalogColor } from "../src/index.ts";
+import { CATALOG_COLOR_INDEX, matchProducts, normalizeCatalogColorText, resolveCatalogColor, type ProductIdentity } from "../src/index.ts";
 
 test("color index carries shared display and coding metadata", () => {
   const beige = CATALOG_COLOR_INDEX.find((entry) => entry.key === "beige");
@@ -36,4 +36,42 @@ test("resolved colors expose derived RGB HSL and CMYK codes", () => {
 test("normalization is accent and punctuation insensitive", () => {
   assert.equal(normalizeCatalogColorText("  Ροζ-Πούδρα  "), "ροζ πουδρα");
   assert.equal(resolveCatalogColor("Ροζ-Πούδρα")?.key, "blush");
+});
+
+test("product matching treats Greek and English color aliases as the same variant", () => {
+  const base: ProductIdentity = {
+    id: "a",
+    title: "Bottle 500 ml",
+    brand: "Example",
+    model: "B500",
+    condition: "new",
+    attributes: { colour: "Beige" }
+  };
+  const greek: ProductIdentity = {
+    ...base,
+    id: "b",
+    attributes: { "χρώμα": "Μπεζ" }
+  };
+  const result = matchProducts(base, greek);
+  assert.equal(result.level, "high_confidence");
+  assert.equal(result.autoMergeAllowed, true);
+});
+
+test("product matching still blocks genuinely different normalized colors", () => {
+  const base: ProductIdentity = {
+    id: "a",
+    title: "Bottle 500 ml",
+    brand: "Example",
+    model: "B500",
+    condition: "new",
+    attributes: { color: "Pink" }
+  };
+  const different: ProductIdentity = {
+    ...base,
+    id: "b",
+    attributes: { colour: "Μπεζ" }
+  };
+  const result = matchProducts(base, different);
+  assert.equal(result.level, "different");
+  assert.equal(result.autoMergeAllowed, false);
 });
