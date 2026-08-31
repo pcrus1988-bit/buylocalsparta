@@ -7,6 +7,7 @@ import { AddToCartButton } from "../../../components/AddToCartButton";
 import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTracker";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
+import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -206,6 +207,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
+  const technicalRows = [
+    displayBrand ? { key: "brand", label: "Μάρκα", value: displayBrand } : undefined,
+    detail?.model ? { key: "model", label: "Μοντέλο", value: detail.model } : undefined,
+    product.mpn ? { key: "mpn", label: "Κωδικός κατασκευαστή", value: product.mpn } : undefined,
+    supplierCode ? { key: "supplier-code", label: "Κωδικός προμηθευτή", value: supplierCode } : undefined,
+    displayGtin ? { key: "gtin", label: "GTIN / EAN", value: displayGtin } : undefined,
+    product.categoryLabel ? { key: "category", label: "Κατηγορία", value: product.categoryLabel } : undefined,
+    product.color ? { key: "color", label: "Χρώμα", value: product.color } : undefined,
+    product.sizes.length ? { key: "size", label: "Μέγεθος", value: product.sizes.join(" · ") } : undefined,
+    product.fit ? { key: "fit", label: "Εφαρμογή", value: product.fit } : undefined,
+    product.composition ? { key: "composition", label: "Σύνθεση", value: product.composition } : undefined,
+    product.madeIn ? { key: "made-in", label: "Κατασκευή", value: product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn } : undefined,
+    ...productTechnicalAttributes.map((attribute) => ({ key: `technical-${attribute.key}`, label: attribute.label, value: attribute.value }))
+  ].filter((row): row is ProductDetailRow => Boolean(row));
+  const packagingRows: ProductDetailRow[] = packagingAttributes.map((attribute) => ({
+    key: `packaging-${attribute.key}`,
+    label: attribute.label,
+    value: attribute.value
+  }));
 
   const variantValues = new Map<string, Set<string>>();
   for (const option of variantOptions) {
@@ -358,32 +378,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </section>
           ) : null}
 
-          <section style={{ marginTop: 28 }}>
-            <div className="eyebrow">Τεχνικές λεπτομέρειες</div>
-            <div className="detail-assurances" style={{ marginTop: 8 }}>
-              {displayBrand ? <div><strong>Μάρκα</strong><span>{displayBrand}</span></div> : null}
-              {detail?.model ? <div><strong>Μοντέλο</strong><span>{detail.model}</span></div> : null}
-              {product.mpn ? <div><strong>Κωδικός κατασκευαστή</strong><span>{product.mpn}</span></div> : null}
-              {supplierCode ? <div><strong>Κωδικός προμηθευτή</strong><span>{supplierCode}</span></div> : null}
-              {displayGtin ? <div><strong>GTIN / EAN</strong><span>{displayGtin}</span></div> : null}
-              {product.categoryLabel ? <div><strong>Κατηγορία</strong><span>{product.categoryLabel}</span></div> : null}
-              {product.color ? <div><strong>Χρώμα</strong><span>{product.color}</span></div> : null}
-              {product.sizes.length ? <div><strong>Μέγεθος</strong><span>{product.sizes.join(" · ")}</span></div> : null}
-              {product.fit ? <div><strong>Εφαρμογή</strong><span>{product.fit}</span></div> : null}
-              {product.composition ? <div><strong>Σύνθεση</strong><span>{product.composition}</span></div> : null}
-              {product.madeIn ? <div><strong>Κατασκευή</strong><span>{product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn}</span></div> : null}
-              {productTechnicalAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}
-            </div>
-          </section>
-
-          {packagingAttributes.length ? (
-            <section style={{ marginTop: 28 }}>
-              <div className="eyebrow">Λεπτομέρειες συσκευασίας</div>
-              <div className="detail-assurances" style={{ marginTop: 8 }}>
-                {packagingAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}
-              </div>
-            </section>
-          ) : null}
+          <ProductDetailSections technicalRows={technicalRows} packagingRows={packagingRows} />
 
           {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
