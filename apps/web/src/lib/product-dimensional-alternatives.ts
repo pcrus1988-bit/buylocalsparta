@@ -188,10 +188,11 @@ function roleSearchPredicate(role: AlternativeRole): string {
     return `AND (
       COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%σωλήνας%αέρα%'
       OR COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%σωληνας%αερα%'
-      OR COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%σπιράλ%ταχύσύνδεσμο%'
-      OR COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%σπιραλ%ταχυσυνδεσμο%'
+      OR COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%σπιράλ%ταχυ%σύνδεσμο%'
+      OR COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%σπιραλ%ταχυ%συνδεσμο%'
       OR COALESCE(el.title,en.title,sibling.model,sibling.slug) ILIKE '%air hose%'
-      OR COALESCE(source_candidate.normalized_payload->>'descriptionEl','') ILIKE '%Σπιράλ%Ταχύσύνδεσμο%'
+      OR COALESCE(source_candidate.normalized_payload->>'descriptionEl','') ILIKE '%Σπιράλ%Ταχυ%σύνδεσμο%'
+      OR COALESCE(source_candidate.normalized_payload->>'descriptionEl','') ILIKE '%σπιραλ%ταχυ%συνδεσμο%'
     )`;
   }
   if (role === "socket") {
@@ -251,18 +252,29 @@ async function currentRow(canonicalVariantId: string, allowInactive: boolean): P
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     LEFT JOIN LATERAL (
       SELECT COALESCE(
+               NULLIF(latest.normalized_payload->>'variantFamilyId',''),
+               NULLIF(latest.raw_payload->>'variant_family_id',''),
                NULLIF(linked.normalized_payload->>'variantFamilyId',''),
                NULLIF(linked.raw_payload->>'variant_family_id','')
              ) AS source_variant_family_id,
-             linked.normalized_payload,
-             linked.raw_payload,
-             COALESCE(linked.normalized_payload->>'productType',linked.raw_payload->>'product_type') AS product_type,
-             COALESCE(linked.normalized_payload->>'supplierCategory',linked.raw_payload->>'supplier_categories') AS supplier_category,
-             COALESCE(linked.source_image_url,linked.normalized_payload->>'imageUrl',linked.raw_payload->>'image_url') AS source_image_candidate,
+             latest.normalized_payload,
+             latest.raw_payload,
+             COALESCE(latest.normalized_payload->>'productType',latest.raw_payload->>'product_type',linked.normalized_payload->>'productType',linked.raw_payload->>'product_type') AS product_type,
+             COALESCE(latest.normalized_payload->>'supplierCategory',latest.raw_payload->>'supplier_categories',linked.normalized_payload->>'supplierCategory',linked.raw_payload->>'supplier_categories') AS supplier_category,
+             COALESCE(latest.source_image_url,latest.normalized_payload->>'imageUrl',latest.raw_payload->>'image_url',linked.source_image_url,linked.normalized_payload->>'imageUrl',linked.raw_payload->>'image_url') AS source_image_candidate,
              source.website AS source_website
       FROM catalog_source_product_links csl
       JOIN catalog_source_products linked ON linked.id=csl.source_product_id
       JOIN catalog_sources source ON source.id=linked.source_id AND source.active=true
+      JOIN LATERAL (
+        SELECT candidate.normalized_payload,candidate.raw_payload,candidate.source_image_url
+        FROM catalog_source_products candidate
+        JOIN catalog_source_snapshots snapshot ON snapshot.id=candidate.snapshot_id
+        WHERE candidate.source_id=linked.source_id
+          AND candidate.source_product_key=linked.source_product_key
+        ORDER BY snapshot.observed_at DESC NULLS LAST,candidate.created_at DESC,candidate.id DESC
+        LIMIT 1
+      ) latest ON true
       WHERE csl.canonical_variant_id=cv.id
         AND csl.link_status='approved'
       ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
@@ -330,16 +342,27 @@ async function alternatives(
     LEFT JOIN product_translations en ON en.canonical_variant_id=sibling.id AND en.locale='en'
     LEFT JOIN LATERAL (
       SELECT COALESCE(
+               NULLIF(latest.normalized_payload->>'variantFamilyId',''),
+               NULLIF(latest.raw_payload->>'variant_family_id',''),
                NULLIF(linked.normalized_payload->>'variantFamilyId',''),
                NULLIF(linked.raw_payload->>'variant_family_id','')
              ) AS source_variant_family_id,
-             linked.normalized_payload,
-             linked.raw_payload,
-             COALESCE(linked.source_image_url,linked.normalized_payload->>'imageUrl',linked.raw_payload->>'image_url') AS source_image_candidate,
+             latest.normalized_payload,
+             latest.raw_payload,
+             COALESCE(latest.source_image_url,latest.normalized_payload->>'imageUrl',latest.raw_payload->>'image_url',linked.source_image_url,linked.normalized_payload->>'imageUrl',linked.raw_payload->>'image_url') AS source_image_candidate,
              source.website AS source_website
       FROM catalog_source_product_links csl
       JOIN catalog_source_products linked ON linked.id=csl.source_product_id
       JOIN catalog_sources source ON source.id=linked.source_id AND source.active=true
+      JOIN LATERAL (
+        SELECT candidate.normalized_payload,candidate.raw_payload,candidate.source_image_url
+        FROM catalog_source_products candidate
+        JOIN catalog_source_snapshots snapshot ON snapshot.id=candidate.snapshot_id
+        WHERE candidate.source_id=linked.source_id
+          AND candidate.source_product_key=linked.source_product_key
+        ORDER BY snapshot.observed_at DESC NULLS LAST,candidate.created_at DESC,candidate.id DESC
+        LIMIT 1
+      ) latest ON true
       WHERE csl.canonical_variant_id=sibling.id
         AND csl.link_status='approved'
       ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
