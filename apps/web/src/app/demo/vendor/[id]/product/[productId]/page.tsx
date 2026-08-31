@@ -7,6 +7,7 @@ import { ProductVariantSelector } from "../../../../../../components/ProductVari
 import { SiteFooter } from "../../../../../../components/SiteFooter";
 import { SiteHeader } from "../../../../../../components/SiteHeader";
 import { getDemoProductParity, isDemoSuitabilityAttribute } from "../../../../../../lib/demo-product-parity";
+import { getDemoSemanticSourceVariantPresentation, stripCompatibilityFactsFromDescription } from "../../../../../../lib/demo-semantic-variants";
 import { getDemoStorefrontVendor, getDemoVendorCatalogProduct, getDemoVendorVariantOptions, type DemoTechnicalAttribute } from "../../../../../../lib/demo-storefront";
 import { isCompatibilityPresentationKey } from "../../../../../../lib/product-presentation-guards";
 import { publicCatalogueTitleLabel } from "../../../../../../lib/public-data-integrity";
@@ -138,7 +139,11 @@ function productDisplayDescription(description: string | undefined, technicalAtt
   const markerIndex = canonical.indexOf(GENERATED_TECHNICAL_DESCRIPTION_MARKER);
   if (markerIndex < 0) return canonical;
   const intro = publicCatalogueTitleLabel(canonical.slice(0, markerIndex).trim());
-  const facts = technicalAttributes.slice(0, 6).map((attribute) => `${attribute.label}: ${attribute.value}`).join(" · ");
+  const facts = technicalAttributes
+    .filter((attribute) => !isDemoSuitabilityAttribute(attribute))
+    .slice(0, 6)
+    .map((attribute) => `${attribute.label}: ${attribute.value}`)
+    .join(" · ");
   return facts ? `${intro} Βασικά στοιχεία: ${facts}.`.trim() : intro || undefined;
 }
 
@@ -151,6 +156,12 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
 
   const siblings = await getDemoVendorVariantOptions(vendor, product);
   const parity = await getDemoProductParity(vendor, product, siblings);
+  const sourceVariantPresentation = getDemoSemanticSourceVariantPresentation(product, siblings);
+  const hasCanonicalVariantChoice = parity.variantOptions.length > 1;
+  const variantOptions = hasCanonicalVariantChoice ? parity.variantOptions : sourceVariantPresentation.options;
+  const varyingVariantKeys = hasCanonicalVariantChoice ? parity.varyingVariantKeys : sourceVariantPresentation.varyingKeys;
+  const variantSelectorTitle = hasCanonicalVariantChoice ? parity.variantSelectorTitle : sourceVariantPresentation.title;
+
   const category = storefrontCategoryForCode(product.categoryCode);
   const vendorHref = `/demo/vendor/${encodeURIComponent(vendor.id)}`;
   const displayTitle = publicCatalogueTitleLabel(product.title);
@@ -178,7 +189,10 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
     .filter((attribute) => !isPackagingAttribute(attribute))
     .filter((attribute) => !isDemoSuitabilityAttribute(attribute))
     .filter((attribute) => !explicitTechnicalKeys.has(attribute.key));
-  const displayDescription = productDisplayDescription(product.description, technicalAttributes);
+  const displayDescription = productDisplayDescription(
+    stripCompatibilityFactsFromDescription(product.description),
+    technicalAttributes
+  );
   const technicalRows = [
     product.brand ? { key: "brand", label: "Μάρκα", value: product.brand } : undefined,
     product.model ? { key: "model", label: "Μοντέλο", value: product.model } : undefined,
@@ -219,9 +233,9 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
 
           <ProductVariantSelector
             currentVariantId={product.id}
-            title={parity.variantSelectorTitle}
-            options={parity.variantOptions}
-            varyingKeys={parity.varyingVariantKeys}
+            title={variantSelectorTitle}
+            options={variantOptions}
+            varyingKeys={varyingVariantKeys}
             availabilityMode="preview"
             hrefForOption={(option) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(option.slug)}`}
           />
