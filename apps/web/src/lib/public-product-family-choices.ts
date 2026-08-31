@@ -173,9 +173,22 @@ type UnitConversion = Readonly<{ source: string; factor: number }>;
 
 const COMPATIBILITY_ATTRIBUTE_PATTERN = /(?:^|_)(?:compatib|compatible|compatibility|suitable_for|supported_models?|works_with|fitment|platform_compatible)(?:_|$)/u;
 const CODELIKE_PAREN = /\((?=[^)]{1,18}\))(?=[^)]*\d)[\p{L}\p{N} ._+/-]{1,18}\)/giu;
+const MIXED_SCRIPT_LOOKALIKE = new Map<string,string>([
+  ["Α","A"],["Β","B"],["Ε","E"],["Ζ","Z"],["Η","H"],["Ι","I"],["Κ","K"],["Μ","M"],["Ν","N"],["Ο","O"],["Ρ","P"],["Τ","T"],["Υ","Y"],["Χ","X"],
+  ["α","a"],["β","b"],["ε","e"],["ζ","z"],["η","h"],["ι","i"],["κ","k"],["μ","m"],["ν","n"],["ο","o"],["ρ","p"],["τ","t"],["υ","y"],["χ","x"],
+  ["А","A"],["В","B"],["Е","E"],["К","K"],["М","M"],["Н","H"],["О","O"],["Р","P"],["С","C"],["Т","T"],["Х","X"],["У","Y"],
+  ["а","a"],["в","b"],["е","e"],["к","k"],["м","m"],["н","h"],["о","o"],["р","p"],["с","c"],["т","t"],["х","x"],["у","y"]
+]);
 
 function emptyChoices(): PublicCrossFamilyChoices {
   return { currentVariantAttributes: [], variantExtensions: [], alternatives: { options: [], title: "Άλλες επιλογές" } };
+}
+
+function normalizeMixedScriptCatalogText(value:string):string {
+  return value.replace(/[A-Za-zΑ-Ωα-ωА-Яа-я0-9]+/gu,(token)=>{
+    if (!/[A-Za-z]/u.test(token) || !/[Α-Ωα-ωА-Яа-я]/u.test(token)) return token;
+    return [...token].map((char)=>MIXED_SCRIPT_LOOKALIKE.get(char) ?? char).join("");
+  });
 }
 
 function normalizedKey(value: string): string {
@@ -190,7 +203,7 @@ function normalizedKey(value: string): string {
 }
 
 function normalizedText(value: string): string {
-  return value
+  return normalizeMixedScriptCatalogText(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("el")
@@ -200,7 +213,7 @@ function normalizedText(value: string): string {
 }
 
 function normalizedComparable(value: string): string {
-  return value
+  return normalizeMixedScriptCatalogText(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("el")
@@ -210,7 +223,7 @@ function normalizedComparable(value: string): string {
 }
 
 function normalizedModel(value: string): string {
-  return value
+  return normalizeMixedScriptCatalogText(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
