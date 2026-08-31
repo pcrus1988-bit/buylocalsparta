@@ -18,6 +18,7 @@ import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../lib/public-product-detail";
+import { getPublicProductVariantOptions, type PublicProductVariantOption } from "../../../lib/public-product-variants";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 
@@ -67,6 +68,19 @@ function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute
   });
 }
 
+function isPackagingAttribute(attribute: PublicTechnicalAttribute): boolean {
+  const key = attribute.key.trim().toLowerCase();
+  const label = attribute.label.trim().toLocaleLowerCase("el");
+  return key === "pack_qty"
+    || key.startsWith("package_")
+    || key.startsWith("packaging_")
+    || key.includes("carton")
+    || key.includes("package")
+    || key.includes("packaging")
+    || label.includes("συσκευασ")
+    || label.includes("κιβώτι");
+}
+
 function productDisplayDescription(input: Readonly<{
   canonicalDescription?: string;
   sourceDescription?: string;
@@ -99,6 +113,18 @@ function gtinSchema(gtin: string | undefined): Record<string, string> {
   if (gtin.length === 13) return { gtin13: gtin };
   if (gtin.length === 14) return { gtin14: gtin };
   return {};
+}
+
+function variantFromPriceLabel(priceMinor: number | undefined): string | undefined {
+  if (priceMinor === undefined) return undefined;
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(priceMinor / 100);
+}
+
+function variantOptionLabel(option: PublicProductVariantOption, varyingKeys: ReadonlySet<string>): string {
+  const varyingAttributes = option.attributes.filter((attribute) => varyingKeys.has(attribute.key));
+  const attributes = varyingAttributes.length ? varyingAttributes : option.attributes;
+  if (!attributes.length) return "Βασική έκδοση";
+  return attributes.map((attribute) => `${attribute.label}: ${attribute.value}`).join(" · ");
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
@@ -153,9 +179,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
 
   const displayTitle = publicCatalogueTitleLabel(product.title);
-  const [detail, approvedGallery] = await Promise.all([
+  const [detail, approvedGallery, variantOptions] = await Promise.all([
     getPublicProductDetail(product.id),
-    approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId })
+    approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId }),
+    getPublicProductVariantOptions(product.id)
   ]);
   const mediaGallery = approvedGallery.length
     ? approvedGallery
@@ -168,6 +195,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const packagingAttributes = technicalAttributes.filter(isPackagingAttribute);
+  const productTechnicalAttributes = technicalAttributes.filter((attribute) => !isPackagingAttribute(attribute));
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
     sourceDescription: detail?.description,
@@ -177,6 +206,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
+
+  const variantValues = new Map<string, Set<string>>();
+  for (const option of variantOptions) {
+    for (const attribute of option.attributes) {
+      const values = variantValues.get(attribute.key) ?? new Set<string>();
+      values.add(attribute.value);
+      variantValues.set(attribute.key, values);
+    }
+  }
+  const varyingVariantKeys = new Set([...variantValues.entries()].filter(([, values]) => values.size > 1).map(([key]) => key));
+  const variantDimensionLabels = [...new Set(variantOptions.flatMap((option) => option.attributes.filter((attribute) => varyingVariantKeys.has(attribute.key)).map((attribute) => attribute.label)))];
+  const variantSelectorTitle = variantDimensionLabels.length === 1 ? variantDimensionLabels[0] : "Επιλογή παραλλαγής";
 
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
@@ -270,32 +311,90 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="product-detail-copy">
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
           <h1>{displayTitle}</h1>
-          <div className="detail-price">{displayPrice}</div>
 
-          {displayDescription ? <div className="vendor-card"><div><span className="vendor-avatar">i</span></div><div><div className="eyebrow">Περιγραφή προϊόντος</div><p style={{ whiteSpace: "pre-line" }}>{displayDescription}</p></div></div> : null}
+          {variantOptions.length > 1 ? (
+            <section aria-label="Υποχρεωτική επιλογή παραλλαγής" style={{ marginTop: 18 }}>
+              <div className="eyebrow">{variantSelectorTitle} · επίλεξε πριν την αγορά</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 8, marginTop: 8 }}>
+                {variantOptions.map((option) => {
+                  const selected = option.canonicalVariantId === product.id;
+                  const fromPrice = variantFromPriceLabel(option.fromPriceMinor);
+                  const availability = selected ? product.available : option.available;
+                  return (
+                    <a
+                      key={option.canonicalVariantId}
+                      href={`/product/${encodeURIComponent(option.slug)}`}
+                      className={selected ? "button" : "button button-secondary"}
+                      aria-current={selected ? "page" : undefined}
+                      style={{ height: "auto", minHeight: 64, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", gap: 3, whiteSpace: "normal", textAlign: "left" }}
+                    >
+                      <span>{variantOptionLabel(option, varyingVariantKeys)}</span>
+                      <small>{selected ? displayPrice : fromPrice ? `από ${fromPrice}` : "Τιμή μετά την επιλογή"} · {availability ? "διαθέσιμο" : "μη διαθέσιμο"}</small>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
-          <div className="eyebrow">Στοιχεία προϊόντος</div>
-          <div className="detail-assurances">
-            {displayBrand ? <div><strong>Μάρκα</strong><span>{displayBrand}</span></div> : null}
-            {detail?.model ? <div><strong>Μοντέλο</strong><span>{detail.model}</span></div> : null}
-            {product.mpn ? <div><strong>Κωδικός κατασκευαστή</strong><span>{product.mpn}</span></div> : null}
-            {supplierCode ? <div><strong>Κωδικός προμηθευτή</strong><span>{supplierCode}</span></div> : null}
-            {displayGtin ? <div><strong>GTIN / EAN</strong><span>{displayGtin}</span></div> : null}
-            {product.categoryLabel ? <div><strong>Κατηγορία</strong><span>{product.categoryLabel}</span></div> : null}
-            {product.color ? <div><strong>Χρώμα</strong><span>{product.color}</span></div> : null}
-            {product.sizes.length ? <div><strong>Μεγέθη</strong><span>{product.sizes.join(" · ")}</span></div> : null}
-            {product.fit ? <div><strong>Εφαρμογή</strong><span>{product.fit}</span></div> : null}
-            {product.composition ? <div><strong>Σύνθεση</strong><span>{product.composition}</span></div> : null}
-            {product.madeIn ? <div><strong>Κατασκευή</strong><span>{product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn}</span></div> : null}
+          <div className="purchase-card" style={{ marginTop: 18 }}>
+            <div>
+              <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
+              <div className="detail-price">{displayPrice}</div>
+              <strong>{product.available ? `${product.availableToSell} τεμ. διαθέσιμα` : "Προσωρινά μη διαθέσιμο"}</strong>
+              <span>{product.available ? "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
+            </div>
+            <div className="purchase-actions">
+              {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{ id: product.id, title: displayTitle, priceMinor: product.priceMinor, price: product.price, available: product.available }} /><ProductAccountActions productId={product.id} /></>}
+            </div>
           </div>
 
-          {technicalAttributes.length ? <><div className="eyebrow" style={{ marginTop: 24 }}>Τεχνικά χαρακτηριστικά</div><div className="detail-assurances">{technicalAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}</div></> : null}
+          {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Διαθέσιμο από τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>{product.adviser} είναι ο άνθρωπός σου για συμβατότητα, χρήση, διαθεσιμότητα ή επιλογή της σωστής παραλλαγής.</p><div className="vendor-actions"><a className="button button-secondary" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Διαθέσιμο από τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα αντιστοιχούν στο επιλεγμένο τοπικό offer.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button button-secondary" href="/ask-local">Ask Local</a></div></div></div>}
+
+          {displayDescription ? (
+            <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
+              <div className="eyebrow">Περιγραφή προϊόντος</div>
+              <p style={{ whiteSpace: "pre-line", marginTop: 10 }}>{displayDescription}</p>
+            </section>
+          ) : null}
+
+          <section style={{ marginTop: 28 }}>
+            <div className="eyebrow">Τεχνικές λεπτομέρειες</div>
+            <div className="detail-assurances" style={{ marginTop: 8 }}>
+              {displayBrand ? <div><strong>Μάρκα</strong><span>{displayBrand}</span></div> : null}
+              {detail?.model ? <div><strong>Μοντέλο</strong><span>{detail.model}</span></div> : null}
+              {product.mpn ? <div><strong>Κωδικός κατασκευαστή</strong><span>{product.mpn}</span></div> : null}
+              {supplierCode ? <div><strong>Κωδικός προμηθευτή</strong><span>{supplierCode}</span></div> : null}
+              {displayGtin ? <div><strong>GTIN / EAN</strong><span>{displayGtin}</span></div> : null}
+              {product.categoryLabel ? <div><strong>Κατηγορία</strong><span>{product.categoryLabel}</span></div> : null}
+              {product.color ? <div><strong>Χρώμα</strong><span>{product.color}</span></div> : null}
+              {product.sizes.length ? <div><strong>Μέγεθος</strong><span>{product.sizes.join(" · ")}</span></div> : null}
+              {product.fit ? <div><strong>Εφαρμογή</strong><span>{product.fit}</span></div> : null}
+              {product.composition ? <div><strong>Σύνθεση</strong><span>{product.composition}</span></div> : null}
+              {product.madeIn ? <div><strong>Κατασκευή</strong><span>{product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn}</span></div> : null}
+              {productTechnicalAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}
+            </div>
+          </section>
+
+          {packagingAttributes.length ? (
+            <section style={{ marginTop: 28 }}>
+              <div className="eyebrow">Λεπτομέρειες συσκευασίας</div>
+              <div className="detail-assurances" style={{ marginTop: 8 }}>
+                {packagingAttributes.map((attribute) => <div key={attribute.key}><strong>{attribute.label}</strong><span>{attribute.value}</span></div>)}
+              </div>
+            </section>
+          ) : null}
 
           {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
-          {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Ο άνθρωπός σου για αυτό το προϊόν</div><strong><a href={`/vendor/${product.vendorId}`}>{product.adviser} · {product.vendorName}</a></strong><p>Ρώτησε για συμβατότητα, χρήση, διαθεσιμότητα ή ποια επιλογή ταιριάζει καλύτερα στις ανάγκες σου.</p><div className="vendor-actions"><a className="button" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a><a className="button button-secondary" href="/how-it-works">Πώς λειτουργεί</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα προέρχονται από αυτό το κατάστημα.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button" href="/ask-local">Ask Local</a></div></div></div>}
-          <div className="purchase-card"><div><strong>{product.availableToSell} τεμ. διαθέσιμα</strong><span>Η τιμή και το stock προέρχονται από επιλέξιμο τοπικό offer. Για πραγματικό πελάτη, το checkout συνεχίζει να χρησιμοποιεί την κανονική σταθερή Fair Vendor Assignment.</span></div><div className="purchase-actions">{readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{ id: product.id, title: displayTitle, priceMinor: product.priceMinor, price: product.price, available: product.available }} /><ProductAccountActions productId={product.id} /></>}</div></div>
-          <div className="detail-assurances"><div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div><div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div><div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div></div>
+          <details style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Πώς λειτουργούν η τιμή και η επιλογή καταστήματος</summary>
+            <div className="detail-assurances" style={{ marginTop: 12 }}>
+              <div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div>
+              <div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div>
+              <div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div>
+            </div>
+          </details>
         </div>
       </section>
       <SiteFooter />
