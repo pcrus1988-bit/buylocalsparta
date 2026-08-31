@@ -25,6 +25,7 @@ import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../
 import { getPublicProductSuitability, isPublicSuitabilityAttribute } from "../../../lib/public-product-suitability";
 import { getPublicProductVariantOptions } from "../../../lib/public-product-variants";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
+import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "../../../lib/product-presentation-guards";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
@@ -132,6 +133,10 @@ function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute
   return [...byKey.values()];
 }
 
+function customerTechnicalAttributes(attributes: readonly PublicTechnicalAttribute[]): readonly PublicTechnicalAttribute[] {
+  return attributes.filter((attribute) => !isCompatibilityPresentationKey(attribute.key));
+}
+
 function isPackagingAttribute(attribute: PublicTechnicalAttribute): boolean {
   const key = normalizedTechnicalKey(attribute.key);
   const label = attribute.label.trim().toLocaleLowerCase("el");
@@ -193,7 +198,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
     sourceDescription: detail?.description,
-    technicalAttributes
+    technicalAttributes: customerTechnicalAttributes(technicalAttributes)
   });
   const quality = productIndexEligibility(product);
   const description = productSeoDescription({ title: displayTitle, description: displayDescription });
@@ -248,7 +253,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const suitability = await getPublicProductSuitability(product.id, technicalAttributes);
-  const packagingAttributes = technicalAttributes.filter(isPackagingAttribute);
+  const storefrontTechnicalAttributes = customerTechnicalAttributes(technicalAttributes);
+  const packagingAttributes = storefrontTechnicalAttributes.filter(isPackagingAttribute);
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
@@ -268,16 +274,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     product.composition ? "composition" : "",
     product.madeIn ? "made_in" : ""
   ].filter(Boolean));
-  const productTechnicalAttributes = technicalAttributes
+  const productTechnicalAttributes = storefrontTechnicalAttributes
     .filter((attribute) => !isPackagingAttribute(attribute))
     .filter((attribute) => !isPublicSuitabilityAttribute(attribute))
     .filter((attribute) => !explicitTechnicalKeys.has(attribute.key));
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
     sourceDescription: detail?.description,
-    technicalAttributes
+    technicalAttributes: storefrontTechnicalAttributes
   });
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
+  const manualUrl = plausibleProductManualUrl(detail?.manualUrl);
   const technicalRows = [
     displayBrand ? { key: "brand", label: "Μάρκα", value: displayBrand } : undefined,
     detail?.model ? { key: "model", label: "Μοντέλο", value: detail.model } : undefined,
@@ -358,7 +365,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         category: product.categoryLabel ?? category.label,
         color: displayColor ?? product.color,
         size: meaningfulSizes.length ? meaningfulSizes.join(", ") : undefined,
-        additionalProperty: technicalAttributes.length ? technicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
+        additionalProperty: storefrontTechnicalAttributes.length ? storefrontTechnicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
         itemCondition: "https://schema.org/NewCondition",
         offers: structuredOfferData
       },
@@ -430,7 +437,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <ProductDetailSections technicalRows={technicalRows} packagingRows={packagingRows} />
 
-          {detail?.manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={detail.manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
+          {manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
           <details style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
             <summary style={{ cursor: "pointer", fontWeight: 800 }}>Πώς λειτουργούν η τιμή και η επιλογή καταστήματος</summary>
