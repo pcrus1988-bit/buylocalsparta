@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const [evaluation, phase1, types, shell] = await Promise.all([
+  read("apps/web/src/lib/admin-assistant/action-evaluation.ts"),
+  read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
+  read("apps/web/src/lib/admin-assistant/types.ts"),
+  read("apps/web/src/components/AdminAssistantShell.tsx")
+]);
+
+assert.match(evaluation, /adminOperationsWorkspace/);
+assert.match(evaluation, /hasAdminPermission\(principal, "admin\.audit\.read"\)/);
+assert.match(evaluation, /entry\.actorId === principal\.userId/);
+assert.match(evaluation, /ACTION_WINDOW_MS = 15 \* 60 \* 1_000/);
+assert.match(evaluation, /SAFE_STATE_FIELDS/);
+for (const field of ["status", "state", "active", "visibility", "verified", "approvalStatus", "transmissionStatus", "paymentStatus", "fulfilmentStatus", "freshnessStatus"]) assert.match(evaluation, new RegExp(`"${field}"`));
+assert.match(evaluation, /typeof value === "string" && value\.length <= 80/);
+assert.match(evaluation, /!\/\[\\r\\n\]\/\.test\(value\)/);
+assert.match(evaluation, /safeStateChanges\(entry\.before, entry\.after\)/);
+assert.doesNotMatch(evaluation, /entry\.reason/);
+assert.doesNotMatch(evaluation, /JSON\.stringify\(entry\.(?:before|after|reason)/);
+assert.match(evaluation, /the assistant will not invent an impact/i);
+assert.match(evaluation, /refreshed page still reports/i);
+assert.match(evaluation, /admin_action_impact_evaluated/);
+assert.match(evaluation, /recordAssistantToolAudit/);
+assert.match(evaluation, /toolName: "evaluateAdminActionImpact"/);
+assert.match(evaluation, /finance\.settlement_pay/);
+assert.match(evaluation, /vendor\\\.application_/);
+assert.match(evaluation, /relevantToContext/);
+assert.match(evaluation, /actionDomain/);
+assert.doesNotMatch(evaluation, /DELETE FROM|UPDATE public\.|INSERT INTO/i);
+
+assert.match(phase1, /evaluateRecentAdminActions/);
+assert.match(phase1, /evaluateRecentAdminActions\(principal, snapshot\)/);
+assert.match(phase1, /actionEvaluations: \[\]/);
+assert.match(types, /AdminAssistantActionStateChange/);
+assert.match(types, /AdminAssistantActionEvaluation/);
+assert.match(types, /outcome: "confirmed" \| "changed" \| "recorded"/);
+assert.match(types, /actionEvaluations\?: readonly AdminAssistantActionEvaluation\[\]/);
+
+// Existing shell already renders snapshot summary/findings, so proactive action-impact
+// findings must be visible without introducing a new unsafe execution surface.
+assert.match(shell, /snapshot\.summary/);
+assert.match(shell, /snapshot\.findings/);
+assert.doesNotMatch(shell, /beforeState|afterState|audit\.reason/);
+
+console.log("Admin Assistant action evaluation verifier passed.");
