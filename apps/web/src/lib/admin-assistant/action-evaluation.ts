@@ -1,7 +1,7 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminOperationsWorkspace, hasAdminPermission } from "../admin-runtime";
 import { recordAssistantToolAudit } from "./repository";
-import type { AdminAssistantActionEvaluation, AdminAssistantActionStateChange, AdminAssistantRecentAction, AdminAssistantSnapshot } from "./types";
+import type { AdminAssistantActionEvaluation, AdminAssistantActionStateChange, AdminAssistantFinding, AdminAssistantRecentAction, AdminAssistantSnapshot } from "./types";
 
 const ACTION_WINDOW_MS = 15 * 60 * 1_000;
 const SAFE_STATE_FIELDS = [
@@ -81,6 +81,22 @@ function summarizeChanges(action: AdminAssistantRecentAction): readonly string[]
   });
 }
 
+function evaluationFinding(evaluation: AdminAssistantActionEvaluation, route: string): AdminAssistantFinding {
+  return {
+    id: `finding:${evaluation.id}`,
+    ruleId: "admin_action_impact_evaluated",
+    severity: evaluation.residualFindings.length ? "warning" : "info",
+    category: "action_impact",
+    title: evaluation.outcome === "confirmed" ? "Latest Admin action reached its recorded target state" : "Latest Admin action impact evaluated",
+    detail: `${evaluation.summary} ${evaluation.recommendation}`,
+    evidence: evaluation.changes.length ? evaluation.changes : ["Admin audit event recorded; no allowlisted scalar state transition available."],
+    recommendation: evaluation.recommendation,
+    href: route,
+    affectedCount: 1,
+    confidence: evaluation.confidence
+  };
+}
+
 export async function evaluateRecentAdminActions(
   principal: SessionPrincipal,
   snapshot: AdminAssistantSnapshot,
@@ -155,5 +171,16 @@ export async function evaluateRecentAdminActions(
     durationMs: Date.now() - startedAt
   }).catch(() => undefined);
 
-  return { ...snapshot, recentActions: safeActions, actionEvaluations: evaluations };
+  if (!evaluations.length) return { ...snapshot, recentActions: safeActions, actionEvaluations: [] };
+  const latest = evaluations[0];
+  const actionFindings = evaluations.map((evaluation) => evaluationFinding(evaluation, snapshot.context.route));
+  const existing = snapshot.findings.filter((finding) => !actionFindings.some((item) => item.id === finding.id));
+  return {
+    ...snapshot,
+    summary: `Latest Admin action: ${latest.summary} ${latest.recommendation} ${snapshot.summary}`.slice(0, 1_800),
+    facts: [`Action impact: ${latest.changes.length ? latest.changes.join(" · ") : "audit recorded; no safe scalar transition available"}.`, ...snapshot.facts].slice(0, 7),
+    findings: [...actionFindings, ...existing].slice(0, 8),
+    recentActions: safeActions,
+    actionEvaluations: evaluations
+  };
 }
