@@ -1,8 +1,10 @@
-import type { PublicProductSuitability, PublicSuitabilityKind } from "../lib/public-product-suitability";
+import type { PublicProductSuitability, PublicSuitableProduct, PublicSuitabilityKind } from "../lib/public-product-suitability";
 import styles from "./ProductSuitability.module.css";
 
 type ProductSuitabilityProps = Readonly<{
   suitability?: PublicProductSuitability;
+  hrefForProduct?: (product: PublicSuitableProduct) => string;
+  mode?: "live" | "demo";
 }>;
 
 const KIND_LABELS: Readonly<Record<PublicSuitabilityKind, string>> = {
@@ -11,7 +13,11 @@ const KIND_LABELS: Readonly<Record<PublicSuitabilityKind, string>> = {
   platform: "Πλατφόρμες"
 };
 
-export function ProductSuitability({ suitability }: ProductSuitabilityProps) {
+export function ProductSuitability({
+  suitability,
+  hrefForProduct = (product) => `/product/${encodeURIComponent(product.slug)}`,
+  mode = "live"
+}: ProductSuitabilityProps) {
   if (!suitability?.items.length) return null;
 
   const groups = (["model", "brand", "platform"] as const)
@@ -37,12 +43,14 @@ export function ProductSuitability({ suitability }: ProductSuitabilityProps) {
       {suitability.products.length ? (
         <div className={styles.linkedProducts}>
           <div className={styles.linkedHeading}>
-            <strong>Τα αντίστοιχα προϊόντα υπάρχουν στο ΚΟΝΤΑ ΜΟΥ</strong>
-            <span>Άνοιξέ τα απευθείας για να ελέγξεις εικόνα, διαθεσιμότητα και επιλογές αγοράς.</span>
+            <strong>{mode === "demo" ? "Τα αντίστοιχα προϊόντα υπάρχουν σε αυτό το DEMO κατάστημα" : "Τα αντίστοιχα προϊόντα υπάρχουν στο ΚΟΝΤΑ ΜΟΥ"}</strong>
+            <span>{mode === "demo"
+              ? "Άνοιξέ τα απευθείας για να δεις την εικόνα, τα χαρακτηριστικά και πώς θα συνδέονται μέσα στο ενεργό κατάστημα."
+              : "Άνοιξέ τα απευθείας για να ελέγξεις εικόνα, διαθεσιμότητα και επιλογές αγοράς."}</span>
           </div>
           <div className={styles.productGrid}>
             {suitability.products.map((product) => (
-              <a className={styles.productCard} href={`/product/${encodeURIComponent(product.slug)}`} key={product.canonicalVariantId}>
+              <a className={styles.productCard} href={hrefForProduct(product)} key={product.canonicalVariantId}>
                 <span className={styles.productImage}>
                   {product.imageSrc
                     ? <img src={product.imageSrc} alt={product.imageAlt ?? product.title} loading="lazy" />
@@ -51,7 +59,7 @@ export function ProductSuitability({ suitability }: ProductSuitabilityProps) {
                 <span className={styles.productCopy}>
                   <small>Ταιριάζει με: {product.matchedFor}</small>
                   <strong>{product.title}</strong>
-                  <span className={styles.productLink}>Δες το προϊόν →</span>
+                  <span className={styles.productLink}>{mode === "demo" ? "Δες στο DEMO →" : "Δες το προϊόν →"}</span>
                 </span>
               </a>
             ))}
