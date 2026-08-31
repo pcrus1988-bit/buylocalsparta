@@ -8,6 +8,7 @@ import { SiteFooter } from "../../../../../../components/SiteFooter";
 import { SiteHeader } from "../../../../../../components/SiteHeader";
 import { getDemoProductParity, isDemoSuitabilityAttribute } from "../../../../../../lib/demo-product-parity";
 import { getDemoStorefrontVendor, getDemoVendorCatalogProduct, getDemoVendorVariantOptions, type DemoTechnicalAttribute } from "../../../../../../lib/demo-storefront";
+import { isCompatibilityPresentationKey } from "../../../../../../lib/product-presentation-guards";
 import { publicCatalogueTitleLabel } from "../../../../../../lib/public-data-integrity";
 import { storefrontCategoryForCode } from "../../../../../../lib/storefront-taxonomy";
 
@@ -87,6 +88,7 @@ function presentTechnicalAttribute(attribute: DemoTechnicalAttribute): DemoTechn
   const value = attribute.value.trim();
   if (!key || !value) return undefined;
   if (PRIVATE_TECHNICAL_ATTRIBUTE_KEYS.has(key)
+    || isCompatibilityPresentationKey(key)
     || key.startsWith("source_")
     || key.startsWith("catalog_source_")
     || key.startsWith("crawl_source_")

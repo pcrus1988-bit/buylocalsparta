@@ -3,6 +3,7 @@ import type { PublicTechnicalAttribute } from "./public-product-detail";
 import { getPublicProductDetail } from "./public-product-detail";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { isCompatibilityPresentationKey } from "./product-presentation-guards";
 
 export type PublicSuitabilityKind = "model" | "brand" | "platform";
 
@@ -62,6 +63,12 @@ const MODEL_KEYS = new Set([
   "works_with",
   "works_with_models",
   "designed_for",
+  "explicit_fitment_models",
+  "explicit_compatible_models",
+  "explicit_compatible_models_all",
+  "explicit_compatible_models_validated",
+  "external_compatible_models",
+  "platform_compatible_models",
   "καταλληλο_για",
   "συμβατα_μοντελα"
 ]);
@@ -86,7 +93,15 @@ const COMPATIBILITY_META_KEYS = new Set([
   "compatibility_type",
   "compatibility",
   "compatibility_note",
-  "compatibility_notes"
+  "compatibility_notes",
+  "compatibility_confidence",
+  "compatibility_claims_json",
+  "compatibility_relationship_json",
+  "compatibility_interface_json",
+  "compatibility_evidence_url",
+  "compatibility_evidence_basis",
+  "compatibility_discrepancy_flags",
+  "unresolved_compatibility_tokens"
 ]);
 
 function normalizedKey(value: string): string {
@@ -119,7 +134,7 @@ function attributeKind(attribute: PublicTechnicalAttribute): PublicSuitabilityKi
 }
 
 export function isPublicSuitabilityAttribute(attribute: PublicTechnicalAttribute): boolean {
-  return Boolean(attributeKind(attribute));
+  return Boolean(attributeKind(attribute)) || isCompatibilityPresentationKey(attribute.key);
 }
 
 function splitCompatibilityValues(value: string): readonly string[] {
