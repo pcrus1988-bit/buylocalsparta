@@ -1,3 +1,4 @@
+import { resolveCatalogColor } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -8,6 +9,7 @@ import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTra
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
+import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -19,7 +21,7 @@ import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../lib/public-product-detail";
-import { getPublicProductVariantOptions, type PublicProductVariantOption } from "../../../lib/public-product-variants";
+import { getPublicProductVariantOptions } from "../../../lib/public-product-variants";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 
@@ -116,18 +118,6 @@ function gtinSchema(gtin: string | undefined): Record<string, string> {
   return {};
 }
 
-function variantFromPriceLabel(priceMinor: number | undefined): string | undefined {
-  if (priceMinor === undefined) return undefined;
-  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(priceMinor / 100);
-}
-
-function variantOptionLabel(option: PublicProductVariantOption, varyingKeys: ReadonlySet<string>): string {
-  const varyingAttributes = option.attributes.filter((attribute) => varyingKeys.has(attribute.key));
-  const attributes = varyingAttributes.length ? varyingAttributes : option.attributes;
-  if (!attributes.length) return "Βασική έκδοση";
-  return attributes.map((attribute) => `${attribute.label}: ${attribute.value}`).join(" · ");
-}
-
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { id } = await params;
   const [product, { settings }, overrides] = await Promise.all([
@@ -206,6 +196,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
   const displayPrice = publicCatalogPriceLabel(product);
+  const displayColor = product.color ? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
   const technicalRows = [
     displayBrand ? { key: "brand", label: "Μάρκα", value: displayBrand } : undefined,
@@ -214,7 +205,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     supplierCode ? { key: "supplier-code", label: "Κωδικός προμηθευτή", value: supplierCode } : undefined,
     displayGtin ? { key: "gtin", label: "GTIN / EAN", value: displayGtin } : undefined,
     product.categoryLabel ? { key: "category", label: "Κατηγορία", value: product.categoryLabel } : undefined,
-    product.color ? { key: "color", label: "Χρώμα", value: product.color } : undefined,
+    displayColor ? { key: "color", label: "Χρώμα", value: displayColor } : undefined,
     product.sizes.length ? { key: "size", label: "Μέγεθος", value: product.sizes.join(" · ") } : undefined,
     product.fit ? { key: "fit", label: "Εφαρμογή", value: product.fit } : undefined,
     product.composition ? { key: "composition", label: "Σύνθεση", value: product.composition } : undefined,
@@ -230,13 +221,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const variantValues = new Map<string, Set<string>>();
   for (const option of variantOptions) {
     for (const attribute of option.attributes) {
-      const values = variantValues.get(attribute.key) ?? new Set<string>();
+      const values = variantValues.get(attribute.kind) ?? new Set<string>();
       values.add(attribute.value);
-      variantValues.set(attribute.key, values);
+      variantValues.set(attribute.kind, values);
     }
   }
-  const varyingVariantKeys = new Set([...variantValues.entries()].filter(([, values]) => values.size > 1).map(([key]) => key));
-  const variantDimensionLabels = [...new Set(variantOptions.flatMap((option) => option.attributes.filter((attribute) => varyingVariantKeys.has(attribute.key)).map((attribute) => attribute.label)))];
+  const varyingVariantKinds = new Set([...variantValues.entries()].filter(([, values]) => values.size > 1).map(([kind]) => kind));
+  const varyingVariantKeys = new Set(variantOptions.flatMap((option) => option.attributes.filter((attribute) => varyingVariantKinds.has(attribute.kind)).map((attribute) => attribute.key)));
+  const variantDimensionLabels = [...new Set(variantOptions.flatMap((option) => option.attributes.filter((attribute) => varyingVariantKinds.has(attribute.kind)).map((attribute) => attribute.label)))];
   const variantSelectorTitle = variantDimensionLabels.length === 1 ? variantDimensionLabels[0] : "Επιλογή παραλλαγής";
 
   const reference: SeoEntityReference = { kind: "product", id: product.id };
@@ -285,7 +277,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         brand: displayBrand ? { "@type": "Brand", name: displayBrand } : undefined,
         image: structuredImages,
         category: product.categoryLabel ?? category.label,
-        color: product.color,
+        color: displayColor ?? product.color,
         size: product.sizes.length ? product.sizes.join(", ") : undefined,
         additionalProperty: technicalAttributes.length ? technicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
         itemCondition: "https://schema.org/NewCondition",
@@ -332,30 +324,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
           <h1>{displayTitle}</h1>
 
-          {variantOptions.length > 1 ? (
-            <section aria-label="Υποχρεωτική επιλογή παραλλαγής" style={{ marginTop: 18 }}>
-              <div className="eyebrow">{variantSelectorTitle} · επίλεξε πριν την αγορά</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 8, marginTop: 8 }}>
-                {variantOptions.map((option) => {
-                  const selected = option.canonicalVariantId === product.id;
-                  const fromPrice = variantFromPriceLabel(option.fromPriceMinor);
-                  const availability = selected ? product.available : option.available;
-                  return (
-                    <a
-                      key={option.canonicalVariantId}
-                      href={`/product/${encodeURIComponent(option.slug)}`}
-                      className={selected ? "button" : "button button-secondary"}
-                      aria-current={selected ? "page" : undefined}
-                      style={{ height: "auto", minHeight: 64, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", gap: 3, whiteSpace: "normal", textAlign: "left" }}
-                    >
-                      <span>{variantOptionLabel(option, varyingVariantKeys)}</span>
-                      <small>{selected ? displayPrice : fromPrice ? `από ${fromPrice}` : "Τιμή μετά την επιλογή"} · {availability ? "διαθέσιμο" : "μη διαθέσιμο"}</small>
-                    </a>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
+          <ProductVariantSelector currentVariantId={product.id} title={variantSelectorTitle} options={variantOptions} varyingKeys={varyingVariantKeys} />
 
           <div className="purchase-card" style={{ marginTop: 18 }}>
             <div>
