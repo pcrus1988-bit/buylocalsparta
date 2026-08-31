@@ -42,7 +42,7 @@ const thumbnailImageStyle = {
   objectFit: "contain"
 } as const;
 
-const PRIVATE_SOURCE_ATTRIBUTE_KEYS = new Set([
+const PRIVATE_TECHNICAL_ATTRIBUTE_KEYS = new Set([
   "source",
   "source_id",
   "source_code",
@@ -56,23 +56,82 @@ const PRIVATE_SOURCE_ATTRIBUTE_KEYS = new Set([
   "catalog_source_id",
   "catalog_source_code",
   "catalog_source_name",
-  "crawler_source"
+  "crawler_source",
+  "variant_code",
+  "variant_label",
+  "supplier_code",
+  "supplier_sku",
+  "supplier_product_code",
+  "feature_keys",
+  "dimensions_source_text",
+  "technical_details_text",
+  "raw_payload",
+  "normalized_payload",
+  "source_payload"
 ]);
 
 const GENERATED_TECHNICAL_DESCRIPTION_MARKER = "Κύρια διακριτικά/τεχνικά χαρακτηριστικά:";
 
+function normalizedTechnicalKey(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("el")
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function withUnit(value: string, unit: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return new RegExp(`(?:^|\\s)${unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i").test(trimmed)
+    ? trimmed
+    : `${trimmed} ${unit}`;
+}
+
+function isMeaninglessSize(value: string): boolean {
+  return /^(?:o\/?s|os|one\s*size|one-size)$/i.test(value.trim());
+}
+
+function presentTechnicalAttribute(attribute: PublicTechnicalAttribute): PublicTechnicalAttribute | undefined {
+  const key = normalizedTechnicalKey(attribute.key);
+  const label = attribute.label.trim();
+  const value = attribute.value.trim();
+  if (!key || !value) return undefined;
+  if (PRIVATE_TECHNICAL_ATTRIBUTE_KEYS.has(key)
+    || key.startsWith("source_")
+    || key.startsWith("catalog_source_")
+    || key.startsWith("crawl_source_")
+    || key.startsWith("raw_")
+    || key.startsWith("import_")
+    || key.startsWith("ingestion_")
+    || key.endsWith("_source_text")) return undefined;
+
+  if (key === "weight_g" || key === "weightg") return { ...attribute, key: "weight_g", label: "Βάρος", value: withUnit(value, "g") };
+  if (key === "capacity_l" || key === "capacityl") return { ...attribute, key: "capacity_l", label: "Χωρητικότητα", value: withUnit(value, "L") };
+  if (key === "color" || key === "colour" || key === "χρωμα") {
+    return { ...attribute, key: "color", label: "Χρώμα", value: resolveCatalogColor(value)?.displayNameEl ?? value };
+  }
+  if (key === "size" || key === "sizes" || key === "μεγεθος") {
+    if (isMeaninglessSize(value)) return undefined;
+    return { ...attribute, key: "size", label: "Μέγεθος", value };
+  }
+  return { ...attribute, key, label: label || attribute.key, value };
+}
+
 function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute[]): readonly PublicTechnicalAttribute[] {
-  return attributes.filter((attribute) => {
-    const key = attribute.key.trim().toLowerCase();
-    return !PRIVATE_SOURCE_ATTRIBUTE_KEYS.has(key)
-      && !key.startsWith("source_")
-      && !key.startsWith("catalog_source_")
-      && !key.startsWith("crawl_source_");
-  });
+  const byKey = new Map<string, PublicTechnicalAttribute>();
+  for (const attribute of attributes) {
+    const presented = presentTechnicalAttribute(attribute);
+    if (!presented || byKey.has(presented.key)) continue;
+    byKey.set(presented.key, presented);
+  }
+  return [...byKey.values()];
 }
 
 function isPackagingAttribute(attribute: PublicTechnicalAttribute): boolean {
-  const key = attribute.key.trim().toLowerCase();
+  const key = normalizedTechnicalKey(attribute.key);
   const label = attribute.label.trim().toLocaleLowerCase("el");
   return key === "pack_qty"
     || key.startsWith("package_")
@@ -187,26 +246,42 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const packagingAttributes = technicalAttributes.filter(isPackagingAttribute);
-  const productTechnicalAttributes = technicalAttributes.filter((attribute) => !isPackagingAttribute(attribute));
+  const displayBrand = product.brand ?? detail?.brand;
+  const displayGtin = product.gtin ?? detail?.sourceGtin;
+  const displayPrice = publicCatalogPriceLabel(product);
+  const displayColor = product.color ? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
+  const meaningfulSizes = product.sizes.filter((size) => !isMeaninglessSize(size));
+  const explicitTechnicalKeys = new Set([
+    displayBrand ? "brand" : "",
+    detail?.model ? "model" : "",
+    product.mpn ? "mpn" : "",
+    displayGtin ? "gtin" : "",
+    displayGtin ? "ean" : "",
+    displayGtin ? "barcode" : "",
+    product.categoryLabel ? "category" : "",
+    displayColor ? "color" : "",
+    meaningfulSizes.length ? "size" : "",
+    product.fit ? "fit" : "",
+    product.composition ? "composition" : "",
+    product.madeIn ? "made_in" : ""
+  ].filter(Boolean));
+  const productTechnicalAttributes = technicalAttributes
+    .filter((attribute) => !isPackagingAttribute(attribute))
+    .filter((attribute) => !explicitTechnicalKeys.has(attribute.key));
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
     sourceDescription: detail?.description,
     technicalAttributes
   });
-  const displayBrand = product.brand ?? detail?.brand;
-  const displayGtin = product.gtin ?? detail?.sourceGtin;
-  const displayPrice = publicCatalogPriceLabel(product);
-  const displayColor = product.color ? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
   const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
   const technicalRows = [
     displayBrand ? { key: "brand", label: "Μάρκα", value: displayBrand } : undefined,
     detail?.model ? { key: "model", label: "Μοντέλο", value: detail.model } : undefined,
     product.mpn ? { key: "mpn", label: "Κωδικός κατασκευαστή", value: product.mpn } : undefined,
-    supplierCode ? { key: "supplier-code", label: "Κωδικός προμηθευτή", value: supplierCode } : undefined,
     displayGtin ? { key: "gtin", label: "GTIN / EAN", value: displayGtin } : undefined,
     product.categoryLabel ? { key: "category", label: "Κατηγορία", value: product.categoryLabel } : undefined,
     displayColor ? { key: "color", label: "Χρώμα", value: displayColor } : undefined,
-    product.sizes.length ? { key: "size", label: "Μέγεθος", value: product.sizes.join(" · ") } : undefined,
+    meaningfulSizes.length ? { key: "size", label: "Μέγεθος", value: meaningfulSizes.join(" · ") } : undefined,
     product.fit ? { key: "fit", label: "Εφαρμογή", value: product.fit } : undefined,
     product.composition ? { key: "composition", label: "Σύνθεση", value: product.composition } : undefined,
     product.madeIn ? { key: "made-in", label: "Κατασκευή", value: product.madeIn === "Greece" ? "Ελλάδα" : product.madeIn } : undefined,
@@ -278,7 +353,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         image: structuredImages,
         category: product.categoryLabel ?? category.label,
         color: displayColor ?? product.color,
-        size: product.sizes.length ? product.sizes.join(", ") : undefined,
+        size: meaningfulSizes.length ? meaningfulSizes.join(", ") : undefined,
         additionalProperty: technicalAttributes.length ? technicalAttributes.map((attribute) => ({ "@type": "PropertyValue", name: attribute.label, value: attribute.value })) : undefined,
         itemCondition: "https://schema.org/NewCondition",
         offers: structuredOfferData
