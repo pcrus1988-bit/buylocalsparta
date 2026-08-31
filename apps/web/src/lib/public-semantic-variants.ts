@@ -187,7 +187,7 @@ function colorAttribute(value: string): PublicProductVariantAttribute {
 function socketSizeFromTitle(title: string): string | undefined {
   const size = title.match(/\bNo\.?\s*(\d+(?:[.,]\d+)?)\s*mm\b/i)?.[1]?.replace(",", ".");
   if (!size) return undefined;
-  const drive = title.match(/\b(\d\s*\/\s*\d)\s*(?:\"|″)/u)?.[1]?.replace(/\s+/g, "");
+  const drive = title.match(/\b(\d\s*\/\s*\d)\s*(?:"|″)/u)?.[1]?.replace(/\s+/g, "");
   return drive ? `${drive}″ · ${size} mm` : `${size} mm`;
 }
 
