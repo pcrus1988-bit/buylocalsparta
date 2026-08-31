@@ -108,11 +108,34 @@ export type AdminAssistantRecommendation = Readonly<{
   }>;
 }>;
 
+export type AdminAssistantActionStateChange = Readonly<{
+  field: string;
+  before?: string;
+  after?: string;
+}>;
+
 export type AdminAssistantRecentAction = Readonly<{
   action: string;
   entityType: string;
   entityId: string;
   createdAt?: number;
+  stateChanges?: readonly AdminAssistantActionStateChange[];
+  hasBeforeState?: boolean;
+  hasAfterState?: boolean;
+}>;
+
+export type AdminAssistantActionEvaluation = Readonly<{
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  occurredAt?: number;
+  outcome: "confirmed" | "changed" | "recorded";
+  summary: string;
+  changes: readonly string[];
+  residualFindings: readonly string[];
+  recommendation: string;
+  confidence: AdminAssistantConfidence;
 }>;
 
 export type AdminAssistantSnapshot = Readonly<{
@@ -124,6 +147,7 @@ export type AdminAssistantSnapshot = Readonly<{
   findings: readonly AdminAssistantFinding[];
   recommendations?: readonly AdminAssistantRecommendation[];
   recentActions: readonly AdminAssistantRecentAction[];
+  actionEvaluations?: readonly AdminAssistantActionEvaluation[];
   suggestedQuestions: readonly string[];
   generatedAt: number;
 }>;
