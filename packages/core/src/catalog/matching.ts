@@ -1,4 +1,5 @@
 import { jaccardSimilarity, normalizeText, tokenSet } from "../common/text.ts";
+import { resolveCatalogColor } from "./colors.ts";
 import type { MatchResult, ProductIdentity } from "./types.ts";
 
 const BLOCKING_VARIANT_KEYS = new Set([
@@ -13,6 +14,8 @@ const BLOCKING_VARIANT_KEYS = new Set([
   "included_accessory",
   "regulated_identifier"
 ]);
+
+const COLOR_ATTRIBUTE_KEYS = new Set(["color", "colour", "χρωμα"]);
 
 export function matchProducts(a: ProductIdentity, b: ProductIdentity): MatchResult {
   const reasons: string[] = [];
@@ -78,15 +81,38 @@ export function matchProducts(a: ProductIdentity, b: ProductIdentity): MatchResu
   return { level: "different", confidence, reasons, autoMergeAllowed: false };
 }
 
+function canonicalAttributeKey(key: string): string {
+  const normalized = normalizeText(key).replaceAll(" ", "_");
+  return COLOR_ATTRIBUTE_KEYS.has(normalized) ? "color" : normalized;
+}
+
+function normalizedAttributeValue(key: string, value: string): string {
+  if (canonicalAttributeKey(key) === "color") return resolveCatalogColor(value)?.key ?? normalizeText(value);
+  return normalizeText(value);
+}
+
+function canonicalAttributeMap(attributes: Readonly<Record<string, string>>): ReadonlyMap<string, { sourceKey: string; sourceValue: string; normalizedValue: string }> {
+  const result = new Map<string, { sourceKey: string; sourceValue: string; normalizedValue: string }>();
+  for (const [key, value] of Object.entries(attributes)) {
+    const canonicalKey = canonicalAttributeKey(key);
+    if (!canonicalKey) continue;
+    const candidate = { sourceKey: key, sourceValue: value, normalizedValue: normalizedAttributeValue(key, value) };
+    const existing = result.get(canonicalKey);
+    if (!existing || existing.normalizedValue === candidate.normalizedValue) result.set(canonicalKey, candidate);
+  }
+  return result;
+}
+
 function materialVariantConflict(a: ProductIdentity, b: ProductIdentity): string | undefined {
-  const keys = new Set([...Object.keys(a.attributes), ...Object.keys(b.attributes)]);
+  const aAttributes = canonicalAttributeMap(a.attributes);
+  const bAttributes = canonicalAttributeMap(b.attributes);
+  const keys = new Set([...aAttributes.keys(), ...bAttributes.keys()]);
   for (const key of keys) {
-    const normalizedKey = normalizeText(key).replaceAll(" ", "_");
-    if (!BLOCKING_VARIANT_KEYS.has(normalizedKey)) continue;
-    const av = a.attributes[key];
-    const bv = b.attributes[key];
-    if (av !== undefined && bv !== undefined && normalizeText(av) !== normalizeText(bv)) {
-      return `${key}: '${av}' vs '${bv}'`;
+    if (!BLOCKING_VARIANT_KEYS.has(key)) continue;
+    const av = aAttributes.get(key);
+    const bv = bAttributes.get(key);
+    if (av && bv && av.normalizedValue !== bv.normalizedValue) {
+      return `${key}: '${av.sourceValue}' vs '${bv.sourceValue}'`;
     }
   }
   if (a.warrantyBasis && b.warrantyBasis && normalizeText(a.warrantyBasis) !== normalizeText(b.warrantyBasis)) {
@@ -96,21 +122,25 @@ function materialVariantConflict(a: ProductIdentity, b: ProductIdentity): string
 }
 
 function governedAttributesEqual(a: ProductIdentity, b: ProductIdentity): boolean {
-  const keys = new Set([...Object.keys(a.attributes), ...Object.keys(b.attributes)]);
+  const aAttributes = canonicalAttributeMap(a.attributes);
+  const bAttributes = canonicalAttributeMap(b.attributes);
+  const keys = new Set([...aAttributes.keys(), ...bAttributes.keys()]);
   for (const key of keys) {
-    const av = a.attributes[key];
-    const bv = b.attributes[key];
-    if (av === undefined || bv === undefined) continue;
-    if (normalizeText(av) !== normalizeText(bv)) return false;
+    const av = aAttributes.get(key);
+    const bv = bAttributes.get(key);
+    if (!av || !bv) continue;
+    if (av.normalizedValue !== bv.normalizedValue) return false;
   }
   return true;
 }
 
 function attributeSimilarity(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): number {
-  const common = Object.keys(a).filter((key) => b[key] !== undefined);
+  const aAttributes = canonicalAttributeMap(a);
+  const bAttributes = canonicalAttributeMap(b);
+  const common = [...aAttributes.keys()].filter((key) => bAttributes.has(key));
   if (common.length === 0) return 0.5;
   let matched = 0;
-  for (const key of common) if (normalizeText(a[key]) === normalizeText(b[key])) matched += 1;
+  for (const key of common) if (aAttributes.get(key)?.normalizedValue === bAttributes.get(key)?.normalizedValue) matched += 1;
   return matched / common.length;
 }
 
