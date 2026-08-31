@@ -130,8 +130,9 @@ function dimensionChoice(row: AlternativeRow, role: AlternativeRole): DimensionC
   const attributes = sourceAttributes(row);
 
   if (role === "air_hose") {
+    const lengthCm = numberValue(attributes.length_cm);
     const metres = numberValue(attributes.length_m)
-      ?? (numberValue(attributes.length_cm) !== undefined ? Number(attributes.length_cm) / 100 : undefined)
+      ?? (lengthCm !== undefined ? lengthCm / 100 : undefined)
       ?? titleLengthMetres(row.title)
       ?? airHoseLengthFromDescription(row);
     if (metres !== undefined && metres > 0) {
@@ -227,7 +228,7 @@ function groupCopy(role: AlternativeRole): Pick<ProductRelatedOptionGroup, "key"
   };
 }
 
-async function currentRow(canonicalVariantId: string): Promise<CurrentAlternativeRow | undefined> {
+async function currentRow(canonicalVariantId: string, allowInactive: boolean): Promise<CurrentAlternativeRow | undefined> {
   const result = await getProductionPostgresRuntime().sqlPool.query<CurrentAlternativeRow>(`
     SELECT cv.public_id AS canonical_public_id,
            cv.slug,
@@ -268,11 +269,11 @@ async function currentRow(canonicalVariantId: string): Promise<CurrentAlternativ
       LIMIT 1
     ) source_candidate ON true
     WHERE cv.public_id=$1
-      AND cv.active=true
+      AND ($2::boolean OR cv.active=true)
       AND cv.suppressed=false
       AND cv.recalled=false
     LIMIT 1
-  `, [canonicalVariantId]);
+  `, [canonicalVariantId, allowInactive]);
   return result.rows[0];
 }
 
@@ -281,14 +282,15 @@ async function alternatives(
   demoVendorUuid?: string,
 ): Promise<readonly ProductRelatedOptionGroup[]> {
   if (!productionDatabaseConfigured()) return [];
-  const current = await currentRow(canonicalVariantId);
+  const demoMode = Boolean(demoVendorUuid);
+  const current = await currentRow(canonicalVariantId, demoMode);
   if (!current?.brand_id) return [];
   const role = productRole(current);
   if (!role) return [];
   const currentDimension = dimensionChoice(current, role);
   if (!currentDimension) return [];
 
-  const values: unknown[] = [canonicalVariantId, current.brand_id];
+  const values: unknown[] = [canonicalVariantId, current.brand_id, demoMode];
   const publicationPredicate = demoVendorUuid
     ? (() => {
         values.push(demoVendorUuid);
@@ -361,7 +363,7 @@ async function alternatives(
     ) governed_media ON true
     WHERE sibling.public_id<>$1
       AND sibling.brand_id=$2::uuid
-      AND sibling.active=true
+      AND ($3::boolean OR sibling.active=true)
       AND sibling.suppressed=false
       AND sibling.recalled=false
       ${publicationPredicate}
