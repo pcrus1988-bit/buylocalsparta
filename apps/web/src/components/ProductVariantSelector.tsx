@@ -1,4 +1,11 @@
+import {
+  getDemoCrossFamilyChoices,
+  getPublicCrossFamilyChoices,
+  mergeVariantPresentations,
+  type PublicProductAlternativeOption
+} from "../lib/public-product-family-choices";
 import type { PublicProductVariantOption } from "../lib/public-product-variants";
+import { ProductAlternativeSelector } from "./ProductAlternativeSelector";
 import styles from "./ProductVariantSelector.module.css";
 
 type ProductVariantSelectorProps = Readonly<{
@@ -7,7 +14,9 @@ type ProductVariantSelectorProps = Readonly<{
   options: readonly PublicProductVariantOption[];
   varyingKeys: ReadonlySet<string>;
   hrefForOption?: (option: PublicProductVariantOption) => string;
+  hrefForAlternative?: (option: PublicProductAlternativeOption) => string;
   availabilityMode?: "live" | "preview";
+  catalogScope?: Readonly<{ mode: "live" } | { mode: "demo"; vendorId: string }>;
 }>;
 
 function normalizedValue(value: string): string {
@@ -71,61 +80,84 @@ function swatchStyle(color: NonNullable<ReturnType<typeof optionColor>>) {
   return { backgroundColor: color.hex };
 }
 
-export function ProductVariantSelector(props: ProductVariantSelectorProps) {
+export async function ProductVariantSelector(props: ProductVariantSelectorProps) {
   const {
     currentVariantId,
     options,
+    title,
+    varyingKeys,
     hrefForOption = (option) => `/product/${encodeURIComponent(option.slug)}`,
-    availabilityMode = "live"
+    hrefForAlternative,
+    availabilityMode = "live",
+    catalogScope = { mode: "live" }
   } = props;
-  if (options.length <= 1) return null;
 
-  // Re-derive the visible axes from canonical attribute keys at the component
-  // boundary. This is intentionally independent of legacy callers that used to
-  // group attributes by coarse UI kind (for example two different "size" axes).
-  const presentation = governedPresentation(options);
-  if (presentation.varyingKeys.size === 0) return null;
+  const crossFamily = catalogScope.mode === "demo"
+    ? await getDemoCrossFamilyChoices(currentVariantId, catalogScope.vendorId)
+    : await getPublicCrossFamilyChoices(currentVariantId);
+  const merged = mergeVariantPresentations(
+    { options, title, varyingKeys },
+    crossFamily.variantExtensions,
+    currentVariantId,
+    crossFamily.currentVariantAttributes
+  );
+  const presentation = governedPresentation(merged.options);
+  const showVariants = merged.options.length > 1 && presentation.varyingKeys.size > 0;
+  const showAlternatives = crossFamily.alternatives.options.length > 0;
+  if (!showVariants && !showAlternatives) return null;
 
   return (
-    <section className={styles.section} aria-label="Υποχρεωτική επιλογή παραλλαγής">
-      <div className={styles.heading}>
-        <strong>{presentation.title}</strong>
-        <span aria-hidden="true">*</span>
-      </div>
-      <div className={styles.grid}>
-        {options.map((option) => {
-          const selected = option.canonicalVariantId === currentVariantId;
-          const label = optionDisplayName(option, presentation.varyingKeys);
-          const color = optionColor(option, presentation.varyingKeys);
-          const unavailable = availabilityMode === "live" && !option.available;
-          const className = [styles.option, selected ? styles.selected : "", unavailable ? styles.unavailable : "", option.imageSrc ? styles.withImage : ""]
-            .filter(Boolean)
-            .join(" ");
-          const accessibilityLabel = `${label}${selected ? ", επιλεγμένο" : ""}${unavailable ? ", μη διαθέσιμο" : ""}`;
+    <>
+      {showVariants ? (
+        <section className={styles.section} aria-label="Υποχρεωτική επιλογή παραλλαγής">
+          <div className={styles.heading}>
+            <strong>{presentation.title}</strong>
+            <span aria-hidden="true">*</span>
+          </div>
+          <div className={styles.grid}>
+            {merged.options.map((option) => {
+              const selected = option.canonicalVariantId === currentVariantId;
+              const label = optionDisplayName(option, presentation.varyingKeys);
+              const color = optionColor(option, presentation.varyingKeys);
+              const unavailable = availabilityMode === "live" && !option.available;
+              const className = [styles.option, selected ? styles.selected : "", unavailable ? styles.unavailable : "", option.imageSrc ? styles.withImage : ""]
+                .filter(Boolean)
+                .join(" ");
+              const accessibilityLabel = `${label}${selected ? ", επιλεγμένο" : ""}${unavailable ? ", μη διαθέσιμο" : ""}`;
 
-          return (
-            <a
-              key={option.canonicalVariantId}
-              href={hrefForOption(option)}
-              className={className}
-              aria-current={selected ? "page" : undefined}
-              aria-label={accessibilityLabel}
-            >
-              {option.imageSrc ? (
-                <span className={styles.imageFrame}>
-                  <img src={option.imageSrc} alt={option.imageAlt ?? label} loading={selected ? "eager" : "lazy"} />
-                </span>
-              ) : null}
+              return (
+                <a
+                  key={option.canonicalVariantId}
+                  href={hrefForOption(option)}
+                  className={className}
+                  aria-current={selected ? "page" : undefined}
+                  aria-label={accessibilityLabel}
+                >
+                  {option.imageSrc ? (
+                    <span className={styles.imageFrame}>
+                      <img src={option.imageSrc} alt={option.imageAlt ?? label} loading={selected ? "eager" : "lazy"} />
+                    </span>
+                  ) : null}
 
-              <span className={styles.optionBody}>
-                {!option.imageSrc && color ? <span className={styles.swatch} style={swatchStyle(color)} aria-hidden="true" /> : null}
-                <span className={styles.label}>{label}</span>
-                {selected ? <span className={styles.check} aria-hidden="true">✓</span> : null}
-              </span>
-            </a>
-          );
-        })}
-      </div>
-    </section>
+                  <span className={styles.optionBody}>
+                    {!option.imageSrc && color ? <span className={styles.swatch} style={swatchStyle(color)} aria-hidden="true" /> : null}
+                    <span className={styles.label}>{label}</span>
+                    {selected ? <span className={styles.check} aria-hidden="true">✓</span> : null}
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {showAlternatives ? (
+        <ProductAlternativeSelector
+          presentation={crossFamily.alternatives}
+          hrefForOption={hrefForAlternative}
+          availabilityMode={availabilityMode}
+        />
+      ) : null}
+    </>
   );
 }
