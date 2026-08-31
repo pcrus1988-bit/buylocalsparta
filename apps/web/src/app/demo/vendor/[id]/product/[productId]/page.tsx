@@ -8,6 +8,7 @@ import { SiteFooter } from "../../../../../../components/SiteFooter";
 import { SiteHeader } from "../../../../../../components/SiteHeader";
 import { getDemoProductParity, isDemoSuitabilityAttribute } from "../../../../../../lib/demo-product-parity";
 import { getDemoStorefrontVendor, getDemoVendorCatalogProduct, getDemoVendorVariantOptions, type DemoTechnicalAttribute } from "../../../../../../lib/demo-storefront";
+import { getDemoProductVariantPresentation } from "../../../../../../lib/public-product-variants";
 import { isCompatibilityPresentationKey } from "../../../../../../lib/product-presentation-guards";
 import { publicCatalogueTitleLabel } from "../../../../../../lib/public-data-integrity";
 import { storefrontCategoryForCode } from "../../../../../../lib/storefront-taxonomy";
@@ -150,7 +151,10 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
   if (!product) notFound();
 
   const siblings = await getDemoVendorVariantOptions(vendor, product);
-  const parity = await getDemoProductParity(vendor, product, siblings);
+  const [parity, variants] = await Promise.all([
+    getDemoProductParity(vendor, product, siblings),
+    getDemoProductVariantPresentation(product.id, vendor.uuid)
+  ]);
   const category = storefrontCategoryForCode(product.categoryCode);
   const vendorHref = `/demo/vendor/${encodeURIComponent(vendor.id)}`;
   const displayTitle = publicCatalogueTitleLabel(product.title);
@@ -219,9 +223,9 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
 
           <ProductVariantSelector
             currentVariantId={product.id}
-            title={parity.variantSelectorTitle}
-            options={parity.variantOptions}
-            varyingKeys={parity.varyingVariantKeys}
+            title={variants.title}
+            options={variants.options}
+            varyingKeys={variants.varyingKeys}
             availabilityMode="preview"
             hrefForOption={(option) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(option.slug)}`}
           />
