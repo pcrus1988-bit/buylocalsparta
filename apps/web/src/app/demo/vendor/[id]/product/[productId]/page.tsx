@@ -2,6 +2,7 @@ import { resolveCatalogColor } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductDetailSections, type ProductDetailRow } from "../../../../../../components/ProductDetailSections";
+import { ProductRelatedOptions } from "../../../../../../components/ProductRelatedOptions";
 import { ProductSuitability } from "../../../../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../../../../components/ProductVariantSelector";
 import { SiteFooter } from "../../../../../../components/SiteFooter";
@@ -9,6 +10,7 @@ import { SiteHeader } from "../../../../../../components/SiteHeader";
 import { getDemoProductParity, isDemoSuitabilityAttribute } from "../../../../../../lib/demo-product-parity";
 import { getDemoSemanticSourceVariantPresentation, stripCompatibilityFactsFromDescription } from "../../../../../../lib/demo-semantic-variants";
 import { getDemoStorefrontVendor, getDemoVendorCatalogProduct, getDemoVendorVariantOptions, type DemoTechnicalAttribute } from "../../../../../../lib/demo-storefront";
+import { getDemoDimensionalAlternatives } from "../../../../../../lib/product-dimensional-alternatives";
 import { isCompatibilityPresentationKey } from "../../../../../../lib/product-presentation-guards";
 import { publicCatalogueTitleLabel } from "../../../../../../lib/public-data-integrity";
 import { storefrontCategoryForCode } from "../../../../../../lib/storefront-taxonomy";
@@ -154,10 +156,13 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
   const product = await getDemoVendorCatalogProduct(vendor, productId);
   if (!product) notFound();
 
-  const siblings = await getDemoVendorVariantOptions(vendor, product);
+  const [siblings, relatedOptionGroups] = await Promise.all([
+    getDemoVendorVariantOptions(vendor, product),
+    getDemoDimensionalAlternatives(product.id, vendor.uuid)
+  ]);
   const parity = await getDemoProductParity(vendor, product, siblings);
   const sourceVariantPresentation = getDemoSemanticSourceVariantPresentation(product, siblings);
-  const hasCanonicalVariantChoice = parity.variantOptions.length > 1;
+  const hasCanonicalVariantChoice = parity.variantOptions.length > 1 && parity.varyingVariantKeys.size > 0;
   const variantOptions = hasCanonicalVariantChoice ? parity.variantOptions : sourceVariantPresentation.options;
   const varyingVariantKeys = hasCanonicalVariantChoice ? parity.varyingVariantKeys : sourceVariantPresentation.varyingKeys;
   const variantSelectorTitle = hasCanonicalVariantChoice ? parity.variantSelectorTitle : sourceVariantPresentation.title;
@@ -272,6 +277,12 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
 
           <ProductSuitability
             suitability={parity.suitability}
+            mode="demo"
+            hrefForProduct={(target) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(target.slug)}`}
+          />
+
+          <ProductRelatedOptions
+            groups={relatedOptionGroups}
             mode="demo"
             hrefForProduct={(target) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(target.slug)}`}
           />
