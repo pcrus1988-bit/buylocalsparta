@@ -92,7 +92,7 @@ SELECT
   true,
   false,
   resolved.sort_order,
-  NULL,
+  4,
   NULL,
   now(),
   now()
@@ -134,7 +134,7 @@ BEGIN
       AND pta.comparable=true
       AND pta.variant_defining=true
       AND pta.allow_multiple=false
-      AND pta.variant_axis_order IS NULL
+      AND pta.variant_axis_order=4
     );
 
   IF v_invalid_count <> 0 THEN
