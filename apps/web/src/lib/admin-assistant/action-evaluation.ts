@@ -1,6 +1,37 @@
-import type { AdminAssistantActionEvaluation, AdminAssistantRecentAction, AdminAssistantSnapshot } from "./types";
+import type { SessionPrincipal } from "@buy-local-sparta/core";
+import { adminOperationsWorkspace, hasAdminPermission } from "../admin-runtime";
+import { recordAssistantToolAudit } from "./repository";
+import type { AdminAssistantActionEvaluation, AdminAssistantActionStateChange, AdminAssistantRecentAction, AdminAssistantSnapshot } from "./types";
 
 const ACTION_WINDOW_MS = 15 * 60 * 1_000;
+const SAFE_STATE_FIELDS = [
+  "status", "state", "active", "enabled", "visible", "visibility", "verified", "approved", "published", "indexable", "redeemable",
+  "approvalStatus", "reviewStatus", "transmissionStatus", "paymentStatus", "fulfilmentStatus", "freshnessStatus"
+] as const;
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function safeScalar(value: unknown): string | undefined {
+  if (typeof value === "boolean" || typeof value === "number") return String(value).slice(0, 80);
+  if (typeof value === "string" && value.length <= 80 && !/[\r\n]/.test(value)) return value;
+  return undefined;
+}
+
+function safeStateChanges(beforeValue: unknown, afterValue: unknown): readonly AdminAssistantActionStateChange[] {
+  const before = record(beforeValue);
+  const after = record(afterValue);
+  const changes: AdminAssistantActionStateChange[] = [];
+  for (const field of SAFE_STATE_FIELDS) {
+    const previous = safeScalar(before?.[field]);
+    const next = safeScalar(after?.[field]);
+    if (previous === undefined && next === undefined) continue;
+    if (previous === next && previous !== undefined) continue;
+    changes.push({ field, before: previous, after: next });
+  }
+  return changes.slice(0, 8);
+}
 
 function actionDomain(action: string): AdminAssistantSnapshot["context"]["domain"] | undefined {
   const normalized = action.toLocaleLowerCase("en");
@@ -50,23 +81,43 @@ function summarizeChanges(action: AdminAssistantRecentAction): readonly string[]
   });
 }
 
-export function evaluateRecentAdminActions(snapshot: AdminAssistantSnapshot, now = Date.now()): AdminAssistantSnapshot {
-  const recent = snapshot.recentActions
+export async function evaluateRecentAdminActions(
+  principal: SessionPrincipal,
+  snapshot: AdminAssistantSnapshot,
+  now = Date.now()
+): Promise<AdminAssistantSnapshot> {
+  if (!hasAdminPermission(principal, "admin.audit.read")) return { ...snapshot, actionEvaluations: [] };
+  const startedAt = Date.now();
+  const operations = await adminOperationsWorkspace(principal).catch(() => undefined);
+  if (!operations) {
+    await recordAssistantToolAudit(principal, { toolName: "evaluateAdminActionImpact", parameters: { route: snapshot.context.route }, resultState: "error", error: "audit_unavailable", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    return { ...snapshot, actionEvaluations: [] };
+  }
+
+  const safeActions: AdminAssistantRecentAction[] = operations.audit
+    .filter((entry) => !entry.actorId || entry.actorId === principal.userId)
+    .slice(0, 8)
+    .map((entry) => ({
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      createdAt: entry.createdAt,
+      stateChanges: safeStateChanges(entry.before, entry.after),
+      hasBeforeState: Boolean(record(entry.before)),
+      hasAfterState: Boolean(record(entry.after))
+    }));
+
+  const recent = safeActions
     .filter((action) => action.createdAt !== undefined && now - action.createdAt <= ACTION_WINDOW_MS)
     .filter((action) => relevantToContext(action, snapshot))
     .slice(0, 3);
-  if (!recent.length) return { ...snapshot, actionEvaluations: [] };
 
   const evaluations: AdminAssistantActionEvaluation[] = recent.map((action, index) => {
     const changes = summarizeChanges(action);
     const expected = expectedState(action.action);
     const observed = stateValue(action);
     const targetConfirmed = expected !== undefined && observed === expected;
-    const outcome: AdminAssistantActionEvaluation["outcome"] = targetConfirmed
-      ? "confirmed"
-      : changes.length
-        ? "changed"
-        : "recorded";
+    const outcome: AdminAssistantActionEvaluation["outcome"] = targetConfirmed ? "confirmed" : changes.length ? "changed" : "recorded";
     const residual = snapshot.findings
       .filter((finding) => finding.severity === "critical" || finding.severity === "warning")
       .slice(0, 3)
@@ -75,7 +126,7 @@ export function evaluateRecentAdminActions(snapshot: AdminAssistantSnapshot, now
     const summary = targetConfirmed
       ? `${action.action} on ${entity} is confirmed by the recorded resulting state (${expected}).`
       : changes.length
-        ? `${action.action} on ${entity} produced ${changes.length} safe operational state change${changes.length === 1 ? "" : "s"} in the Admin audit evidence.`
+        ? `${action.action} on ${entity} produced ${changes.length} allowlisted operational state change${changes.length === 1 ? "" : "s"} in the Admin audit evidence.`
         : `${action.action} on ${entity} is recorded in the Admin audit trail, but no allowlisted scalar before/after state was stored, so the assistant will not invent an impact.`;
     const recommendation = residual.length
       ? `The refreshed page still reports ${residual.length} warning/critical finding${residual.length === 1 ? "" : "s"}; review those before treating the action as full resolution.`
@@ -97,5 +148,12 @@ export function evaluateRecentAdminActions(snapshot: AdminAssistantSnapshot, now
     };
   });
 
-  return { ...snapshot, actionEvaluations: evaluations };
+  await recordAssistantToolAudit(principal, {
+    toolName: "evaluateAdminActionImpact",
+    parameters: { route: snapshot.context.route, inspectedEvents: safeActions.length },
+    resultState: "ok",
+    durationMs: Date.now() - startedAt
+  }).catch(() => undefined);
+
+  return { ...snapshot, recentActions: safeActions, actionEvaluations: evaluations };
 }
