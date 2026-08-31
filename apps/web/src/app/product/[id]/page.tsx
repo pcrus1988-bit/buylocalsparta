@@ -9,6 +9,7 @@ import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTra
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
+import { ProductRelatedOptions } from "../../../components/ProductRelatedOptions";
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
@@ -24,6 +25,8 @@ import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../lib/public-product-detail";
 import { getPublicProductSuitability, isPublicSuitabilityAttribute } from "../../../lib/public-product-suitability";
 import { getPublicProductVariantOptions } from "../../../lib/public-product-variants";
+import { getPublicSemanticSourceVariantPresentation } from "../../../lib/public-semantic-variants";
+import { getPublicDimensionalAlternatives } from "../../../lib/product-dimensional-alternatives";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "../../../lib/product-presentation-guards";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
@@ -236,10 +239,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
 
   const displayTitle = publicCatalogueTitleLabel(product.title);
-  const [detail, approvedGallery, variantOptions] = await Promise.all([
+  const [detail, approvedGallery, canonicalVariantOptions, sourceVariantPresentation, relatedOptionGroups] = await Promise.all([
     getPublicProductDetail(product.id),
     approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId }),
-    getPublicProductVariantOptions(product.id)
+    getPublicProductVariantOptions(product.id),
+    getPublicSemanticSourceVariantPresentation(product.id),
+    getPublicDimensionalAlternatives(product.id)
   ]);
   const mediaGallery = approvedGallery.length
     ? approvedGallery
@@ -304,18 +309,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
     value: attribute.value
   }));
 
-  const variantValues = new Map<string, Set<string>>();
-  for (const option of variantOptions) {
+  const canonicalVariantValues = new Map<string, Set<string>>();
+  for (const option of canonicalVariantOptions) {
     for (const attribute of option.attributes) {
-      const values = variantValues.get(attribute.kind) ?? new Set<string>();
+      const values = canonicalVariantValues.get(attribute.kind) ?? new Set<string>();
       values.add(attribute.value);
-      variantValues.set(attribute.kind, values);
+      canonicalVariantValues.set(attribute.kind, values);
     }
   }
-  const varyingVariantKinds = new Set([...variantValues.entries()].filter(([, values]) => values.size > 1).map(([kind]) => kind));
-  const varyingVariantKeys = new Set(variantOptions.flatMap((option) => option.attributes.filter((attribute) => varyingVariantKinds.has(attribute.kind)).map((attribute) => attribute.key)));
-  const variantDimensionLabels = [...new Set(variantOptions.flatMap((option) => option.attributes.filter((attribute) => varyingVariantKinds.has(attribute.kind)).map((attribute) => attribute.label)))];
-  const variantSelectorTitle = variantDimensionLabels.length === 1 ? variantDimensionLabels[0] : "Επιλογή παραλλαγής";
+  const canonicalVaryingKinds = new Set([...canonicalVariantValues.entries()].filter(([, values]) => values.size > 1).map(([kind]) => kind));
+  const canonicalVaryingKeys = new Set(canonicalVariantOptions.flatMap((option) => option.attributes.filter((attribute) => canonicalVaryingKinds.has(attribute.kind)).map((attribute) => attribute.key)));
+  const canonicalDimensionLabels = [...new Set(canonicalVariantOptions.flatMap((option) => option.attributes.filter((attribute) => canonicalVaryingKinds.has(attribute.kind)).map((attribute) => attribute.label)))];
+  const hasCanonicalVariantChoice = canonicalVariantOptions.length > 1 && canonicalVaryingKeys.size > 0;
+  const variantOptions = hasCanonicalVariantChoice ? canonicalVariantOptions : sourceVariantPresentation.options;
+  const varyingVariantKeys = hasCanonicalVariantChoice ? canonicalVaryingKeys : sourceVariantPresentation.varyingKeys;
+  const variantSelectorTitle = hasCanonicalVariantChoice
+    ? canonicalDimensionLabels.length === 1 ? canonicalDimensionLabels[0] : "Επιλογή παραλλαγής"
+    : sourceVariantPresentation.title;
 
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   const override = findSeoEntityOverride(overrides.entries, reference);
@@ -434,6 +444,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           ) : null}
 
           <ProductSuitability suitability={suitability} />
+
+          <ProductRelatedOptions groups={relatedOptionGroups} />
 
           <ProductDetailSections technicalRows={technicalRows} packagingRows={packagingRows} />
 
