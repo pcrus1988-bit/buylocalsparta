@@ -201,6 +201,7 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
     label: attribute.label,
     value: attribute.value
   }));
+  const demoProductHref = (slug: string) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(slug)}`;
 
   return (
     <main>
@@ -227,7 +228,9 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
             options={variants.options}
             varyingKeys={variants.varyingKeys}
             availabilityMode="preview"
-            hrefForOption={(option) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(option.slug)}`}
+            catalogScope={{ mode: "demo", vendorId: vendor.uuid }}
+            hrefForOption={(option) => demoProductHref(option.slug)}
+            hrefForAlternative={(option) => demoProductHref(option.slug)}
           />
 
           <div className="purchase-card" style={{ marginTop: 18 }}>
@@ -263,7 +266,7 @@ export default async function DemoProductPage({ params }: { params: Promise<{ id
           <ProductSuitability
             suitability={parity.suitability}
             mode="demo"
-            hrefForProduct={(target) => `/demo/vendor/${encodeURIComponent(vendor.id)}/product/${encodeURIComponent(target.slug)}`}
+            hrefForProduct={(target) => demoProductHref(target.slug)}
           />
 
           <ProductDetailSections technicalRows={technicalRows} packagingRows={packagingRows} />
