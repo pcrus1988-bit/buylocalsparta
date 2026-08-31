@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [evaluation, phase1, types, shell] = await Promise.all([
+const [evaluation, phase1, types, shell, service, prompt] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/action-evaluation.ts"),
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/types.ts"),
-  read("apps/web/src/components/AdminAssistantShell.tsx")
+  read("apps/web/src/components/AdminAssistantShell.tsx"),
+  read("apps/web/src/lib/admin-assistant/service.ts"),
+  read("apps/web/src/lib/admin-assistant/prompt.ts")
 ]);
 
 assert.match(evaluation, /adminOperationsWorkspace/);
@@ -38,6 +40,15 @@ assert.match(types, /AdminAssistantActionStateChange/);
 assert.match(types, /AdminAssistantActionEvaluation/);
 assert.match(types, /outcome: "confirmed" \| "changed" \| "recorded"/);
 assert.match(types, /actionEvaluations\?: readonly AdminAssistantActionEvaluation\[\]/);
+
+assert.match(service, /snapshot\.actionEvaluations\?\.slice\(0, 3\)/);
+assert.match(service, /did that work/);
+assert.match(service, /Latest Admin action evaluation/);
+assert.match(service, /latest\.summary/);
+assert.match(service, /latest\.recommendation/);
+assert.match(service, /actionEvaluations: input\.snapshot\.actionEvaluations/);
+assert.match(prompt, /trusted action-evaluation evidence/i);
+assert.match(prompt, /Do not infer success from the action name alone/i);
 
 // Existing shell already renders snapshot summary/findings, so proactive action-impact
 // findings must be visible without introducing a new unsafe execution surface.
