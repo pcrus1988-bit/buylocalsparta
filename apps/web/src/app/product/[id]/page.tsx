@@ -9,6 +9,7 @@ import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTra
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
+import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -21,6 +22,7 @@ import { productIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getCrawlerCatalogCard } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getPublicProductDetail, type PublicTechnicalAttribute } from "../../../lib/public-product-detail";
+import { getPublicProductSuitability, isPublicSuitabilityAttribute } from "../../../lib/public-product-suitability";
 import { getPublicProductVariantOptions } from "../../../lib/public-product-variants";
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
@@ -245,6 +247,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const suitability = await getPublicProductSuitability(product.id, technicalAttributes);
   const packagingAttributes = technicalAttributes.filter(isPackagingAttribute);
   const displayBrand = product.brand ?? detail?.brand;
   const displayGtin = product.gtin ?? detail?.sourceGtin;
@@ -267,6 +270,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ].filter(Boolean));
   const productTechnicalAttributes = technicalAttributes
     .filter((attribute) => !isPackagingAttribute(attribute))
+    .filter((attribute) => !isPublicSuitabilityAttribute(attribute))
     .filter((attribute) => !explicitTechnicalKeys.has(attribute.key));
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
@@ -421,6 +425,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <p style={{ whiteSpace: "pre-line", marginTop: 10 }}>{displayDescription}</p>
             </section>
           ) : null}
+
+          <ProductSuitability suitability={suitability} />
 
           <ProductDetailSections technicalRows={technicalRows} packagingRows={packagingRows} />
 
