@@ -1,6 +1,6 @@
 -- Buy Local Sparta — autonomous catalogue intelligence refresh queue.
--- Import evidence schedules a debounced refresh. Repeated writes move the same
--- snapshot forward instead of classifying partial supplier or Icecat payloads.
+-- Import evidence schedules a debounced refresh. A lease-safe worker processes
+-- due snapshots; pg_cron runs it every minute where the extension is available.
 
 BEGIN;
 
@@ -22,12 +22,13 @@ CREATE TABLE public.catalog_intelligence_refresh_queue (
 );
 
 CREATE INDEX catalog_intelligence_refresh_queue_ready_idx
-  ON public.catalog_intelligence_refresh_queue(not_before,updated_at,snapshot_id);
+  ON public.catalog_intelligence_refresh_queue(not_before,lease_until,updated_at,snapshot_id);
 
 COMMENT ON TABLE public.catalog_intelligence_refresh_queue IS
-  'Debounced, lease-safe queue that runs catalogue intelligence only after source evidence for a snapshot has gone quiet. One row per snapshot makes repeated supplier and Icecat writes converge idempotently.';
+  'Debounced lease-safe queue for deterministic catalogue intelligence. One row per snapshot makes repeated supplier and Icecat writes converge idempotently.';
 
 ALTER TABLE public.catalog_intelligence_refresh_queue ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY bls_platform_runtime_all ON public.catalog_intelligence_refresh_queue
   FOR ALL
   USING ((SELECT bls_private.is_platform_runtime()))
@@ -68,9 +69,13 @@ BEGIN
     snapshot_id,source_id,not_before,attempt_count,last_error,created_at,updated_at
   )
   VALUES (
-    p_snapshot_id,p_source_id,
+    p_snapshot_id,
+    p_source_id,
     now()+make_interval(secs=>p_delay_seconds),
-    0,NULL,now(),now()
+    0,
+    NULL,
+    now(),
+    now()
   )
   ON CONFLICT (snapshot_id) DO UPDATE
   SET source_id=EXCLUDED.source_id,
@@ -83,12 +88,6 @@ BEGIN
 END
 $$;
 
-REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) TO bls_platform_runtime;
-
-COMMENT ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) IS
-  'Schedules one debounced intelligence refresh per source snapshot. Repeated evidence writes extend not_before and never discard an active lease.';
-
 CREATE OR REPLACE FUNCTION bls_private.enqueue_catalog_intelligence_from_source_product()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -96,7 +95,11 @@ SECURITY DEFINER
 SET search_path=pg_catalog,public,bls_private
 AS $$
 BEGIN
-  PERFORM bls_private.enqueue_catalog_intelligence_refresh(NEW.source_id,NEW.snapshot_id,90);
+  PERFORM bls_private.enqueue_catalog_intelligence_refresh(
+    NEW.source_id,
+    NEW.snapshot_id,
+    90
+  );
   RETURN NEW;
 END
 $$;
@@ -117,15 +120,25 @@ BEGIN
   WHERE sp.id=NEW.source_product_id;
 
   IF v_source_id IS NOT NULL AND v_snapshot_id IS NOT NULL THEN
-    PERFORM bls_private.enqueue_catalog_intelligence_refresh(v_source_id,v_snapshot_id,90);
+    PERFORM bls_private.enqueue_catalog_intelligence_refresh(
+      v_source_id,
+      v_snapshot_id,
+      90
+    );
   END IF;
 
   RETURN NEW;
 END
 $$;
 
+REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_from_source_product() FROM PUBLIC;
 REVOKE ALL ON FUNCTION bls_private.enqueue_catalog_intelligence_from_attribute_observation() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) TO bls_platform_runtime;
+
+COMMENT ON FUNCTION bls_private.enqueue_catalog_intelligence_refresh(uuid,uuid,integer) IS
+  'Schedules one debounced intelligence refresh per exact source snapshot. Repeated evidence writes extend not_before.';
 
 CREATE TRIGGER catalog_source_products_schedule_intelligence
 AFTER INSERT OR UPDATE OF snapshot_id,source_taxonomy_node_id,source_identity,normalized_payload
@@ -139,9 +152,105 @@ ON public.catalog_source_attribute_observations
 FOR EACH ROW
 EXECUTE FUNCTION bls_private.enqueue_catalog_intelligence_from_attribute_observation();
 
--- Seed the queue for existing unresolved catalogue evidence so the first worker
--- deployment immediately picks up sources such as Poshmarket without requiring
--- a new import to occur.
+CREATE OR REPLACE FUNCTION bls_private.process_catalog_intelligence_refresh_queue(
+  p_worker_id text,
+  p_limit integer DEFAULT 10,
+  p_lease_seconds integer DEFAULT 180
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path=pg_catalog,public,bls_private
+AS $$
+DECLARE
+  v_row public.catalog_intelligence_refresh_queue%ROWTYPE;
+  v_result jsonb;
+  v_processed integer := 0;
+  v_succeeded integer := 0;
+  v_failed integer := 0;
+  v_error text;
+  v_retry_seconds integer;
+BEGIN
+  IF p_worker_id IS NULL OR btrim(p_worker_id)='' THEN
+    RAISE EXCEPTION 'Catalogue intelligence worker id is required';
+  END IF;
+
+  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 100 THEN
+    RAISE EXCEPTION 'Catalogue intelligence worker limit must be between 1 and 100';
+  END IF;
+
+  IF p_lease_seconds IS NULL OR p_lease_seconds < 30 OR p_lease_seconds > 1800 THEN
+    RAISE EXCEPTION 'Catalogue intelligence lease must be between 30 and 1800 seconds';
+  END IF;
+
+  FOR v_row IN
+    WITH candidates AS (
+      SELECT q.snapshot_id
+      FROM public.catalog_intelligence_refresh_queue q
+      WHERE q.not_before<=now()
+        AND (q.lease_until IS NULL OR q.lease_until<now())
+      ORDER BY q.not_before,q.updated_at,q.snapshot_id
+      FOR UPDATE SKIP LOCKED
+      LIMIT p_limit
+    )
+    UPDATE public.catalog_intelligence_refresh_queue q
+    SET lease_owner=p_worker_id,
+        lease_until=now()+make_interval(secs=>p_lease_seconds),
+        attempt_count=q.attempt_count+1,
+        updated_at=now()
+    FROM candidates c
+    WHERE q.snapshot_id=c.snapshot_id
+    RETURNING q.*
+  LOOP
+    v_processed:=v_processed+1;
+
+    BEGIN
+      v_result:=bls_private.refresh_catalog_intelligence(
+        v_row.source_id,
+        v_row.snapshot_id
+      );
+
+      DELETE FROM public.catalog_intelligence_refresh_queue
+      WHERE snapshot_id=v_row.snapshot_id
+        AND lease_owner=p_worker_id;
+
+      v_succeeded:=v_succeeded+1;
+    EXCEPTION WHEN OTHERS THEN
+      v_error:=SQLERRM;
+      v_retry_seconds:=LEAST(
+        3600,
+        30*GREATEST(1,v_row.attempt_count)
+      );
+
+      UPDATE public.catalog_intelligence_refresh_queue
+      SET lease_owner=NULL,
+          lease_until=NULL,
+          last_error=left(v_error,2000),
+          not_before=now()+make_interval(secs=>v_retry_seconds),
+          updated_at=now()
+      WHERE snapshot_id=v_row.snapshot_id
+        AND lease_owner=p_worker_id;
+
+      v_failed:=v_failed+1;
+    END;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'workerId',p_worker_id,
+    'processed',v_processed,
+    'succeeded',v_succeeded,
+    'failed',v_failed
+  );
+END
+$$;
+
+REVOKE ALL ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue(text,integer,integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue(text,integer,integer) TO bls_platform_runtime;
+
+COMMENT ON FUNCTION bls_private.process_catalog_intelligence_refresh_queue(text,integer,integer) IS
+  'Claims due catalogue-intelligence snapshots with SKIP LOCKED, processes them exactly by source UUID, deletes successes, and retries failures with bounded backoff.';
+
+-- Seed only the newest unresolved snapshot per active source.
 WITH unresolved_snapshots AS (
   SELECT DISTINCT s.source_id,s.id AS snapshot_id,s.observed_at,s.created_at
   FROM public.catalog_source_snapshots s
@@ -178,5 +287,27 @@ FROM latest_per_source
 ON CONFLICT (snapshot_id) DO UPDATE
 SET not_before=LEAST(public.catalog_intelligence_refresh_queue.not_before,now()),
     updated_at=now();
+
+-- Production has pg_cron; other environments may omit it and call the worker
+-- from their normal background runner instead.
+DO $cron$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN
+    IF EXISTS (
+      SELECT 1
+      FROM cron.job
+      WHERE jobname='bls_catalog_intelligence_1m'
+    ) THEN
+      PERFORM cron.unschedule('bls_catalog_intelligence_1m');
+    END IF;
+
+    PERFORM cron.schedule(
+      'bls_catalog_intelligence_1m',
+      '* * * * *',
+      $job$SELECT bls_private.process_catalog_intelligence_refresh_queue('pg_cron:catalog-intelligence',10,180);$job$
+    );
+  END IF;
+END
+$cron$;
 
 COMMIT;
