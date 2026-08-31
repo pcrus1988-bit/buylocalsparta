@@ -655,13 +655,13 @@ export function productVariantPresentation(options: readonly PublicProductVarian
   const varyingKeys = new Set([...valuesByKey.entries()]
     .filter(([, values]) => values.size > 1)
     .map(([key]) => key));
-  const meaningfulOptions = options.filter((option) => option.attributes.some((attribute) => varyingKeys.has(attribute.key)));
-  if (meaningfulOptions.length < 2 || varyingKeys.size === 0) {
-    return { options: [], varyingKeys: new Set<string>(), title: "Επιλογή παραλλαγής" };
+  if (varyingKeys.size === 0) {
+    return { options, varyingKeys, title: "Επιλογή παραλλαγής" };
   }
+  const meaningfulOptions = options.filter((option) => option.attributes.some((attribute) => varyingKeys.has(attribute.key)));
   const labels = [...varyingKeys].map((key) => labelByKey.get(key)).filter((label): label is string => Boolean(label));
   return {
-    options: meaningfulOptions,
+    options: meaningfulOptions.length >= 2 ? meaningfulOptions : options,
     varyingKeys,
     title: labels.length === 1 ? labels[0] : "Επιλογή παραλλαγής"
   };
@@ -676,7 +676,7 @@ async function governedProductVariantPresentation(canonicalVariantId: string, sc
     const axes = await governedAxes(context.product_type_id);
     if (!axes.length) return productVariantPresentation([]);
     const rows = await candidateRows(context, scope);
-    if (rows.length < 2) return productVariantPresentation([]);
+    if (!rows.length) return productVariantPresentation([]);
     const evidence = await evidenceRows(rows.map((row) => row.canonical_uuid), axes);
     const options = buildOptions(
       rows,
