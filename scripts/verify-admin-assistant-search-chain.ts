@@ -29,7 +29,9 @@ assert.match(service, /openSupport=/);
 assert.match(service, /openPrivacy=/);
 assert.match(service, /notificationFailures=/);
 assert.match(service, /email verified:/i);
-assert.doesNotMatch(service, /customerRow\.(?:email|phone|addresses|supportNotes|messageBody)/);
+// `emailVerified` is a boolean identity-state signal and is intentionally allowed;
+// exact contact/body properties remain forbidden in deterministic output code.
+assert.doesNotMatch(service, /customerRow\.(?:email|phone|addresses|supportNotes|messageBody)\b/);
 
 // Customer follow-up remains privacy-minimized: the support match only hands over customer id.
 assert.doesNotMatch(search, /support.*(?:note|messageBody|emailBody|address)/i);
