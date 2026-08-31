@@ -50,10 +50,11 @@ assert.match(service, /actionEvaluations: input\.snapshot\.actionEvaluations/);
 assert.match(prompt, /trusted action-evaluation evidence/i);
 assert.match(prompt, /Do not infer success from the action name alone/i);
 
-// Existing shell already renders snapshot summary/findings, so proactive action-impact
-// findings must be visible without introducing a new unsafe execution surface.
+// Existing shell renders only the server-composed snapshot summary/findings. The
+// local completion event may contain a bounded afterState hint, but raw audit
+// state changes/evaluations are never rendered directly by the client.
 assert.match(shell, /snapshot\.summary/);
 assert.match(shell, /snapshot\.findings/);
-assert.doesNotMatch(shell, /beforeState|afterState|audit\.reason/);
+assert.doesNotMatch(shell, /snapshot\.actionEvaluations|\.stateChanges|audit\.reason/);
 
 console.log("Admin Assistant action evaluation verifier passed.");
