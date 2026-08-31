@@ -31,6 +31,7 @@ export type PublicProductAlternativePresentation = Readonly<{
 }>;
 
 export type PublicCrossFamilyChoices = Readonly<{
+  currentVariantAttributes: readonly PublicProductVariantAttribute[];
   variantExtensions: readonly PublicProductVariantOption[];
   alternatives: PublicProductAlternativePresentation;
 }>;
@@ -43,6 +44,7 @@ type ChoiceScope = Readonly<
 type ProductContextRow = SqlRow & {
   canonical_uuid: string;
   canonical_public_id: string;
+  slug: string;
   family_id: string | null;
   market_id: string;
   category_id: string;
@@ -52,6 +54,7 @@ type ProductContextRow = SqlRow & {
   source_id: string | null;
   source_product_id: string | null;
   source_title: string | null;
+  source_model: string | null;
   source_family_key: string | null;
   normalized_payload: unknown;
   raw_payload: unknown;
@@ -80,6 +83,7 @@ type CandidateRow = SqlRow & {
   variant_attributes: unknown;
   source_product_id: string;
   source_title: string;
+  source_model: string | null;
   source_family_key: string | null;
   normalized_payload: unknown;
   raw_payload: unknown;
@@ -160,11 +164,19 @@ type Candidate = Readonly<{
   identity: string;
 }>;
 
+type SeriesRelation = Readonly<{
+  candidate: Candidate;
+  promotedFamilyIds: ReadonlySet<string>;
+}>;
+
 type UnitConversion = Readonly<{ source: string; factor: number }>;
 
 const COMPATIBILITY_ATTRIBUTE_PATTERN = /(?:^|_)(?:compatib|compatible|compatibility|suitable_for|supported_models?|works_with|fitment|platform_compatible)(?:_|$)/u;
-const CODELIKE_TOKEN = /\b(?=[\p{L}\p{N}._/-]{2,16}\b)(?=[\p{L}\p{N}._/-]*\d)[A-ZΑ-Ω][A-ZΑ-Ω0-9._/-]*\b/giu;
 const CODELIKE_PAREN = /\((?=[^)]{1,18}\))(?=[^)]*\d)[\p{L}\p{N} ._+/-]{1,18}\)/giu;
+
+function emptyChoices(): PublicCrossFamilyChoices {
+  return { currentVariantAttributes: [], variantExtensions: [], alternatives: { options: [], title: "Άλλες επιλογές" } };
+}
 
 function normalizedKey(value: string): string {
   return value
@@ -172,6 +184,7 @@ function normalizedKey(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("el")
+    .replace(/(^|_)colour(?=_|$)/g, "$1color")
     .replace(/[^\p{L}\p{N}]+/gu, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -194,6 +207,14 @@ function normalizedComparable(value: string): string {
     .replace(/[^\p{L}\p{N}.,+/%-]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizedModel(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -247,7 +268,7 @@ function camelCaseKey(code: string): string {
 function semanticKind(code: string, label: string, groupCode?: string): PublicProductVariantKind {
   const semantic = normalizedKey(`${code}_${label}_${groupCode ?? ""}`);
   if (semantic.includes("temperature")) return "other";
-  if (semantic.includes("colour") || semantic.includes("color") || semantic.includes("shade")) return "color";
+  if (semantic.includes("color") || semantic.includes("shade")) return "color";
   if (semantic.includes("diameter") || semantic.includes("διαμετρ")) return "diameter";
   if (semantic.includes("width") || semantic.includes("πλατ")) return "width";
   if (semantic.includes("height") || semantic.includes("drop") || semantic.includes("υψ")) return "height";
@@ -263,7 +284,7 @@ function semanticKind(code: string, label: string, groupCode?: string): PublicPr
 
 function presentedLabel(attribute: SemanticAttribute): string {
   const code = normalizedKey(attribute.code);
-  if (attribute.kind === "color" && ["manufacturer_colour", "manufacturer_color", "colour", "color"].includes(code)) return "Χρώμα";
+  if (attribute.kind === "color" && ["manufacturer_color", "color"].includes(code)) return "Χρώμα";
   return attribute.label;
 }
 
@@ -283,7 +304,7 @@ function withUnit(value: string, unit?: string): string {
   return `${trimmed} ${displayUnit}`;
 }
 
-function normalizeUnit(value: string | undefined): string | undefined {
+function normalizeUnit(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   const unit = value.trim().toLocaleLowerCase("en").replace(/\s+/g, "");
   if (["l", "lt", "ltr", "litre", "liter"].includes(unit)) return "l";
@@ -291,23 +312,23 @@ function normalizeUnit(value: string | undefined): string | undefined {
   if (["w", "watt", "watts"].includes(unit)) return "w";
   if (["kw", "kilowatt", "kilowatts"].includes(unit)) return "kw";
   if (["v", "volt", "volts"].includes(unit)) return "v";
-  if (["mv"].includes(unit)) return "mv";
+  if (unit === "mv") return "mv";
   if (["gb", "gbyte", "gbytes"].includes(unit)) return "gb";
   if (["tb", "tbyte", "tbytes"].includes(unit)) return "tb";
   if (["mb", "mbyte", "mbytes"].includes(unit)) return "mb";
-  if (["mm"].includes(unit)) return "mm";
-  if (["cm"].includes(unit)) return "cm";
+  if (unit === "mm") return "mm";
+  if (unit === "cm") return "cm";
   if (["m", "metre", "meter"].includes(unit)) return "m";
   if (["g", "gram", "grams"].includes(unit)) return "g";
   if (["kg", "kilogram", "kilograms"].includes(unit)) return "kg";
   if (["in", "inch", "inches", "\"", "″"].includes(unit)) return "in";
-  if (["mah"].includes(unit)) return "mah";
-  if (["k"].includes(unit)) return "k";
+  if (unit === "mah") return "mah";
+  if (unit === "k") return "k";
   if (["%", "percent"].includes(unit)) return "%";
   return unit || undefined;
 }
 
-function unitConversions(targetUnit: string | undefined): readonly UnitConversion[] {
+function unitConversions(targetUnit: string | null | undefined): readonly UnitConversion[] {
   const target = normalizeUnit(targetUnit);
   if (!target) return [];
   const conversions: Record<string, readonly UnitConversion[]> = {
@@ -338,10 +359,20 @@ function unitAliases(unit: string): readonly string[] {
   return aliases[unit] ?? [unit];
 }
 
+function measuredNumber(value: string, targetUnit: string | undefined, sourceUnitHint?: string | null): string | undefined {
+  const match = value.trim().match(/^([+-]?[0-9]+(?:[.,][0-9]+)?)\s*([^0-9\s].*)?$/u);
+  if (!match?.[1]) return undefined;
+  const number = numericValue(match[1]);
+  if (number === undefined) return undefined;
+  const embeddedUnit = normalizeUnit(match[2]?.trim());
+  const sourceUnit = normalizeUnit(sourceUnitHint) ?? embeddedUnit ?? normalizeUnit(targetUnit);
+  const conversion = unitConversions(targetUnit).find((candidate) => candidate.source === sourceUnit);
+  return formatNumber(conversion ? number * conversion.factor : number);
+}
+
 function sourceKeyUnit(key: string): string | undefined {
   const normalized = normalizedKey(key);
-  const tail = normalized.split("_").at(-1);
-  return normalizeUnit(tail);
+  return normalizeUnit(normalized.split("_").at(-1));
 }
 
 function payloadKeys(attribute: SemanticAttribute, sameKindCount: number): readonly string[] {
@@ -355,28 +386,27 @@ function payloadKeys(attribute: SemanticAttribute, sameKindCount: number): reado
     keys.add(base);
     keys.add(camelCaseKey(base));
     if (baseTokens.length >= 2) {
-      const withoutGenericMiddle = [baseTokens[0], baseTokens.at(-1)!].join("_");
-      keys.add(withoutGenericMiddle);
-      keys.add(camelCaseKey(withoutGenericMiddle));
+      const compact = [baseTokens[0], baseTokens.at(-1)!].join("_");
+      keys.add(compact);
+      keys.add(camelCaseKey(compact));
     }
   }
   for (const conversion of unitConversions(attribute.unit)) {
-    const suffix = conversion.source;
     const base = baseTokens.join("_");
     if (base) {
-      keys.add(`${base}_${suffix}`);
-      keys.add(camelCaseKey(`${base}_${suffix}`));
+      keys.add(`${base}_${conversion.source}`);
+      keys.add(camelCaseKey(`${base}_${conversion.source}`));
     }
     if (baseTokens.length >= 2) {
       const first = baseTokens[0];
       const last = baseTokens.at(-1)!;
-      keys.add(`${first}_${suffix}`);
-      keys.add(camelCaseKey(`${first}_${suffix}`));
-      keys.add(`${last}_${suffix}`);
-      keys.add(camelCaseKey(`${last}_${suffix}`));
+      keys.add(`${first}_${conversion.source}`);
+      keys.add(camelCaseKey(`${first}_${conversion.source}`));
+      keys.add(`${last}_${conversion.source}`);
+      keys.add(camelCaseKey(`${last}_${conversion.source}`));
     }
   }
-  if (attribute.kind === "color" && sameKindCount === 1) ["color", "colour", "color_name", "colour_name"].forEach((key) => keys.add(key));
+  if (attribute.kind === "color" && sameKindCount === 1) ["color", "colour", "color_name", "colour_name"].forEach((key) => keys.add(normalizedKey(key)));
   if (attribute.kind === "size" && sameKindCount === 1) ["size", "sizes"].forEach((key) => keys.add(key));
   if (attribute.kind === "capacity" && sameKindCount === 1) ["capacity", "volume"].forEach((key) => keys.add(key));
   if (attribute.kind === "voltage" && sameKindCount === 1) keys.add("voltage");
@@ -391,23 +421,16 @@ function directPayloadValue(
   attribute: SemanticAttribute,
   sameKindCount: number
 ): ResolvedValue | undefined {
-  const records = [objectValue(payload), objectValue(variantAttributes)];
-  for (const record of records) {
-    const normalizedEntries = new Map(Object.entries(record).map(([key, value]) => [normalizedKey(key), { key, value }]));
+  for (const record of [objectValue(payload), objectValue(variantAttributes)]) {
+    const entries = new Map(Object.entries(record).map(([key, value]) => [normalizedKey(key), { key, value }]));
     for (const candidateKey of payloadKeys(attribute, sameKindCount)) {
-      const entry = normalizedEntries.get(normalizedKey(candidateKey));
+      const entry = entries.get(normalizedKey(candidateKey));
       if (!entry) continue;
       const raw = scalarValue(entry.value);
       if (!raw) continue;
       if (attribute.dataType === "number" || attribute.unit) {
-        const number = numericValue(raw);
-        if (number !== undefined) {
-          const sourceUnit = sourceKeyUnit(entry.key) ?? normalizeUnit(attribute.unit);
-          const conversion = unitConversions(attribute.unit).find((candidate) => candidate.source === sourceUnit);
-          const normalizedNumber = conversion ? number * conversion.factor : number;
-          const value = formatNumber(normalizedNumber);
-          return { value, comparableValue: value };
-        }
+        const value = measuredNumber(raw, attribute.unit, sourceKeyUnit(entry.key));
+        if (value !== undefined) return { value, comparableValue: value };
       }
       return { value: raw, comparableValue: normalizedComparable(raw) };
     }
@@ -426,8 +449,7 @@ function titleNumericValue(title: string, attribute: SemanticAttribute, unitComp
       if (!match?.[2]) continue;
       const number = numericValue(match[2]);
       if (number === undefined) continue;
-      const normalizedNumber = number * conversion.factor;
-      const value = formatNumber(normalizedNumber);
+      const value = formatNumber(number * conversion.factor);
       return { value, comparableValue: value, matchedText: match[0].trim() };
     }
   }
@@ -470,14 +492,19 @@ function alternativeAttribute(attribute: SemanticAttribute, resolved: ResolvedVa
   return { key: attribute.code, label: presentedLabel(attribute), value: withUnit(resolved.value, attribute.unit) };
 }
 
-function canonicalEvidenceValue(row: CanonicalVariantEvidenceRow | CanonicalFamilyEvidenceRow): ResolvedValue | undefined {
+function canonicalEvidenceValue(row: CanonicalVariantEvidenceRow | CanonicalFamilyEvidenceRow, attribute: SemanticAttribute): ResolvedValue | undefined {
   const raw = row.value_label?.trim()
     || row.value_code?.trim()
     || row.text_value?.trim()
     || scalarValue(row.number_value)
     || (row.boolean_value === null ? undefined : scalarValue(row.boolean_value))
     || scalarValue(row.dimension_value);
-  return raw ? { value: raw, comparableValue: normalizedComparable(raw) } : undefined;
+  if (!raw) return undefined;
+  if (attribute.dataType === "number" || attribute.unit) {
+    const value = measuredNumber(raw, attribute.unit, attribute.unit);
+    if (value !== undefined) return { value, comparableValue: value };
+  }
+  return { value: raw, comparableValue: normalizedComparable(raw) };
 }
 
 function sourceEvidenceValue(row: SourceEvidenceRow, attribute: SemanticAttribute): ResolvedValue | undefined {
@@ -487,13 +514,8 @@ function sourceEvidenceValue(row: SourceEvidenceRow, attribute: SemanticAttribut
     || scalarValue(row.raw_value);
   if (!raw) return undefined;
   if (attribute.dataType === "number" || attribute.unit) {
-    const number = numericValue(raw);
-    if (number !== undefined) {
-      const sourceUnit = normalizeUnit(row.source_unit) ?? normalizeUnit(attribute.unit);
-      const conversion = unitConversions(attribute.unit).find((candidate) => candidate.source === sourceUnit);
-      const value = formatNumber(conversion ? number * conversion.factor : number);
-      return { value, comparableValue: value };
-    }
+    const value = measuredNumber(raw, attribute.unit, row.source_unit);
+    if (value !== undefined) return { value, comparableValue: value };
   }
   return { value: raw, comparableValue: normalizedComparable(raw) };
 }
@@ -527,25 +549,52 @@ function removeNormalizedPhrase(title: string, phrase: string): string {
   if (!target) return title;
   const words = target.split(" ").filter(Boolean).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (!words.length) return title;
-  return title.replace(new RegExp(`\\b${words.join("\\s+")}\\b`, "giu"), " ");
+  const regex = new RegExp(`(^|[^\\p{L}\\p{N}])${words.join("[^\\p{L}\\p{N}]+")}(?=$|[^\\p{L}\\p{N}])`, "giu");
+  return title.replace(regex, "$1");
+}
+
+function numericPattern(value: number): string {
+  const formatted = formatNumber(value);
+  const [whole, fraction] = formatted.split(".");
+  return fraction ? `${whole}[.,]${fraction}` : `${whole}(?:[.,]0+)?`;
+}
+
+function removeNumericChoice(title: string, attribute: SemanticAttribute, resolved: ResolvedValue): string {
+  if (!attribute.unit) return title;
+  const target = numericValue(resolved.value);
+  if (target === undefined) return title;
+  let working = title;
+  for (const conversion of unitConversions(attribute.unit)) {
+    const sourceValue = target / conversion.factor;
+    for (const alias of unitAliases(conversion.source)) {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const boundary = alias === "%" || alias === "\"" || alias === "″" ? "" : "(?=$|[^\\p{L}])";
+      const regex = new RegExp(`(^|[^\\p{L}\\p{N}])${numericPattern(sourceValue)}\\s*${escaped}${boundary}`, "giu");
+      working = working.replace(regex, "$1");
+    }
+  }
+  return working;
 }
 
 function baseIdentitySignature(
   title: string,
   brandName: string | null,
+  sourceModel: string | null,
   values: ReadonlyMap<string, ResolvedValue>,
   attributes: readonly SemanticAttribute[]
 ): string {
   let working = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (brandName) working = removeNormalizedPhrase(working, brandName);
+  if (sourceModel) working = removeNormalizedPhrase(working, sourceModel);
   for (const attribute of attributes) {
     const resolved = values.get(attribute.id);
     if (!resolved) continue;
     if (resolved.matchedText) working = removeNormalizedPhrase(working, resolved.matchedText);
-    const shown = withUnit(resolved.value, attribute.unit);
-    working = removeNormalizedPhrase(working, shown);
+    working = removeNumericChoice(working, attribute, resolved);
+    working = removeNormalizedPhrase(working, withUnit(resolved.value, attribute.unit));
+    working = removeNormalizedPhrase(working, resolved.value);
   }
-  working = working.replace(CODELIKE_PAREN, " ").replace(CODELIKE_TOKEN, " ");
+  working = working.replace(CODELIKE_PAREN, " ");
   const signature = normalizedText(working)
     .split(" ")
     .filter((token) => !/^\d+(?:[.,]\d+)?$/u.test(token))
@@ -566,12 +615,113 @@ function optionIdentity(attributes: readonly PublicProductAlternativeAttribute[]
   return attributes.map((attribute) => `${attribute.key}:${normalizedComparable(attribute.value)}`).join("|");
 }
 
+function compactChoiceTokens(attribute: SemanticAttribute, resolved: ResolvedValue): readonly string[] {
+  const tokens = new Set<string>();
+  const add = (value: string) => {
+    const compact = normalizedModel(value);
+    if (compact.length >= 2) tokens.add(compact);
+  };
+  add(resolved.value);
+  if (resolved.matchedText) add(resolved.matchedText);
+  const target = numericValue(resolved.value);
+  if (target !== undefined) {
+    add(formatNumber(target));
+    for (const conversion of unitConversions(attribute.unit)) add(formatNumber(target / conversion.factor));
+  }
+  return [...tokens].sort((a, b) => b.length - a.length);
+}
+
+function modelStem(model: string, attribute: SemanticAttribute, resolved: ResolvedValue): string | undefined {
+  const source = normalizedModel(model);
+  for (const token of compactChoiceTokens(attribute, resolved)) {
+    if (!source.includes(token)) continue;
+    const stem = source.split(token).join("");
+    if (stem.length >= 3 && stem !== source) return stem;
+  }
+  return undefined;
+}
+
+function modelChoiceExplains(
+  currentModel: string,
+  candidateModel: string,
+  attribute: SemanticAttribute,
+  currentValue: ResolvedValue,
+  candidateValue: ResolvedValue
+): boolean {
+  const current = normalizedModel(currentModel);
+  const candidate = normalizedModel(candidateModel);
+  if (!current || !candidate || current === candidate) return false;
+  const currentStem = modelStem(currentModel, attribute, currentValue);
+  const candidateStem = modelStem(candidateModel, attribute, candidateValue);
+  return Boolean(currentStem && candidateStem && currentStem === candidateStem);
+}
+
+function sameSeriesRelation(
+  context: ProductContextRow,
+  candidate: Candidate,
+  currentValues: ReadonlyMap<string, ResolvedValue>,
+  attributes: readonly SemanticAttribute[],
+  currentIdentity: string
+): Readonly<{ strong: boolean; promotedFamilyIds: ReadonlySet<string> }> {
+  if (!currentIdentity || candidate.identity !== currentIdentity) return { strong: false, promotedFamilyIds: new Set() };
+  const differing = attributes.filter((attribute) => valuesDiffer(currentValues.get(attribute.id), candidate.values.get(attribute.id)) === true);
+  if (!differing.length) return { strong: false, promotedFamilyIds: new Set() };
+  const titleExplained = new Set(differing
+    .filter((attribute) => currentValues.get(attribute.id)?.matchedText && candidate.values.get(attribute.id)?.matchedText)
+    .map((attribute) => attribute.id));
+
+  if (context.source_family_key && candidate.row.source_family_key && context.source_family_key === candidate.row.source_family_key) {
+    return {
+      strong: true,
+      promotedFamilyIds: new Set(differing
+        .filter((attribute) => attribute.valueLevel === "family" && titleExplained.has(attribute.id))
+        .map((attribute) => attribute.id))
+    };
+  }
+
+  if (context.source_model && candidate.row.source_model) {
+    const currentModel = normalizedModel(context.source_model);
+    const candidateModel = normalizedModel(candidate.row.source_model);
+    if (currentModel && currentModel === candidateModel) {
+      return {
+        strong: true,
+        promotedFamilyIds: new Set(differing
+          .filter((attribute) => attribute.valueLevel === "family" && titleExplained.has(attribute.id))
+          .map((attribute) => attribute.id))
+      };
+    }
+    const explained = differing.filter((attribute) => {
+      const current = currentValues.get(attribute.id);
+      const next = candidate.values.get(attribute.id);
+      return Boolean(current && next && modelChoiceExplains(context.source_model!, candidate.row.source_model!, attribute, current, next));
+    });
+    if (explained.length) {
+      return {
+        strong: true,
+        promotedFamilyIds: new Set(explained.filter((attribute) => attribute.valueLevel === "family").map((attribute) => attribute.id))
+      };
+    }
+    return { strong: false, promotedFamilyIds: new Set() };
+  }
+
+  if (titleExplained.size) {
+    return {
+      strong: true,
+      promotedFamilyIds: new Set(differing
+        .filter((attribute) => attribute.valueLevel === "family" && titleExplained.has(attribute.id))
+        .map((attribute) => attribute.id))
+    };
+  }
+
+  return { strong: false, promotedFamilyIds: new Set() };
+}
+
 async function contextFor(canonicalVariantId: string, allowInactive: boolean): Promise<ProductContextRow | undefined> {
   const result = await getProductionPostgresRuntime().nativePool.query<ProductContextRow>(`
-    SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,cv.family_id::text AS family_id,
+    SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,cv.slug,cv.family_id::text AS family_id,
            cv.market_id::text AS market_id,cv.category_id::text AS category_id,cv.brand_id::text AS brand_id,
            brand.name AS brand_name,COALESCE(pf.product_type_id::text,source_type.product_type_id,category_default.product_type_id) AS product_type_id,
-           source_row.source_id,source_row.source_product_id,source_row.source_title,source_row.source_family_key,
+           source_row.source_id,source_row.source_product_id,source_row.source_title,source_row.source_model,source_row.source_family_key,
            source_row.normalized_payload,source_row.raw_payload,cv.variant_attributes
     FROM canonical_variants cv
     JOIN markets market ON market.id=cv.market_id AND market.code='sparta'
@@ -579,6 +729,7 @@ async function contextFor(canonicalVariantId: string, allowInactive: boolean): P
     LEFT JOIN product_families pf ON pf.id=cv.family_id
     LEFT JOIN LATERAL (
       SELECT linked.source_id::text AS source_id,linked.id::text AS source_product_id,latest.title AS source_title,
+             COALESCE(NULLIF(btrim(latest.source_identity->>'model'),''),NULLIF(btrim(latest.normalized_payload->>'model'),'')) AS source_model,
              COALESCE(NULLIF(latest.normalized_payload->>'familyKey',''),NULLIF(latest.normalized_payload->>'variantFamilyId','')) AS source_family_key,
              latest.normalized_payload,latest.raw_payload
       FROM catalog_source_product_links csl
@@ -633,9 +784,17 @@ async function semanticAttributes(productTypeId: string): Promise<readonly Seman
   return result.rows
     .filter((row) => !COMPATIBILITY_ATTRIBUTE_PATTERN.test(normalizedKey(row.attribute_code)))
     .map((row,index) => ({
-      id: row.attribute_id,code: row.attribute_code,dataType: row.data_type,unit: row.unit ?? undefined,groupCode: row.group_code ?? undefined,
-      label: row.label_el,valueLevel: row.value_level,variantDefining:Boolean(row.variant_defining),comparable:Boolean(row.comparable),
-      kind: semanticKind(row.attribute_code,row.label_el,row.group_code ?? undefined),order: row.variant_axis_order ?? 10_000 + Number(row.sort_order ?? index)
+      id: row.attribute_id,
+      code: row.attribute_code,
+      dataType: row.data_type,
+      unit: row.unit ?? undefined,
+      groupCode: row.group_code ?? undefined,
+      label: row.label_el,
+      valueLevel: row.value_level,
+      variantDefining: Boolean(row.variant_defining),
+      comparable: Boolean(row.comparable),
+      kind: semanticKind(row.attribute_code,row.label_el,row.group_code ?? undefined),
+      order: row.variant_axis_order ?? 10_000 + Number(row.sort_order ?? index)
     }));
 }
 
@@ -646,6 +805,7 @@ async function candidateRows(context: ProductContextRow, scope: ChoiceScope): Pr
   const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
     SELECT cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,cv.family_id::text AS family_id,cv.slug,cv.variant_attributes,
            latest.id::text AS source_product_id,latest.title AS source_title,
+           COALESCE(NULLIF(btrim(latest.source_identity->>'model'),''),NULLIF(btrim(latest.normalized_payload->>'model'),'')) AS source_model,
            COALESCE(NULLIF(latest.normalized_payload->>'familyKey',''),NULLIF(latest.normalized_payload->>'variantFamilyId','')) AS source_family_key,
            latest.normalized_payload,latest.raw_payload,
            CASE WHEN $8::boolean THEN true ELSE eligible.from_price_minor IS NOT NULL END AS available,
@@ -772,16 +932,24 @@ async function evidence(
   ]);
   const variant = new Map<string,ResolvedValue>();
   for (const row of variantRows.rows) {
-    const value = canonicalEvidenceValue(row); if (value && !variant.has(`${row.canonical_variant_id}:${row.attribute_id}`)) variant.set(`${row.canonical_variant_id}:${row.attribute_id}`,value);
+    const attribute = attrById.get(row.attribute_id);
+    if (!attribute) continue;
+    const value = canonicalEvidenceValue(row,attribute);
+    if (value && !variant.has(`${row.canonical_variant_id}:${row.attribute_id}`)) variant.set(`${row.canonical_variant_id}:${row.attribute_id}`,value);
   }
   const family = new Map<string,ResolvedValue>();
   for (const row of familyRows.rows) {
-    const value = canonicalEvidenceValue(row); if (value && !family.has(`${row.family_id}:${row.attribute_id}`)) family.set(`${row.family_id}:${row.attribute_id}`,value);
+    const attribute = attrById.get(row.attribute_id);
+    if (!attribute) continue;
+    const value = canonicalEvidenceValue(row,attribute);
+    if (value && !family.has(`${row.family_id}:${row.attribute_id}`)) family.set(`${row.family_id}:${row.attribute_id}`,value);
   }
   const source = new Map<string,ResolvedValue>();
   for (const row of sourceRows.rows) {
-    const attribute = attrById.get(row.attribute_id); if (!attribute) continue;
-    const value = sourceEvidenceValue(row,attribute); if (value && !source.has(`${row.source_product_id}:${row.attribute_id}`)) source.set(`${row.source_product_id}:${row.attribute_id}`,value);
+    const attribute = attrById.get(row.attribute_id);
+    if (!attribute) continue;
+    const value = sourceEvidenceValue(row,attribute);
+    if (value && !source.has(`${row.source_product_id}:${row.attribute_id}`)) source.set(`${row.source_product_id}:${row.attribute_id}`,value);
   }
   return {variant,family,source};
 }
@@ -804,7 +972,14 @@ async function compatibilityExclusions(context: ProductContextRow): Promise<Read
 }
 
 function resolvedValuesFor(
-  row: Readonly<{canonical_uuid:string;family_id:string|null;source_product_id:string|null;source_title:string|null;normalized_payload:unknown;variant_attributes:unknown}>,
+  row: Readonly<{
+    canonical_uuid:string;
+    family_id:string|null;
+    source_product_id:string|null;
+    source_title:string|null;
+    normalized_payload:unknown;
+    variant_attributes:unknown;
+  }>,
   attributes: readonly SemanticAttribute[],
   aliases: ReadonlyMap<string,readonly Readonly<{display:string;alias:string }>[]>,
   evidenceMaps: Readonly<{variant:ReadonlyMap<string,ResolvedValue>;family:ReadonlyMap<string,ResolvedValue>;source:ReadonlyMap<string,ResolvedValue>}>
@@ -814,7 +989,8 @@ function resolvedValuesFor(
   const unitCounts = new Map<string,number>();
   for (const attribute of attributes) {
     kindCounts.set(attribute.kind,(kindCounts.get(attribute.kind) ?? 0)+1);
-    const unit = normalizeUnit(attribute.unit); if (unit) unitCounts.set(unit,(unitCounts.get(unit) ?? 0)+1);
+    const unit = normalizeUnit(attribute.unit);
+    if (unit) unitCounts.set(unit,(unitCounts.get(unit) ?? 0)+1);
   }
   for (const attribute of attributes) {
     const canonicalKey = attribute.valueLevel === "family" && row.family_id ? `${row.family_id}:${attribute.id}` : `${row.canonical_uuid}:${attribute.id}`;
@@ -824,8 +1000,13 @@ function resolvedValuesFor(
     const alias = row.source_title ? titleAliasValue(row.source_title,aliases.get(attribute.id)) : undefined;
     const unit = normalizeUnit(attribute.unit);
     const numeric = row.source_title ? titleNumericValue(row.source_title,attribute,unit ? unitCounts.get(unit) ?? 1 : 0) : undefined;
-    const resolved = canonical ?? source ?? direct ?? alias ?? numeric;
-    if (resolved) values.set(attribute.id,resolved);
+    const base = canonical ?? source ?? direct ?? alias ?? numeric;
+    if (!base) continue;
+    const titleEvidence = numeric ?? alias;
+    const resolved = titleEvidence && valuesDiffer(base,titleEvidence) === false && titleEvidence.matchedText
+      ? { ...base, matchedText: titleEvidence.matchedText }
+      : base;
+    values.set(attribute.id,resolved);
   }
   return values;
 }
@@ -854,59 +1035,108 @@ function classify(
 ): PublicCrossFamilyChoices {
   const variantAttrs = attributes.filter((attribute)=>attribute.valueLevel === "variant" && attribute.variantDefining);
   const familyAttrs = attributes.filter((attribute)=>attribute.valueLevel === "family" && attribute.comparable && !attribute.variantDefining);
+  const attributeById = new Map(attributes.map((attribute)=>[attribute.id,attribute]));
   const currentValues = resolvedValuesFor({
-    canonical_uuid:context.canonical_uuid,family_id:context.family_id,source_product_id:context.source_product_id,source_title:context.source_title,
-    normalized_payload:context.normalized_payload,variant_attributes:context.variant_attributes
+    canonical_uuid:context.canonical_uuid,
+    family_id:context.family_id,
+    source_product_id:context.source_product_id,
+    source_title:context.source_title,
+    normalized_payload:context.normalized_payload,
+    variant_attributes:context.variant_attributes
   },attributes,aliases,evidenceMaps);
-  const currentIdentity = context.source_title ? baseIdentitySignature(context.source_title,context.brand_name,currentValues,attributes) : "";
-  if (!currentIdentity) return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
+  const currentIdentity = context.source_title
+    ? baseIdentitySignature(context.source_title,context.brand_name,context.source_model,currentValues,attributes)
+    : "";
+  if (!currentIdentity) return emptyChoices();
 
-  const candidates: Candidate[] = [];
+  const relations: SeriesRelation[] = [];
   for (const row of rows) {
     if (exclusions.variants.has(row.canonical_uuid) || (row.family_id && exclusions.families.has(row.family_id))) continue;
     const values = resolvedValuesFor(row,attributes,aliases,evidenceMaps);
-    const identity = baseIdentitySignature(row.source_title,context.brand_name,values,attributes);
-    if (identity !== currentIdentity) continue;
-    candidates.push({row,values,identity});
+    const identity = baseIdentitySignature(row.source_title,context.brand_name,row.source_model,values,attributes);
+    const candidate: Candidate = {row,values,identity};
+    const relation = sameSeriesRelation(context,candidate,currentValues,attributes,currentIdentity);
+    if (!relation.strong) continue;
+    relations.push({candidate,promotedFamilyIds:relation.promotedFamilyIds});
   }
+
+  const variantRelations = relations.filter((relation) => {
+    let hasVariantDifference = false;
+    let unknownVariantAxis = false;
+    for (const attribute of variantAttrs) {
+      const difference = valuesDiffer(currentValues.get(attribute.id),relation.candidate.values.get(attribute.id));
+      if (difference === true) hasVariantDifference = true;
+      if (difference === undefined) unknownVariantAxis = true;
+    }
+    const promotedDifference = [...relation.promotedFamilyIds].some((id) => valuesDiffer(currentValues.get(id),relation.candidate.values.get(id)) === true);
+    return !unknownVariantAxis && (hasVariantDifference || promotedDifference);
+  });
+
+  const promotedIds = new Set(variantRelations.flatMap((relation)=>[...relation.promotedFamilyIds]));
+  const promotedAttrs = [...promotedIds]
+    .map((id)=>attributeById.get(id))
+    .filter((attribute):attribute is SemanticAttribute=>Boolean(attribute))
+    .sort((a,b)=>a.order-b.order);
+  const displayAxes = [...variantAttrs,...promotedAttrs];
+
+  const currentVariantAttributes = promotedAttrs
+    .map((attribute)=>{
+      const resolved=currentValues.get(attribute.id);
+      return resolved ? variantAttribute(attribute,resolved) : undefined;
+    })
+    .filter((attribute):attribute is PublicProductVariantAttribute=>Boolean(attribute));
 
   const variantExtensions: PublicProductVariantOption[] = [];
-  for (const candidate of candidates) {
-    let familyConflict=false,variantDifference=false,variantUnknown=false;
-    for (const attribute of familyAttrs) {
-      const difference=valuesDiffer(currentValues.get(attribute.id),candidate.values.get(attribute.id));
-      if (difference === true || difference === undefined) { familyConflict=true; break; }
-    }
-    if (familyConflict) continue;
-    const optionAttributes: PublicProductVariantAttribute[]=[];
-    for (const attribute of variantAttrs) {
-      const resolved=candidate.values.get(attribute.id); if (resolved) optionAttributes.push(variantAttribute(attribute,resolved));
-      const difference=valuesDiffer(currentValues.get(attribute.id),resolved);
-      if (difference === true) variantDifference=true;
-      if (difference === undefined) variantUnknown=true;
-    }
-    if (!variantDifference || variantUnknown || !optionAttributes.length) continue;
-    variantExtensions.push({canonicalVariantId:candidate.row.canonical_public_id,slug:candidate.row.slug,attributes:optionAttributes,
-      available:Boolean(candidate.row.available),fromPriceMinor:safePriceMinor(candidate.row.from_price_minor),...imageFor(candidate.row)});
+  const variantIds = new Set<string>();
+  for (const relation of variantRelations) {
+    if (promotedAttrs.some((attribute)=>!relation.candidate.values.get(attribute.id) || !currentValues.get(attribute.id))) continue;
+    const optionAttributes = displayAxes
+      .map((attribute)=>{
+        const resolved=relation.candidate.values.get(attribute.id);
+        return resolved ? variantAttribute(attribute,resolved) : undefined;
+      })
+      .filter((attribute):attribute is PublicProductVariantAttribute=>Boolean(attribute));
+    if (!optionAttributes.length) continue;
+    variantIds.add(relation.candidate.row.canonical_public_id);
+    variantExtensions.push({
+      canonicalVariantId:relation.candidate.row.canonical_public_id,
+      slug:relation.candidate.row.slug,
+      attributes:optionAttributes,
+      available:Boolean(relation.candidate.row.available),
+      fromPriceMinor:safePriceMinor(relation.candidate.row.from_price_minor),
+      ...imageFor(relation.candidate.row)
+    });
   }
 
-  const byFamily = new Map<string,Candidate[]>();
-  for (const candidate of candidates) {
-    if (!candidate.row.family_id) continue;
-    const list=byFamily.get(candidate.row.family_id) ?? []; list.push(candidate); byFamily.set(candidate.row.family_id,list);
+  const byFamily = new Map<string,SeriesRelation[]>();
+  for (const relation of relations) {
+    if (variantIds.has(relation.candidate.row.canonical_public_id) || !relation.candidate.row.family_id) continue;
+    const list=byFamily.get(relation.candidate.row.family_id) ?? [];
+    list.push(relation);
+    byFamily.set(relation.candidate.row.family_id,list);
   }
+
   const alternatives: PublicProductAlternativeOption[]=[];
-  for (const familyCandidates of byFamily.values()) {
-    const differingFamilyAttrs = familyAttrs.filter((attribute)=>valuesDiffer(currentValues.get(attribute.id),familyCandidates[0]?.values.get(attribute.id)) === true);
+  for (const familyRelations of byFamily.values()) {
+    const representative=familyRelations[0];
+    if (!representative) continue;
+    const differingFamilyAttrs = familyAttrs.filter((attribute)=>valuesDiffer(currentValues.get(attribute.id),representative.candidate.values.get(attribute.id)) === true);
     if (!differingFamilyAttrs.length) continue;
-    if (differingFamilyAttrs.some((attribute)=>!currentValues.get(attribute.id) || !familyCandidates[0]?.values.get(attribute.id))) continue;
-    const ranked = familyCandidates
-      .map((candidate)=>({candidate,...compatibleWithCurrentVariant(currentValues,candidate.values,variantAttrs)}))
+    if (differingFamilyAttrs.some((attribute)=>!currentValues.get(attribute.id) || !representative.candidate.values.get(attribute.id))) continue;
+    const ranked = familyRelations
+      .map((relation)=>({relation,...compatibleWithCurrentVariant(currentValues,relation.candidate.values,variantAttrs)}))
       .filter((entry)=>entry.conflicts===0)
-      .sort((a,b)=>Number(Boolean(b.candidate.row.available))-Number(Boolean(a.candidate.row.available)) || b.matches-a.matches || a.candidate.row.slug.localeCompare(b.candidate.row.slug,"el"));
-    const selected=ranked[0]?.candidate; if (!selected) continue;
+      .sort((a,b)=>Number(Boolean(b.relation.candidate.row.available))-Number(Boolean(a.relation.candidate.row.available)) || b.matches-a.matches || a.relation.candidate.row.slug.localeCompare(b.relation.candidate.row.slug,"el"));
+    const selected=ranked[0]?.relation.candidate;
+    if (!selected) continue;
     const choiceAttributes=differingFamilyAttrs.map((attribute)=>alternativeAttribute(attribute,selected.values.get(attribute.id)!));
-    alternatives.push({canonicalVariantId:selected.row.canonical_public_id,slug:selected.row.slug,attributes:choiceAttributes,available:Boolean(selected.row.available),...imageFor(selected.row)});
+    alternatives.push({
+      canonicalVariantId:selected.row.canonical_public_id,
+      slug:selected.row.slug,
+      attributes:choiceAttributes,
+      available:Boolean(selected.row.available),
+      ...imageFor(selected.row)
+    });
   }
 
   const dedupedAlternatives = new Map<string,PublicProductAlternativeOption>();
@@ -918,24 +1148,34 @@ function classify(
   const alternativeOptions=[...dedupedAlternatives.values()];
   const alternativeLabels=[...new Set(alternativeOptions.flatMap((option)=>option.attributes.map((attribute)=>attribute.label)))];
   const title=alternativeLabels.length===1 ? `Άλλη επιλογή: ${alternativeLabels[0]}` : "Άλλες επιλογές του ίδιου προϊόντος";
-  return {variantExtensions,alternatives:{options:alternativeOptions,title}};
+  return {currentVariantAttributes,variantExtensions,alternatives:{options:alternativeOptions,title}};
 }
 
 async function crossFamilyChoices(canonicalVariantId: string, scope: ChoiceScope): Promise<PublicCrossFamilyChoices> {
   const canonicalId=canonicalVariantId.trim();
-  if (!canonicalId || !productionDatabaseConfigured()) return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
+  if (!canonicalId || !productionDatabaseConfigured()) return emptyChoices();
   try {
     const context=await contextFor(canonicalId,scope.mode === "demo");
-    if (!context?.product_type_id || !context.source_id || !context.source_title) return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
+    if (!context?.product_type_id || !context.source_id || !context.source_title) return emptyChoices();
     const attributes=await semanticAttributes(context.product_type_id);
-    if (!attributes.length) return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
+    if (!attributes.length) return emptyChoices();
     const rows=await candidateRows(context,scope);
-    if (!rows.length) return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
-    const [aliases,evidenceMaps,exclusions]=await Promise.all([aliasesFor(attributes),evidence(context,rows,attributes),compatibilityExclusions(context)]);
+    if (!rows.length) return emptyChoices();
+    const [aliases,evidenceMaps,exclusions]=await Promise.all([
+      aliasesFor(attributes),
+      evidence(context,rows,attributes),
+      compatibilityExclusions(context)
+    ]);
     return classify(context,rows,attributes,aliases,evidenceMaps,exclusions);
   } catch (error) {
-    console.error(JSON.stringify({level:"error",event:"storefront.cross_family_choice_classification_failed",canonicalVariantId:canonicalId,mode:scope.mode,message:error instanceof Error?error.message:String(error)}));
-    return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
+    console.error(JSON.stringify({
+      level:"error",
+      event:"storefront.cross_family_choice_classification_failed",
+      canonicalVariantId:canonicalId,
+      mode:scope.mode,
+      message:error instanceof Error?error.message:String(error)
+    }));
+    return emptyChoices();
   }
 }
 
@@ -946,14 +1186,38 @@ export async function getPublicCrossFamilyChoices(canonicalVariantId:string):Pro
 }
 
 export async function getDemoCrossFamilyChoices(canonicalVariantId:string,vendorId:string):Promise<PublicCrossFamilyChoices>{
-  const canonicalId=canonicalVariantId.trim(); const vendor=vendorId.trim();
-  if (!canonicalId || !vendor) return {variantExtensions:[],alternatives:{options:[],title:"Άλλες επιλογές"}};
+  const canonicalId=canonicalVariantId.trim();
+  const vendor=vendorId.trim();
+  if (!canonicalId || !vendor) return emptyChoices();
   return crossFamilyChoices(canonicalId,{mode:"demo",vendorId:vendor});
 }
 
-export function mergeVariantPresentations(base:PublicProductVariantPresentation,extensions:readonly PublicProductVariantOption[]):PublicProductVariantPresentation{
-  if (!extensions.length) return base;
+function mergeAttributes(
+  base: readonly PublicProductVariantAttribute[],
+  extensions: readonly PublicProductVariantAttribute[]
+): readonly PublicProductVariantAttribute[] {
+  const byKey=new Map(base.map((attribute)=>[attribute.key,attribute]));
+  for (const attribute of extensions) byKey.set(attribute.key,attribute);
+  return [...byKey.values()];
+}
+
+export function mergeVariantPresentations(
+  base:PublicProductVariantPresentation,
+  extensions:readonly PublicProductVariantOption[],
+  currentVariantId?:string,
+  currentVariantAttributes:readonly PublicProductVariantAttribute[]=[]
+):PublicProductVariantPresentation{
   const options=new Map<string,PublicProductVariantOption>();
-  for (const option of [...base.options,...extensions]) options.set(option.canonicalVariantId,option);
+  for (const option of base.options) options.set(option.canonicalVariantId,option);
+  if (currentVariantId && currentVariantAttributes.length) {
+    const current=options.get(currentVariantId);
+    if (current) options.set(currentVariantId,{...current,attributes:mergeAttributes(current.attributes,currentVariantAttributes)});
+  }
+  for (const extension of extensions) {
+    const existing=options.get(extension.canonicalVariantId);
+    options.set(extension.canonicalVariantId,existing
+      ? {...existing,attributes:mergeAttributes(existing.attributes,extension.attributes)}
+      : extension);
+  }
   return productVariantPresentation([...options.values()]);
 }
