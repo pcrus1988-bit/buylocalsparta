@@ -1,4 +1,5 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
+import { evaluateRecentAdminActions } from "./action-evaluation";
 import { categoryGovernanceIntelligence, controlledValueIntelligence } from "./catalog-governance-intelligence";
 import { suggestedQuestionsForContext } from "./context";
 import { crawlerOperationalIntelligence } from "./crawler-intelligence";
@@ -60,6 +61,7 @@ export async function buildAdminAssistantPhase1Snapshot(
   }
 
   snapshot = await applyRecommendationLifecycle(principal, snapshot).catch(() => snapshot);
+  snapshot = await evaluateRecentAdminActions(principal, snapshot).catch(() => ({ ...snapshot, actionEvaluations: [] }));
 
   return {
     ...snapshot,
