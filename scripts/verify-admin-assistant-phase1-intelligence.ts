@@ -78,7 +78,7 @@ assert.match(toolRegistry, /ASSISTANT_TOOL_PERMISSION_REQUIRED/);
 
 for (const pattern of [/getProductMatchingIntelligence/, /getProductIntelligence/, /getCustomerOperationalIntelligence/, /getCatalogueCrawlerIntelligence/, /getSearchConsoleIntelligence/, /row\.kind === "support"/, /candidates\.slice\(0, 3\)/, /availableAssistantTools/]) assert.match(investigation, pattern);
 
-for (const pattern of [/getProductIntelligence/, /sellableStock=/, /staleInventory=/, /no identifier was inferred by the model/i, /Customer state:/, /open support/, /notification failures/]) assert.match(service, pattern);
+for (const pattern of [/getProductIntelligence/, /sellableStock=/, /staleInventory=/, /no identifier was inferred by the model/i, /Customer state:/, /open support/, /notificationFailures|notification failure/i]) assert.match(service, pattern);
 
 assert.match(researchPolicy, /private_tool_failure/);
 assert.match(researchPolicy, /Public web research must never be used to compensate for a failed private database\/tool read/i);
