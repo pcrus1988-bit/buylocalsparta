@@ -4,6 +4,15 @@ import type { PublicProductSuitability, PublicSuitableProduct, PublicSuitability
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { getDemoVendorCatalogProduct, type DemoCatalogProduct, type DemoStorefrontVendor, type DemoTechnicalAttribute } from "./demo-storefront";
 import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "./product-presentation-guards";
+import {
+  friendlyCompatibilityPlatformName,
+  productRelationshipRole,
+  relationshipGroupDescription,
+  relationshipGroupTitle,
+  withRelationshipGroups,
+  type PublicProductRelationshipGroup,
+  type PublicRelationshipProduct,
+} from "./product-relationship-groups";
 
 type DemoClaimRow = SqlRow & {
   target_kind: string;
@@ -27,6 +36,17 @@ type DemoReferenceProductRow = SqlRow & {
   model: string | null;
   mpn: string | null;
   gtin: string | null;
+  title: string;
+};
+
+type DemoFamilyPeerRow = SqlRow & {
+  public_id: string;
+};
+
+type DemoPlatformPeerRow = SqlRow & {
+  platform_id: string;
+  platform_name: string;
+  public_id: string;
   title: string;
 };
 
@@ -92,6 +112,7 @@ const SUITABILITY_KEYS: Readonly<Record<string, PublicSuitabilityKind | "meta">>
   suitable_for_brands: "brand",
   supported_brands: "brand",
   συμβατες_μαρκες: "brand",
+  platform: "platform",
   compatible_platforms: "platform",
   compatible_platform: "platform",
   suitable_for_platforms: "platform",
@@ -224,8 +245,9 @@ function suitabilityItemsFromAttributes(attributes: readonly DemoTechnicalAttrib
     const kind = SUITABILITY_KEYS[normalizedKey(attribute.key)];
     if (!kind || kind === "meta") continue;
     for (const value of splitValues(attribute.value)) {
-      const identity = `${kind}:${normalizedValue(value)}`;
-      items.set(identity, { kind, value });
+      const presentedValue = kind === "platform" ? friendlyCompatibilityPlatformName(value) : value;
+      const identity = `${kind}:${normalizedValue(presentedValue)}`;
+      items.set(identity, { kind, value: presentedValue });
     }
   }
   return [...items.values()];
@@ -306,6 +328,158 @@ function identifierTokens(references: readonly string[]): readonly string[] {
   return [...tokens].slice(0, 60);
 }
 
+async function canonicalDemoVariantSiblings(
+  vendor: DemoStorefrontVendor,
+  product: DemoCatalogProduct,
+): Promise<readonly DemoCatalogProduct[]> {
+  if (!productionDatabaseConfigured()) return [];
+  try {
+    const result = await getProductionPostgresRuntime().sqlPool.query<DemoFamilyPeerRow>(`
+      SELECT DISTINCT peer.public_id
+      FROM canonical_variants current
+      JOIN canonical_variants peer ON peer.family_id=current.family_id AND peer.id<>current.id
+      JOIN vendor_offers peer_offer ON peer_offer.canonical_variant_id=peer.id
+      WHERE current.public_id=$1
+        AND current.family_id IS NOT NULL
+        AND peer_offer.vendor_id=$2::uuid
+        AND peer_offer.status IN ('draft','pending_review','approved')
+        AND peer.suppressed=false
+        AND peer.recalled=false
+      ORDER BY peer.public_id
+      LIMIT 32
+    `, [product.id, vendor.uuid]);
+
+    const peers = await Promise.all(result.rows.map((row) => getDemoVendorCatalogProduct(vendor, row.public_id)));
+    return peers.filter((peer): peer is DemoCatalogProduct => Boolean(peer));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "demo_storefront.canonical_variant_family_failed",
+      vendorId: vendor.id,
+      canonicalVariantId: product.id,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  }
+}
+
+async function demoPlatformRelationshipGroups(
+  vendor: DemoStorefrontVendor,
+  product: DemoCatalogProduct,
+): Promise<readonly PublicProductRelationshipGroup[]> {
+  if (!productionDatabaseConfigured()) return [];
+  try {
+    const result = await getProductionPostgresRuntime().sqlPool.query<DemoPlatformPeerRow>(`
+      SELECT DISTINCT ON (platform.id,peer.id)
+             platform.id::text AS platform_id,
+             platform.name AS platform_name,
+             peer.public_id,
+             COALESCE(peer_el.title,peer_en.title,peer.model,peer.slug) AS title
+      FROM canonical_variants subject
+      JOIN product_compatibility_claims subject_claim ON subject_claim.subject_canonical_variant_id=subject.id
+      JOIN compatibility_platforms platform ON platform.id=subject_claim.target_platform_id
+      JOIN product_compatibility_claims peer_claim ON peer_claim.target_platform_id=platform.id
+      JOIN canonical_variants peer ON peer.id=peer_claim.subject_canonical_variant_id
+      JOIN vendor_offers peer_offer ON peer_offer.canonical_variant_id=peer.id
+      LEFT JOIN product_translations peer_el ON peer_el.canonical_variant_id=peer.id AND peer_el.locale='el'
+      LEFT JOIN product_translations peer_en ON peer_en.canonical_variant_id=peer.id AND peer_en.locale='en'
+      WHERE subject.public_id=$1
+        AND subject.suppressed=false
+        AND subject.recalled=false
+        AND subject_claim.target_kind='platform'
+        AND subject_claim.relationship_type='uses_platform'
+        AND subject_claim.review_status IN ('candidate','verified')
+        AND (
+          subject_claim.review_status='verified'
+          OR (subject_claim.evidence_level='platform' AND subject_claim.confidence>=0.90)
+        )
+        AND peer_claim.target_kind='platform'
+        AND peer_claim.relationship_type='uses_platform'
+        AND peer_claim.review_status IN ('candidate','verified')
+        AND (
+          peer_claim.review_status='verified'
+          OR (peer_claim.evidence_level='platform' AND peer_claim.confidence>=0.90)
+        )
+        AND peer_offer.vendor_id=$2::uuid
+        AND peer_offer.status IN ('draft','pending_review','approved')
+        AND peer.suppressed=false
+        AND peer.recalled=false
+      ORDER BY platform.id,peer.id,
+               CASE peer_offer.status WHEN 'approved' THEN 1 WHEN 'pending_review' THEN 2 ELSE 3 END,
+               peer_offer.updated_at DESC
+      LIMIT 48
+    `, [product.id, vendor.uuid]);
+
+    if (result.rows.length <= 1) return [];
+
+    const hydrated = new Map<string, DemoCatalogProduct>();
+    hydrated.set(product.id, product);
+    const peerIds = [...new Set(result.rows.map((row) => row.public_id).filter((id) => id !== product.id))];
+    const peerProducts = await Promise.all(peerIds.slice(0, 24).map((id) => getDemoVendorCatalogProduct(vendor, id)));
+    for (const peer of peerProducts) if (peer) hydrated.set(peer.id, peer);
+
+    const platformCounts = new Map<string, Set<string>>();
+    for (const row of result.rows) {
+      const ids = platformCounts.get(row.platform_id) ?? new Set<string>();
+      if (hydrated.has(row.public_id)) ids.add(row.public_id);
+      platformCounts.set(row.platform_id, ids);
+    }
+
+    const groupMap = new Map<string, { platformName: string; role: ReturnType<typeof productRelationshipRole>; products: PublicRelationshipProduct[] }>();
+    for (const row of result.rows) {
+      if ((platformCounts.get(row.platform_id)?.size ?? 0) <= 1) continue;
+      const target = hydrated.get(row.public_id);
+      if (!target) continue;
+      const role = productRelationshipRole(target.title);
+      const key = `${row.platform_id}:${role}`;
+      const platformName = friendlyCompatibilityPlatformName(row.platform_name);
+      const group = groupMap.get(key) ?? { platformName, role, products: [] };
+      if (!group.products.some((entry) => entry.canonicalVariantId === target.id)) {
+        const isCurrent = target.id === product.id;
+        group.products.push({
+          canonicalVariantId: target.id,
+          slug: target.slug,
+          title: target.title,
+          matchedFor: platformName,
+          relationshipLabel: isCurrent ? "Αυτό το προϊόν" : "Ίδιο σύστημα",
+          isCurrent,
+          imageSrc: target.mediaId ? `/api/media/${encodeURIComponent(target.mediaId)}` : target.previewImageSrc,
+          imageAlt: target.mediaAlt ?? target.title
+        });
+      }
+      groupMap.set(key, group);
+    }
+
+    const currentRole = productRelationshipRole(product.title);
+    const rolePriority = new Map([currentRole, "battery", "charger", "tool", "related"].filter((role, index, all) => all.indexOf(role) === index).map((role, index) => [role, index]));
+    return [...groupMap.entries()]
+      .map(([key, group]) => ({
+        key,
+        title: relationshipGroupTitle(group.role),
+        description: relationshipGroupDescription(group.platformName),
+        products: [...group.products]
+          .sort((a, b) => Number(Boolean(b.isCurrent)) - Number(Boolean(a.isCurrent)) || a.title.localeCompare(b.title, "el"))
+          .slice(0, 4)
+      }))
+      .filter((group) => group.products.length > 0)
+      .sort((a, b) => {
+        const roleA = [...groupMap.entries()].find(([key]) => key === a.key)?.[1].role ?? "related";
+        const roleB = [...groupMap.entries()].find(([key]) => key === b.key)?.[1].role ?? "related";
+        return (rolePriority.get(roleA) ?? 99) - (rolePriority.get(roleB) ?? 99);
+      })
+      .slice(0, 4);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "demo_storefront.platform_relationship_groups_failed",
+      vendorId: vendor.id,
+      canonicalVariantId: product.id,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  }
+}
+
 async function governedDemoSuitability(vendor: DemoStorefrontVendor, product: DemoCatalogProduct): Promise<PublicProductSuitability | undefined> {
   const attributeItems = suitabilityItemsFromAttributes(product.technicalAttributes);
   if (!productionDatabaseConfigured()) return attributeItems.length ? { items: attributeItems, products: [] } : undefined;
@@ -367,7 +541,7 @@ async function governedDemoSuitability(vendor: DemoStorefrontVendor, product: De
     for (const row of result.rows) {
       if (row.target_kind === "platform") {
         const value = row.platform_name?.trim() || row.target_reference?.trim();
-        if (value) claimItems.push({ kind: "platform", value });
+        if (value) claimItems.push({ kind: "platform", value: friendlyCompatibilityPlatformName(value) });
       } else {
         const value = row.target_reference?.trim() || row.linked_model?.trim() || row.linked_title?.trim();
         if (value) claimItems.push({ kind: "model", value });
@@ -426,7 +600,9 @@ async function governedDemoSuitability(vendor: DemoStorefrontVendor, product: De
       });
     }
 
-    return items.length ? { items, products } : undefined;
+    const relationshipGroups = await demoPlatformRelationshipGroups(vendor, product);
+    if (!items.length && !relationshipGroups.length) return undefined;
+    return withRelationshipGroups({ items, products }, relationshipGroups);
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "demo_storefront.suitability_projection_failed", vendorId: vendor.id, canonicalVariantId: product.id, message: error instanceof Error ? error.message : String(error) }));
     return attributeItems.length ? { items: attributeItems, products: [] } : undefined;
@@ -436,14 +612,15 @@ async function governedDemoSuitability(vendor: DemoStorefrontVendor, product: De
 export async function getDemoProductParity(
   vendor: DemoStorefrontVendor,
   product: DemoCatalogProduct,
-  siblings: readonly DemoCatalogProduct[]
+  _sourceSiblings: readonly DemoCatalogProduct[]
 ): Promise<DemoProductParity> {
-  const variantOptions = demoVariantOptions(product, siblings);
-  const presentation = variantPresentation(variantOptions);
-  const [suitability, manualUrl] = await Promise.all([
+  const [canonicalSiblings, suitability, manualUrl] = await Promise.all([
+    canonicalDemoVariantSiblings(vendor, product),
     governedDemoSuitability(vendor, product),
     demoManualUrl(product.id)
   ]);
+  const variantOptions = demoVariantOptions(product, canonicalSiblings);
+  const presentation = variantPresentation(variantOptions);
   return {
     variantOptions,
     varyingVariantKeys: presentation.varyingKeys,
