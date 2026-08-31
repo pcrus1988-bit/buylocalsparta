@@ -80,7 +80,13 @@ export async function adminQuickAddLookup(principal:SessionPrincipal,input:{vend
 
 type SaveInput=Readonly<{vendorId:string;canonicalVariantId?:string;title:string;description?:string;gtin?:string;brand?:string;model?:string;mpn?:string;categoryCode:string;vendorSku?:string;customerPriceMinor:number;onHand:number;safetyStock?:number;visible?:boolean}>;
 
-async function upsertOffer(tx:SqlExecutor,principal:SessionPrincipal,input:SaveInput,canonicalUuid:string,canonicalPublicId:string,marketUuid:string){
+async function resolveActorUuid(tx:SqlExecutor,principal:SessionPrincipal){
+  const actor=await tx.query<SqlRow>(`SELECT id::text id FROM public.users WHERE public_id=$1 OR id::text=$1 LIMIT 1`,[principal.userId]);
+  if(!actor.rowCount) throw new Error("Admin account is not linked to a database user");
+  return String(actor.rows[0].id);
+}
+
+async function upsertOffer(tx:SqlExecutor,actorUuid:string,input:SaveInput,canonicalUuid:string,canonicalPublicId:string,marketUuid:string){
   const vendor=await tx.query<SqlRow>(`SELECT vb.id::text id,(SELECT id::text FROM public.vendor_locations WHERE vendor_id=vb.id ORDER BY active DESC,created_at LIMIT 1) location_id FROM public.vendor_businesses vb WHERE vb.public_id=$1 OR vb.id::text=$1 LIMIT 1`,[input.vendorId]);
   if(!vendor.rowCount||!vendor.rows[0].location_id) throw new Error("Selected vendor has no shop location");
   const vendorUuid=String(vendor.rows[0].id),locationUuid=String(vendor.rows[0].location_id);
@@ -91,14 +97,14 @@ async function upsertOffer(tx:SqlExecutor,principal:SessionPrincipal,input:SaveI
   if(existing.rowCount){
     if(onHand<Number(existing.rows[0].reservations??0)) throw new Error("Stock is below active reservations");
     offerUuid=String(existing.rows[0].id);offerPublicId=String(existing.rows[0].public_id);
-    await tx.query(`UPDATE public.vendor_offers SET vendor_sku=$2,source_gtin=$3,supplier_unit_price_minor=$4,customer_price_minor=$4,status='approved',approved_at=COALESCE(approved_at,now()),merchant_visible=$5::boolean,merchant_pause_active=CASE WHEN $5::boolean THEN false ELSE merchant_pause_active END,merchant_visibility_updated_by=$6::uuid,updated_at=now() WHERE id=$1::uuid`,[offerUuid,opt(input.vendorSku)??null,opt(input.gtin)??null,price,input.visible!==false,principal.userId]);
+    await tx.query(`UPDATE public.vendor_offers SET vendor_sku=$2,source_gtin=$3,supplier_unit_price_minor=$4,customer_price_minor=$4,status='approved',approved_at=COALESCE(approved_at,now()),merchant_visible=$5::boolean,merchant_pause_active=CASE WHEN $5::boolean THEN false ELSE merchant_pause_active END,merchant_visibility_updated_by=$6::uuid,updated_at=now() WHERE id=$1::uuid`,[offerUuid,opt(input.vendorSku)??null,opt(input.gtin)??null,price,input.visible!==false,actorUuid]);
   }else{
     offerUuid=randomUUID();offerPublicId=`vo_${randomUUID()}`;
-    await tx.query(`INSERT INTO public.vendor_offers(id,public_id,market_id,vendor_id,location_id,canonical_variant_id,vendor_sku,source_gtin,status,supplier_unit_price_minor,customer_price_minor,currency,supplier_tax_rate_bps,fulfilment_modes,advice_capabilities,source_payload,approved_at,merchant_visible,merchant_visibility_updated_by,created_at,updated_at) VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,'approved',$9,$9,'EUR',2400,ARRAY['pickup']::fulfilment_mode[],jsonb_build_object('available',true),jsonb_build_object('source','admin_quickadd','canonicalPublicId',$10::text),now(),$11::boolean,$12::uuid,now(),now())`,[offerUuid,offerPublicId,marketUuid,vendorUuid,locationUuid,canonicalUuid,opt(input.vendorSku)??null,opt(input.gtin)??null,price,canonicalPublicId,input.visible!==false,principal.userId]);
+    await tx.query(`INSERT INTO public.vendor_offers(id,public_id,market_id,vendor_id,location_id,canonical_variant_id,vendor_sku,source_gtin,status,supplier_unit_price_minor,customer_price_minor,currency,supplier_tax_rate_bps,fulfilment_modes,advice_capabilities,source_payload,approved_at,merchant_visible,merchant_visibility_updated_by,created_at,updated_at) VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,'approved',$9,$9,'EUR',2400,ARRAY['pickup']::fulfilment_mode[],jsonb_build_object('available',true),jsonb_build_object('source','admin_quickadd','canonicalPublicId',$10::text),now(),$11::boolean,$12::uuid,now(),now())`,[offerUuid,offerPublicId,marketUuid,vendorUuid,locationUuid,canonicalUuid,opt(input.vendorSku)??null,opt(input.gtin)??null,price,canonicalPublicId,input.visible!==false,actorUuid]);
   }
   const previous=await tx.query<SqlRow>(`SELECT on_hand FROM public.inventory_balances WHERE offer_id=$1::uuid FOR UPDATE`,[offerUuid]);const before=previous.rowCount?Number(previous.rows[0].on_hand??0):0;
   await tx.query(`INSERT INTO public.inventory_balances(offer_id,on_hand,active_reservations,safety_stock,blocked,source,source_confidence,updated_at) VALUES($1::uuid,$2,0,$3,0,'manual','merchant_confirmed',now()) ON CONFLICT(offer_id) DO UPDATE SET on_hand=EXCLUDED.on_hand,safety_stock=EXCLUDED.safety_stock,source='manual',source_confidence='merchant_confirmed',updated_at=now()`,[offerUuid,onHand,safety]);
-  if(before!==onHand) await tx.query(`INSERT INTO public.inventory_movements(id,offer_id,movement_type,quantity_delta,source,actor_id,metadata,created_at) VALUES($1,$2::uuid,'manual_adjustment',$3,'admin_quickadd',$4::uuid,jsonb_build_object('previousOnHand',$5::integer,'newOnHand',$6::integer),now())`,[randomUUID(),offerUuid,onHand-before,principal.userId,before,onHand]);
+  if(before!==onHand) await tx.query(`INSERT INTO public.inventory_movements(id,offer_id,movement_type,quantity_delta,source,actor_id,metadata,created_at) VALUES($1,$2::uuid,'manual_adjustment',$3,'admin_quickadd',$4::uuid,jsonb_build_object('previousOnHand',$5::integer,'newOnHand',$6::integer),now())`,[randomUUID(),offerUuid,onHand-before,actorUuid,before,onHand]);
   return{offerId:offerPublicId};
 }
 
@@ -107,6 +113,7 @@ export async function adminQuickAddSave(principal:SessionPrincipal,input:SaveInp
   if(!postgresAdminRuntimeEnabled()) throw new Error("Admin Quick Add requires PostgreSQL runtime");
   if(!clean(input.vendorId)||!clean(input.title)||!clean(input.categoryCode)) throw new Error("Vendor, title and category are required");
   return uow().withTransaction(scope(principal),async tx=>{
+    const actorUuid=await resolveActorUuid(tx,principal);
     const vendorMarket=await tx.query<SqlRow>(`SELECT market_id::text market_uuid FROM public.vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1`,[input.vendorId]);
     if(!vendorMarket.rowCount) throw new Error("Unknown vendor");const marketUuid=String(vendorMarket.rows[0].market_uuid);
     let canonicalUuid:string,canonicalPublicId:string,gtinAdded=false;
@@ -131,7 +138,7 @@ export async function adminQuickAddSave(principal:SessionPrincipal,input:SaveInp
             AND (regexp_replace(COALESCE(cv.gtin,''),'\\D','','g')=$2 OR regexp_replace(COALESCE(pi.normalized_value,''),'\\D','','g')=$2)
           LIMIT 1 FOR UPDATE OF cv
         `,[marketUuid,digits]);
-        if(duplicate.rowCount){canonicalUuid=String(duplicate.rows[0].id);canonicalPublicId=String(duplicate.rows[0].public_id);input={...input,gtin:digits};const offer=await upsertOffer(tx,principal,{...input,canonicalVariantId:canonicalPublicId},canonicalUuid,canonicalPublicId,marketUuid);return{ok:true,createdCanonical:false,reusedExactGtin:true,canonicalVariantId:canonicalPublicId,gtin:digits,gtinAdded:false,...offer};}
+        if(duplicate.rowCount){canonicalUuid=String(duplicate.rows[0].id);canonicalPublicId=String(duplicate.rows[0].public_id);input={...input,gtin:digits};const offer=await upsertOffer(tx,actorUuid,{...input,canonicalVariantId:canonicalPublicId},canonicalUuid,canonicalPublicId,marketUuid);return{ok:true,createdCanonical:false,reusedExactGtin:true,canonicalVariantId:canonicalPublicId,gtin:digits,gtinAdded:false,...offer};}
       }
       const category=await tx.query<SqlRow>(`SELECT id::text id FROM public.categories WHERE code=$1 AND active=true AND assignable=true AND (market_id IS NULL OR market_id=$2::uuid) ORDER BY CASE WHEN market_id=$2::uuid THEN 0 ELSE 1 END LIMIT 1`,[clean(input.categoryCode),marketUuid]);if(!category.rowCount) throw new Error("Unknown/disabled category");
       let brandUuid:string|undefined;const brand=clean(input.brand);if(brand){const b=await tx.query<SqlRow>(`INSERT INTO public.brands(name,normalized_name) VALUES($1,$2) ON CONFLICT(normalized_name) DO UPDATE SET name=EXCLUDED.name RETURNING id::text id`,[brand,normalizeBrand(brand)]);brandUuid=String(b.rows[0].id);}
@@ -140,9 +147,9 @@ export async function adminQuickAddSave(principal:SessionPrincipal,input:SaveInp
       await tx.query(`INSERT INTO public.canonical_variants(id,public_id,market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,variant_attributes,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled,created_at,updated_at) VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9,$10,'new','{}'::jsonb,$11,'EUR',2400,true,false,false,now(),now())`,[canonicalUuid,canonicalPublicId,marketUuid,String(family.rows[0].id),brandUuid??null,String(category.rows[0].id),slug,digits||null,opt(input.mpn)??null,opt(input.model)??null,integer(input.customerPriceMinor,"price")]);
       if(digits){const attached=await attachMissingQuickAddGtin(tx,{canonicalUuid,canonicalPublicId,gtin:digits,source:"catalog_admin"});input={...input,gtin:attached.gtin};gtinAdded=attached.added;}
       await tx.query(`INSERT INTO public.product_translations(canonical_variant_id,locale,title,description,specifications) VALUES($1::uuid,'el',$2,$3,'{}'::jsonb)`,[canonicalUuid,clean(input.title),opt(input.description)??null]);
-      await tx.query(`INSERT INTO public.catalog_workflow_events(id,public_id,actor_id,action,to_status,canonical_variant_id,reason,metadata,created_at) VALUES($1,$2,$3::uuid,'admin_quickadd_create',NULL,$4::uuid,'Admin created canonical product through Quick Add',jsonb_build_object('source','admin_quickadd','gtin',$5::text),now())`,[randomUUID(),`cwe_${randomUUID()}`,principal.userId,canonicalUuid,digits||null]);
+      await tx.query(`INSERT INTO public.catalog_workflow_events(id,public_id,actor_id,action,to_status,canonical_variant_id,reason,metadata,created_at) VALUES($1,$2,$3::uuid,'admin_quickadd_create',NULL,$4::uuid,'Admin created canonical product through Quick Add',jsonb_build_object('source','admin_quickadd','gtin',$5::text),now())`,[randomUUID(),`cwe_${randomUUID()}`,actorUuid,canonicalUuid,digits||null]);
     }
-    const offer=await upsertOffer(tx,principal,input,canonicalUuid,canonicalPublicId,marketUuid);
+    const offer=await upsertOffer(tx,actorUuid,input,canonicalUuid,canonicalPublicId,marketUuid);
     return{ok:true,createdCanonical:!clean(input.canonicalVariantId),canonicalVariantId:canonicalPublicId,gtin:opt(input.gtin),gtinAdded,...offer};
   },{isolation:"serializable"});
 }
