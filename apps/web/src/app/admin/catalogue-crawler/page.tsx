@@ -133,7 +133,7 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Progress" title="Recent catalogue crawls" note="A completed full crawl can be imported into Supplier PIM. Canonical matching, taxonomy and duplicate review continue there instead of publishing raw crawl data directly." />
+      <WorkspaceSectionHeading eyebrow="Progress" title="Recent catalogue crawls" note="A completed full crawl can be imported into Supplier PIM only when the same server-side readiness gate used by the import action is green. Canonical matching, taxonomy and duplicate review continue in Supplier PIM instead of publishing raw crawl data directly." />
       {promotionError&&<div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}>
         <strong>Could not import this crawl into Supplier PIM</strong>
         <p>{promotionError}</p>
@@ -144,25 +144,35 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
         <p>The crawl evidence was normalized and promoted successfully. You can now review the imported catalogue or assign the snapshot to a vendor.</p>
         {promotionJob&&<small>Crawl job {promotionJob}</small>}
       </div>}
-      {data.jobs.length===0 ? <WorkspaceEmptyState title="No catalogue crawls yet." body="Paste a shop URL above to start the first crawl."/> : <div className="workspace-queue-list">{data.jobs.map((job)=><article key={job.id} className="workspace-queue-card">
-        <div className="workspace-queue-head">
-          <div><strong>{job.sourceName}</strong><small>{job.seedUrl??job.rootUrl} · {humanMode(job.crawlMode)} · created {when(job.createdAt)}</small></div>
-          <span className="status-pill">{humanStatus(job.status)}</span>
-        </div>
-        <div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Pages</strong><span>{job.fetched} fetched · {job.skipped} skipped · {job.failed} failed · {job.discovered} discovered</span></div>
-          <div className="workspace-compact-row"><strong>Products</strong><span>{job.extracted} extracted · {job.review} need review · {job.promoted} imported to PIM</span></div>
-          {job.failureReason&&<div className="workspace-compact-row"><strong>Problem</strong><span>{job.failureReason}</span></div>}
-        </div>
-        <div className="workspace-action-bar">
-          <span>{job.completedAt?`Completed ${when(job.completedAt)}`:`Attempt ${job.attemptCount}${job.lastHeartbeatAt?` · active ${when(job.lastHeartbeatAt)}`:""}`}</span>
-          <div>
-            {(["queued","running"] as const).includes(job.status as any)&&<form action={cancelAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-secondary" type="submit">Cancel</button></form>}
-            {(["succeeded","partial"] as const).includes(job.status as any)&&job.crawlMode!=="discovery"&&job.promoted===0&&<form action={promoteAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-primary" type="submit">Import products to PIM</button></form>}
-            {job.promoted>0&&<Link className="button button-secondary" href="/admin/catalogue-intake">Review imported products</Link>}
+      {data.jobs.length===0 ? <WorkspaceEmptyState title="No catalogue crawls yet." body="Paste a shop URL above to start the first crawl."/> : <div className="workspace-queue-list">{data.jobs.map((job)=>{
+        const promotionCandidate = isPromotionCandidate(job.status, job.crawlMode, job.promoted);
+        return <article key={job.id} className="workspace-queue-card">
+          <div className="workspace-queue-head">
+            <div><strong>{job.sourceName}</strong><small>{job.seedUrl??job.rootUrl} · {humanMode(job.crawlMode)} · created {when(job.createdAt)}</small></div>
+            <span className="status-pill">{humanStatus(job.status)}</span>
           </div>
-        </div>
-      </article>)}</div>}
+          <div className="workspace-compact-list">
+            <div className="workspace-compact-row"><strong>Pages</strong><span>{job.fetched} fetched · {job.skipped} skipped · {job.failed} failed · {job.discovered} discovered</span></div>
+            <div className="workspace-compact-row"><strong>Products</strong><span>{job.extracted} extracted · {job.review} need review · {job.promoted} imported to PIM</span></div>
+            {promotionCandidate&&<div className="workspace-compact-row">
+              <strong>PIM import readiness</strong>
+              <span>{job.promotionReadiness.ready
+                ? `${job.promotionReadiness.acceptedProductCount} accepted product${job.promotionReadiness.acceptedProductCount===1?"":"s"} · ready to import`
+                : `Blocked · ${job.promotionReadiness.blockers.map((blocker)=>blocker.message).join(" ")}`}</span>
+            </div>}
+            {job.failureReason&&<div className="workspace-compact-row"><strong>Problem</strong><span>{job.failureReason}</span></div>}
+          </div>
+          <div className="workspace-action-bar">
+            <span>{job.completedAt?`Completed ${when(job.completedAt)}`:`Attempt ${job.attemptCount}${job.lastHeartbeatAt?` · active ${when(job.lastHeartbeatAt)}`:""}`}</span>
+            <div>
+              {(["queued","running"] as const).includes(job.status as any)&&<form action={cancelAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-secondary" type="submit">Cancel</button></form>}
+              {promotionCandidate&&job.promotionReadiness.ready&&<form action={promoteAction} style={{display:"inline"}}><input type="hidden" name="jobId" value={job.id}/><button className="button button-primary" type="submit">Import products to PIM</button></form>}
+              {promotionCandidate&&!job.promotionReadiness.ready&&<button className="button button-secondary" type="button" disabled title={job.promotionReadiness.blockers.map((blocker)=>blocker.message).join(" ")}>Import blocked</button>}
+              {job.promoted>0&&<Link className="button button-secondary" href="/admin/catalogue-intake">Review imported products</Link>}
+            </div>
+          </div>
+        </article>;
+      })}</div>}
     </section>
 
     <section className="shell vendor-section">
@@ -209,6 +219,7 @@ function normalizeWebsiteInput(value: string): string {
   if (url.protocol === "http:") url.protocol = "https:";
   return url.toString();
 }
+function isPromotionCandidate(status:string,crawlMode:string,promoted:number):boolean { return (status==="succeeded"||status==="partial")&&crawlMode!=="discovery"&&promoted===0; }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error || "Something went wrong"); }
 function one(value: string | string[] | undefined): string | undefined { return Array.isArray(value) ? value[0] : value; }
 function numberValue(value: FormDataEntryValue | null): number | undefined { if(value==null||String(value).trim()==="") return undefined; const n=Number(value); return Number.isFinite(n)?n:undefined; }
