@@ -37,7 +37,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     defaults: {
       title: category.label,
       description: `${category.description} Ανακάλυψε τοπικά διαθέσιμα προϊόντα στη Σπάρτη.`,
-      canonicalPath: `/category/${category.slug}`
+      canonicalPath: `/category/${category.slug}`,
+      keywords: [
+        category.label,
+        `${category.label} Σπάρτη`,
+        `${category.label} Λακωνία`
+      ]
     },
     entityEligible,
     defaultIndexAllowed: entityEligible

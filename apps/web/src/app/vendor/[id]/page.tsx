@@ -86,7 +86,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`,
       openGraphTitle: vendor.name,
       openGraphDescription: description,
-      openGraphImage: ogMedia
+      openGraphImage: ogMedia,
+      keywords: [
+        vendor.name,
+        `${vendor.name} ${vendor.location?.locality ?? "Σπάρτη"}`,
+        category?.subcategoryLabel,
+        category?.categoryLabel,
+        category?.categoryLabel ? `${category.categoryLabel} ${vendor.location?.locality ?? "Σπάρτη"}` : undefined,
+        vendor.researchCategory
+      ]
     },
     entityEligible: !isResearch || quality.blockingReasons.length === 0,
     defaultIndexAllowed: !isResearch || (settings.researchVendorIndexingEnabled && quality.eligible)

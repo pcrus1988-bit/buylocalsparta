@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import type { SeoGlobalSettings } from "./seo-settings";
 import { getSeoGlobalSettingsSnapshot, localizeSeoBranding } from "./seo-settings";
 import { getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
+import { seoMetaKeywords } from "./seo-keywords";
 import { fitSeoTitleToTemplate } from "./seo-title";
 import {
   findSeoEntityOverride,
@@ -20,6 +21,7 @@ export type GovernedSeoMetadataDefaults = Readonly<{
   openGraphTitle?: string;
   openGraphDescription?: string;
   openGraphImage?: string;
+  keywords?: readonly (string | undefined)[];
 }>;
 
 function localizeOptionalSeoText(value: string | undefined): string | undefined {
@@ -60,9 +62,13 @@ export function buildGovernedSeoMetadata(input: {
     input.override?.openGraphDescription ?? input.defaults.openGraphDescription ?? description ?? input.settings.defaultOpenGraphDescription
   );
   const openGraphImage = input.override?.openGraphImage ?? input.defaults.openGraphImage ?? input.settings.defaultOpenGraphImage;
+  const keywords = control.indexAllowed
+    ? seoMetaKeywords({ reference: input.reference, contextual: input.defaults.keywords })
+    : undefined;
   return {
     title,
     description,
+    keywords,
     alternates: { canonical },
     robots: control.indexAllowed
       ? { index: true, follow: true }

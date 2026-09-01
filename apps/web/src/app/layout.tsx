@@ -69,7 +69,6 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(settings.canonicalOrigin),
     title: { default: settings.defaultTitle, template: settings.titleTemplate },
     description: settings.defaultDescription,
-    keywords: ["Σπάρτη", "τοπικά καταστήματα", "ΚΟΝΤΑ ΜΟΥ", "marketplace", "Λακωνία", "online αγορές"],
     icons: {
       icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
       shortcut: "/favicon.svg"

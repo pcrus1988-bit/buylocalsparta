@@ -211,6 +211,13 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       title: displayTitle,
       description,
       canonicalPath: productPublicPath(product),
+      keywords: [
+        displayTitle,
+        `${displayTitle} Σπάρτη`,
+        product.brand,
+        product.categoryLabel,
+        product.categoryLabel ? `${product.categoryLabel} Σπάρτη` : undefined
+      ],
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
         : detail?.sourceImageUrl

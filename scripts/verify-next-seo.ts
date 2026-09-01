@@ -9,6 +9,7 @@ import {
 import { resolveSeoEntityControl, routeForSeoEntity, seoEntityKey } from "../apps/web/src/lib/seo-entity-policy.ts";
 import { productPublicPath } from "../apps/web/src/lib/product-url.ts";
 import { seoDiagnosticRegressionSignals } from "../apps/web/src/lib/seo-diagnostic-monitoring.ts";
+import { SEO_META_KEYWORD_LIMIT, seoMetaKeywords } from "../apps/web/src/lib/seo-keywords.ts";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const failures: string[] = [];
@@ -33,6 +34,7 @@ const settingsRuntime = read("apps/web/src/lib/seo-settings.ts");
 const settingsAction = read("apps/web/src/app/admin/seo/actions.ts");
 const entityRuntime = read("apps/web/src/lib/seo-entity-overrides.ts");
 const entityMetadata = read("apps/web/src/lib/seo-metadata.ts");
+const keywordRuntime = read("apps/web/src/lib/seo-keywords.ts");
 const entityEditor = read("apps/web/src/components/AdminSeoEntityOverrideEditor.tsx");
 const reportRuntime = read("apps/web/src/lib/seo-diagnostic-reports.ts");
 const monitoringRuntime = read("apps/web/src/lib/seo-diagnostic-monitoring.ts");
@@ -164,6 +166,19 @@ if (!productIndexEligibility({ ...strongProduct, description: undefined, mediaId
 requireText(rootLayout, "metadataBase: new URL(settings.canonicalOrigin)", "Root metadata must use the governed canonical origin");
 if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title/description defaults");
 for (const contract of ['{ absolute: input.settings.defaultTitle }', "input.settings.defaultDescription", "input.settings.defaultOpenGraphTitle", "input.settings.defaultOpenGraphDescription", "input.settings.defaultOpenGraphImage"]) requireText(entityMetadata, contract, `Governed page metadata is missing global fallback ${contract}`);
+if (/\bkeywords\s*:/.test(rootLayout)) failures.push("Root layout must not leak one generic keyword list into private, transactional and unrelated pages");
+for (const contract of ["seoMetaKeywords", "control.indexAllowed", "contextual: input.defaults.keywords"]) requireText(entityMetadata, contract, `Governed metadata keyword policy is missing ${contract}`);
+for (const contract of ["Google explicitly does", "SEO_META_KEYWORD_LIMIT", "STATIC_SEARCH_INTENTS", "ENTITY_SEARCH_INTENTS", "local marketplace Sparta Greece"]) requireText(keywordRuntime, contract, `SEO keyword governance is missing ${contract}`);
+for (const route of INDEXABLE_STATIC_ROUTES) {
+  const keywords = seoMetaKeywords({ reference: { kind: "static", id: route.href } });
+  const normalized = new Set(keywords.map((keyword) => keyword.toLocaleLowerCase("el-GR")));
+  if (keywords.length < 8 || keywords.length > SEO_META_KEYWORD_LIMIT) failures.push(`Static route ${route.href} must have a concise 8-${SEO_META_KEYWORD_LIMIT} phrase keyword set`);
+  if (normalized.size !== keywords.length) failures.push(`Static route ${route.href} contains duplicate meta keywords`);
+  if (!keywords.some((keyword) => /Σπάρτη|Sparta/.test(keyword))) failures.push(`Static route ${route.href} is missing a truthful Sparta regional signal`);
+}
+const productKeywords = seoMetaKeywords({ reference: { kind: "product", id: "nike-air-max-90" }, contextual: ["Nike Air Max 90", "Nike Air Max 90 Σπάρτη", "Nike", "Αθλητικά παπούτσια"] });
+if (!productKeywords.includes("Nike Air Max 90") || !productKeywords.includes("Nike Air Max 90 Σπάρτη")) failures.push("Product meta keywords must preserve exact and regional entity intent");
+for (const source of [category, product, vendor]) requireText(source, "keywords:", "Dynamic public entity metadata must provide entity-specific keyword context");
 requireText(rootLayout, "robots: settings.indexingEnabled", "Root metadata must publish the emergency global noindex signal");
 requireText(homepage, 'governedStaticSeoMetadata("/"', "Homepage must publish governed self-canonical metadata");
 if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("getCrawlerHomepageCatalogCards")) failures.push("Homepage crawler rendering must bypass customer fairness assignment");
