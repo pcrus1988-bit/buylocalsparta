@@ -9,14 +9,20 @@ on:
       - "apps/web/src/lib/admin-catalogue-attribute-review.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-value-mapping.ts"
       - "apps/web/src/lib/admin-catalogue-controlled-value-queue.ts"
+      - "apps/web/src/lib/admin-catalogue-intelligence-review.ts"
       - "db/migrations/0164_catalog_source_attribute_mapping_rules.sql"
       - "db/migrations/0165_catalog_source_attribute_value_mapping_rules.sql"
+      - "db/migrations/0187_catalog_intelligence_autonomy.sql"
+      - "db/migrations/0188_catalog_intelligence_refresh_queue.sql"
+      - "db/migrations/0189_catalog_intelligence_safety_activation.sql"
+      - "db/migrations/0190_catalog_intelligence_controlled_value_compatibility.sql"
       - "db/migrations/checksums.0164.json"
       - "db/migrations/checksums.0165.json"
       - "packages/postgres-runtime/src/index.ts"
       - "scripts/verify-admin-catalogue-intake.ts"
       - "scripts/verify-admin-catalogue-attribute-review.ts"
       - "scripts/verify-admin-catalogue-controlled-values.ts"
+      - "scripts/verify-admin-catalogue-intelligence-review.ts"
       - "scripts/catalog-source-attribute-mapping-smoke.ts"
       - "scripts/catalog-source-attribute-value-mapping-smoke.ts"
       - ".github/workflows/admin-catalogue-intake-acceptance.yml"
@@ -58,6 +64,7 @@ jobs:
           node --experimental-strip-types scripts/verify-admin-catalogue-intake.ts
           node --experimental-strip-types scripts/verify-admin-catalogue-attribute-review.ts
           node --experimental-strip-types scripts/verify-admin-catalogue-controlled-values.ts
+          node --experimental-strip-types scripts/verify-admin-catalogue-intelligence-review.ts
           npm run db:verify
       - name: Bootstrap Supabase-compatible roles and Vault contract
         run: |
@@ -86,7 +93,7 @@ jobs:
           END;
           $$;
           SQL
-      - name: Apply schema 165 and verify readiness
+      - name: Apply current catalogue schema and verify readiness
         run: |
           npm run db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
@@ -98,6 +105,7 @@ jobs:
             apps/web/src/lib/admin-catalogue-attribute-review.ts \
             apps/web/src/lib/admin-catalogue-attribute-value-mapping.ts \
             apps/web/src/lib/admin-catalogue-controlled-value-queue.ts \
+            apps/web/src/lib/admin-catalogue-intelligence-review.ts \
             scripts/catalog-source-attribute-mapping-smoke.ts \
             scripts/catalog-source-attribute-value-mapping-smoke.ts
       - name: Exercise exact-context Product Type attribute mapping governance
