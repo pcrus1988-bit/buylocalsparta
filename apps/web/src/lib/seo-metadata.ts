@@ -41,15 +41,25 @@ export function buildGovernedSeoMetadata(input: {
     defaultIndexAllowed: input.defaultIndexAllowed,
     override: input.override
   });
-  const rawTitle = localizeOptionalSeoText(input.override?.title ?? input.defaults.title);
-  const title = rawTitle && !input.override?.title
-    ? fitSeoTitleToTemplate(rawTitle, input.settings.titleTemplate)
-    : rawTitle;
-  const description = localizeOptionalSeoText(input.override?.description ?? input.defaults.description);
+  const configuredTitle = localizeOptionalSeoText(input.override?.title ?? input.defaults.title);
+  const resolvedTitle = configuredTitle && !input.override?.title
+    ? fitSeoTitleToTemplate(configuredTitle, input.settings.titleTemplate)
+    : configuredTitle;
+  // A page-level generateMetadata result replaces inherited scalar fields. Always
+  // emit safe global fallbacks so a governed route can never erase <title> or the
+  // meta description merely because it only supplied a canonical path.
+  const title: Metadata["title"] = resolvedTitle ?? { absolute: input.settings.defaultTitle };
+  const description = localizeOptionalSeoText(
+    input.override?.description ?? input.defaults.description ?? input.settings.defaultDescription
+  );
   const canonical = input.override?.canonicalPath ?? input.defaults.canonicalPath ?? routeForSeoEntity(input.reference);
-  const openGraphTitle = localizeOptionalSeoText(input.override?.openGraphTitle ?? input.defaults.openGraphTitle ?? title);
-  const openGraphDescription = localizeOptionalSeoText(input.override?.openGraphDescription ?? input.defaults.openGraphDescription ?? description);
-  const openGraphImage = input.override?.openGraphImage ?? input.defaults.openGraphImage;
+  const openGraphTitle = localizeOptionalSeoText(
+    input.override?.openGraphTitle ?? input.defaults.openGraphTitle ?? resolvedTitle ?? input.settings.defaultOpenGraphTitle
+  );
+  const openGraphDescription = localizeOptionalSeoText(
+    input.override?.openGraphDescription ?? input.defaults.openGraphDescription ?? description ?? input.settings.defaultOpenGraphDescription
+  );
+  const openGraphImage = input.override?.openGraphImage ?? input.defaults.openGraphImage ?? input.settings.defaultOpenGraphImage;
   return {
     title,
     description,
