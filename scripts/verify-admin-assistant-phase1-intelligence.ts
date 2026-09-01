@@ -4,7 +4,7 @@ import { planExternalResearch } from "../apps/web/src/lib/admin-assistant/resear
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence, crawlerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy, recommendationLifecycle, recommendationRoute, migration178, checksum178, postgresRuntime, shell] = await Promise.all([
+const [phase1, dashboard, matching, searchConsole, catalogGovernance, productIntelligence, customerIntelligence, crawlerIntelligence, globalSearch, toolRegistry, investigation, context, pageRegistry, service, config, researchPolicy, recommendationLifecycle, recommendationRoute, migration200, checksum200, postgresRuntime, shell] = await Promise.all([
   read("apps/web/src/lib/admin-assistant/phase1-snapshot.ts"),
   read("apps/web/src/lib/admin-assistant/dashboard-intelligence.ts"),
   read("apps/web/src/lib/admin-assistant/matching-intelligence.ts"),
@@ -23,8 +23,8 @@ const [phase1, dashboard, matching, searchConsole, catalogGovernance, productInt
   read("apps/web/src/lib/admin-assistant/research-policy.ts"),
   read("apps/web/src/lib/admin-assistant/recommendation-lifecycle.ts"),
   read("apps/web/src/app/api/admin/assistant/recommendations/route.ts"),
-  read("db/migrations/0178_admin_assistant_recommendation_states.sql"),
-  read("db/migrations/checksums.0178.json"),
+  read("db/migrations/0200_admin_assistant_recommendation_states.sql"),
+  read("db/migrations/checksums.0200.json"),
   read("packages/postgres-runtime/src/index.ts"),
   read("apps/web/src/components/AdminAssistantShell.tsx")
 ]);
@@ -99,16 +99,16 @@ assert.match(shell, /\/api\/admin\/assistant\/recommendations/);
 assert.match(shell, /"x-csrf-token": csrfToken/);
 for (const label of [">Dismiss</button>", ">Snooze 1d</button>", ">Intentional</button>"]) assert.ok(shell.includes(label));
 
-assert.match(migration178, /admin_assistant_recommendation_states/);
-assert.match(migration178, /ENABLE ROW LEVEL SECURITY/);
-assert.match(migration178, /bls_private\.is_platform_runtime\(\)/);
-assert.match(migration178, /REVOKE ALL .* FROM PUBLIC/i);
-assert.match(migration178, /idx_admin_assistant_tool_audit_conversation/);
-assert.match(migration178, /This is assistant metadata only/i);
-assert.doesNotMatch(migration178, /GRANT .* TO anon|GRANT .* TO authenticated/i);
-assert.match(checksum178, /0178_admin_assistant_recommendation_states\.sql/);
-assert.match(checksum178, /e580518d6f43a98924365ad172c6c5c4560777200a6d3cc5f547761c1c3b8b43/);
-assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 178/);
+assert.match(migration200, /admin_assistant_recommendation_states/);
+assert.match(migration200, /ENABLE ROW LEVEL SECURITY/);
+assert.match(migration200, /bls_private\.is_platform_runtime\(\)/);
+assert.match(migration200, /REVOKE ALL .* FROM PUBLIC/i);
+assert.match(migration200, /idx_admin_assistant_tool_audit_conversation/);
+assert.match(migration200, /This is assistant metadata only/i);
+assert.doesNotMatch(migration200, /GRANT .* TO anon|GRANT .* TO authenticated/i);
+assert.match(checksum200, /0200_admin_assistant_recommendation_states\.sql/);
+assert.match(checksum200, /e580518d6f43a98924365ad172c6c5c4560777200a6d3cc5f547761c1c3b8b43/);
+assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 200/);
 
 for (const page of ["dashboard", "product_matching", "category_governance", "controlled_values", "customer_detail", "catalogue_crawler"]) assert.match(pageRegistry, new RegExp(page));
 assert.match(context, /Find duplicate-risk products/i);
