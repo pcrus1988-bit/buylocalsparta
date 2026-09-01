@@ -142,6 +142,8 @@ if (product.includes('href="/advice">Πώς λειτουργεί')) failures.pus
 const productHasHowItWorksDestination = product.includes('href="/how-it-works">Πώς λειτουργεί');
 const productHasInlineCommerceExplanation = product.includes("Πώς λειτουργούν η τιμή και η επιλογή καταστήματος")
   && product.includes("Ένα προϊόν, μία επιλογή κάθε φορά")
+  && product.includes("Η τιμή είναι του καταστήματος")
+  && product.includes("χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ")
   && product.includes("Σταθερή ανάθεση");
 if (!productHasHowItWorksDestination && !productHasInlineCommerceExplanation) failures.push("Product page is missing the how-it-works destination or governed inline price/vendor explanation");
 const joinPage = read("apps/web/src/app/join/page.tsx");
