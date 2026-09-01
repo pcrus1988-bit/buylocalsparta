@@ -139,7 +139,13 @@ if (!proxy.includes("request.method !== \"GET\"") || !proxy.includes("request.me
 
 const product = read("apps/web/src/app/product/[id]/page.tsx");
 if (product.includes('href="/advice">Πώς λειτουργεί')) failures.push("Product page still misroutes the how-it-works CTA to advice");
-if (!product.includes('href="/how-it-works">Πώς λειτουργεί')) failures.push("Product page is missing the real how-it-works destination");
+const productHasHowItWorksDestination = product.includes('href="/how-it-works">Πώς λειτουργεί');
+const productHasInlineCommerceExplanation = product.includes("Πώς λειτουργούν η τιμή και η επιλογή καταστήματος")
+  && product.includes("Ένα προϊόν, μία επιλογή κάθε φορά")
+  && product.includes("Η τιμή είναι του καταστήματος")
+  && product.includes("χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ")
+  && product.includes("Σταθερή ανάθεση");
+if (!productHasHowItWorksDestination && !productHasInlineCommerceExplanation) failures.push("Product page is missing the how-it-works destination or governed inline price/vendor explanation");
 const joinPage = read("apps/web/src/app/join/page.tsx");
 if (joinPage.includes('href="#eligibility"')) failures.push("Partner onboarding still uses an explanatory anchor as its primary CTA");
 if (!joinPage.includes('href="/join/requirements"')) failures.push("Partner onboarding is missing the operational readiness route");
