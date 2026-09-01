@@ -33,7 +33,8 @@ function ageLabel(seconds: number | null): string {
 }
 
 function OpenIcecatHealthPanel({ health }: Readonly<{ health: OpenIcecatAdminHealth }>) {
-  if (health.state === "not_configured") {
+  if (health.state !== "available") {
+    const notConfigured = health.state === "not_configured";
     return <section className="vendor-section">
       <div className="shell">
         <WorkspaceSectionHeading
@@ -42,26 +43,13 @@ function OpenIcecatHealthPanel({ health }: Readonly<{ health: OpenIcecatAdminHea
           note="Read-only παρακολούθηση της πηγής Icecat. Δεν αλλάζει canonical προϊόντα, offers, τιμές, stock ή publication state."
         />
         <WorkspaceEmptyState
-          eyebrow="Δεν έχει ρυθμιστεί"
-          title="Δεν υπάρχει ενεργή Open Icecat πηγή για τη Σπάρτη."
-          body="Η επισκόπηση θα ενεργοποιηθεί αυτόματα μόλις υπάρχει ενεργή catalog source."
-        />
-      </div>
-    </section>;
-  }
-
-  if (health.state === "unavailable") {
-    return <section className="vendor-section">
-      <div className="shell">
-        <WorkspaceSectionHeading
-          eyebrow="Open Icecat · source enrichment"
-          title="Υγεία εμπλουτισμού καταλόγου"
-          note="Read-only παρακολούθηση της πηγής Icecat. Δεν αλλάζει canonical προϊόντα, offers, τιμές, stock ή publication state."
-        />
-        <WorkspaceEmptyState
-          eyebrow="Προσωρινά μη διαθέσιμο"
-          title="Τα Icecat operational metrics δεν είναι διαθέσιμα αυτή τη στιγμή."
-          body="Η υπόλοιπη διαχείριση καταλόγου παραμένει διαθέσιμη. Δεν εμφανίζονται provider credentials, raw payloads ή database errors στο Admin."
+          eyebrow={notConfigured ? "Δεν έχει ρυθμιστεί" : "Προσωρινά μη διαθέσιμο"}
+          title={notConfigured
+            ? "Δεν υπάρχει ενεργή Open Icecat πηγή για τη Σπάρτη."
+            : "Τα Icecat operational metrics δεν είναι διαθέσιμα αυτή τη στιγμή."}
+          body={notConfigured
+            ? "Η επισκόπηση θα ενεργοποιηθεί αυτόματα μόλις υπάρχει ενεργή catalog source."
+            : "Η υπόλοιπη διαχείριση καταλόγου παραμένει διαθέσιμη. Δεν εμφανίζονται provider credentials, raw payloads ή database errors στο Admin."}
         />
       </div>
     </section>;
