@@ -119,7 +119,7 @@ export class ProductionPostgresRuntime {
     this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
     this.search = config.search ? new PostgresProductionSearchService(this.sqlPool, config.search) : undefined;
     this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
-    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow), { emailNotificationsEnabled: Boolean(config.resend) }) : undefined;
+    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
     this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool);
     this.cartRecovery = new PostgresCartRecoveryService(this.sqlPool);
   }
@@ -194,7 +194,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
     resend: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? resendConfigFromEnv(env) : undefined,
     notificationSuppressionSecret: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? requiredSecret(env.BLS_NOTIFICATION_SUPPRESSION_SECRET, "BLS_NOTIFICATION_SUPPRESSION_SECRET") : undefined,
     notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
-    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromRuntimeEnv(env) : undefined
+    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
   };
 }
 
@@ -202,13 +202,13 @@ export function createPostgresRuntimeFromEnv(input: { env?: NodeJS.ProcessEnv; a
   return new ProductionPostgresRuntime(postgresConfigFromEnv(input.env, input.applicationName));
 }
 
-function boxNowConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
+function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
   const environment = env.BOXNOW_ENVIRONMENT === "production" ? "production" : "stage";
   if (env.NODE_ENV === "production" && environment !== "production" && env.BLS_ALLOW_BOXNOW_STAGE_PREVIEW !== "true") throw new Error("Production BOX NOW shipping requires BOXNOW_ENVIRONMENT=production");
   const baseUrl=env.BOXNOW_API_URL?.trim(); const clientId=env.BOXNOW_CLIENT_ID?.trim(); const clientSecret=env.BOXNOW_CLIENT_SECRET?.trim();
   if(!baseUrl||!clientId||!clientSecret) throw new Error("BOXNOW_API_URL, BOXNOW_CLIENT_ID and BOXNOW_CLIENT_SECRET are required when BLS_BOXNOW_ENABLED=true");
   const webhookSecret=env.BOXNOW_WEBHOOK_SECRET?.trim(); if(!webhookSecret || webhookSecret.length<16) throw new Error("BOXNOW_WEBHOOK_SECRET must be configured when BLS_BOXNOW_ENABLED=true");
-  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BOXNOW_REQUEST_TIMEOUT_MS"), webhookSecret };
+  return { environment, baseUrl, clientId, clientSecret, partnerId:env.BOXNOW_PARTNER_ID?.trim()||undefined, requestTimeoutMs:positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BOXNOW_REQUEST_TIMEOUT_MS") };
 }
 
 function vivaConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): VivaConfig {
