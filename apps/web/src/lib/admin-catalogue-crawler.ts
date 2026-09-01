@@ -3,6 +3,11 @@ import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRo
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import {
+  catalogWebCrawlPromotionBlockedMessage,
+  evaluateCatalogWebCrawlPromotionReadiness,
+  type CatalogWebCrawlPromotionReadiness,
+} from "./catalogue-crawler-promotion-readiness";
 
 export type AdminCrawlerProfile = Readonly<{
   id: string; sourceId: string; sourceCode: string; sourceName: string; profileCode: string; rootUrl: string;
@@ -14,6 +19,7 @@ export type AdminCrawlerJob = Readonly<{
   id: string; profileId: string; sourceName: string; profileCode: string; rootUrl: string; crawlMode: string; seedUrl?: string; status: string;
   attemptCount: number; discovered: number; fetched: number; skipped: number; failed: number; extracted: number; review: number; promoted: number;
   claimedBy?: string; leaseExpiresAt?: number; lastHeartbeatAt?: number; cancelRequestedAt?: number; createdAt: number; completedAt?: number; failureReason?: string;
+  promotionReadiness: CatalogWebCrawlPromotionReadiness;
 }>;
 export type AdminCrawlerHealth = Readonly<{
   queuedReady: number; queuedDelayed: number; running: number; cancellationRequested: number; expiredLeases: number;
@@ -112,6 +118,13 @@ export async function promoteAdminCrawlerJob(principal: SessionPrincipal, jobId:
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 2_000 });
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const readinessByJobId = await evaluateCatalogWebCrawlPromotionReadiness(tx, [jobId]);
+    const readiness = readinessByJobId.get(jobId);
+    if (!readiness) throw new Error("Catalogue crawl promotion readiness could not be evaluated.");
+    if (!readiness.ready) throw new Error(catalogWebCrawlPromotionBlockedMessage(readiness));
+
+    // The PostgreSQL promotion function deliberately repeats the critical invariants under its row lock.
+    // This closes the race between the read-only preview and the write while keeping one Admin evaluator for UI/action parity.
     const result = await tx.query<SqlRow>(`SELECT bls_private.promote_catalog_web_crawl_job($1) AS result`, [jobId]);
     const value = result.rows[0]?.result;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Crawler promotion returned an invalid result");
@@ -184,7 +197,14 @@ async function readJobs(tx: SqlExecutor): Promise<readonly AdminCrawlerJob[]> {
       extract(epoch from j.lease_expires_at)*1000 lease_ms,extract(epoch from j.last_heartbeat_at)*1000 heartbeat_ms,extract(epoch from j.cancel_requested_at)*1000 cancel_ms,extract(epoch from j.created_at)*1000 created_ms,extract(epoch from j.completed_at)*1000 completed_ms,j.failure_reason
     FROM public.catalog_web_crawl_jobs j JOIN public.catalog_web_crawl_profiles p ON p.id=j.profile_id JOIN public.catalog_sources s ON s.id=j.source_id ORDER BY j.created_at DESC LIMIT 120
   `);
-  return result.rows.map((r) => ({ id:required(r.id,"job.id"),profileId:required(r.profile_id,"job.profile_id"),sourceName:required(r.source_name,"job.source"),profileCode:required(r.profile_code,"job.profile"),rootUrl:required(r.root_url,"job.root_url"),crawlMode:String(r.crawl_mode),seedUrl:optional(r.seed_url),status:String(r.status),attemptCount:Number(r.attempt_count),discovered:Number(r.discovered_url_count),fetched:Number(r.fetched_page_count),skipped:Number(r.skipped_page_count),failed:Number(r.failed_page_count),extracted:Number(r.extracted_product_count),review:Number(r.review_product_count),promoted:Number(r.promoted_product_count),claimedBy:optional(r.claimed_by),leaseExpiresAt:optionalNumber(r.lease_ms),lastHeartbeatAt:optionalNumber(r.heartbeat_ms),cancelRequestedAt:optionalNumber(r.cancel_ms),createdAt:Number(r.created_ms),completedAt:optionalNumber(r.completed_ms),failureReason:optional(r.failure_reason) }));
+  const jobIds = result.rows.map((row) => required(row.id, "job.id"));
+  const readinessByJobId = await evaluateCatalogWebCrawlPromotionReadiness(tx, jobIds);
+  return result.rows.map((r) => {
+    const id = required(r.id,"job.id");
+    const promotionReadiness = readinessByJobId.get(id);
+    if (!promotionReadiness) throw new Error(`Crawler promotion readiness missing for job ${id}`);
+    return { id,profileId:required(r.profile_id,"job.profile_id"),sourceName:required(r.source_name,"job.source"),profileCode:required(r.profile_code,"job.profile"),rootUrl:required(r.root_url,"job.root_url"),crawlMode:String(r.crawl_mode),seedUrl:optional(r.seed_url),status:String(r.status),attemptCount:Number(r.attempt_count),discovered:Number(r.discovered_url_count),fetched:Number(r.fetched_page_count),skipped:Number(r.skipped_page_count),failed:Number(r.failed_page_count),extracted:Number(r.extracted_product_count),review:Number(r.review_product_count),promoted:Number(r.promoted_product_count),claimedBy:optional(r.claimed_by),leaseExpiresAt:optionalNumber(r.lease_ms),lastHeartbeatAt:optionalNumber(r.heartbeat_ms),cancelRequestedAt:optionalNumber(r.cancel_ms),createdAt:Number(r.created_ms),completedAt:optionalNumber(r.completed_ms),failureReason:optional(r.failure_reason),promotionReadiness };
+  });
 }
 async function readHealth(tx: SqlExecutor): Promise<AdminCrawlerHealth> {
   const result = await tx.query<SqlRow>(`SELECT bls_private.catalog_web_crawl_queue_health() AS health`);
