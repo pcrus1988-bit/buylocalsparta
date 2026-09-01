@@ -3,6 +3,7 @@ import {
   PostgresUnitOfWork,
   type SqlRow
 } from "../packages/core/src/index.ts";
+import type { SqlExecutor } from "../packages/core/src/persistence/sql.ts";
 import {
   createPostgresRuntimeFromEnv,
   EXPECTED_SCHEMA_VERSION
@@ -116,7 +117,7 @@ async function applyRequeue(uow: PostgresUnitOfWork): Promise<readonly SqlRow[]>
   }, { isolation: "read committed" });
 }
 
-async function loadSourceId(tx: { query<T extends SqlRow = SqlRow>(text: string, values?: readonly unknown[]): Promise<{ rows: T[] }> }): Promise<string> {
+async function loadSourceId(tx: SqlExecutor): Promise<string> {
   const result = await tx.query<SqlRow>(`
     SELECT s.id::text AS source_id
     FROM public.catalog_sources s
