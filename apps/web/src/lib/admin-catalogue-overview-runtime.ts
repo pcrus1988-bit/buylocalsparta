@@ -1,4 +1,5 @@
 import {
+  OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
   PostgresUnitOfWork,
   type SessionPrincipal,
   type SqlRow
@@ -32,6 +33,34 @@ export type CatalogueOverviewCategory = Readonly<{
   childCount: number;
 }>;
 
+export type OpenIcecatAdminHealth =
+  | Readonly<{
+      state: "not_configured" | "unavailable";
+    }>
+  | Readonly<{
+      state: "available";
+      processingVersion: string;
+      activeIndexProducts: number;
+      queueableProducts: number;
+      missingGtin: number;
+      missingGtinPct: number;
+      detailProcessed: number;
+      detailCoveragePct: number;
+      readyCoveragePct: number;
+      actionableBacklog: number;
+      completedLastHour: number;
+      oldestActionableAgeSeconds: number | null;
+      queue: Readonly<{
+        pending: number;
+        processing: number;
+        retry: number;
+        ready: number;
+        needsEnrichment: number;
+        failed: number;
+        skipped: number;
+      }>;
+    }>;
+
 export type CatalogueOverviewWorkspace = Readonly<{
   csrfToken: string;
   categories: readonly CatalogueOverviewCategory[];
@@ -45,6 +74,7 @@ export type CatalogueOverviewWorkspace = Readonly<{
     liveProducts: number;
     taxonomyLevels: number;
   }>;
+  openIcecat: OpenIcecatAdminHealth;
 }>;
 
 function text(row: SqlRow, field: string): string {
@@ -64,6 +94,16 @@ function integer(row: SqlRow, field: string): number {
     throw new Error(`Database field ${field} is not a non-negative safe integer`);
   }
   return value;
+}
+
+function nullableInteger(row: SqlRow, field: string): number | null {
+  if (row[field] === null || row[field] === undefined) return null;
+  return integer(row, field);
+}
+
+function percentage(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((numerator / denominator) * 100)));
 }
 
 function booleanValue(row: SqlRow, field: string): boolean {
@@ -110,7 +150,7 @@ function normalizedParents(source: readonly CatalogueSourceCategory[]): Map<stri
 export function buildCatalogueOverview(
   csrfToken: string,
   source: readonly CatalogueSourceCategory[]
-): CatalogueOverviewWorkspace {
+): Omit<CatalogueOverviewWorkspace, "openIcecat"> {
   const byCode = new Map(source.map((category) => [category.categoryCode, category] as const));
   const parents = normalizedParents(source);
   const children = new Map<string | undefined, CatalogueSourceCategory[]>();
@@ -190,11 +230,111 @@ export function buildCatalogueOverview(
   };
 }
 
+function buildOpenIcecatHealth(row: SqlRow): OpenIcecatAdminHealth {
+  const activeIndexProducts = integer(row, "active_products");
+  const missingGtin = integer(row, "without_gtin");
+  const queueableProducts = Math.max(0, activeIndexProducts - missingGtin);
+  const pending = integer(row, "pending");
+  const processing = integer(row, "processing");
+  const retry = integer(row, "retry");
+  const ready = integer(row, "ready");
+  const needsEnrichment = integer(row, "needs_enrichment");
+  const failed = integer(row, "failed");
+  const skipped = integer(row, "skipped");
+  const detailProcessed = ready + needsEnrichment;
+
+  return {
+    state: "available",
+    processingVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
+    activeIndexProducts,
+    queueableProducts,
+    missingGtin,
+    missingGtinPct: percentage(missingGtin, activeIndexProducts),
+    detailProcessed,
+    detailCoveragePct: percentage(detailProcessed, queueableProducts),
+    readyCoveragePct: percentage(ready, queueableProducts),
+    actionableBacklog: pending + processing + retry,
+    completedLastHour: integer(row, "completed_last_hour"),
+    oldestActionableAgeSeconds: nullableInteger(row, "oldest_actionable_age_seconds"),
+    queue: {
+      pending,
+      processing,
+      retry,
+      ready,
+      needsEnrichment,
+      failed,
+      skipped
+    }
+  };
+}
+
+async function postgresOpenIcecatHealth(runtime: ReturnType<typeof getProductionPostgresRuntime>): Promise<OpenIcecatAdminHealth> {
+  const sourceUow = new PostgresUnitOfWork(runtime.sqlPool);
+  let sourceId: string;
+  try {
+    const source = await sourceUow.withTransaction({ platformAccess: true }, async (tx) => {
+      const result = await tx.query<SqlRow>(
+        `SELECT s.id::text AS source_id
+         FROM public.catalog_sources s
+         JOIN public.markets m ON m.id=s.market_id
+         WHERE s.code='open_icecat' AND s.active=true AND m.code='sparta'
+         LIMIT 1`
+      );
+      return result.rows[0]?.source_id;
+    }, { readOnly: true, statementTimeoutMs: 5_000 });
+    if (typeof source !== "string" || !source) return { state: "not_configured" };
+    sourceId = source;
+  } catch {
+    return { state: "unavailable" };
+  }
+
+  try {
+    const statsUow = new PostgresUnitOfWork(runtime.sqlPool);
+    return await statsUow.withTransaction({ platformAccess: true }, async (tx) => {
+      const result = await tx.query<SqlRow>(
+        `WITH index_stats AS (
+           SELECT count(*) FILTER (WHERE record_state='active')::bigint AS active_products,
+                  count(*) FILTER (WHERE record_state='active' AND cardinality(gtins)=0)::bigint AS without_gtin
+           FROM public.open_icecat_index_products
+           WHERE source_id=$1::uuid
+         ), job_stats AS (
+           SELECT count(*) FILTER (WHERE status='pending')::bigint AS pending,
+                  count(*) FILTER (WHERE status='processing')::bigint AS processing,
+                  count(*) FILTER (WHERE status='retry')::bigint AS retry,
+                  count(*) FILTER (WHERE status='ready')::bigint AS ready,
+                  count(*) FILTER (WHERE status='needs_enrichment')::bigint AS needs_enrichment,
+                  count(*) FILTER (WHERE status='failed')::bigint AS failed,
+                  count(*) FILTER (WHERE status='skipped')::bigint AS skipped,
+                  count(*) FILTER (
+                    WHERE status IN ('ready','needs_enrichment')
+                      AND completed_at >= now() - interval '1 hour'
+                  )::bigint AS completed_last_hour,
+                  extract(epoch FROM (now() - min(updated_at) FILTER (
+                    WHERE status IN ('pending','processing','retry')
+                  )))::bigint AS oldest_actionable_age_seconds
+           FROM public.open_icecat_detail_enrichment_jobs
+           WHERE source_id=$1::uuid
+             AND processing_version=$2
+         )
+         SELECT * FROM index_stats CROSS JOIN job_stats`,
+        [sourceId, OPEN_ICECAT_DETAIL_PROCESSING_VERSION]
+      );
+      const row = result.rows[0];
+      if (!row) return { state: "unavailable" } as const;
+      return buildOpenIcecatHealth(row);
+    }, { readOnly: true, statementTimeoutMs: 8_000 });
+  } catch {
+    // The catalogue workspace must remain usable if the enrichment schema is not deployed yet,
+    // is being migrated, or is temporarily unavailable. Never leak DB/provider details to Admin UI.
+    return { state: "unavailable" };
+  }
+}
+
 async function postgresCatalogueOverview(principal: SessionPrincipal): Promise<CatalogueOverviewWorkspace> {
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
 
-  return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+  const catalogue = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const result = await tx.query<SqlRow>(
       `SELECT
          c.code,
@@ -233,6 +373,11 @@ async function postgresCatalogueOverview(principal: SessionPrincipal): Promise<C
       }))
     );
   }, { readOnly: true });
+
+  return {
+    ...catalogue,
+    openIcecat: await postgresOpenIcecatHealth(runtime)
+  };
 }
 
 function memoryCatalogueOverview(principal: SessionPrincipal): CatalogueOverviewWorkspace {
@@ -269,7 +414,10 @@ function memoryCatalogueOverview(principal: SessionPrincipal): CatalogueOverview
     });
   }
 
-  return buildCatalogueOverview(principal.csrfToken, [...categories.values()]);
+  return {
+    ...buildCatalogueOverview(principal.csrfToken, [...categories.values()]),
+    openIcecat: { state: "not_configured" }
+  };
 }
 
 export async function adminCatalogueOverviewWorkspace(
