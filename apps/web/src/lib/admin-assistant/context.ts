@@ -1,5 +1,6 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { hasAdminPermission } from "../admin-runtime";
+import { adminAssistantPageDefinition } from "./page-registry";
 import type { AdminAssistantClientContext, AdminAssistantContext, AdminAssistantDomain } from "./types";
 
 function cleanRoute(value: string): string {
@@ -12,28 +13,11 @@ function safeDecode(value: string | undefined): string | undefined {
   try { return decodeURIComponent(value).slice(0, 200); } catch { return value.slice(0, 200); }
 }
 
-function routeDescriptor(route: string): { domain: AdminAssistantDomain; pageType: string; label: string; entityType?: string; entityId?: string } {
-  if (route === "/admin") return { domain: "dashboard", pageType: "admin_home", label: "Admin > Overview" };
-  const order = route.match(/^\/admin\/orders\/([^/]+)$/);
-  if (order) return { domain: "orders", pageType: "order_detail", label: `Operations > Orders > ${safeDecode(order[1])}`, entityType: "order", entityId: safeDecode(order[1]) };
-  const product = route.match(/^\/admin\/products\/([^/]+)$/);
-  if (product) return { domain: "catalogue", pageType: "product_detail", label: `Catalogue > Products > ${safeDecode(product[1])}`, entityType: "canonical_product", entityId: safeDecode(product[1]) };
-  const vendor = route.match(/^\/admin\/(?:vendors|partners)\/([^/]+)$/);
-  if (vendor) return { domain: "partners", pageType: "vendor_detail", label: `Partners > ${safeDecode(vendor[1])}`, entityType: "vendor", entityId: safeDecode(vendor[1]) };
-  if (route.startsWith("/admin/catalogue-intake/attributes")) return { domain: "catalogue", pageType: "attribute_mapping", label: "Catalogue > Attributes" };
-  if (route.startsWith("/admin/catalogue-intake/import")) return { domain: "catalogue", pageType: "source_import", label: "Catalogue > Files & Icecat" };
-  if (route.startsWith("/admin/catalogue-intake")) return { domain: "catalogue", pageType: "supplier_pim", label: "Catalogue > Supplier PIM" };
-  if (route.startsWith("/admin/catalogue-crawler")) return { domain: "catalogue", pageType: "website_import", label: "Catalogue > Website Import" };
-  if (route.startsWith("/admin/categories")) return { domain: "catalogue", pageType: "taxonomy", label: "Catalogue > Categories & Policies" };
-  if (route.startsWith("/admin/matching")) return { domain: "catalogue", pageType: "product_matching", label: "Catalogue > Product Matching" };
-  if (route.startsWith("/admin/catalogue") || route.startsWith("/admin/products")) return { domain: "catalogue", pageType: "catalogue_overview", label: "Catalogue" };
-  if (route.startsWith("/admin/orders") || route.startsWith("/admin/delivery")) return { domain: "orders", pageType: "orders", label: "Operations > Orders" };
-  if (["/admin/partners", "/admin/vendors", "/admin/applications", "/admin/prospects", "/admin/research-vendors"].some((prefix) => route.startsWith(prefix))) return { domain: "partners", pageType: "partners", label: "Partners" };
-  if (route.startsWith("/admin/tax") || route.startsWith("/admin/finance/mydata")) return { domain: "tax", pageType: "tax", label: "Finance & Tax > Tax & myDATA" };
-  if (route.startsWith("/admin/seo")) return { domain: "seo", pageType: "seo", label: "SEO & Visibility" };
-  if (route.startsWith("/admin/gift-cards") || route.startsWith("/admin/coupons")) return { domain: "gift_cards", pageType: "gift_cards", label: "Customers > Gift Cards" };
-  if (["/admin/platform", "/admin/operations", "/admin/maintenance", "/admin/activation"].some((prefix) => route.startsWith(prefix))) return { domain: "platform", pageType: "platform", label: "Platform" };
-  return { domain: "generic", pageType: "admin_page", label: route.replace(/^\/admin\/?/, "Admin > ").replaceAll("-", " ") || "Admin" };
+function entityIdFromRoute(route: string, entityType?: string): string | undefined {
+  if (entityType === "order") return safeDecode(/^\/admin\/orders\/([^/]+)$/.exec(route)?.[1]);
+  if (entityType === "vendor") return safeDecode(/^\/admin\/partners\/([^/]+)/.exec(route)?.[1]);
+  if (entityType === "customer") return safeDecode(/^\/admin\/customers\/([^/]+)$/.exec(route)?.[1]);
+  return undefined;
 }
 
 export function parseAssistantClientContext(input: unknown): AdminAssistantClientContext {
@@ -56,36 +40,72 @@ export function parseAssistantClientContext(input: unknown): AdminAssistantClien
 export function suggestedQuestionsForDomain(domain: AdminAssistantDomain): readonly string[] {
   switch (domain) {
     case "dashboard": return ["What should I do next?", "What changed recently?", "Show only critical problems.", "Explain this overview."];
-    case "catalogue": return ["What should I prioritize here?", "Explain unmapped attributes.", "Show the highest-impact catalog issues.", "What happens if I change this mapping?"];
-    case "orders": return ["Which orders need attention?", "Find fulfilment inconsistencies.", "Check everything related to this order.", "What should I fix first?"];
+    case "catalogue": return ["What should I prioritize here?", "Explain unmapped attributes.", "Show the highest-impact data-quality issues.", "Check everything related to this context."];
+    case "orders": return ["Which orders need attention?", "Find payment and fulfilment inconsistencies.", "Check everything related to this order.", "What should I fix first?"];
     case "partners": return ["Which partners need attention?", "Show onboarding blockers.", "Explain this partner state.", "What should I follow up next?"];
     case "tax": return ["Which fiscal documents need attention?", "Show missing MARK or transmission issues.", "Explain this tax screen.", "What is safe to do next?"];
     case "seo": return ["What is limiting visibility?", "Show the highest SEO opportunities.", "Find indexability problems.", "What should I improve first?"];
-    case "gift_cards": return ["Explain this gift-card screen.", "What should I verify before launch?", "Are there redemption risks?", "What should I check next?"];
+    case "gift_cards": return ["Which gift cards are not redeemable?", "Explain this gift-card screen.", "Find redemption risks.", "What should I verify before launch?"];
     case "platform": return ["What is unhealthy?", "What changed today?", "Which background jobs need attention?", "What should I investigate first?"];
     default: return ["Explain this page.", "What should I pay attention to?", "What should I do next?", "Check for anything unusual."];
   }
 }
 
+export function suggestedQuestionsForContext(context: AdminAssistantContext): readonly string[] {
+  const specific: Readonly<Record<string, readonly string[]>> = {
+    global_search: ["Find a product by title, model or GTIN.", "Find an order by its public reference.", "Look up a customer or support ticket.", "Find a partner and inspect its readiness."],
+    attribute_mapping: ["Show the highest-impact unmapped attributes.", "Suggest safe mappings.", "Find inconsistent units.", "What should I map first?"],
+    catalogue_import: ["Is ingestion stalled?", "Why are rows being rejected?", "What changed in the latest ingestion?", "Show the highest-impact ingestion problem."],
+    catalogue_crawler: ["Did the latest website crawl fail or stall?", "Is there evidence of possible source drift?", "Which extracted products still need review?", "Is a completed crawl ready for the PIM hand-off?"],
+    product_matching: ["Find duplicate-risk products.", "Which offers still need canonical matching?", "Show identifier conflicts.", "What can safely be resolved next?"],
+    category_governance: ["Which categories need attention?", "Find empty or weak categories.", "Show taxonomy consistency problems.", "What category work has the highest impact?"],
+    order_detail: ["Check everything related to this order.", "Is payment consistent with fulfilment?", "Does this order have a valid tax document?", "What is unusual about this order?"],
+    vendor_detail: ["Check this partner's operational readiness.", "Is the agreement valid for this partner state?", "Are active orders safe for this partner?", "What should I fix first?"],
+    vendor_catalogue: ["Is this partner ready to sell?", "What catalogue gaps block this partner?", "Does this partner have enough approved offers?", "What should I improve first?"],
+    customer_detail: ["Check this customer's account and support state.", "Are there overdue support or privacy actions?", "Is this account state consistent with its sessions?", "What needs attention for this customer?"],
+    tax_mydata: ["Find paid orders missing tax documents.", "Show missing MARK documents.", "Which AADE failures need attention?", "What should I resolve first?"],
+    gift_cards: ["Find gift cards that cannot be redeemed.", "Check checkout redemption readiness.", "Show state/value inconsistencies.", "What should I verify before launch?"],
+    search_console: ["Which search queries are opportunities?", "Where are impressions not turning into clicks?", "Match search demand to catalogue coverage.", "What should I improve first?"],
+    background_jobs: ["Which jobs are failing repeatedly?", "Show stalled or stale processing.", "What recovered recently?", "What should I investigate first?"]
+  };
+  return specific[context.pageType] ?? suggestedQuestionsForDomain(context.domain);
+}
+
 export function buildAdminAssistantContext(principal: SessionPrincipal, client: AdminAssistantClientContext): AdminAssistantContext {
-  const descriptor = routeDescriptor(cleanRoute(client.route));
+  const route = cleanRoute(client.route);
+  const page = adminAssistantPageDefinition(route);
   const capabilities: string[] = ["assistant.read"];
-  if (hasAdminPermission(principal, "catalog.read")) capabilities.push("catalog.read");
-  if (hasAdminPermission(principal, "catalog.write")) capabilities.push("catalog.prepare");
-  if (hasAdminPermission(principal, "fulfilment.read")) capabilities.push("orders.read");
-  if (hasAdminPermission(principal, "vendor.manage")) capabilities.push("partners.read");
-  if (hasAdminPermission(principal, "finance.read")) capabilities.push("finance.read");
-  if (hasAdminPermission(principal, "content.read")) capabilities.push("seo.read");
-  if (hasAdminPermission(principal, "admin.audit.read")) capabilities.push("audit.read");
+  const permissions: string[] = [];
+  const add = (permission: Parameters<typeof hasAdminPermission>[1], capability: string) => {
+    if (!hasAdminPermission(principal, permission)) return;
+    permissions.push(permission);
+    capabilities.push(capability);
+  };
+  add("catalog.read", "catalog.read");
+  add("catalog.write", "catalog.prepare");
+  add("fulfilment.read", "orders.read");
+  add("vendor.manage", "partners.read");
+  add("customer.read", "customers.read");
+  add("finance.read", "finance.read");
+  add("content.read", "seo.read");
+  add("admin.audit.read", "audit.read");
+  add("analytics.market.read", "analytics.read");
+
+  const entityId = entityIdFromRoute(route, page.entityType);
   return {
-    route: client.route,
-    pageType: descriptor.pageType,
-    domain: descriptor.domain,
-    contextLabel: descriptor.label,
-    entityType: descriptor.entityType,
-    entityId: descriptor.entityId,
+    route,
+    pageType: page.pageType,
+    domain: page.domain,
+    contextLabel: page.contextLabel,
+    pagePurpose: page.purpose,
+    attentionAreas: page.attention,
+    entityType: page.entityType,
+    entityId,
+    entityName: entityId,
     selectedTab: client.selectedTab ?? client.filters?.view ?? client.filters?.tab,
+    searchQuery: client.searchQuery,
     filters: client.filters ?? {},
+    permissions,
     capabilities
   };
 }

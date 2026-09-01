@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { publishAdminActionCompleted } from "../lib/admin-action-events";
+import { inferAdminActionAfterState, inferAdminActionEntity, publishAdminActionCompleted } from "../lib/admin-action-events";
 
 export function AdminActionButton({ label, endpoint, csrfToken, body = {}, reasonPrompt, extraPrompt, danger = false }: {
   label: string; endpoint: string; csrfToken: string; body?: Record<string, unknown>; reasonPrompt?: string; extraPrompt?: { field: string; message: string }; danger?: boolean;
@@ -26,11 +26,18 @@ export function AdminActionButton({ label, endpoint, csrfToken, body = {}, reaso
     setBusy(true); setError("");
     try {
       const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify(payload) });
-      const data = await response.json() as { error?: string; notificationWarning?: string; warning?: string };
-      if (!response.ok) throw new Error(data.error ?? "Admin action failed");
-      if (data.warning) setError(data.warning);
-      else if (data.notificationWarning) setError(`Η ενέργεια ολοκληρώθηκε, αλλά το email δεν στάλθηκε: ${data.notificationWarning}`);
-      publishAdminActionCompleted({ actionType: label, endpoint, occurredAt: Date.now() });
+      const data = await response.json() as Record<string, unknown>;
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Admin action failed");
+      if (typeof data.warning === "string" && data.warning) setError(data.warning);
+      else if (typeof data.notificationWarning === "string" && data.notificationWarning) setError(`Η ενέργεια ολοκληρώθηκε, αλλά το email δεν στάλθηκε: ${data.notificationWarning}`);
+      const entity = inferAdminActionEntity(payload);
+      publishAdminActionCompleted({
+        actionType: label,
+        endpoint,
+        occurredAt: Date.now(),
+        ...entity,
+        afterState: inferAdminActionAfterState(data)
+      });
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Admin action failed"); }
     finally { setBusy(false); }
