@@ -116,6 +116,32 @@ Icecat failures are classified before queue state is changed:
 
 Transient failures become `failed` after `BLS_OPEN_ICECAT_DETAIL_MAX_ATTEMPTS`. A skipped or failed job remains current until the provider-index revision or detail processing version changes; the normal idempotent sync then requeues the changed evidence. A worker shutdown aborts the active Icecat request; the processing lease then expires naturally so another worker can reclaim the job safely.
 
+### Operator recovery for failed jobs
+
+Terminal `failed` rows are recoverable without changing the provider revision. Use `scripts/requeue-open-icecat-detail-failures.ts` after the underlying transient outage has been resolved.
+
+The command is dry-run by default and only selects current `failed` rows whose provider-index evidence is still active and version-aligned. It never requeues `skipped` rows.
+
+```bash
+node --experimental-strip-types scripts/requeue-open-icecat-detail-failures.ts
+```
+
+Apply the displayed batch explicitly:
+
+```bash
+BLS_OPEN_ICECAT_DETAIL_REQUEUE_APPLY=true \
+node --experimental-strip-types scripts/requeue-open-icecat-detail-failures.ts
+```
+
+Optional controls:
+
+```text
+BLS_OPEN_ICECAT_DETAIL_REQUEUE_LIMIT=100
+BLS_OPEN_ICECAT_DETAIL_REQUEUE_MIN_AGE_MINUTES=30
+```
+
+Applied rows return to `retry`, receive a fresh attempt budget, preserve the previous `last_error` for operator evidence, and become immediately claimable. This is intentionally an operator action rather than an automatic loop so a prolonged provider outage cannot create unbounded retry traffic.
+
 ## Health
 
 The worker exposes `/healthz` on `BLS_OPEN_ICECAT_DETAIL_HEALTH_PORT` and reports:
