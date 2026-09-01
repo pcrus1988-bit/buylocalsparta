@@ -11,16 +11,30 @@ on:
       - "apps/web/src/app/admin/layout.tsx"
       - "apps/web/src/app/admin-assistant.css"
       - "db/migrations/0168_admin_assistant.sql"
+      - "db/migrations/0200_admin_assistant_recommendation_states.sql"
+      - "db/migrations/checksums.0200.json"
       - "scripts/verify-admin-assistant.ts"
+      - "scripts/verify-admin-assistant-phase1-intelligence.ts"
+      - "scripts/verify-admin-assistant-search-chain.ts"
+      - "scripts/verify-admin-assistant-action-evaluation.ts"
       - ".github/workflows/admin-assistant-acceptance.yml"
   push:
     branches: [main]
     paths:
       - "apps/web/src/lib/admin-assistant/**"
+      - "apps/web/src/lib/admin-action-events.ts"
       - "apps/web/src/components/AdminAssistantShell.tsx"
+      - "apps/web/src/components/AdminActionButton.tsx"
       - "apps/web/src/app/api/admin/assistant/**"
+      - "apps/web/src/app/admin-assistant.css"
       - "db/migrations/0168_admin_assistant.sql"
+      - "db/migrations/0200_admin_assistant_recommendation_states.sql"
+      - "db/migrations/checksums.0200.json"
       - "scripts/verify-admin-assistant.ts"
+      - "scripts/verify-admin-assistant-phase1-intelligence.ts"
+      - "scripts/verify-admin-assistant-search-chain.ts"
+      - "scripts/verify-admin-assistant-action-evaluation.ts"
+      - ".github/workflows/admin-assistant-acceptance.yml"
 
 permissions:
   contents: read
@@ -38,5 +52,11 @@ jobs:
       - run: npm ci
       - name: Verify Admin assistant security and context contracts
         run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/verify-admin-assistant.ts
+      - name: Verify Admin assistant Phase 1 intelligence contracts
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/verify-admin-assistant-phase1-intelligence.ts
+      - name: Verify Admin assistant search chaining
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/verify-admin-assistant-search-chain.ts
+      - name: Verify Admin action impact evaluation
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/verify-admin-assistant-action-evaluation.ts
       - name: Verify migrations
         run: npm run db:verify

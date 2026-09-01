@@ -1,13 +1,10 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminAssistantExternalResearchEnabled, adminAssistantMaxOutputTokens, adminAssistantModel, adminAssistantProviderConfigured } from "./config";
+import type { AdminAssistantInvestigationResult } from "./investigation";
 import { ADMIN_ASSISTANT_SYSTEM_PROMPT_V1 } from "./prompt";
 import { recordAssistantToolAudit } from "./repository";
-import type { AdminAssistantResponsePayload, AdminAssistantSnapshot, AdminAssistantSource, AdminAssistantStoredMessage } from "./types";
-
-function researchRequested(question: string): boolean {
-  if (!adminAssistantExternalResearchEnabled()) return false;
-  return /(official|manufacturer|public source|web|online|verify|verification|gtin|ean|regulat|aade|mydata|government|documentation|search intent)/i.test(question);
-}
+import { planExternalResearch } from "./research-policy";
+import { safeAdminHref, type AdminAssistantAction, type AdminAssistantResponsePayload, type AdminAssistantSnapshot, type AdminAssistantSource, type AdminAssistantStoredMessage } from "./types";
 
 function outputText(value: unknown): string {
   if (!value || typeof value !== "object") return "";
@@ -57,20 +54,210 @@ function parseModelPayload(text: string, sources: readonly AdminAssistantSource[
   } catch { return undefined; }
 }
 
-function deterministicAnswer(question: string, snapshot: AdminAssistantSnapshot): AdminAssistantResponsePayload {
-  const normalized = question.toLocaleLowerCase("en");
-  const recommendations = snapshot.findings.map((item) => item.recommendation).filter((item): item is string => Boolean(item)).slice(0, 5);
-  let summary = snapshot.summary;
-  if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && snapshot.findings.length) summary = `Highest priority: ${snapshot.findings[0]?.title}. ${snapshot.findings[0]?.detail}`;
-  if (/explain.*page|explain.*screen|εξήγη/i.test(normalized)) summary = `${snapshot.context.contextLabel} is currently supported by ${snapshot.context.capabilities.join(", ") || "read-only context"}. ${snapshot.summary}`;
-  return { summary, facts: snapshot.facts, interpretation: snapshot.findings[0]?.detail, recommendations: recommendations.length ? recommendations : ["No additional action is justified by the deterministic checks currently available for this page."], sources: [], provider: "deterministic" };
+function investigationResult(investigation: readonly AdminAssistantInvestigationResult[] | undefined, toolName: string): AdminAssistantInvestigationResult | undefined {
+  return investigation?.find((item) => item.toolName === toolName && item.state === "ok");
 }
 
-export async function answerAdminAssistant(principal: SessionPrincipal, input: { question: string; snapshot: AdminAssistantSnapshot; history: readonly AdminAssistantStoredMessage[]; conversationId: string; signal?: AbortSignal }): Promise<AdminAssistantResponsePayload> {
-  if (!adminAssistantProviderConfigured()) return deterministicAnswer(input.question, input.snapshot);
-  const useResearch = researchRequested(input.question);
+function deterministicLookupAnswer(
+  investigation: readonly AdminAssistantInvestigationResult[] | undefined
+): AdminAssistantResponsePayload | undefined {
+  const search = investigationResult(investigation, "getGlobalAdminSearch");
+  if (!search) return undefined;
+  const rawResults = search.data?.results;
+  if (!Array.isArray(rawResults)) return undefined;
+  const rows = rawResults.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").slice(0, 8);
+  if (!rows.length) {
+    return {
+      summary: "No authorized KONTA MOY Admin entity matched that lookup.",
+      facts: ["The permission-aware Admin search returned zero matching products, orders, customers, support cases, partners, applications or research leads."],
+      interpretation: "No identifier should be guessed when the authorized search has no match.",
+      recommendations: ["Try a canonical product ID, GTIN/EAN, model, product title, public order/ticket reference, email address, partner name or technical identifier."],
+      actions: [],
+      sources: [],
+      provider: "deterministic"
+    };
+  }
+
+  const facts = rows.map((row) => `${String(row.kind ?? "entity")}: ${String(row.label ?? row.id ?? "match")} · ${String(row.detail ?? "")}`.slice(0, 800));
+  const actions: AdminAssistantAction[] = rows.flatMap((row, index) => {
+    const href = safeAdminHref(row.href);
+    if (!href) return [];
+    return [{ id: `search-open-${index}`, kind: "open" as const, label: `Open ${String(row.label ?? row.id ?? "result")}`.slice(0, 160), href, requiresApproval: false }];
+  }).slice(0, 6);
+
+  let summary = rows.length === 1
+    ? `Found one authorized match: ${String(rows[0]?.label ?? rows[0]?.id ?? "entity")}. ${String(rows[0]?.detail ?? "")}`
+    : `Found ${rows.length} authorized matches. ${rows.slice(0, 3).map((row) => String(row.label ?? row.id ?? "entity")).join(", ")}${rows.length > 3 ? "…" : "."}`;
+  const recommendations = rows.length === 1 ? ["Open the matched record or continue with the attached operational inspection."] : ["Choose the intended entity before making any operational conclusion."];
+
+  if (rows.length === 1 && rows[0]?.kind === "product") {
+    const productResult = investigationResult(investigation, "getProductIntelligence");
+    const product = productResult?.data?.product;
+    if (product && typeof product === "object") {
+      const productRow = product as Record<string, unknown>;
+      const offers = Array.isArray(productRow.offers) ? productRow.offers.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      const approved = offers.filter((offer) => offer.status === "approved");
+      const visible = approved.filter((offer) => offer.merchantVisible === true && offer.merchantPauseActive !== true);
+      const stale = visible.filter((offer) => offer.freshnessStatus === "stale" || offer.freshnessStatus === "expired");
+      const sellable = visible.reduce((sum, offer) => sum + Math.max(0, Number(offer.onHand ?? 0) - Number(offer.activeReservations ?? 0) - Number(offer.safetyStock ?? 0) - Number(offer.blocked ?? 0)), 0);
+      summary += ` Product state: active=${productRow.active === true ? "yes" : "no"}, suppressed=${productRow.suppressed === true ? "yes" : "no"}, recalled=${productRow.recalled === true ? "yes" : "no"}; ${approved.length} approved offer(s), ${visible.length} visible, sellable stock ${sellable}, ${stale.length} stale/expired visible inventory record(s), ${String(productRow.unmappedAttributeCount ?? 0)} unresolved linked attribute observation(s).`;
+      facts.push(`Product inspection: Greek title=${productRow.title ? "present" : "missing"}, description=${productRow.descriptionPresent === true ? "present" : "missing"}, approvedOffers=${approved.length}, visibleOffers=${visible.length}, sellableStock=${sellable}, staleInventory=${stale.length}, unmappedAttributes=${String(productRow.unmappedAttributeCount ?? 0)}.`);
+      const seo = productRow.seo;
+      if (seo && typeof seo === "object") {
+        const seoRow = seo as Record<string, unknown>;
+        facts.push(`SEO intent: route=${String(seoRow.route ?? "unknown")}, desiredIndexable=${seoRow.desiredIndexable === true ? "yes" : "no"}.`);
+      }
+    }
+  }
+
+  if (rows.length === 1 && rows[0]?.kind === "order") {
+    const orderResult = investigationResult(investigation, "getOrderLifecycleIntelligence");
+    const order = orderResult?.data?.order;
+    const payment = orderResult?.data?.payment;
+    const taxDocuments = orderResult?.data?.taxDocuments;
+    if (order && typeof order === "object") {
+      const orderRow = order as Record<string, unknown>;
+      const paymentRow = payment && typeof payment === "object" ? payment as Record<string, unknown> : undefined;
+      summary += ` Order state: ${String(orderRow.status ?? "unknown")}; fulfilment: ${String(orderRow.fulfilmentMode ?? "unknown")}; payment: ${String(paymentRow?.status ?? "unavailable")}; fiscal documents: ${Array.isArray(taxDocuments) ? taxDocuments.length : 0}.`;
+      facts.push(`Operational inspection: order=${String(orderRow.status ?? "unknown")}, payment=${String(paymentRow?.status ?? "unavailable")}, fiscalDocuments=${Array.isArray(taxDocuments) ? taxDocuments.length : 0}.`);
+    }
+  }
+
+  if (rows.length === 1 && (rows[0]?.kind === "customer" || rows[0]?.kind === "support")) {
+    const customerResult = investigationResult(investigation, "getCustomerOperationalIntelligence");
+    const customer = customerResult?.data?.customer;
+    if (customer && typeof customer === "object") {
+      const customerRow = customer as Record<string, unknown>;
+      const engagement = customerRow.engagement && typeof customerRow.engagement === "object" ? customerRow.engagement as Record<string, unknown> : {};
+      const openSupportCases = Number(engagement.openSupportCases ?? 0);
+      const openPrivacyRequests = Number(engagement.openPrivacyRequests ?? 0);
+      const notificationFailures = Number(engagement.notificationFailures ?? 0);
+      const supportCases = Array.isArray(customerRow.supportCases) ? customerRow.supportCases.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      const urgentOpen = supportCases.filter((item) => item.priority === "urgent" && !["resolved", "closed"].includes(String(item.status ?? ""))).length;
+      summary += ` Customer state: ${String(customerRow.status ?? "unknown")}; email verified: ${customerRow.emailVerified === true ? "yes" : "no"}; active sessions: ${String(customerRow.activeSessionCount ?? 0)}; orders: ${String(customerRow.orderCount ?? 0)}; open support: ${openSupportCases}; open privacy: ${openPrivacyRequests}; failed notifications: ${notificationFailures}.`;
+      facts.push(`Customer 360 inspection: status=${String(customerRow.status ?? "unknown")}, emailVerified=${customerRow.emailVerified === true ? "yes" : "no"}, activeSessions=${String(customerRow.activeSessionCount ?? 0)}, orders=${String(customerRow.orderCount ?? 0)}, openSupport=${openSupportCases}, urgentOpenSupport=${urgentOpen}, openPrivacy=${openPrivacyRequests}, notificationFailures=${notificationFailures}.`);
+    }
+  }
+
+  if (rows.length === 1 && rows[0]?.kind === "vendor") {
+    const vendorResult = investigationResult(investigation, "getVendorOperationalIntelligence");
+    const vendor = vendorResult?.data?.vendor;
+    const orders = vendorResult?.data?.orders;
+    if (vendor && typeof vendor === "object") {
+      const vendorRow = vendor as Record<string, unknown>;
+      summary += ` Partner state: ${String(vendorRow.status ?? "unknown")}; agreement documented: ${vendorRow.cooperationDocumented === true ? "yes" : "no"}; approved offers: ${String(vendorRow.approvedOfferCount ?? 0)}; linked order sample: ${Array.isArray(orders) ? orders.length : 0}.`;
+      facts.push(`Operational inspection: status=${String(vendorRow.status ?? "unknown")}, agreementDocumented=${vendorRow.cooperationDocumented === true ? "yes" : "no"}, approvedOffers=${String(vendorRow.approvedOfferCount ?? 0)}.`);
+    }
+  }
+
+  return {
+    summary: summary.slice(0, 1_500),
+    facts: facts.slice(0, 8),
+    interpretation: rows.length === 1 ? "The entity was resolved through authorized KONTA MOY data; no identifier was inferred by the model." : "Multiple authorized entities match, so a deeper operational conclusion would be ambiguous.",
+    recommendations,
+    actions,
+    sources: [],
+    provider: "deterministic"
+  };
+}
+
+function deterministicAnswer(
+  question: string,
+  snapshot: AdminAssistantSnapshot,
+  investigation?: readonly AdminAssistantInvestigationResult[]
+): AdminAssistantResponsePayload {
+  const lookup = deterministicLookupAnswer(investigation);
+  if (lookup) return lookup;
+
+  const normalized = question.toLocaleLowerCase("en");
+  const structuredRecommendations = snapshot.recommendations ?? [];
+  const recommendations = structuredRecommendations.length
+    ? structuredRecommendations.map((item) => item.explanation).slice(0, 5)
+    : snapshot.findings.map((item) => item.recommendation).filter((item): item is string => Boolean(item)).slice(0, 5);
+  let summary = snapshot.summary;
+  let facts = snapshot.facts;
+
+  if (/what changed|changed recently|recent changes|what happened recently|did that work|did it work|impact of.*action|τι.*άλλαξε|αλλαγ.*πρόσφατ|πέτυχε/i.test(normalized)) {
+    const evaluations = snapshot.actionEvaluations?.slice(0, 3) ?? [];
+    if (evaluations.length) {
+      const latest = evaluations[0];
+      summary = `Latest Admin action evaluation: ${latest.summary} ${latest.recommendation}`;
+      facts = [
+        ...(latest.changes.length ? latest.changes : ["The action is audited, but no allowlisted scalar before/after transition was stored."]),
+        ...(latest.residualFindings.length ? latest.residualFindings.map((item) => `Remaining finding: ${item}`) : ["No warning/critical finding remains in the refreshed deterministic context."])
+      ].slice(0, 8);
+    } else {
+      const recent = snapshot.recentActions.slice(0, 6);
+      if (recent.length) {
+        const actionFacts = recent.map((item) => {
+          const when = item.createdAt ? new Date(item.createdAt).toLocaleString("el-GR", { timeZone: "Europe/Athens" }) : "time unavailable";
+          return `${item.action} · ${item.entityType} ${item.entityId} · ${when}`;
+        });
+        summary = `Recent audited Admin changes: ${recent.map((item) => `${item.action} on ${item.entityType} ${item.entityId}`).join("; ")}. No current-page impact evaluation is available for these events.`;
+        facts = actionFacts;
+      } else {
+        summary = `No recent audited Admin action is available to this assistant for ${snapshot.context.contextLabel}.`;
+        facts = snapshot.facts;
+      }
+    }
+  } else if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && structuredRecommendations.length) {
+    const top = structuredRecommendations[0];
+    summary = `Highest priority: ${top.title}. ${top.explanation}`;
+  } else if (/what should i do next|priorit|τι.*επόμεν/i.test(normalized) && snapshot.findings.length) {
+    summary = `Highest priority: ${snapshot.findings[0]?.title}. ${snapshot.findings[0]?.detail}`;
+  }
+
+  if (/explain.*page|explain.*screen|εξήγη/i.test(normalized)) {
+    const purpose = snapshot.context.pagePurpose ? `${snapshot.context.pagePurpose} ` : "";
+    const attention = snapshot.context.attentionAreas?.length ? `Pay attention to ${snapshot.context.attentionAreas.join(", ")}. ` : "";
+    summary = `${snapshot.context.contextLabel}. ${purpose}${attention}${snapshot.summary}`;
+  }
+  return {
+    summary,
+    facts,
+    interpretation: snapshot.findings[0]?.detail,
+    recommendations: recommendations.length ? recommendations : ["No additional action is justified by the deterministic checks currently available for this page."],
+    structuredRecommendations,
+    actions: structuredRecommendations.flatMap((item) => item.actions).filter((action) => !action.requiresApproval).slice(0, 6),
+    sources: [],
+    provider: "deterministic"
+  };
+}
+
+export async function answerAdminAssistant(principal: SessionPrincipal, input: {
+  question: string;
+  snapshot: AdminAssistantSnapshot;
+  history: readonly AdminAssistantStoredMessage[];
+  conversationId: string;
+  investigation?: readonly AdminAssistantInvestigationResult[];
+  signal?: AbortSignal;
+}): Promise<AdminAssistantResponsePayload> {
+  if (!adminAssistantProviderConfigured()) return deterministicAnswer(input.question, input.snapshot, input.investigation);
+
+  const researchDecision = adminAssistantExternalResearchEnabled()
+    ? planExternalResearch(input.question, input.snapshot, input.investigation ?? [])
+    : { useExternalResearch: false, reason: "feature_disabled", sourcePriority: [] as const };
+  const useResearch = researchDecision.useExternalResearch;
   const compactHistory = input.history.slice(-12).map((message) => ({ role: message.role, content: message.content.slice(0, 2_000) }));
-  const providerInput = JSON.stringify({ currentAdminContext: input.snapshot.context, deterministicSnapshot: { summary: input.snapshot.summary, facts: input.snapshot.facts, findings: input.snapshot.findings, recentActions: input.snapshot.recentActions }, recentConversation: compactHistory, adminQuestion: input.question });
+  const providerInput = JSON.stringify({
+    currentAdminContext: input.snapshot.context,
+    deterministicSnapshot: {
+      summary: input.snapshot.summary,
+      facts: input.snapshot.facts,
+      findings: input.snapshot.findings,
+      recommendations: input.snapshot.recommendations,
+      recentActions: input.snapshot.recentActions,
+      actionEvaluations: input.snapshot.actionEvaluations
+    },
+    authorizedInvestigation: input.investigation?.map((item) => ({ toolName: item.toolName, state: item.state, data: item.data, error: item.error })) ?? [],
+    externalResearchPolicy: {
+      enabledForThisQuestion: useResearch,
+      reason: researchDecision.reason,
+      sourcePriority: researchDecision.sourcePriority
+    },
+    recentConversation: compactHistory,
+    adminQuestion: input.question
+  });
   const startedAt = Date.now();
   try {
     const timeout = AbortSignal.timeout(25_000);
@@ -86,10 +273,35 @@ export async function answerAdminAssistant(principal: SessionPrincipal, input: {
     const text = outputText(data);
     const parsed = parseModelPayload(text, collectSources(data));
     if (!parsed) throw new Error("AI provider returned invalid structured output");
-    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain }, resultState: "ok", durationMs: Date.now() - startedAt }).catch(() => undefined);
+    await recordAssistantToolAudit(principal, {
+      conversationId: input.conversationId,
+      toolName: useResearch ? "openai.responses.web_search" : "openai.responses",
+      parameters: {
+        model: adminAssistantModel(),
+        externalResearch: useResearch,
+        researchReason: researchDecision.reason ?? "not_required",
+        contextDomain: input.snapshot.context.domain,
+        investigationTools: input.investigation?.map((item) => item.toolName) ?? []
+      },
+      resultState: "ok",
+      durationMs: Date.now() - startedAt
+    }).catch(() => undefined);
     return parsed;
   } catch (cause) {
-    await recordAssistantToolAudit(principal, { conversationId: input.conversationId, toolName: useResearch ? "openai.responses.web_search" : "openai.responses", parameters: { model: adminAssistantModel(), externalResearch: useResearch, contextDomain: input.snapshot.context.domain }, resultState: "error", error: cause instanceof Error ? cause.message : "provider_failed", durationMs: Date.now() - startedAt }).catch(() => undefined);
-    return deterministicAnswer(input.question, input.snapshot);
+    await recordAssistantToolAudit(principal, {
+      conversationId: input.conversationId,
+      toolName: useResearch ? "openai.responses.web_search" : "openai.responses",
+      parameters: {
+        model: adminAssistantModel(),
+        externalResearch: useResearch,
+        researchReason: researchDecision.reason ?? "not_required",
+        contextDomain: input.snapshot.context.domain,
+        investigationTools: input.investigation?.map((item) => item.toolName) ?? []
+      },
+      resultState: "error",
+      error: cause instanceof Error ? cause.message : "provider_failed",
+      durationMs: Date.now() - startedAt
+    }).catch(() => undefined);
+    return deterministicAnswer(input.question, input.snapshot, input.investigation);
   }
 }
