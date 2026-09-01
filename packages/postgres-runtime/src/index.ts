@@ -18,7 +18,7 @@ import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 import { PostgresCartRecoveryService } from "./cart-recovery.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 196;
+export const EXPECTED_SCHEMA_VERSION = 197;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
@@ -194,7 +194,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
     resend: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? resendConfigFromEnv(env) : undefined,
     notificationSuppressionSecret: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? requiredSecret(env.BLS_NOTIFICATION_SUPPRESSION_SECRET, "BLS_NOTIFICATION_SUPPRESSION_SECRET") : undefined,
     notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
-    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
+    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromRuntimeEnv(env) : undefined
   };
 }
 
@@ -202,7 +202,7 @@ export function createPostgresRuntimeFromEnv(input: { env?: NodeJS.ProcessEnv; a
   return new ProductionPostgresRuntime(postgresConfigFromEnv(input.env, input.applicationName));
 }
 
-function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
+function boxNowConfigFromRuntimeEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
   const environment = env.BOXNOW_ENVIRONMENT === "production" ? "production" : "stage";
   if (env.NODE_ENV === "production" && environment !== "production" && env.BLS_ALLOW_BOXNOW_STAGE_PREVIEW !== "true") throw new Error("Production BOX NOW shipping requires BOXNOW_ENVIRONMENT=production");
   const baseUrl=env.BOXNOW_API_URL?.trim(); const clientId=env.BOXNOW_CLIENT_ID?.trim(); const clientSecret=env.BOXNOW_CLIENT_SECRET?.trim();
