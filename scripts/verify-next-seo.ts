@@ -163,6 +163,7 @@ if (!productIndexEligibility({ ...strongProduct, description: undefined, mediaId
 // Governed metadata, canonicals and query-space control.
 requireText(rootLayout, "metadataBase: new URL(settings.canonicalOrigin)", "Root metadata must use the governed canonical origin");
 if (!rootLayout.includes("settings.titleTemplate") || !rootLayout.includes("settings.defaultDescription")) failures.push("Root metadata must consume governed title/description defaults");
+for (const contract of ['{ absolute: input.settings.defaultTitle }', "input.settings.defaultDescription", "input.settings.defaultOpenGraphTitle", "input.settings.defaultOpenGraphDescription", "input.settings.defaultOpenGraphImage"]) requireText(entityMetadata, contract, `Governed page metadata is missing global fallback ${contract}`);
 requireText(rootLayout, "robots: settings.indexingEnabled", "Root metadata must publish the emergency global noindex signal");
 requireText(homepage, 'governedStaticSeoMetadata("/"', "Homepage must publish governed self-canonical metadata");
 if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("getCrawlerHomepageCatalogCards")) failures.push("Homepage crawler rendering must bypass customer fairness assignment");
