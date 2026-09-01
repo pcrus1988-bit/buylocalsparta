@@ -45,6 +45,9 @@ The following are deliberately **not Vercel Functions**:
 - `notifications` — durable Resend delivery queue
 - `media` — S3 staging/verification plus ClamAV streaming scan
 - `reports` — queued high-complexity reporting, multi-domain aggregation and PDF generation
+- `crawler` — governed external catalogue crawling with bounded leases and request controls
+- `icecat` — Open Icecat EL bulk-index bootstrap and daily index synchronization
+- `icecat-detail` — governed Open Icecat product-detail enrichment from completed index evidence
 
 Build the shared worker image:
 
@@ -62,9 +65,22 @@ docker run --env-file worker.env -e BLS_WORKER_ROLE=search buy-local-sparta-work
 docker run --env-file worker.env -e BLS_WORKER_ROLE=notifications buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=media buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=reports buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=crawler buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=icecat buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=icecat-detail buy-local-sparta-worker
 ```
 
-Do not combine all five roles into one process. Separate roles reduce blast radius, allow different network access (especially private ClamAV), and allow independent restart/scaling.
+Do not combine the eight roles into one process. Separate roles reduce blast radius, allow different network/provider access, and allow independent restart/scaling. In particular, `icecat` and `icecat-detail` must remain separate: bulk index ingestion is a slow source-sync workload, while detail enrichment owns a separately leased/rate-limited queue. Neither role is allowed to create canonical products, vendor offers, prices or stock directly.
+
+### Open Icecat execution boundary
+
+`icecat` and `icecat-detail` are ordinary long-running worker-container roles, not web routes or Vercel cron functions. Their provider credentials belong only on the matching worker services. The Admin catalogue view reads redacted operational state from PostgreSQL; it never needs Icecat credentials or raw provider payloads.
+
+- `icecat` performs the governed EL bulk-index bootstrap/daily synchronization and writes durable index evidence/checkpoints.
+- `icecat-detail` consumes eligible completed index evidence, performs bounded detail requests, and writes governed source-product/localization/attribute evidence.
+- Keep `ICECAT_API_TOKEN`, `ICECAT_USERNAME`/compatibility credentials and `ICECAT_CONTENT_TOKEN` off the Vercel web process unless a separately reviewed server-side feature explicitly requires them.
+- Health ports `8082` and `8083` are intended for the container platform's private health probes, not public customer traffic.
+- Use `BLS_OPEN_ICECAT_RUN_ONCE=true` or `BLS_OPEN_ICECAT_DETAIL_RUN_ONCE=true` only for controlled operator runs; normal production workers remain continuously running.
 
 ### Reporting execution modes
 
@@ -88,6 +104,8 @@ Do not enable async mode unless at least one healthy `reports` worker is running
 8. Execute and record provider scenarios before production promotion.
 
 For schema changes used by reporting, deploy the migration before enabling `BLS_REPORT_ASYNC_ENABLED`; both web and report worker refuse an unexpected application schema version.
+
+For Open Icecat, do not start either worker against a database that has not passed the exact release schema gate. Start/verify `icecat` first so durable index evidence exists, then start `icecat-detail`; the detail worker's queue sync is intentionally safe to repeat and does not publish canonical commerce data.
 
 ## Vercel preview boundary
 
