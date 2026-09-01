@@ -11,6 +11,8 @@ on:
       - "packages/core/src/persistence/bundle.ts"
       - "packages/core/src/persistence/index.ts"
       - "packages/core/test/open-icecat*.test.ts"
+      - "apps/web/src/lib/admin-open-icecat-health.ts"
+      - "apps/web/src/app/admin/catalogue/page.tsx"
       - "db/migrations/0158_open_icecat_greek_product_intelligence.sql"
       - "db/migrations/0160_open_icecat_bulk_ingestion_runs.sql"
       - "db/migrations/0163_open_icecat_detail_enrichment.sql"
@@ -24,6 +26,37 @@ on:
       - "scripts/verify-deployment-topology.ts"
       - "docs/OPEN_ICECAT_INGESTION_WORKER.md"
       - "docs/OPEN_ICECAT_DETAIL_ENRICHMENT_WORKER.md"
+      - "docs/DEPLOYMENT_TOPOLOGY.md"
+      - "docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md"
+      - ".github/workflows/open-icecat-ingestion-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "workers/open-icecat-worker.ts"
+      - "workers/open-icecat-detail-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+      - "packages/core/src/persistence/postgres-open-icecat-bulk.ts"
+      - "packages/core/src/persistence/postgres-open-icecat-detail.ts"
+      - "packages/core/src/persistence/bundle.ts"
+      - "packages/core/src/persistence/index.ts"
+      - "packages/core/test/open-icecat*.test.ts"
+      - "apps/web/src/lib/admin-open-icecat-health.ts"
+      - "apps/web/src/app/admin/catalogue/page.tsx"
+      - "db/migrations/0158_open_icecat_greek_product_intelligence.sql"
+      - "db/migrations/0160_open_icecat_bulk_ingestion_runs.sql"
+      - "db/migrations/0163_open_icecat_detail_enrichment.sql"
+      - "db/migrations/checksums.0158.json"
+      - "db/migrations/checksums.0160.json"
+      - "db/migrations/checksums.0163.json"
+      - "packages/postgres-runtime/src/index.ts"
+      - "deploy/worker-entrypoint.sh"
+      - "deploy/worker.env.example"
+      - "scripts/open-icecat-detail-smoke.ts"
+      - "scripts/verify-deployment-topology.ts"
+      - "docs/OPEN_ICECAT_INGESTION_WORKER.md"
+      - "docs/OPEN_ICECAT_DETAIL_ENRICHMENT_WORKER.md"
+      - "docs/DEPLOYMENT_TOPOLOGY.md"
+      - "docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md"
       - ".github/workflows/open-icecat-ingestion-acceptance.yml"
 
 jobs:
@@ -98,6 +131,8 @@ jobs:
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-detail-worker.ts scripts/open-icecat-detail-smoke.ts
       - name: Test Open Icecat parser, transformer, client and resumable bulk runner
         run: node --experimental-strip-types --test packages/core/test/open-icecat*.test.ts
+      - name: Build Admin catalogue observability surface
+        run: npm run check:web
       - name: Exercise detail queue, Greek evidence, stale handling and full reconciliation
         run: node --experimental-strip-types scripts/open-icecat-detail-smoke.ts
       - name: Verify durable ingestion and detail schema isolation
@@ -173,3 +208,8 @@ jobs:
           grep -q 'nextQueueSyncAt' workers/open-icecat-detail-worker.ts
           grep -q 'full_reconciliation' workers/open-icecat-worker.ts
           grep -q 'OPEN_ICECAT_DETAIL_PROCESSING_VERSION' workers/open-icecat-detail-worker.ts
+          grep -q 'processing_version=\$2' apps/web/src/lib/admin-open-icecat-health.ts
+          grep -q 'BLS_WORKER_ROLE=icecat buy-local-sparta-worker' docs/DEPLOYMENT_TOPOLOGY.md
+          grep -q 'BLS_WORKER_ROLE=icecat-detail buy-local-sparta-worker' docs/DEPLOYMENT_TOPOLOGY.md
+          grep -q '## `icecat` worker' docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md
+          grep -q '## `icecat-detail` worker' docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md
