@@ -26,6 +26,8 @@ on:
       - "scripts/verify-deployment-topology.ts"
       - "docs/OPEN_ICECAT_INGESTION_WORKER.md"
       - "docs/OPEN_ICECAT_DETAIL_ENRICHMENT_WORKER.md"
+      - "docs/DEPLOYMENT_TOPOLOGY.md"
+      - "docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md"
       - ".github/workflows/open-icecat-ingestion-acceptance.yml"
 
 jobs:
@@ -178,3 +180,7 @@ jobs:
           grep -q 'full_reconciliation' workers/open-icecat-worker.ts
           grep -q 'OPEN_ICECAT_DETAIL_PROCESSING_VERSION' workers/open-icecat-detail-worker.ts
           grep -q 'processing_version=\$2' apps/web/src/lib/admin-catalogue-overview-runtime.ts
+          grep -q 'BLS_WORKER_ROLE=icecat buy-local-sparta-worker' docs/DEPLOYMENT_TOPOLOGY.md
+          grep -q 'BLS_WORKER_ROLE=icecat-detail buy-local-sparta-worker' docs/DEPLOYMENT_TOPOLOGY.md
+          grep -q '## `icecat` worker' docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md
+          grep -q '## `icecat-detail` worker' docs/DEPLOYMENT_ENVIRONMENT_MATRIX.md
