@@ -105,7 +105,16 @@ For every claimed item the worker:
 
 Source image URLs are evidence only. The existing source policy requires self-hosting before public use; this worker does not bypass the media pipeline or render external Icecat assets publicly.
 
-Transient failures use exponential retry. After the configured maximum attempts, the job becomes `failed`. A worker shutdown aborts the active Icecat request; the processing lease then expires naturally so another worker can reclaim the job safely.
+### Provider failure handling
+
+Icecat failures are classified before queue state is changed:
+
+- request timeouts/transport failures, HTTP `408`, `425`, `429`, and `5xx` responses are transient and use exponential retry;
+- unknown `2xx` Icecat content errors remain retryable unless the provider explicitly identifies a permanent product problem;
+- permanent item-specific failures, including ordinary non-auth `4xx` responses and explicit missing/invalid GTIN/EAN content errors, mark the current source revision `skipped` immediately instead of burning the full retry budget;
+- HTTP `401`/`403` and explicit token/credential/access-denied content errors are fatal worker configuration failures. The worker emits `open_icecat.detail_worker_fatal_provider_error` and exits instead of applying the bad configuration across the catalogue.
+
+Transient failures become `failed` after `BLS_OPEN_ICECAT_DETAIL_MAX_ATTEMPTS`. A skipped or failed job remains current until the provider-index revision or detail processing version changes; the normal idempotent sync then requeues the changed evidence. A worker shutdown aborts the active Icecat request; the processing lease then expires naturally so another worker can reclaim the job safely.
 
 ## Health
 
