@@ -7,7 +7,10 @@ import {
   WorkspaceSectionHeading,
   WorkspaceStatusBadge
 } from "../../../components/WorkspacePagePrimitives";
-import { adminCatalogueOverviewWorkspace } from "../../../lib/admin-catalogue-overview-runtime";
+import {
+  adminCatalogueOverviewWorkspace,
+  type OpenIcecatAdminHealth
+} from "../../../lib/admin-catalogue-overview-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +20,149 @@ function levelLabel(depth: number): string {
   if (depth === 1) return "Υποκατηγορία";
   if (depth === 2) return "Υπο-υποκατηγορία";
   return `Επίπεδο ${depth + 1}`;
+}
+
+function ageLabel(seconds: number | null): string {
+  if (seconds === null) return "—";
+  if (seconds < 60) return `${seconds} δευτ.`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} λεπ.`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} ώρ.`;
+  return `${Math.floor(hours / 24)} ημ.`;
+}
+
+function OpenIcecatHealthPanel({ health }: Readonly<{ health: OpenIcecatAdminHealth }>) {
+  if (health.state === "not_configured") {
+    return <section className="vendor-section">
+      <div className="shell">
+        <WorkspaceSectionHeading
+          eyebrow="Open Icecat · source enrichment"
+          title="Υγεία εμπλουτισμού καταλόγου"
+          note="Read-only παρακολούθηση της πηγής Icecat. Δεν αλλάζει canonical προϊόντα, offers, τιμές, stock ή publication state."
+        />
+        <WorkspaceEmptyState
+          eyebrow="Δεν έχει ρυθμιστεί"
+          title="Δεν υπάρχει ενεργή Open Icecat πηγή για τη Σπάρτη."
+          body="Η επισκόπηση θα ενεργοποιηθεί αυτόματα μόλις υπάρχει ενεργή catalog source."
+        />
+      </div>
+    </section>;
+  }
+
+  if (health.state === "unavailable") {
+    return <section className="vendor-section">
+      <div className="shell">
+        <WorkspaceSectionHeading
+          eyebrow="Open Icecat · source enrichment"
+          title="Υγεία εμπλουτισμού καταλόγου"
+          note="Read-only παρακολούθηση της πηγής Icecat. Δεν αλλάζει canonical προϊόντα, offers, τιμές, stock ή publication state."
+        />
+        <WorkspaceEmptyState
+          eyebrow="Προσωρινά μη διαθέσιμο"
+          title="Τα Icecat operational metrics δεν είναι διαθέσιμα αυτή τη στιγμή."
+          body="Η υπόλοιπη διαχείριση καταλόγου παραμένει διαθέσιμη. Δεν εμφανίζονται provider credentials, raw payloads ή database errors στο Admin."
+        />
+      </div>
+    </section>;
+  }
+
+  const status = health.queue.failed > 0
+    ? { status: "failed", label: `${health.queue.failed} αποτυχίες`, tone: "danger" as const }
+    : health.queue.retry > 0
+      ? { status: "retry", label: `${health.queue.retry} retries`, tone: "attention" as const }
+      : health.actionableBacklog > 0
+        ? { status: "processing", label: "Σε εξέλιξη", tone: "attention" as const }
+        : { status: "active", label: "Σταθερό", tone: "positive" as const };
+
+  return <section className="vendor-section">
+    <div className="shell">
+      <WorkspaceSectionHeading
+        eyebrow="Open Icecat · source enrichment"
+        title="Υγεία εμπλουτισμού καταλόγου"
+        note="Το Ready εδώ σημαίνει ότι υπάρχει ελληνικό Icecat source evidence που περνά το quality gate. Δεν σημαίνει ότι το προϊόν εγκρίθηκε ή δημοσιεύτηκε ως canonical."
+      />
+
+      <WorkspaceMetricStrip
+        ariaLabel="Open Icecat enrichment metrics"
+        items={[
+          {
+            label: "Icecat index",
+            value: health.activeIndexProducts,
+            hint: `${health.queueableProducts} με GTIN · ${health.missingGtinPct}% χωρίς GTIN`
+          },
+          {
+            label: "Detail coverage",
+            value: `${health.detailCoveragePct}%`,
+            hint: `${health.detailProcessed} προϊόντα με detail evidence`
+          },
+          {
+            label: "Greek-ready evidence",
+            value: `${health.readyCoveragePct}%`,
+            tone: health.readyCoveragePct >= 90 ? "positive" : "default",
+            hint: `${health.queue.ready} Ready · ${health.queue.needsEnrichment} needs enrichment`
+          },
+          {
+            label: "Actionable backlog",
+            value: health.actionableBacklog,
+            tone: health.queue.failed > 0 || health.queue.retry > 0 ? "attention" : "default",
+            hint: `${health.completedLastHour} ολοκληρώθηκαν την τελευταία ώρα`
+          }
+        ]}
+      />
+
+      <div className="workspace-queue-list">
+        <article className="workspace-queue-card">
+          <div className="workspace-queue-head">
+            <div>
+              <strong>Detail enrichment queue</strong>
+              <small>Processing version · {health.processingVersion}</small>
+            </div>
+            <WorkspaceStatusBadge status={status.status} label={status.label} tone={status.tone} />
+          </div>
+
+          <div className="workspace-queue-primary">
+            <span><strong>{health.queue.pending}</strong> pending</span>
+            <span><strong>{health.queue.processing}</strong> processing</span>
+            <span><strong>{health.queue.retry}</strong> retry</span>
+            <span><strong>{health.queue.ready}</strong> ready</span>
+            <span><strong>{health.queue.needsEnrichment}</strong> needs enrichment</span>
+            <span><strong>{health.queue.failed}</strong> failed</span>
+            <span><strong>{health.queue.skipped}</strong> skipped</span>
+          </div>
+
+          <WorkspaceRecordDetails label="Operational details">
+            <div className="workspace-compact-list">
+              <div className="workspace-compact-row">
+                <strong>Ενεργά index προϊόντα</strong>
+                <span>{health.activeIndexProducts}</span>
+              </div>
+              <div className="workspace-compact-row">
+                <strong>Queueable με GTIN</strong>
+                <span>{health.queueableProducts}</span>
+              </div>
+              <div className="workspace-compact-row">
+                <strong>Χωρίς GTIN</strong>
+                <span>{health.missingGtin} · {health.missingGtinPct}%</span>
+              </div>
+              <div className="workspace-compact-row">
+                <strong>Παλιότερη actionable εργασία</strong>
+                <span>{ageLabel(health.oldestActionableAgeSeconds)}</span>
+              </div>
+              <div className="workspace-compact-row">
+                <strong>Ολοκληρώσεις τελευταίας ώρας</strong>
+                <span>{health.completedLastHour}</span>
+              </div>
+              <div className="workspace-compact-row">
+                <strong>Governance boundary</strong>
+                <span>Source evidence only · no canonical publication or commerce mutation</span>
+              </div>
+            </div>
+          </WorkspaceRecordDetails>
+        </article>
+      </div>
+    </div>
+  </section>;
 }
 
 export default async function Page() {
@@ -70,6 +216,8 @@ export default async function Page() {
         }
       ]}
     />
+
+    <OpenIcecatHealthPanel health={data.openIcecat} />
 
     <section className="vendor-section section-tint">
       <div className="shell">
