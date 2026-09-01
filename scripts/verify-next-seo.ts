@@ -176,6 +176,11 @@ for (const route of INDEXABLE_STATIC_ROUTES) {
   if (normalized.size !== keywords.length) failures.push(`Static route ${route.href} contains duplicate meta keywords`);
   if (!keywords.some((keyword) => /Σπάρτη|Sparta/.test(keyword))) failures.push(`Static route ${route.href} is missing a truthful Sparta regional signal`);
 }
+const homeKeywords = seoMetaKeywords({ reference: { kind: "static", id: "/" } });
+for (const keyword of ["online shop Σπάρτη", "αγορά προϊόντων online Σπάρτη", "πού θα βρω προϊόντα στη Σπάρτη", "πού να αγοράσω στη Σπάρτη"]) {
+  if (!homeKeywords.includes(keyword)) failures.push(`Homepage meta keywords must preserve transactional intent: ${keyword}`);
+}
+if (homeKeywords.includes("buy local Sparta")) failures.push("Homepage meta keywords must not include the retired buy local Sparta phrase");
 const productKeywords = seoMetaKeywords({ reference: { kind: "product", id: "nike-air-max-90" }, contextual: ["Nike Air Max 90", "Nike Air Max 90 Σπάρτη", "Nike", "Αθλητικά παπούτσια"] });
 if (!productKeywords.includes("Nike Air Max 90") || !productKeywords.includes("Nike Air Max 90 Σπάρτη")) failures.push("Product meta keywords must preserve exact and regional entity intent");
 for (const source of [category, product, vendor]) requireText(source, "keywords:", "Dynamic public entity metadata must provide entity-specific keyword context");
