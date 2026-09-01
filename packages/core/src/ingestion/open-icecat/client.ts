@@ -6,6 +6,20 @@ import { asRecord, firstText, isValidGtin, normalizeGtin } from "./utils.ts";
 
 const ICECAT_JSON_ENDPOINT = "https://live.icecat.biz/api";
 
+export type OpenIcecatErrorDisposition = "retry" | "skip" | "fatal";
+
+export class OpenIcecatRequestError extends Error {
+  readonly disposition: OpenIcecatErrorDisposition;
+  readonly status: number | undefined;
+
+  constructor(message: string, options: Readonly<{ disposition: OpenIcecatErrorDisposition; status?: number }>) {
+    super(message);
+    this.name = "OpenIcecatRequestError";
+    this.disposition = options.disposition;
+    this.status = options.status;
+  }
+}
+
 export class OpenIcecatClient {
   readonly #username: string;
   readonly #apiToken: string;
@@ -63,25 +77,93 @@ export class OpenIcecatClient {
     const timeoutSignal = AbortSignal.timeout(this.#requestTimeoutMs);
     const signal = externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal;
 
-    const response = await this.#fetch(url, {
-      method: "GET",
-      redirect: "error",
-      headers,
-      signal
-    });
-    const bodyText = await response.text();
+    let response: Response;
+    try {
+      response = await this.#fetch(url, {
+        method: "GET",
+        redirect: "error",
+        headers,
+        signal
+      });
+    } catch (error) {
+      if (externalSignal?.aborted) throw error;
+      throw new OpenIcecatRequestError(
+        `Icecat request failed before a response was received: ${errorMessage(error)}`,
+        { disposition: "retry" }
+      );
+    }
+
+    let bodyText: string;
+    try {
+      bodyText = await response.text();
+    } catch (error) {
+      if (externalSignal?.aborted) throw error;
+      throw new OpenIcecatRequestError(
+        `Icecat response body could not be read: ${errorMessage(error)}`,
+        { disposition: "retry", status: response.status }
+      );
+    }
+
     let payload: unknown;
     try {
       payload = bodyText ? JSON.parse(bodyText) : {};
     } catch {
-      throw new Error(`Icecat returned non-JSON content (${response.status})`);
+      throw new OpenIcecatRequestError(`Icecat returned non-JSON content (${response.status})`, {
+        disposition: response.ok ? "retry" : dispositionForHttpStatus(response.status),
+        status: response.status
+      });
     }
-    if (!response.ok) throw new Error(icecatErrorMessage(payload, response.status));
+
+    if (!response.ok) {
+      throw new OpenIcecatRequestError(icecatErrorMessage(payload, response.status), {
+        disposition: dispositionForHttpStatus(response.status),
+        status: response.status
+      });
+    }
+
     const record = asRecord(payload);
     const contentError = firstContentError(record);
-    if (contentError) throw new Error(contentError);
+    if (contentError) {
+      throw new OpenIcecatRequestError(contentError, { disposition: dispositionForContentError(contentError), status: response.status });
+    }
     return record;
   }
+}
+
+function dispositionForHttpStatus(status: number): OpenIcecatErrorDisposition {
+  if (status === 401 || status === 403) return "fatal";
+  if (status === 408 || status === 425 || status === 429 || status >= 500) return "retry";
+  return "skip";
+}
+
+function dispositionForContentError(message: string): OpenIcecatErrorDisposition {
+  const normalized = message.toLowerCase();
+  const fatalSignals = [
+    "unauthorized",
+    "forbidden",
+    "access denied",
+    "api token",
+    "api-token",
+    "content token",
+    "content-token",
+    "credential"
+  ];
+  if (fatalSignals.some((signal) => normalized.includes(signal))) return "fatal";
+
+  const permanentProductSignals = [
+    "not found",
+    "does not exist",
+    "no product",
+    "invalid gtin",
+    "invalid ean",
+    "unknown gtin",
+    "unknown ean"
+  ];
+  if (permanentProductSignals.some((signal) => normalized.includes(signal))) return "skip";
+
+  // Unknown 2xx content errors are kept retryable. This is intentionally conservative:
+  // only explicit product-missing/invalid signals may permanently skip a source revision.
+  return "retry";
 }
 
 function firstContentError(payload: Record<string, unknown>): string | undefined {
@@ -102,6 +184,10 @@ function firstContentError(payload: Record<string, unknown>): string | undefined
 
 function icecatErrorMessage(payload: unknown, status: number): string {
   return firstContentError(asRecord(payload)) ?? `Icecat request failed with HTTP ${status}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function requiredSecret(value: string, label: string): string {
