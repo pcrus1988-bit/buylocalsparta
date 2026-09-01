@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import {
   OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
   OpenIcecatClient,
+  OpenIcecatRequestError,
   PostgresUnitOfWork,
   isValidGtin,
   type OpenIcecatDetailJob,
@@ -200,6 +201,39 @@ async function processJob(job: OpenIcecatDetailJob): Promise<void> {
   } catch (error) {
     if (stopping || controller.signal.aborted) return;
     const message = error instanceof Error ? error.message : String(error);
+
+    if (error instanceof OpenIcecatRequestError && error.disposition === "fatal") {
+      lastActivityAt = Date.now();
+      console.error(JSON.stringify({
+        level: "error",
+        event: "open_icecat.detail_worker_fatal_provider_error",
+        workerId,
+        productId: job.productId,
+        gtin: currentGtin,
+        attempt: job.attemptCount,
+        providerStatus: error.status ?? null,
+        message
+      }));
+      throw error;
+    }
+
+    if (error instanceof OpenIcecatRequestError && error.disposition === "skip") {
+      await repository.skip(job, workerId, message);
+      lastActivityAt = Date.now();
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "open_icecat.detail_job_skipped",
+        workerId,
+        productId: job.productId,
+        gtin: currentGtin,
+        attempt: job.attemptCount,
+        providerStatus: error.status ?? null,
+        reason: "provider_permanent_error",
+        message
+      }));
+      return;
+    }
+
     const terminal = job.attemptCount >= maxAttempts;
     const retrySeconds = terminal
       ? retryBaseSeconds
@@ -213,6 +247,7 @@ async function processJob(job: OpenIcecatDetailJob): Promise<void> {
       productId: job.productId,
       gtin: currentGtin,
       attempt: job.attemptCount,
+      providerStatus: error instanceof OpenIcecatRequestError ? error.status ?? null : null,
       retrySeconds: terminal ? null : retrySeconds,
       message
     }));
