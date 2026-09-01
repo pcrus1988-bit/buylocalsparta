@@ -8,6 +8,15 @@ import { getSeoUrlRegistryWorkspace, type SeoUrlRegistryRow } from "./seo-url-re
 
 const COVERAGE_MAX_AGE_HOURS = 168;
 const SAMPLE_MAX_URLS = 10;
+const SAMPLE_STRATEGY = "priority_stratified_round_robin_v1" as const;
+const SAMPLE_KIND_ORDER: readonly SeoUrlRegistryRow["kind"][] = [
+  "product",
+  "partner_vendor",
+  "research_vendor",
+  "category",
+  "static",
+  "cms"
+];
 
 type InspectionRow = SqlRow & {
   route: string;
@@ -126,6 +135,36 @@ function samplingPriority(row: SeoGscCoverageRow): number {
   return 3;
 }
 
+function stratifiedCoverageCandidates(rows: readonly SeoGscCoverageRow[], limit: number): SeoGscCoverageRow[] {
+  const selected: SeoGscCoverageRow[] = [];
+  for (const priority of [0, 1, 2, 3] as const) {
+    const queues = new Map<SeoUrlRegistryRow["kind"], SeoGscCoverageRow[]>();
+    for (const kind of SAMPLE_KIND_ORDER) queues.set(kind, []);
+    for (const row of rows) {
+      if (samplingPriority(row) !== priority) continue;
+      queues.get(row.kind)?.push(row);
+    }
+
+    let progressed = true;
+    while (selected.length < limit && progressed) {
+      progressed = false;
+      for (const kind of SAMPLE_KIND_ORDER) {
+        const candidate = queues.get(kind)?.shift();
+        if (!candidate) continue;
+        selected.push(candidate);
+        progressed = true;
+        if (selected.length >= limit) break;
+      }
+    }
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
+function sampleKindCounts(rows: readonly SeoGscCoverageRow[]) {
+  return Object.fromEntries(SAMPLE_KIND_ORDER.map((kind) => [kind, rows.filter((row) => row.kind === kind).length])) as Record<SeoUrlRegistryRow["kind"], number>;
+}
+
 function coverageMetrics(rows: readonly SeoGscCoverageRow[]): SeoGscIndexCoverageWorkspace["metrics"] {
   return {
     governedIndexable: rows.length,
@@ -179,19 +218,26 @@ export async function runGovernedSearchConsoleCoverageSample(principal: SessionP
   const workspace = await getSeoGscIndexCoverageWorkspace(principal);
   if (!workspace.persistenceAvailable) throw new Error("Google index coverage sampling requires PostgreSQL URL registry and inspection persistence.");
   const limit = Math.max(1, Math.min(SAMPLE_MAX_URLS, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : SAMPLE_MAX_URLS));
-  const candidates = workspace.rows.slice(0, limit);
-  const results: Array<Readonly<{ route: string; ok: boolean; verdict?: string; error?: string }>> = [];
+  const candidates = stratifiedCoverageCandidates(workspace.rows, limit);
+  const results: Array<Readonly<{ route: string; kind: SeoUrlRegistryRow["kind"]; ok: boolean; verdict?: string; error?: string }>> = [];
 
   for (const candidate of candidates) {
     try {
       const persisted = await inspectAndPersistSearchConsoleUrl(principal, candidate.canonicalUrl);
-      results.push({ route: candidate.route, ok: true, verdict: persisted.inspection.verdict });
+      results.push({ route: candidate.route, kind: candidate.kind, ok: true, verdict: persisted.inspection.verdict });
     } catch (error) {
-      results.push({ route: candidate.route, ok: false, error: error instanceof Error ? error.message : "URL Inspection failed." });
+      results.push({ route: candidate.route, kind: candidate.kind, ok: false, error: error instanceof Error ? error.message : "URL Inspection failed." });
     }
   }
 
-  const summary = { requested: limit, attempted: candidates.length, succeeded: results.filter((row) => row.ok).length, failed: results.filter((row) => !row.ok).length };
-  await recordAdminAudit(principal, "seo.search_console.index_coverage_sample", "seo_gsc_index_coverage", marketCode(), "Run governed bounded Google index coverage sample", summary);
+  const summary = {
+    requested: limit,
+    attempted: candidates.length,
+    succeeded: results.filter((row) => row.ok).length,
+    failed: results.filter((row) => !row.ok).length,
+    strategy: SAMPLE_STRATEGY,
+    byKind: sampleKindCounts(candidates)
+  };
+  await recordAdminAudit(principal, "seo.search_console.index_coverage_sample", "seo_gsc_index_coverage", marketCode(), "Run governed bounded stratified Google index coverage sample", summary);
   return { ...summary, results } as const;
 }
