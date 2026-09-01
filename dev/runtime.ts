@@ -253,7 +253,7 @@ export function createDemoRuntime() {
   coupons.register({
     id: "coupon-local10", marketId: "sparta", code: "LOCAL10", name: "Local launch 10%", discountType: "percentage", rateBps: 1000,
     minSubtotal: money(1_000), maxDiscount: money(2_000), excludePrivateOffers: true, excludePromotionalPrices: false,
-    startsAt: Date.UTC(2026, 7, 14), endsAt: Date.UTC(2026, 8, 1), maxRedemptions: 500, maxPerSubject: 1, version: 1, active: true, createdBy: "system:seed", createdAt: Date.UTC(2026, 7, 14)
+    startsAt: Date.UTC(2026, 7, 14), maxRedemptions: 500, maxPerSubject: 1, version: 1, active: true, createdBy: "system:seed", createdAt: Date.UTC(2026, 7, 14)
   });
   const deliveryPricing = new DeliveryPricingService();
   deliveryPricing.register({
