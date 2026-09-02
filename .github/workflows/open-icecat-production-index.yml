@@ -1,6 +1,13 @@
 name: Open Icecat Production Index
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/open-icecat-production-index.yml"
+      - "workers/open-icecat-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+      - "packages/core/src/persistence/postgres-open-icecat-bulk.ts"
   schedule:
     - cron: "23 2 * * *"
   workflow_dispatch:
