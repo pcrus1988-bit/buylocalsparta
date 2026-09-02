@@ -15,19 +15,12 @@ const PARTNER_DRILLDOWN_ROUTES = new Set([
   "/admin/finance/agreements/sla"
 ]);
 
-const ICECAT_NAV_LINK: WorkspaceNavLink = {
-  label: "Icecat",
-  href: "/admin/icecat",
-  icon: "◈",
-  permission: "catalog.read"
-};
-
 const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string; contextHidden?: boolean }>([
   ["/admin/catalogue", { order: 0, label: "Overview" }],
   ["/admin/quickadd", { order: 1, label: "Quick Add" }],
   ["/admin/catalogue-crawler", { order: 2, label: "Website Import" }],
-  ["/admin/icecat", { order: 3, label: "Icecat" }],
-  ["/admin/catalogue-intake/import", { order: 4, label: "Files & Icecat", contextHidden: false }],
+  ["/admin/icecat", { order: 3, label: "Icecat Control Center" }],
+  ["/admin/catalogue-intake/import", { order: 4, label: "File Import", contextHidden: false }],
   ["/admin/catalogue-intake", { order: 5, label: "Supplier PIM" }],
   ["/admin/catalogue-intake/attributes", { order: 6, label: "Attributes" }],
   ["/admin/matching", { order: 7, label: "Matching" }],
@@ -78,10 +71,7 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
   }
 
   if (group.href === "/admin/catalogue") {
-    const catalogueLinks = links.some((link) => link.href === ICECAT_NAV_LINK.href)
-      ? links
-      : [...links, ICECAT_NAV_LINK];
-    return catalogueLinks
+    return links
       .map((link) => {
         const presentation = CATALOGUE_OPERATOR_LINKS.get(link.href);
         return presentation ? {
@@ -147,7 +137,6 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal, attenti
 }
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
-  if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);
   return link ? canAccessAdminNavLink(principal, link) : false;
 }

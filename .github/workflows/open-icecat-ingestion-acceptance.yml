@@ -12,7 +12,12 @@ on:
       - "packages/core/src/persistence/index.ts"
       - "packages/core/test/open-icecat*.test.ts"
       - "apps/web/src/lib/admin-open-icecat-health.ts"
+      - "apps/web/src/lib/admin-icecat-control.ts"
       - "apps/web/src/app/admin/catalogue/page.tsx"
+      - "apps/web/src/app/admin/icecat/page.tsx"
+      - "apps/web/src/app/admin/page.tsx"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "scripts/verify-admin-icecat-control.ts"
       - "db/migrations/0158_open_icecat_greek_product_intelligence.sql"
       - "db/migrations/0160_open_icecat_bulk_ingestion_runs.sql"
       - "db/migrations/0163_open_icecat_detail_enrichment.sql"
@@ -41,7 +46,12 @@ on:
       - "packages/core/src/persistence/index.ts"
       - "packages/core/test/open-icecat*.test.ts"
       - "apps/web/src/lib/admin-open-icecat-health.ts"
+      - "apps/web/src/lib/admin-icecat-control.ts"
       - "apps/web/src/app/admin/catalogue/page.tsx"
+      - "apps/web/src/app/admin/icecat/page.tsx"
+      - "apps/web/src/app/admin/page.tsx"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "scripts/verify-admin-icecat-control.ts"
       - "db/migrations/0158_open_icecat_greek_product_intelligence.sql"
       - "db/migrations/0160_open_icecat_bulk_ingestion_runs.sql"
       - "db/migrations/0163_open_icecat_detail_enrichment.sql"
@@ -132,7 +142,9 @@ jobs:
       - name: Test Open Icecat parser, transformer, client and resumable bulk runner
         run: node --experimental-strip-types --test packages/core/test/open-icecat*.test.ts
       - name: Build Admin catalogue observability surface
-        run: npm run check:web
+        run: |
+          node --experimental-strip-types scripts/verify-admin-icecat-control.ts
+          npm run check:web
       - name: Exercise detail queue, Greek evidence, stale handling and full reconciliation
         run: node --experimental-strip-types scripts/open-icecat-detail-smoke.ts
       - name: Verify durable ingestion and detail schema isolation

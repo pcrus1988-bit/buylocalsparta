@@ -150,6 +150,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/admin/analytics",
   "/admin/ask-local",
   "/admin/categories",
+  "/admin/icecat",
   "/admin/catalogue-intake",
   "/admin/catalogue-intake/import",
   "/admin/content",

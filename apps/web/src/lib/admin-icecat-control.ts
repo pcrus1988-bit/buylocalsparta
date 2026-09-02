@@ -12,20 +12,6 @@ import {
 import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
-export type IcecatRunSummary = Readonly<{
-  kind: "full" | "daily";
-  status: "running" | "completed" | "failed";
-  sourceRows: number;
-  persisted: number;
-  removed: number;
-  rejected: number;
-  filtered: number;
-  startedAt: string;
-  completedAt?: string;
-  failedAt?: string;
-  lastError?: string;
-}>;
-
 export type AdminIcecatWorkspace = Readonly<{
   state: "available" | "not_configured" | "unavailable";
   csrfToken: string;
@@ -36,35 +22,7 @@ export type AdminIcecatWorkspace = Readonly<{
     bulkVersion: string;
     detailVersion: string;
   }>;
-  latestRuns: readonly IcecatRunSummary[];
 }>;
-
-function integer(row: SqlRow, field: string): number {
-  const value = Number(row[field] ?? 0);
-  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function runSummary(row: SqlRow): IcecatRunSummary {
-  const kind = row.import_kind === "full" ? "full" : "daily";
-  const status = row.status === "completed" ? "completed" : row.status === "failed" ? "failed" : "running";
-  return {
-    kind,
-    status,
-    sourceRows: integer(row, "source_rows"),
-    persisted: integer(row, "persisted"),
-    removed: integer(row, "removed"),
-    rejected: integer(row, "rejected"),
-    filtered: integer(row, "filtered"),
-    startedAt: String(row.started_at ?? ""),
-    completedAt: optionalString(row.completed_at),
-    failedAt: optionalString(row.failed_at),
-    lastError: optionalString(row.last_error)
-  };
-}
 
 function emptyWorkspace(principal: SessionPrincipal, state: "not_configured" | "unavailable"): AdminIcecatWorkspace {
   return {
@@ -72,7 +30,6 @@ function emptyWorkspace(principal: SessionPrincipal, state: "not_configured" | "
     csrfToken: principal.csrfToken,
     settings: DEFAULT_OPEN_ICECAT_CONTROL,
     processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
-    latestRuns: []
   };
 }
 
@@ -92,23 +49,13 @@ async function postgresWorkspace(principal: SessionPrincipal): Promise<AdminIcec
       if (!source) return emptyWorkspace(principal, "not_configured");
 
       const settings = openIcecatControlFromMetadata(source.metadata);
-      const runResult = await tx.query<SqlRow>(`
-        SELECT DISTINCT ON (import_kind)
-          import_kind, status, source_rows, persisted, removed, rejected, filtered,
-          started_at::text, completed_at::text, failed_at::text, last_error
-        FROM public.open_icecat_bulk_ingestion_runs
-        WHERE source_id=$1::uuid AND processing_version=$2
-        ORDER BY import_kind, started_at DESC
-      `, [String(source.source_id), OPEN_ICECAT_BULK_PROCESSING_VERSION]);
-
       return {
         state: "available",
         csrfToken: principal.csrfToken,
         sourceName: String(source.name ?? "Open Icecat"),
         sourceActive: source.active === true,
         settings,
-        processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
-        latestRuns: runResult.rows.map(runSummary)
+        processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION }
       };
     }, { readOnly: true, statementTimeoutMs: 8_000 });
   } catch {

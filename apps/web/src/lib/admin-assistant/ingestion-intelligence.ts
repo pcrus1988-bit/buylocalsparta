@@ -43,7 +43,7 @@ export async function openIcecatIngestionIntelligence(
   if (!latest) {
     return {
       ...base,
-      summary: "Files & Icecat: no Open Icecat bulk ingestion run has been recorded yet.",
+      summary: "Icecat Control Center: no Open Icecat bulk ingestion run has been recorded yet.",
       facts: ["No Open Icecat bulk ingestion run is available in the current production persistence."],
       evidence: [{ id: "icecat:no-run", kind: "kontamou", label: "Bulk ingestion", detail: "No Open Icecat bulk run has been recorded.", metric: 0, sourceTool: "getOpenIcecatIngestionStatus" }],
       structuredFacts: [{ id: "fact:icecat-runs", label: "Recorded runs", value: "0", evidenceIds: ["icecat:no-run"] }]
@@ -80,7 +80,7 @@ export async function openIcecatIngestionIntelligence(
       evidence: [`status = ${latest.status}`, ...(latest.lastError ? [`lastError = ${latest.lastError}`] : [])],
       evidenceIds: ["icecat:status", "icecat:checkpoint"],
       recommendation: "Inspect the recorded failure and resume from the durable checkpoint; do not reset or replay already committed source rows.",
-      href: "/admin/catalogue-intake/import",
+      href: "/admin/icecat",
       confidence: "high"
     };
     findings.push(finding);
@@ -96,7 +96,7 @@ export async function openIcecatIngestionIntelligence(
       evidence: [`status = ${latest.status}`, `minutesSinceUpdate = ${minutesSinceUpdate}`, `checkpoint = ${latest.checkpoint}`],
       evidenceIds: ["icecat:status", "icecat:checkpoint", "icecat:freshness"],
       recommendation: "Check the ingestion worker/runtime before starting another run. Resume from the existing durable checkpoint if recovery is required.",
-      href: "/admin/catalogue-intake/import",
+      href: "/admin/icecat",
       confidence: "high"
     };
     findings.push(finding);
@@ -115,7 +115,7 @@ export async function openIcecatIngestionIntelligence(
       evidence: [`rejected = ${latest.rejected}`, `checkpoint = ${latest.checkpoint}`, `rejectedRatio = ${rejectedRatio}%`],
       evidenceIds: ["icecat:rejected", "icecat:checkpoint"],
       recommendation: "Sample rejected-row reasons before changing parser or mapping logic; distinguish malformed rows from intentionally filtered rows.",
-      href: "/admin/catalogue-intake/import",
+      href: "/admin/icecat",
       affectedCount: latest.rejected,
       confidence: "high"
     };
@@ -157,7 +157,7 @@ export async function openIcecatIngestionIntelligence(
         evidence: [`failed = ${detail.failed}`, `activeIndexProducts = ${detail.activeIndexProducts}`, `failedRatio = ${failedRatio}%`],
         evidenceIds: ["icecat:detail-failed", "icecat:detail-active"],
         recommendation: "Inspect failure categories and retry policy; keep failed evidence outside canonical promotion until a successful governed detail result exists.",
-        href: "/admin/catalogue-intake/import",
+        href: "/admin/icecat",
         affectedCount: detail.failed,
         confidence: "high"
       };
@@ -176,7 +176,7 @@ export async function openIcecatIngestionIntelligence(
         evidence: [`retry = ${detail.retry}`, `queueRemaining = ${queueRemaining}`, `retryRatio = ${retryRatio}%`],
         evidenceIds: ["icecat:detail-queue"],
         recommendation: "Check whether retries share a provider/API or data-shape cause before increasing worker throughput.",
-        href: "/admin/catalogue-intake/import",
+        href: "/admin/icecat",
         affectedCount: detail.retry,
         confidence: "high"
       };
@@ -195,7 +195,7 @@ export async function openIcecatIngestionIntelligence(
         evidence: [`ready = ${detail.ready}`, `needsEnrichment = ${detail.needsEnrichment}`, `enrichmentRatio = ${enrichmentRatio}%`],
         evidenceIds: ["icecat:detail-ready", "icecat:detail-enrichment"],
         recommendation: "Prioritize the most repeated missing Greek fields/specification mappings while preserving provenance and the existing ≥90% quality gate.",
-        href: "/admin/catalogue-intake/import",
+        href: "/admin/icecat",
         affectedCount: detail.needsEnrichment,
         confidence: "high"
       };
@@ -214,7 +214,7 @@ export async function openIcecatIngestionIntelligence(
         evidence: [`unqueueableWithoutGtin = ${detail.unqueueableWithoutGtin}`],
         evidenceIds: ["icecat:detail-no-gtin"],
         recommendation: "Segment these rows for identifier recovery or alternate trusted-source matching instead of weakening the detail lookup identity boundary.",
-        href: "/admin/catalogue-intake/import",
+        href: "/admin/icecat",
         affectedCount: detail.unqueueableWithoutGtin,
         confidence: "high"
       };

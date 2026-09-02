@@ -75,7 +75,7 @@
     "check:ask-local-history": "node --experimental-strip-types scripts/verify-ask-local-clarification-history.ts",
     "check:customer-ask-local-public-references": "node --experimental-strip-types scripts/verify-customer-ask-local-public-references.ts",
     "check:navigation": "node --experimental-strip-types scripts/verify-public-navigation.ts",
-    "check:dashboard-ux": "node --experimental-strip-types scripts/verify-dashboard-ux.ts && node --experimental-strip-types scripts/verify-admin-commercial-finance.ts && node --experimental-strip-types scripts/verify-admin-domain-icons.ts && node --experimental-strip-types scripts/verify-admin-record-identity.ts",
+    "check:dashboard-ux": "node --experimental-strip-types scripts/verify-dashboard-ux.ts && node --experimental-strip-types scripts/verify-admin-icecat-control.ts && node --experimental-strip-types scripts/verify-admin-commercial-finance.ts && node --experimental-strip-types scripts/verify-admin-domain-icons.ts && node --experimental-strip-types scripts/verify-admin-record-identity.ts",
     "check:admin-quickadd": "node --experimental-strip-types scripts/verify-admin-quickadd.ts",
     "check:checkout-ux": "node --experimental-strip-types scripts/verify-checkout-ux.ts",
     "check:private-offer-checkout": "node --experimental-strip-types scripts/verify-private-offer-checkout.ts",

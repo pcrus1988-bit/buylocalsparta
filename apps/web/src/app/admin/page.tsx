@@ -4,8 +4,10 @@ import { AdminDashboardCanvas, type AdminDashboardWidget } from "../../component
 import type { AdminNavIconName } from "../../components/AdminNavIcon";
 import { AdminWorkspaceHeader } from "../../components/AdminWorkspaceHeader";
 import { adminAskLocalDashboard } from "../../lib/admin-ask-local";
+import { adminIcecatWorkspace } from "../../lib/admin-icecat-control";
 import { adminMetricIntegritySnapshot } from "../../lib/admin-metric-integrity";
 import { adminNavigationForPrincipal } from "../../lib/admin-navigation";
+import { adminOpenIcecatHealth } from "../../lib/admin-open-icecat-health";
 import { adminDashboard, hasAdminPermission } from "../../lib/admin-runtime";
 import { getAdminSession } from "../../lib/admin-session";
 
@@ -39,9 +41,11 @@ export default async function AdminPage() {
   const canSecurity = hasAdminPermission(principal, "security.read");
   const canContent = hasAdminPermission(principal, "content.read");
   const canAudit = hasAdminPermission(principal, "admin.audit.read");
-  const [askLocal, metricIntegrity] = await Promise.all([
+  const [askLocal, metricIntegrity, icecatWorkspace, icecatHealth] = await Promise.all([
     canCustomer ? adminAskLocalDashboard(principal).catch(() => undefined) : undefined,
-    canAnalytics ? adminMetricIntegritySnapshot(principal).catch(() => undefined) : undefined
+    canAnalytics ? adminMetricIntegritySnapshot(principal).catch(() => undefined) : undefined,
+    canCatalog ? adminIcecatWorkspace(principal).catch(() => undefined) : undefined,
+    canCatalog ? adminOpenIcecatHealth(principal).catch(() => undefined) : undefined
   ]);
   const refundControlCount = metricIntegrity
     ? metricIntegrity.commerce.cancelledCapturedOrders + metricIntegrity.commerce.failedOrManualRefunds
@@ -184,6 +188,37 @@ export default async function AdminPage() {
       { label: "Compliance", value: dashboard.metrics.pendingCompliance }
     ]
   });
+
+  if (canCatalog) {
+    const workspaceAvailable = icecatWorkspace?.state === "available";
+    const metricsAvailable = icecatHealth?.state === "available";
+    const paused = workspaceAvailable && (!icecatWorkspace.settings.indexEnabled || !icecatWorkspace.settings.detailEnabled);
+    widgets.push({
+      id: "icecat-control",
+      kind: "metric",
+      icon: "catalog",
+      label: "Icecat Control Center",
+      eyebrow: "Catalogue · provider operations",
+      href: "/admin/icecat",
+      source: "Open Icecat",
+      value: workspaceAvailable ? (paused ? "Paused" : "Configured") : "Check setup",
+      detail: workspaceAvailable
+        ? "Live Icecat health, ingestion history, enrichment queue and settings in one dedicated workspace."
+        : "Open the Icecat workspace to inspect provider configuration and operational availability.",
+      tone: workspaceAvailable ? (paused ? "attention" : "positive") : "attention",
+      defaultSize: "medium",
+      defaultVisible: true,
+      stats: metricsAvailable ? [
+        { label: "Index products", value: icecatHealth.activeIndexProducts },
+        { label: "Greek ready", value: icecatHealth.queue.ready },
+        { label: "Backlog", value: icecatHealth.actionableBacklog },
+        { label: "Failed", value: icecatHealth.queue.failed }
+      ] : [
+        { label: "Index worker", value: workspaceAvailable && icecatWorkspace.settings.indexEnabled ? "Enabled" : "Paused" },
+        { label: "Detail worker", value: workspaceAvailable && icecatWorkspace.settings.detailEnabled ? "Enabled" : "Paused" }
+      ]
+    });
+  }
 
   if (canAnalytics) widgets.push({
     id: "analytics",
