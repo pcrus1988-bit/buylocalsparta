@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ProductIcecatVisibilityPanel, VendorProductIcecatVisibilityPanel } from "../../../components/ProductIcecatVisibilityPanel";
+import { VendorProductIcecatVisibilityPanel } from "../../../components/ProductIcecatVisibilityPanel";
 import { VendorArchivedProductsPanel } from "../../../components/VendorArchivedProductsPanel";
 import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
 import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
