@@ -43,6 +43,6 @@ test("reranks provider hits with the shared canonical relevance contract",async(
   const client=new MeilisearchClient({host:"https://search.test",indexUid:"products",adminApiKey:"admin",searchApiKey:"search",timeoutMs:1000,taskTimeoutMs:1000,taskPollMs:1},fetchMock);
   const hits=await client.search({marketId:"sparta",q:"lamp",type:"product"});
   assert.deepEqual(hits.map((hit)=>hit.document.id),["title","taxonomy","body"]);
-  assert.ok(hits[0].reasons.includes("exact_title"));
+  assert.ok(hits[0].reasons.includes("title_phrase"));
   assert.ok(hits[1].reasons.includes("taxonomy"));
 });
