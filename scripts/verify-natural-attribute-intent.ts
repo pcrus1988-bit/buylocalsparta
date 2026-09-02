@@ -4,6 +4,7 @@ import {
   resolveStorefrontAttributeIntents,
   type StorefrontAttributeIntent
 } from "../apps/web/src/lib/storefront-attribute-query.ts";
+import { formatStorefrontAttributeAdvisory } from "../apps/web/src/lib/storefront-attribute-label.ts";
 import { inferStorefrontTaxonomyIntent } from "../apps/web/src/lib/storefront-taxonomy.ts";
 
 const failures: string[] = [];
@@ -47,6 +48,18 @@ expectExtract("ANC bluetooth headphones", "headphones", "headphones", { anc: "AN
 expectExtract("laser duplex printer", "printers", "printer", { print_technology: "Laser", duplex: "true" });
 expectExtract("205/55 R16 91V winter tyres", "tyres", "tyres", { tyre_size: "205/55 R16", load_index: "91", speed_rating: "V", season: "Winter" });
 expectExtract("100ml perfume", "fragrance", "perfume", { volume: "100 ml" });
+
+const advisoryCases: Array<[string, string, string]> = [
+  ["Smart TV", "Smart TV", "Ζητούμενο: Smart TV"],
+  ["5G", "5G", "Ζητούμενο: 5G"],
+  ["Dual SIM", "Dual SIM", "Ζητούμενο: Dual SIM"],
+  ["Μέγεθος οθόνης", "55 in", "Ζητούμενο: Μέγεθος οθόνης 55 in"],
+  ["Τάση", "18 V", "Ζητούμενο: Τάση 18 V"]
+];
+for (const [label, value, expected] of advisoryCases) {
+  const actual = formatStorefrontAttributeAdvisory(label, value);
+  if (actual !== expected) failures.push(`Advisory label ${label}/${value} must render as "${expected}", received "${actual}"`);
+}
 
 const tvTaxonomyIntent = inferStorefrontTaxonomyIntent("55 inch 4K smart TV");
 if (tvTaxonomyIntent?.category.slug !== "technology" || tvTaxonomyIntent.leaf?.key !== "televisions") {
@@ -111,7 +124,8 @@ const shopPage = readFileSync(new URL("../apps/web/src/app/shop/page.tsx", impor
 const catalogView = readFileSync(new URL("../apps/web/src/lib/catalog-view.ts", import.meta.url), "utf8");
 for (const contract of [
   'getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)',
-  "filterCatalogCardsByAttributes(products, attributeFilters)"
+  "filterCatalogCardsByAttributes(products, attributeFilters)",
+  "formatStorefrontAttributeAdvisory(definition.label, intent.value)"
 ]) {
   if (!shopPage.includes(contract)) failures.push(`Storefront search integration must retain ${contract}`);
 }
@@ -127,4 +141,4 @@ if (failures.length) {
   console.error("Natural attribute intent checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Natural attribute intent checks passed: leaf-scoped extraction, plural-unit parsing, negated booleans, end-to-end taxonomy handoff, ambiguity guards, pre-limit structured filtering, live-option resolution and explicit-filter precedence verified.");
+console.log("Natural attribute intent checks passed: leaf-scoped extraction, concise advisory labels, plural-unit parsing, negated booleans, end-to-end taxonomy handoff, ambiguity guards, pre-limit structured filtering, live-option resolution and explicit-filter precedence verified.");
