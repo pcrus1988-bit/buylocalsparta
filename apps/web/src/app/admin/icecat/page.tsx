@@ -31,8 +31,6 @@ function dateLabel(value?: string): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleString("el-GR") : value;
 }
 
-function credentialTone(configured: boolean) { return configured ? "positive" as const : "attention" as const; }
-
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -59,7 +57,7 @@ export default async function Page() {
       <WorkspaceEmptyState
         eyebrow={workspace.state === "not_configured" ? "Not configured" : "Unavailable"}
         title={workspace.state === "not_configured" ? "Open Icecat source is not configured for Sparta." : "Icecat operational state is temporarily unavailable."}
-        body="No secret values are exposed here. Provider credentials stay in deployment secrets; operational controls live in the governed source configuration."
+        body="Provider credentials remain isolated on the Icecat workers. Admin reads only governed source and queue state from PostgreSQL."
       />
     </section> : <>
       <WorkspaceMetricStrip
@@ -81,21 +79,21 @@ export default async function Page() {
         <WorkspaceSectionHeading
           eyebrow="Runtime"
           title="Provider & worker health"
-          note="Credential values are never returned to the browser. Only configuration presence is shown."
+          note="The Admin web process never receives Icecat usernames, passwords, API tokens or content tokens."
         />
         <div className="catalogue-attention-grid">
           <article className="workspace-queue-card">
             <div className="workspace-queue-head">
-              <div><strong>Connection readiness</strong><small>{workspace.sourceName} · source {workspace.sourceActive ? "active" : "inactive"}</small></div>
-              <WorkspaceStatusBadge status={workspace.credentials.usernameConfigured && workspace.credentials.apiTokenConfigured ? "active" : "attention"} label={workspace.credentials.usernameConfigured && workspace.credentials.apiTokenConfigured ? "Credentials present" : "Credentials incomplete"} tone={workspace.credentials.usernameConfigured && workspace.credentials.apiTokenConfigured ? "positive" : "attention"} />
+              <div><strong>Source & worker evidence</strong><small>{workspace.sourceName} · source {workspace.sourceActive ? "active" : "inactive"}</small></div>
+              <WorkspaceStatusBadge status={health.state === "available" && workspace.sourceActive ? "active" : "attention"} label={health.state === "available" && workspace.sourceActive ? "Operational evidence available" : "Check worker/source"} tone={health.state === "available" && workspace.sourceActive ? "positive" : "attention"} />
             </div>
             <div className="workspace-compact-list">
-              <div className="workspace-compact-row"><strong>Username</strong><span>{workspace.credentials.usernameConfigured ? "Configured" : "Missing"}</span></div>
-              <div className="workspace-compact-row"><strong>API token</strong><span>{workspace.credentials.apiTokenConfigured ? "Configured" : "Missing"}</span></div>
-              <div className="workspace-compact-row"><strong>Content token</strong><span>{workspace.credentials.contentTokenConfigured ? "Configured" : "Missing / optional"}</span></div>
-              <div className="workspace-compact-row"><strong>Password fallback</strong><span>{workspace.credentials.passwordConfigured ? "Configured" : "Not used"}</span></div>
+              <div className="workspace-compact-row"><strong>Source configuration</strong><span>{workspace.sourceActive ? "Active" : "Inactive"}</span></div>
+              <div className="workspace-compact-row"><strong>Operational metrics</strong><span>{health.state === "available" ? "Available" : health.state === "not_configured" ? "Not configured" : "Unavailable"}</span></div>
+              <div className="workspace-compact-row"><strong>Secret scope</strong><span>Isolated Icecat workers only</span></div>
+              <div className="workspace-compact-row"><strong>Admin exposure</strong><span>No credentials · no raw provider payloads</span></div>
             </div>
-            <div className="workspace-action-bar"><span>Secrets are deployment-managed and intentionally cannot be edited from Admin.</span></div>
+            <div className="workspace-action-bar"><span>Worker secrets are deployment-managed and intentionally cannot be read or edited from Admin.</span></div>
           </article>
 
           <article className="workspace-queue-card">
@@ -166,7 +164,7 @@ export default async function Page() {
         <div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Can change live</strong><span>Worker enablement, cadence, batching, timeouts, retries, lease budget and Greek quality threshold.</span></div>
           <div className="workspace-compact-row"><strong>Cannot bypass</strong><span>Canonical matching, taxonomy governance, product safety, vendor offer rules, stock, pricing or publication approval.</span></div>
-          <div className="workspace-compact-row"><strong>Secrets</strong><span>Never stored in catalogue metadata and never rendered in Admin.</span></div>
+          <div className="workspace-compact-row"><strong>Secrets</strong><span>Never stored in catalogue metadata, never sent to Vercel Admin, and never rendered in the browser.</span></div>
         </div>
       </section>
     </>}
