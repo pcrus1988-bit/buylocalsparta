@@ -32,12 +32,6 @@ export type AdminIcecatWorkspace = Readonly<{
   sourceName?: string;
   sourceActive?: boolean;
   settings: OpenIcecatControlSettings;
-  credentials: Readonly<{
-    usernameConfigured: boolean;
-    apiTokenConfigured: boolean;
-    contentTokenConfigured: boolean;
-    passwordConfigured: boolean;
-  }>;
   processing: Readonly<{
     bulkVersion: string;
     detailVersion: string;
@@ -72,13 +66,14 @@ function runSummary(row: SqlRow): IcecatRunSummary {
   };
 }
 
-function credentialStatus() {
+function emptyWorkspace(principal: SessionPrincipal, state: "not_configured" | "unavailable"): AdminIcecatWorkspace {
   return {
-    usernameConfigured: Boolean(process.env.ICECAT_USERNAME?.trim()),
-    apiTokenConfigured: Boolean(process.env.ICECAT_API_TOKEN?.trim()),
-    contentTokenConfigured: Boolean(process.env.ICECAT_CONTENT_TOKEN?.trim()),
-    passwordConfigured: Boolean(process.env.ICECAT_PASSWORD?.trim())
-  } as const;
+    state,
+    csrfToken: principal.csrfToken,
+    settings: DEFAULT_OPEN_ICECAT_CONTROL,
+    processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
+    latestRuns: []
+  };
 }
 
 async function postgresWorkspace(principal: SessionPrincipal): Promise<AdminIcecatWorkspace> {
@@ -94,16 +89,7 @@ async function postgresWorkspace(principal: SessionPrincipal): Promise<AdminIcec
         LIMIT 1
       `);
       const source = sourceResult.rows[0];
-      if (!source) {
-        return {
-          state: "not_configured",
-          csrfToken: principal.csrfToken,
-          settings: DEFAULT_OPEN_ICECAT_CONTROL,
-          credentials: credentialStatus(),
-          processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
-          latestRuns: []
-        };
-      }
+      if (!source) return emptyWorkspace(principal, "not_configured");
 
       const settings = openIcecatControlFromMetadata(source.metadata);
       const runResult = await tx.query<SqlRow>(`
@@ -121,35 +107,18 @@ async function postgresWorkspace(principal: SessionPrincipal): Promise<AdminIcec
         sourceName: String(source.name ?? "Open Icecat"),
         sourceActive: source.active === true,
         settings,
-        credentials: credentialStatus(),
         processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
         latestRuns: runResult.rows.map(runSummary)
       };
     }, { readOnly: true, statementTimeoutMs: 8_000 });
   } catch {
-    return {
-      state: "unavailable",
-      csrfToken: principal.csrfToken,
-      settings: DEFAULT_OPEN_ICECAT_CONTROL,
-      credentials: credentialStatus(),
-      processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
-      latestRuns: []
-    };
+    return emptyWorkspace(principal, "unavailable");
   }
 }
 
 export async function adminIcecatWorkspace(principal: SessionPrincipal): Promise<AdminIcecatWorkspace> {
   assertAdminPermission(principal, "catalog.read");
-  if (!postgresAdminRuntimeEnabled()) {
-    return {
-      state: "not_configured",
-      csrfToken: principal.csrfToken,
-      settings: DEFAULT_OPEN_ICECAT_CONTROL,
-      credentials: credentialStatus(),
-      processing: { bulkVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION, detailVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION },
-      latestRuns: []
-    };
-  }
+  if (!postgresAdminRuntimeEnabled()) return emptyWorkspace(principal, "not_configured");
   return postgresWorkspace(principal);
 }
 
@@ -170,7 +139,7 @@ export async function adminUpdateIcecatSettings(principal: SessionPrincipal, inp
       WHERE s.market_id=m.id AND s.code='open_icecat' AND m.code='sparta'
       RETURNING s.id::text AS source_id
     `, [stored]);
-    if (result.rowCount !== 1) throw new Error("Active Sparta Open Icecat source configuration not found");
+    if (result.rowCount !== 1) throw new Error("Sparta Open Icecat source configuration not found");
   }, { statementTimeoutMs: 8_000 });
 
   return postgresWorkspace(principal);
