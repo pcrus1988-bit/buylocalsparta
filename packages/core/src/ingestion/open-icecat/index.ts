@@ -6,3 +6,4 @@ export * from "./bulk-runner.ts";
 export * from "./localization.ts";
 export * from "./product.ts";
 export * from "./client.ts";
+export * from "./control.ts";
