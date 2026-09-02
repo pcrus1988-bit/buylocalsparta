@@ -18,7 +18,7 @@ export type StorefrontAttributeFacetLike = Readonly<{
 type CapturedIntent = StorefrontAttributeIntent & Readonly<{ start: number; end: number }>;
 
 const MEMORY_UNIT = "(?:gb|gbyte|gbytes|gigabyte|gigabytes|tb|terabyte|terabytes)";
-const INCH_UNIT = '(?:inch|inches|ιντσα|ιντσες|intsa|intses|in|["″])';
+const INCH_UNIT = '(?:inches|inch|ιντσες|ιντσα|intses|intsa|in|["″])';
 
 /**
  * Extract only high-confidence, leaf-specific structured product constraints.
@@ -205,6 +205,7 @@ function booleanMeaning(value: string, key: string): boolean | undefined {
   const falsy = new Set(["false", "no", "oxi", "οχι", "disabled", "unsupported"]);
   if (truthy.has(normalized)) return true;
   if (falsy.has(normalized)) return false;
+  if (normalized.startsWith("non") || normalized.startsWith("not")) return false;
   const keyTerms: Readonly<Record<string, readonly string[]>> = {
     dimmable: ["dimmable", "dimming"],
     impact: ["impact", "hammer", "percussion"],
@@ -215,7 +216,6 @@ function booleanMeaning(value: string, key: string): boolean | undefined {
     duplex: ["duplex", "twosided", "doublesided"]
   };
   if ((keyTerms[key] ?? []).some((term) => normalized.includes(term))) return true;
-  if (normalized.startsWith("non") || normalized.startsWith("not")) return false;
   return undefined;
 }
 
@@ -270,9 +270,9 @@ function titleTerm(value: string): string {
 }
 
 function normalizeSeason(value: string): string {
-  const normalized = comparable(value);
-  if (normalized.includes("allseason") || normalized.includes("allweather")) return "All Season";
-  if (normalized.includes("winter") || normalized.includes("χειμεριν") || normalized.includes("xeimerino")) return "Winter";
-  if (normalized.includes("summer") || normalized.includes("θεριν") || normalized.includes("therino")) return "Summer";
-  return value;
+  const normalized = fold(value).replace(/[- ]+/g, "");
+  if (normalized === "allseason" || normalized === "allweather") return "All Season";
+  if (normalized === "winter" || normalized.startsWith("χειμεριν") || normalized.startsWith("xeimerin")) return "Winter";
+  if (normalized === "summer" || normalized.startsWith("θεριν") || normalized.startsWith("therin")) return "Summer";
+  return titleTerm(value);
 }
