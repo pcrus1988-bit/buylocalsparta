@@ -4,13 +4,24 @@ import {
   type LaunchControlAttention,
   type LaunchControlFilters,
   type LaunchControlReadinessDimension,
+  type LaunchControlTone,
   type LaunchControlWorkspace
 } from "./admin-launch-control";
 import { adminMetricIntegritySnapshot, type AdminMetricIntegritySnapshot } from "./admin-metric-integrity";
+import { readLaunchControlTargets, type LaunchControlTargetSettings } from "./admin-launch-control-targets";
 
 export type LaunchControlIntegrityWorkspace = LaunchControlWorkspace & Readonly<{
   metricIntegrity?: AdminMetricIntegritySnapshot;
+  targetSettings?: LaunchControlTargetSettings;
 }>;
+
+function readinessTone(score: number | undefined): LaunchControlTone {
+  if (score === undefined) return "unavailable";
+  if (score >= 90) return "positive";
+  if (score >= 70) return "neutral";
+  if (score >= 50) return "attention";
+  return "critical";
+}
 
 function correctedSummary(
   workspace: LaunchControlWorkspace,
@@ -18,15 +29,23 @@ function correctedSummary(
   measurable: number,
   total: number,
   integrity: AdminMetricIntegritySnapshot | undefined,
+  targetSettings: LaunchControlTargetSettings | undefined,
   attention: readonly LaunchControlAttention[]
 ): string {
   const clauses: string[] = [];
   clauses.push(readinessScore === undefined
     ? `Launch readiness is partially measurable (${measurable}/${total} defensible dimensions).`
     : `Measured launch readiness is ${readinessScore}% across ${measurable}/${total} defensible dimensions.`);
-  clauses.push(integrity
-    ? `Vendor readiness is intentionally excluded until a launch target is configured; current lifecycle is ${integrity.vendorLifecycle.active} active / ${integrity.vendorLifecycle.total} Sparta vendor records.`
-    : "Vendor readiness is intentionally excluded because the lifecycle denominator/target is unavailable.");
+
+  const vendorTarget = targetSettings?.document.targets.activeVendors;
+  if (integrity && vendorTarget) {
+    const vendorScore = Math.max(0, Math.min(100, Math.round((integrity.vendorLifecycle.active / vendorTarget.value) * 100)));
+    clauses.push(`Vendor readiness is ${vendorScore}% against the governed target: ${integrity.vendorLifecycle.active}/${vendorTarget.value} active vendors by ${vendorTarget.deadline}.`);
+  } else if (integrity) {
+    clauses.push(`Vendor readiness is intentionally excluded until a launch target is configured; current lifecycle is ${integrity.vendorLifecycle.active} active / ${integrity.vendorLifecycle.total} Sparta vendor records.`);
+  } else {
+    clauses.push("Vendor readiness is intentionally excluded because the lifecycle denominator/target is unavailable.");
+  }
 
   const critical = attention.filter((item) => item.severity === "critical").length;
   const warning = attention.filter((item) => item.severity === "warning").length;
@@ -55,9 +74,10 @@ export async function adminLaunchControlIntegrityWorkspace(
   principal: SessionPrincipal,
   filters: LaunchControlFilters
 ): Promise<LaunchControlIntegrityWorkspace> {
-  const [workspace, metricIntegrity] = await Promise.all([
+  const [workspace, metricIntegrity, targetSettings] = await Promise.all([
     adminLaunchControlWorkspace(principal, filters),
-    adminMetricIntegritySnapshot(principal).catch(() => undefined)
+    adminMetricIntegritySnapshot(principal).catch(() => undefined),
+    readLaunchControlTargets(principal).catch(() => undefined)
   ]);
 
   const dimensions: LaunchControlReadinessDimension[] = workspace.readiness.dimensions.map((dimension) => {
@@ -70,12 +90,23 @@ export async function adminLaunchControlIntegrityWorkspace(
       source: "Vendor lifecycle"
     };
     const lifecycle = metricIntegrity.vendorLifecycle;
-    return {
+    const target = targetSettings?.document.targets.activeVendors;
+    if (!target) return {
       ...dimension,
       score: undefined,
       tone: "unavailable",
       detail: `${lifecycle.active} active · ${lifecycle.applicationStarted} application-started · ${lifecycle.invited} invited · ${lifecycle.other} other, across ${lifecycle.total} Sparta vendor records. Configure a launch target before scoring readiness.`,
+      href: "/admin/launchcontrol/targets",
       source: "Vendor lifecycle · target required"
+    };
+    const score = Math.max(0, Math.min(100, Math.round((lifecycle.active / target.value) * 100)));
+    return {
+      ...dimension,
+      score,
+      tone: readinessTone(score),
+      detail: `${lifecycle.active}/${target.value} active vendors against the governed target due ${target.deadline}. Baseline ${target.baselineValue} recorded when this target was set.`,
+      href: "/admin/launchcontrol/targets",
+      source: "Launch Control target · Vendor lifecycle"
     };
   });
 
@@ -115,6 +146,7 @@ export async function adminLaunchControlIntegrityWorkspace(
     ...workspace,
     dataState,
     metricIntegrity,
+    targetSettings,
     readiness: {
       score: readinessScore,
       measurable: measurableScores.length,
@@ -122,6 +154,6 @@ export async function adminLaunchControlIntegrityWorkspace(
       dimensions
     },
     attention: dedupedAttention,
-    summary: correctedSummary(workspace, readinessScore, measurableScores.length, dimensions.length, metricIntegrity, dedupedAttention)
+    summary: correctedSummary(workspace, readinessScore, measurableScores.length, dimensions.length, metricIntegrity, targetSettings, dedupedAttention)
   };
 }

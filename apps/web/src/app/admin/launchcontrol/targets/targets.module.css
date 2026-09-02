@@ -1,0 +1,196 @@
+.targetsPage :global(.lc-target-hero) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.targetsPage :global(.lc-target-hero-summary) {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 140px;
+  padding: 18px;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 18px;
+  background: rgba(255,255,255,.82);
+}
+
+.targetsPage :global(.lc-target-hero-summary span),
+.targetsPage :global(.lc-target-editor-head span),
+.targetsPage :global(.lc-target-form-row label > span),
+.targetsPage :global(.lc-target-values span),
+.targetsPage :global(.lc-target-meta span) {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.targetsPage :global(.lc-target-hero-summary strong) {
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.targetsPage :global(.lc-target-hero-summary small) {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.targetsPage :global(.lc-target-editor) {
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.targetsPage :global(.lc-target-editor-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(15, 23, 42, .1);
+}
+
+.targetsPage :global(.lc-target-editor-head > div) { display: grid; gap: 3px; }
+.targetsPage :global(.lc-target-editor-head strong) { font-size: 12px; }
+.targetsPage :global(.lc-target-form-grid) { display: grid; }
+
+.targetsPage :global(.lc-target-form-row) {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, .55fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(15, 23, 42, .075);
+}
+
+.targetsPage :global(.lc-target-form-row:last-child) { border-bottom: 0; }
+.targetsPage :global(.lc-target-form-row label) { display: grid; gap: 5px; }
+.targetsPage :global(.lc-target-form-row label > div) { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; }
+.targetsPage :global(.lc-target-form-row input) {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, .14);
+  border-radius: 9px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.targetsPage :global(.lc-target-form-row label > div small) {
+  min-width: 46px;
+  margin-left: -47px;
+  padding-right: 10px;
+  pointer-events: none;
+  color: #64748b;
+  text-align: right;
+  font-size: 9px;
+}
+
+.targetsPage :global(.lc-target-editor-note) {
+  margin: 0;
+  padding: 11px 14px;
+  border-top: 1px solid rgba(15, 23, 42, .08);
+  background: rgba(248,250,252,.7);
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.targetsPage :global(.lc-target-message) {
+  margin: 0 14px 14px;
+  padding: 9px 10px;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 9px;
+  background: rgba(248,250,252,.8);
+  font-size: 10px;
+}
+
+.targetsPage :global(.lc-target-grid) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 9px;
+}
+
+.targetsPage :global(.lc-target-card) {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(15,23,42,.12);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.targetsPage :global(.lc-target-card.is-at_risk),
+.targetsPage :global(.lc-target-card.is-overdue) { border-color: rgba(180,35,24,.3); }
+.targetsPage :global(.lc-target-card.is-achieved),
+.targetsPage :global(.lc-target-card.is-on_track) { border-color: rgba(19,121,91,.28); }
+
+.targetsPage :global(.lc-target-card-head) {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.targetsPage :global(.lc-target-card-head > div) { min-width: 0; }
+.targetsPage :global(.lc-target-card-head span) { display: block; font-size: 11px; font-weight: 900; }
+.targetsPage :global(.lc-target-card-head small) { display: block; margin-top: 4px; color: #64748b; font-size: 9px; line-height: 1.35; }
+.targetsPage :global(.lc-target-status) { flex: none; padding: 4px 7px; border: 1px solid rgba(15,23,42,.12); border-radius: 999px; font-size: 8px; text-transform: uppercase; letter-spacing: .06em; }
+.targetsPage :global(.lc-target-status.is-achieved),
+.targetsPage :global(.lc-target-status.is-on_track) { color: #13795b; border-color: rgba(19,121,91,.25); background: rgba(19,121,91,.06); }
+.targetsPage :global(.lc-target-status.is-at_risk),
+.targetsPage :global(.lc-target-status.is-overdue) { color: #b42318; border-color: rgba(180,35,24,.24); background: rgba(180,35,24,.05); }
+.targetsPage :global(.lc-target-status.is-tracking) { color: #b56a08; border-color: rgba(181,106,8,.24); background: rgba(181,106,8,.05); }
+.targetsPage :global(.lc-target-status.is-unset),
+.targetsPage :global(.lc-target-status.is-unavailable) { color: #64748b; }
+
+.targetsPage :global(.lc-target-values) {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 6px;
+  margin-top: 13px;
+}
+
+.targetsPage :global(.lc-target-values > div),
+.targetsPage :global(.lc-target-meta > div) { min-width: 0; }
+.targetsPage :global(.lc-target-values strong) { display: block; margin-top: 4px; font-size: 18px; letter-spacing: -.03em; }
+.targetsPage :global(.lc-target-progress) { height: 6px; margin: 12px 0; overflow: hidden; border-radius: 999px; background: rgba(15,23,42,.07); }
+.targetsPage :global(.lc-target-progress i) { display: block; height: 100%; border-radius: inherit; background: #334155; }
+.targetsPage :global(.lc-target-card.is-achieved .lc-target-progress i),
+.targetsPage :global(.lc-target-card.is-on_track .lc-target-progress i) { background: #13795b; }
+.targetsPage :global(.lc-target-card.is-at_risk .lc-target-progress i),
+.targetsPage :global(.lc-target-card.is-overdue .lc-target-progress i) { background: #b42318; }
+
+.targetsPage :global(.lc-target-meta) {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 7px;
+}
+.targetsPage :global(.lc-target-meta > div) { padding: 7px; border-radius: 8px; background: rgba(248,250,252,.85); }
+.targetsPage :global(.lc-target-meta strong) { display: block; margin-top: 3px; font-size: 10px; }
+.targetsPage :global(.lc-target-card > p) { min-height: 43px; margin: 11px 0 0; color: #475569; font-size: 9px; line-height: 1.5; }
+.targetsPage :global(.lc-target-baseline) { display: block; margin-top: 8px; color: #64748b; font-size: 8px; }
+
+.targetsPage :global(.lc-target-rules) { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.targetsPage :global(.lc-target-rules > div) { min-height: 90px; padding: 11px; border: 1px solid rgba(15,23,42,.12); border-radius: 12px; background: #fff; }
+.targetsPage :global(.lc-target-rules strong) { display: block; font-size: 10px; }
+.targetsPage :global(.lc-target-rules span) { display: block; margin-top: 6px; color: #64748b; font-size: 9px; line-height: 1.5; }
+
+@media (max-width: 960px) {
+  .targetsPage :global(.lc-target-grid) { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .targetsPage :global(.lc-target-rules) { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width: 680px) {
+  .targetsPage :global(.lc-target-hero) { grid-template-columns: 1fr; }
+  .targetsPage :global(.lc-target-hero-summary) { min-height: 100px; }
+  .targetsPage :global(.lc-target-form-row) { grid-template-columns: 1fr; align-items: stretch; }
+  .targetsPage :global(.lc-target-grid) { grid-template-columns: 1fr; }
+  .targetsPage :global(.lc-target-rules) { grid-template-columns: 1fr; }
+  .targetsPage :global(.lc-target-editor-head) { align-items: flex-start; }
+}
