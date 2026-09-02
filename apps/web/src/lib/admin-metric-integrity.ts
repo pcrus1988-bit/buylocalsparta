@@ -110,16 +110,16 @@ export async function adminMetricIntegritySnapshot(principal: SessionPrincipal):
             AND co.created_at >= $1
             AND EXISTS (
               SELECT 1 FROM payments p
-              WHERE p.order_id=co.id AND COALESCE(p.captured_amount_minor,0)>0
+              WHERE p.order_id=co.id AND COALESCE(p.captured_minor,0)>0
             )
         ), payment_rollup AS (
           SELECT count(*)::bigint AS captured_payments,
-                 COALESCE(sum(p.captured_amount_minor),0)::bigint AS captured_minor
+                 COALESCE(sum(p.captured_minor),0)::bigint AS captured_minor
           FROM payments p
           JOIN customer_orders co ON co.id=p.order_id
           WHERE co.market_id=(SELECT id FROM markets WHERE code='sparta')
             AND p.created_at >= $1
-            AND COALESCE(p.captured_amount_minor,0)>0
+            AND COALESCE(p.captured_minor,0)>0
         ), refund_rollup AS (
           SELECT count(*)::bigint AS failed_or_manual_refunds,
                  COALESCE(sum(r.amount_minor),0)::bigint AS failed_or_manual_refund_minor
