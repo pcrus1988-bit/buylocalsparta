@@ -131,6 +131,10 @@ export function extractStorefrontAttributeQuery(query: string, leafKey?: string)
   return { text: residual.join(" ").replace(/\s+/g, " ").trim(), intents };
 }
 
+/**
+ * Resolve natural-language intents only against the live facet values. A unique best
+ * match is required; otherwise the intent remains advisory and no hard filter is set.
+ */
 export function resolveStorefrontAttributeIntents(
   intents: readonly StorefrontAttributeIntent[],
   facets: readonly StorefrontAttributeFacetLike[],
