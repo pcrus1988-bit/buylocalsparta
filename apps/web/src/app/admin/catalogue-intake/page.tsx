@@ -3,10 +3,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
+import { AdminProductIcecatVisibilityPanel } from "../../../components/ProductIcecatVisibilityPanel";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminCatalogueIntakeWorkspace } from "../../../lib/admin-catalogue-intake";
 import { adminCatalogueAttributeDefinitions, mapCatalogueSourceAttribute } from "../../../lib/admin-catalogue-attribute-mapping";
 import { adminCatalogueVendorOptions, assignCatalogueSnapshotToVendor } from "../../../lib/admin-catalogue-vendor-assignment";
+import { adminProductIcecatVisibility } from "../../../lib/product-icecat-visibility";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Supplier PIM Intake", robots: { index: false, follow: false, nocache: true } };
@@ -96,6 +98,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   ]);
   const snapshot = data.snapshots.find((item) => item.id === data.effectiveSnapshotId) ?? data.snapshots[0];
   const selected = data.selected;
+  const icecatVisibility = selected ? await adminProductIcecatVisibility(principal, selected.product.id) : [];
   const hasFilters = Boolean(params.q?.trim() || params.price?.trim() || params.classification?.trim());
   const assignmentSuccess = params.assigned === "1";
   const attributeMappingSuccess = params.attributeMapped === "1";
@@ -202,6 +205,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
             <div className="workspace-compact-row"><strong>Snapshot</strong><span title={selected.product.sourceHash}>{selected.product.sourceFilename ?? "source file"} · {selected.product.sourceHash.slice(0, 16)}…</span></div>
             {selected.product.sourceUrl && <div className="workspace-compact-row"><strong>Source page</strong><a className="text-link" href={selected.product.sourceUrl} target="_blank" rel="noreferrer">Open supplier evidence ↗</a></div>}
           </div></WorkspaceRecordDetails>
+
+          <AdminProductIcecatVisibilityPanel records={icecatVisibility} />
 
           <WorkspaceRecordDetails label={`Price evidence · ${selected.prices.length}`} open>{selected.prices.length === 0 ? <div className="workspace-inline-note">No price observation is attached to this source row.</div> : <div className="workspace-compact-list">{selected.prices.map((price, index) => <div className="workspace-compact-row" key={`${price.kind}-${price.amountMinor}-${index}`}><strong>{money(price.amountMinor, price.currency)}</strong><span>{price.kind} · {price.status}{price.confidence !== undefined ? ` · ${Math.round(price.confidence * 100)}%` : ""}{price.sourceReference ? ` · ${price.sourceReference}` : ""}</span></div>)}</div>}</WorkspaceRecordDetails>
 
