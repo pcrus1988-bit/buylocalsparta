@@ -4,6 +4,7 @@ import { AdminDashboardCanvas, type AdminDashboardWidget } from "../../component
 import type { AdminNavIconName } from "../../components/AdminNavIcon";
 import { AdminWorkspaceHeader } from "../../components/AdminWorkspaceHeader";
 import { adminAskLocalDashboard } from "../../lib/admin-ask-local";
+import { adminMetricIntegritySnapshot } from "../../lib/admin-metric-integrity";
 import { adminNavigationForPrincipal } from "../../lib/admin-navigation";
 import { adminDashboard, hasAdminPermission } from "../../lib/admin-runtime";
 import { getAdminSession } from "../../lib/admin-session";
@@ -38,7 +39,13 @@ export default async function AdminPage() {
   const canSecurity = hasAdminPermission(principal, "security.read");
   const canContent = hasAdminPermission(principal, "content.read");
   const canAudit = hasAdminPermission(principal, "admin.audit.read");
-  const askLocal = canCustomer ? await adminAskLocalDashboard(principal).catch(() => undefined) : undefined;
+  const [askLocal, metricIntegrity] = await Promise.all([
+    canCustomer ? adminAskLocalDashboard(principal).catch(() => undefined) : undefined,
+    canAnalytics ? adminMetricIntegritySnapshot(principal).catch(() => undefined) : undefined
+  ]);
+  const refundControlCount = metricIntegrity
+    ? metricIntegrity.commerce.cancelledCapturedOrders + metricIntegrity.commerce.failedOrManualRefunds
+    : 0;
 
   const attention: AttentionItem[] = [
     ...(canVendor && dashboard.metrics.vendorVerificationQueue > 0 ? [{ label: "Έλεγχοι συνεργατών", detail: "Αιτήσεις ή verification που χρειάζονται απόφαση.", href: "/admin/partners/pipeline", value: dashboard.metrics.vendorVerificationQueue, severity: "attention" as const }] : []),
@@ -46,6 +53,7 @@ export default async function AdminPage() {
     ...(canCatalog && dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance > 0 ? [{ label: "Trust review", detail: "Media ή compliance evidence που περιμένουν review.", href: "/admin/trust", value: dashboard.metrics.pendingMedia + dashboard.metrics.pendingCompliance, severity: "attention" as const }] : []),
     ...(askLocal && askLocal.openCount > 0 ? [{ label: "Ask Local", detail: askLocal.overdueCount > 0 ? `${askLocal.overdueCount} overdue · ${askLocal.adminOwnedCount} Admin-owned` : `${askLocal.adminOwnedCount} Admin-owned · ${askLocal.vendorOwnedCount} vendor-owned`, href: "/admin/ask-local", value: askLocal.openCount, severity: askLocal.overdueCount > 0 ? "critical" as const : "attention" as const }] : []),
     ...(canFinance && dashboard.metrics.payableProcurements > 0 ? [{ label: "Payables / settlements", detail: "Supplier procurements έτοιμα για οικονομική ενέργεια.", href: "/admin/finance", value: dashboard.metrics.payableProcurements, severity: "attention" as const }] : []),
+    ...(canFinance && refundControlCount > 0 ? [{ label: "Captured cancellation / refund", detail: "Υπάρχει cancelled order με captured funds ή refund σε failed/manual-review state.", href: "/admin/finance#finance-diagnostics", value: refundControlCount, severity: "critical" as const }] : []),
     ...(canFairness && dashboard.metrics.fairnessAppeals > 0 ? [{ label: "Fairness appeals", detail: "Appeals που περιμένουν governance review.", href: "/admin/fairness", value: dashboard.metrics.fairnessAppeals, severity: "attention" as const }] : []),
     ...(!dashboard.health.ok && canAudit ? [{ label: "Platform health", detail: "Υπάρχει dependency/readiness issue που χρειάζεται τεχνικό έλεγχο.", href: "/admin/operations", value: 1, severity: "critical" as const }] : [])
   ].sort((a, b) => ({ critical: 0, attention: 1, normal: 2 }[a.severity] - { critical: 0, attention: 1, normal: 2 }[b.severity]));
@@ -184,16 +192,16 @@ export default async function AdminPage() {
     label: "Εμπορική εικόνα",
     eyebrow: "Marketplace · 30 ημέρες",
     href: "/admin/analytics",
-    source: "Analytics",
-    value: dashboard.analytics.orders,
-    detail: "Συνοπτική εικόνα ζήτησης και εμπορικής απόδοσης.",
+    source: metricIntegrity ? "Transactional ledger + governed analytics" : "Analytics",
+    value: metricIntegrity?.commerce.validPaidOrders ?? dashboard.analytics.orders,
+    detail: metricIntegrity ? "Orders/GMV προέρχονται από το transactional ledger· search metrics από το demand analytics stream." : "Συνοπτική εικόνα ζήτησης και εμπορικής απόδοσης.",
     defaultSize: "medium",
     defaultVisible: false,
     stats: [
       { label: "Searches", value: dashboard.analytics.searches },
       { label: "Search success", value: `${Math.round(dashboard.analytics.searchSuccessRate * 100)}%` },
-      { label: "Orders", value: dashboard.analytics.orders },
-      { label: "GMV", value: dashboard.analytics.grossMerchandiseValue }
+      { label: "Valid paid orders", value: metricIntegrity?.commerce.validPaidOrders ?? dashboard.analytics.orders },
+      { label: "Merchandise GMV", value: metricIntegrity?.commerce.merchandiseGmv ?? dashboard.analytics.grossMerchandiseValue }
     ]
   });
 
