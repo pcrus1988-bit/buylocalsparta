@@ -1,3 +1,4 @@
+import { normalizeCatalogAttributeKey } from "./catalog-attribute-facets";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type CatalogMetadata = Readonly<{
@@ -12,6 +13,7 @@ export type CatalogMetadata = Readonly<{
   fit?: string;
   composition?: string;
   madeIn?: string;
+  attributes: Readonly<Record<string, string>>;
 }>;
 
 type MetadataRow = Readonly<{
@@ -35,6 +37,37 @@ function textValue(value: unknown): string | undefined {
 
 function stringArray(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.map(textValue).filter((entry): entry is string => Boolean(entry)) : [];
+}
+
+function scalarAttributeValue(value: unknown): string | undefined {
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "Ναι" : "Όχι";
+  return undefined;
+}
+
+/**
+ * Keep the raw metadata projection private and scalar-only. Arbitrary merchant keys
+ * are not storefront facets by themselves: the customer surface can only read them
+ * through the governed alias registry in catalog-attribute-facets.ts.
+ */
+function scalarAttributes(value: unknown, prefix = "", depth = 0): Readonly<Record<string, string>> {
+  const record = objectValue(value);
+  const output: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(record)) {
+    const key = normalizeCatalogAttributeKey(rawKey);
+    if (!key) continue;
+    const joinedKey = prefix ? `${prefix}_${key}` : key;
+    const scalar = scalarAttributeValue(rawValue);
+    if (scalar !== undefined) {
+      output[joinedKey] = scalar;
+      continue;
+    }
+    if (depth < 1 && rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)) {
+      Object.assign(output, scalarAttributes(rawValue, joinedKey, depth + 1));
+    }
+  }
+  return output;
 }
 
 export async function loadCatalogMetadata(ids: readonly string[]): Promise<ReadonlyMap<string, CatalogMetadata>> {
@@ -74,7 +107,8 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       categoryLabel: textValue(row.category_label),
       fit: textValue(specifications.fit),
       composition: textValue(specifications.composition),
-      madeIn: textValue(specifications.made_in) ?? textValue(attributes.made_in)
+      madeIn: textValue(specifications.made_in) ?? textValue(attributes.made_in),
+      attributes: { ...scalarAttributes(attributes), ...scalarAttributes(specifications) }
     } satisfies CatalogMetadata] as const;
   }));
 }
