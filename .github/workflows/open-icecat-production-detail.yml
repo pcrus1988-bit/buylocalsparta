@@ -1,0 +1,58 @@
+name: Open Icecat Production Detail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/open-icecat-production-detail.yml"
+      - "scripts/acquire-icecat-production-runtime.sh"
+      - "workers/open-icecat-detail-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+      - "packages/core/src/persistence/postgres-open-icecat-detail.ts"
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: open-icecat-production-detail
+  cancel-in-progress: false
+
+jobs:
+  detail:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      NODE_ENV: production
+      BLS_WORKER_ROLE: icecat-detail
+      BLS_DB_APPLICATION_NAME: buy-local-sparta:icecat-detail:github-actions
+      ICECAT_RUNTIME_BROKER_URL: https://eemihhfreggbigxejjhj.supabase.co/functions/v1/icecat-runtime-broker
+      ICECAT_RUNTIME_AUDIENCE: kontamou-icecat-runtime
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked production workspace
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Acquire isolated production runtime
+        run: bash scripts/acquire-icecat-production-runtime.sh
+
+      - name: Verify production schema readiness
+        run: npm run db:ready
+
+      - name: Run governed detail worker window
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --preserve-status --signal=TERM --kill-after=30s 50m \
+            node --experimental-strip-types workers/open-icecat-detail-worker.ts

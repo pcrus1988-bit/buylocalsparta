@@ -1,0 +1,55 @@
+name: Open Icecat Production Index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/open-icecat-production-index.yml"
+      - "scripts/acquire-icecat-production-runtime.sh"
+      - "workers/open-icecat-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+      - "packages/core/src/persistence/postgres-open-icecat-bulk.ts"
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: open-icecat-production-index
+  cancel-in-progress: false
+
+jobs:
+  index:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      NODE_ENV: production
+      BLS_WORKER_ROLE: icecat
+      BLS_DB_APPLICATION_NAME: buy-local-sparta:icecat:github-actions
+      BLS_OPEN_ICECAT_RUN_ONCE: "true"
+      ICECAT_RUNTIME_BROKER_URL: https://eemihhfreggbigxejjhj.supabase.co/functions/v1/icecat-runtime-broker
+      ICECAT_RUNTIME_AUDIENCE: kontamou-icecat-runtime
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked production workspace
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Acquire isolated production runtime
+        run: bash scripts/acquire-icecat-production-runtime.sh
+
+      - name: Verify production schema readiness
+        run: npm run db:ready
+
+      - name: Run governed Open Icecat index cycle
+        run: node --experimental-strip-types workers/open-icecat-worker.ts
