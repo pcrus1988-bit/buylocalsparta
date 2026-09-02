@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -9,6 +10,7 @@ import {
   type LaunchControlTone
 } from "../../../../lib/admin-launch-control";
 import { getAdminSession } from "../../../../lib/admin-session";
+import { WEB_BUILD_VERSION } from "../../../../lib/build";
 
 export const metadata: Metadata = { title: "Admin · Launch Control", robots: { index: false, follow: false } };
 
@@ -102,7 +104,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
   const healthChecks = operations?.health.checks ?? [];
   const nonReadyHealth = healthChecks.filter((check) => !["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase())).length;
   const failingJobs = maintenance?.jobNames.filter((job) => (job.state?.consecutiveFailures ?? 0) > 0).length ?? 0;
-  const currentEvidence = activation?.evidence.filter((row) => row.buildVersion && (!row.expiresAt || row.expiresAt > Date.now())) ?? [];
+  const currentEvidence = activation?.evidence.filter((row) => row.buildVersion === WEB_BUILD_VERSION && (!row.expiresAt || row.expiresAt > Date.now())) ?? [];
   const activeEvidenceIssues = currentEvidence.filter((row) => row.status !== "passed").length;
   const financeFindings = finance ? Object.values(finance.controls).reduce((sum, item) => sum + item, 0) : undefined;
   const seoCritical = seo?.diagnostics.filter((item) => item.severity === "critical").length ?? 0;
@@ -223,7 +225,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
       <aside className={`lc-readiness-hero${toneClass(kpis[0].tone)}`}>
         <span>Measured readiness</span>
         <strong>{data.readiness.score === undefined ? "—" : `${data.readiness.score}%`}</strong>
-        <div className="lc-ring" style={{ "--lc-progress": `${data.readiness.score ?? 0}%` } as React.CSSProperties}><i /></div>
+        <div className="lc-ring" style={{ "--lc-progress": `${data.readiness.score ?? 0}%` } as CSSProperties}><i /></div>
         <small>{data.readiness.measurable}/{data.readiness.total} measurable · {data.dataState.toUpperCase()}</small>
       </aside>
     </section>
