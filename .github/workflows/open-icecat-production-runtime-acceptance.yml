@@ -1,0 +1,85 @@
+name: Open Icecat Production Runtime Acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/open-icecat-production-index.yml"
+      - ".github/workflows/open-icecat-production-detail.yml"
+      - ".github/workflows/open-icecat-production-runtime-acceptance.yml"
+      - "scripts/acquire-icecat-production-runtime.sh"
+      - "supabase/functions/icecat-runtime-broker/**"
+      - "workers/open-icecat-worker.ts"
+      - "workers/open-icecat-detail-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/open-icecat-production-index.yml"
+      - ".github/workflows/open-icecat-production-detail.yml"
+      - ".github/workflows/open-icecat-production-runtime-acceptance.yml"
+      - "scripts/acquire-icecat-production-runtime.sh"
+      - "supabase/functions/icecat-runtime-broker/**"
+      - "workers/open-icecat-worker.ts"
+      - "workers/open-icecat-detail-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install locked workspace
+        run: npm ci --ignore-scripts
+
+      - name: Validate runtime bootstrap shell
+        run: bash -n scripts/acquire-icecat-production-runtime.sh
+
+      - name: Validate workflow YAML syntax
+        run: |
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_file(path) or abort("invalid YAML: #{path}") }' \
+            .github/workflows/open-icecat-production-index.yml \
+            .github/workflows/open-icecat-production-detail.yml
+
+      - name: Typecheck production Icecat workers
+        run: |
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-worker.ts
+          npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-detail-worker.ts
+
+      - name: Verify OIDC and secret-isolation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          index=.github/workflows/open-icecat-production-index.yml
+          detail=.github/workflows/open-icecat-production-detail.yml
+          bootstrap=scripts/acquire-icecat-production-runtime.sh
+          broker=supabase/functions/icecat-runtime-broker/index.ts
+
+          grep -q 'id-token: write' "$index"
+          grep -q 'id-token: write' "$detail"
+          grep -q 'ACTIONS_ID_TOKEN_REQUEST_TOKEN' "$bootstrap"
+          grep -q 'kontamou-icecat-runtime' "$index"
+          grep -q 'kontamou-icecat-runtime' "$detail"
+          grep -q 'sslmode=verify-full' "$bootstrap"
+          grep -q 'bls_icecat_worker' "$bootstrap"
+          grep -q '1337008113' "$broker"
+          grep -q '250801106' "$broker"
+          grep -q 'refs/heads/main' "$broker"
+          grep -q 'runner_environment === "github-hosted"' "$broker"
+          grep -q 'repository_visibility === "public"' "$broker"
+          grep -q 'open-icecat-production-index.yml@refs/heads/main' "$broker"
+          grep -q 'open-icecat-production-detail.yml@refs/heads/main' "$broker"
+          grep -q 'vault.decrypted_secrets' "$broker"
+          grep -q 'cache-control.*no-store' "$broker"
+
+          if grep -R -nE 'secrets\.|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEYS' "$index" "$detail" "$bootstrap"; then
+            echo 'Production Icecat workflows must not depend on repository/provider master secrets.' >&2
+            exit 1
+          fi
