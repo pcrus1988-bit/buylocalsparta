@@ -1,4 +1,4 @@
-import { normalizeSearchText } from "@buy-local-sparta/core";
+import { normalizeSearchText, searchTextVariants } from "@buy-local-sparta/core";
 
 export type StorefrontCategory = Readonly<{
   slug: string;
@@ -57,7 +57,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     searchHint: "ρούχα, παπούτσια, τσάντες, κοσμήματα",
     artClass: "art-fashion",
     aliases: ["fashion", "clothing", "apparel", "shoes", "footwear", "accessories", "jewellery", "jewelry", "bridal"],
-    queryAliases: ["fashion", "μόδα", "clothing", "clothes", "ρούχα", "rouxa", "shoe", "shoes", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia", "sneaker", "sneakers", "dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata", "bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "jewelry", "jewellery", "κοσμήματα", "kosmimata"]
+    queryAliases: ["fashion", "μόδα", "clothing", "clothes", "ρούχα", "rouxa", "shoe", "shoes", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia", "sneaker", "sneakers", "dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata", "bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "school bag", "school bags", "σχολική τσάντα", "σχολικές τσάντες", "sxoliki tsanta", "sxolikes tsantes", "scholiki tsanta", "scholikes tsantes", "jewelry", "jewellery", "κοσμήματα", "kosmimata"]
   },
   {
     slug: "beauty",
@@ -148,7 +148,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     searchHint: "δώρα, βιβλία, χαρτικά, ιδιαίτερα αντικείμενα",
     artClass: "art-gifts",
     aliases: ["gifts", "gift", "stationery", "books", "book", "school", "office", "culture", "specialist", "packaging", "religious", "other"],
-    queryAliases: ["gift", "gifts", "δώρο", "δώρα", "doro", "dora", "book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia", "stationery", "χαρτικά", "chartika", "school", "σχολικά", "scholika", "office", "packaging"]
+    queryAliases: ["gift", "gifts", "δώρο", "δώρα", "doro", "dora", "book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia", "stationery", "χαρτικά", "chartika", "school", "σχολικά", "sxoli", "sxolika", "scholi", "scholika", "office", "packaging"]
   }
 ];
 
@@ -157,6 +157,7 @@ export const STOREFRONT_LEAF_INTENTS: readonly StorefrontLeafIntent[] = [
   { key: "kitchen", categorySlug: "home-living", label: "Κουζίνα", aliases: ["kitchen", "κουζίνα", "kouzina", "cookware", "housewares"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["υλικό", "χωρητικότητα", "διαστάσεις"] },
   { key: "furniture", categorySlug: "home-living", label: "Έπιπλα", aliases: ["furniture", "έπιπλο", "έπιπλα", "epiplo", "epipla"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["υλικό", "διαστάσεις", "χώρος χρήσης"] },
   { key: "shoes", categorySlug: "fashion", label: "Παπούτσια", aliases: ["shoe", "shoes", "footwear", "sneaker", "sneakers", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia"], preferredFacets: ["subcategory", "size", "brand", "color", "fit"], attributeHints: ["μέγεθος", "εφαρμογή", "υλικό", "φύλο/ηλικία"] },
+  { key: "school-bags", categorySlug: "fashion", label: "Σχολικές τσάντες", aliases: ["school bag", "school bags", "school backpack", "school backpacks", "σχολική τσάντα", "σχολικές τσάντες", "sxoliki tsanta", "sxolikes tsantes", "scholiki tsanta", "scholikes tsantes"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["τύπος τσάντας", "ηλικιακή ομάδα", "φύλο", "υλικό", "χωρητικότητα", "διαστάσεις"] },
   { key: "bags", categorySlug: "fashion", label: "Τσάντες", aliases: ["bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "backpack", "sakidio"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["τύπος", "υλικό", "χωρητικότητα", "διαστάσεις"] },
   { key: "dresses", categorySlug: "fashion", label: "Φορέματα", aliases: ["dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata"], preferredFacets: ["subcategory", "size", "brand", "color", "fit"], attributeHints: ["μέγεθος", "εφαρμογή", "σύνθεση"] },
   { key: "skincare", categorySlug: "beauty", label: "Περιποίηση προσώπου", aliases: ["skincare", "skin care", "περιποίηση", "peripoiisi"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος δέρματος", "δραστικά συστατικά", "όγκος"] },
@@ -176,7 +177,7 @@ export const STOREFRONT_LEAF_INTENTS: readonly StorefrontLeafIntent[] = [
   { key: "televisions", categorySlug: "technology", label: "Τηλεοράσεις", aliases: ["television", "televisions", "tv", "tvs", "τηλεόραση", "τηλεοράσεις", "tileorasi", "tileoraseis"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["ίντσες", "ανάλυση", "τεχνολογία panel", "smart TV"] },
   { key: "printers", categorySlug: "technology", label: "Εκτυπωτές", aliases: ["printer", "printers", "εκτυπωτής", "εκτυπωτές", "ektipotis", "ektipotes"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τεχνολογία εκτύπωσης", "χρώμα", "duplex", "συνδεσιμότητα"] },
   { key: "books", categorySlug: "gifts", label: "Βιβλία", aliases: ["book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia"], preferredFacets: ["subcategory"], attributeHints: ["συγγραφέας", "εκδότης", "ISBN", "γλώσσα"] },
-  { key: "stationery", categorySlug: "gifts", label: "Χαρτικά", aliases: ["stationery", "χαρτικά", "chartika", "school supplies", "σχολικά", "scholika"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["τύπος", "μέγεθος", "χρώμα"] }
+  { key: "stationery", categorySlug: "gifts", label: "Χαρτικά", aliases: ["stationery", "χαρτικά", "chartika", "school supplies", "σχολικά", "sxoli", "sxolika", "scholi", "scholika"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["τύπος", "μέγεθος", "χρώμα"] }
 ];
 
 const FALLBACK_CATEGORY: StorefrontCategory = {
@@ -211,18 +212,15 @@ export function storefrontCategoryForCode(categoryCode?: string, departmentCode?
  * remains in control rather than risking an incorrect hard filter.
  */
 export function inferStorefrontCategoryFromQuery(query: string): StorefrontCategory | undefined {
-  const normalizedQuery = normalizeSearchText(query);
-  if (!normalizedQuery) return undefined;
-  const result = uniqueBestByAliases(normalizedQuery, STOREFRONT_CATEGORIES.map((category) => ({ value: category, aliases: category.queryAliases })));
+  const result = uniqueBestByAliases(query, STOREFRONT_CATEGORIES.map((category) => ({ value: category, aliases: category.queryAliases })));
   return result?.value;
 }
 
 export function inferStorefrontTaxonomyIntent(query: string): StorefrontTaxonomyIntent | undefined {
   const category = inferStorefrontCategoryFromQuery(query);
   if (!category) return undefined;
-  const normalizedQuery = normalizeSearchText(query);
   const leaf = uniqueBestByAliases(
-    normalizedQuery,
+    query,
     STOREFRONT_LEAF_INTENTS
       .filter((candidate) => candidate.categorySlug === category.slug)
       .map((candidate) => ({ value: candidate, aliases: candidate.aliases }))
@@ -232,26 +230,28 @@ export function inferStorefrontTaxonomyIntent(query: string): StorefrontTaxonomy
 
 /**
  * A leaf vocabulary is an interpretation hint, never canonical taxonomy. Resolve it
- * only against subcategories that are currently exposed by the live catalogue. If
- * multiple available branches tie, leave the search broad instead of hard-filtering.
+ * only against subcategories that are currently exposed by the public catalogue. If
+ * multiple branches tie, leave the search broad instead of hard-filtering.
  */
 export function resolveStorefrontSubcategoryIntent(
   leaf: StorefrontLeafIntent | undefined,
   options: readonly StorefrontSubcategoryOption[]
 ): StorefrontSubcategoryOption | undefined {
   if (!leaf || options.length === 0) return undefined;
-  const aliases = [...new Set(leaf.aliases.map(normalizeSearchText).filter(Boolean))];
+  const aliases = [...new Set(leaf.aliases.flatMap(searchTextVariants).filter(Boolean))];
   let best: StorefrontSubcategoryOption | undefined;
   let bestScore = 0;
   let tied = false;
   for (const option of options) {
-    const candidate = normalizeSearchText(`${option.value} ${option.label}`);
+    const candidateVariants = searchTextVariants(`${option.value} ${option.label}`);
     let score = 0;
-    for (const alias of aliases) {
-      if (!alias) continue;
-      if (candidate === alias) score = Math.max(score, 6);
-      else if (` ${candidate} `.includes(` ${alias} `)) score = Math.max(score, alias.includes(" ") ? 5 : 4);
-      else if (alias.length >= 4 && candidate.includes(alias)) score = Math.max(score, 2);
+    for (const candidate of candidateVariants) {
+      for (const alias of aliases) {
+        if (!alias) continue;
+        if (candidate === alias) score = Math.max(score, 6);
+        else if (` ${candidate} `.includes(` ${alias} `)) score = Math.max(score, alias.includes(" ") ? 5 : 4);
+        else if (alias.length >= 4 && candidate.includes(alias)) score = Math.max(score, 2);
+      }
     }
     if (score > bestScore) {
       best = option;
@@ -285,22 +285,30 @@ export function categoryCodeMatches(
 }
 
 function uniqueBestByAliases<T>(
-  normalizedQuery: string,
+  query: string,
   candidates: readonly Readonly<{ value: T; aliases: readonly string[] }>[]
 ): Readonly<{ value: T; score: number }> | undefined {
-  if (!normalizedQuery) return undefined;
-  const queryTokens = new Set(normalizedQuery.split(" ").filter(Boolean));
+  const queryVariants = searchTextVariants(query);
+  if (!queryVariants.length) return undefined;
   let best: T | undefined;
   let bestScore = 0;
   let tied = false;
   for (const candidate of candidates) {
     let score = 0;
-    const normalizedAliases = new Set(candidate.aliases.map(normalizeSearchText).filter(Boolean));
-    for (const alias of normalizedAliases) {
-      if (alias.includes(" ")) {
-        if (` ${normalizedQuery} `.includes(` ${alias} `)) score += alias.split(" ").length + 1;
-      } else if (queryTokens.has(alias)) {
-        score += 1;
+    const aliasVariants = new Set(candidate.aliases.flatMap(searchTextVariants).filter(Boolean));
+    for (const queryVariant of queryVariants) {
+      const queryTokens = new Set(queryVariant.split(" ").filter(Boolean));
+      for (const alias of aliasVariants) {
+        if (alias.includes(" ")) {
+          if (alias === queryVariant) score += 10;
+          else if (` ${queryVariant} `.includes(` ${alias} `)) score += alias.split(" ").length + 2;
+        } else if (queryTokens.has(alias)) {
+          score += 3;
+        } else if (alias.length >= 5) {
+          for (const token of queryTokens) {
+            if (token.length >= 4 && (alias.startsWith(token) || token.startsWith(alias))) score += 1;
+          }
+        }
       }
     }
     if (score > bestScore) {

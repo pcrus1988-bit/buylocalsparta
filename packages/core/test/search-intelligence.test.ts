@@ -22,6 +22,16 @@ test("Greek, Greeklish, English synonyms and typos share relevance space", () =>
   assert.ok(searchTextRelevance("drapano bosch", ["Bosch Δράπανο Κρουστικό"]) > 0);
 });
 
+test("Greeklish keyboard and phonetic spellings match native Greek without weakening English", () => {
+  assert.ok(searchTextRelevance("sxoli", ["Σχολικά είδη"]) > 0);
+  assert.ok(searchTextRelevance("sxolika", ["Σχολικά είδη"]) > 0);
+  assert.ok(searchTextRelevance("scholika", ["Σχολικά είδη"]) > 0);
+  assert.ok(searchTextRelevance("paixnidia", ["Παιχνίδια για παιδιά"]) > 0);
+  assert.ok(searchTextRelevance("gynaikeia papoutsia", ["Γυναικεία Παπούτσια"]) > 0);
+  assert.ok(searchTextRelevance("xiaomi", ["Xiaomi Redmi Note"]) > 0);
+  assert.equal(searchTextRelevance("sxoli", ["Xiaomi Redmi Note"]), 0);
+});
+
 test("GTIN and model-like identifiers are treated as exact high-confidence queries", () => {
   assert.equal(interpretSearchQuery("5201234567890").identifier, "5201234567890");
   assert.equal(interpretSearchQuery("520 123 456 7890").identifier, "5201234567890");

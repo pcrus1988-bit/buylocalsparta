@@ -109,24 +109,50 @@ export function interpretSearchQuery(input: string): SearchIntent {
   };
 }
 
+/**
+ * Greeklish is not a reversible transliteration. Users commonly mix x/ch for χ,
+ * 8/th for θ and phonetic spellings such as ai/e, y/i, mp/b or nt/d. Keep the
+ * original normalized form so English/model searches remain exact, then add a
+ * small phonetic equivalence key rather than destructively rewriting the query.
+ */
+export function searchTextVariants(input: string): readonly string[] {
+  const normalized = normalizeSearchText(input);
+  if (!normalized) return [];
+  const variants = new Set<string>([normalized]);
+  const phonetic = greeklishPhoneticKey(normalized);
+  if (phonetic) variants.add(phonetic);
+
+  // Explicit keyboard-style Greeklish forms. These are alternatives only: the
+  // original remains first, so names such as Xiaomi/Xbox never lose their spelling.
+  const expanded = normalized
+    .replace(/8/g, "th")
+    .replace(/x/g, "ch");
+  if (expanded !== normalized) {
+    variants.add(expanded);
+    variants.add(greeklishPhoneticKey(expanded));
+  }
+  return [...variants].filter(Boolean).slice(0, 6);
+}
+
 export function buildSearchAliases(values: readonly (string | undefined)[]): readonly string[] {
   const aliases = new Set<string>();
   for (const value of values) {
     if (!value) continue;
-    const normalized = normalizeSearchText(value);
-    if (!normalized) continue;
-    aliases.add(normalized);
-    for (const token of normalized.split(" ")) {
-      for (const synonym of SYNONYMS.get(token) ?? []) aliases.add(synonym);
+    for (const normalized of searchTextVariants(value)) {
+      if (!normalized) continue;
+      aliases.add(normalized);
+      for (const token of normalized.split(" ")) {
+        for (const synonym of SYNONYMS.get(token) ?? []) aliases.add(synonym);
+      }
     }
   }
-  return [...aliases].slice(0, 80);
+  return [...aliases].slice(0, 120);
 }
 
 export function searchTextRelevance(query: string, fields: readonly (string | undefined)[]): number {
   const intent = interpretSearchQuery(query);
-  const normalizedQuery = intent.normalizedText;
-  if (!normalizedQuery) return 1;
+  const normalizedQueries = searchTextVariants(intent.text);
+  if (!normalizedQueries.length) return 1;
   const aliases = buildSearchAliases(fields);
   const joined = aliases.join(" ");
   if (!joined) return 0;
@@ -135,32 +161,59 @@ export function searchTextRelevance(query: string, fields: readonly (string | un
     const normalizedIdentifier = normalizeSearchText(intent.identifier);
     if (aliases.some((value) => value === normalizedIdentifier || value.split(" ").includes(normalizedIdentifier))) return 200;
   }
-  if (aliases.some((value) => value === normalizedQuery)) return 120;
-  if (aliases.some((value) => value.includes(normalizedQuery))) return 90;
+  if (normalizedQueries.some((queryVariant) => aliases.some((value) => value === queryVariant))) return 120;
+  if (normalizedQueries.some((queryVariant) => aliases.some((value) => value.includes(queryVariant)))) return 90;
 
   const documentTokens = [...new Set(joined.split(" ").filter(Boolean))];
-  const queryTokens = normalizedQuery.split(" ").filter(Boolean);
-  let total = 0;
-  for (const queryToken of queryTokens) {
-    const alternatives = SYNONYMS.get(queryToken) ?? [queryToken];
-    let best = 0;
-    for (const alternative of alternatives) {
-      for (const documentToken of documentTokens) best = Math.max(best, fuzzySimilarity(alternative, documentToken));
+  let bestVariantScore = 0;
+  for (const normalizedQuery of normalizedQueries) {
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+    let total = 0;
+    let complete = true;
+    for (const queryToken of queryTokens) {
+      const alternatives = SYNONYMS.get(queryToken) ?? [queryToken];
+      let best = 0;
+      for (const alternative of alternatives) {
+        for (const documentToken of documentTokens) best = Math.max(best, fuzzySimilarity(alternative, documentToken));
+      }
+      if (best < 0.72) {
+        complete = false;
+        break;
+      }
+      total += best;
     }
-    if (best < 0.72) return 0;
-    total += best;
+    if (complete) bestVariantScore = Math.max(bestVariantScore, total);
   }
-  return Math.round(total * 50);
+  return bestVariantScore > 0 ? Math.round(bestVariantScore * 50) : 0;
 }
 
 export function expandedSearchTokens(input: string): readonly string[] {
-  const normalized = interpretSearchQuery(input).normalizedText;
-  if (!normalized) return [];
+  const intent = interpretSearchQuery(input);
   const result = new Set<string>();
-  for (const token of normalized.split(" ").filter(Boolean)) {
-    for (const alternative of SYNONYMS.get(token) ?? [token]) result.add(alternative);
+  for (const normalized of searchTextVariants(intent.text)) {
+    for (const token of normalized.split(" ").filter(Boolean)) {
+      for (const alternative of SYNONYMS.get(token) ?? [token]) result.add(alternative);
+    }
   }
   return [...result];
+}
+
+function greeklishPhoneticKey(normalized: string): string {
+  return normalized
+    .split(" ")
+    .map((token) => token
+      .replace(/ch/g, "x")
+      .replace(/th/g, "8")
+      .replace(/ai/g, "e")
+      .replace(/ei|oi/g, "i")
+      .replace(/ou/g, "u")
+      .replace(/mp/g, "b")
+      .replace(/nt/g, "d")
+      .replace(/gk/g, "g")
+      .replace(/ks/g, "x")
+      .replace(/y/g, "i")
+      .replace(/w/g, "o"))
+    .join(" ");
 }
 
 function foldForIntent(value: string): string {

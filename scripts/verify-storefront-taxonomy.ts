@@ -49,7 +49,12 @@ const intentCases: Array<[string, string]> = [
   ["Bosch δραπανο", "tools-diy"],
   ["γυναικεία παπούτσια", "fashion"],
   ["Samsung smartphone", "technology"],
-  ["παιχνίδια", "kids"]
+  ["παιχνίδια", "kids"],
+  ["sxoli", "gifts"],
+  ["sxolika", "gifts"],
+  ["scholika", "gifts"],
+  ["sxolikes tsantes", "fashion"],
+  ["scholikes tsantes", "fashion"]
 ];
 for (const [query, expectedSlug] of intentCases) {
   const actual = inferStorefrontCategoryFromQuery(query)?.slug;
@@ -64,7 +69,12 @@ const leafCases: Array<[string, string]> = [
   ["γυναικεία παπούτσια", "shoes"],
   ["Samsung smartphone", "smartphones"],
   ["παιχνίδια", "toys"],
-  ["βιβλία", "books"]
+  ["βιβλία", "books"],
+  ["sxoli", "stationery"],
+  ["sxolika", "stationery"],
+  ["scholika", "stationery"],
+  ["sxolikes tsantes", "school-bags"],
+  ["σχολικές τσάντες", "school-bags"]
 ];
 for (const [query, expectedLeaf] of leafCases) {
   const actual = inferStorefrontTaxonomyIntent(query)?.leaf?.key;
@@ -111,6 +121,8 @@ if (!matchesSyntheticAttributeFilters({ socket: "GU10", wattage: "10 W" }, "sock
 if (catalogAttributeDefinitionsForLeaf("lighting").some((item) => item.key === "random_merchant_field")) failures.push("Arbitrary merchant metadata must never become an attribute facet without governance");
 const smartphoneKeys = new Set(catalogAttributeDefinitionsForLeaf("smartphones").map((item) => item.key));
 for (const key of ["storage", "ram", "screen_size", "5g", "dual_sim"]) if (!smartphoneKeys.has(key)) failures.push(`Smartphone leaf must govern ${key}`);
+const schoolBagKeys = new Set(catalogAttributeDefinitionsForLeaf("school-bags").map((item) => item.key));
+for (const key of ["bag_type", "age_group", "gender", "material", "capacity", "dimensions"]) if (!schoolBagKeys.has(key)) failures.push(`School-bag leaf must govern ${key}`);
 
 const categoryPage = readFileSync(`${root}/apps/web/src/app/category/[slug]/page.tsx`, "utf8");
 const shopPage = readFileSync(`${root}/apps/web/src/app/shop/page.tsx`, "utf8");
@@ -123,6 +135,7 @@ const attributeQuery = readFileSync(`${root}/apps/web/src/lib/storefront-attribu
 const availableTaxonomy = readFileSync(`${root}/apps/web/src/lib/available-catalog-taxonomy.ts`, "utf8");
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
 const catalogSearchInput = readFileSync(`${root}/apps/web/src/components/CatalogSearchInput.tsx`, "utf8");
+const searchSuggestions = readFileSync(`${root}/apps/web/src/lib/storefront-search-suggestions.ts`, "utf8");
 
 if (!categoryPage.includes('getCatalogCards(visitorKey, "23100", "", category.slug)')) failures.push("Category landing pages must filter the canonical public catalog through getCatalogCards");
 if (!categoryPage.includes("storefrontCategoryBySlug(slug)")) failures.push("Canonical category routes must resolve from the governed static storefront taxonomy, not transient inventory availability");
@@ -146,15 +159,19 @@ if (!catalogMetadata.includes("typeof value === \"boolean\"")) failures.push("St
 if (!attributeRegistry.includes("const BY_LEAF")) failures.push("Structured attribute definitions must stay explicitly governed by leaf");
 if (!attributeFilter.includes("catalogAttributeValueByKey")) failures.push("Structured attribute result filtering must resolve only governed attribute keys");
 if (!attributeQuery.includes("unique best") || !attributeQuery.includes("without a known product leaf")) failures.push("Natural attribute parser must retain conservative live-resolution and no-leaf safety contracts");
+if (!availableTaxonomy.includes("getDiscoverableCatalogCanonicals")) failures.push("Discovery taxonomy must be built from public canonicals instead of disappearing with transient stock");
 if (!availableTaxonomy.includes("catalogAttributeDefinitionsForLeaf(leafKey)")) failures.push("Available taxonomy must build attributes only from the inferred governed leaf");
 if (!availableTaxonomy.includes("matchesCatalogAttributeFilters(details?.attributes, attributeFilters, definition.key)")) failures.push("Structured facet options must respect other selected attributes while self-excluding their own key");
 if (!availableTaxonomy.includes("searchTextRelevance(query")) failures.push("Dynamic facets must use the same relevance engine as catalog results");
 if (!productCard.includes("storefrontCategoryForCode(product.categoryCode, product.departmentCode)")) failures.push("Product cards must derive their visual category from canonical leaf and department codes");
 if (!shopPage.includes("<CatalogSearchInput") || !catalogSearchInput.includes("/api/search/suggest")) failures.push("Shop search must retain governed catalogue autocomplete");
 if (!catalogSearchInput.includes("AbortController") || !catalogSearchInput.includes("maxLength={120}")) failures.push("Catalogue autocomplete must cancel stale requests and retain the bounded search contract");
+if (catalogSearchInput.includes("onKeyDown") || catalogSearchInput.includes("ArrowDown") || catalogSearchInput.includes("ArrowUp")) failures.push("Discovery panel must not add custom keyboard navigation");
+for (const kind of ["query", "category", "leaf", "brand", "product"]) if (!searchSuggestions.includes(`\"${kind}\"`)) failures.push(`Structured suggestions must support ${kind} destinations`);
+if (!searchSuggestions.includes("Σχολικές τσάντες δημοτικού") || !searchSuggestions.includes("sxolikes tsantes")) failures.push("Structured suggestions must include school-bag Greek and Greeklish intent seeds");
 
 if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents, governed structured facets and residual natural-attribute integration verified.`);
+console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents, governed structured facets, Greeklish discovery and residual natural-attribute integration verified.`);
