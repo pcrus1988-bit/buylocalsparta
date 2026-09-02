@@ -105,26 +105,28 @@ function priorPeriod(filters: AdminAnalyticsFilters): AdminAnalyticsFilters {
   };
 }
 
-function buildForecast(report: AdminVendorAnalyticsReport | undefined): LaunchControlForecast {
+function buildForecast(report: AdminVendorAnalyticsReport | undefined, now = Date.now()): LaunchControlForecast {
   if (!report) return { confidence: "insufficient", basis: "Marketplace analytics are unavailable for the selected scope." };
   const from = new Date(`${report.filters.from}T00:00:00.000Z`).getTime();
-  const to = new Date(`${report.filters.to}T00:00:00.000Z`).getTime();
-  const days = Math.floor((to - from) / DAY_MS) + 1;
-  if (days < 7 || report.summary.attributedOrders < 3) {
-    return { confidence: "insufficient", basis: "At least 7 days and 3 attributed orders are required before a run-rate forecast is shown." };
+  const requestedToExclusive = new Date(`${report.filters.to}T00:00:00.000Z`).getTime() + DAY_MS;
+  const observedTo = Math.min(requestedToExclusive, now);
+  const observedDays = Math.max(0, (observedTo - from) / DAY_MS);
+  if (observedDays < 7 || report.summary.attributedOrders < 3) {
+    return { confidence: "insufficient", basis: "At least 7 observed days and 3 attributed orders are required before a run-rate forecast is shown." };
   }
-  const projected30DayRevenueMinor = Math.round((report.summary.revenueMinor / days) * 30);
-  const projected30DayOrders = Math.round((report.summary.attributedOrders / days) * 30);
-  const confidence = days >= 30 && report.summary.attributedOrders >= 30
+  const projected30DayRevenueMinor = Math.round((report.summary.revenueMinor / observedDays) * 30);
+  const projected30DayOrders = Math.round((report.summary.attributedOrders / observedDays) * 30);
+  const confidence = observedDays >= 30 && report.summary.attributedOrders >= 30
     ? "high"
-    : days >= 14 && report.summary.attributedOrders >= 10
+    : observedDays >= 14 && report.summary.attributedOrders >= 10
       ? "medium"
       : "low";
+  const observedDaysLabel = observedDays >= 10 ? observedDays.toFixed(0) : observedDays.toFixed(1);
   return {
     projected30DayRevenueMinor,
     projected30DayOrders,
     confidence,
-    basis: `${days}-day observed run rate · ${report.summary.attributedOrders} attributed orders. This is a deterministic pace projection, not an AI certainty.`
+    basis: `${observedDaysLabel} observed days · ${report.summary.attributedOrders} attributed orders. Future/unobserved time is excluded. This is a deterministic pace projection, not an AI certainty.`
   };
 }
 
@@ -248,7 +250,7 @@ export async function adminLaunchControlWorkspace(
   const severityOrder = { critical: 0, warning: 1, opportunity: 2 } as const;
   attention.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || (b.value ?? 0) - (a.value ?? 0));
 
-  const forecast = buildForecast(analytics);
+  const forecast = buildForecast(analytics, generatedAt);
   const summary = buildSummary({ readinessScore, attention, analytics, previousAnalytics, forecast });
   const expectedSources = [analytics, seo, canFinance ? finance : true, canPlatform ? operations : true, canPlatform ? activation : true];
   const dataState = expectedSources.every(Boolean) ? "live" : "partial";

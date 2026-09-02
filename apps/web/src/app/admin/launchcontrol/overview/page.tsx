@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -103,7 +102,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
   const opportunities = data.attention.filter((item) => item.severity === "opportunity").length;
   const healthChecks = operations?.health.checks ?? [];
   const nonReadyHealth = healthChecks.filter((check) => !["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase())).length;
-  const failingJobs = maintenance?.jobNames.filter((job) => (job.state?.consecutiveFailures ?? 0) > 0).length ?? 0;
+  const failingJobs = maintenance ? maintenance.jobNames.filter((job) => (job.state?.consecutiveFailures ?? 0) > 0).length : undefined;
   const currentEvidence = activation?.evidence.filter((row) => row.buildVersion === WEB_BUILD_VERSION && (!row.expiresAt || row.expiresAt > Date.now())) ?? [];
   const activeEvidenceIssues = currentEvidence.filter((row) => row.status !== "passed").length;
   const financeFindings = finance ? Object.values(finance.controls).reduce((sum, item) => sum + item, 0) : undefined;
@@ -225,7 +224,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
       <aside className={`lc-readiness-hero${toneClass(kpis[0].tone)}`}>
         <span>Measured readiness</span>
         <strong>{data.readiness.score === undefined ? "—" : `${data.readiness.score}%`}</strong>
-        <div className="lc-ring" style={{ "--lc-progress": `${data.readiness.score ?? 0}%` } as CSSProperties}><i /></div>
+        <div className="lc-ring" style={{ "--lc-progress": `${data.readiness.score ?? 0}%` } as React.CSSProperties}><i /></div>
         <small>{data.readiness.measurable}/{data.readiness.total} measurable · {data.dataState.toUpperCase()}</small>
       </aside>
     </section>
@@ -310,7 +309,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
 
         <details><summary><span>SEO & Discovery</span><strong>{seo?.metrics.sitemapEstimatedCount ?? "—"} estimated sitemap URLs</strong><small>{seoCritical} critical · {seoWarnings} warnings · {seo?.metrics.productIndexEligible ?? "—"} indexable products</small></summary><div className="lc-domain-body">{seo ? <><div className="lc-stat-cluster"><div><span>Products</span><b>{seo.metrics.products}</b></div><div><span>Index eligible</span><b>{seo.metrics.productIndexEligible}</b></div><div><span>Research vendors</span><b>{seo.metrics.research}</b></div><div><span>Research eligible</span><b>{seo.metrics.researchIndexEligible}</b></div><div><span>Estimated sitemap</span><b>{seo.metrics.sitemapEstimatedCount}</b></div><div><span>Governed overrides</span><b>{seo.metrics.entityOverrides}</b></div></div><div className="lc-diagnostics">{seo.diagnostics.filter((item) => item.severity === "critical" || item.severity === "warning").slice(0, 5).map((item) => <div key={item.id}><span>{item.severity}</span><strong>{item.title}</strong><small>{item.count ?? ""}</small></div>)}</div><div className="lc-link-row"><Link href="/admin/seo">SEO Overview →</Link><Link href="/admin/seo/issues">Issues →</Link><Link href="/admin/seo/search-console">Search Console →</Link></div></> : <div className="lc-unavailable-panel"><strong>SEO unavailable</strong><span>SEO governance data could not be loaded.</span></div>}</div></details>
 
-        <details><summary><span>Technology & platform</span><strong>{data.dashboard.health.ok ? "Healthy" : "Attention"}</strong><small>{operations ? `${nonReadyHealth} non-ready health checks` : "health details unavailable"} · {failingJobs} failing jobs · {activeEvidenceIssues} evidence issues</small></summary><div className="lc-domain-body"><div className="lc-health-list">{healthChecks.slice(0, 12).map((check) => <div key={check.name}><span className={isHealthyStateForUi(check.state) ? "is-good" : "is-bad"}>●</span><strong>{check.name}</strong><small>{String(check.state)}</small></div>)}</div><div className="lc-link-row"><Link href="/admin/platform">Platform →</Link><Link href="/admin/operations">Health & Audit →</Link><Link href="/admin/maintenance">Jobs →</Link><Link href="/admin/activation">Production Readiness →</Link></div></div></details>
+        <details><summary><span>Technology & platform</span><strong>{data.dashboard.health.ok ? "Healthy" : "Attention"}</strong><small>{operations ? `${nonReadyHealth} non-ready health checks` : "health details unavailable"} · {failingJobs === undefined ? "maintenance unavailable" : `${failingJobs} failing jobs`} · {activeEvidenceIssues} evidence issues</small></summary><div className="lc-domain-body"><div className="lc-health-list">{healthChecks.slice(0, 12).map((check) => <div key={check.name}><span className={isHealthyStateForUi(check.state) ? "is-good" : "is-bad"}>●</span><strong>{check.name}</strong><small>{String(check.state)}</small></div>)}</div><div className="lc-link-row"><Link href="/admin/platform">Platform →</Link><Link href="/admin/operations">Health & Audit →</Link><Link href="/admin/maintenance">Jobs →</Link><Link href="/admin/activation">Production Readiness →</Link></div></div></details>
 
         <details><summary><span>Compliance & trust</span><strong>{data.dashboard.metrics.pendingCompliance + data.dashboard.metrics.pendingMedia} pending review items</strong><small>{data.dashboard.metrics.pendingCompliance} compliance · {data.dashboard.metrics.pendingMedia} media · denominator intentionally not invented</small></summary><div className="lc-domain-body"><div className="lc-stat-cluster"><div><span>Compliance pending</span><b>{data.dashboard.metrics.pendingCompliance}</b></div><div><span>Media pending</span><b>{data.dashboard.metrics.pendingMedia}</b></div><div><span>Fairness appeals</span><b>{data.dashboard.metrics.fairnessAppeals}</b></div></div><div className="lc-link-row"><Link href="/admin/trust">Trust →</Link><Link href="/admin/recalls">Product Safety →</Link><Link href="/admin/fairness">Fairness →</Link></div></div></details>
 
