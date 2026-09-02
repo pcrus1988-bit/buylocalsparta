@@ -64,7 +64,6 @@ export function extractStorefrontAttributeQuery(query: string, leafKey?: string)
   }
 
   if (leafKey === "smartphones" || leafKey === "laptops") {
-    // Explicit RAM labels win before any unlabeled memory-capacity interpretation.
     add("ram", new RegExp(`\\bram\\s*(\\d{1,3}(?:[.,]\\d+)?)\\s*(${MEMORY_UNIT})\\b`, "i"), (m) => memory(m[1], m[2]));
     add("ram", new RegExp(`\\b(\\d{1,3}(?:[.,]\\d+)?)\\s*(${MEMORY_UNIT})\\s*ram\\b`, "i"), (m) => memory(m[1], m[2]));
     add("storage", new RegExp(`\\b(?:storage|ssd|disk|drive|αποθηκευση|apothikefsi)\\s*(\\d{1,4}(?:[.,]\\d+)?)\\s*(${MEMORY_UNIT})\\b`, "i"), (m) => memory(m[1], m[2]));
@@ -72,8 +71,6 @@ export function extractStorefrontAttributeQuery(query: string, leafKey?: string)
     if (leafKey === "smartphones" && !captured.some((entry) => entry.key === "storage")) {
       const candidates = [...folded.matchAll(new RegExp(`\\b(\\d{1,4}(?:[.,]\\d+)?)\\s*(${MEMORY_UNIT})\\b`, "gi"))]
         .filter((match) => match.index !== undefined && !captured.some((entry) => match.index! < entry.end && match.index! + match[0].length > entry.start));
-      // A single remaining memory token in smartphone intent is safely storage;
-      // multiple unlabeled capacities remain ambiguous and are not inferred.
       if (candidates.length === 1) {
         const match = candidates[0];
         const start = match.index!;
@@ -91,7 +88,6 @@ export function extractStorefrontAttributeQuery(query: string, leafKey?: string)
     add("screen_size", new RegExp(`\\b(\\d{2,3}(?:[.,]\\d+)?)\\s*${INCH_UNIT}`, "i"), (m) => `${decimal(m[1])} in`);
     add("resolution", /\b(?:8k|4k|uhd|ultra\s+hd|full\s+hd|fhd|hd\s+ready)\b/i, (m) => normalizeDisplayTerm(m[0]));
     add("panel_technology", /\b(?:oled|qled|mini\s*led|micro\s*led)\b/i, (m) => normalizeDisplayTerm(m[0]));
-    // Remove only the qualifier so the residual text still contains TV/television.
     add("smart_tv", /\bsmart(?=\s*(?:tv|television|τηλεορασ|tileoras))/i, () => "Smart TV", true);
   }
 
@@ -135,10 +131,6 @@ export function extractStorefrontAttributeQuery(query: string, leafKey?: string)
   return { text: residual.join(" ").replace(/\s+/g, " ").trim(), intents };
 }
 
-/**
- * Resolve natural-language intents only against the live facet values. A unique best
- * match is required; otherwise the intent remains advisory and no hard filter is set.
- */
 export function resolveStorefrontAttributeIntents(
   intents: readonly StorefrontAttributeIntent[],
   facets: readonly StorefrontAttributeFacetLike[],
@@ -270,9 +262,9 @@ function titleTerm(value: string): string {
 }
 
 function normalizeSeason(value: string): string {
-  const normalized = fold(value).replace(/[- ]+/g, "");
-  if (normalized === "allseason" || normalized === "allweather") return "All Season";
-  if (normalized === "winter" || normalized.startsWith("χειμεριν") || normalized.startsWith("xeimerin")) return "Winter";
-  if (normalized === "summer" || normalized.startsWith("θεριν") || normalized.startsWith("therin")) return "Summer";
-  return titleTerm(value);
+  const normalized = comparable(value);
+  if (normalized.includes("allseason") || normalized.includes("allweather")) return "All Season";
+  if (normalized.includes("winter") || normalized.includes("χειμεριν") || normalized.includes("xeimerino")) return "Winter";
+  if (normalized.includes("summer") || normalized.includes("θεριν") || normalized.includes("therino")) return "Summer";
+  return value;
 }
