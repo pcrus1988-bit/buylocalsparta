@@ -130,9 +130,9 @@ export async function adminMetricIntegritySnapshot(principal: SessionPrincipal):
             AND r.status::text IN ('failed','manual_review')
         )
         SELECT
-          count(*) FILTER (WHERE po.status IN ('confirmed','partially_fulfilled','fulfilled','completed'))::bigint AS valid_paid_orders,
-          COALESCE(sum(po.subtotal_minor) FILTER (WHERE po.status IN ('confirmed','partially_fulfilled','fulfilled','completed')),0)::bigint AS merchandise_gmv_minor,
-          COALESCE(sum(po.shipping_minor) FILTER (WHERE po.status IN ('confirmed','partially_fulfilled','fulfilled','completed')),0)::bigint AS shipping_minor,
+          count(*) FILTER (WHERE po.status <> 'cancelled')::bigint AS valid_paid_orders,
+          COALESCE(sum(po.subtotal_minor) FILTER (WHERE po.status <> 'cancelled'),0)::bigint AS merchandise_gmv_minor,
+          COALESCE(sum(po.shipping_minor) FILTER (WHERE po.status <> 'cancelled'),0)::bigint AS shipping_minor,
           count(*) FILTER (WHERE po.status='cancelled')::bigint AS cancelled_captured_orders,
           pr.captured_payments,pr.captured_minor,rr.failed_or_manual_refunds,rr.failed_or_manual_refund_minor
         FROM paid_orders po
@@ -216,7 +216,7 @@ export async function adminMetricIntegritySnapshot(principal: SessionPrincipal):
     const searchLast = typeof sourceRow.search_last_day === "string" ? optionalEpoch(`${sourceRow.search_last_day}T23:59:59.999Z`) : undefined;
 
     const sources: AdminMetricSource[] = [
-      { key: "transactions", label: "Order & payment ledger", state: "live", rows: capturedPayments, detail: "Financial commerce authority. Valid paid orders exclude cancelled orders; captured payments remain separately visible." },
+      { key: "transactions", label: "Order & payment ledger", state: "live", rows: capturedPayments, detail: "Financial commerce authority. Valid paid orders include captured non-cancelled orders even if they later become refunded/disputed; refunds remain separately visible." },
       { key: "product_funnel", label: "Product funnel", state: sourceState(productRowsCount, productLast, generatedAt), rows: productRowsCount, lastSeen: productLast, detail: "Database-triggered page/cart/checkout/purchase attribution with idempotency." },
       { key: "fairness", label: "Fairness assignments", state: sourceState(fairnessRows, fairnessLast, generatedAt), rows: fairnessRows, lastSeen: fairnessLast, detail: "Authoritative product-impression assignment stream." },
       { key: "search", label: "Search demand", state: sourceState(searchRows, searchLast, generatedAt), rows: searchRows, lastSeen: searchLast, detail: "Daily search-demand aggregation." },
