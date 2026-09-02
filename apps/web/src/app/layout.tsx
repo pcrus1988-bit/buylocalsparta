@@ -58,6 +58,7 @@ import { AccessibilityPreferences } from "../components/AccessibilityPreferences
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 
@@ -174,6 +175,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}</CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
+      <SpeedInsights />
     </body>
   </html>;
 }
