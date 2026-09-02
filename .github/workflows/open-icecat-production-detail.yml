@@ -1,6 +1,13 @@
 name: Open Icecat Production Detail
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/open-icecat-production-detail.yml"
+      - "workers/open-icecat-detail-worker.ts"
+      - "packages/core/src/ingestion/open-icecat/**"
+      - "packages/core/src/persistence/postgres-open-icecat-detail.ts"
   schedule:
     - cron: "7 * * * *"
   workflow_dispatch:
