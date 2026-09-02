@@ -32,7 +32,11 @@ const fitted = fitSeoTitleToTemplate(longTitle, template);
 const rendered = template.replace("%s", fitted);
 if (rendered.length > 68) failures.push(`Generated title governor exceeded 68 characters (${rendered.length})`);
 if (!longTitle.startsWith(fitted)) failures.push("Generated title governor must only shorten the real entity name, never invent replacement text");
-requireText(metadata, "fitSeoTitleToTemplate(rawTitle, input.settings.titleTemplate)", "Governed generated metadata must apply the title-length governor");
+requirePattern(
+  metadata,
+  /fitSeoTitleToTemplate\(\s*[A-Za-z_$][\w$]*\s*,\s*input\.settings\.titleTemplate\s*\)/,
+  "Governed generated metadata must apply the title-length governor"
+);
 requireText(metadata, "!input.override?.title", "Explicit administrator title overrides must not be silently shortened");
 
 for (const contract of [
