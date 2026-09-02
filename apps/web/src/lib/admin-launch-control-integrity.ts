@@ -108,8 +108,8 @@ export async function adminLaunchControlIntegrityWorkspace(
     .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || (b.value ?? 0) - (a.value ?? 0));
 
   const requiredIntegrityKeys = new Set(["transactions", "product_funnel", "fairness", "search"]);
-  const requiredIntegrityUnavailable = metricIntegrity?.sources.some((source) => requiredIntegrityKeys.has(source.key) && source.state === "unavailable") ?? false;
-  const dataState = workspace.dataState === "partial" || !metricIntegrity || requiredIntegrityUnavailable ? "partial" : "live";
+  const requiredIntegrityDegraded = metricIntegrity?.sources.some((source) => requiredIntegrityKeys.has(source.key) && source.state !== "live") ?? false;
+  const dataState = workspace.dataState === "partial" || !metricIntegrity || requiredIntegrityDegraded ? "partial" : "live";
 
   return {
     ...workspace,
