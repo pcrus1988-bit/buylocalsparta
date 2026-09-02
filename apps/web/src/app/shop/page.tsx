@@ -8,7 +8,7 @@ import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-ana
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { CatalogSearchInput } from "../../components/CatalogSearchInput";
-import { storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
+import { inferStorefrontCategoryFromQuery, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../../lib/local-commerce-proof";
 
@@ -44,9 +44,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const query = valueOf(params.q).trim();
   const searchIntent = interpretSearchQuery(query);
   const taxonomyQuery = searchIntent.text || (searchIntent.applied.length ? "" : query);
+  const requestedCategory = valueOf(params.category);
+  const inferredCategory = requestedCategory ? undefined : inferStorefrontCategoryFromQuery(taxonomyQuery);
+  const category = requestedCategory || inferredCategory?.slug || "";
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
-  const category = valueOf(params.category);
   const subcategory = valueOf(params.subcategory);
   const brand = valueOf(params.brand);
   const color = valueOf(params.color);
@@ -90,6 +92,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   });
   const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit);
   const interpretedLabels = [
+    inferredCategory ? `Κατηγορία: ${inferredCategory.label}` : undefined,
     searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
     searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,
