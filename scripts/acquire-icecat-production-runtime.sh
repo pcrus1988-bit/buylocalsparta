@@ -6,6 +6,24 @@ set -euo pipefail
 : "${ICECAT_RUNTIME_BROKER_URL:?Icecat runtime broker URL is required}"
 : "${ICECAT_RUNTIME_AUDIENCE:?Icecat runtime audience is required}"
 : "${GITHUB_ENV:?GitHub environment file is required}"
+: "${GITHUB_WORKSPACE:?GitHub workspace is required}"
+
+readonly SUPABASE_CA_PATH="${GITHUB_WORKSPACE}/config/certs/supabase-root-2021.crt"
+readonly SUPABASE_CA_SHA256="700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7"
+
+if [[ ! -f "$SUPABASE_CA_PATH" ]]; then
+  echo "::error title=Icecat database TLS::Pinned Supabase CA certificate is missing."
+  exit 1
+fi
+actual_ca_sha256="$(sha256sum "$SUPABASE_CA_PATH" | awk '{print $1}')"
+if [[ "$actual_ca_sha256" != "$SUPABASE_CA_SHA256" ]]; then
+  echo "::error title=Icecat database TLS::Pinned Supabase CA certificate checksum does not match the reviewed certificate."
+  exit 1
+fi
+# Node reads NODE_EXTRA_CA_CERTS only when a process starts. Persist it for every
+# later Node process in this workflow and export it for the connection probes below.
+export NODE_EXTRA_CA_CERTS="$SUPABASE_CA_PATH"
+printf 'NODE_EXTRA_CA_CERTS=%s\n' "$SUPABASE_CA_PATH" >> "$GITHUB_ENV"
 
 runtime_file="$(mktemp)"
 trap 'rm -f "$runtime_file"' EXIT
@@ -55,22 +73,15 @@ resolved_url=""
 
 probe_endpoint() {
   local host="$1"
-  local mode="$2"
-  local query=""
-  if [[ "$mode" == "verify-full" ]]; then
-    query='?sslmode=verify-full'
-  elif [[ "$mode" == "require" ]]; then
-    query='?sslmode=require'
-  fi
-  local candidate="postgresql://${encoded_db_user}:${encoded_db_password}@${host}:5432/postgres${query}"
-  if DATABASE_URL="$candidate" PROBE_HOST="$host" PROBE_MODE="$mode" node --input-type=module <<'NODE'
+  local candidate="postgresql://${encoded_db_user}:${encoded_db_password}@${host}:5432/postgres?sslmode=verify-full"
+  if DATABASE_URL="$candidate" PROBE_HOST="$host" node --input-type=module <<'NODE'
 import pg from "pg";
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 7000 });
 try {
   await client.connect();
   const result = await client.query("select current_user as current_user");
   if (result.rows[0]?.current_user !== "bls_icecat_worker") {
-    console.error(JSON.stringify({ host: process.env.PROBE_HOST, mode: process.env.PROBE_MODE, code: "unexpected_user" }));
+    console.error(JSON.stringify({ host: process.env.PROBE_HOST, code: "unexpected_user" }));
     process.exitCode = 1;
   }
 } catch (error) {
@@ -79,7 +90,6 @@ try {
   const message = secret ? raw.replaceAll(secret, "***") : raw;
   console.error(JSON.stringify({
     host: process.env.PROBE_HOST,
-    mode: process.env.PROBE_MODE,
     code: typeof error === "object" && error && "code" in error ? String(error.code) : "unknown",
     message
   }));
@@ -95,27 +105,18 @@ NODE
   return 1
 }
 
-# Supabase's current shared-pooler contract uses aws-[region].pooler.supabase.com,
-# where the region identifier can include a numeric pooler shard prefix.
-# Prefer certificate-verifying TLS; retain `require` only as a diagnostic fallback
-# so a certificate-policy problem is distinguishable from DNS/authentication failures.
+# Supabase's shared-pooler session endpoints are IPv4-capable. The pinned
+# Supabase root CA augments Node's trust store while sslmode=verify-full keeps
+# certificate-chain and hostname verification enabled.
 for shard in 0 1 2 3; do
   host="aws-${shard}-${db_region}.pooler.supabase.com"
-  if probe_endpoint "$host" verify-full; then
+  if probe_endpoint "$host"; then
     break
   fi
 done
 
 if [[ -z "$resolved_url" ]]; then
-  echo "::notice title=Icecat database runtime::Certificate-verifying probes failed; checking TLS-required mode to classify the fault."
-  for shard in 0 1 2 3; do
-    host="aws-${shard}-${db_region}.pooler.supabase.com"
-    if probe_endpoint "$host" require; then
-      echo "::error title=Icecat database TLS::Supavisor accepted the dedicated identity only with sslmode=require; refusing to downgrade from verify-full."
-      exit 1
-    fi
-  done
-  echo "::error title=Icecat database runtime::No Supavisor session endpoint accepted the dedicated worker identity. See sanitized probe errors above."
+  echo "::error title=Icecat database runtime::No certificate-verified Supavisor session endpoint accepted the dedicated worker identity. See sanitized probe errors above."
   exit 1
 fi
 
