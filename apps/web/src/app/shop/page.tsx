@@ -16,6 +16,8 @@ import {
 } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../../lib/local-commerce-proof";
+import { catalogAttributeDefinitionsForLeaf } from "../../lib/catalog-attribute-facets";
+import { filterCatalogCardsByAttributes, type CatalogAttributeFilters } from "../../lib/catalog-attribute-filter";
 
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
@@ -63,23 +65,31 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const color = valueOf(params.color);
   const size = valueOf(params.size);
   const fit = valueOf(params.fit);
+  const attributeDefinitions = catalogAttributeDefinitionsForLeaf(activeLeaf?.key);
+  const attributeFilters: CatalogAttributeFilters = Object.fromEntries(
+    attributeDefinitions
+      .map((definition) => [definition.key, valueOf(params[`attr_${definition.key}`]).trim()] as const)
+      .filter(([, value]) => Boolean(value))
+  );
   let subcategory = requestedSubcategory;
   let filters = { subcategory, brand, color, size };
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  let taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100");
+  let taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   const inferredSubcategory = requestedSubcategory ? undefined : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
   if (inferredSubcategory) {
     subcategory = inferredSubcategory.value;
     filters = { subcategory, brand, color, size };
-    taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100");
+    taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
   const facets = taxonomy.facets;
+  const attributeFacets = taxonomy.attributeFacets;
   const availableCategories = taxonomy.categories;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
   let products: ShopCard[] = readOnlyCrawler
     ? [...await getCrawlerCatalogCards("23100", taxonomyQuery, category, { ...filters, fit })]
     : [...await getCatalogCards(visitorKey, "23100", query, category, filters)];
+  products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
   if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
   const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
@@ -103,15 +113,21 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       availability: availability || searchIntent.availability || undefined,
       sort: sort || undefined,
       interpretedMaxPriceMinor: searchIntent.maxPriceMinor,
-      interpretedMinPriceMinor: searchIntent.minPriceMinor
+      interpretedMinPriceMinor: searchIntent.minPriceMinor,
+      ...Object.fromEntries(Object.entries(attributeFilters).map(([key, value]) => [`attr_${key}`, value]))
     }
   });
-  const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit);
+  const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit || Object.keys(attributeFilters).length);
   const activeSubcategoryLabel = facets.subcategories.find((item) => item.value === subcategory)?.label ?? inferredSubcategory?.label;
+  const selectedAttributeLabels = attributeDefinitions.flatMap((definition) => {
+    const value = attributeFilters[definition.key];
+    return value ? [`${definition.label}: ${value}`] : [];
+  });
   const interpretedLabels = [
     inferredCategory ? `Κατηγορία: ${inferredCategory.label}` : undefined,
     activeLeaf ? `Πρόθεση: ${activeLeaf.label}` : undefined,
     inferredSubcategory ? `Υποκατηγορία: ${inferredSubcategory.label}` : undefined,
+    ...selectedAttributeLabels,
     searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
     searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,
@@ -192,6 +208,14 @@ export default async function ShopPage({ searchParams }: ShopProps) {
                 {fitOptions.map((item) => <option value={item} key={item}>{item}</option>)}
               </select>
             </> : null}
+
+            {attributeFacets.map((facet) => <div key={facet.key} className="catalog-attribute-filter">
+              <label htmlFor={`attr_${facet.key}`}>{facet.label}</label>
+              <select id={`attr_${facet.key}`} name={`attr_${facet.key}`} defaultValue={attributeFilters[facet.key] ?? ""}>
+                <option value="">Όλα</option>
+                {facet.options.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </div>)}
 
             <label htmlFor="availability">Διαθεσιμότητα</label>
             <select id="availability" name="availability" defaultValue={availability}>
