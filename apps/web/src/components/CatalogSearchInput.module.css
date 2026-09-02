@@ -112,12 +112,7 @@
 
 @media (max-width: 760px) {
   .panel {
-    position: fixed;
-    top: auto;
-    left: 12px;
-    right: 12px;
-    max-height: 58vh;
-    margin-top: 8px;
+    max-height: 55vh;
     border-radius: 16px;
   }
 
