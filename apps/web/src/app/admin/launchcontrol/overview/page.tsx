@@ -4,10 +4,10 @@ import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import {
-  adminLaunchControlWorkspace,
   normalizeLaunchControlFilters,
   type LaunchControlTone
 } from "../../../../lib/admin-launch-control";
+import { adminLaunchControlIntegrityWorkspace } from "../../../../lib/admin-launch-control-integrity";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { WEB_BUILD_VERSION } from "../../../../lib/build";
 
@@ -86,7 +86,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
     filters = normalizeLaunchControlFilters({});
   }
 
-  const data = await adminLaunchControlWorkspace(principal, filters);
+  const data = await adminLaunchControlIntegrityWorkspace(principal, filters);
   const analytics = data.analytics;
   const previous = data.previousAnalytics;
   const finance = data.finance;
@@ -94,12 +94,16 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
   const operations = data.operations;
   const activation = data.activation;
   const maintenance = data.maintenance;
+  const metricIntegrity = data.metricIntegrity;
   const current = analytics?.summary;
   const prior = previous?.summary;
 
   const critical = data.attention.filter((item) => item.severity === "critical").length;
   const warnings = data.attention.filter((item) => item.severity === "warning").length;
   const opportunities = data.attention.filter((item) => item.severity === "opportunity").length;
+  const integrityCritical = metricIntegrity?.signals.filter((signal) => signal.state === "critical").length ?? 0;
+  const integrityWarnings = metricIntegrity?.signals.filter((signal) => signal.state === "warning").length ?? 0;
+  const liveIntegritySources = metricIntegrity?.sources.filter((source) => source.state === "live").length ?? 0;
   const healthChecks = operations?.health.checks ?? [];
   const nonReadyHealth = healthChecks.filter((check) => !["ready", "healthy", "ok", "disabled"].includes(String(check.state).toLowerCase())).length;
   const failingJobs = maintenance ? maintenance.jobNames.filter((job) => (job.state?.consecutiveFailures ?? 0) > 0).length : undefined;
@@ -130,11 +134,12 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
       meta: "live snapshot"
     },
     {
-      label: "Vendors in scope",
-      value: current?.vendorCount ?? "—",
-      hint: seo ? `${seo.metrics.partners} public partner profiles` : "analytics vendor scope",
+      label: "Vendor records",
+      value: metricIntegrity?.vendorLifecycle.total ?? current?.vendorCount ?? "—",
+      hint: metricIntegrity ? `${metricIntegrity.vendorLifecycle.active} active · ${metricIntegrity.vendorLifecycle.applicationStarted} application-started · ${metricIntegrity.vendorLifecycle.invited} invited` : "vendor lifecycle unavailable",
       href: "/admin/partners",
-      meta: "selected scope"
+      tone: "unavailable",
+      meta: "Sparta lifecycle"
     },
     {
       label: "Active offers",
@@ -279,7 +284,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
     </section>
 
     <section id="attention" className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Action centre" title={critical ? `${critical} critical signal${critical === 1 ? "" : "s"}` : warnings ? `${warnings} warning signal${warnings === 1 ? "" : "s"}` : "Connected controls are clear"} note="Sorted by severity across operations, vendors, catalogue, finance, SEO and governance. Every signal deep-links to its owning workspace." />
+      <WorkspaceSectionHeading eyebrow="Action centre" title={critical ? `${critical} critical signal${critical === 1 ? "" : "s"}` : warnings ? `${warnings} warning signal${warnings === 1 ? "" : "s"}` : "Connected controls are clear"} note="Sorted by severity across operations, vendors, catalogue, finance, SEO, governance and metric integrity. Every signal deep-links to its owning workspace." />
       {data.attention.length ? <div className="lc-attention-list">{data.attention.map((item) => <Link href={item.href} key={item.id} className={`lc-attention-row is-${item.severity}`}><span>{item.severity}</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{item.value ?? "→"}</b><i>Open →</i></Link>)}</div> : <div className="workspace-page-empty"><div><div className="eyebrow">Clear</div><h3>No aggregated action is open.</h3><p>Specialist workspaces remain authoritative for their own detail.</p></div></div>}
     </div></section>
 
@@ -297,9 +302,11 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
     <section className="shell vendor-section lc-domain-section">
       <WorkspaceSectionHeading eyebrow="All functions" title="Compact domain overview" note="Sections stay collapsed until detail is needed. The summary line remains visible so the entire platform can be scanned without a long dashboard." />
       <div className="lc-domain-stack">
+        <details open><summary><span>Metric integrity</span><strong>{metricIntegrity ? `${integrityCritical} critical · ${integrityWarnings} warnings` : "Unavailable"}</strong><small>{metricIntegrity ? `${liveIntegritySources}/${metricIntegrity.sources.length} sources live · transactional finance remains authoritative` : "Production integrity snapshot could not be loaded"}</small></summary><div className="lc-domain-body">{metricIntegrity ? <><div className="lc-stat-cluster"><div><span>Valid paid orders · 30d</span><b>{metricIntegrity.commerce.validPaidOrders}</b></div><div><span>Merchandise GMV · 30d</span><b>{metricIntegrity.commerce.merchandiseGmv}</b></div><div><span>Captured payments · 30d</span><b>{metricIntegrity.commerce.capturedPayments}</b></div><div><span>Attributed order IDs · 30d</span><b>{metricIntegrity.commerce.attributedOrders}</b></div><div><span>Cancelled + captured</span><b>{metricIntegrity.commerce.cancelledCapturedOrders}</b></div><div><span>Failed/manual refunds</span><b>{metricIntegrity.commerce.failedOrManualRefunds}</b></div></div><div className="lc-diagnostics">{metricIntegrity.signals.map((signal) => <div key={signal.id}><span>{signal.state}</span><strong>{signal.label}</strong><small>{signal.detail}</small></div>)}</div><div className="lc-health-list">{metricIntegrity.sources.map((source) => <div key={source.key}><span className={source.state === "live" ? "is-good" : "is-bad"}>●</span><strong>{source.label}</strong><small>{source.state} · {source.rows.toLocaleString("el-GR")} rows/events{source.lastSeen ? ` · last ${new Date(source.lastSeen).toLocaleDateString("el-GR", { timeZone: "Europe/Athens" })}` : ""}</small></div>)}</div><div className="lc-link-row"><Link href="/admin/analytics">Analytics →</Link><Link href="/admin/finance#finance-diagnostics">Finance diagnostics →</Link><Link href="/admin/operations">Operations →</Link></div></> : <div className="lc-unavailable-panel"><strong>Metric integrity unavailable</strong><span>No production integrity snapshot was returned.</span></div>}</div></details>
+
         <details open><summary><span>Operations</span><strong>{data.dashboard.metrics.orders} total order snapshot</strong><small>{nonReadyHealth} non-ready platform checks · {data.dashboard.metrics.payableProcurements} payable procurements</small></summary><div className="lc-domain-body"><div className="lc-stat-cluster"><div><span>Orders snapshot</span><b>{data.dashboard.metrics.orders}</b></div><div><span>Health checks</span><b>{healthChecks.length || "—"}</b></div><div><span>Non-ready</span><b>{operations ? nonReadyHealth : "—"}</b></div><div><span>Fairness appeals</span><b>{data.dashboard.metrics.fairnessAppeals}</b></div></div><div className="lc-link-row"><Link href="/admin/work">Marketplace operations →</Link><Link href="/admin/orders">Orders →</Link><Link href="/admin/delivery">Delivery →</Link></div></div></details>
 
-        <details><summary><span>Vendors</span><strong>{current?.vendorCount ?? "—"} vendors in analytics scope</strong><small>{vendorApplications.length} onboarding applications · {data.dashboard.metrics.vendorVerificationQueue} requiring verification</small></summary><div className="lc-domain-body"><div className="lc-stage-bars">{[...vendorStateCounts.entries()].sort((a, b) => b[1] - a[1]).map(([state, count]) => <div key={state}><span>{state.replaceAll("_", " ")}</span><i style={{ width: barWidth(count, Math.max(...vendorStateCounts.values(), 1)) }} /><b>{count}</b></div>)}</div><div className="lc-link-row"><Link href="/admin/partners">Partner overview →</Link><Link href="/admin/partners/pipeline">Pipeline →</Link><Link href="/admin/applications">Applications →</Link></div></div></details>
+        <details><summary><span>Vendors</span><strong>{metricIntegrity ? `${metricIntegrity.vendorLifecycle.active}/${metricIntegrity.vendorLifecycle.total} active` : `${current?.vendorCount ?? "—"} vendors in analytics scope`}</strong><small>{metricIntegrity ? `${metricIntegrity.vendorLifecycle.invited} invited · ${metricIntegrity.vendorLifecycle.applicationStarted} application-started · readiness target not configured` : `${vendorApplications.length} onboarding applications · ${data.dashboard.metrics.vendorVerificationQueue} requiring verification`}</small></summary><div className="lc-domain-body">{metricIntegrity ? <div className="lc-stat-cluster"><div><span>Total vendor records</span><b>{metricIntegrity.vendorLifecycle.total}</b></div><div><span>Active</span><b>{metricIntegrity.vendorLifecycle.active}</b></div><div><span>Application started</span><b>{metricIntegrity.vendorLifecycle.applicationStarted}</b></div><div><span>Invited</span><b>{metricIntegrity.vendorLifecycle.invited}</b></div><div><span>Observed activation rate</span><b>{pct(metricIntegrity.vendorLifecycle.activationRate, 1)}</b></div><div><span>Readiness score</span><b>—</b><small>target required</small></div></div> : <div className="lc-stage-bars">{[...vendorStateCounts.entries()].sort((a, b) => b[1] - a[1]).map(([state, count]) => <div key={state}><span>{state.replaceAll("_", " ")}</span><i style={{ width: barWidth(count, Math.max(...vendorStateCounts.values(), 1)) }} /><b>{count}</b></div>)}</div>}<div className="lc-link-row"><Link href="/admin/partners">Partner overview →</Link><Link href="/admin/partners/pipeline">Pipeline →</Link><Link href="/admin/applications">Applications →</Link></div></div></details>
 
         <details><summary><span>Catalogue</span><strong>{current?.activeProducts ?? "—"} active offers</strong><small>{seo ? `${seo.metrics.productIndexEligible}/${seo.metrics.products} products index-eligible` : "SEO quality inventory unavailable"}</small></summary><div className="lc-domain-body"><div className="lc-stat-cluster"><div><span>Active offers</span><b>{current?.activeProducts ?? "—"}</b></div><div><span>Canonical products</span><b>{seo?.metrics.products ?? "—"}</b></div><div><span>Index eligible</span><b>{seo?.metrics.productIndexEligible ?? "—"}</b></div><div><span>Matching queue</span><b>{data.dashboard.metrics.catalogReviewQueue}</b></div><div><span>Media pending</span><b>{data.dashboard.metrics.pendingMedia}</b></div><div><span>Compliance pending</span><b>{data.dashboard.metrics.pendingCompliance}</b></div></div><div className="lc-link-row"><Link href="/admin/catalogue">Catalogue →</Link><Link href="/admin/matching">Matching →</Link><Link href="/admin/catalogue-intake">Intake →</Link></div></div></details>
 
@@ -317,7 +324,7 @@ export default async function LaunchControlOverview({ searchParams }: PageProps)
       </div>
     </section>
 
-    <section className="shell lc-source-note"><strong>Metric integrity</strong><p>Selected-period metrics come from aggregate marketplace analytics. Finance cards are current/lifetime accounting snapshots where stated. Platform and readiness cards are evidence snapshots. A dash (—) means the source is unavailable or the denominator is not defensible; it never means zero.</p></section>
+    <section className="shell lc-source-note"><strong>Metric integrity</strong><p>Selected-period funnel metrics come from the governed product analytics/fairness sources. Transactional 30-day commerce truth comes from orders, payments and refunds. Finance cards are current/lifetime accounting snapshots where stated. Legacy analytics are retained only as a diagnostic source when their event vocabulary is incomplete. A dash (—) means unavailable or not defensibly scoreable; it never means zero.</p></section>
   </main>;
 }
 
