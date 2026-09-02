@@ -8,11 +8,16 @@ import {
   type LaunchControlWorkspace
 } from "./admin-launch-control";
 import { adminMetricIntegritySnapshot, type AdminMetricIntegritySnapshot } from "./admin-metric-integrity";
+import {
+  buildLaunchControlTargetProgress,
+  type LaunchControlTargetProgress
+} from "./admin-launch-control-target-progress";
 import { readLaunchControlTargets, type LaunchControlTargetSettings } from "./admin-launch-control-targets";
 
 export type LaunchControlIntegrityWorkspace = LaunchControlWorkspace & Readonly<{
   metricIntegrity?: AdminMetricIntegritySnapshot;
   targetSettings?: LaunchControlTargetSettings;
+  targetProgress?: readonly LaunchControlTargetProgress[];
 }>;
 
 function readinessTone(score: number | undefined): LaunchControlTone {
@@ -70,6 +75,37 @@ function correctedSummary(
   return clauses.join(" ");
 }
 
+function formatTargetValue(item: LaunchControlTargetProgress, value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return "—";
+  if (item.unit === "money_minor") {
+    return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value / 100);
+  }
+  if (item.unit === "ratio") return `${(value * 100).toFixed(1)}%`;
+  return Math.round(value).toLocaleString("el-GR");
+}
+
+function targetAttention(item: LaunchControlTargetProgress): LaunchControlAttention | undefined {
+  if (item.status !== "at_risk" && item.status !== "overdue") return undefined;
+  const progressPercent = Math.round((item.completion ?? 0) * 100);
+  const detail = item.status === "overdue"
+    ? `${item.label}: ${progressPercent}% complete (${formatTargetValue(item, item.current)} / ${formatTargetValue(item, item.target)}) and deadline ${item.deadline ?? "—"} has passed.`
+    : `${item.label}: ${progressPercent}% complete; observed pace projects ${formatTargetValue(item, item.projectedAtDeadline)} against target ${formatTargetValue(item, item.target)} by ${item.deadline ?? "—"}.`;
+  return {
+    id: `target-${item.key}`,
+    severity: item.status === "overdue" ? "critical" : "warning",
+    label: item.status === "overdue" ? `Target overdue · ${item.label}` : `Target at risk · ${item.label}`,
+    detail,
+    value: progressPercent,
+    href: "/admin/launchcontrol/targets"
+  };
+}
+
+function sortedAttention(items: readonly LaunchControlAttention[]): LaunchControlAttention[] {
+  const severityOrder = { critical: 0, warning: 1, opportunity: 2 } as const;
+  return [...new Map(items.map((item) => [item.id, item])).values()]
+    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || (b.value ?? 0) - (a.value ?? 0));
+}
+
 export async function adminLaunchControlIntegrityWorkspace(
   principal: SessionPrincipal,
   filters: LaunchControlFilters
@@ -114,6 +150,12 @@ export async function adminLaunchControlIntegrityWorkspace(
   const readinessScore = measurableScores.length
     ? Math.round(measurableScores.reduce((sum, score) => sum + score, 0) / measurableScores.length)
     : undefined;
+  const readiness = {
+    score: readinessScore,
+    measurable: measurableScores.length,
+    total: dimensions.length,
+    dimensions
+  };
 
   const attention: LaunchControlAttention[] = [...workspace.attention];
   if (metricIntegrity) {
@@ -134,26 +176,34 @@ export async function adminLaunchControlIntegrityWorkspace(
     }
   }
 
-  const severityOrder = { critical: 0, warning: 1, opportunity: 2 } as const;
-  const dedupedAttention = [...new Map(attention.map((item) => [item.id, item])).values()]
-    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || (b.value ?? 0) - (a.value ?? 0));
-
   const requiredIntegrityKeys = new Set(["transactions", "product_funnel", "fairness", "search"]);
   const requiredIntegrityDegraded = metricIntegrity?.sources.some((source) => requiredIntegrityKeys.has(source.key) && source.state !== "live") ?? false;
   const dataState = workspace.dataState === "partial" || !metricIntegrity || requiredIntegrityDegraded ? "partial" : "live";
+  const preliminaryAttention = sortedAttention(attention);
+  const provisional: LaunchControlIntegrityWorkspace = {
+    ...workspace,
+    dataState,
+    metricIntegrity,
+    targetSettings,
+    readiness,
+    attention: preliminaryAttention,
+    summary: ""
+  };
+  const targetProgress = targetSettings ? buildLaunchControlTargetProgress(provisional, targetSettings) : undefined;
+  for (const target of targetProgress ?? []) {
+    const targetSignal = targetAttention(target);
+    if (targetSignal) attention.push(targetSignal);
+  }
+  const finalAttention = sortedAttention(attention);
 
   return {
     ...workspace,
     dataState,
     metricIntegrity,
     targetSettings,
-    readiness: {
-      score: readinessScore,
-      measurable: measurableScores.length,
-      total: dimensions.length,
-      dimensions
-    },
-    attention: dedupedAttention,
-    summary: correctedSummary(workspace, readinessScore, measurableScores.length, dimensions.length, metricIntegrity, targetSettings, dedupedAttention)
+    targetProgress,
+    readiness,
+    attention: finalAttention,
+    summary: correctedSummary(workspace, readinessScore, measurableScores.length, dimensions.length, metricIntegrity, targetSettings, finalAttention)
   };
 }
