@@ -17,19 +17,38 @@ function correctedSummary(
   readinessScore: number | undefined,
   measurable: number,
   total: number,
-  integrity: AdminMetricIntegritySnapshot | undefined
+  integrity: AdminMetricIntegritySnapshot | undefined,
+  attention: readonly LaunchControlAttention[]
 ): string {
-  const originalWithoutReadiness = workspace.summary.replace(
-    /^(Measured launch readiness is \d+%\.|Launch readiness is only partially measurable with the currently connected evidence\.)\s*/,
-    ""
-  );
-  const readiness = readinessScore === undefined
+  const clauses: string[] = [];
+  clauses.push(readinessScore === undefined
     ? `Launch readiness is partially measurable (${measurable}/${total} defensible dimensions).`
-    : `Measured launch readiness is ${readinessScore}% across ${measurable}/${total} defensible dimensions.`;
-  const vendor = integrity
+    : `Measured launch readiness is ${readinessScore}% across ${measurable}/${total} defensible dimensions.`);
+  clauses.push(integrity
     ? `Vendor readiness is intentionally excluded until a launch target is configured; current lifecycle is ${integrity.vendorLifecycle.active} active / ${integrity.vendorLifecycle.total} Sparta vendor records.`
-    : "Vendor readiness is intentionally excluded because the lifecycle denominator/target is unavailable.";
-  return [readiness, vendor, originalWithoutReadiness].filter(Boolean).join(" ");
+    : "Vendor readiness is intentionally excluded because the lifecycle denominator/target is unavailable.");
+
+  const critical = attention.filter((item) => item.severity === "critical").length;
+  const warning = attention.filter((item) => item.severity === "warning").length;
+  if (critical) clauses.push(`${critical} critical control signal${critical === 1 ? " requires" : "s require"} intervention.`);
+  else if (warning) clauses.push(`${warning} warning signal${warning === 1 ? " needs" : "s need"} follow-up.`);
+  else clauses.push("No aggregated critical or warning signal is currently open in the connected workspaces.");
+
+  if (workspace.analytics && workspace.previousAnalytics) {
+    const current = workspace.analytics.summary.attributedOrders;
+    const previous = workspace.previousAnalytics.summary.attributedOrders;
+    if (previous > 0) {
+      const delta = Math.round(((current - previous) / previous) * 100);
+      clauses.push(`Attributed orders are ${delta >= 0 ? "up" : "down"} ${Math.abs(delta)}% versus the previous equivalent period.`);
+    } else if (current > 0) {
+      clauses.push("The selected period has attributed orders while the previous equivalent period had none.");
+    }
+  }
+
+  if (workspace.forecast.confidence !== "insufficient") {
+    clauses.push(`The 30-day commerce projection currently carries ${workspace.forecast.confidence} confidence.`);
+  }
+  return clauses.join(" ");
 }
 
 export async function adminLaunchControlIntegrityWorkspace(
@@ -103,6 +122,6 @@ export async function adminLaunchControlIntegrityWorkspace(
       dimensions
     },
     attention: dedupedAttention,
-    summary: correctedSummary(workspace, readinessScore, measurableScores.length, dimensions.length, metricIntegrity)
+    summary: correctedSummary(workspace, readinessScore, measurableScores.length, dimensions.length, metricIntegrity, dedupedAttention)
   };
 }
