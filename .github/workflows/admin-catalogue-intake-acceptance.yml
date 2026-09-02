@@ -7,6 +7,7 @@ on:
       - "apps/web/src/lib/admin-catalogue-intake.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-mapping.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-review.ts"
+      - "apps/web/src/lib/admin-catalogue-manual-review.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-value-mapping.ts"
       - "apps/web/src/lib/admin-catalogue-controlled-value-queue.ts"
       - "apps/web/src/lib/admin-catalogue-intelligence-review.ts"
@@ -103,6 +104,7 @@ jobs:
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck \
             apps/web/src/lib/admin-catalogue-attribute-mapping.ts \
             apps/web/src/lib/admin-catalogue-attribute-review.ts \
+            apps/web/src/lib/admin-catalogue-manual-review.ts \
             apps/web/src/lib/admin-catalogue-attribute-value-mapping.ts \
             apps/web/src/lib/admin-catalogue-controlled-value-queue.ts \
             apps/web/src/lib/admin-catalogue-intelligence-review.ts \
