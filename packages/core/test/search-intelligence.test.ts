@@ -24,9 +24,23 @@ test("Greek, Greeklish, English synonyms and typos share relevance space", () =>
 
 test("GTIN and model-like identifiers are treated as exact high-confidence queries", () => {
   assert.equal(interpretSearchQuery("5201234567890").identifier, "5201234567890");
+  assert.equal(interpretSearchQuery("520 123 456 7890").identifier, "5201234567890");
   assert.equal(interpretSearchQuery("BWR5140").identifier, "BWR5140");
+  assert.equal(interpretSearchQuery("BWR-5140").identifier, "BWR-5140");
   assert.ok(searchTextRelevance("5201234567890", ["Product", "5201234567890"]) >= 200);
   assert.ok(searchTextRelevance("BWR5140", ["Bormann Pro", "BWR5140"]) >= 200);
+});
+
+test("mixed natural-language product queries are never collapsed into fake identifiers", () => {
+  const tv = interpretSearchQuery("55 inch 4K smart TV");
+  const drill = interpretSearchQuery("Bosch drill 18V");
+  const phone = interpretSearchQuery("Samsung smartphone 256GB 8GB RAM");
+  assert.equal(tv.identifier, undefined);
+  assert.equal(drill.identifier, undefined);
+  assert.equal(phone.identifier, undefined);
+  assert.ok(!tv.applied.includes("identifier"));
+  assert.ok(!drill.applied.includes("identifier"));
+  assert.ok(!phone.applied.includes("identifier"));
 });
 
 test("index aliases include transliteration and local cross-language vocabulary", () => {
