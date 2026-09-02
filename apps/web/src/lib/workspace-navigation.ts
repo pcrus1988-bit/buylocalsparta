@@ -66,6 +66,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
       { label: "Launch Control", href: "/admin/launchcontrol/overview", icon: "◈", roles: ["super_admin"] },
+      { label: "Targets & Pace", href: "/admin/launchcontrol/targets", icon: "◎", roles: ["super_admin"] },
       { label: "Αναζήτηση", href: "/admin/search", icon: "⌕", contextHidden: true }
     ]
   },
