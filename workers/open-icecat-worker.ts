@@ -1,13 +1,16 @@
 import { createServer, type Server } from "node:http";
 import { hostname } from "node:os";
 import {
+  DEFAULT_OPEN_ICECAT_CONTROL,
   OPEN_ICECAT_BULK_PROCESSING_VERSION,
   OPEN_ICECAT_GREEK_DAILY_INDEX_URL,
   OPEN_ICECAT_GREEK_FULL_INDEX_URL,
   PostgresUnitOfWork,
+  openIcecatControlFromMetadata,
   parseOpenIcecatIndexSourceEvents,
   runOpenIcecatBulkImport,
   type OpenIcecatBulkRunResult,
+  type OpenIcecatControlSettings,
   type OpenIcecatImportKind,
   type OpenIcecatIndexFilter,
   type SqlRow
@@ -26,22 +29,26 @@ if (!readiness.ok) {
 }
 
 const workerId = process.env.BLS_OPEN_ICECAT_WORKER_ID?.trim() || `${hostname()}:${process.pid}`;
-const successIntervalMs = positive(process.env.BLS_OPEN_ICECAT_INTERVAL_MS, 24 * 60 * 60 * 1000, "BLS_OPEN_ICECAT_INTERVAL_MS");
-const retryIntervalMs = positive(process.env.BLS_OPEN_ICECAT_RETRY_MS, 60 * 60 * 1000, "BLS_OPEN_ICECAT_RETRY_MS");
 const lockRetryMs = positive(process.env.BLS_OPEN_ICECAT_LOCK_RETRY_MS, 60_000, "BLS_OPEN_ICECAT_LOCK_RETRY_MS");
-const fetchTimeoutMs = positive(process.env.BLS_OPEN_ICECAT_FETCH_TIMEOUT_MS, 2 * 60 * 60 * 1000, "BLS_OPEN_ICECAT_FETCH_TIMEOUT_MS");
-const batchSize = bounded(process.env.BLS_OPEN_ICECAT_BATCH_SIZE, 500, 1, 10_000, "BLS_OPEN_ICECAT_BATCH_SIZE");
 const maxRecordChars = bounded(process.env.BLS_OPEN_ICECAT_MAX_RECORD_CHARS, 8 * 1024 * 1024, 1024, 64 * 1024 * 1024, "BLS_OPEN_ICECAT_MAX_RECORD_CHARS");
 const healthPort = bounded(process.env.BLS_OPEN_ICECAT_HEALTH_PORT, 8082, 1, 65535, "BLS_OPEN_ICECAT_HEALTH_PORT");
 const runOnce = process.env.BLS_OPEN_ICECAT_RUN_ONCE === "true";
 const authHeaders = icecatAuthenticationHeaders(process.env);
 const sourceUow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 3_000 });
+const fallbackControl: OpenIcecatControlSettings = {
+  ...DEFAULT_OPEN_ICECAT_CONTROL,
+  indexIntervalMs: positive(process.env.BLS_OPEN_ICECAT_INTERVAL_MS, DEFAULT_OPEN_ICECAT_CONTROL.indexIntervalMs, "BLS_OPEN_ICECAT_INTERVAL_MS"),
+  indexRetryMs: positive(process.env.BLS_OPEN_ICECAT_RETRY_MS, DEFAULT_OPEN_ICECAT_CONTROL.indexRetryMs, "BLS_OPEN_ICECAT_RETRY_MS"),
+  indexFetchTimeoutMs: positive(process.env.BLS_OPEN_ICECAT_FETCH_TIMEOUT_MS, DEFAULT_OPEN_ICECAT_CONTROL.indexFetchTimeoutMs, "BLS_OPEN_ICECAT_FETCH_TIMEOUT_MS"),
+  indexBatchSize: bounded(process.env.BLS_OPEN_ICECAT_BATCH_SIZE, DEFAULT_OPEN_ICECAT_CONTROL.indexBatchSize, 1, 10_000, "BLS_OPEN_ICECAT_BATCH_SIZE")
+};
 
 let stopping = false;
 let currentImportKind: OpenIcecatImportKind | undefined;
 let currentRunStartedAt: number | undefined;
 let lastActivityAt = Date.now();
 let activeAbortController: AbortController | undefined;
+let liveControl = fallbackControl;
 
 const healthServer = await startHealthServer(healthPort);
 const stop = (signal: string): void => {
@@ -60,7 +67,7 @@ console.log(JSON.stringify({
   workerId,
   schema: readiness.appliedSchemaVersion,
   processingVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION,
-  batchSize,
+  fallbackBatchSize: fallbackControl.indexBatchSize,
   runOnce
 }));
 
@@ -70,13 +77,13 @@ try {
     if (!ran) throw new Error("Open Icecat one-shot run skipped because another ingestion worker holds the advisory lock");
   } else {
     while (!stopping) {
-      let nextDelay = successIntervalMs;
+      let nextDelay = liveControl.indexIntervalMs;
       try {
         const ran = await runCycle();
-        nextDelay = ran ? successIntervalMs : lockRetryMs;
+        nextDelay = ran ? liveControl.indexIntervalMs : lockRetryMs;
       } catch (error) {
         if (stopping) break;
-        nextDelay = retryIntervalMs;
+        nextDelay = liveControl.indexRetryMs;
         console.error(JSON.stringify({
           level: "error",
           event: "open_icecat.cycle_failed",
@@ -85,7 +92,7 @@ try {
           message: error instanceof Error ? error.message : String(error)
         }));
       }
-      if (!stopping) await delay(nextDelay);
+      if (!stopping) await delayWatchingControl(nextDelay, liveControl.revision);
     }
   }
 } finally {
@@ -94,6 +101,14 @@ try {
 }
 
 async function runCycle(): Promise<boolean> {
+  const source = await loadSourceConfiguration();
+  applyControl(source.control);
+  if (!liveControl.indexEnabled) {
+    lastActivityAt = Date.now();
+    console.log(JSON.stringify({ level: "info", event: "open_icecat.index_paused", workerId, revision: liveControl.revision }));
+    return true;
+  }
+
   const lockClient = await runtime.nativePool.connect();
   let locked = false;
   try {
@@ -107,7 +122,6 @@ async function runCycle(): Promise<boolean> {
       return false;
     }
 
-    const source = await loadSourceConfiguration();
     currentRunStartedAt = Date.now();
     lastActivityAt = currentRunStartedAt;
 
@@ -152,6 +166,22 @@ async function runCycle(): Promise<boolean> {
   }
 }
 
+function applyControl(next: OpenIcecatControlSettings): void {
+  if (next.revision !== liveControl.revision) {
+    console.log(JSON.stringify({
+      level: "info",
+      event: "open_icecat.control_reloaded",
+      workerId,
+      previousRevision: liveControl.revision,
+      revision: next.revision,
+      indexEnabled: next.indexEnabled,
+      indexIntervalMs: next.indexIntervalMs,
+      indexBatchSize: next.indexBatchSize
+    }));
+  }
+  liveControl = next;
+}
+
 async function ingestIndex(sourceId: string, importKind: OpenIcecatImportKind, sourceUrl: string): Promise<OpenIcecatBulkRunResult> {
   const fetched = await fetchIndex(sourceId, importKind, sourceUrl);
   return ingestFetchedIndex(sourceId, importKind, sourceUrl, fetched);
@@ -174,7 +204,7 @@ async function ingestFetchedIndex(
       },
       events: parseOpenIcecatIndexSourceEvents(gunzipChunks(fetched.response.body!), filter, { maxRecordChars }),
       repository: runtime.persistence.openIcecatBulk,
-      batchSize
+      batchSize: liveControl.indexBatchSize
     });
     lastActivityAt = Date.now();
     console.log(JSON.stringify({
@@ -208,7 +238,7 @@ type FetchedIndex = Readonly<{
 async function fetchIndex(sourceId: string, importKind: OpenIcecatImportKind, sourceUrl: string): Promise<FetchedIndex> {
   const controller = new AbortController();
   activeAbortController = controller;
-  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(fetchTimeoutMs)]);
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(liveControl.indexFetchTimeoutMs)]);
 
   console.log(JSON.stringify({ level: "info", event: "open_icecat.index_fetch_started", workerId, importKind, sourceId }));
   try {
@@ -249,10 +279,12 @@ async function loadSourceConfiguration(): Promise<{
   dailyUrl: string;
   hasCompletedFull: boolean;
   incompleteDailyFingerprint?: string;
+  control: OpenIcecatControlSettings;
 }> {
   return sourceUow.withTransaction({ platformAccess: true }, async (tx) => {
     const result = await tx.query<SqlRow>(`
       SELECT s.id::text AS source_id,
+             s.metadata,
              COALESCE(NULLIF(s.metadata->>'preferred_index',''),$1) AS full_url,
              COALESCE(NULLIF(s.metadata->>'daily_index',''),$2) AS daily_url,
              EXISTS (
@@ -292,15 +324,46 @@ async function loadSourceConfiguration(): Promise<{
       fullUrl: safeIcecatIndexUrl(requiredString(row.full_url, "full_url")),
       dailyUrl: safeIcecatIndexUrl(requiredString(row.daily_url, "daily_url")),
       hasCompletedFull: row.has_completed_full === true,
-      incompleteDailyFingerprint: optionalString(row.incomplete_daily_fingerprint)
+      incompleteDailyFingerprint: optionalString(row.incomplete_daily_fingerprint),
+      control: openIcecatControlFromMetadata(row.metadata, fallbackControl)
     };
   }, { readOnly: true });
 }
 
+async function loadControlOnly(): Promise<OpenIcecatControlSettings | undefined> {
+  try {
+    return await sourceUow.withTransaction({ platformAccess: true }, async (tx) => {
+      const result = await tx.query<SqlRow>(`
+        SELECT s.metadata
+        FROM public.catalog_sources s
+        JOIN public.markets m ON m.id=s.market_id
+        WHERE s.code='open_icecat' AND s.active=true AND m.code='sparta'
+        LIMIT 1
+      `);
+      const row = result.rows[0];
+      return row ? openIcecatControlFromMetadata(row.metadata, fallbackControl) : undefined;
+    }, { readOnly: true });
+  } catch {
+    return undefined;
+  }
+}
+
+async function delayWatchingControl(ms: number, revision: string): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!stopping) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(5_000, remaining)));
+    if (stopping) return;
+    const next = await loadControlOnly();
+    if (next && next.revision !== revision) {
+      applyControl(next);
+      return;
+    }
+  }
+}
+
 async function* gunzipChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
-  // Node's DecompressionStream runtime consumes Uint8Array chunks, while the DOM
-  // declaration widens its writable side to BufferSource. Narrow that declaration
-  // at this boundary without buffering or changing the streaming data path.
   const gunzip = new DecompressionStream("gzip") as unknown as TransformStream<Uint8Array, Uint8Array>;
   const decompressed = body.pipeThrough(gunzip);
   const reader = decompressed.getReader();
@@ -369,7 +432,11 @@ async function startHealthServer(port: number): Promise<Server> {
       currentRunStartedAt: currentRunStartedAt ? new Date(currentRunStartedAt).toISOString() : null,
       lastActivityAt: new Date(lastActivityAt).toISOString(),
       schema: readiness.appliedSchemaVersion,
-      processingVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION
+      processingVersion: OPEN_ICECAT_BULK_PROCESSING_VERSION,
+      controlRevision: liveControl.revision,
+      indexEnabled: liveControl.indexEnabled,
+      indexIntervalMs: liveControl.indexIntervalMs,
+      indexBatchSize: liveControl.indexBatchSize
     }));
   });
   await new Promise<void>((resolve, reject) => {
@@ -380,14 +447,6 @@ async function startHealthServer(port: number): Promise<Server> {
 }
 
 function closeServer(server: Server): Promise<void> { return new Promise((resolve) => server.close(() => resolve())); }
-async function delay(ms: number): Promise<void> {
-  const deadline = Date.now() + ms;
-  while (!stopping) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) return;
-    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(1_000, remaining)));
-  }
-}
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`Open Icecat source ${field} is missing`);
   return value.trim();

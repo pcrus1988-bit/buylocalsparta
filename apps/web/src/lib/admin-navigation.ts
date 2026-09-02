@@ -15,15 +15,23 @@ const PARTNER_DRILLDOWN_ROUTES = new Set([
   "/admin/finance/agreements/sla"
 ]);
 
+const ICECAT_NAV_LINK: WorkspaceNavLink = {
+  label: "Icecat",
+  href: "/admin/icecat",
+  icon: "◈",
+  permission: "catalog.read"
+};
+
 const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string; contextHidden?: boolean }>([
   ["/admin/catalogue", { order: 0, label: "Overview" }],
   ["/admin/quickadd", { order: 1, label: "Quick Add" }],
   ["/admin/catalogue-crawler", { order: 2, label: "Website Import" }],
-  ["/admin/catalogue-intake/import", { order: 3, label: "Files & Icecat", contextHidden: false }],
-  ["/admin/catalogue-intake", { order: 4, label: "Supplier PIM" }],
-  ["/admin/catalogue-intake/attributes", { order: 5, label: "Attributes" }],
-  ["/admin/matching", { order: 6, label: "Matching" }],
-  ["/admin/categories", { order: 7, label: "Categories & Policies" }]
+  ["/admin/icecat", { order: 3, label: "Icecat" }],
+  ["/admin/catalogue-intake/import", { order: 4, label: "Files & Icecat", contextHidden: false }],
+  ["/admin/catalogue-intake", { order: 5, label: "Supplier PIM" }],
+  ["/admin/catalogue-intake/attributes", { order: 6, label: "Attributes" }],
+  ["/admin/matching", { order: 7, label: "Matching" }],
+  ["/admin/categories", { order: 8, label: "Categories & Policies" }]
 ]);
 
 const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
@@ -70,7 +78,10 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
   }
 
   if (group.href === "/admin/catalogue") {
-    return links
+    const catalogueLinks = links.some((link) => link.href === ICECAT_NAV_LINK.href)
+      ? links
+      : [...links, ICECAT_NAV_LINK];
+    return catalogueLinks
       .map((link) => {
         const presentation = CATALOGUE_OPERATOR_LINKS.get(link.href);
         return presentation ? {
@@ -124,7 +135,7 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
 export function adminNavigationForPrincipal(principal: SessionPrincipal, attentionBadges: Readonly<Record<string, number>> = {}): ReadonlyArray<WorkspaceNavGroup> {
   return ADMIN_WORKSPACE_NAVIGATION.flatMap((group): WorkspaceNavGroup[] => {
     const permittedLinks = group.links.filter((link) => canAccessAdminNavLink(principal, link));
-    const links = operatorLinksForGroup(group, permittedLinks);
+    const links = operatorLinksForGroup(group, permittedLinks).filter((link) => canAccessAdminNavLink(principal, link));
     if (links.length === 0) return [];
     const requestedLanding = group.href;
     const landing = requestedLanding && links.some((link) => link.href === requestedLanding)
@@ -136,6 +147,7 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal, attenti
 }
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
+  if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);
   return link ? canAccessAdminNavLink(principal, link) : false;
 }
