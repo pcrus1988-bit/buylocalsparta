@@ -26,6 +26,7 @@
     "@buy-local-sparta/resend-notifications": "0.45.0",
     "@buy-local-sparta/boxnow-shipping": "0.45.0",
     "@vercel/analytics": "2.0.1",
+    "@vercel/speed-insights": "2.0.0",
     "pdfmake": "0.2.20",
     "web-push": "3.6.7"
   },
