@@ -9,9 +9,12 @@ on:
       - "packages/meilisearch-search/test/**"
       - "apps/web/src/lib/postgres-storefront-search.ts"
       - "apps/web/src/lib/catalog-view.ts"
+      - "apps/web/src/lib/storefront-taxonomy.ts"
+      - "apps/web/src/lib/available-catalog-taxonomy.ts"
       - "apps/web/src/lib/storefront-search-analytics.ts"
       - "apps/web/src/app/shop/page.tsx"
       - "scripts/verify-exceptional-search.ts"
+      - "scripts/verify-storefront-taxonomy.ts"
       - ".github/workflows/exceptional-search-acceptance.yml"
 
 jobs:
@@ -25,6 +28,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Verify search contracts
         run: node --experimental-strip-types scripts/verify-exceptional-search.ts
+      - name: Verify storefront taxonomy and leaf intent
+        run: npm run check:storefront
       - name: Test search intelligence
         run: node --experimental-strip-types --test packages/core/test/search-intelligence.test.ts
       - name: Test Meilisearch provider
