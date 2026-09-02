@@ -8,6 +8,10 @@ import {
   storefrontCategoryForCode,
   storefrontFacetEnabled
 } from "../apps/web/src/lib/storefront-taxonomy.ts";
+import {
+  catalogAttributeDefinitionsForLeaf,
+  catalogAttributeValue
+} from "../apps/web/src/lib/catalog-attribute-facets.ts";
 
 const root = process.cwd();
 const failures: string[] = [];
@@ -82,12 +86,39 @@ if (ambiguousLighting) failures.push("Leaf inference must stay broad when multip
 if (!storefrontFacetEnabled(lightingLeaf, "brand") || storefrontFacetEnabled(lightingLeaf, "fit")) failures.push("Lighting leaf must expose relevant facets without fashion fit noise");
 const shoesLeaf = inferStorefrontTaxonomyIntent("shoes")?.leaf;
 if (!storefrontFacetEnabled(shoesLeaf, "size") || !storefrontFacetEnabled(shoesLeaf, "fit")) failures.push("Shoe leaf must retain size and fit facets");
-if (!(lightingLeaf?.attributeHints.length)) failures.push("Leaf intent must carry governed attribute hints for the next structured facet layer");
+if (!(lightingLeaf?.attributeHints.length)) failures.push("Leaf intent must carry governed attribute hints for the structured facet layer");
+
+const lightingAttributes = catalogAttributeDefinitionsForLeaf("lighting");
+const socket = lightingAttributes.find((item) => item.key === "socket");
+const wattage = lightingAttributes.find((item) => item.key === "wattage");
+if (!socket || !wattage) failures.push("Lighting must govern socket and wattage attribute filters");
+const syntheticAttributes = { socket_type: "E27", power_w: "10 W", random_merchant_field: "must-not-surface" };
+if (catalogAttributeValue(syntheticAttributes, socket) !== "E27") failures.push("Governed source aliases must resolve socket_type to the socket facet");
+if (catalogAttributeValue(syntheticAttributes, wattage) !== "10 W") failures.push("Governed source aliases must resolve power_w to the wattage facet");
+function matchesSyntheticAttributeFilters(filters: Readonly<Record<string, string>>, omittedKey?: string): boolean {
+  for (const [key, selected] of Object.entries(filters)) {
+    if (!selected || key === omittedKey) continue;
+    const definition = lightingAttributes.find((item) => item.key === key);
+    if (!definition) return false;
+    const actual = catalogAttributeValue(syntheticAttributes, definition);
+    if ((actual ?? "").trim().toLocaleLowerCase("el") !== selected.trim().toLocaleLowerCase("el")) return false;
+  }
+  return true;
+}
+if (!matchesSyntheticAttributeFilters({ socket: "E27", wattage: "10 W" })) failures.push("Structured attribute filters must accept matching governed values");
+if (matchesSyntheticAttributeFilters({ socket: "GU10" })) failures.push("Structured attribute filters must reject non-matching governed values");
+if (!matchesSyntheticAttributeFilters({ socket: "GU10", wattage: "10 W" }, "socket")) failures.push("Facet self-exclusion must ignore only the active structured attribute key");
+if (catalogAttributeDefinitionsForLeaf("lighting").some((item) => item.key === "random_merchant_field")) failures.push("Arbitrary merchant metadata must never become an attribute facet without governance");
+const smartphoneKeys = new Set(catalogAttributeDefinitionsForLeaf("smartphones").map((item) => item.key));
+for (const key of ["storage", "ram", "screen_size", "5g", "dual_sim"]) if (!smartphoneKeys.has(key)) failures.push(`Smartphone leaf must govern ${key}`);
 
 const categoryPage = readFileSync(`${root}/apps/web/src/app/category/[slug]/page.tsx`, "utf8");
 const shopPage = readFileSync(`${root}/apps/web/src/app/shop/page.tsx`, "utf8");
 const homePage = readFileSync(`${root}/apps/web/src/app/page.tsx`, "utf8");
 const catalogView = readFileSync(`${root}/apps/web/src/lib/catalog-view.ts`, "utf8");
+const catalogMetadata = readFileSync(`${root}/apps/web/src/lib/catalog-metadata.ts`, "utf8");
+const attributeRegistry = readFileSync(`${root}/apps/web/src/lib/catalog-attribute-facets.ts`, "utf8");
+const attributeFilter = readFileSync(`${root}/apps/web/src/lib/catalog-attribute-filter.ts`, "utf8");
 const availableTaxonomy = readFileSync(`${root}/apps/web/src/lib/available-catalog-taxonomy.ts`, "utf8");
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
 const catalogSearchInput = readFileSync(`${root}/apps/web/src/components/CatalogSearchInput.tsx`, "utf8");
@@ -100,10 +131,18 @@ if (!homePage.includes('href={`/category/${category.slug}`}')) failures.push("Ho
 if (!shopPage.includes('getCatalogCards(visitorKey, "23100", query, category')) failures.push("Shop category filter must be applied server-side");
 if (!shopPage.includes("inferStorefrontTaxonomyIntent(taxonomyQuery)")) failures.push("Natural-language shop search must infer governed department and leaf intent when unambiguous");
 if (!shopPage.includes("resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories)")) failures.push("Leaf intent must resolve only against currently available catalogue subcategories");
-if (!shopPage.includes("storefrontFacetEnabled(activeLeaf")) failures.push("Shop facets must be conditioned by leaf-specific relevance");
-if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must surface governed attribute guidance for inferred product leaves");
+if (!shopPage.includes("storefrontFacetEnabled(activeLeaf")) failures.push("Shop fixed facets must be conditioned by leaf-specific relevance");
+if (!shopPage.includes("attributeFacets.map")) failures.push("Shop must render live governed structured attribute facets");
+if (!shopPage.includes("filterCatalogCardsByAttributes(products, attributeFilters)")) failures.push("Selected structured attributes must filter rendered catalogue results");
+if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must retain attribute guidance for sparse catalogues");
 if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)')) failures.push("PostgreSQL catalog projection must filter category codes through the governed department hierarchy before fairness assignment");
 if (!catalogView.includes('reason: "search_card"')) failures.push("Category browsing must retain search-card fairness assignment semantics");
+if (!catalogMetadata.includes("attributes: { ...scalarAttributes(attributes), ...scalarAttributes(specifications) }")) failures.push("Catalog metadata must project scalar structured attributes from canonical and localized metadata");
+if (!catalogMetadata.includes("typeof value === \"boolean\"")) failures.push("Structured attribute projection must normalize boolean scalar values");
+if (!attributeRegistry.includes("const BY_LEAF")) failures.push("Structured attribute definitions must stay explicitly governed by leaf");
+if (!attributeFilter.includes("catalogAttributeValueByKey")) failures.push("Structured attribute result filtering must resolve only governed attribute keys");
+if (!availableTaxonomy.includes("catalogAttributeDefinitionsForLeaf(leafKey)")) failures.push("Available taxonomy must build attributes only from the inferred governed leaf");
+if (!availableTaxonomy.includes("matchesCatalogAttributeFilters(details?.attributes, attributeFilters, definition.key)")) failures.push("Structured facet options must respect other selected attributes while self-excluding their own key");
 if (!availableTaxonomy.includes("searchTextRelevance(query")) failures.push("Dynamic facets must use the same relevance engine as catalog results");
 if (!productCard.includes("storefrontCategoryForCode(product.categoryCode, product.departmentCode)")) failures.push("Product cards must derive their visual category from canonical leaf and department codes");
 if (!shopPage.includes("<CatalogSearchInput") || !catalogSearchInput.includes("/api/search/suggest")) failures.push("Shop search must retain governed catalogue autocomplete");
@@ -113,4 +152,4 @@ if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents and ${leafCases.length} leaf intents verified.`);
+console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents and governed structured attribute facets verified.`);

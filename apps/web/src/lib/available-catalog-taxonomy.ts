@@ -4,6 +4,12 @@ import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { categoryCodeMatches, STOREFRONT_CATEGORIES, type StorefrontCategory } from "./storefront-taxonomy";
 import { loadCatalogDepartmentCodes } from "./catalog-category-department";
+import {
+  catalogAttributeDefinitionsForLeaf,
+  catalogAttributeValue,
+  type CatalogAttributeFacet
+} from "./catalog-attribute-facets";
+import { matchesCatalogAttributeFilters, type CatalogAttributeFilters } from "./catalog-attribute-filter";
 
 type AvailableCanonical = Readonly<{
   id: string;
@@ -15,10 +21,17 @@ type AvailableCanonical = Readonly<{
 export type AvailableCatalogTaxonomy = Readonly<{
   categories: readonly StorefrontCategory[];
   facets: CatalogFacets;
+  attributeFacets: readonly CatalogAttributeFacet[];
+}>;
+
+type FacetBundle = Readonly<{
+  facets: CatalogFacets;
+  attributeFacets: readonly CatalogAttributeFacet[];
 }>;
 
 const AVAILABILITY_CONCURRENCY = 6;
 const EMPTY_FACETS: CatalogFacets = { subcategories: [], brands: [], colors: [], sizes: [] };
+const EMPTY_BUNDLE: FacetBundle = { facets: EMPTY_FACETS, attributeFacets: [] };
 
 function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
   if (!right) return true;
@@ -55,6 +68,18 @@ function matchesFiltersExcept(
   return true;
 }
 
+function matchesAllFixedFilters(
+  product: AvailableCanonical,
+  metadata: CatalogMetadata | undefined,
+  filters: CatalogFilters
+): boolean {
+  if (filters.subcategory && product.categoryCode !== filters.subcategory) return false;
+  if (!sameFilterValue(metadata?.brand, filters.brand)) return false;
+  if (!sameFilterValue(metadata?.color, filters.color)) return false;
+  if (filters.size && !(metadata?.sizes ?? []).some((size) => sameFilterValue(size, filters.size))) return false;
+  return true;
+}
+
 function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
   return [...new Set(values)]
     .sort((a, b) => a.localeCompare(b, "el"))
@@ -67,14 +92,16 @@ function availableCategories(products: readonly AvailableCanonical[]): readonly 
   );
 }
 
-async function buildFacets(
+async function buildFacetBundle(
   products: readonly AvailableCanonical[],
   category: string,
   query: string,
-  filters: CatalogFilters
-): Promise<CatalogFacets> {
+  filters: CatalogFilters,
+  leafKey?: string,
+  attributeFilters: CatalogAttributeFilters = {}
+): Promise<FacetBundle> {
   const scoped = products.filter((product) => categoryCodeMatches(product.categoryCode, category, product.departmentCode));
-  if (scoped.length === 0) return EMPTY_FACETS;
+  if (scoped.length === 0) return EMPTY_BUNDLE;
 
   const metadata = await loadCatalogMetadata(scoped.map((product) => product.id));
   const visible = scoped.filter((product) => matchesQuery(product, metadata.get(product.id), query));
@@ -86,6 +113,7 @@ async function buildFacets(
 
   for (const product of visible) {
     const details = metadata.get(product.id);
+    if (!matchesCatalogAttributeFilters(details?.attributes, attributeFilters)) continue;
     if (matchesFiltersExcept(product, details, filters, "subcategory")) {
       subcategoryMap.set(product.categoryCode, details?.categoryLabel ?? product.categoryCode);
     }
@@ -94,13 +122,30 @@ async function buildFacets(
     if (matchesFiltersExcept(product, details, filters, "size")) sizes.push(...(details?.sizes ?? []));
   }
 
+  const attributeFacets: CatalogAttributeFacet[] = [];
+  for (const definition of catalogAttributeDefinitionsForLeaf(leafKey)) {
+    const values: string[] = [];
+    for (const product of visible) {
+      const details = metadata.get(product.id);
+      if (!matchesAllFixedFilters(product, details, filters)) continue;
+      if (!matchesCatalogAttributeFilters(details?.attributes, attributeFilters, definition.key)) continue;
+      const value = catalogAttributeValue(details?.attributes, definition);
+      if (value) values.push(value);
+    }
+    const options = facetOptions(values);
+    if (options.length > 0 && options.length <= 40) attributeFacets.push({ key: definition.key, label: definition.label, options });
+  }
+
   return {
-    subcategories: [...subcategoryMap.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "el")),
-    brands: facetOptions(brands),
-    colors: facetOptions(colors),
-    sizes: facetOptions(sizes)
+    facets: {
+      subcategories: [...subcategoryMap.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.label.localeCompare(b.label, "el")),
+      brands: facetOptions(brands),
+      colors: facetOptions(colors),
+      sizes: facetOptions(sizes)
+    },
+    attributeFacets
   };
 }
 
@@ -147,22 +192,25 @@ export async function getAvailableStorefrontCategories(postcode = "23100"): Prom
 }
 
 /**
- * Builds all taxonomy exposed by the shop in one availability pass. Facets respect
- * the other selected filters, so no subcategory/brand/color/size option can lead to
- * zero currently sellable products in the active result context. Facet query
- * matching intentionally uses the same relevance engine as catalogue results so
- * synonyms, transliteration and fuzzy safeguards cannot drift between the two.
+ * Builds all taxonomy exposed by the shop in one availability pass. Fixed and
+ * structured facets respect all other selected filters, so every option is backed by
+ * at least one currently sellable canonical in the active result context. Structured
+ * attributes remain leaf-governed and never emerge from arbitrary merchant keys.
  */
 export async function getAvailableCatalogTaxonomy(
   category = "",
   query = "",
   filters: CatalogFilters = {},
-  postcode = "23100"
+  postcode = "23100",
+  leafKey?: string,
+  attributeFilters: CatalogAttributeFilters = {}
 ): Promise<AvailableCatalogTaxonomy> {
   const products = await getAvailableCatalogCanonicals(postcode);
+  const bundle = await buildFacetBundle(products, category, query, filters, leafKey, attributeFilters);
   return {
     categories: availableCategories(products),
-    facets: await buildFacets(products, category, query, filters)
+    facets: bundle.facets,
+    attributeFacets: bundle.attributeFacets
   };
 }
 
@@ -172,5 +220,5 @@ export async function getAvailableCatalogFacets(
   filters: CatalogFilters = {},
   postcode = "23100"
 ): Promise<CatalogFacets> {
-  return buildFacets(await getAvailableCatalogCanonicals(postcode), category, query, filters);
+  return (await buildFacetBundle(await getAvailableCatalogCanonicals(postcode), category, query, filters)).facets;
 }
