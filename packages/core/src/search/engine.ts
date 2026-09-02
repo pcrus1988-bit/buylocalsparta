@@ -50,6 +50,7 @@ function levenshtein(a: string, b: string): number {
 
 function fuzzyTokenMatch(queryToken: string, docToken: string): number {
   if (queryToken === docToken) return 1;
+  if (Math.min(queryToken.length, docToken.length) < 3) return 0;
   if (docToken.startsWith(queryToken) || queryToken.startsWith(docToken)) return 0.85;
   const maxLength = Math.max(queryToken.length, docToken.length);
   if (maxLength < 4) return 0;
