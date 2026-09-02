@@ -18,6 +18,7 @@ import { SiteFooter } from "../../components/SiteFooter";
 import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../../lib/local-commerce-proof";
 import { catalogAttributeDefinitionsForLeaf } from "../../lib/catalog-attribute-facets";
 import { filterCatalogCardsByAttributes, type CatalogAttributeFilters } from "../../lib/catalog-attribute-filter";
+import { extractStorefrontAttributeQuery, resolveStorefrontAttributeIntents } from "../../lib/storefront-attribute-query";
 
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
@@ -50,13 +51,15 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const params = await searchParams;
   const query = valueOf(params.q).trim();
   const searchIntent = interpretSearchQuery(query);
-  const taxonomyQuery = searchIntent.text || (searchIntent.applied.length ? "" : query);
+  const taxonomySeedQuery = searchIntent.text || (searchIntent.applied.length ? "" : query);
   const requestedCategory = valueOf(params.category);
-  const taxonomyIntent = inferStorefrontTaxonomyIntent(taxonomyQuery);
+  const taxonomyIntent = inferStorefrontTaxonomyIntent(taxonomySeedQuery);
   const inferredCategory = requestedCategory ? undefined : taxonomyIntent?.category;
   const activeLeaf = taxonomyIntent && (!requestedCategory || taxonomyIntent.category.slug === requestedCategory)
     ? taxonomyIntent.leaf
     : undefined;
+  const naturalAttributeQuery = extractStorefrontAttributeQuery(taxonomySeedQuery, activeLeaf?.key);
+  const catalogQuery = naturalAttributeQuery.text;
   const category = requestedCategory || inferredCategory?.slug || "";
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
@@ -66,29 +69,40 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const size = valueOf(params.size);
   const fit = valueOf(params.fit);
   const attributeDefinitions = catalogAttributeDefinitionsForLeaf(activeLeaf?.key);
-  const attributeFilters: CatalogAttributeFilters = Object.fromEntries(
+  const explicitAttributeFilters: CatalogAttributeFilters = Object.fromEntries(
     attributeDefinitions
       .map((definition) => [definition.key, valueOf(params[`attr_${definition.key}`]).trim()] as const)
       .filter(([, value]) => Boolean(value))
   );
+  let attributeFilters: CatalogAttributeFilters = explicitAttributeFilters;
+  let resolvedNaturalAttributeFilters: CatalogAttributeFilters = {};
   let subcategory = requestedSubcategory;
   let filters = { subcategory, brand, color, size };
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  let taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+  let taxonomy = await getAvailableCatalogTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   const inferredSubcategory = requestedSubcategory ? undefined : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
   if (inferredSubcategory) {
     subcategory = inferredSubcategory.value;
     filters = { subcategory, brand, color, size };
-    taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+    taxonomy = await getAvailableCatalogTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+  }
+  resolvedNaturalAttributeFilters = resolveStorefrontAttributeIntents(
+    naturalAttributeQuery.intents,
+    taxonomy.attributeFacets,
+    explicitAttributeFilters
+  );
+  if (Object.keys(resolvedNaturalAttributeFilters).length > 0) {
+    attributeFilters = { ...resolvedNaturalAttributeFilters, ...explicitAttributeFilters };
+    taxonomy = await getAvailableCatalogTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
   const facets = taxonomy.facets;
   const attributeFacets = taxonomy.attributeFacets;
   const availableCategories = taxonomy.categories;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
   let products: ShopCard[] = readOnlyCrawler
-    ? [...await getCrawlerCatalogCards("23100", taxonomyQuery, category, { ...filters, fit })]
-    : [...await getCatalogCards(visitorKey, "23100", query, category, filters)];
+    ? [...await getCrawlerCatalogCards("23100", catalogQuery, category, { ...filters, fit })]
+    : [...await getCatalogCards(visitorKey, "23100", catalogQuery, category, filters)];
   products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
   if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
   const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
@@ -114,6 +128,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       sort: sort || undefined,
       interpretedMaxPriceMinor: searchIntent.maxPriceMinor,
       interpretedMinPriceMinor: searchIntent.minPriceMinor,
+      interpretedAttributeCount: naturalAttributeQuery.intents.length || undefined,
       ...Object.fromEntries(Object.entries(attributeFilters).map(([key, value]) => [`attr_${key}`, value]))
     }
   });
@@ -123,11 +138,17 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     const value = attributeFilters[definition.key];
     return value ? [`${definition.label}: ${value}`] : [];
   });
+  const unresolvedAttributeLabels = naturalAttributeQuery.intents.flatMap((intent) => {
+    if (explicitAttributeFilters[intent.key] || resolvedNaturalAttributeFilters[intent.key]) return [];
+    const definition = attributeDefinitions.find((candidate) => candidate.key === intent.key);
+    return definition ? [`Ζητούμενο: ${definition.label} ${intent.value}`] : [];
+  });
   const interpretedLabels = [
     inferredCategory ? `Κατηγορία: ${inferredCategory.label}` : undefined,
     activeLeaf ? `Πρόθεση: ${activeLeaf.label}` : undefined,
     inferredSubcategory ? `Υποκατηγορία: ${inferredSubcategory.label}` : undefined,
     ...selectedAttributeLabels,
+    ...unresolvedAttributeLabels,
     searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
     searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,

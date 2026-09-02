@@ -119,6 +119,7 @@ const catalogView = readFileSync(`${root}/apps/web/src/lib/catalog-view.ts`, "ut
 const catalogMetadata = readFileSync(`${root}/apps/web/src/lib/catalog-metadata.ts`, "utf8");
 const attributeRegistry = readFileSync(`${root}/apps/web/src/lib/catalog-attribute-facets.ts`, "utf8");
 const attributeFilter = readFileSync(`${root}/apps/web/src/lib/catalog-attribute-filter.ts`, "utf8");
+const attributeQuery = readFileSync(`${root}/apps/web/src/lib/storefront-attribute-query.ts`, "utf8");
 const availableTaxonomy = readFileSync(`${root}/apps/web/src/lib/available-catalog-taxonomy.ts`, "utf8");
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
 const catalogSearchInput = readFileSync(`${root}/apps/web/src/components/CatalogSearchInput.tsx`, "utf8");
@@ -128,12 +129,15 @@ if (!categoryPage.includes("storefrontCategoryBySlug(slug)")) failures.push("Can
 if (!categoryPage.includes("STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }))")) failures.push("Every governed storefront category must have a canonical /category/[slug] route regardless of current stock");
 if (categoryPage.includes("const category = availableCategories.find((item) => item.slug === slug)")) failures.push("Category route existence must never be gated by current available inventory");
 if (!homePage.includes('href={`/category/${category.slug}`}')) failures.push("Homepage category cards must point to the canonical category route");
-if (!shopPage.includes('getCatalogCards(visitorKey, "23100", query, category')) failures.push("Shop category filter must be applied server-side");
-if (!shopPage.includes("inferStorefrontTaxonomyIntent(taxonomyQuery)")) failures.push("Natural-language shop search must infer governed department and leaf intent when unambiguous");
+if (!shopPage.includes('getCatalogCards(visitorKey, "23100", catalogQuery, category')) failures.push("Shop category filter must send attribute-stripped residual text into canonical catalogue search");
+if (!shopPage.includes("inferStorefrontTaxonomyIntent(taxonomySeedQuery)")) failures.push("Natural-language shop search must infer governed department and leaf intent before attribute extraction");
+if (!shopPage.includes("extractStorefrontAttributeQuery(taxonomySeedQuery, activeLeaf?.key)")) failures.push("Shop must extract structured attribute intent only after a product leaf is known");
+if (!shopPage.includes("resolveStorefrontAttributeIntents(")) failures.push("Natural structured attributes must resolve against live facet options before becoming hard filters");
 if (!shopPage.includes("resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories)")) failures.push("Leaf intent must resolve only against currently available catalogue subcategories");
 if (!shopPage.includes("storefrontFacetEnabled(activeLeaf")) failures.push("Shop fixed facets must be conditioned by leaf-specific relevance");
 if (!shopPage.includes("attributeFacets.map")) failures.push("Shop must render live governed structured attribute facets");
-if (!shopPage.includes("filterCatalogCardsByAttributes(products, attributeFilters)")) failures.push("Selected structured attributes must filter rendered catalogue results");
+if (!shopPage.includes("filterCatalogCardsByAttributes(products, attributeFilters)")) failures.push("Selected and resolved structured attributes must filter rendered catalogue results");
+if (!shopPage.includes("unresolvedAttributeLabels")) failures.push("Understood but unavailable structured attributes must remain advisory instead of silently hard-filtering");
 if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must retain attribute guidance for sparse catalogues");
 if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)')) failures.push("PostgreSQL catalog projection must filter category codes through the governed department hierarchy before fairness assignment");
 if (!catalogView.includes('reason: "search_card"')) failures.push("Category browsing must retain search-card fairness assignment semantics");
@@ -141,6 +145,7 @@ if (!catalogMetadata.includes("attributes: { ...scalarAttributes(attributes), ..
 if (!catalogMetadata.includes("typeof value === \"boolean\"")) failures.push("Structured attribute projection must normalize boolean scalar values");
 if (!attributeRegistry.includes("const BY_LEAF")) failures.push("Structured attribute definitions must stay explicitly governed by leaf");
 if (!attributeFilter.includes("catalogAttributeValueByKey")) failures.push("Structured attribute result filtering must resolve only governed attribute keys");
+if (!attributeQuery.includes("unique best") || !attributeQuery.includes("without a known product leaf")) failures.push("Natural attribute parser must retain conservative live-resolution and no-leaf safety contracts");
 if (!availableTaxonomy.includes("catalogAttributeDefinitionsForLeaf(leafKey)")) failures.push("Available taxonomy must build attributes only from the inferred governed leaf");
 if (!availableTaxonomy.includes("matchesCatalogAttributeFilters(details?.attributes, attributeFilters, definition.key)")) failures.push("Structured facet options must respect other selected attributes while self-excluding their own key");
 if (!availableTaxonomy.includes("searchTextRelevance(query")) failures.push("Dynamic facets must use the same relevance engine as catalog results");
@@ -152,4 +157,4 @@ if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents and governed structured attribute facets verified.`);
+console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents, governed structured facets and residual natural-attribute integration verified.`);

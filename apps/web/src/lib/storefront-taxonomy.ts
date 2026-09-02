@@ -135,7 +135,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     searchHint: "κινητά, ήχος, υπολογιστές, αξεσουάρ",
     artClass: "art-technology",
     aliases: ["technology", "tech", "electronics", "electrical", "computers", "mobile", "audio"],
-    queryAliases: ["technology", "τεχνολογία", "tech", "electronics", "smartphone", "smartphones", "mobile", "mobiles", "κινητό", "κινητά", "kinito", "kinita", "computer", "computers", "υπολογιστής", "υπολογιστές", "ypologistis", "ypologistes", "laptop", "laptops", "tablet", "tablets", "headphones", "ακουστικά", "akoustika", "television", "τηλεόραση", "tileorasi", "printer", "εκτυπωτής", "ektipotis"]
+    queryAliases: ["technology", "τεχνολογία", "tech", "electronics", "smartphone", "smartphones", "mobile", "mobiles", "κινητό", "κινητά", "kinito", "kinita", "computer", "computers", "υπολογιστής", "υπολογιστές", "ypologistis", "ypologistes", "laptop", "laptops", "tablet", "tablets", "headphones", "ακουστικά", "akoustika", "television", "televisions", "tv", "tvs", "τηλεόραση", "τηλεοράσεις", "tileorasi", "tileoraseis", "printer", "εκτυπωτής", "ektipotis"]
   },
   {
     slug: "gifts",
