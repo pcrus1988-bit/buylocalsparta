@@ -202,6 +202,7 @@ function eurosToMinor(value: string): number | undefined {
 
 function fuzzySimilarity(left: string, right: string): number {
   if (left === right) return 1;
+  if (Math.min(left.length, right.length) < 3) return 0;
   if (right.startsWith(left) || left.startsWith(right)) return 0.9;
   const maxLength = Math.max(left.length, right.length);
   if (maxLength < 4) return 0;
