@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   extractStorefrontAttributeQuery,
   resolveStorefrontAttributeIntents,
@@ -29,6 +30,7 @@ function expectExtract(
 
 expectExtract("E27 LED lamp 10W", "lighting", "lamp", { socket: "E27", led: "LED", wattage: "10 W" });
 expectExtract("lamp 3000K dimmable", "lighting", "lamp", { color_temperature: "3000 K", dimmable: "true" });
+expectExtract("non-dimmable lamp", "lighting", "lamp", { dimmable: "false" });
 expectExtract("Bosch drill 18V 1500rpm", "drills", "Bosch drill", { voltage: "18 V", rpm: "1500 rpm" });
 expectExtract("750W impact drill", "drills", "drill", { wattage: "750 W", impact: "true" });
 expectExtract("Samsung smartphone 256GB 8GB RAM 5G dual sim", "smartphones", "Samsung smartphone", {
@@ -39,6 +41,7 @@ expectExtract("Samsung smartphone 256GB 8GB RAM 5G dual sim", "smartphones", "Sa
 });
 expectExtract("smartphone 6.7 inch", "smartphones", "smartphone", { screen_size: "6.7 in" });
 expectExtract("55 inch 4K smart TV", "televisions", "TV", { screen_size: "55 in", resolution: "4K", smart_tv: "Smart TV" });
+expectExtract("55 inches television", "televisions", "television", { screen_size: "55 in" });
 expectExtract("OLED 65\" television", "televisions", "television", { panel_technology: "OLED", screen_size: "65 in" });
 expectExtract("ANC bluetooth headphones", "headphones", "headphones", { anc: "ANC", connection: "Bluetooth" });
 expectExtract("laser duplex printer", "printers", "printer", { print_technology: "Laser", duplex: "true" });
@@ -85,6 +88,14 @@ const tvResolved = resolveStorefrontAttributeIntents(tvIntents, [
 if (tvResolved.screen_size !== "55″") failures.push(`55 inch intent must resolve live typographic inch option, received ${tvResolved.screen_size ?? "none"}`);
 if (tvResolved.smart_tv !== "true") failures.push(`Smart TV intent must resolve a live truthy option, received ${tvResolved.smart_tv ?? "none"}`);
 
+const nonDimmableIntents = extractStorefrontAttributeQuery("non-dimmable lamp", "lighting").intents;
+const nonDimmableResolved = resolveStorefrontAttributeIntents(nonDimmableIntents, [
+  { key: "dimmable", options: [{ value: "Dimmable", label: "Dimmable" }, { value: "Non-dimmable", label: "Non-dimmable" }] }
+]);
+if (nonDimmableResolved.dimmable !== "Non-dimmable") {
+  failures.push(`Non-dimmable intent must resolve the live negative option, received ${nonDimmableResolved.dimmable ?? "none"}`);
+}
+
 const explicitWins = resolveStorefrontAttributeIntents(drillIntents, [
   { key: "voltage", options: [{ value: "18 V", label: "18 V" }] }
 ], { voltage: "12 V" });
@@ -96,8 +107,24 @@ const tied = resolveStorefrontAttributeIntents([tiedIntent], [
 ]);
 if (tied.connection) failures.push("Natural attribute intent must not hard-filter when multiple live values tie");
 
+const shopPage = readFileSync(new URL("../apps/web/src/app/shop/page.tsx", import.meta.url), "utf8");
+const catalogView = readFileSync(new URL("../apps/web/src/lib/catalog-view.ts", import.meta.url), "utf8");
+for (const contract of [
+  'getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)',
+  "filterCatalogCardsByAttributes(products, attributeFilters)"
+]) {
+  if (!shopPage.includes(contract)) failures.push(`Storefront search integration must retain ${contract}`);
+}
+for (const contract of [
+  "attributeFilters: CatalogAttributeFilters = {}",
+  "production.search.search({ marketId: \"sparta\", q: query, type: \"product\", limit: 100, attributeFilters })",
+  "matchesCatalogAttributeFilters(metadata.get(id)?.attributes, attributeFilters)"
+]) {
+  if (!catalogView.includes(contract)) failures.push(`Catalog search must apply structured filters before the result cap: ${contract}`);
+}
+
 if (failures.length) {
   console.error("Natural attribute intent checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Natural attribute intent checks passed: leaf-scoped extraction, end-to-end taxonomy handoff, ambiguity guards, unit normalization, live-option resolution and explicit-filter precedence verified.");
+console.log("Natural attribute intent checks passed: leaf-scoped extraction, plural-unit parsing, negated booleans, end-to-end taxonomy handoff, ambiguity guards, pre-limit structured filtering, live-option resolution and explicit-filter precedence verified.");
