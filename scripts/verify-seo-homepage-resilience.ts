@@ -13,6 +13,7 @@ const requirePattern = (source: string, contract: RegExp, message: string) => {
 const homepage = read("apps/web/src/app/page.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
 const metadata = read("apps/web/src/lib/seo-metadata.ts");
+const privacyConsent = read("apps/web/src/components/PrivacyConsentProvider.tsx");
 
 for (const label of ["visitor-key", "featured-products", "hero-slides", "promo-ctas", "visible-categories"]) {
   requirePattern(homepage, new RegExp(`homepageSectionOrFallback\\(\\s*\\"${label}\\"`), `Homepage must fail soft for ${label}`);
@@ -51,6 +52,18 @@ for (const contract of [
   '"@type": "City", name: "Σπάρτη"',
   'replaceAll("<", "\\\\u003c")'
 ]) requireText(layout, contract, `Root entity graph is missing ${contract}`);
+
+if (layout.includes("@vercel/speed-insights") || layout.includes("<SpeedInsights")) {
+  failures.push("Root layout must not mount Speed Insights outside the analytics-consent boundary");
+}
+requireText(privacyConsent, 'import { SpeedInsights } from "@vercel/speed-insights/next"', "Privacy provider must own the Speed Insights integration");
+requirePattern(
+  privacyConsent,
+  /consent\?\.analytics\s*&&[\s\S]*?<Analytics[\s\S]*?<SpeedInsights\s*\/>[\s\S]*?<GoogleAnalytics\s*\/>/,
+  "Speed Insights must mount only inside the existing analytics-consent branch"
+);
+requireText(privacyConsent, "Vercel Speed Insights", "Analytics consent copy must disclose Vercel Speed Insights");
+requireText(privacyConsent, "Core Web Vitals", "Analytics consent copy must explain the Speed Insights measurement purpose");
 
 if (failures.length) {
   console.error("SEO homepage/entity resilience verification failed:");
