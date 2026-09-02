@@ -7,6 +7,9 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
+import { seoDiagnosticRegressionSignals } from "../../../../lib/seo-diagnostic-monitoring";
+import type { SeoDiagnosticReport } from "../../../../lib/seo-diagnostic-reports";
+import { seoReportComparison, seoReportRecurringFindings, seoReportTrendSeries } from "../../../../lib/seo-report-trends";
 import { getSeoUnifiedReportWorkspace, type SeoEvidenceFreshness } from "../../../../lib/seo-unified-report";
 
 export const metadata: Metadata = {
@@ -15,6 +18,10 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+type Props = Readonly<{
+  searchParams: Promise<{ current?: string; baseline?: string }>;
+}>;
 
 function when(value?: string): string {
   if (!value) return "No evidence yet";
@@ -34,13 +41,42 @@ function freshnessLabel(value: SeoEvidenceFreshness) {
   return `${value.stale ? "Stale" : "Fresh"} · ${age} · target ≤${value.maxAgeHours}h`;
 }
 
-export default async function AdminSeoReportsPage() {
+function selectedReport(reports: readonly SeoDiagnosticReport[], id: string | undefined, fallbackIndex: number): SeoDiagnosticReport | undefined {
+  return (id ? reports.find((report) => report.id === id) : undefined) ?? reports[fallbackIndex];
+}
+
+function deltaLabel(value: number): string {
+  return value === 0 ? "0" : `${value > 0 ? "+" : ""}${value}`;
+}
+
+function deltaTone(delta: number, lowerIsBetter = false): "positive" | "attention" | undefined {
+  if (delta === 0) return undefined;
+  const improved = lowerIsBetter ? delta < 0 : delta > 0;
+  return improved ? "positive" : "attention";
+}
+
+function severityLabel(value: string): string {
+  if (value === "critical") return "Critical";
+  if (value === "warning") return "Warning";
+  if (value === "good") return "Good";
+  return "Info";
+}
+
+export default async function AdminSeoReportsPage({ searchParams }: Props) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
+  const params = await searchParams;
   const data = await getSeoUnifiedReportWorkspace(principal);
   const canWrite = hasAdminPermission(principal, "content.write");
-  const latestSaved = data.reports.reports[0];
-  const previousSaved = data.reports.reports[1];
+  const savedReports = data.reports.reports;
+  const latestSaved = savedReports[0];
+  const previousSaved = savedReports[1];
+  const currentSaved = selectedReport(savedReports, params.current, 0);
+  const baselineSaved = selectedReport(savedReports, params.baseline, 1);
+  const selectedComparison = currentSaved && baselineSaved && currentSaved.id !== baselineSaved.id ? seoReportComparison(currentSaved, baselineSaved) : [];
+  const selectedRegressionSignals = currentSaved && baselineSaved && currentSaved.id !== baselineSaved.id ? seoDiagnosticRegressionSignals(currentSaved, baselineSaved) : [];
+  const trend = seoReportTrendSeries(savedReports, 12);
+  const recurring = seoReportRecurringFindings(savedReports, 12);
   const currentJsonExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "json" }).toString()}`;
   const currentCsvExport = `/api/admin/seo/reports/current?${new URLSearchParams({ format: "csv" }).toString()}`;
 
@@ -123,12 +159,60 @@ export default async function AdminSeoReportsPage() {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Longitudinal view" title="Last 12 visibility checkpoints" note="Health score remains an internal readiness signal, not a Google ranking score. Inventory and crawl metrics are displayed beside it so change stays explainable." />
+      {trend.length === 0
+        ? <div className="workspace-empty-state"><strong>No report history yet.</strong><span>Capture a first governed baseline, then repeat after meaningful SEO changes or releases.</span></div>
+        : <div className="workspace-queue-list">{trend.map((point) => <article className="workspace-queue-card" key={point.id}>
+          <div className="workspace-queue-head"><div><strong>{when(point.createdAt)}</strong><small>{point.reason}</small></div><span className="status-pill">Health {point.score}/100</span></div>
+          <div className="workspace-queue-primary"><span>{point.critical} critical · {point.warning} warnings · {point.sitemapEstimatedCount} estimated sitemap URLs</span></div>
+          <div className="workspace-compact-list" style={{ marginTop: 10 }}>
+            <div className="workspace-compact-row"><strong>Eligible products</strong><span>{point.productIndexEligible}</span></div>
+            <div className="workspace-compact-row"><strong>Eligible vendors</strong><span>{point.vendorIndexEligible}</span></div>
+            <div className="workspace-compact-row"><strong>Internal linking</strong><span>{point.crawlOrphans} orphans · {point.crawlWeak} weak</span></div>
+          </div>
+        </article>)}</div>}
+    </div></section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Baseline comparison" title="Compare any two retained snapshots" note="Choose a current checkpoint and an older baseline. The existing governed regression engine is applied to that pair, alongside explainable metric deltas." />
+      {savedReports.length < 2
+        ? <div className="workspace-empty-state"><strong>Two reports are required for comparison.</strong><span>Capture another audited baseline after the next meaningful change.</span></div>
+        : <>
+          <form method="get" className="workspace-form-stack" style={{ marginBottom: 20 }}>
+            <div className="workspace-form-grid">
+              <label className="workspace-field"><span>Current checkpoint</span><select name="current" defaultValue={currentSaved?.id}>{savedReports.map((report) => <option key={report.id} value={report.id}>{when(report.createdAt)} · {report.score}/100 · {report.reason.slice(0, 70)}</option>)}</select></label>
+              <label className="workspace-field"><span>Baseline checkpoint</span><select name="baseline" defaultValue={baselineSaved?.id}>{savedReports.map((report) => <option key={report.id} value={report.id}>{when(report.createdAt)} · {report.score}/100 · {report.reason.slice(0, 70)}</option>)}</select></label>
+            </div>
+            <div className="workspace-action-bar"><span>Comparison is read-only and never mutates retained evidence.</span><button className="button" type="submit">Compare snapshots</button></div>
+          </form>
+          {currentSaved?.id === baselineSaved?.id
+            ? <div className="workspace-empty-state"><strong>Select two different checkpoints.</strong><span>A report cannot be compared with itself.</span></div>
+            : <>
+              <div className="admin-domain-card-grid">{selectedComparison.map((metric) => <article className="admin-domain-card" key={metric.key}><span>{metric.label}</span><strong>{metric.current}</strong><p>Baseline {metric.previous}</p><b>{deltaLabel(metric.delta)}</b><i>{deltaTone(metric.delta, metric.lowerIsBetter) === "positive" ? "Improvement" : deltaTone(metric.delta, metric.lowerIsBetter) === "attention" ? "Regression" : "No change"}</i></article>)}</div>
+              <h3 style={{ marginTop: 28 }}>Regression signals for selected pair</h3>
+              <div className="workspace-queue-list" style={{ marginTop: 12 }}>
+                {selectedRegressionSignals.length === 0
+                  ? <div className="workspace-empty-state"><strong>No material regression detected.</strong><span>The selected pair remains within the existing governed thresholds.</span></div>
+                  : selectedRegressionSignals.map((signal) => <article className="workspace-queue-card" key={signal.id}><div className="workspace-queue-head"><div><strong>{signal.title}</strong><small>{signal.detail}</small></div><span className="status-pill">{severityLabel(signal.severity)}</span></div><div className="workspace-queue-primary"><span>Baseline {signal.previous} · current {signal.current} · delta {deltaLabel(signal.delta)}</span></div></article>)}
+              </div>
+            </>}
+        </>}
+    </section>
+
+    <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Persistent patterns" title="Recurring diagnostics across the last 12 reports" note="Repeated non-good findings are grouped by stable diagnostic ID. Current findings sort first, followed by severity and recurrence, separating chronic problems from one-off release noise." />
+      {recurring.length === 0
+        ? <div className="workspace-empty-state"><strong>No recurring non-good diagnostics in the retained window.</strong><span>Continue capturing checkpoints after significant releases to maintain the trend baseline.</span></div>
+        : <div className="workspace-queue-list">{recurring.slice(0, 30).map((finding) => <article className="workspace-queue-card" key={finding.id}><div className="workspace-queue-head"><div><strong>{finding.title}</strong><small>{finding.detail}</small></div><span className="status-pill">{finding.current ? "Current" : "Historical"} · {severityLabel(finding.severity)}</span></div><div className="workspace-queue-primary"><span>{finding.occurrences} occurrence{finding.occurrences === 1 ? "" : "s"} · first {when(finding.firstSeenAt)} · last {when(finding.lastSeenAt)}</span></div></article>)}</div>}
+    </div></section>
+
+    <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Audited baselines" title="Persisted diagnostic history" note="These bounded snapshots capture governed public inventory, policy, crawl-graph health and diagnostics. They are retained separately from the live cross-surface report so historical evidence is never silently reinterpreted." />
       {canWrite ? <AdminSeoReportRunner csrfToken={principal.csrfToken} persistenceAvailable={data.reports.persistenceAvailable} /> : <div className="workspace-empty-state"><strong>Read-only report access.</strong><span>content.write permission is required to create an audited baseline.</span></div>}
       <div className="workspace-queue-list" style={{ marginTop: 20 }}>
-        {data.reports.reports.length === 0
+        {savedReports.length === 0
           ? <div className="workspace-empty-state"><strong>No saved diagnostic baselines yet.</strong><span>Capture the first baseline after reviewing the live evidence above.</span></div>
-          : data.reports.reports.slice(0, 20).map((report) => <article className="workspace-queue-card" key={report.id}>
+          : savedReports.slice(0, 20).map((report) => <article className="workspace-queue-card" key={report.id}>
               <div className="workspace-queue-head"><div><strong>{report.reason}</strong><small>{when(report.createdAt)} · {report.metrics.sitemapEstimatedCount} estimated sitemap URLs</small></div><span className="status-pill">Health {report.score}/100</span></div>
               <div className="workspace-queue-primary"><span>{report.severityCounts.critical} critical · {report.severityCounts.warning} warnings · {report.severityCounts.info} informational</span></div>
               <div className="workspace-action-bar"><span><code>{report.id}</code></span><div className="workspace-action-buttons"><a className="text-link" href={`/api/admin/seo/reports/${report.id}?format=json`}>JSON ↓</a><a className="text-link" href={`/api/admin/seo/reports/${report.id}?format=csv`}>CSV ↓</a></div></div>
