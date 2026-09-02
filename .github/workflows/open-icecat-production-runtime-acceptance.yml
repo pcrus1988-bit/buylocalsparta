@@ -7,6 +7,7 @@ on:
       - ".github/workflows/open-icecat-production-detail.yml"
       - ".github/workflows/open-icecat-production-runtime-acceptance.yml"
       - "scripts/acquire-icecat-production-runtime.sh"
+      - "config/certs/supabase-root-2021.crt"
       - "supabase/functions/icecat-runtime-broker/**"
       - "workers/open-icecat-worker.ts"
       - "workers/open-icecat-detail-worker.ts"
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/open-icecat-production-detail.yml"
       - ".github/workflows/open-icecat-production-runtime-acceptance.yml"
       - "scripts/acquire-icecat-production-runtime.sh"
+      - "config/certs/supabase-root-2021.crt"
       - "supabase/functions/icecat-runtime-broker/**"
       - "workers/open-icecat-worker.ts"
       - "workers/open-icecat-detail-worker.ts"
@@ -53,7 +55,7 @@ jobs:
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-worker.ts
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-detail-worker.ts
 
-      - name: Verify OIDC and secret-isolation contract
+      - name: Verify OIDC, TLS and secret-isolation contract
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +63,7 @@ jobs:
           detail=.github/workflows/open-icecat-production-detail.yml
           bootstrap=scripts/acquire-icecat-production-runtime.sh
           broker=supabase/functions/icecat-runtime-broker/index.ts
+          ca=config/certs/supabase-root-2021.crt
 
           grep -q 'id-token: write' "$index"
           grep -q 'id-token: write' "$detail"
@@ -68,6 +71,10 @@ jobs:
           grep -q 'kontamou-icecat-runtime' "$index"
           grep -q 'kontamou-icecat-runtime' "$detail"
           grep -q 'sslmode=verify-full' "$bootstrap"
+          grep -q 'NODE_EXTRA_CA_CERTS' "$bootstrap"
+          grep -q 'config/certs/supabase-root-2021.crt' "$bootstrap"
+          test "$(sha256sum "$ca" | awk '{print $1}')" = '700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7'
+          openssl x509 -in "$ca" -noout -subject -issuer -dates
           grep -q 'bls_icecat_worker' "$bootstrap"
           grep -q '1337008113' "$broker"
           grep -q '250801106' "$broker"
