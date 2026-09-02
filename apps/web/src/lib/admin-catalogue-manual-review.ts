@@ -303,7 +303,7 @@ function mapGroup(row: SqlRow): CatalogueManualReviewGroup {
   const dataType=required(row.data_type,"data type");
   const canonicalUnit=optional(row.canonical_unit);const sourceUnit=optional(row.source_unit);const attributeId=optional(row.attribute_id);
   const normalized=row.normalized_value;
-  const canApproveAsIs=Boolean(attributeId && normalized!==null && dataType!=="enum" && dataType!=="unassigned" && (!canonicalUnit || !sourceUnit || normalizeUnit(canonicalUnit)===normalizeUnit(sourceUnit)));
+  const canApproveAsIs=Boolean(attributeId && normalized!==null && dataType!=="enum" && dataType!=="unassigned" && isCompatibleCanonicalValue(dataType,normalized) && (!canonicalUnit || !sourceUnit || normalizeUnit(canonicalUnit)===normalizeUnit(sourceUnit)));
   return {
     representativeObservationId:required(row.representative_observation_id,"observation.id"),representativeSourceProductId:required(row.representative_source_product_id,"source product.id"),
     sourceId:required(row.source_id,"source.id"),sourceName:required(row.source_name,"source.name"),sourceAttributeKey:required(row.source_attribute_key,"source attribute key"),contextLabel:required(row.context_label,"context label"),
@@ -325,6 +325,14 @@ function parseCanonicalValue(dataType:string,input:string|undefined,fallback:unk
     return text.split(/[;,]/).map((item)=>item.trim()).filter(Boolean);
   }
   return text;
+}
+function isCompatibleCanonicalValue(dataType:string,value:unknown):boolean {
+  if(value===null||value===undefined) return false;
+  if(dataType==="number") return typeof value==="number" && Number.isFinite(value);
+  if(dataType==="boolean") return typeof value==="boolean";
+  if(dataType==="multienum") return Array.isArray(value) && value.length>0 && value.every((item)=>typeof item==="string" && item.trim().length>0);
+  if(dataType==="dimension"||dataType==="text") return typeof value==="string" && value.trim().length>0;
+  return false;
 }
 function normalizeUnit(value:string|undefined):string { return (value??"").trim().toLowerCase().replaceAll("²","2").replaceAll("³","3").replace(/\s+/g,""); }
 function required(value:unknown,name:string):string { const text=String(value??"").trim();if(!text) throw new Error(`${name} is required`);return text; }
