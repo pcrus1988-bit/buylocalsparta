@@ -102,7 +102,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
   let products: ShopCard[] = readOnlyCrawler
     ? [...await getCrawlerCatalogCards("23100", catalogQuery, category, { ...filters, fit })]
-    : [...await getCatalogCards(visitorKey, "23100", catalogQuery, category, filters)];
+    : [...await getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)];
   products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
   if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
   const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
