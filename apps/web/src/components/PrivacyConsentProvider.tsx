@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { GoogleAnalytics } from "./GoogleAnalytics";
 import {
@@ -94,12 +95,13 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
     {children}
     {consent?.analytics && <>
       <Analytics beforeSend={(event) => hasAnalyticsConsent(document.cookie) ? event : null} />
+      <SpeedInsights />
       <GoogleAnalytics />
     </>}
     {hydrated && !consent && <aside className="privacy-consent-banner" aria-label="Ρυθμίσεις απορρήτου και cookies">
       <div className="privacy-consent-copy">
         <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
-        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Τα προαιρετικά Analytics (Vercel Analytics και Google Analytics 4) παραμένουν κλειστά μέχρι να τα επιλέξεις. Δεν υπάρχει ενεργός marketing/remarketing tracker.</p>
+        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Τα προαιρετικά Analytics (Vercel Analytics, Vercel Speed Insights και Google Analytics 4) παραμένουν κλειστά μέχρι να τα επιλέξεις. Δεν υπάρχει ενεργός marketing/remarketing tracker.</p>
         <div className="privacy-consent-links"><Link href="/cookies">Πολιτική Cookies</Link><Link href="/privacy">Πολιτική Απορρήτου</Link><Link href="/privacy-controls">Privacy controls</Link></div>
         {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
@@ -129,7 +131,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
           <input type="checkbox" checked={false} disabled aria-label="Browser προσωποποίηση, δεν χρησιμοποιείται" />
         </div>
         <label className="privacy-consent-option">
-          <div><strong>Analytics</strong><p>Vercel Analytics και Google Analytics 4 για μέτρηση page views, engagement και απόδοσης. Δεν ενεργοποιούνται πριν από τη συγκατάθεσή σου. Η μέτρηση Google δεν χρησιμοποιείται για advertising ή remarketing.</p></div>
+          <div><strong>Analytics</strong><p>Vercel Analytics, Vercel Speed Insights και Google Analytics 4 για μέτρηση page views, engagement, απόδοσης και Core Web Vitals. Δεν ενεργοποιούνται πριν από τη συγκατάθεσή σου. Η μέτρηση Google δεν χρησιμοποιείται για advertising ή remarketing.</p></div>
           <input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ personalisation: false, analytics: event.target.checked, marketing: false })} />
         </label>
         <div className="privacy-consent-option">
