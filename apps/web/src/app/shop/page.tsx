@@ -19,6 +19,7 @@ import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../..
 import { catalogAttributeDefinitionsForLeaf } from "../../lib/catalog-attribute-facets";
 import { filterCatalogCardsByAttributes, type CatalogAttributeFilters } from "../../lib/catalog-attribute-filter";
 import { extractStorefrontAttributeQuery, resolveStorefrontAttributeIntents } from "../../lib/storefront-attribute-query";
+import { formatStorefrontAttributeAdvisory } from "../../lib/storefront-attribute-label";
 
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
@@ -141,7 +142,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const unresolvedAttributeLabels = naturalAttributeQuery.intents.flatMap((intent) => {
     if (explicitAttributeFilters[intent.key] || resolvedNaturalAttributeFilters[intent.key]) return [];
     const definition = attributeDefinitions.find((candidate) => candidate.key === intent.key);
-    return definition ? [`Ζητούμενο: ${definition.label} ${intent.value}`] : [];
+    return definition ? [formatStorefrontAttributeAdvisory(definition.label, intent.value)] : [];
   });
   const interpretedLabels = [
     inferredCategory ? `Κατηγορία: ${inferredCategory.label}` : undefined,
