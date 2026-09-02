@@ -11,7 +11,6 @@ const failures: string[] = [];
 const requireText = (key: keyof typeof files, needle: string, message: string) => { if (!entries[key].includes(needle)) failures.push(message); };
 const forbidText = (key: keyof typeof files, needle: string, message: string) => { if (entries[key].includes(needle)) failures.push(message); };
 
-// Stage 1 remains read-only/advisory until an Admin explicitly approves a governed exact-context rule.
 requireText("review", 'assertAdminPermission(principal, "catalog.read")', "Grouped attribute review must require catalog.read");
 requireText("review", "readOnly: true", "Grouped attribute review service must remain read-only");
 requireText("review", "a.mapping_status='unmapped'", "Grouped review must focus unmapped source evidence");
@@ -24,7 +23,6 @@ requireText("review", "catalog_source_attribute_mapping_rules", "Suggestions may
 requireText("review", ".slice(0, 5)", "Grouped review must bound advisory candidates per context");
 for (const mutation of ["INSERT INTO", "UPDATE public.", "DELETE FROM", "TRUNCATE "]) forbidText("review", mutation, `Read-only grouped review must not contain ${mutation}`);
 
-// Stage 2 is an explicit manual Admin workflow for observations already in review_required.
 requireText("manual", 'assertAdminPermission(principal, "catalog.read")', "Manual review queue must require catalog.read");
 requireText("manual", 'assertAdminPermission(principal, "catalog.write")', "Manual review mutations must require catalog.write");
 requireText("manual", "a.mapping_status='review_required'", "Manual review must operate only on review_required evidence");
@@ -47,7 +45,7 @@ requireText("page", "Approve exact group", "Safe exact groups must have an expli
 requireText("page", "Reject exact group", "Manual workflow must expose explicit parser/source rejection");
 requireText("page", "resolveCatalogueManualReview", "Manual decisions must use the governed server service");
 requireText("page", "Controlled values", "Enum review must remain linked to the dedicated controlled-value queue");
-requireText("page", "Review representative product", "Unmapped review must retain a full-product evidence fallback");
+requireText("page", "Open representative product", "Unmapped review must retain a full-product evidence fallback");
 requireText("page", "mapCatalogueSourceAttribute", "Stage-1 approvals must reuse the governed source mapping service");
 for (const phrase of ["Approve all", "Map all", "Auto approve", "auto-approve", "bulkConfirm"]) forbidText("page", phrase, `Admin UI must not expose automatic/bulk approval (${phrase})`);
 
