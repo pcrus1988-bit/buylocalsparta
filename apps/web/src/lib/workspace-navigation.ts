@@ -20,16 +20,9 @@ export type WorkspaceNavGroup = Readonly<{
 }>;
 
 export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
+  { label: "Αρχική", href: "/vendor", icon: "⌂", links: [{ label: "Αρχική", href: "/vendor", icon: "⌂" }] },
   {
-    label: "Αρχική",
-    href: "/vendor",
-    icon: "⌂",
-    links: [{ label: "Αρχική", href: "/vendor", icon: "⌂" }]
-  },
-  {
-    label: "Παραγγελίες",
-    href: "/vendor/orders",
-    icon: "□",
+    label: "Παραγγελίες", href: "/vendor/orders", icon: "□",
     links: [
       { label: "Παραγγελίες", href: "/vendor/orders", icon: "□" },
       { label: "Προθεσμίες", href: "/vendor/notifications", icon: "!" },
@@ -39,55 +32,29 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   {
-    label: "Προϊόντα",
-    href: "/vendor/catalog",
-    icon: "▦",
+    label: "Προϊόντα", href: "/vendor/catalog", icon: "▦",
     links: [
       { label: "Κατάλογος & απόθεμα", href: "/vendor/catalog", icon: "▦" },
       { label: "Media & έγγραφα", href: "/vendor/trust", icon: "✓" }
     ]
   },
+  { label: "Πελάτες", href: "/vendor/advice", icon: "◌", links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌" }] },
+  { label: "Κατάστημα", href: "/vendor/storefront", icon: "◫", links: [{ label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫" }] },
+  { label: "Οικονομικά", href: "/vendor/finance", icon: "€", links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€" }] },
   {
-    label: "Πελάτες",
-    href: "/vendor/advice",
-    icon: "◌",
-    links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌" }]
-  },
-  {
-    label: "Κατάστημα",
-    href: "/vendor/storefront",
-    icon: "◫",
-    links: [{ label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫" }]
-  },
-  {
-    label: "Οικονομικά",
-    href: "/vendor/finance",
-    icon: "€",
-    links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€" }]
-  },
-  {
-    label: "Στατιστικά",
-    href: "/vendor/analytics",
-    icon: "∿",
+    label: "Στατιστικά", href: "/vendor/analytics", icon: "∿",
     links: [
       { label: "Απόδοση", href: "/vendor/analytics", icon: "∿" },
       { label: "Αναφορές", href: "/vendor/reports", icon: "▤" }
     ]
   },
-  {
-    label: "Ρυθμίσεις",
-    href: "/vendor/daily-access",
-    icon: "⚙",
-    links: [{ label: "Πρόσβαση στο Daily", href: "/vendor/daily-access", icon: "◈" }]
-  }
+  { label: "Ρυθμίσεις", href: "/vendor/daily-access", icon: "⚙", links: [{ label: "Πρόσβαση στο Daily", href: "/vendor/daily-access", icon: "◈" }] }
 ];
 
 /**
  * Admin navigation follows the operator's mental model rather than the code/module layout.
  * Existing URLs remain stable contracts: moving a link between visible domains does not rename
  * the route, permission, API, workflow state, database value or audit/event identifier.
- * Nested routes stay registered for RBAC/deep-link access even when contextHidden keeps the
- * section bar focused on the most useful operator destinations.
  */
 export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   {
@@ -95,9 +62,10 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin",
     icon: "overview",
     section: "Κέντρο ελέγχου",
-    description: "Σήμερα, εκκρεμότητες και γρήγορες ενέργειες",
+    description: "Σήμερα, launch intelligence, εκκρεμότητες και γρήγορες ενέργειες",
     links: [
       { label: "Επισκόπηση", href: "/admin", icon: "⌂" },
+      { label: "Launch Control", href: "/admin/launchcontrol/overview", icon: "◈", roles: ["super_admin"] },
       { label: "Αναζήτηση", href: "/admin/search", icon: "⌕", contextHidden: true }
     ]
   },
