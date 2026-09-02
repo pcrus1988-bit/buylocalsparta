@@ -93,7 +93,7 @@ export function AdminProductIcecatVisibilityPanel({ records }: Readonly<{ record
   </WorkspaceRecordDetails>;
 }
 
-function statusPresentation(status: ProductIcecatVisibilityStatus): { label: string; tone: "positive" | "attention" | "danger" | "default" } {
+function statusPresentation(status: ProductIcecatVisibilityStatus): { label: string; tone: "positive" | "attention" | "danger" | "neutral" } {
   switch (status) {
     case "ready": return { label: "Icecat · Greek-ready", tone: "positive" };
     case "processing": return { label: "Icecat · processing", tone: "attention" };
@@ -101,9 +101,9 @@ function statusPresentation(status: ProductIcecatVisibilityStatus): { label: str
     case "needs_enrichment": return { label: "Icecat · needs enrichment", tone: "attention" };
     case "retry": return { label: "Icecat · retry", tone: "attention" };
     case "failed": return { label: "Icecat · failed", tone: "danger" };
-    case "skipped": return { label: "Icecat · skipped", tone: "default" };
+    case "skipped": return { label: "Icecat · skipped", tone: "neutral" };
     case "evidence": return { label: "Icecat evidence", tone: "positive" };
-    default: return { label: "Δεν έχει συνδεθεί με Icecat", tone: "default" };
+    default: return { label: "Δεν έχει συνδεθεί με Icecat", tone: "neutral" };
   }
 }
 
