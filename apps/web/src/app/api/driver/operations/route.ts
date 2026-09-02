@@ -8,10 +8,10 @@ import {
 } from "../../../../lib/delivery-dispatch-runtime";
 import {
   getDeliveryDriverPresenceState,
-  setDeliveryDriverAvailability,
   type DeliveryDriverAvailability,
 } from "../../../../lib/delivery-driver-presence";
 import { clockInDeliveryDriverForToday, getDeliveryDriverMobileMeta } from "../../../../lib/delivery-driver-mobile-runtime";
+import { setDeliveryDriverAvailabilityWithTimekeeping } from "../../../../lib/delivery-operations-reporting";
 import { requireDeliveryDriverSession } from "../../../../lib/delivery-driver-session";
 
 export async function GET() {
@@ -42,8 +42,9 @@ export async function POST(request: Request) {
       return Response.json(result);
     }
     if (action === "clock_in") {
-      const meta = await clockInDeliveryDriverForToday(principal);
-      const driver = await getDeliveryDriverPresenceState(principal);
+      await clockInDeliveryDriverForToday(principal);
+      const driver = await setDeliveryDriverAvailabilityWithTimekeeping(principal, "available");
+      const meta = await getDeliveryDriverMobileMeta(principal);
       await runAdaptiveDeliveryDispatcher(Date.now(), 4);
       return Response.json({ ok: true, driver, meta });
     }
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       if (!(["available", "paused", "off_shift"] as const).includes(availability)) {
         return Response.json({ error: "invalid_driver_availability" }, { status: 400 });
       }
-      const driver = await setDeliveryDriverAvailability(principal, availability);
+      const driver = await setDeliveryDriverAvailabilityWithTimekeeping(principal, availability);
       if (availability === "available") await runAdaptiveDeliveryDispatcher(Date.now(), 4);
       return Response.json({ ok: true, driver });
     }
