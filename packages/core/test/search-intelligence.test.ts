@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSearchAliases, interpretSearchQuery, LocalSearchEngine, searchTextRelevance } from "../src/index.ts";
+import { buildSearchAliases, interpretSearchQuery, LocalSearchEngine, scoreSearchDocument, searchTextRelevance } from "../src/index.ts";
 
 test("natural Greek commerce query extracts price and stock intent without losing lexical terms", () => {
   const intent = interpretSearchQuery("Bosch δράπανο μέχρι 100€ διαθέσιμο τώρα");
@@ -59,6 +59,36 @@ test("short-token protection preserves real lamp and synonym matches", () => {
   assert.ok(searchTextRelevance("lamp", ["Desk Lamp"]) > 0);
   assert.ok(searchTextRelevance("lamps", ["Desk Lamp"]) > 0);
   assert.ok(searchTextRelevance("fotistiko", ["Desk Lamp"]) > 0);
+});
+
+test("shared ranking keeps title, brand/model and taxonomy above descriptive body copy", () => {
+  const title = scoreSearchDocument("lamp", {
+    id: "title", type: "product", marketId: "sparta", title: "Desk Lamp", body: "Home accessory"
+  });
+  const taxonomy = scoreSearchDocument("lamp", {
+    id: "taxonomy", type: "product", marketId: "sparta", title: "Aurora 22", categoryCodes: ["lamp"], body: "Premium object"
+  });
+  const body = scoreSearchDocument("lamp", {
+    id: "body", type: "product", marketId: "sparta", title: "Oak Shelf", body: "Ideal shelf beside a desk lamp"
+  });
+  assert.ok(title.score > taxonomy.score);
+  assert.ok(taxonomy.score > body.score);
+
+  const brandModel = scoreSearchDocument("bosch", {
+    id: "brand", type: "product", marketId: "sparta", title: "GSB 18V", brand: "Bosch", model: "GSB 18V"
+  });
+  const brandInBody = scoreSearchDocument("bosch", {
+    id: "body-brand", type: "product", marketId: "sparta", title: "Universal Bit Set", body: "compatible with Bosch tools"
+  });
+  assert.ok(brandModel.score > brandInBody.score);
+});
+
+test("local search applies the shared ranking contract", () => {
+  const search = new LocalSearchEngine();
+  search.upsert({ id: "body", type: "product", marketId: "sparta", title: "Oak Shelf", body: "Perfect beside a desk lamp", available: true });
+  search.upsert({ id: "taxonomy", type: "product", marketId: "sparta", title: "Aurora 22", categoryCodes: ["lamp"], available: true });
+  search.upsert({ id: "title", type: "product", marketId: "sparta", title: "Desk Lamp", available: true });
+  assert.deepEqual(search.search({ marketId: "sparta", q: "lamp" }).map((hit) => hit.document.id), ["title", "taxonomy", "body"]);
 });
 
 test("local search does not return litre-labelled products for lamp queries", () => {

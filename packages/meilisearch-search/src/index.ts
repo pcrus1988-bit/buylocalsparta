@@ -1,4 +1,4 @@
-import { buildSearchAliases, interpretSearchQuery, normalizeSearchText, type SearchDocument, type SearchHit, type SearchIndexBackend, type SearchQuery } from "@buy-local-sparta/core";
+import { buildSearchAliases, interpretSearchQuery, normalizeSearchText, scoreSearchDocument, type SearchDocument, type SearchHit, type SearchIndexBackend, type SearchQuery } from "@buy-local-sparta/core";
 
 export type MeilisearchConfig = Readonly<{
   host: string;
@@ -43,7 +43,7 @@ export class MeilisearchClient implements SearchIndexBackend {
     const settings = await this.#request(`/indexes/${encodeURIComponent(this.#config.indexUid)}/settings`, {
       method: "PATCH", key: adminApiKey, accept: [202], body: {
         displayedAttributes: ["id","type","marketId","title","titleEl","titleEn","body","brand","model","identifiers","categoryCodes","synonyms","available","pickupToday","adviceAvailable","priceMinor","vendorId","attributes","metadata","attributePairs"],
-        searchableAttributes: ["identifiers","model","brand","searchAliases","titleEl","titleEn","title","synonyms","body"],
+        searchableAttributes: ["identifiers","titleEl","titleEn","title","model","brand","searchAliases","synonyms","body"],
         filterableAttributes: ["marketId","type","available","pickupToday","adviceAvailable","categoryCodes","attributePairs"],
         sortableAttributes: ["priceMinor"],
         localizedAttributes: [
@@ -101,10 +101,21 @@ export class MeilisearchClient implements SearchIndexBackend {
     });
     const payload = await response.json() as SearchResponse;
     const hits = Array.isArray(payload.hits) ? payload.hits : [];
-    return hits.flatMap((raw, index) => {
+    const mapped = hits.flatMap((raw, index) => {
       const document = fromIndexedDocument(raw);
-      return document ? [{ document, score: Math.max(0.0001, 1 / (index + 1)), reasons: ["meilisearch", ...intent.applied.map((reason) => `intent:${reason}`)] }] : [];
+      if (!document) return [];
+      const ranked = scoreSearchDocument(intent.normalizedText || query.q, document);
+      return [{
+        document,
+        score: ranked.score > 0 ? ranked.score : Math.max(0.0001, 1 / (index + 1)),
+        reasons: ["meilisearch", ...ranked.reasons, ...intent.applied.map((reason) => `intent:${reason}`)],
+        providerIndex: index
+      }];
     });
+    if (query.sort) return mapped.map(({ providerIndex: _providerIndex, ...hit }) => hit);
+    return mapped
+      .sort((left, right) => right.score - left.score || left.providerIndex - right.providerIndex || left.document.title.localeCompare(right.document.title, "el"))
+      .map(({ providerIndex: _providerIndex, ...hit }) => hit);
   }
 
   async autocomplete(input: { marketId: string; q: string; limit?: number }): Promise<readonly string[]> {
@@ -166,8 +177,8 @@ export function meilisearchConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
 
 function toIndexedDocument(document: SearchDocument): Record<string, unknown> {
   const aliases = buildSearchAliases([
-    document.title, document.titleEl, document.titleEn, document.brand, document.model, document.body,
-    ...(document.identifiers ?? []), ...(document.synonyms ?? [])
+    document.title, document.titleEl, document.titleEn, document.brand, document.model,
+    ...(document.identifiers ?? []), ...(document.categoryCodes ?? []), ...(document.synonyms ?? [])
   ]);
   return { ...document, attributes: document.attributes ?? {}, metadata: document.metadata ?? {}, searchAliases: aliases, attributePairs: Object.entries(document.attributes ?? {}).flatMap(([code,value]) => String(value).split("|").map((item) => `${code}:${item}`)) };
 }

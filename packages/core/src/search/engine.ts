@@ -59,6 +59,91 @@ function fuzzyTokenMatch(queryToken: string, docToken: string): number {
   return similarity >= 0.72 ? similarity * 0.75 : 0;
 }
 
+export type SearchDocumentScore = Readonly<{
+  score: number;
+  reasons: readonly string[];
+}>;
+
+/**
+ * Provider-independent lexical ranking contract for canonical search documents.
+ * Identity and product naming outrank taxonomy/synonyms, while descriptive body
+ * copy remains a low-weight discovery signal. Availability is deliberately only a
+ * secondary tie-breaker so fulfilment/fairness can never manufacture relevance.
+ */
+export function scoreSearchDocument(query: string, document: SearchDocument): SearchDocumentScore {
+  const normalizedQuery = normalizeSearchText(query);
+  const queryTokens = tokens(query);
+  const reasons: string[] = [];
+  let score = 0;
+
+  const identifierFields = document.identifiers ?? [];
+  const normalizedIdentifiers = identifierFields.map(normalizeSearchText);
+  if (normalizedQuery && normalizedIdentifiers.includes(normalizedQuery)) {
+    score += 100;
+    reasons.push("exact_identifier");
+  }
+
+  const title = normalizeSearchText([document.title, document.titleEl, document.titleEn].filter(Boolean).join(" "));
+  const brandModel = normalizeSearchText([document.brand, document.model].filter(Boolean).join(" "));
+  const taxonomyText = normalizeSearchText((document.categoryCodes ?? []).join(" "));
+  const synonymText = normalizeSearchText((document.synonyms ?? []).join(" "));
+  const attributeText = normalizeSearchText(Object.values(document.attributes ?? {}).join(" "));
+  const body = normalizeSearchText(document.body ?? "");
+
+  if (normalizedQuery && title === normalizedQuery) {
+    score += 60;
+    reasons.push("exact_title");
+  } else if (normalizedQuery && title.includes(normalizedQuery)) {
+    score += 38;
+    reasons.push("title_phrase");
+  }
+  if (normalizedQuery && brandModel.includes(normalizedQuery)) {
+    score += 32;
+    reasons.push("brand_model");
+  }
+  if (normalizedQuery && taxonomyText.includes(normalizedQuery)) {
+    score += 24;
+    reasons.push("taxonomy");
+  }
+  if (normalizedQuery && synonymText.includes(normalizedQuery)) {
+    score += 20;
+    reasons.push("synonym");
+  }
+
+  const weightedTokenFields = [
+    { tokens: tokens(title), weight: 16, reason: "title_token" },
+    { tokens: tokens(brandModel), weight: 14, reason: "brand_model_token" },
+    { tokens: tokens(taxonomyText), weight: 12, reason: "taxonomy_token" },
+    { tokens: tokens(synonymText), weight: 10, reason: "synonym_token" },
+    { tokens: tokens(attributeText), weight: 8, reason: "attribute_token" },
+    { tokens: tokens(body), weight: 4, reason: "body_token" }
+  ];
+  for (const queryToken of queryTokens) {
+    let best = 0;
+    let reason = "";
+    for (const field of weightedTokenFields) {
+      for (const docToken of field.tokens) {
+        const match = fuzzyTokenMatch(queryToken, docToken) * field.weight;
+        if (match > best) {
+          best = match;
+          reason = field.reason;
+        }
+      }
+    }
+    if (best > 0) {
+      score += best;
+      if (!reasons.includes(reason)) reasons.push(reason);
+    }
+  }
+
+  if (normalizedQuery && score <= 0) return { score: 0, reasons: [] };
+  if (!normalizedQuery) score += 1;
+  if (document.available) score += 2;
+  if (document.pickupToday) score += 1.5;
+  if (document.adviceAvailable) score += 1;
+  return { score, reasons };
+}
+
 export class LocalSearchEngine {
   readonly #documents = new Map<string, SearchDocument>();
 
@@ -83,7 +168,6 @@ export class LocalSearchEngine {
   search(query: SearchQuery): readonly SearchHit[] {
     const limit = Math.min(100, Math.max(1, query.limit ?? 24));
     const normalizedQuery = normalizeSearchText(query.q);
-    const queryTokens = tokens(query.q);
 
     const hits: SearchHit[] = [];
     for (const document of this.#documents.values()) {
@@ -106,68 +190,11 @@ export class LocalSearchEngine {
         if (!matchesAttributes) continue;
       }
 
-      const reasons: string[] = [];
-      let score = 0;
-      const identifierFields = document.identifiers ?? [];
-      const normalizedIdentifiers = identifierFields.map(normalizeSearchText);
-      if (normalizedQuery && normalizedIdentifiers.includes(normalizedQuery)) {
-        score += 100;
-        reasons.push("exact_identifier");
-      }
-
-      const title = normalizeSearchText([document.title, document.titleEl, document.titleEn].filter(Boolean).join(" "));
-      const brandModel = normalizeSearchText([document.brand, document.model].filter(Boolean).join(" "));
-      const synonymText = normalizeSearchText((document.synonyms ?? []).join(" "));
-      const body = normalizeSearchText(document.body ?? "");
-
-      if (normalizedQuery && title === normalizedQuery) {
-        score += 60;
-        reasons.push("exact_title");
-      } else if (normalizedQuery && title.includes(normalizedQuery)) {
-        score += 38;
-        reasons.push("title_phrase");
-      }
-      if (normalizedQuery && brandModel.includes(normalizedQuery)) {
-        score += 32;
-        reasons.push("brand_model");
-      }
-      if (normalizedQuery && synonymText.includes(normalizedQuery)) {
-        score += 20;
-        reasons.push("synonym");
-      }
-
-      const weightedTokenFields = [
-        { tokens: tokens(title), weight: 16, reason: "title_token" },
-        { tokens: tokens(brandModel), weight: 14, reason: "brand_model_token" },
-        { tokens: tokens(synonymText), weight: 10, reason: "synonym_token" },
-        { tokens: tokens(body), weight: 4, reason: "body_token" }
-      ];
-      for (const queryToken of queryTokens) {
-        let best = 0;
-        let reason = "";
-        for (const field of weightedTokenFields) {
-          for (const docToken of field.tokens) {
-            const match = fuzzyTokenMatch(queryToken, docToken) * field.weight;
-            if (match > best) {
-              best = match;
-              reason = field.reason;
-            }
-          }
-        }
-        if (best > 0) {
-          score += best;
-          if (!reasons.includes(reason)) reasons.push(reason);
-        }
-      }
-
+      const ranked = scoreSearchDocument(query.q, document);
       // Availability/advice are secondary ranking signals, never a substitute for textual relevance.
       // A non-empty query with no lexical/identifier match must remain a genuine zero-result query.
-      if (normalizedQuery && score <= 0) continue;
-      if (!normalizedQuery) score += 1;
-      if (document.available) score += 2;
-      if (document.pickupToday) score += 1.5;
-      if (document.adviceAvailable) score += 1;
-      if (score > 0) hits.push({ document: structuredClone(document), score, reasons });
+      if (normalizedQuery && ranked.score <= 0) continue;
+      if (ranked.score > 0) hits.push({ document: structuredClone(document), score: ranked.score, reasons: ranked.reasons });
     }
 
     return hits
