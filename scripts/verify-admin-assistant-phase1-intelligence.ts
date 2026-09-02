@@ -108,7 +108,7 @@ assert.match(migration200, /This is assistant metadata only/i);
 assert.doesNotMatch(migration200, /GRANT .* TO anon|GRANT .* TO authenticated/i);
 assert.match(checksum200, /0200_admin_assistant_recommendation_states\.sql/);
 assert.match(checksum200, /e580518d6f43a98924365ad172c6c5c4560777200a6d3cc5f547761c1c3b8b43/);
-assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 200/);
+assert.match(postgresRuntime, /EXPECTED_SCHEMA_VERSION = 205/);
 
 for (const page of ["dashboard", "product_matching", "category_governance", "controlled_values", "customer_detail", "catalogue_crawler"]) assert.match(pageRegistry, new RegExp(page));
 assert.match(context, /Find duplicate-risk products/i);
