@@ -78,6 +78,7 @@ const BY_LEAF: Readonly<Record<string, readonly CatalogAttributeDefinition[]>> =
   kitchen: [DEFINITIONS.material, DEFINITIONS.capacity, DEFINITIONS.dimensions],
   furniture: [DEFINITIONS.material, DEFINITIONS.dimensions, DEFINITIONS.room],
   shoes: [DEFINITIONS.material, DEFINITIONS.gender, DEFINITIONS.ageGroup],
+  "school-bags": [DEFINITIONS.bagType, DEFINITIONS.ageGroup, DEFINITIONS.gender, DEFINITIONS.material, DEFINITIONS.capacity, DEFINITIONS.dimensions],
   bags: [DEFINITIONS.bagType, DEFINITIONS.material, DEFINITIONS.capacity, DEFINITIONS.dimensions],
   dresses: [DEFINITIONS.material, DEFINITIONS.gender],
   skincare: [DEFINITIONS.skinType, DEFINITIONS.activeIngredients, DEFINITIONS.volume],
