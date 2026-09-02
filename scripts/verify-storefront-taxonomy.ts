@@ -1,5 +1,13 @@
 import { readFileSync } from "node:fs";
-import { categoryCodeMatches, inferStorefrontCategoryFromQuery, STOREFRONT_CATEGORIES, storefrontCategoryForCode } from "../apps/web/src/lib/storefront-taxonomy.ts";
+import {
+  categoryCodeMatches,
+  inferStorefrontCategoryFromQuery,
+  inferStorefrontTaxonomyIntent,
+  resolveStorefrontSubcategoryIntent,
+  STOREFRONT_CATEGORIES,
+  storefrontCategoryForCode,
+  storefrontFacetEnabled
+} from "../apps/web/src/lib/storefront-taxonomy.ts";
 
 const root = process.cwd();
 const failures: string[] = [];
@@ -45,6 +53,37 @@ for (const [query, expectedSlug] of intentCases) {
 }
 if (inferStorefrontCategoryFromQuery("gift for child")) failures.push("Ambiguous cross-department intent must remain unscoped instead of forcing a category");
 
+const leafCases: Array<[string, string]> = [
+  ["lamp", "lighting"],
+  ["φωτιστικά", "lighting"],
+  ["Bosch drill", "drills"],
+  ["γυναικεία παπούτσια", "shoes"],
+  ["Samsung smartphone", "smartphones"],
+  ["παιχνίδια", "toys"],
+  ["βιβλία", "books"]
+];
+for (const [query, expectedLeaf] of leafCases) {
+  const actual = inferStorefrontTaxonomyIntent(query)?.leaf?.key;
+  if (actual !== expectedLeaf) failures.push(`Search intent "${query}" must infer leaf ${expectedLeaf}, received ${actual ?? "none"}`);
+}
+if (inferStorefrontTaxonomyIntent("gift for child")) failures.push("Ambiguous department intent must not leak into leaf inference");
+
+const lightingLeaf = inferStorefrontTaxonomyIntent("lamp")?.leaf;
+const resolvedLighting = resolveStorefrontSubcategoryIntent(lightingLeaf, [
+  { value: "home-lighting", label: "Φωτισμός" },
+  { value: "kitchen-storage", label: "Αποθήκευση κουζίνας" }
+]);
+if (resolvedLighting?.value !== "home-lighting") failures.push(`Lamp leaf must resolve a unique available lighting branch, received ${resolvedLighting?.value ?? "none"}`);
+const ambiguousLighting = resolveStorefrontSubcategoryIntent(lightingLeaf, [
+  { value: "table-lamps", label: "Table Lamps" },
+  { value: "floor-lamps", label: "Floor Lamps" }
+]);
+if (ambiguousLighting) failures.push("Leaf inference must stay broad when multiple available subcategories tie");
+if (!storefrontFacetEnabled(lightingLeaf, "brand") || storefrontFacetEnabled(lightingLeaf, "fit")) failures.push("Lighting leaf must expose relevant facets without fashion fit noise");
+const shoesLeaf = inferStorefrontTaxonomyIntent("shoes")?.leaf;
+if (!storefrontFacetEnabled(shoesLeaf, "size") || !storefrontFacetEnabled(shoesLeaf, "fit")) failures.push("Shoe leaf must retain size and fit facets");
+if (!(lightingLeaf?.attributeHints.length)) failures.push("Leaf intent must carry governed attribute hints for the next structured facet layer");
+
 const categoryPage = readFileSync(`${root}/apps/web/src/app/category/[slug]/page.tsx`, "utf8");
 const shopPage = readFileSync(`${root}/apps/web/src/app/shop/page.tsx`, "utf8");
 const homePage = readFileSync(`${root}/apps/web/src/app/page.tsx`, "utf8");
@@ -59,7 +98,10 @@ if (!categoryPage.includes("STOREFRONT_CATEGORIES.map((category) => ({ slug: cat
 if (categoryPage.includes("const category = availableCategories.find((item) => item.slug === slug)")) failures.push("Category route existence must never be gated by current available inventory");
 if (!homePage.includes('href={`/category/${category.slug}`}')) failures.push("Homepage category cards must point to the canonical category route");
 if (!shopPage.includes('getCatalogCards(visitorKey, "23100", query, category')) failures.push("Shop category filter must be applied server-side");
-if (!shopPage.includes("inferStorefrontCategoryFromQuery(taxonomyQuery)")) failures.push("Natural-language shop search must infer a governed storefront department when intent is unambiguous");
+if (!shopPage.includes("inferStorefrontTaxonomyIntent(taxonomyQuery)")) failures.push("Natural-language shop search must infer governed department and leaf intent when unambiguous");
+if (!shopPage.includes("resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories)")) failures.push("Leaf intent must resolve only against currently available catalogue subcategories");
+if (!shopPage.includes("storefrontFacetEnabled(activeLeaf")) failures.push("Shop facets must be conditioned by leaf-specific relevance");
+if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must surface governed attribute guidance for inferred product leaves");
 if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)')) failures.push("PostgreSQL catalog projection must filter category codes through the governed department hierarchy before fairness assignment");
 if (!catalogView.includes('reason: "search_card"')) failures.push("Category browsing must retain search-card fairness assignment semantics");
 if (!availableTaxonomy.includes("searchTextRelevance(query")) failures.push("Dynamic facets must use the same relevance engine as catalog results");
@@ -71,4 +113,4 @@ if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings and ${intentCases.length} query intents verified.`);
+console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents and ${leafCases.length} leaf intents verified.`);

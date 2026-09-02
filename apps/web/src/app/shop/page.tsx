@@ -8,7 +8,12 @@ import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-ana
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { CatalogSearchInput } from "../../components/CatalogSearchInput";
-import { inferStorefrontCategoryFromQuery, storefrontCategoryBySlug } from "../../lib/storefront-taxonomy";
+import {
+  inferStorefrontTaxonomyIntent,
+  resolveStorefrontSubcategoryIntent,
+  storefrontCategoryBySlug,
+  storefrontFacetEnabled
+} from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../../lib/local-commerce-proof";
 
@@ -45,19 +50,30 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const searchIntent = interpretSearchQuery(query);
   const taxonomyQuery = searchIntent.text || (searchIntent.applied.length ? "" : query);
   const requestedCategory = valueOf(params.category);
-  const inferredCategory = requestedCategory ? undefined : inferStorefrontCategoryFromQuery(taxonomyQuery);
+  const taxonomyIntent = inferStorefrontTaxonomyIntent(taxonomyQuery);
+  const inferredCategory = requestedCategory ? undefined : taxonomyIntent?.category;
+  const activeLeaf = taxonomyIntent && (!requestedCategory || taxonomyIntent.category.slug === requestedCategory)
+    ? taxonomyIntent.leaf
+    : undefined;
   const category = requestedCategory || inferredCategory?.slug || "";
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
-  const subcategory = valueOf(params.subcategory);
+  const requestedSubcategory = valueOf(params.subcategory);
   const brand = valueOf(params.brand);
   const color = valueOf(params.color);
   const size = valueOf(params.size);
   const fit = valueOf(params.fit);
-  const filters = { subcategory, brand, color, size };
+  let subcategory = requestedSubcategory;
+  let filters = { subcategory, brand, color, size };
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100");
+  let taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100");
+  const inferredSubcategory = requestedSubcategory ? undefined : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
+  if (inferredSubcategory) {
+    subcategory = inferredSubcategory.value;
+    filters = { subcategory, brand, color, size };
+    taxonomy = await getAvailableCatalogTaxonomy(category, taxonomyQuery, filters, "23100");
+  }
   const facets = taxonomy.facets;
   const availableCategories = taxonomy.categories;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
@@ -91,14 +107,22 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     }
   });
   const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit);
+  const activeSubcategoryLabel = facets.subcategories.find((item) => item.value === subcategory)?.label ?? inferredSubcategory?.label;
   const interpretedLabels = [
     inferredCategory ? `Κατηγορία: ${inferredCategory.label}` : undefined,
+    activeLeaf ? `Πρόθεση: ${activeLeaf.label}` : undefined,
+    inferredSubcategory ? `Υποκατηγορία: ${inferredSubcategory.label}` : undefined,
     searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
     searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.availability === "in_stock" ? "Σε απόθεμα" : undefined,
     searchIntent.availability === "pickup_today" ? "Παραλαβή σήμερα · μόνο με σημερινή επιβεβαίωση αποθέματος" : undefined
   ].filter((label): label is string => Boolean(label));
+  const showSubcategory = facets.subcategories.length > 0 && storefrontFacetEnabled(activeLeaf, "subcategory");
+  const showBrand = facets.brands.length > 0 && storefrontFacetEnabled(activeLeaf, "brand");
+  const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
+  const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
+  const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
 
   return (
     <main>
@@ -129,7 +153,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </> : null}
 
-            {facets.subcategories.length > 0 ? <>
+            {showSubcategory ? <>
               <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
               <select id="subcategory" name="subcategory" defaultValue={subcategory}>
                 <option value="">Όλες οι υποκατηγορίες</option>
@@ -137,7 +161,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </> : null}
 
-            {facets.brands.length > 0 ? <>
+            {showBrand ? <>
               <label htmlFor="brand">Μάρκα</label>
               <select id="brand" name="brand" defaultValue={brand}>
                 <option value="">Όλες οι μάρκες</option>
@@ -145,7 +169,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </> : null}
 
-            {facets.colors.length > 0 ? <>
+            {showColor ? <>
               <label htmlFor="color">Χρώμα</label>
               <select id="color" name="color" defaultValue={color}>
                 <option value="">Όλα τα χρώματα</option>
@@ -153,7 +177,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </> : null}
 
-            {facets.sizes.length > 0 ? <>
+            {showSize ? <>
               <label htmlFor="size">Μέγεθος</label>
               <select id="size" name="size" defaultValue={size}>
                 <option value="">Όλα τα μεγέθη</option>
@@ -161,7 +185,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </> : null}
 
-            {fitOptions.length > 0 ? <>
+            {showFit ? <>
               <label htmlFor="fit">Εφαρμογή</label>
               <select id="fit" name="fit" defaultValue={fit}>
                 <option value="">Όλες οι εφαρμογές</option>
@@ -187,8 +211,9 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         </aside>
 
         <div className="catalog-results">
-          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {facets.subcategories.find((item) => item.value === subcategory)?.label}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
+          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {activeSubcategoryLabel}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
           {interpretedLabels.length > 0 ? <div className="category-chip-row" aria-label="Κατανόηση αναζήτησης">{interpretedLabels.map((label) => <span className="category-chip active" key={label}>{label}</span>)}</div> : null}
+          {activeLeaf?.attributeHints.length ? <div className="fairness-note"><strong>Χρήσιμα χαρακτηριστικά για {activeLeaf.label.toLocaleLowerCase("el")}</strong><p>{activeLeaf.attributeHints.join(" · ")}</p></div> : null}
           {products.length === 0 ? (
             <div className="empty-state"><div className="eyebrow">0 αποτελέσματα</div><h2>Δεν το βρήκαμε ακόμα.</h2><p>Δοκίμασε διαφορετικά φίλτρα ή χρησιμοποίησε το Ask Local για να ρωτήσουμε κατάλληλο κατάστημα ιδιωτικά.</p><a className="button" href="/ask-local">Ask Local</a></div>
           ) : (
