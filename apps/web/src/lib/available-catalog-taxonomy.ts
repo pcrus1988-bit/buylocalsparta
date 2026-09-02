@@ -150,9 +150,22 @@ async function buildFacetBundle(
 }
 
 /**
- * Taxonomy is a customer-navigation surface, so it must be stricter than canonical
- * discovery. A branch is visible only when at least one public canonical currently
- * has an eligible local offer with fresh inventory for the storefront postcode.
+ * Public discovery inventory: active, non-suppressed canonical products remain
+ * navigable even when no local shop has fresh sellable stock at this moment.
+ * Availability is a commerce annotation, not the definition of the catalogue.
+ */
+export async function getDiscoverableCatalogCanonicals(): Promise<readonly AvailableCanonical[]> {
+  if (!productionDatabaseConfigured()) return [];
+  const canonicals = await getProductionPostgresRuntime().customerCommerce.publicCanonicals();
+  if (canonicals.length === 0) return [];
+  const departmentCodes = await loadCatalogDepartmentCodes(canonicals.map((product) => product.id));
+  return canonicals.map((product) => ({ ...product, departmentCode: departmentCodes.get(product.id) }));
+}
+
+/**
+ * Strict sellability projection retained for surfaces that specifically need to
+ * answer "can this be bought locally right now?". Do not use it to define the
+ * existence of taxonomy branches or attribute vocabulary.
  */
 export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise<readonly AvailableCanonical[]> {
   if (!productionDatabaseConfigured()) return [];
@@ -192,20 +205,21 @@ export async function getAvailableStorefrontCategories(postcode = "23100"): Prom
 }
 
 /**
- * Builds all taxonomy exposed by the shop in one availability pass. Fixed and
- * structured facets respect all other selected filters, so every option is backed by
- * at least one currently sellable canonical in the active result context. Structured
- * attributes remain leaf-governed and never emerge from arbitrary merchant keys.
+ * Builds the shop's discovery taxonomy from all public canonicals. Fixed and
+ * structured facets still respect the active query and every other selected filter,
+ * but a temporarily unavailable product can contribute its governed category and
+ * attribute values. Purchase actions remain protected by the independent live
+ * availability/fair-assignment path.
  */
 export async function getAvailableCatalogTaxonomy(
   category = "",
   query = "",
   filters: CatalogFilters = {},
-  postcode = "23100",
+  _postcode = "23100",
   leafKey?: string,
   attributeFilters: CatalogAttributeFilters = {}
 ): Promise<AvailableCatalogTaxonomy> {
-  const products = await getAvailableCatalogCanonicals(postcode);
+  const products = await getDiscoverableCatalogCanonicals();
   const bundle = await buildFacetBundle(products, category, query, filters, leafKey, attributeFilters);
   return {
     categories: availableCategories(products),
@@ -218,7 +232,7 @@ export async function getAvailableCatalogFacets(
   category = "",
   query = "",
   filters: CatalogFilters = {},
-  postcode = "23100"
+  _postcode = "23100"
 ): Promise<CatalogFacets> {
-  return (await buildFacetBundle(await getAvailableCatalogCanonicals(postcode), category, query, filters)).facets;
+  return (await buildFacetBundle(await getDiscoverableCatalogCanonicals(), category, query, filters)).facets;
 }
