@@ -1,4 +1,4 @@
-import { normalizeSearchText } from "@buy-local-sparta/core";
+import { normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
 import type { CatalogFacetOption, CatalogFacets, CatalogFilters } from "./catalog-view";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -25,10 +25,21 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
   return normalizeSearchText(left ?? "") === normalizeSearchText(right);
 }
 
-function matchesQuery(product: AvailableCanonical, metadata: CatalogMetadata | undefined, normalizedQuery: string): boolean {
-  if (!normalizedQuery) return true;
-  return [product.title, metadata?.description, metadata?.brand, metadata?.color, metadata?.mpn, metadata?.categoryLabel]
-    .some((value) => normalizeSearchText(value ?? "").includes(normalizedQuery));
+function matchesQuery(product: AvailableCanonical, metadata: CatalogMetadata | undefined, query: string): boolean {
+  if (!normalizeSearchText(query)) return true;
+  return searchTextRelevance(query, [
+    product.title,
+    metadata?.description,
+    metadata?.brand,
+    metadata?.color,
+    metadata?.mpn,
+    metadata?.gtin,
+    metadata?.categoryLabel,
+    ...(metadata?.sizes ?? []),
+    metadata?.fit,
+    metadata?.composition,
+    metadata?.madeIn
+  ]) > 0;
 }
 
 function matchesFiltersExcept(
@@ -66,8 +77,7 @@ async function buildFacets(
   if (scoped.length === 0) return EMPTY_FACETS;
 
   const metadata = await loadCatalogMetadata(scoped.map((product) => product.id));
-  const normalizedQuery = normalizeSearchText(query);
-  const visible = scoped.filter((product) => matchesQuery(product, metadata.get(product.id), normalizedQuery));
+  const visible = scoped.filter((product) => matchesQuery(product, metadata.get(product.id), query));
 
   const subcategoryMap = new Map<string, string>();
   const brands: string[] = [];
@@ -139,7 +149,9 @@ export async function getAvailableStorefrontCategories(postcode = "23100"): Prom
 /**
  * Builds all taxonomy exposed by the shop in one availability pass. Facets respect
  * the other selected filters, so no subcategory/brand/color/size option can lead to
- * zero currently sellable products in the active result context.
+ * zero currently sellable products in the active result context. Facet query
+ * matching intentionally uses the same relevance engine as catalogue results so
+ * synonyms, transliteration and fuzzy safeguards cannot drift between the two.
  */
 export async function getAvailableCatalogTaxonomy(
   category = "",
