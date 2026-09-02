@@ -7,10 +7,12 @@ on:
       - ".github/workflows/open-icecat-production-detail.yml"
       - ".github/workflows/open-icecat-production-runtime-acceptance.yml"
       - "scripts/acquire-icecat-production-runtime.sh"
+      - "scripts/db-readiness.ts"
       - "config/certs/supabase-root-2021.crt"
       - "supabase/functions/icecat-runtime-broker/**"
       - "workers/open-icecat-worker.ts"
       - "workers/open-icecat-detail-worker.ts"
+      - "packages/postgres-runtime/src/index.ts"
       - "packages/core/src/ingestion/open-icecat/**"
   push:
     branches: [main]
@@ -19,10 +21,12 @@ on:
       - ".github/workflows/open-icecat-production-detail.yml"
       - ".github/workflows/open-icecat-production-runtime-acceptance.yml"
       - "scripts/acquire-icecat-production-runtime.sh"
+      - "scripts/db-readiness.ts"
       - "config/certs/supabase-root-2021.crt"
       - "supabase/functions/icecat-runtime-broker/**"
       - "workers/open-icecat-worker.ts"
       - "workers/open-icecat-detail-worker.ts"
+      - "packages/postgres-runtime/src/index.ts"
       - "packages/core/src/ingestion/open-icecat/**"
 
 permissions:
@@ -55,18 +59,26 @@ jobs:
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-worker.ts
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck workers/open-icecat-detail-worker.ts
 
-      - name: Verify OIDC, TLS and secret-isolation contract
+      - name: Verify OIDC, TLS, readiness and secret-isolation contract
         shell: bash
         run: |
           set -euo pipefail
           index=.github/workflows/open-icecat-production-index.yml
           detail=.github/workflows/open-icecat-production-detail.yml
+          runtime=packages/postgres-runtime/src/index.ts
           bootstrap=scripts/acquire-icecat-production-runtime.sh
           broker=supabase/functions/icecat-runtime-broker/index.ts
           ca=config/certs/supabase-root-2021.crt
 
           grep -q 'id-token: write' "$index"
           grep -q 'id-token: write' "$detail"
+          grep -q 'packages/postgres-runtime/src/index.ts' "$index"
+          grep -q 'packages/postgres-runtime/src/index.ts' "$detail"
+          grep -q 'public.schema_migrations' "$runtime"
+          if grep -qE 'FROM[[:space:]]+schema_migrations' "$runtime"; then
+            echo 'Production readiness must schema-qualify public.schema_migrations for restricted worker identities.' >&2
+            exit 1
+          fi
           grep -q 'ACTIONS_ID_TOKEN_REQUEST_TOKEN' "$bootstrap"
           grep -q 'kontamou-icecat-runtime' "$index"
           grep -q 'kontamou-icecat-runtime' "$detail"
