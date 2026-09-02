@@ -1,11 +1,14 @@
 import { createServer, type Server } from "node:http";
 import { hostname } from "node:os";
 import {
+  DEFAULT_OPEN_ICECAT_CONTROL,
   OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
   OpenIcecatClient,
   OpenIcecatRequestError,
   PostgresUnitOfWork,
   isValidGtin,
+  openIcecatControlFromMetadata,
+  type OpenIcecatControlSettings,
   type OpenIcecatDetailJob,
   type SqlRow
 } from "../packages/core/src/index.ts";
@@ -23,32 +26,26 @@ if (!readiness.ok) {
 }
 
 const workerId = process.env.BLS_OPEN_ICECAT_DETAIL_WORKER_ID?.trim() || `${hostname()}:${process.pid}`;
-const pollMs = positive(process.env.BLS_OPEN_ICECAT_DETAIL_POLL_MS, 2_000, "BLS_OPEN_ICECAT_DETAIL_POLL_MS");
-const syncIntervalMs = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS, 300_000, 10_000, 86_400_000, "BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS");
-const syncRetryMs = Math.min(syncIntervalMs, 60_000);
-const batchSize = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE, 5, 1, 50, "BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE");
-const leaseSeconds = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS, 300, 30, 3600, "BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS");
-const requestTimeoutMs = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS, 15_000, 250, 60_000, "BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS");
-const rateDelayMs = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_RATE_DELAY_MS, 750, 0, 60_000, "BLS_OPEN_ICECAT_DETAIL_RATE_DELAY_MS");
-const maxAttempts = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_MAX_ATTEMPTS, 5, 1, 20, "BLS_OPEN_ICECAT_DETAIL_MAX_ATTEMPTS");
-const retryBaseSeconds = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_RETRY_BASE_SECONDS, 60, 1, 3600, "BLS_OPEN_ICECAT_DETAIL_RETRY_BASE_SECONDS");
 const healthPort = bounded(process.env.BLS_OPEN_ICECAT_DETAIL_HEALTH_PORT, 8083, 1, 65535, "BLS_OPEN_ICECAT_DETAIL_HEALTH_PORT");
 const runOnce = process.env.BLS_OPEN_ICECAT_DETAIL_RUN_ONCE === "true";
-const minimumGreekScore = score(process.env.BLS_OPEN_ICECAT_MIN_GREEK_SCORE, 0.9);
-const minimumLeaseSeconds = Math.ceil(batchSize * (requestTimeoutMs + rateDelayMs) / 1000) + 30;
-if (leaseSeconds < minimumLeaseSeconds) {
-  await runtime.close();
-  throw new Error(`BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS must be at least ${minimumLeaseSeconds} for the configured batch/request/rate budget`);
-}
+const fallbackControl: OpenIcecatControlSettings = {
+  ...DEFAULT_OPEN_ICECAT_CONTROL,
+  detailPollMs: positive(process.env.BLS_OPEN_ICECAT_DETAIL_POLL_MS, DEFAULT_OPEN_ICECAT_CONTROL.detailPollMs, "BLS_OPEN_ICECAT_DETAIL_POLL_MS"),
+  detailSyncIntervalMs: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS, DEFAULT_OPEN_ICECAT_CONTROL.detailSyncIntervalMs, 10_000, 86_400_000, "BLS_OPEN_ICECAT_DETAIL_SYNC_INTERVAL_MS"),
+  detailBatchSize: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE, DEFAULT_OPEN_ICECAT_CONTROL.detailBatchSize, 1, 50, "BLS_OPEN_ICECAT_DETAIL_BATCH_SIZE"),
+  detailLeaseSeconds: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS, DEFAULT_OPEN_ICECAT_CONTROL.detailLeaseSeconds, 30, 3_600, "BLS_OPEN_ICECAT_DETAIL_LEASE_SECONDS"),
+  detailRequestTimeoutMs: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS, DEFAULT_OPEN_ICECAT_CONTROL.detailRequestTimeoutMs, 250, 60_000, "BLS_OPEN_ICECAT_DETAIL_REQUEST_TIMEOUT_MS"),
+  detailRateDelayMs: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_RATE_DELAY_MS, DEFAULT_OPEN_ICECAT_CONTROL.detailRateDelayMs, 0, 60_000, "BLS_OPEN_ICECAT_DETAIL_RATE_DELAY_MS"),
+  detailMaxAttempts: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_MAX_ATTEMPTS, DEFAULT_OPEN_ICECAT_CONTROL.detailMaxAttempts, 1, 20, "BLS_OPEN_ICECAT_DETAIL_MAX_ATTEMPTS"),
+  detailRetryBaseSeconds: bounded(process.env.BLS_OPEN_ICECAT_DETAIL_RETRY_BASE_SECONDS, DEFAULT_OPEN_ICECAT_CONTROL.detailRetryBaseSeconds, 1, 3_600, "BLS_OPEN_ICECAT_DETAIL_RETRY_BASE_SECONDS"),
+  minimumGreekScore: score(process.env.BLS_OPEN_ICECAT_MIN_GREEK_SCORE, DEFAULT_OPEN_ICECAT_CONTROL.minimumGreekScore)
+};
+// Validate the deployment fallback with the same governed control contract used for live settings.
+openIcecatControlFromMetadata({ icecat_control: fallbackControl });
 
 const username = required(process.env.ICECAT_USERNAME, "ICECAT_USERNAME");
 const apiToken = required(process.env.ICECAT_API_TOKEN, "ICECAT_API_TOKEN");
-const client = new OpenIcecatClient({
-  username,
-  apiToken,
-  contentToken: process.env.ICECAT_CONTENT_TOKEN?.trim() || undefined,
-  requestTimeoutMs
-});
+const contentToken = process.env.ICECAT_CONTENT_TOKEN?.trim() || undefined;
 const sourceUow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 8_000, lockTimeoutMs: 2_000 });
 const repository = runtime.persistence.openIcecatDetail;
 
@@ -60,12 +57,21 @@ let lastQueueSyncAt: number | undefined;
 let lastQueueSyncError: string | undefined;
 let nextQueueSyncAt: number | undefined;
 let activeAbortController: AbortController | undefined;
+let liveControl = fallbackControl;
 
-const sourceId = await loadSourceId();
-const initialSync = await repository.sync(sourceId, OPEN_ICECAT_DETAIL_PROCESSING_VERSION);
-lastQueueSyncAt = Date.now();
-lastActivityAt = lastQueueSyncAt;
-nextQueueSyncAt = runOnce ? undefined : lastQueueSyncAt + syncIntervalMs;
+const sourceState = await loadSourceState();
+const sourceId = sourceState.sourceId;
+applyControl(sourceState.control);
+let initialQueuedOrRefreshed = 0;
+let initialRemovedSkipped = 0;
+if (liveControl.detailEnabled) {
+  const initialSync = await repository.sync(sourceId, OPEN_ICECAT_DETAIL_PROCESSING_VERSION);
+  initialQueuedOrRefreshed = initialSync.queuedOrRefreshed;
+  initialRemovedSkipped = initialSync.removedSkipped;
+  lastQueueSyncAt = Date.now();
+  lastActivityAt = lastQueueSyncAt;
+  nextQueueSyncAt = runOnce ? undefined : lastQueueSyncAt + liveControl.detailSyncIntervalMs;
+}
 
 const healthServer = await startHealthServer(healthPort);
 const stop = (signal: string): void => {
@@ -85,44 +91,74 @@ console.log(JSON.stringify({
   sourceId,
   schema: readiness.appliedSchemaVersion,
   processingVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
-  batchSize,
-  leaseSeconds,
-  requestTimeoutMs,
-  rateDelayMs,
-  syncIntervalMs,
-  minimumGreekScore,
-  initialQueuedOrRefreshed: initialSync.queuedOrRefreshed,
-  initialRemovedSkipped: initialSync.removedSkipped,
+  controlRevision: liveControl.revision,
+  detailEnabled: liveControl.detailEnabled,
+  batchSize: liveControl.detailBatchSize,
+  leaseSeconds: liveControl.detailLeaseSeconds,
+  requestTimeoutMs: liveControl.detailRequestTimeoutMs,
+  rateDelayMs: liveControl.detailRateDelayMs,
+  syncIntervalMs: liveControl.detailSyncIntervalMs,
+  minimumGreekScore: liveControl.minimumGreekScore,
+  initialQueuedOrRefreshed,
+  initialRemovedSkipped,
   runOnce
 }));
 
 try {
   do {
-    await maybeSyncQueue();
+    const nextControl = await loadControlOnly();
+    if (nextControl) applyControl(nextControl);
 
+    if (!liveControl.detailEnabled) {
+      lastActivityAt = Date.now();
+      if (runOnce) break;
+      await delay(Math.min(5_000, liveControl.detailPollMs));
+      continue;
+    }
+
+    await maybeSyncQueue();
+    const jobControl = liveControl;
     const jobs = await repository.claim({
       sourceId,
       workerId,
-      leaseSeconds,
-      limit: batchSize,
+      leaseSeconds: jobControl.detailLeaseSeconds,
+      limit: jobControl.detailBatchSize,
       processingVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION
     });
     lastActivityAt = Date.now();
 
     if (!jobs.length) {
-      if (!runOnce && !stopping) await delay(pollMs);
+      if (!runOnce && !stopping) await delay(jobControl.detailPollMs);
       continue;
     }
 
     for (const job of jobs) {
       if (stopping) break;
-      await processJob(job);
-      if (!stopping && rateDelayMs > 0) await delay(rateDelayMs);
+      await processJob(job, jobControl);
+      if (!stopping && jobControl.detailRateDelayMs > 0) await delay(jobControl.detailRateDelayMs);
     }
   } while (!runOnce && !stopping);
 } finally {
   await closeServer(healthServer);
   await runtime.close();
+}
+
+function applyControl(next: OpenIcecatControlSettings): void {
+  if (next.revision !== liveControl.revision) {
+    console.log(JSON.stringify({
+      level: "info",
+      event: "open_icecat.detail_control_reloaded",
+      workerId,
+      previousRevision: liveControl.revision,
+      revision: next.revision,
+      detailEnabled: next.detailEnabled,
+      detailBatchSize: next.detailBatchSize,
+      detailPollMs: next.detailPollMs,
+      minimumGreekScore: next.minimumGreekScore
+    }));
+    nextQueueSyncAt = next.detailEnabled ? Date.now() : undefined;
+  }
+  liveControl = next;
 }
 
 async function maybeSyncQueue(): Promise<void> {
@@ -135,7 +171,7 @@ async function maybeSyncQueue(): Promise<void> {
     lastQueueSyncAt = Date.now();
     lastActivityAt = lastQueueSyncAt;
     lastQueueSyncError = undefined;
-    nextQueueSyncAt = lastQueueSyncAt + syncIntervalMs;
+    nextQueueSyncAt = lastQueueSyncAt + liveControl.detailSyncIntervalMs;
     console.log(JSON.stringify({
       level: "info",
       event: "open_icecat.detail_queue_synced",
@@ -143,12 +179,14 @@ async function maybeSyncQueue(): Promise<void> {
       sourceId,
       queuedOrRefreshed: result.queuedOrRefreshed,
       removedSkipped: result.removedSkipped,
-      nextQueueSyncAt: new Date(nextQueueSyncAt).toISOString()
+      nextQueueSyncAt: new Date(nextQueueSyncAt).toISOString(),
+      controlRevision: liveControl.revision
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     lastActivityAt = Date.now();
     lastQueueSyncError = message;
+    const syncRetryMs = Math.min(liveControl.detailSyncIntervalMs, 60_000);
     nextQueueSyncAt = lastActivityAt + syncRetryMs;
     console.error(JSON.stringify({
       level: "warn",
@@ -161,7 +199,7 @@ async function maybeSyncQueue(): Promise<void> {
   }
 }
 
-async function processJob(job: OpenIcecatDetailJob): Promise<void> {
+async function processJob(job: OpenIcecatDetailJob, control: OpenIcecatControlSettings): Promise<void> {
   currentProductId = job.productId;
   currentGtin = job.gtins.find(isValidGtin);
   lastActivityAt = Date.now();
@@ -179,10 +217,16 @@ async function processJob(job: OpenIcecatDetailJob): Promise<void> {
     return;
   }
 
+  const client = new OpenIcecatClient({
+    username,
+    apiToken,
+    contentToken,
+    requestTimeoutMs: control.detailRequestTimeoutMs
+  });
   const controller = new AbortController();
   activeAbortController = controller;
   try {
-    const draft = await client.lookupByGtin(currentGtin, { minimumGreekScore, signal: controller.signal });
+    const draft = await client.lookupByGtin(currentGtin, { minimumGreekScore: control.minimumGreekScore, signal: controller.signal });
     if (stopping) return;
     const result = await repository.persist(job, workerId, draft);
     lastActivityAt = Date.now();
@@ -196,7 +240,8 @@ async function processJob(job: OpenIcecatDetailJob): Promise<void> {
       status: result.status ?? null,
       greekScore: draft.greekQuality.score,
       greekMissing: draft.greekQuality.missing,
-      attempt: job.attemptCount
+      attempt: job.attemptCount,
+      controlRevision: control.revision
     }));
   } catch (error) {
     if (stopping || controller.signal.aborted) return;
@@ -234,10 +279,10 @@ async function processJob(job: OpenIcecatDetailJob): Promise<void> {
       return;
     }
 
-    const terminal = job.attemptCount >= maxAttempts;
+    const terminal = job.attemptCount >= control.detailMaxAttempts;
     const retrySeconds = terminal
-      ? retryBaseSeconds
-      : Math.min(21_600, retryBaseSeconds * Math.max(1, 2 ** Math.max(0, job.attemptCount - 1)));
+      ? control.detailRetryBaseSeconds
+      : Math.min(21_600, control.detailRetryBaseSeconds * Math.max(1, 2 ** Math.max(0, job.attemptCount - 1)));
     await repository.retry({ job, workerId, error: message, retrySeconds, terminal });
     lastActivityAt = Date.now();
     console.error(JSON.stringify({
@@ -257,19 +302,28 @@ async function processJob(job: OpenIcecatDetailJob): Promise<void> {
   }
 }
 
-async function loadSourceId(): Promise<string> {
+async function loadSourceState(): Promise<{ sourceId: string; control: OpenIcecatControlSettings }> {
   return sourceUow.withTransaction({ platformAccess: true }, async (tx) => {
     const result = await tx.query<SqlRow>(`
-      SELECT s.id::text AS source_id
+      SELECT s.id::text AS source_id, s.metadata
       FROM public.catalog_sources s
       JOIN public.markets m ON m.id=s.market_id
       WHERE s.code='open_icecat' AND s.active=true AND m.code='sparta'
       LIMIT 1
     `);
-    const sourceId = result.rows[0]?.source_id;
+    const row = result.rows[0];
+    const sourceId = row?.source_id;
     if (typeof sourceId !== "string" || !sourceId) throw new Error("Active Sparta Open Icecat source configuration not found");
-    return sourceId;
+    return { sourceId, control: openIcecatControlFromMetadata(row?.metadata, fallbackControl) };
   }, { readOnly: true });
+}
+
+async function loadControlOnly(): Promise<OpenIcecatControlSettings | undefined> {
+  try {
+    return (await loadSourceState()).control;
+  } catch {
+    return undefined;
+  }
 }
 
 async function startHealthServer(port: number): Promise<Server> {
@@ -295,6 +349,11 @@ async function startHealthServer(port: number): Promise<Server> {
         nextQueueSyncAt: nextQueueSyncAt ? new Date(nextQueueSyncAt).toISOString() : null,
         schema: readiness.appliedSchemaVersion,
         processingVersion: OPEN_ICECAT_DETAIL_PROCESSING_VERSION,
+        controlRevision: liveControl.revision,
+        detailEnabled: liveControl.detailEnabled,
+        detailBatchSize: liveControl.detailBatchSize,
+        detailPollMs: liveControl.detailPollMs,
+        minimumGreekScore: liveControl.minimumGreekScore,
         queue: stats
       }));
     } catch (error) {
