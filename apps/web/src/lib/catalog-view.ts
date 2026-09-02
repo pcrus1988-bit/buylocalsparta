@@ -4,6 +4,7 @@ import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
+import { matchesCatalogAttributeFilters, type CatalogAttributeFilters } from "./catalog-attribute-filter";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 import { getPublicProductDetail, getPublicProductDetails } from "./public-product-detail";
@@ -377,7 +378,14 @@ export async function getCatalogFacets(category = "", query = ""): Promise<Catal
   };
 }
 
-export async function getCatalogCards(visitorKey: string, postcode = "23100", query = "", category = "", filters: CatalogFilters = {}): Promise<readonly CatalogCard[]> {
+export async function getCatalogCards(
+  visitorKey: string,
+  postcode = "23100",
+  query = "",
+  category = "",
+  filters: CatalogFilters = {},
+  attributeFilters: CatalogAttributeFilters = {}
+): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
   const normalizedQuery = normalizeSearchText(query);
   const production = getProductionPostgresRuntime();
@@ -392,11 +400,17 @@ export async function getCatalogCards(visitorKey: string, postcode = "23100", qu
   let canonicalIds: readonly string[];
   if (normalizedQuery && process.env.BLS_SEARCH_ENABLED === "true") {
     if (!production.search) throw new Error("Production search is enabled but the Meilisearch runtime is unavailable");
-    const hits = await production.search.search({ marketId: "sparta", q: query, type: "product", limit: 100 });
+    const hits = await production.search.search({ marketId: "sparta", q: query, type: "product", limit: 100, attributeFilters });
     const allowedIds = new Set(canonicals.map((product) => product.id));
-    canonicalIds = hits.map((hit) => hit.document.id).filter((id) => allowedIds.has(id));
+    canonicalIds = hits
+      .map((hit) => hit.document.id)
+      .filter((id) => allowedIds.has(id))
+      .filter((id) => matchesCatalogAttributeFilters(metadata.get(id)?.attributes, attributeFilters));
   } else {
-    canonicalIds = canonicals.filter((product) => matchesCatalogQuery(product, metadata.get(product.id), normalizedQuery)).map((product) => product.id);
+    canonicalIds = canonicals
+      .filter((product) => matchesCatalogQuery(product, metadata.get(product.id), normalizedQuery))
+      .filter((product) => matchesCatalogAttributeFilters(metadata.get(product.id)?.attributes, attributeFilters))
+      .map((product) => product.id);
   }
   canonicalIds = canonicalIds.filter((id) => {
     const product = canonicalById.get(id);
