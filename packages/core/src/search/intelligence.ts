@@ -168,9 +168,22 @@ function foldForIntent(value: string): string {
 }
 
 function detectIdentifier(value: string): string | undefined {
-  const compact = value.trim().replace(/[\s-]/g, "");
-  if (/^\d{8,14}$/.test(compact)) return compact;
-  if (/^(?=.*[a-z])(?=.*\d)[a-z0-9._/]{4,32}$/i.test(compact)) return compact;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  // GTIN/EAN users often paste grouped digits. Compact only when the input is
+  // entirely numeric separators so natural-language queries can never collapse
+  // into a fake identifier.
+  if (/^[\d\s-]+$/.test(trimmed)) {
+    const compactDigits = trimmed.replace(/[\s-]/g, "");
+    if (/^\d{8,14}$/.test(compactDigits)) return compactDigits;
+  }
+
+  // Model/SKU identifiers must be a single explicit token. Never remove spaces
+  // from mixed natural language such as "Bosch drill 18V" or
+  // "55 inch 4K smart TV" and then reinterpret the whole query as a code.
+  if (/\s/.test(trimmed)) return undefined;
+  if (/^(?=.*[a-z])(?=.*\d)[a-z0-9._/-]{4,32}$/i.test(trimmed)) return trimmed;
   return undefined;
 }
 
