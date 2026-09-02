@@ -14,6 +14,24 @@ export type StorefrontCategory = Readonly<{
   queryAliases: readonly string[];
 }>;
 
+export type StorefrontFacetKey = "subcategory" | "brand" | "color" | "size" | "fit";
+
+export type StorefrontLeafIntent = Readonly<{
+  key: string;
+  categorySlug: string;
+  label: string;
+  aliases: readonly string[];
+  preferredFacets: readonly StorefrontFacetKey[];
+  attributeHints: readonly string[];
+}>;
+
+export type StorefrontTaxonomyIntent = Readonly<{
+  category: StorefrontCategory;
+  leaf?: StorefrontLeafIntent;
+}>;
+
+export type StorefrontSubcategoryOption = Readonly<{ value: string; label: string }>;
+
 export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
   {
     slug: "home-living",
@@ -134,6 +152,33 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
   }
 ];
 
+export const STOREFRONT_LEAF_INTENTS: readonly StorefrontLeafIntent[] = [
+  { key: "lighting", categorySlug: "home-living", label: "Φωτισμός", aliases: ["lighting", "light", "lights", "lamp", "lamps", "φωτισμός", "φωτιστικό", "φωτιστικά", "fotismos", "fotistiko", "fotistika", "fwtistiko", "fwtistika"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["τύπος φωτιστικού", "ντουί", "ισχύς", "LED", "dimmable", "εσωτερικού/εξωτερικού", "υλικό", "θερμοκρασία χρώματος"] },
+  { key: "kitchen", categorySlug: "home-living", label: "Κουζίνα", aliases: ["kitchen", "κουζίνα", "kouzina", "cookware", "housewares"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["υλικό", "χωρητικότητα", "διαστάσεις"] },
+  { key: "furniture", categorySlug: "home-living", label: "Έπιπλα", aliases: ["furniture", "έπιπλο", "έπιπλα", "epiplo", "epipla"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["υλικό", "διαστάσεις", "χώρος χρήσης"] },
+  { key: "shoes", categorySlug: "fashion", label: "Παπούτσια", aliases: ["shoe", "shoes", "footwear", "sneaker", "sneakers", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia"], preferredFacets: ["subcategory", "size", "brand", "color", "fit"], attributeHints: ["μέγεθος", "εφαρμογή", "υλικό", "φύλο/ηλικία"] },
+  { key: "bags", categorySlug: "fashion", label: "Τσάντες", aliases: ["bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "backpack", "sakidio"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["τύπος", "υλικό", "χωρητικότητα", "διαστάσεις"] },
+  { key: "dresses", categorySlug: "fashion", label: "Φορέματα", aliases: ["dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata"], preferredFacets: ["subcategory", "size", "brand", "color", "fit"], attributeHints: ["μέγεθος", "εφαρμογή", "σύνθεση"] },
+  { key: "skincare", categorySlug: "beauty", label: "Περιποίηση προσώπου", aliases: ["skincare", "skin care", "περιποίηση", "peripoiisi"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος δέρματος", "δραστικά συστατικά", "όγκος"] },
+  { key: "haircare", categorySlug: "beauty", label: "Περιποίηση μαλλιών", aliases: ["haircare", "hair care", "shampoo", "μαλλιά", "mallia"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος μαλλιών", "δράση", "όγκος"] },
+  { key: "fragrance", categorySlug: "beauty", label: "Αρώματα", aliases: ["fragrance", "perfume", "άρωμα", "αρώματα", "aroma", "aromata"], preferredFacets: ["subcategory", "brand"], attributeHints: ["συγκέντρωση", "όγκος", "οικογένεια αρώματος"] },
+  { key: "toys", categorySlug: "kids", label: "Παιχνίδια", aliases: ["toy", "toys", "παιχνίδι", "παιχνίδια", "paixnidi", "paixnidia", "game", "games"], preferredFacets: ["subcategory", "brand"], attributeHints: ["ηλικία", "τύπος παιχνιδιού", "αριθμός παικτών"] },
+  { key: "baby", categorySlug: "kids", label: "Βρεφικά", aliases: ["baby", "infant", "βρέφος", "βρεφικά", "vrefos", "vrefika"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["ηλικία", "μέγεθος", "υλικό"] },
+  { key: "drills", categorySlug: "tools-diy", label: "Δράπανα", aliases: ["drill", "drills", "δράπανο", "δράπανα", "drapano", "drapana"], preferredFacets: ["subcategory", "brand"], attributeHints: ["ισχύς", "τάση", "τύπος τσοκ", "κρούση", "στροφές"] },
+  { key: "screwdrivers", categorySlug: "tools-diy", label: "Κατσαβίδια", aliases: ["screwdriver", "screwdrivers", "κατσαβίδι", "κατσαβίδια", "katsavidi", "katsavidia"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος μύτης", "μέγεθος", "μονωμένο"] },
+  { key: "garden-tools", categorySlug: "garden-outdoors", label: "Εργαλεία κήπου", aliases: ["garden tool", "garden tools", "εργαλείο κήπου", "εργαλεία κήπου", "ergaleia kipou"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος", "ισχύς", "πλάτος εργασίας"] },
+  { key: "camping", categorySlug: "garden-outdoors", label: "Camping", aliases: ["camping", "κάμπινγκ", "kampink"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["χωρητικότητα", "βάρος", "διαστάσεις"] },
+  { key: "tyres", categorySlug: "automotive", label: "Ελαστικά", aliases: ["tyre", "tyres", "tire", "tires", "ελαστικό", "ελαστικά", "elastiko", "elastika"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["διάσταση", "δείκτης φορτίου", "δείκτης ταχύτητας", "εποχή"] },
+  { key: "car-accessories", categorySlug: "automotive", label: "Αξεσουάρ αυτοκινήτου", aliases: ["car accessory", "car accessories", "αξεσουάρ αυτοκινήτου", "aksesouar aftokinitou"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["συμβατότητα", "μοντέλο οχήματος"] },
+  { key: "smartphones", categorySlug: "technology", label: "Smartphones", aliases: ["smartphone", "smartphones", "mobile", "mobiles", "κινητό", "κινητά", "kinito", "kinita"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["αποθήκευση", "RAM", "οθόνη", "5G", "dual SIM"] },
+  { key: "laptops", categorySlug: "technology", label: "Laptops", aliases: ["laptop", "laptops", "notebook", "notebooks", "φορητός υπολογιστής", "foritos ypologistis"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["επεξεργαστής", "RAM", "αποθήκευση", "μέγεθος οθόνης"] },
+  { key: "headphones", categorySlug: "technology", label: "Ακουστικά", aliases: ["headphone", "headphones", "earphone", "earphones", "earbuds", "ακουστικό", "ακουστικά", "akoustiko", "akoustika"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["σύνδεση", "ANC", "μικρόφωνο", "αυτονομία"] },
+  { key: "televisions", categorySlug: "technology", label: "Τηλεοράσεις", aliases: ["television", "televisions", "tv", "tvs", "τηλεόραση", "τηλεοράσεις", "tileorasi", "tileoraseis"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["ίντσες", "ανάλυση", "τεχνολογία panel", "smart TV"] },
+  { key: "printers", categorySlug: "technology", label: "Εκτυπωτές", aliases: ["printer", "printers", "εκτυπωτής", "εκτυπωτές", "ektipotis", "ektipotes"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τεχνολογία εκτύπωσης", "χρώμα", "duplex", "συνδεσιμότητα"] },
+  { key: "books", categorySlug: "gifts", label: "Βιβλία", aliases: ["book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia"], preferredFacets: ["subcategory"], attributeHints: ["συγγραφέας", "εκδότης", "ISBN", "γλώσσα"] },
+  { key: "stationery", categorySlug: "gifts", label: "Χαρτικά", aliases: ["stationery", "χαρτικά", "chartika", "school supplies", "σχολικά", "scholika"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["τύπος", "μέγεθος", "χρώμα"] }
+];
+
 const FALLBACK_CATEGORY: StorefrontCategory = {
   slug: "local-finds",
   label: "Τοπικές επιλογές",
@@ -168,31 +213,59 @@ export function storefrontCategoryForCode(categoryCode?: string, departmentCode?
 export function inferStorefrontCategoryFromQuery(query: string): StorefrontCategory | undefined {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return undefined;
-  const queryTokens = new Set(normalizedQuery.split(" ").filter(Boolean));
-  let best: StorefrontCategory | undefined;
+  const result = uniqueBestByAliases(normalizedQuery, STOREFRONT_CATEGORIES.map((category) => ({ value: category, aliases: category.queryAliases })));
+  return result?.value;
+}
+
+export function inferStorefrontTaxonomyIntent(query: string): StorefrontTaxonomyIntent | undefined {
+  const category = inferStorefrontCategoryFromQuery(query);
+  if (!category) return undefined;
+  const normalizedQuery = normalizeSearchText(query);
+  const leaf = uniqueBestByAliases(
+    normalizedQuery,
+    STOREFRONT_LEAF_INTENTS
+      .filter((candidate) => candidate.categorySlug === category.slug)
+      .map((candidate) => ({ value: candidate, aliases: candidate.aliases }))
+  )?.value;
+  return { category, leaf };
+}
+
+/**
+ * A leaf vocabulary is an interpretation hint, never canonical taxonomy. Resolve it
+ * only against subcategories that are currently exposed by the live catalogue. If
+ * multiple available branches tie, leave the search broad instead of hard-filtering.
+ */
+export function resolveStorefrontSubcategoryIntent(
+  leaf: StorefrontLeafIntent | undefined,
+  options: readonly StorefrontSubcategoryOption[]
+): StorefrontSubcategoryOption | undefined {
+  if (!leaf || options.length === 0) return undefined;
+  const aliases = [...new Set(leaf.aliases.map(normalizeSearchText).filter(Boolean))];
+  let best: StorefrontSubcategoryOption | undefined;
   let bestScore = 0;
   let tied = false;
-
-  for (const category of STOREFRONT_CATEGORIES) {
+  for (const option of options) {
+    const candidate = normalizeSearchText(`${option.value} ${option.label}`);
     let score = 0;
-    const normalizedAliases = new Set(category.queryAliases.map(normalizeSearchText).filter(Boolean));
-    for (const alias of normalizedAliases) {
-      if (alias.includes(" ")) {
-        if (` ${normalizedQuery} `.includes(` ${alias} `)) score += alias.split(" ").length + 1;
-      } else if (queryTokens.has(alias)) {
-        score += 1;
-      }
+    for (const alias of aliases) {
+      if (!alias) continue;
+      if (candidate === alias) score = Math.max(score, 6);
+      else if (` ${candidate} `.includes(` ${alias} `)) score = Math.max(score, alias.includes(" ") ? 5 : 4);
+      else if (alias.length >= 4 && candidate.includes(alias)) score = Math.max(score, 2);
     }
     if (score > bestScore) {
-      best = category;
+      best = option;
       bestScore = score;
       tied = false;
     } else if (score > 0 && score === bestScore) {
       tied = true;
     }
   }
-
   return bestScore > 0 && !tied ? best : undefined;
+}
+
+export function storefrontFacetEnabled(leaf: StorefrontLeafIntent | undefined, facet: StorefrontFacetKey): boolean {
+  return !leaf || leaf.preferredFacets.includes(facet);
 }
 
 export function categoryCodeMatches(
@@ -209,6 +282,36 @@ export function categoryCodeMatches(
   const candidates = [code, department].filter(Boolean);
   if (!category) return candidates.some((candidate) => candidate === requested || candidate.startsWith(`${requested}-`));
   return category.aliases.some((alias) => candidates.some((candidate) => candidate === alias || candidate.startsWith(`${alias}-`)));
+}
+
+function uniqueBestByAliases<T>(
+  normalizedQuery: string,
+  candidates: readonly Readonly<{ value: T; aliases: readonly string[] }>[]
+): Readonly<{ value: T; score: number }> | undefined {
+  if (!normalizedQuery) return undefined;
+  const queryTokens = new Set(normalizedQuery.split(" ").filter(Boolean));
+  let best: T | undefined;
+  let bestScore = 0;
+  let tied = false;
+  for (const candidate of candidates) {
+    let score = 0;
+    const normalizedAliases = new Set(candidate.aliases.map(normalizeSearchText).filter(Boolean));
+    for (const alias of normalizedAliases) {
+      if (alias.includes(" ")) {
+        if (` ${normalizedQuery} `.includes(` ${alias} `)) score += alias.split(" ").length + 1;
+      } else if (queryTokens.has(alias)) {
+        score += 1;
+      }
+    }
+    if (score > bestScore) {
+      best = candidate.value;
+      bestScore = score;
+      tied = false;
+    } else if (score > 0 && score === bestScore) {
+      tied = true;
+    }
+  }
+  return best !== undefined && bestScore > 0 && !tied ? { value: best, score: bestScore } : undefined;
 }
 
 function normalize(value: string): string {
