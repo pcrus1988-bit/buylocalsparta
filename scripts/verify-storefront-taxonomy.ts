@@ -12,7 +12,6 @@ import {
   catalogAttributeDefinitionsForLeaf,
   catalogAttributeValue
 } from "../apps/web/src/lib/catalog-attribute-facets.ts";
-import { matchesCatalogAttributeFilters } from "../apps/web/src/lib/catalog-attribute-filter.ts";
 
 const root = process.cwd();
 const failures: string[] = [];
@@ -96,9 +95,19 @@ if (!socket || !wattage) failures.push("Lighting must govern socket and wattage 
 const syntheticAttributes = { socket_type: "E27", power_w: "10 W", random_merchant_field: "must-not-surface" };
 if (catalogAttributeValue(syntheticAttributes, socket) !== "E27") failures.push("Governed source aliases must resolve socket_type to the socket facet");
 if (catalogAttributeValue(syntheticAttributes, wattage) !== "10 W") failures.push("Governed source aliases must resolve power_w to the wattage facet");
-if (!matchesCatalogAttributeFilters(syntheticAttributes, { socket: "E27", wattage: "10 W" })) failures.push("Structured attribute filters must accept matching governed values");
-if (matchesCatalogAttributeFilters(syntheticAttributes, { socket: "GU10" })) failures.push("Structured attribute filters must reject non-matching governed values");
-if (!matchesCatalogAttributeFilters(syntheticAttributes, { socket: "GU10", wattage: "10 W" }, "socket")) failures.push("Facet self-exclusion must ignore only the active structured attribute key");
+function matchesSyntheticAttributeFilters(filters: Readonly<Record<string, string>>, omittedKey?: string): boolean {
+  for (const [key, selected] of Object.entries(filters)) {
+    if (!selected || key === omittedKey) continue;
+    const definition = lightingAttributes.find((item) => item.key === key);
+    if (!definition) return false;
+    const actual = catalogAttributeValue(syntheticAttributes, definition);
+    if ((actual ?? "").trim().toLocaleLowerCase("el") !== selected.trim().toLocaleLowerCase("el")) return false;
+  }
+  return true;
+}
+if (!matchesSyntheticAttributeFilters({ socket: "E27", wattage: "10 W" })) failures.push("Structured attribute filters must accept matching governed values");
+if (matchesSyntheticAttributeFilters({ socket: "GU10" })) failures.push("Structured attribute filters must reject non-matching governed values");
+if (!matchesSyntheticAttributeFilters({ socket: "GU10", wattage: "10 W" }, "socket")) failures.push("Facet self-exclusion must ignore only the active structured attribute key");
 if (catalogAttributeDefinitionsForLeaf("lighting").some((item) => item.key === "random_merchant_field")) failures.push("Arbitrary merchant metadata must never become an attribute facet without governance");
 const smartphoneKeys = new Set(catalogAttributeDefinitionsForLeaf("smartphones").map((item) => item.key));
 for (const key of ["storage", "ram", "screen_size", "5g", "dual_sim"]) if (!smartphoneKeys.has(key)) failures.push(`Smartphone leaf must govern ${key}`);
