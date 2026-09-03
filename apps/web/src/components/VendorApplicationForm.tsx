@@ -30,6 +30,7 @@ type GemiCompany = Readonly<{
   email?: string;
   phone?: string;
   url?: string;
+  checkedAt: number;
 }>;
 
 type Receipt = Readonly<{
@@ -72,6 +73,10 @@ export function VendorApplicationForm({
   const [receipt, setReceipt] = useState<Receipt | undefined>();
   const returnPath = `/join/apply?plan=${encodeURIComponent(initialPlanCode)}${claimedResearchVendorId ? `&claim=${encodeURIComponent(claimedResearchVendorId)}` : ""}`;
   const loginHref = `/login?next=${encodeURIComponent(returnPath)}`;
+  const gemiEmail = company?.email;
+  const gemiPhone = company?.phone;
+  const emailFromGemi = lookupStage === "matched" && Boolean(gemiEmail) && sameEmail(contactEmail, gemiEmail ?? "");
+  const phoneFromGemi = lookupStage === "matched" && Boolean(gemiPhone) && samePhone(phone, gemiPhone ?? "");
 
   async function lookupCompany() {
     setLookupError("");
@@ -181,11 +186,11 @@ export function VendorApplicationForm({
       <h2>Η αίτηση μπήκε σε έλεγχο.</h2>
       <p>{receipt.message}</p>
       <p><strong>Αριθμός αναφοράς:</strong> <code>{receipt.reference}</code></p>
-      {receipt.registryLookupStatus === "matched" && <div className="fairness-note"><strong>Γ.Ε.ΜΗ. ✓</strong><p>Η νομική ταυτότητα της επιχείρησης διασταυρώθηκε από το Γ.Ε.ΜΗ. Η εκπροσώπηση και τα στοιχεία επικοινωνίας παραμένουν σε έλεγχο.</p></div>}
+      {receipt.registryLookupStatus === "matched" && <div className="fairness-note"><strong>Έλεγχος στοιχείων ΓΕΜΗ ✓</strong><p>Η νομική ταυτότητα της επιχείρησης αντιστοιχίστηκε με τα δημόσια δεδομένα ΓΕΜΗ. Η εκπροσώπηση και τα στοιχεία επικοινωνίας παραμένουν σε έλεγχο.</p></div>}
       <div className="fairness-note">
         <strong>Τι γίνεται τώρα</strong>
         <p>1. Ελέγχουμε ότι ο αιτών μπορεί να εκπροσωπήσει την επιχείρηση και επιβεβαιώνουμε τα στοιχεία επικοινωνίας.</p>
-        <p>2. Τα στοιχεία Γ.Ε.ΜΗ. που βρέθηκαν παραμένουν ως registry evidence· τυχόν διαφορετικό email/τηλέφωνο ελέγχεται ως applicant-provided.</p>
+        <p>2. Τα στοιχεία ΓΕΜΗ που βρέθηκαν παραμένουν ως registry evidence· τυχόν διαφορετικό email/τηλέφωνο ελέγχεται ως applicant-provided.</p>
         <p>3. Μόνο μετά τον έλεγχο περνάμε σε catalog onboarding και δοκιμαστική λειτουργία.</p>
         <p>4. Η ενεργοποίηση vendor dashboard γίνεται αποκλειστικά από Admin μετά τα gates.</p>
       </div>
@@ -199,7 +204,7 @@ export function VendorApplicationForm({
       <input type="hidden" name="claimedResearchVendorId" value={claimedResearchVendorId} />
       <div className="fairness-note">
         <strong>Διεκδίκηση υπάρχουσας σελίδας{claimTargetName ? ` · ${claimTargetName}` : ""}</strong>
-        <p>Το ΑΦΜ και το Γ.Ε.ΜΗ. θα χρησιμοποιηθούν και ως πρόσθετο evidence για τη διεκδίκηση. Η σελίδα παραμένει αμετάβλητη μέχρι την επιβεβαίωση από Admin.</p>
+        <p>Το ΑΦΜ και το ΓΕΜΗ θα χρησιμοποιηθούν και ως πρόσθετο evidence για τη διεκδίκηση. Η σελίδα παραμένει αμετάβλητη μέχρι την επιβεβαίωση από Admin.</p>
       </div>
     </>}
 
@@ -219,26 +224,27 @@ export function VendorApplicationForm({
         onChange={(event) => setTaxNumber(event.target.value.replace(/\D/g, "").slice(0, 9))}
       />
       {lookupStage === "afm" || lookupStage === "loading"
-        ? <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={lookupCompany}>{lookupStage === "loading" ? "Αναζήτηση…" : "Ανάκτηση από Γ.Ε.ΜΗ."}</button>
+        ? <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={lookupCompany}>{lookupStage === "loading" ? "Αναζήτηση…" : "Ανάκτηση από ΓΕΜΗ"}</button>
         : <button className="button button-secondary" type="button" onClick={changeAfm}>Αλλαγή ΑΦΜ</button>}
     </div>
-    <small>Βάλε το ΑΦΜ της επιχείρησής σου και θα συμπληρώσουμε αυτόματα τα διαθέσιμα στοιχεία από το Γ.Ε.ΜΗ.</small>
+    <small><strong>Στοιχεία από ΓΕΜΗ.</strong> Με την καταχώριση του ΑΦΜ αναζητούμε τα δημόσια στοιχεία της επιχείρησης στα Ανοιχτά Δεδομένα ΓΕΜΗ για επαλήθευση και προσυμπλήρωση της αίτησης. Ελέγξτε τα στοιχεία πριν συνεχίσετε. <a href="/privacy#gemi">Πολιτική Απορρήτου</a> · <a href="https://opendata.businessportal.gr/" target="_blank" rel="noreferrer">Πηγή ΓΕΜΗ</a> · <a href="https://opendatacommons.org/licenses/by/1-0/" target="_blank" rel="noreferrer">ODC-BY 1.0</a>.</small>
     {lookupError && <div className="account-gate" role="alert"><strong>Δεν ολοκληρώθηκε η αναζήτηση.</strong><p>{lookupError}</p>{manualAllowed && <button className="button button-secondary" type="button" onClick={continueManually}>Συνέχεια με χειροκίνητη συμπλήρωση</button>}</div>}
 
     {lookupStage === "matched" && company && <div className="fairness-note" role="status">
-      <strong>Βρήκαμε την επιχείρησή σου ✓</strong>
+      <strong>Στοιχεία ελεγμένα έναντι των δημόσιων δεδομένων ΓΕΜΗ ✓</strong>
       <p><strong>{company.legalName}</strong>{company.tradingName ? ` · ${company.tradingName}` : ""}</p>
       <p>ΑΦΜ {company.afm} · ΓΕΜΗ {company.gemiNumber}{company.legalType ? ` · ${company.legalType}` : ""}</p>
       {(company.address || company.city || company.postcode) && <p>{[company.address, company.postcode, company.city].filter(Boolean).join(" · ")}</p>}
-      {company.companyStatus && <p>Κατάσταση Γ.Ε.ΜΗ.: <strong>{company.companyStatus}</strong></p>}
-      <p>Η εύρεση στο Γ.Ε.ΜΗ. επιβεβαιώνει τη νομική ταυτότητα της επιχείρησης, όχι ότι ο αιτών είναι εξουσιοδοτημένος εκπρόσωπος. Αυτό παραμένει μέρος του verification.</p>
+      {company.companyStatus && <p>Κατάσταση ΓΕΜΗ: <strong>{company.companyStatus}</strong></p>}
+      <p>Πηγή: Ανοιχτά Δεδομένα ΓΕΜΗ · Τελευταίος έλεγχος: <strong>{formatRegistryDate(company.checkedAt)}</strong></p>
+      <p>Η αντιστοίχιση στο ΓΕΜΗ επιβεβαιώνει τη νομική ταυτότητα της επιχείρησης, όχι ότι ο αιτών είναι εξουσιοδοτημένος εκπρόσωπος. Αυτό παραμένει μέρος του verification.</p>
     </div>}
 
     {(lookupStage === "matched" || lookupStage === "manual") && <>
       <div className="eyebrow">2 · Στοιχεία επιχείρησης</div>
       <label htmlFor="vendor-legal-name">Νομική επωνυμία *</label>
       <input id="vendor-legal-name" name="legalName" required maxLength={160} autoComplete="organization" value={legalName} readOnly={lookupStage === "matched"} onChange={(event) => setLegalName(event.target.value)} />
-      {lookupStage === "matched" && <small>Η νομική επωνυμία προέρχεται από το Γ.Ε.ΜΗ. και θα επαληθευτεί ξανά server-side κατά την υποβολή.</small>}
+      {lookupStage === "matched" && <small><strong>Πηγή: ΓΕΜΗ.</strong> Η νομική επωνυμία θα επαληθευτεί ξανά server-side κατά την υποβολή.</small>}
 
       <label htmlFor="vendor-trading-name">Εμπορική ονομασία / διακριτικός τίτλος *</label>
       <input id="vendor-trading-name" name="tradingName" required maxLength={120} value={tradingName} onChange={(event) => setTradingName(event.target.value)} />
@@ -249,21 +255,21 @@ export function VendorApplicationForm({
       <div className="eyebrow">3 · Επικοινωνία</div>
       <label htmlFor="vendor-email">Email επικοινωνίας *</label>
       <input id="vendor-email" name="contactEmail" type="email" required maxLength={254} value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} autoComplete="email" />
-      {lookupStage === "matched" && company?.email
-        ? <small>Βρέθηκε email στο Γ.Ε.ΜΗ. και συμπληρώθηκε αυτόματα. Μπορείς να το αλλάξεις αν θέλεις άλλο email επικοινωνίας· τότε θα καταγραφεί ως applicant-provided.</small>
-        : <small>Δεν βρήκαμε email επικοινωνίας στο Γ.Ε.ΜΗ. Συμπλήρωσε το email που θέλεις να χρησιμοποιεί το ΚΟΝΤΑ ΜΟΥ.</small>}
+      {emailFromGemi
+        ? <small><strong>Πηγή: ΓΕΜΗ.</strong> Το δημόσιο email συμπληρώθηκε αυτόματα. Μπορείς να το αλλάξεις· τότε η αίτηση θα το καταγράψει ως στοιχείο που δηλώθηκε από εσένα.</small>
+        : <small><strong>Πηγή: δηλώθηκε από εσένα.</strong> {lookupStage === "matched" && gemiEmail ? "Το email διαφέρει από το δημόσιο email ΓΕΜΗ και θα ελεγχθεί ως applicant-provided." : "Δεν χρησιμοποιούμε δημόσιο email ΓΕΜΗ για αυτό το πεδίο· συμπλήρωσε το email επικοινωνίας της αίτησης."}</small>}
       {signedInEmail && <small>Είσαι συνδεδεμένος ως {signedInEmail}. Ο ιδιοκτήτης της αίτησης παραμένει αυτός ο επαληθευμένος λογαριασμός, ακόμη κι αν το business contact email είναι διαφορετικό.</small>}
 
       <label htmlFor="vendor-phone">Τηλέφωνο επικοινωνίας *</label>
       <input id="vendor-phone" name="phone" type="tel" required maxLength={32} autoComplete="tel" placeholder="27310… ή +30…" value={phone} onChange={(event) => setPhone(event.target.value)} />
-      {lookupStage === "matched" && company?.phone
-        ? <small>Βρέθηκε τηλέφωνο στο Γ.Ε.ΜΗ. και συμπληρώθηκε αυτόματα. Μπορείς να το αλλάξεις.</small>
-        : <small>Δεν βρήκαμε τηλέφωνο επικοινωνίας στο Γ.Ε.ΜΗ. Συμπλήρωσε ένα τηλέφωνο για την αίτηση.</small>}
+      {phoneFromGemi
+        ? <small><strong>Πηγή: ΓΕΜΗ.</strong> Το δημόσιο τηλέφωνο συμπληρώθηκε αυτόματα. Μπορείς να το αλλάξεις· τότε θα καταγραφεί ως στοιχείο που δηλώθηκε από εσένα.</small>
+        : <small><strong>Πηγή: δηλώθηκε από εσένα.</strong> {lookupStage === "matched" && gemiPhone ? "Το τηλέφωνο διαφέρει από το δημόσιο τηλέφωνο ΓΕΜΗ και θα ελεγχθεί ως applicant-provided." : "Δεν βρήκαμε δημόσιο τηλέφωνο ΓΕΜΗ για την αίτηση. Συμπλήρωσε ένα τηλέφωνο επικοινωνίας."}</small>}
 
       <div className="eyebrow">4 · Φυσικό κατάστημα</div>
       <label htmlFor="vendor-address">Διεύθυνση καταστήματος *</label>
       <input id="vendor-address" name="address" required maxLength={180} autoComplete="street-address" placeholder="Οδός και αριθμός" value={address} onChange={(event) => setAddress(event.target.value)} />
-      {lookupStage === "matched" && company?.address && <small>Προ-συμπληρώθηκε η έδρα από το Γ.Ε.ΜΗ. Αν το φυσικό κατάστημα βρίσκεται αλλού, άλλαξε τη διεύθυνση εδώ.</small>}
+      {lookupStage === "matched" && company?.address && <small><strong>Αρχική πηγή: ΓΕΜΗ.</strong> Προ-συμπληρώθηκε η έδρα. Αν το φυσικό κατάστημα βρίσκεται αλλού, άλλαξε τη διεύθυνση εδώ.</small>}
 
       <label htmlFor="vendor-postcode">Ταχυδρομικός κώδικας *</label>
       <input id="vendor-postcode" name="postcode" required inputMode="numeric" pattern="[0-9]{5}" maxLength={5} autoComplete="postal-code" placeholder="23100" value={postcode} onChange={(event) => setPostcode(event.target.value.replace(/\D/g, "").slice(0, 5))} />
@@ -289,12 +295,12 @@ export function VendorApplicationForm({
 
       <div className="fairness-note">
         <strong>Σημαντικό: η αίτηση δεν είναι vendor registration access</strong>
-        <p>Η υποβολή δημιουργεί μόνο ένα ελεγχόμενο application record με κατάσταση <code>verification_pending</code>. Το Γ.Ε.ΜΗ. μειώνει τη χειροκίνητη καταχώριση και ενισχύει το evidence, αλλά δεν παρακάμπτει ownership/contact verification ή Admin activation.</p>
+        <p>Η υποβολή δημιουργεί μόνο ένα ελεγχόμενο application record με κατάσταση <code>verification_pending</code>. Το ΓΕΜΗ μειώνει τη χειροκίνητη καταχώριση και ενισχύει το evidence, αλλά δεν παρακάμπτει ownership/contact verification ή Admin activation.</p>
       </div>
 
-      <label className="checkbox-row" htmlFor="vendor-accuracy"><input id="vendor-accuracy" name="acceptedAccuracy" type="checkbox" required /><span>Δηλώνω ότι τα στοιχεία της επιχείρησης και τυχόν αλλαγές που έκανα στα προ-συμπληρωμένα στοιχεία είναι ακριβή και μπορώ να τα τεκμηριώσω.</span></label>
+      <label className="checkbox-row" htmlFor="vendor-accuracy"><input id="vendor-accuracy" name="acceptedAccuracy" type="checkbox" required /><span>Επιβεβαιώνω ότι έχω ελέγξει τα στοιχεία της επιχείρησης και ότι τα πρόσθετα ή τροποποιημένα στοιχεία που καταχώρισα είναι ακριβή.</span></label>
       <label className="checkbox-row" htmlFor="vendor-governance"><input id="vendor-governance" name="acceptedGovernedOnboarding" type="checkbox" required /><span>Κατανοώ ότι η συνεργασία απαιτεί επαλήθευση εκπροσώπησης/επικοινωνίας, catalog onboarding, test readiness και τελική ενεργοποίηση από Admin.</span></label>
-      <label className="checkbox-row" htmlFor="vendor-privacy"><input id="vendor-privacy" name="acceptedPrivacy" type="checkbox" required /><span>Συμφωνώ με την επεξεργασία των στοιχείων της αίτησης και την ανάκτηση δημοσιευμένων εταιρικών στοιχείων από το Γ.Ε.ΜΗ. για ταυτοποίηση/αξιολόγηση και έχω διαβάσει τα <a href="/privacy-controls">privacy controls</a>.</span></label>
+      <label className="checkbox-row" htmlFor="vendor-privacy"><input id="vendor-privacy" name="acceptedPrivacy" type="checkbox" required /><span>Έχω ενημερωθεί ότι το ΚΟΝΤΑ ΜΟΥ ανακτά δημόσια εταιρικά στοιχεία από το ΓΕΜΗ για την προσυμπλήρωση και επαλήθευση της αίτησης και έχω διαβάσει την <a href="/privacy#gemi">Πολιτική Απορρήτου</a>. Η επιβεβαίωση αυτή καταγράφει ότι έλαβα την ενημέρωση· δεν αποτελεί συγκατάθεση για προαιρετικό marketing ή analytics.</span></label>
 
       <div className={styles.honeypot} aria-hidden="true"><label htmlFor="vendor-website">Website</label><input id="vendor-website" name="website" tabIndex={-1} autoComplete="off" /></div>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -303,4 +309,17 @@ export function VendorApplicationForm({
       {!signedInEmail && <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href={loginHref}>Συνδέσου πριν την αίτηση →</a></p>}
     </>}
   </form>;
+}
+
+function formatRegistryDate(value: number): string {
+  if (!Number.isFinite(value)) return "μη διαθέσιμος";
+  return new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function sameEmail(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function samePhone(left: string, right: string): boolean {
+  return left.replace(/\D/g, "") === right.replace(/\D/g, "");
 }
