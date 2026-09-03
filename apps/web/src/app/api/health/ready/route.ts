@@ -1,5 +1,6 @@
 import { ResendEmailProvider, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import { WEB_BUILD_VERSION } from "../../../../lib/build";
+import { gemiLookupReadiness } from "../../../../lib/gemi-runtime";
 import { productionDatabaseReadiness } from "../../../../lib/postgres-runtime";
 import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
 import { mediaPipelineReadiness } from "../../../../lib/media-upload-service";
@@ -14,6 +15,14 @@ export async function GET() {
   const viva = await vivaPaymentsProviderReadiness();
   const media = await mediaPipelineReadiness();
   const myData = await myDataReadiness();
+  const gemiReadiness = gemiLookupReadiness();
+  const gemi = {
+    enabled: Boolean(process.env.GEMI_OPENDATA_API_KEY?.trim()),
+    ready: gemiReadiness.ready,
+    required: false,
+    provider: "gemi-opendata",
+    message: gemiReadiness.message
+  };
 
   const searchAcceleratorEnabled = process.env.BLS_SEARCH_ENABLED === "true";
   const postgresSearch = database.ok
@@ -99,10 +108,11 @@ export async function GET() {
 
   // Optional providers are healthy when they are intentionally disabled. For myDATA this
   // preserves the fail-closed accounting gate without taking the storefront out of service.
+  // ΓΕΜΗ remains non-blocking because partner intake is designed to fall back to manual verification.
   const myDataHealthy = !myData.enabled || myData.ready;
   const ok = database.ok && viva.ready && media.ready && myDataHealthy && search.ready && email.ready && shipping.ready;
   return Response.json(
-    { ok, service: "buy-local-sparta-web", build: WEB_BUILD_VERSION, dependencies: { database, viva, media, myData, search, email, shipping } },
+    { ok, service: "buy-local-sparta-web", build: WEB_BUILD_VERSION, dependencies: { database, viva, media, myData, search, email, shipping, gemi } },
     { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } }
   );
 }
