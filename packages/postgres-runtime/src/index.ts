@@ -133,7 +133,7 @@ export class ProductionPostgresRuntime {
                COALESCE((SELECT extversion FROM pg_extension WHERE extname='postgis'), '') AS postgis_version,
                EXISTS(SELECT 1 FROM pg_extension WHERE extname='pgcrypto') AS has_pgcrypto,
                EXISTS(SELECT 1 FROM pg_extension WHERE extname='citext') AS has_citext,
-               COALESCE((SELECT MAX(version) FROM schema_migrations), 0) AS schema_version
+               COALESCE((SELECT MAX(version) FROM public.schema_migrations), 0) AS schema_version
       `);
       const row = result.rows[0] ?? {};
       const serverVersion = String(row.server_version ?? "");

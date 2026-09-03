@@ -6,7 +6,9 @@ on:
     paths:
       - ".github/workflows/open-icecat-production-index.yml"
       - "scripts/acquire-icecat-production-runtime.sh"
+      - "scripts/db-readiness.ts"
       - "workers/open-icecat-worker.ts"
+      - "packages/postgres-runtime/src/index.ts"
       - "packages/core/src/ingestion/open-icecat/**"
       - "packages/core/src/persistence/postgres-open-icecat-bulk.ts"
   schedule:
