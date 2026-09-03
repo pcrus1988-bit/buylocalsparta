@@ -87,11 +87,13 @@ export default async function ApplicationsPage() {
         ORDER BY vb.updated_at DESC
       `),
       runtime.sqlPool.query<RegistryProjectionRow>(`
-        SELECT public_id,tax_number,gemi_number,registry_lookup_status,registry_company_status,
-               contact_email_source,phone_source,registry_checked_at
-        FROM vendor_applications
-        WHERE status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
-        ORDER BY updated_at DESC
+        SELECT va.public_id,va.tax_number,va.gemi_number,va.registry_lookup_status,va.registry_company_status,
+               va.contact_email_source,va.phone_source,va.registry_checked_at
+        FROM vendor_applications va
+        JOIN markets m ON m.id=va.market_id
+        WHERE m.code='sparta'
+          AND va.status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
+        ORDER BY va.updated_at DESC
       `)
     ]);
     for (const row of demoResult.rows) demoByVendor.set(row.public_id, { status: row.status, demoMode: Boolean(row.demo_mode) });
