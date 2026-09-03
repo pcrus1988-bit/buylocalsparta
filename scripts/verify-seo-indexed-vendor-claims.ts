@@ -83,7 +83,7 @@ requireText(applyPage, "claimedResearchVendorId={claimTarget?.id}", "Claim-aware
 requireText(applicationForm, "name=\"claimedResearchVendorId\"", "Vendor application form");
 requireText(applicationForm, "const loginHref = `/login?next=", "Vendor application login continuity");
 requireText(applicationForm, "const [tradingName, setTradingName] = useState(claimTargetName ?? \"\");", "Vendor application controlled claim prefill");
-requireText(applicationForm, "Το ΑΦΜ και το Γ.Ε.ΜΗ. θα χρησιμοποιηθούν και ως πρόσθετο evidence", "Vendor application registry claim evidence");
+requireText(applicationForm, "Το ΑΦΜ και το ΓΕΜΗ θα χρησιμοποιηθούν και ως πρόσθετο evidence", "Vendor application registry claim evidence");
 
 requireText(applicationRoute, "claimedResearchVendorId: optionalStringField(body.claimedResearchVendorId)", "Vendor application API");
 requireText(applicationRoute, "RESEARCH_PROFILE_NOT_CLAIMABLE", "Vendor application API");
