@@ -4,6 +4,7 @@ const files = {
   page: "apps/web/src/app/admin/catalogue-intake/page.tsx",
   runtime: "apps/web/src/lib/admin-catalogue-intake.ts",
   mapping: "apps/web/src/lib/admin-catalogue-attribute-mapping.ts",
+  identity: "apps/web/src/lib/admin-database-identity.ts",
   migration: "db/migrations/0164_catalog_source_attribute_mapping_rules.sql",
   navigation: "apps/web/src/lib/workspace-navigation.ts"
 } as const;
@@ -26,6 +27,9 @@ for (const mutation of ["INSERT INTO", "UPDATE catalog_", "DELETE FROM catalog_"
 requireText("mapping", 'assertAdminPermission(principal, "catalog.read")', "Product Type attribute choices must require catalog.read");
 requireText("mapping", 'assertAdminPermission(principal, "catalog.write")', "Attribute mapping mutation must require catalog.write");
 requireText("mapping", "platformScope(principal.userId)", "Attribute mapping must execute under platform scope");
+requireText("mapping", "resolveAdminDatabaseUserId(tx, principal.userId)", "Attribute mapping must resolve the public session user id before writing UUID audit/reviewer fields");
+requireText("mapping", "[ruleId, actorUserId]", "Attribute mapping backfill must receive the resolved internal actor UUID");
+requireText("identity", "WHERE public_id=$1 OR id::text=$1", "Admin database identity resolver must accept both public user IDs and internal UUIDs");
 requireText("mapping", "product_type_attributes", "Attribute choices and approvals must use Product Type attribute contracts");
 requireText("mapping", "scopeKind", "Attribute mapping must carry an exact source context scope");
 requireText("mapping", "source_taxonomy_node_id", "Supplier taxonomy-node context must be supported");
