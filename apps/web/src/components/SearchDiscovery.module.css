@@ -1,0 +1,136 @@
+.panel {
+  position: absolute;
+  z-index: 1300;
+  left: 0;
+  right: 0;
+  overflow: hidden auto;
+  max-height: min(68vh, 620px);
+  border: 1px solid rgba(12, 58, 46, 0.16);
+  border-radius: 18px;
+  background: #fffdf7;
+  box-shadow: 0 22px 54px rgba(12, 42, 34, 0.18);
+}
+
+.below {
+  top: calc(100% + 8px);
+}
+
+.above {
+  bottom: calc(100% + 8px);
+}
+
+.loading {
+  padding: 16px 18px;
+  color: #66736d;
+  font-size: 0.86rem;
+}
+
+.group + .group {
+  border-top: 1px solid rgba(12, 58, 46, 0.1);
+}
+
+.groupTitle {
+  display: block;
+  padding: 11px 16px 6px;
+  color: #708078;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 16px;
+  color: #123c31;
+  text-decoration: none;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: rgba(20, 79, 62, 0.07);
+}
+
+.mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(20, 79, 62, 0.08);
+  color: #144f3e;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.copy {
+  min-width: 0;
+}
+
+.label,
+.subtitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label {
+  color: #103a2f;
+  font-size: 0.93rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.subtitle {
+  margin-top: 2px;
+  color: #6d7974;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.meta {
+  color: #77837e;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.available {
+  color: #25614e;
+}
+
+.unavailable {
+  color: #8c7668;
+}
+
+.home {
+  z-index: 1320;
+}
+
+.mobile {
+  z-index: 1400;
+  left: 6px;
+  right: 6px;
+  max-height: min(55vh, 520px);
+  border-radius: 18px;
+  box-shadow: 0 -18px 50px rgba(12, 42, 34, 0.2);
+}
+
+@media (max-width: 760px) {
+  .panel {
+    max-height: min(55vh, 520px);
+    border-radius: 16px;
+  }
+
+  .item {
+    min-height: 50px;
+    padding: 10px 14px;
+  }
+
+  .mobile {
+    max-height: min(52vh, 480px);
+  }
+}
