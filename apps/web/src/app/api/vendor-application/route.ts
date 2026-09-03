@@ -85,9 +85,12 @@ export async function POST(request: Request) {
         status: "verification_pending",
         reference: receipt.applicationId,
         accountClaimRequired: receipt.accountClaimRequired,
+        registryLookupStatus: receipt.registryLookupStatus,
         message: application.claimedResearchVendorId
           ? "Η αίτηση καταχωρίστηκε και συνδέθηκε με την υπάρχουσα δημόσια σελίδα για έλεγχο ιδιοκτησίας. Η σελίδα παραμένει στην ίδια διεύθυνση όσο διαρκεί η επαλήθευση."
-          : "Η αίτηση καταχωρίστηκε και περιμένει έλεγχο από το Buy Local Sparta. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
+          : receipt.registryLookupStatus === "matched"
+            ? "Η αίτηση καταχωρίστηκε με διασταυρωμένη νομική ταυτότητα Γ.Ε.ΜΗ. και περιμένει έλεγχο εκπροσώπησης/επικοινωνίας. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
+            : "Η αίτηση καταχωρίστηκε και περιμένει χειροκίνητο έλεγχο επιχείρησης και εκπροσώπησης. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
@@ -97,7 +100,7 @@ export async function POST(request: Request) {
       return Response.json({ code: "login_required", error: "Υπάρχει ήδη λογαριασμός με αυτό το email. Συνδέσου πρώτα ώστε η αίτηση να συνδεθεί με τον σωστό ιδιοκτήτη." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
     if (code === "BUSINESS_ALREADY_REGISTERED") {
-      return Response.json({ code: "business_already_registered", error: "Υπάρχει ήδη αίτηση ή ενεργή συνεργασία για αυτή την επιχείρηση. Επικοινώνησε με την ομάδα Buy Local Sparta για να συνεχίσουμε με ασφάλεια από την υπάρχουσα εγγραφή." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+      return Response.json({ code: "business_already_registered", error: "Υπάρχει ήδη αίτηση ή ενεργή συνεργασία για αυτή την επιχείρηση. Επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ για να συνεχίσουμε με ασφάλεια από την υπάρχουσα εγγραφή." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
     if (code === "APPLICATION_EXISTS") {
       return Response.json({ code: "application_exists", error: "Υπάρχει ήδη αίτηση εμπόρου για αυτόν τον ιδιοκτήτη. Η ομάδα μας θα συνεχίσει από την υπάρχουσα αίτηση." }, { status: 409, headers: { "Cache-Control": "no-store" } });
@@ -106,7 +109,7 @@ export async function POST(request: Request) {
       return Response.json({ code: "profile_not_claimable", error: "Αυτή η δημόσια σελίδα δεν είναι πλέον διαθέσιμη για νέα διεκδίκηση. Ανανέωσε τη σελίδα ή επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ για ασφαλή ταυτοποίηση." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
     if (["MARKET_UNAVAILABLE", "PLAN_UNAVAILABLE"].includes(code)) {
-      return Response.json({ code: "configuration_unavailable", error: "Η αίτηση δεν μπορεί να υποβληθεί αυτή τη στιγμή λόγω ρύθμισης της αγοράς. Επικοινώνησε με την ομάδα Buy Local Sparta." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+      return Response.json({ code: "configuration_unavailable", error: "Η αίτηση δεν μπορεί να υποβληθεί αυτή τη στιγμή λόγω ρύθμισης της αγοράς. Επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ." }, { status: 503, headers: { "Cache-Control": "no-store" } });
     }
     if (code === "CUSTOMER_ACCOUNT_REQUIRED") {
       return Response.json({ code: "account_required", error: "Χρειάζεται ενεργός λογαριασμός πελάτη για αυτή τη συνεδρία." }, { status: 403, headers: { "Cache-Control": "no-store" } });
@@ -122,7 +125,7 @@ export async function POST(request: Request) {
       errorName: error instanceof Error ? error.name : "UnknownError"
     }));
     return Response.json(
-      { code: "application_failed", error: "Δεν μπορέσαμε να καταχωρίσουμε την αίτηση λόγω τεχνικού προβλήματος. Δοκίμασε ξανά σε λίγο ή επικοινώνησε με την ομάδα Buy Local Sparta." },
+      { code: "application_failed", error: "Δεν μπορέσαμε να καταχωρίσουμε την αίτηση λόγω τεχνικού προβλήματος. Δοκίμασε ξανά σε λίγο ή επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ." },
       { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
