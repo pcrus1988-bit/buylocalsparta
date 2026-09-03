@@ -21,7 +21,27 @@ type VendorProjectionRow = SqlRow & {
   demo_mode: boolean;
 };
 
+type RegistryProjectionRow = SqlRow & {
+  public_id: string;
+  tax_number: string;
+  gemi_number: string | null;
+  registry_lookup_status: string;
+  registry_company_status: string | null;
+  contact_email_source: string;
+  phone_source: string;
+  registry_checked_at: Date | string | null;
+};
+
 type DemoProjection = { status: string; demoMode: boolean };
+type RegistryProjection = {
+  taxNumber: string;
+  gemiNumber?: string;
+  lookupStatus: string;
+  companyStatus?: string;
+  emailSource: string;
+  phoneSource: string;
+  checkedAt?: number;
+};
 
 function DemoControls({ csrfToken, vendorId, applicationId, demo }: { csrfToken: string; vendorId?: string; applicationId?: string; demo?: DemoProjection }) {
   const enabled = Boolean(demo?.demoMode);
@@ -54,21 +74,45 @@ export default async function ApplicationsPage() {
   const promotedResearch = researchWorkspace.vendors.filter((vendor) => PRE_LIVE.has(vendor.status) && !linkedVendorIds.has(vendor.id));
 
   const demoByVendor = new Map<string, DemoProjection>();
+  const registryByApplication = new Map<string, RegistryProjection>();
   if (productionDatabaseConfigured()) {
-    const result = await getProductionPostgresRuntime().sqlPool.query<VendorProjectionRow>(`
-      SELECT vb.public_id,vb.status::text AS status,vb.demo_mode
-      FROM vendor_businesses vb
-      JOIN markets m ON m.id=vb.market_id
-      WHERE m.code='sparta'
-        AND vb.status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
-      ORDER BY vb.updated_at DESC
-    `);
-    for (const row of result.rows) demoByVendor.set(row.public_id, { status: row.status, demoMode: Boolean(row.demo_mode) });
+    const runtime = getProductionPostgresRuntime();
+    const [demoResult, registryResult] = await Promise.all([
+      runtime.sqlPool.query<VendorProjectionRow>(`
+        SELECT vb.public_id,vb.status::text AS status,vb.demo_mode
+        FROM vendor_businesses vb
+        JOIN markets m ON m.id=vb.market_id
+        WHERE m.code='sparta'
+          AND vb.status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
+        ORDER BY vb.updated_at DESC
+      `),
+      runtime.sqlPool.query<RegistryProjectionRow>(`
+        SELECT public_id,tax_number,gemi_number,registry_lookup_status,registry_company_status,
+               contact_email_source,phone_source,registry_checked_at
+        FROM vendor_applications
+        WHERE status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
+        ORDER BY updated_at DESC
+      `)
+    ]);
+    for (const row of demoResult.rows) demoByVendor.set(row.public_id, { status: row.status, demoMode: Boolean(row.demo_mode) });
+    for (const row of registryResult.rows) {
+      const checkedAt = row.registry_checked_at ? Date.parse(String(row.registry_checked_at)) : Number.NaN;
+      registryByApplication.set(row.public_id, {
+        taxNumber: row.tax_number,
+        gemiNumber: row.gemi_number || undefined,
+        lookupStatus: row.registry_lookup_status,
+        companyStatus: row.registry_company_status || undefined,
+        emailSource: row.contact_email_source,
+        phoneSource: row.phone_source,
+        checkedAt: Number.isFinite(checkedAt) ? checkedAt : undefined
+      });
+    }
   }
 
   const unlinked = formalApplications.filter((application) => !application.vendorId).length;
   const verificationPending = formalApplications.filter((application) => application.state === "verification_pending").length;
   const demoEnabled = [...demoByVendor.values()].filter((vendor) => vendor.demoMode).length;
+  const registryMatched = [...registryByApplication.values()].filter((registry) => registry.lookupStatus === "matched").length;
   const totalQueue = formalApplications.length + promotedResearch.length;
 
   return <main className="vendor-app admin-app">
@@ -77,7 +121,7 @@ export default async function ApplicationsPage() {
       <div>
         <div className="eyebrow">Partners · governed intake</div>
         <h1>Applications</h1>
-        <p className="lead">The operational inbox between acquisition and onboarding. Inbound applications and research prospects promoted for follow-up meet here; DEMO preparation remains strictly pre-live.</p>
+        <p className="lead">The operational inbox between acquisition and onboarding. ΓΕΜΗ enrichment now separates legal-business identity evidence from applicant ownership/contact verification; DEMO preparation remains strictly pre-live.</p>
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/partners/pipeline">← Partner pipeline</Link>
           <Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>
@@ -90,14 +134,16 @@ export default async function ApplicationsPage() {
       { label: "Application queue", value: totalQueue, tone: totalQueue ? "attention" : "default" },
       { label: "Inbound not provisioned", value: unlinked, tone: unlinked ? "attention" : "positive", hint: "A pre-live vendor record is created only when needed" },
       { label: "Verification pending", value: verificationPending },
+      { label: "ΓΕΜΗ matched", value: registryMatched, tone: registryMatched ? "positive" : "default", hint: "Legal identity matched; representation still requires verification" },
       { label: "DEMO enabled", value: demoEnabled, tone: demoEnabled ? "positive" : "default", hint: "Never commerce eligible" }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Inbound applications" title="Merchant-submitted applications" note="A just-submitted merchant application appears here immediately. Enabling DEMO provisions the linked pre-live vendor, owner membership and first location without activating commerce." />
+      <WorkspaceSectionHeading eyebrow="Inbound applications" title="Merchant-submitted applications" note="A just-submitted merchant application appears here immediately. ΓΕΜΗ match state and contact provenance guide verification; enabling DEMO provisions the linked pre-live vendor without activating commerce." />
       {formalApplications.length === 0 ? <WorkspaceEmptyState title="No inbound applications require action." body="New merchant applications will appear here at application_started and remain visible through the pre-live onboarding stages." /> : <div className="workspace-queue-list">
         {formalApplications.map((application) => {
           const demo = application.vendorId ? demoByVendor.get(application.vendorId) : undefined;
+          const registry = registryByApplication.get(application.id);
           return <article className="workspace-queue-card" id={`application-${application.id}`} key={application.id}>
             <div className="workspace-queue-head">
               <div><strong>{application.tradingName}</strong><small>{application.legalName} · {application.contactEmail}</small></div>
@@ -109,6 +155,11 @@ export default async function ApplicationsPage() {
               <span>{application.phone ?? "No phone"}</span>
               <span>{application.address} · {application.postcode}</span>
             </div>
+            {registry && <div className="workspace-inline-note">
+              <strong>ΓΕΜΗ: {registry.lookupStatus === "matched" ? "matched ✓" : registry.lookupStatus === "not_found" ? "not found · manual check" : registry.lookupStatus === "unavailable" ? "unavailable · manual check" : "not checked"}</strong>
+              {` · ΑΦΜ ${registry.taxNumber}`}{registry.gemiNumber ? ` · ΓΕΜΗ ${registry.gemiNumber}` : ""}{registry.companyStatus ? ` · ${registry.companyStatus}` : ""}
+              {` · email ${registry.emailSource} · phone ${registry.phoneSource}`}{registry.checkedAt ? ` · checked ${fmtDate(registry.checkedAt)}` : ""}
+            </div>}
             <p className="workspace-queue-summary">{application.shopStory ?? "No shop story supplied yet."}</p>
             <div className="workspace-inline-note">{application.vendorId ? <>Pre-live vendor <strong>{application.vendorId}</strong> · DEMO {demo?.demoMode ? "ON" : "OFF"}.</> : <>No vendor business has been provisioned yet. <strong>Create & enable DEMO</strong> will safely create the pre-live operational shell and link it to this application.</>}</div>
             <div className="workspace-action-bar">
