@@ -9,6 +9,5 @@ function entry(productId: string, path: string): OpenIcecatIndexEntry {
 
 test("dedupeOpenIcecatIndexEntries keeps the last provider row for duplicate product ids", () => {
   const rows = [entry("100", "first.xml"), entry("200", "second.xml"), entry("100", "latest.xml")];
-
   assert.deepEqual(dedupeOpenIcecatIndexEntries(rows), [entry("100", "latest.xml"), entry("200", "second.xml")]);
 });
