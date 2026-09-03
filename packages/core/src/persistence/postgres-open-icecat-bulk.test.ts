@@ -7,9 +7,8 @@ function entry(productId: string, path: string): OpenIcecatIndexEntry {
   return {
     productId,
     path,
-    gtins: [],
-    countryMarkets: []
-  } as OpenIcecatIndexEntry;
+    gtins: []
+  };
 }
 
 test("dedupeOpenIcecatIndexEntries keeps the last provider row for duplicate product ids", () => {
