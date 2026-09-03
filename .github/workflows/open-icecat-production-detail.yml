@@ -11,6 +11,8 @@ on:
       - "packages/postgres-runtime/src/index.ts"
       - "packages/core/src/ingestion/open-icecat/**"
       - "packages/core/src/persistence/postgres-open-icecat-detail.ts"
+      - "packages/core/src/persistence/postgres-open-icecat-bulk.ts"
+      - "db/migrations/*open_icecat*.sql"
   schedule:
     - cron: "7 * * * *"
   workflow_dispatch:
