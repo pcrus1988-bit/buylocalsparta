@@ -57,7 +57,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     searchHint: "ρούχα, παπούτσια, τσάντες, κοσμήματα",
     artClass: "art-fashion",
     aliases: ["fashion", "clothing", "apparel", "shoes", "footwear", "accessories", "jewellery", "jewelry", "bridal"],
-    queryAliases: ["fashion", "μόδα", "clothing", "clothes", "ρούχα", "rouxa", "shoe", "shoes", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia", "sneaker", "sneakers", "dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata", "bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "school bag", "school bags", "σχολική τσάντα", "σχολικές τσάντες", "sxoliki tsanta", "sxolikes tsantes", "scholiki tsanta", "scholikes tsantes", "jewelry", "jewellery", "κοσμήματα", "kosmimata"]
+    queryAliases: ["fashion", "μόδα", "clothing", "clothes", "ρούχα", "rouxa", "shoe", "shoes", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia", "sneaker", "sneakers", "dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata", "bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "school bag", "school bags", "school backpack", "school backpacks", "σχολική τσάντα", "σχολικές τσάντες", "sxoliki tsanta", "sxolikes tsantes", "scholiki tsanta", "scholikes tsantes", "jewelry", "jewellery", "κοσμήματα", "kosmimata"]
   },
   {
     slug: "beauty",
@@ -148,7 +148,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     searchHint: "δώρα, βιβλία, χαρτικά, ιδιαίτερα αντικείμενα",
     artClass: "art-gifts",
     aliases: ["gifts", "gift", "stationery", "books", "book", "school", "office", "culture", "specialist", "packaging", "religious", "other"],
-    queryAliases: ["gift", "gifts", "δώρο", "δώρα", "doro", "dora", "book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia", "stationery", "χαρτικά", "chartika", "school", "σχολικά", "sxoli", "sxolika", "scholi", "scholika", "office", "packaging"]
+    queryAliases: ["gift", "gifts", "δώρο", "δώρα", "doro", "dora", "book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia", "stationery", "χαρτικά", "chartika", "school supplies", "school stationery", "σχολικά είδη", "sxolika eidi", "scholika eidi", "office", "packaging"]
   }
 ];
 
@@ -177,7 +177,7 @@ export const STOREFRONT_LEAF_INTENTS: readonly StorefrontLeafIntent[] = [
   { key: "televisions", categorySlug: "technology", label: "Τηλεοράσεις", aliases: ["television", "televisions", "tv", "tvs", "τηλεόραση", "τηλεοράσεις", "tileorasi", "tileoraseis"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["ίντσες", "ανάλυση", "τεχνολογία panel", "smart TV"] },
   { key: "printers", categorySlug: "technology", label: "Εκτυπωτές", aliases: ["printer", "printers", "εκτυπωτής", "εκτυπωτές", "ektipotis", "ektipotes"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τεχνολογία εκτύπωσης", "χρώμα", "duplex", "συνδεσιμότητα"] },
   { key: "books", categorySlug: "gifts", label: "Βιβλία", aliases: ["book", "books", "βιβλίο", "βιβλία", "vivlio", "vivlia"], preferredFacets: ["subcategory"], attributeHints: ["συγγραφέας", "εκδότης", "ISBN", "γλώσσα"] },
-  { key: "stationery", categorySlug: "gifts", label: "Χαρτικά", aliases: ["stationery", "χαρτικά", "chartika", "school supplies", "σχολικά", "sxoli", "sxolika", "scholi", "scholika"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["τύπος", "μέγεθος", "χρώμα"] }
+  { key: "stationery", categorySlug: "gifts", label: "Χαρτικά", aliases: ["stationery", "χαρτικά", "chartika", "school supplies", "school stationery", "σχολικά είδη", "sxolika eidi", "scholika eidi"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["τύπος", "μέγεθος", "χρώμα"] }
 ];
 
 const FALLBACK_CATEGORY: StorefrontCategory = {
