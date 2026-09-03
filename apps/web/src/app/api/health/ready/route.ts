@@ -1,6 +1,6 @@
 import { ResendEmailProvider, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import { WEB_BUILD_VERSION } from "../../../../lib/build";
-import { gemiLookupReadiness } from "../../../../lib/gemi-runtime";
+import { gemiRuntimeReadiness } from "../../../../lib/gemi-runtime";
 import { productionDatabaseReadiness } from "../../../../lib/postgres-runtime";
 import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
 import { mediaPipelineReadiness } from "../../../../lib/media-upload-service";
@@ -15,12 +15,13 @@ export async function GET() {
   const viva = await vivaPaymentsProviderReadiness();
   const media = await mediaPipelineReadiness();
   const myData = await myDataReadiness();
-  const gemiReadiness = gemiLookupReadiness();
+  const gemiReadiness = await gemiRuntimeReadiness();
   const gemi = {
-    enabled: Boolean(process.env.GEMI_OPENDATA_API_KEY?.trim()),
+    enabled: gemiReadiness.configured,
     ready: gemiReadiness.ready,
     required: false,
     provider: "gemi-opendata",
+    credentialSource: gemiReadiness.credentialSource,
     message: gemiReadiness.message
   };
 
