@@ -229,7 +229,17 @@ export class GemiOpenDataClient {
 
 class SlidingWindowLimiter {
   private readonly timestamps: number[] = [];
-  constructor(private readonly limit: number, private readonly windowMs: number, private readonly now: () => number, private readonly sleep: (ms: number) => Promise<void>) {}
+  private readonly limit: number;
+  private readonly windowMs: number;
+  private readonly now: () => number;
+  private readonly sleep: (ms: number) => Promise<void>;
+
+  constructor(limit: number, windowMs: number, now: () => number, sleep: (ms: number) => Promise<void>) {
+    this.limit = limit;
+    this.windowMs = windowMs;
+    this.now = now;
+    this.sleep = sleep;
+  }
 
   async acquire(signal?: AbortSignal): Promise<void> {
     for (;;) {
