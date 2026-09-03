@@ -4,7 +4,7 @@ import { dedupeOpenIcecatIndexEntries } from "./postgres-open-icecat-bulk.ts";
 import type { OpenIcecatIndexEntry } from "../ingestion/open-icecat/types.ts";
 
 function entry(productId: string, path: string): OpenIcecatIndexEntry {
-  return { productId, path, gtins: [] };
+  return { productId, path, gtins: [], countryMarkets: [] };
 }
 
 test("dedupeOpenIcecatIndexEntries keeps the last provider row for duplicate product ids", () => {
