@@ -17,10 +17,9 @@ export async function GET(request: Request) {
     }
 
     if (gtin || q) {
-      const [result, icecat] = await Promise.all([
-        adminQuickAddLookup(principal, { vendorId, gtin, q }),
-        gtin ? adminQuickAddIcecatLookup(principal, gtin) : Promise.resolve(undefined)
-      ]);
+      // Canonical identity lookup is deliberately independent from Icecat enrichment.
+      // A slow/pending Icecat source must never freeze duplicate detection or product creation.
+      const result = await adminQuickAddLookup(principal, { vendorId, gtin, q });
       const best = result.matches[0];
       await recordQuickAddDemandSignal(principal, {
         source: "admin",
@@ -31,7 +30,7 @@ export async function GET(request: Request) {
         canonicalVariantId: best?.id,
         categoryCode: best?.categoryCode
       });
-      return Response.json({ ...result, icecat });
+      return Response.json(result);
     }
     return Response.json(await adminQuickAddWorkspace(principal));
   } catch (error) {
