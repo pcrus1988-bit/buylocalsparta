@@ -12,6 +12,13 @@ type Globals = typeof globalThis & { [gemiLimiterKey]?: PostgresFixedWindowRateL
 const globals = globalThis as Globals;
 
 export type GemiLookupStatus = "matched" | "not_found" | "unavailable";
+export type GemiCredentialSource = "environment" | "supabase_vault";
+export type GemiRuntimeReadiness = Readonly<{
+  ready: boolean;
+  configured: boolean;
+  credentialSource?: GemiCredentialSource;
+  message: string;
+}>;
 
 export type GemiCompanyRecord = Readonly<{
   lookupStatus: "matched";
@@ -65,6 +72,11 @@ type GemiConfig = Readonly<{
   cacheTtlMs: number;
 }>;
 
+type ResolvedGemiConfig = Readonly<{
+  config: GemiConfig;
+  credentialSource: GemiCredentialSource;
+}>;
+
 export function normalizeGreekAfm(raw: string): string {
   const afm = raw.trim().replace(/\s+/g, "");
   if (!/^\d{9}$/.test(afm)) throw new Error("Το ΑΦΜ πρέπει να έχει 9 ψηφία.");
@@ -81,6 +93,22 @@ export function gemiLookupReadiness(env: NodeJS.ProcessEnv = process.env) {
   return { ready: true, message: "Γ.Ε.ΜΗ. OpenData διαθέσιμο." } as const;
 }
 
+export async function gemiRuntimeReadiness(env: NodeJS.ProcessEnv = process.env): Promise<GemiRuntimeReadiness> {
+  if (!productionDatabaseConfigured(env)) {
+    return { ready: false, configured: false, message: "Η σύνδεση με το Γ.Ε.ΜΗ. δεν είναι προσωρινά διαθέσιμη." };
+  }
+  const resolved = await resolveGemiRuntimeConfig(env);
+  if (!resolved) {
+    return { ready: false, configured: false, message: "Η σύνδεση με το Γ.Ε.ΜΗ. δεν έχει ενεργοποιηθεί ακόμη." };
+  }
+  return {
+    ready: true,
+    configured: true,
+    credentialSource: resolved.credentialSource,
+    message: "Γ.Ε.ΜΗ. OpenData διαθέσιμο."
+  };
+}
+
 export async function consumePublicGemiLookupLimit(visitorKey: string, now = Date.now()) {
   if (!productionDatabaseConfigured()) return { allowed: false, retryAfterMs: 60_000 };
   return limiter().consume({ route: "public-gemi-afm", key: visitorKey, limit: 12, windowMs: 60 * 60 * 1000, now });
@@ -88,10 +116,18 @@ export async function consumePublicGemiLookupLimit(visitorKey: string, now = Dat
 
 export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()): Promise<GemiLookupResult> {
   const taxNumber = normalizeGreekAfm(rawAfm);
-  const readiness = gemiLookupReadiness();
-  if (!readiness.ready) return { lookupStatus: "unavailable", taxNumber, checkedAt: now, message: readiness.message, fromCache: false };
+  const resolved = await resolveGemiRuntimeConfig();
+  if (!resolved) {
+    return {
+      lookupStatus: "unavailable",
+      taxNumber,
+      checkedAt: now,
+      message: "Η σύνδεση με το Γ.Ε.ΜΗ. δεν έχει ενεργοποιηθεί ακόμη.",
+      fromCache: false
+    };
+  }
 
-  const config = configFromEnv();
+  const config = resolved.config;
   const cached = await readCache(taxNumber);
   if (cached && Date.parse(String(cached.expires_at)) > now) return resultFromCache(cached);
 
@@ -163,6 +199,28 @@ export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()):
 function configFromEnv(env: NodeJS.ProcessEnv = process.env): GemiConfig {
   const apiKey = env.GEMI_OPENDATA_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMI_OPENDATA_API_KEY is required");
+  return configFromApiKey(apiKey, env);
+}
+
+async function resolveGemiRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Promise<ResolvedGemiConfig | undefined> {
+  const environmentKey = env.GEMI_OPENDATA_API_KEY?.trim();
+  if (environmentKey) {
+    return { config: configFromApiKey(environmentKey, env), credentialSource: "environment" };
+  }
+  if (!productionDatabaseConfigured(env)) return undefined;
+  try {
+    const result = await getProductionPostgresRuntime().nativePool.query<{ decrypted_secret: string | null }>(
+      `SELECT bls_private.get_gemi_opendata_api_key() AS decrypted_secret`
+    );
+    const vaultKey = result.rows[0]?.decrypted_secret?.trim();
+    if (vaultKey) return { config: configFromApiKey(vaultKey, env), credentialSource: "supabase_vault" };
+  } catch {
+    // Environment remains the explicit bootstrap override if the restricted Vault bridge is unavailable.
+  }
+  return undefined;
+}
+
+function configFromApiKey(apiKey: string, env: NodeJS.ProcessEnv): GemiConfig {
   const baseUrl = (env.GEMI_OPENDATA_BASE_URL?.trim() || DEFAULT_GEMI_BASE_URL).replace(/\/+$/, "");
   return {
     apiKey,
