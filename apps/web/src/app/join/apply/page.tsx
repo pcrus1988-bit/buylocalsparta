@@ -9,7 +9,7 @@ import styles from "../page.module.css";
 
 export const metadata: Metadata = {
   title: "Αίτηση συνεργασίας εμπόρου",
-  description: "Σύγκρινε πρόγραμμα και υπόβαλε ελεγχόμενη αίτηση συνεργασίας για το ΚΟΝΤΑ ΜΟΥ Sparta. Η αίτηση περνά από verification, catalog onboarding και test readiness πριν από οποιαδήποτε ενεργοποίηση.",
+  description: "Ξεκίνα με το ΑΦΜ, ανάκτησε διαθέσιμα στοιχεία επιχείρησης από το Γ.Ε.ΜΗ. και υπόβαλε ελεγχόμενη αίτηση συνεργασίας για το ΚΟΝΤΑ ΜΟΥ Sparta.",
   robots: { index: false, follow: true }
 };
 
@@ -35,14 +35,14 @@ export default async function VendorApplicationPage({ searchParams }: { searchPa
   const claimQuery = claimTarget ? `&claim=${encodeURIComponent(claimTarget.id)}` : "";
 
   return <main>
-    <div className="announcement">Vendor onboarding · αίτηση → επαλήθευση → catalog onboarding → test readiness → ενεργοποίηση.</div>
+    <div className="announcement">Partner onboarding · ΑΦΜ → Γ.Ε.ΜΗ. → verification εκπροσώπησης/επικοινωνίας → catalog onboarding → ενεργοποίηση.</div>
     <SiteHeader compact />
     <section className="shell section">
-      <div className="section-heading"><div><div className="eyebrow">Vendor application</div><h1>Ξεκίνα την αίτηση συνεργασίας.</h1></div><p>Διάλεξε ή άλλαξε πρόγραμμα πριν συμπληρώσεις την αίτηση. Η επιλογή αποθηκεύεται μαζί με το application record αλλά δεν δημιουργεί χρέωση ή αυτόματη σύμβαση.</p></div>
+      <div className="section-heading"><div><div className="eyebrow">Vendor application</div><h1>Ξεκίνα την αίτηση με το ΑΦΜ σου.</h1></div><p>Το ΚΟΝΤΑ ΜΟΥ ανακτά πρώτα τα διαθέσιμα δημοσιευμένα στοιχεία της επιχείρησης από το Γ.Ε.ΜΗ. και ζητά μόνο όσα λείπουν ή αφορούν ειδικά το marketplace.</p></div>
 
       {claimTarget && <div className="fairness-note">
         <strong>Διεκδικείτε την υπάρχουσα σελίδα της {claimTarget.name}.</strong>
-        <p>Η αίτηση θα συνδεθεί με το προφίλ <code>/vendor/{claimTarget.id}</code>. Η σελίδα παραμένει δημόσια στην ίδια διεύθυνση κατά τον έλεγχο και, μετά από επιτυχή επαλήθευση/ενεργοποίηση, η ίδια ταυτότητα μετατρέπεται σε ενεργό partner profile αντί να δημιουργηθεί δεύτερη σελίδα.</p>
+        <p>Η αίτηση θα συνδεθεί με το προφίλ <code>/vendor/{claimTarget.id}</code>. Το ΑΦΜ/Γ.Ε.ΜΗ. λειτουργεί ως πρόσθετο identity evidence. Η σελίδα παραμένει δημόσια στην ίδια διεύθυνση κατά τον έλεγχο και, μετά από επιτυχή επαλήθευση/ενεργοποίηση, η ίδια ταυτότητα μετατρέπεται σε ενεργό partner profile αντί να δημιουργηθεί δεύτερη σελίδα.</p>
       </div>}
 
       {requestedClaim && !claimTarget && <div className="account-gate">
@@ -50,7 +50,7 @@ export default async function VendorApplicationPage({ searchParams }: { searchPa
         <p>Μπορείτε να συνεχίσετε με νέα αίτηση συνεργασίας χωρίς σύνδεση σε research profile ή να επικοινωνήσετε μαζί μας για ασφαλή ταυτοποίηση υπάρχουσας συνεργασίας.</p>
       </div>}
 
-      <div className="shops-principles" aria-label="Vendor application steps"><div><strong>1 · Submit</strong><span>Καταχωρίζονται τα βασικά στοιχεία της επιχείρησης και η αίτηση περνά σε verification pending.</span></div><div><strong>2 · Verify & onboard</strong><span>Η ομάδα ελέγχει επιχείρηση, contact ownership, κατάλογο, stock και readiness.</span></div><div><strong>3 · Admin activation</strong><span>{claimTarget ? "Το υπάρχον indexed vendor profile ενεργοποιείται χωρίς αλλαγή URL μετά τα gates." : "Vendor business, location και vendor-owner access δημιουργούνται μόνο μετά την τελική ελεγχόμενη ενεργοποίηση."}</span></div></div>
+      <div className="shops-principles" aria-label="Vendor application steps"><div><strong>1 · ΑΦΜ & Γ.Ε.ΜΗ.</strong><span>Ελέγχουμε το ΑΦΜ και συμπληρώνουμε τη νομική ταυτότητα από τα διαθέσιμα Γ.Ε.ΜΗ. OpenData.</span></div><div><strong>2 · Verify owner & contacts</strong><span>Συμπληρώνεις μόνο όσα λείπουν/διαφέρουν και η ομάδα ελέγχει εκπροσώπηση, email/τηλέφωνο και επιλεξιμότητα.</span></div><div><strong>3 · Onboard & activate</strong><span>{claimTarget ? "Το υπάρχον indexed vendor profile ενεργοποιείται χωρίς αλλαγή URL μόνο μετά τα gates." : "Catalog onboarding, test readiness και vendor access ακολουθούν μόνο μετά την ελεγχόμενη επαλήθευση."}</span></div></div>
 
       <div className={styles.applyPlanSelector} id="plan-choice">
         <div className={styles.applyPlanSelectorHeader}><div><div className="eyebrow">Επιλογή προγράμματος</div><h2>Σύγκρινε και διάλεξε πριν υποβάλεις.</h2></div><p>Μπορείς να αλλάξεις επιλογή εδώ ή ξανά μέσα στη φόρμα. Οι τιμές είναι προ ΦΠΑ όπου εφαρμόζεται και επιβεβαιώνονται στους τελικούς εμπορικούς όρους.</p></div>
@@ -62,7 +62,7 @@ export default async function VendorApplicationPage({ searchParams }: { searchPa
       </div>
 
       <div className="login-layout vendor-apply-layout">
-        <div className="login-copy"><div className="eyebrow">Πριν υποβάλεις</div><h2>Έχε διαθέσιμα τα πραγματικά στοιχεία της επιχείρησης.</h2><p>Θα χρειαστούμε νομική και εμπορική ονομασία, ΑΦΜ, στοιχεία φυσικού καταστήματος, υπεύθυνο επικοινωνίας και βασική εικόνα του καταλόγου/stock.</p><div className="fairness-note"><strong>Δεν χρειάζεται να έχεις τέλειο e-shop.</strong><p>Ο στόχος είναι να φέρουμε το κατάστημά σου στο κοινό marketplace. Στο onboarding μπορούμε να βοηθήσουμε με catalog mapping, product data, stock process και παρουσίαση της επιχείρησης.</p></div><a className="text-link" href="/join/requirements">Ξαναδές το readiness checklist →</a><a className="text-link" href="/fairness">Πώς προστατεύεται η ισότιμη ανάθεση →</a>{principal && <div className="account-gate"><strong>Συνδεδεμένος λογαριασμός</strong><p>{principal.email}</p><p>Η αίτηση θα συνδεθεί με αυτή την επαληθευμένη ταυτότητα, ανεξάρτητα από το business contact email.</p></div>}</div>
+        <div className="login-copy"><div className="eyebrow">Πριν υποβάλεις</div><h2>Έχε πρόχειρο το ΑΦΜ της επιχείρησης.</h2><p>Ξεκινάμε μόνο από το ΑΦΜ. Αν το Γ.Ε.ΜΗ. διαθέτει επωνυμία, διακριτικό τίτλο, αριθμό Γ.Ε.ΜΗ., έδρα ή email, τα συμπληρώνουμε αυτόματα. Θα σου ζητήσουμε χειροκίνητα μόνο τα στοιχεία που λείπουν ή αφορούν το πραγματικό κατάστημα/την επικοινωνία με το ΚΟΝΤΑ ΜΟΥ.</p><div className="fairness-note"><strong>Το Γ.Ε.ΜΗ. δεν αντικαθιστά την επαλήθευση εκπροσώπησης.</strong><p>Η εύρεση μιας επιχείρησης από το ΑΦΜ επιβεβαιώνει τη νομική ταυτότητα. Δεν δίνει αυτόματα vendor access και δεν αποδεικνύει από μόνη της ότι ο αιτών είναι εξουσιοδοτημένος εκπρόσωπος.</p></div><a className="text-link" href="/join/requirements">Ξαναδές το readiness checklist →</a><a className="text-link" href="/fairness">Πώς προστατεύεται η ισότιμη ανάθεση →</a>{principal && <div className="account-gate"><strong>Συνδεδεμένος λογαριασμός</strong><p>{principal.email}</p><p>Η αίτηση θα συνδεθεί με αυτή την επαληθευμένη ταυτότητα, ανεξάρτητα από το business contact email.</p></div>}</div>
         <div className="login-panel vendor-apply-panel">{!readiness.ready ? <div className="account-gate"><strong>Η αίτηση δεν είναι διαθέσιμη.</strong><p>{readiness.message}</p></div> : <VendorApplicationForm csrfToken={principal?.csrfToken} signedInEmail={principal?.email} initialPlanCode={initialPlanCode} claimedResearchVendorId={claimTarget?.id} claimTargetName={claimTarget?.name} />}</div>
       </div>
     </section>
