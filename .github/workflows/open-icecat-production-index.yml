@@ -21,7 +21,10 @@ permissions:
 
 concurrency:
   group: open-icecat-production-index
-  cancel-in-progress: false
+  # The importer checkpoints each committed source batch transactionally, so a
+  # newer production build can safely supersede an older long-running bootstrap
+  # and resume from the last durable source-row checkpoint.
+  cancel-in-progress: true
 
 jobs:
   index:
