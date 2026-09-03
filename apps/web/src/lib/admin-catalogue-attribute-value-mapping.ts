@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, postgresAdminRuntimeEnabled, recordAdminAudit } from "./admin-runtime";
+import { resolveAdminDatabaseUserId } from "./admin-database-identity";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type CatalogueControlledValueOption = Readonly<{
@@ -170,6 +171,7 @@ export async function mapCatalogueSourceAttributeValue(
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 30_000, lockTimeoutMs: 3_000 });
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const actorUserId = await resolveAdminDatabaseUserId(tx, principal.userId);
     const contextResult = await tx.query<SqlRow>(`
       SELECT a.id::text AS observation_id,
              a.attribute_id::text AS attribute_id,
@@ -263,13 +265,13 @@ export async function mapCatalogueSourceAttributeValue(
           jsonb_build_object('createdFromSourceProductId',$7::text,'mappingVersion','controlled_value_v1')
         )
         RETURNING id::text AS id
-      `, [mappingRuleId, attributeId, sourceValue, attributeValueId, reason, principal.userId, sourceProductId]);
+      `, [mappingRuleId, attributeId, sourceValue, attributeValueId, reason, actorUserId, sourceProductId]);
       valueRuleId = required(inserted.rows[0]?.id, "controlled value rule.id");
     }
 
     const backfill = await tx.query<SqlRow>(`
       SELECT bls_private.backfill_catalog_source_attribute_value_mapping_rule($1::uuid,$2::uuid)::text AS mapped
-    `, [valueRuleId, principal.userId]);
+    `, [valueRuleId, actorUserId]);
     const mappedObservations = numberValue(backfill.rows[0]?.mapped);
 
     return {
