@@ -7,7 +7,20 @@ function entry(productId: string, path: string): OpenIcecatIndexEntry {
   return {
     productId,
     path,
-    gtins: []
+    updated: undefined,
+    quality: undefined,
+    supplierId: undefined,
+    productCode: undefined,
+    categoryId: undefined,
+    mappedProductCode: undefined,
+    gtins: [],
+    onMarket: undefined,
+    countryMarkets: [],
+    modelName: undefined,
+    productViews: undefined,
+    highPic: undefined,
+    gtinsApproved: undefined,
+    limited: undefined
   };
 }
 
