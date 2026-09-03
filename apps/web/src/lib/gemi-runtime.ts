@@ -6,7 +6,6 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 const DEFAULT_GEMI_BASE_URL = "https://opendata-api.businessportal.gr/api/opendata/v1";
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
-const VAULT_GEMI_API_KEY_NAME = "gemi_opendata_api_key";
 const gemiLimiterKey = "__buyLocalSpartaGemiLimiter" as const;
 
 type Globals = typeof globalThis & { [gemiLimiterKey]?: PostgresFixedWindowRateLimiter };
@@ -210,14 +209,13 @@ async function resolveGemiRuntimeConfig(env: NodeJS.ProcessEnv = process.env): P
   }
   if (!productionDatabaseConfigured(env)) return undefined;
   try {
-    const result = await getProductionPostgresRuntime().nativePool.query<{ decrypted_secret: string }>(
-      `SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name=$1 LIMIT 1`,
-      [VAULT_GEMI_API_KEY_NAME]
+    const result = await getProductionPostgresRuntime().nativePool.query<{ decrypted_secret: string | null }>(
+      `SELECT bls_private.get_gemi_opendata_api_key() AS decrypted_secret`
     );
     const vaultKey = result.rows[0]?.decrypted_secret?.trim();
     if (vaultKey) return { config: configFromApiKey(vaultKey, env), credentialSource: "supabase_vault" };
   } catch {
-    // Environment remains the explicit bootstrap override if Vault is unavailable.
+    // Environment remains the explicit bootstrap override if the restricted Vault bridge is unavailable.
   }
   return undefined;
 }
