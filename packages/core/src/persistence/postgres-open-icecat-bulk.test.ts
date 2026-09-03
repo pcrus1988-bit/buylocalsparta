@@ -7,21 +7,9 @@ function entry(productId: string, path: string): OpenIcecatIndexEntry {
   return {
     productId,
     path,
-    updated: undefined,
-    quality: undefined,
-    supplierId: undefined,
-    productCode: undefined,
-    categoryId: undefined,
-    mappedProductCode: undefined,
     gtins: [],
-    onMarket: undefined,
-    countryMarkets: [],
-    modelName: undefined,
-    productViews: undefined,
-    highPic: undefined,
-    gtinsApproved: undefined,
-    limited: undefined
-  };
+    countryMarkets: []
+  } as OpenIcecatIndexEntry;
 }
 
 test("dedupeOpenIcecatIndexEntries keeps the last provider row for duplicate product ids", () => {
