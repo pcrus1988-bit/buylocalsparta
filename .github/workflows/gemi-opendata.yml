@@ -1,0 +1,35 @@
+name: GEMI OpenData Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "packages/gemi-opendata/**"
+      - "scripts/gemi-opendata-connectivity.ts"
+      - ".github/workflows/gemi-opendata.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/gemi-opendata/**"
+      - "scripts/gemi-opendata-connectivity.ts"
+      - ".github/workflows/gemi-opendata.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run credential-free GEMI OpenData contract tests
+        run: node --experimental-strip-types --test packages/gemi-opendata/test/*.test.ts
+      - name: Ensure no real credential is committed
+        shell: bash
+        run: |
+          if git grep -n -E 'GEMI_OPENDATA_API_KEY=[^[:space:]]+' -- ':!packages/gemi-opendata/test/**'; then
+            echo 'A populated GEMI_OPENDATA_API_KEY must never be committed.' >&2
+            exit 1
+          fi
