@@ -4,6 +4,7 @@ const files = {
   intakePage: "apps/web/src/app/admin/catalogue-intake/page.tsx",
   valuePage: "apps/web/src/app/admin/catalogue-intake/values/page.tsx",
   valueMapping: "apps/web/src/lib/admin-catalogue-attribute-value-mapping.ts",
+  identity: "apps/web/src/lib/admin-database-identity.ts",
   valueQueue: "apps/web/src/lib/admin-catalogue-controlled-value-queue.ts",
   migration: "db/migrations/0165_catalog_source_attribute_value_mapping_rules.sql",
   runtime: "packages/postgres-runtime/src/index.ts"
@@ -34,6 +35,9 @@ forbidText("migration", "INSERT INTO public.vendor_offers", "Controlled-value no
 
 requireText("valueMapping", 'assertAdminPermission(principal, "catalog.read")', "Controlled value choices must require catalog.read");
 requireText("valueMapping", 'assertAdminPermission(principal, "catalog.write")', "Controlled value approval must require catalog.write");
+requireText("valueMapping", "resolveAdminDatabaseUserId(tx, principal.userId)", "Controlled value approval must resolve the public session user id before writing UUID audit/reviewer fields");
+requireText("valueMapping", "[valueRuleId, actorUserId]", "Controlled value backfill must receive the resolved internal actor UUID");
+requireText("identity", "WHERE public_id=$1 OR id::text=$1", "Admin database identity resolver must accept both public user IDs and internal UUIDs");
 requireText("valueMapping", "ad.data_type='enum'", "Admin controlled-value mapping must only expose enum observations");
 requireText("valueMapping", "product_type_attribute_allowed_values", "Admin target validation must respect Product Type allowed values");
 requireText("valueMapping", "Supersede that rule explicitly", "Admin service must reject silent controlled-value retargeting");
