@@ -110,7 +110,12 @@ export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()):
   try {
     const search = await fetchJson(`${config.baseUrl}/companies?afm=${encodeURIComponent(taxNumber)}&resultsSize=10`, config);
     const candidates = arrayField(search, "searchResults", "results", "companies");
-    const candidate = candidates.find((item) => normalizeOptionalAfm(stringField(item, "afm")) === taxNumber) ?? candidates[0];
+    const exactCandidate = candidates.find((item) => normalizeOptionalAfm(stringField(item, "afm")) === taxNumber);
+    const candidate = exactCandidate ?? (
+      candidates.length === 1 && !normalizeOptionalAfm(stringField(candidates[0], "afm"))
+        ? candidates[0]
+        : undefined
+    );
     if (!candidate) {
       await writeNotFound(taxNumber, now, config.cacheTtlMs);
       return { lookupStatus: "not_found", taxNumber, checkedAt: now, fromCache: false };
@@ -127,6 +132,12 @@ export async function resolveGemiCompanyByAfm(rawAfm: string, now = Date.now()):
       company = await fetchJson(`${config.baseUrl}/companies/${encodeURIComponent(gemiNumber)}`, config);
     } catch {
       // Search results already carry enough public identity fields for a safe degraded enrichment.
+    }
+
+    const resolvedAfm = normalizeOptionalAfm(stringField(company, "afm")) ?? normalizeOptionalAfm(stringField(candidate, "afm"));
+    if (resolvedAfm !== taxNumber) {
+      await writeNotFound(taxNumber, now, config.cacheTtlMs);
+      return { lookupStatus: "not_found", taxNumber, checkedAt: now, fromCache: false };
     }
 
     const record = normalizeCompany(company, candidate, taxNumber, gemiNumber, now);
