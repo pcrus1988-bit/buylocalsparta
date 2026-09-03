@@ -1,6 +1,7 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, postgresAdminRuntimeEnabled, recordAdminAudit } from "./admin-runtime";
+import { resolveAdminDatabaseUserId } from "./admin-database-identity";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type CatalogueAttributeDefinitionOption = Readonly<{
@@ -105,6 +106,7 @@ export async function mapCatalogueSourceAttribute(
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 30_000, lockTimeoutMs: 3_000 });
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const actorUserId = await resolveAdminDatabaseUserId(tx, principal.userId);
     const contextResult = await tx.query<SqlRow>(`
       SELECT sp.source_id::text AS source_id,
              s.name AS source_name,
@@ -247,14 +249,14 @@ export async function mapCatalogueSourceAttribute(
           now(),now()
         )
         RETURNING id::text AS id
-      `, [sourceId, sourceAttributeKey, scopeKind, scopeKey, productTypeId, attributeId, reason, principal.userId, sourceProductId]);
+      `, [sourceId, sourceAttributeKey, scopeKind, scopeKey, productTypeId, attributeId, reason, actorUserId, sourceProductId]);
       ruleId = required(ruleResult.rows[0]?.id, "mapping rule.id");
     }
 
     const backfillResult = await tx.query<SqlRow>(`
       SELECT mapping_status,row_count
       FROM bls_private.backfill_catalog_source_attribute_mapping_rule($1::uuid,$2::uuid)
-    `, [ruleId, principal.userId]);
+    `, [ruleId, actorUserId]);
     const mappedObservations = backfillResult.rows
       .filter((row) => row.mapping_status === "mapped")
       .reduce((total, row) => total + numberValue(row.row_count), 0);
