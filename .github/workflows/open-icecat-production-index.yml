@@ -39,9 +39,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24.19 made WHATWG DecompressionStream reject concatenated gzip
+      # members. Open Icecat index snapshots can contain concatenated members,
+      # so keep this worker on the last compatible Node 24 release until it is
+      # fully switched to the native Gunzip decoder covered by core regression tests.
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 24.18.0
           cache: npm
 
       - name: Install locked production workspace
