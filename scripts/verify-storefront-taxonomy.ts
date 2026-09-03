@@ -50,15 +50,19 @@ const intentCases: Array<[string, string]> = [
   ["γυναικεία παπούτσια", "fashion"],
   ["Samsung smartphone", "technology"],
   ["παιχνίδια", "kids"],
-  ["sxoli", "gifts"],
-  ["sxolika", "gifts"],
-  ["scholika", "gifts"],
+  ["school supplies", "gifts"],
+  ["σχολικά είδη", "gifts"],
+  ["sxolika eidi", "gifts"],
+  ["scholika eidi", "gifts"],
   ["sxolikes tsantes", "fashion"],
   ["scholikes tsantes", "fashion"]
 ];
 for (const [query, expectedSlug] of intentCases) {
   const actual = inferStorefrontCategoryFromQuery(query)?.slug;
   if (actual !== expectedSlug) failures.push(`Search intent "${query}" must infer ${expectedSlug}, received ${actual ?? "none"}`);
+}
+for (const query of ["school", "σχολικά", "sxoli", "sxolika", "scholi", "scholika"]) {
+  if (inferStorefrontCategoryFromQuery(query)) failures.push(`Broad school intent "${query}" must remain cross-catalog until the product type is known`);
 }
 if (inferStorefrontCategoryFromQuery("gift for child")) failures.push("Ambiguous cross-department intent must remain unscoped instead of forcing a category");
 
@@ -70,15 +74,19 @@ const leafCases: Array<[string, string]> = [
   ["Samsung smartphone", "smartphones"],
   ["παιχνίδια", "toys"],
   ["βιβλία", "books"],
-  ["sxoli", "stationery"],
-  ["sxolika", "stationery"],
-  ["scholika", "stationery"],
+  ["school supplies", "stationery"],
+  ["σχολικά είδη", "stationery"],
+  ["sxolika eidi", "stationery"],
+  ["scholika eidi", "stationery"],
   ["sxolikes tsantes", "school-bags"],
   ["σχολικές τσάντες", "school-bags"]
 ];
 for (const [query, expectedLeaf] of leafCases) {
   const actual = inferStorefrontTaxonomyIntent(query)?.leaf?.key;
   if (actual !== expectedLeaf) failures.push(`Search intent "${query}" must infer leaf ${expectedLeaf}, received ${actual ?? "none"}`);
+}
+for (const query of ["school", "σχολικά", "sxoli", "sxolika", "scholi", "scholika"]) {
+  if (inferStorefrontTaxonomyIntent(query)) failures.push(`Broad school intent "${query}" must not leak into leaf inference`);
 }
 if (inferStorefrontTaxonomyIntent("gift for child")) failures.push("Ambiguous department intent must not leak into leaf inference");
 
@@ -135,6 +143,9 @@ const attributeQuery = readFileSync(`${root}/apps/web/src/lib/storefront-attribu
 const availableTaxonomy = readFileSync(`${root}/apps/web/src/lib/available-catalog-taxonomy.ts`, "utf8");
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
 const catalogSearchInput = readFileSync(`${root}/apps/web/src/components/CatalogSearchInput.tsx`, "utf8");
+const homeQuickSearch = readFileSync(`${root}/apps/web/src/components/HomeQuickSearch.tsx`, "utf8");
+const mobileCommerceSearch = readFileSync(`${root}/apps/web/src/components/CustomerMobileCommerceNav.tsx`, "utf8");
+const searchDiscovery = readFileSync(`${root}/apps/web/src/components/SearchDiscovery.tsx`, "utf8");
 const searchSuggestions = readFileSync(`${root}/apps/web/src/lib/storefront-search-suggestions.ts`, "utf8");
 
 if (!categoryPage.includes('getCatalogCards(visitorKey, "23100", "", category.slug)')) failures.push("Category landing pages must filter the canonical public catalog through getCatalogCards");
@@ -164,9 +175,13 @@ if (!availableTaxonomy.includes("catalogAttributeDefinitionsForLeaf(leafKey)")) 
 if (!availableTaxonomy.includes("matchesCatalogAttributeFilters(details?.attributes, attributeFilters, definition.key)")) failures.push("Structured facet options must respect other selected attributes while self-excluding their own key");
 if (!availableTaxonomy.includes("searchTextRelevance(query")) failures.push("Dynamic facets must use the same relevance engine as catalog results");
 if (!productCard.includes("storefrontCategoryForCode(product.categoryCode, product.departmentCode)")) failures.push("Product cards must derive their visual category from canonical leaf and department codes");
-if (!shopPage.includes("<CatalogSearchInput") || !catalogSearchInput.includes("/api/search/suggest")) failures.push("Shop search must retain governed catalogue autocomplete");
-if (!catalogSearchInput.includes("AbortController") || !catalogSearchInput.includes("maxLength={120}")) failures.push("Catalogue autocomplete must cancel stale requests and retain the bounded search contract");
-if (catalogSearchInput.includes("onKeyDown") || catalogSearchInput.includes("ArrowDown") || catalogSearchInput.includes("ArrowUp")) failures.push("Discovery panel must not add custom keyboard navigation");
+if (!shopPage.includes("<CatalogSearchInput") || !catalogSearchInput.includes("useSearchDiscovery") || !catalogSearchInput.includes("<SearchDiscoveryPanel")) failures.push("Shop search must consume the shared governed discovery component");
+if (!homeQuickSearch.includes("useSearchDiscovery") || !homeQuickSearch.includes("<SearchDiscoveryPanel") || !homeQuickSearch.includes('surface="home"')) failures.push("Homepage search must expose the same structured discovery engine as /shop");
+if (!mobileCommerceSearch.includes("useSearchDiscovery") || !mobileCommerceSearch.includes("<SearchDiscoveryPanel") || !mobileCommerceSearch.includes('placement="above"') || !mobileCommerceSearch.includes('surface="mobile"')) failures.push("Mobile sticky search must expose the same structured discovery engine above the bottom navigation");
+if (!searchDiscovery.includes("/api/search/suggest") || !searchDiscovery.includes("AbortController") || !searchDiscovery.includes("dedupeSuggestions")) failures.push("Shared search discovery must own suggestion fetching, stale-request cancellation and deduplication");
+if (!catalogSearchInput.includes("maxLength={120}") || !homeQuickSearch.includes("maxLength={120}") || !mobileCommerceSearch.includes("maxLength={120}")) failures.push("Every customer search surface must retain the bounded search contract");
+const discoveryKeyboardSources = `${catalogSearchInput}\n${homeQuickSearch}\n${mobileCommerceSearch}\n${searchDiscovery}`;
+if (discoveryKeyboardSources.includes("onKeyDown") || discoveryKeyboardSources.includes("ArrowDown") || discoveryKeyboardSources.includes("ArrowUp")) failures.push("Discovery surfaces must not add custom keyboard navigation");
 for (const kind of ["query", "category", "leaf", "brand", "product"]) if (!searchSuggestions.includes(`\"${kind}\"`)) failures.push(`Structured suggestions must support ${kind} destinations`);
 if (!searchSuggestions.includes("Σχολικές τσάντες δημοτικού") || !searchSuggestions.includes("sxolikes tsantes")) failures.push("Structured suggestions must include school-bag Greek and Greeklish intent seeds");
 
@@ -174,4 +189,4 @@ if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents, governed structured facets, Greeklish discovery and residual natural-attribute integration verified.`);
+console.log(`Storefront category checks passed: ${STOREFRONT_CATEGORIES.length} primary categories, ${cases.length} taxonomy mappings, ${intentCases.length} department intents, ${leafCases.length} leaf intents, shared Home/Shop/Mobile discovery, governed structured facets, Greeklish discovery and residual natural-attribute integration verified.`);
