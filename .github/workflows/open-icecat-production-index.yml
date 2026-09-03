@@ -36,6 +36,10 @@ jobs:
       BLS_WORKER_ROLE: icecat
       BLS_DB_APPLICATION_NAME: buy-local-sparta:icecat:github-actions
       BLS_OPEN_ICECAT_RUN_ONCE: "true"
+      # Production metadata is authoritative, but keep workflow fallbacks aligned
+      # with the bootstrap profile so recovery is safe even if metadata is absent.
+      BLS_OPEN_ICECAT_BATCH_SIZE: "5000"
+      BLS_OPEN_ICECAT_FETCH_TIMEOUT_MS: "18000000"
       ICECAT_RUNTIME_BROKER_URL: https://eemihhfreggbigxejjhj.supabase.co/functions/v1/icecat-runtime-broker
       ICECAT_RUNTIME_AUDIENCE: kontamou-icecat-runtime
 
