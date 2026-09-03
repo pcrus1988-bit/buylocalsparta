@@ -1,0 +1,9 @@
+{
+  "name": "@buy-local-sparta/gemi-opendata",
+  "version": "0.45.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
