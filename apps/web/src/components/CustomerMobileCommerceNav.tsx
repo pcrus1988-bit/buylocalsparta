@@ -7,6 +7,7 @@ import { isCustomerMobileCommercePath } from "../lib/customer-mobile-commerce";
 import { recordProductAnalyticsEvent } from "../lib/product-analytics-client";
 import { googleAnalyticsItem, trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
 import { useCart } from "./CartProvider";
+import { SearchDiscoveryPanel, useSearchDiscovery } from "./SearchDiscovery";
 
 export type CustomerMobileProductAction = Readonly<{
   id: string;
@@ -54,6 +55,8 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmation, setConfirmation] = useState<string>();
   const confirmationTimer = useRef<number | undefined>(undefined);
+  const { items: searchItems, loading: searchLoading } = useSearchDiscovery(searchQuery, 12);
+  const searchExpanded = searchOpen && searchQuery.trim().length >= 2 && (searchLoading || searchItems.length > 0);
   const productPage = pathname.startsWith("/product/");
   const showProductAction = productPage && Boolean(product);
 
@@ -92,9 +95,30 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
         {searchOpen ? (
           <form className="customer-mobile-commerce-search-panel" role="search" onSubmit={runSearch}>
             <SearchIcon />
-            <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Τι προϊόν ψάχνεις;" aria-label="Αναζήτηση σε όλα τα προϊόντα" autoComplete="off" autoFocus maxLength={120} />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Τι προϊόν ψάχνεις;"
+              aria-label="Αναζήτηση σε όλα τα προϊόντα"
+              aria-expanded={searchExpanded}
+              aria-controls="mobile-search-discovery"
+              autoComplete="off"
+              autoFocus
+              maxLength={120}
+            />
             <button className="customer-mobile-commerce-search-submit" type="submit" aria-label="Εκτέλεση αναζήτησης"><span>Enter</span></button>
             <button className="customer-mobile-commerce-search-close" type="button" aria-label="Κλείσιμο αναζήτησης" onClick={() => setSearchOpen(false)}><CloseIcon /></button>
+            <SearchDiscoveryPanel
+              id="mobile-search-discovery"
+              query={searchQuery}
+              items={searchItems}
+              loading={searchLoading}
+              open={searchOpen}
+              placement="above"
+              surface="mobile"
+              onNavigate={() => setSearchOpen(false)}
+            />
           </form>
         ) : null}
 
