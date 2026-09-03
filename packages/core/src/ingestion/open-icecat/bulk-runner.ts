@@ -109,6 +109,8 @@ export async function runOpenIcecatBulkImport(input: Readonly<{
   let batchFiltered = 0;
   let candidates: OpenIcecatIndexEntry[] = [];
   let removals: OpenIcecatIndexEntry[] = [];
+  let candidateProductIds = new Set<string>();
+  let removalProductIds = new Set<string>();
 
   const commit = async (): Promise<void> => {
     if (batchSourceRows === 0) return;
@@ -126,6 +128,8 @@ export async function runOpenIcecatBulkImport(input: Readonly<{
     batchFiltered = 0;
     candidates = [];
     removals = [];
+    candidateProductIds = new Set<string>();
+    removalProductIds = new Set<string>();
   };
 
   try {
@@ -143,10 +147,19 @@ export async function runOpenIcecatBulkImport(input: Readonly<{
         filteredCount += 1;
         batchFiltered += 1;
       } else if (identity.importKind === "daily" && event.entry.quality?.toUpperCase() === "REMOVED") {
+        // PostgreSQL cannot update the same ON CONFLICT target twice within one
+        // INSERT statement. Open Icecat can repeat a product id in a source
+        // snapshot, so end the current transaction before admitting a duplicate
+        // conflict key. This keeps every source row and checkpoint intact while
+        // preserving the provider's later row as the final state.
+        if (removalProductIds.has(event.entry.productId)) await commit();
         removals.push(event.entry);
+        removalProductIds.add(event.entry.productId);
         removalCount += 1;
       } else {
+        if (candidateProductIds.has(event.entry.productId)) await commit();
         candidates.push(event.entry);
+        candidateProductIds.add(event.entry.productId);
         candidateCount += 1;
       }
 
