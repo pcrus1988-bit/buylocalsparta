@@ -55,7 +55,8 @@ export async function POST(request: Request) {
         postcode: result.postcode,
         email: result.email,
         phone: result.phone,
-        url: result.url
+        url: result.url,
+        checkedAt: result.checkedAt
       }
     }, { status: 200, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
