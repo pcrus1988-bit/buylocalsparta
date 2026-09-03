@@ -239,6 +239,12 @@ export class PostgresOpenIcecatBulkRepository implements OpenIcecatBulkRepositor
   }
 }
 
+export function dedupeOpenIcecatIndexEntries(entries: readonly OpenIcecatIndexEntry[]): readonly OpenIcecatIndexEntry[] {
+  const byProductId = new Map<string, OpenIcecatIndexEntry>();
+  for (const entry of entries) byProductId.set(entry.productId, entry);
+  return [...byProductId.values()];
+}
+
 async function upsertIndexEntries(
   tx: SqlExecutor,
   sourceId: string,
@@ -248,7 +254,12 @@ async function upsertIndexEntries(
   state: "active" | "removed"
 ): Promise<void> {
   if (!entries.length) return;
-  const payload = JSON.stringify(entries);
+  // Icecat's index can repeat a product within one source batch. PostgreSQL
+  // rejects a multi-row ON CONFLICT statement that would update the same key
+  // twice, so collapse duplicates deterministically while preserving the last
+  // provider row for that product. Source-row accounting/checkpointing remains
+  // based on the original batch and is therefore still lossless/resumable.
+  const payload = JSON.stringify(dedupeOpenIcecatIndexEntries(entries));
   await tx.query(`
     INSERT INTO public.open_icecat_index_products (
       source_id, product_id, path, source_updated, quality, supplier_id, product_code,
