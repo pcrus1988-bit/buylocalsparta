@@ -7,6 +7,7 @@ import {
   type SqlRow
 } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
+import { normalizeGreekAfm, resolveGemiCompanyByAfm, type GemiLookupResult } from "./gemi-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 
@@ -36,6 +37,22 @@ export type VendorApplicationReceipt = Readonly<{
   state: "verification_pending";
   ownerIdentity: "authenticated" | "provisional";
   accountClaimRequired: boolean;
+  registryLookupStatus: "matched" | "not_found" | "unavailable";
+}>;
+
+type NormalizedVendorApplication = VendorApplicationInput & Readonly<{
+  registryLookupStatus: "matched" | "not_found" | "unavailable";
+  registryCheckedAt: number;
+  registryLegalName?: string;
+  registryTradingName?: string;
+  registryCompanyStatus?: string;
+  registryLegalType?: string;
+  registryAddressLine1?: string;
+  registryCity?: string;
+  registryPostcode?: string;
+  registryEmail?: string;
+  contactEmailSource: "gemi" | "applicant";
+  phoneSource: "gemi" | "applicant";
 }>;
 
 type ClaimableResearchVendor = Readonly<{
@@ -62,7 +79,9 @@ export async function submitVendorApplication(input: {
   principal?: SessionPrincipal;
   now: number;
 }): Promise<VendorApplicationReceipt> {
-  const application = normalizeApplication(input.application);
+  const taxNumber = normalizeGreekAfm(input.application.taxNumber);
+  const registry = await resolveGemiCompanyByAfm(taxNumber, input.now);
+  const application = normalizeApplication({ ...input.application, taxNumber }, registry);
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
 
@@ -113,13 +132,22 @@ export async function submitVendorApplication(input: {
         INSERT INTO vendor_applications (
           id,public_id,owner_user_id,market_id,vendor_id,legal_name,trading_name,tax_number,gemi_number,
           contact_email,phone,address_line1,postcode,primary_category,shop_story,requested_plan_code,
-          status,created_at,updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'verification_pending',$17,$17)
+          registry_lookup_status,registry_checked_at,registry_legal_name,registry_trading_name,
+          registry_company_status,registry_legal_type,registry_address_line1,registry_city,registry_postcode,
+          registry_email,contact_email_source,phone_source,status,created_at,updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,'verification_pending',$29,$29
+        )
       `, [
         applicationUuid, applicationId, owner.uuid, marketUuid, claimedVendor?.uuid ?? null,
         application.legalName, application.tradingName, application.taxNumber, application.gemiNumber ?? null,
         application.contactEmail, application.phone, application.address, application.postcode,
-        application.primaryCategory, application.shopStory ?? null, application.requestedPlanCode, createdAt
+        application.primaryCategory, application.shopStory ?? null, application.requestedPlanCode,
+        application.registryLookupStatus, new Date(application.registryCheckedAt), application.registryLegalName ?? null,
+        application.registryTradingName ?? null, application.registryCompanyStatus ?? null, application.registryLegalType ?? null,
+        application.registryAddressLine1 ?? null, application.registryCity ?? null, application.registryPostcode ?? null,
+        application.registryEmail ?? null, application.contactEmailSource, application.phoneSource, createdAt
       ]);
 
       if (claimedVendor) {
@@ -150,7 +178,7 @@ export async function submitVendorApplication(input: {
         to: "verification_pending",
         actorUuid: owner.uuid,
         actorPublicId: owner.publicId,
-        reason: "merchant submitted complete public application for verification",
+        reason: registryReason(application.registryLookupStatus),
         at: input.now + 1
       });
 
@@ -158,7 +186,8 @@ export async function submitVendorApplication(input: {
         applicationId,
         state: "verification_pending" as const,
         ownerIdentity: owner.provisional ? "provisional" as const : "authenticated" as const,
-        accountClaimRequired: owner.provisional
+        accountClaimRequired: owner.provisional,
+        registryLookupStatus: application.registryLookupStatus
       };
     },
     { isolation: "serializable" }
@@ -225,12 +254,14 @@ async function insertApplicationEvent(tx: SqlExecutor, input: {
   `, [randomUUID(), id("vapp_event"), input.applicationUuid, input.from, input.to, input.actorUuid, input.actorPublicId, input.reason, new Date(input.at)]);
 }
 
-function normalizeApplication(input: VendorApplicationInput): VendorApplicationInput {
-  const legalName = requiredLimited(input.legalName, "Νομική επωνυμία", 160);
-  const tradingName = requiredLimited(input.tradingName, "Εμπορική ονομασία", 120);
-  const taxNumber = input.taxNumber.replace(/\s+/g, "");
-  if (!/^\d{9}$/.test(taxNumber)) throw new Error("Το ΑΦΜ πρέπει να έχει 9 ψηφία.");
-  const gemiNumber = input.gemiNumber?.replace(/\s+/g, "") || undefined;
+function normalizeApplication(input: VendorApplicationInput, registry: GemiLookupResult): NormalizedVendorApplication {
+  const taxNumber = normalizeGreekAfm(input.taxNumber);
+  const trustedMatch = registry.lookupStatus === "matched" ? registry : undefined;
+  const legalName = trustedMatch
+    ? requiredLimited(trustedMatch.legalName, "Νομική επωνυμία", 160)
+    : requiredLimited(input.legalName, "Νομική επωνυμία", 160);
+  const tradingName = requiredLimited(input.tradingName || trustedMatch?.tradingName || legalName, "Εμπορική ονομασία", 120);
+  const gemiNumber = trustedMatch?.gemiNumber ?? (input.gemiNumber?.replace(/\s+/g, "") || undefined);
   if (gemiNumber && !/^\d{8,20}$/.test(gemiNumber)) throw new Error("Ο αριθμός ΓΕΜΗ δεν έχει έγκυρη μορφή.");
   const contactEmail = normalizeEmail(input.contactEmail);
   const phone = requiredLimited(input.phone, "Τηλέφωνο", 32);
@@ -246,6 +277,8 @@ function normalizeApplication(input: VendorApplicationInput): VendorApplicationI
   if (claimedResearchVendorId && !/^vendor_research_[A-Za-z0-9_-]{3,160}$/.test(claimedResearchVendorId)) {
     throw new Error("RESEARCH_PROFILE_NOT_CLAIMABLE");
   }
+  const registryEmail = trustedMatch?.email?.trim().toLowerCase();
+  const registryPhone = trustedMatch?.phone?.trim();
   return {
     legalName,
     tradingName,
@@ -258,8 +291,30 @@ function normalizeApplication(input: VendorApplicationInput): VendorApplicationI
     primaryCategory,
     shopStory,
     requestedPlanCode: input.requestedPlanCode,
-    claimedResearchVendorId
+    claimedResearchVendorId,
+    registryLookupStatus: registry.lookupStatus,
+    registryCheckedAt: registry.checkedAt,
+    registryLegalName: trustedMatch?.legalName,
+    registryTradingName: trustedMatch?.tradingName,
+    registryCompanyStatus: trustedMatch?.companyStatus,
+    registryLegalType: trustedMatch?.legalType,
+    registryAddressLine1: trustedMatch?.addressLine1,
+    registryCity: trustedMatch?.city,
+    registryPostcode: trustedMatch?.postcode,
+    registryEmail,
+    contactEmailSource: registryEmail && registryEmail === contactEmail ? "gemi" : "applicant",
+    phoneSource: registryPhone && comparablePhone(registryPhone) === comparablePhone(phone) ? "gemi" : "applicant"
   };
+}
+
+function registryReason(status: NormalizedVendorApplication["registryLookupStatus"]): string {
+  if (status === "matched") return "merchant submitted complete public application; GEMI legal identity matched; ownership/contact verification remains pending";
+  if (status === "not_found") return "merchant submitted complete public application; GEMI AFM was not found; manual registry verification required";
+  return "merchant submitted complete public application; GEMI lookup was unavailable; manual registry verification required";
+}
+
+function comparablePhone(value: string): string {
+  return value.replace(/\D/g, "");
 }
 
 function requiredLimited(value: string, label: string, max: number): string {
