@@ -29,7 +29,7 @@ jobs:
       - name: Ensure no real credential is committed
         shell: bash
         run: |
-          if git grep -n -E 'GEMI_OPENDATA_API_KEY=[^[:space:]]+' -- ':!packages/gemi-opendata/test/**'; then
+          if git grep -n -E 'GEMI_OPENDATA_API_KEY=[^[:space:]]+' -- ':!packages/gemi-opendata/test/**' ':!.github/workflows/gemi-opendata.yml'; then
             echo 'A populated GEMI_OPENDATA_API_KEY must never be committed.' >&2
             exit 1
           fi
