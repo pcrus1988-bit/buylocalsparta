@@ -323,6 +323,28 @@ function preferredProfileMedia(media: readonly ApprovedVendorProfileMedia[], ven
   return vendorMedia.find((item) => item.role === "storefront") ?? vendorMedia.find((item) => item.role === "logo");
 }
 
+function directoryPresentation(vendor: PublicVendorDirectoryEntry, profileMedia: readonly ApprovedVendorProfileMedia[], fallbackImage?: { mediaId: string; altText?: string }): PublicVendorDirectoryEntry {
+  if (vendor.directoryStatus !== "partner") return vendor;
+  const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+  const selectedImage = profileImage ?? fallbackImage;
+  const effectiveCopy = vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt;
+  const effectiveMediaUrl = profileImage
+    ? publicMediaUrl(profileImage.mediaId)
+    : vendor.story?.mediaUrl ?? (fallbackImage ? publicMediaUrl(fallbackImage.mediaId) : undefined);
+  const effectiveStory = effectiveCopy || effectiveMediaUrl
+    ? {
+        id: vendor.story?.id ?? `storefront_${vendor.id}`,
+        slug: vendor.story?.slug ?? vendor.id,
+        title: vendor.story?.title ?? vendor.name,
+        excerpt: effectiveCopy ?? `Δες το δημόσιο προφίλ του ${vendor.name}, τις κατηγορίες, τα προϊόντα και την τοπική συμβουλή του καταστήματος.`,
+        mediaUrl: effectiveMediaUrl
+      }
+    : vendor.story;
+  return selectedImage
+    ? { ...vendor, story: effectiveStory, mediaId: selectedImage.mediaId, mediaAlt: selectedImage.altText }
+    : { ...vendor, story: effectiveStory };
+}
+
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
   if (!productionDatabaseConfigured()) return [];
   const directory = await databaseDirectory();
@@ -332,12 +354,7 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
     approvedVendorImages(partnerIds)
   ]);
   const fallbackByVendor = new Map(fallbackImages.map((image) => [image.vendorId, image]));
-  return directory.map((vendor) => {
-    const profileImage = preferredProfileMedia(profileMedia, vendor.id);
-    if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
-    const fallback = fallbackByVendor.get(vendor.id);
-    return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
-  });
+  return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
 }
 
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
