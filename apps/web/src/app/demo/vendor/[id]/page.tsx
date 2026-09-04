@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { SiteHeader } from "../../../../components/SiteHeader";
@@ -6,6 +7,7 @@ import { VendorCatalogBrowser } from "../../../../components/VendorCatalogBrowse
 import { VendorLocationMap } from "../../../../components/VendorLocationMap";
 import styles from "../../../../components/VendorStorefront.module.css";
 import { getDemoStorefrontVendor, getDemoVendorCatalogCards, type DemoStorefrontVendor } from "../../../../lib/demo-storefront";
+import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../../lib/public-media-service";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -23,14 +25,29 @@ function addressText(location: DemoStorefrontVendor["location"]): string {
   return [location.addressLine1, location.addressLine2, [location.postcode, location.locality].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 }
 
+function mediaPath(media?: ApprovedVendorProfileMedia): string | undefined {
+  return media ? `/api/media/${encodeURIComponent(media.mediaId)}` : undefined;
+}
+
+function firstRole(media: readonly ApprovedVendorProfileMedia[], role: ApprovedVendorProfileMedia["role"]): ApprovedVendorProfileMedia | undefined {
+  return media.find((item) => item.role === role);
+}
+
 export default async function DemoVendorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const vendor = await getDemoStorefrontVendor(id);
   if (!vendor) notFound();
-  const products = await getDemoVendorCatalogCards(vendor);
+  const [products, profileMedia] = await Promise.all([getDemoVendorCatalogCards(vendor), approvedVendorProfileMedia([vendor.id])]);
   const location = vendor.location;
   const intro = vendor.shortDescription ?? `Προεπισκόπηση του μελλοντικού καταστήματος ${vendor.name} μέσα στο ΚΟΝΤΑ ΜΟΥ Sparta. Η εμπειρία μιμείται το ενεργό storefront, αλλά δεν δημιουργεί παραγγελίες ή δεσμεύσεις.`;
   const fullAddress = addressText(location);
+  const logoMedia = firstRole(profileMedia, "logo");
+  const storefrontMedia = firstRole(profileMedia, "storefront");
+  const teamMedia = firstRole(profileMedia, "team");
+  const galleryMedia = profileMedia.filter((item) => item.role === "gallery");
+  const logoUrl = mediaPath(logoMedia);
+  const storefrontUrl = mediaPath(storefrontMedia);
+  const teamUrl = mediaPath(teamMedia);
 
   return (
     <main className={styles.page}>
@@ -43,11 +60,13 @@ export default async function DemoVendorPage({ params }: { params: Promise<{ id:
           <div className={styles.heroGrid}>
             <div className={styles.identity}>
               <div className={styles.brandRow}>
-                <div className={styles.logoMark} aria-label={`Ταυτότητα καταστήματος ${vendor.name}`}>{initials(vendor.name)}</div>
+                <div className={styles.logoMark} aria-label={`Ταυτότητα καταστήματος ${vendor.name}`} style={{ overflow: "hidden" }}>
+                  {logoUrl ? <Image src={logoUrl} alt={logoMedia?.altText ?? `Λογότυπο ${vendor.name}`} width={82} height={82} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }} /> : initials(vendor.name)}
+                </div>
                 <div className={styles.brandMeta}>
                   <strong>DEMO συνεργάτη · προεπισκόπηση πριν την ενεργοποίηση</strong>
                   <span>{location?.locality ? `${location.locality}${location.postcode ? ` · ${location.postcode}` : ""}` : "Σπάρτη & τοπική αγορά"}</span>
-                  <span>Η διάταξη και ο κατάλογος ακολουθούν το πραγματικό storefront ενεργού vendor.</span>
+                  <span>{logoUrl ? "Εγκεκριμένο storefront logo · ίδιο asset με το μελλοντικό LIVE shop." : "Η διάταξη και ο κατάλογος ακολουθούν το πραγματικό storefront ενεργού vendor."}</span>
                 </div>
               </div>
               <div className="eyebrow">Meet the local shop · DEMO</div>
@@ -65,16 +84,16 @@ export default async function DemoVendorPage({ params }: { params: Promise<{ id:
             </div>
 
             <div className={styles.mediaPanel} aria-label={`DEMO βιτρίνα ${vendor.name}`}>
-              <div className={styles.mediaPlaceholder}>
+              {storefrontUrl ? <Image src={storefrontUrl} alt={storefrontMedia?.altText ?? `DEMO βιτρίνα ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" style={{ objectFit: "cover" }} /> : <div className={styles.mediaPlaceholder}>
                 <div className={styles.mediaPlaceholderInner}>
                   <span className={styles.mediaPlaceholderIcon}>⌂</span>
                   <strong>{vendor.name}</strong>
-                  <span>DEMO βιτρίνα. Εγκεκριμένη φωτογραφία καταστήματος θα εμφανιστεί εδώ όταν προστεθεί στο onboarding.</span>
+                  <span>DEMO βιτρίνα. Εγκεκριμένη φωτογραφία καταστήματος θα εμφανιστεί εδώ όταν δημοσιευθεί από το Partner Design.</span>
                 </div>
-              </div>
+              </div>}
               <div className={styles.mediaOverlay}>
                 <strong>DEMO · {vendor.name}</strong>
-                <span>Ίδιο customer-facing layout με ενεργό κατάστημα, χωρίς εμπορικές ενέργειες.</span>
+                <span>{storefrontUrl ? "Εγκεκριμένη storefront εικόνα · ίδιο visual source με το LIVE shop." : "Ίδιο customer-facing layout με ενεργό κατάστημα, χωρίς εμπορικές ενέργειες."}</span>
               </div>
             </div>
           </div>
@@ -93,18 +112,30 @@ export default async function DemoVendorPage({ params }: { params: Promise<{ id:
           <article className={`${styles.card} ${styles.peopleCard}`}>
             <div className="eyebrow">Meet the vendor</div>
             <div className={styles.peopleHead}>
-              <div className={styles.personAvatar}>{initials(vendor.name)}</div>
+              <div className={styles.personAvatar} style={{ overflow: "hidden" }}>{teamUrl ? <Image src={teamUrl} alt={teamMedia?.altText ?? `Η ομάδα του ${vendor.name}`} width={76} height={76} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(vendor.name)}</div>
               <div><h3>Η ομάδα του {vendor.name}</h3><p>Τοπική εξυπηρέτηση και γνώση προϊόντων.</p></div>
             </div>
-            <p className={styles.peopleCopy}>Το όνομα συμβούλου, η φωτογραφία ομάδας και οι επιβεβαιωμένες δυνατότητες συμβουλής θα εμφανιστούν μόλις εγκριθούν στο onboarding.</p>
+            <p className={styles.peopleCopy}>{teamUrl ? "Η εγκεκριμένη εικόνα ομάδας προβάλλεται ήδη όπως θα εμφανιστεί στο LIVE storefront." : "Το όνομα συμβούλου, η φωτογραφία ομάδας και οι επιβεβαιωμένες δυνατότητες συμβουλής θα εμφανιστούν μόλις εγκριθούν στο onboarding."}</p>
           </article>
           <article className={`${styles.card} ${styles.storyCard}`}>
             <div className="eyebrow light">Η σύντομη ιστορία</div>
             <h2>Λίγα λόγια για το {vendor.name}.</h2>
             <p>{vendor.story ?? "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένη ιστορία από το κατάστημα. Η θέση παραμένει ορατή στο DEMO ώστε ο prospect να δει πώς θα παρουσιαστεί όταν ολοκληρώσει το προφίλ του."}</p>
-            <small className={styles.storyNote}>DEMO περιεχόμενο · η τελική δημόσια έκδοση απαιτεί merchant approval.</small>
+            <small className={styles.storyNote}>DEMO περιεχόμενο · η τελική δημόσια έκδοση μπορεί να αντικατασταθεί από separately governed Merchant Story.</small>
           </article>
         </div>
+
+        {galleryMedia.length > 0 && <div style={{ marginTop: 28 }}>
+          <div className={styles.sectionHeader} style={{ marginBottom: 18 }}>
+            <div><div className="eyebrow">Store gallery · DEMO</div><h2>Μια ματιά στο {vendor.name}</h2></div>
+            <p className={styles.sectionLead}>Οι ίδιες εγκεκριμένες gallery εικόνες που θα τροφοδοτούν το ενεργό storefront.</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+            {galleryMedia.map((media) => <div className={styles.card} key={media.mediaId} style={{ position: "relative", overflow: "hidden", minHeight: 240 }}>
+              <Image src={mediaPath(media)!} alt={media.altText ?? `${vendor.name} gallery`} fill sizes="(max-width: 640px) 100vw, 33vw" style={{ objectFit: "cover" }} />
+            </div>)}
+          </div>
+        </div>}
       </section>
 
       <section className={styles.catalogSection} id="products" aria-labelledby="vendor-products-title">

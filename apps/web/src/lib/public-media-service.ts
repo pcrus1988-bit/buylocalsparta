@@ -178,7 +178,12 @@ export async function approvedVendorProfileMedia(vendorIds: readonly string[]): 
     JOIN markets m ON m.id=v.market_id
     JOIN product_media pm ON pm.id=vpm.media_id
     WHERE v.public_id = ANY($1::text[])
-      AND m.code='sparta' AND v.status='active'
+      AND m.code='sparta'
+      AND (
+        v.status='active'
+        OR (v.demo_mode=true AND v.status NOT IN ('active','restricted','suspended','closed'))
+        OR (v.status='invited' AND v.public_directory_visible=true AND v.public_id LIKE 'vendor_research_%')
+      )
       AND vpm.publication_status='published'
       AND pm.kind='image'
       AND pm.scan_status='clean'
@@ -230,7 +235,11 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
       JOIN markets m ON m.id=v.market_id
       WHERE pm.public_id=$1
         AND m.code='sparta'
-        AND v.status='active'
+        AND (
+          v.status='active'
+          OR (v.demo_mode=true AND v.status NOT IN ('active','restricted','suspended','closed'))
+          OR (v.status='invited' AND v.public_directory_visible=true AND v.public_id LIKE 'vendor_research_%')
+        )
         AND vpm.publication_status='published'
         AND pm.canonical_variant_id IS NULL
         AND pm.kind='image'
