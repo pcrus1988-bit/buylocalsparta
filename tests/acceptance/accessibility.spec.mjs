@@ -79,10 +79,13 @@ test("accessibility controls manage opening focus, Escape, and focus return", as
   await expect(launcher).toBeFocused();
 });
 
-test("dedicated accessibility widget exposes and persists personalization tools", async ({ page }) => {
+test("single info launcher exposes and persists accessibility personalization tools", async ({ page }) => {
   await page.goto("/");
-  const quickLauncher = page.getByRole("button", { name: "Άνοιγμα εργαλείων προσβασιμότητας" });
-  await quickLauncher.click();
+  const launcher = page.getByRole("button", { name: "Πληροφορίες, cookies και προσβασιμότητα" });
+  await expect(page.getByRole("button", { name: "Άνοιγμα εργαλείων προσβασιμότητας" })).toHaveCount(0);
+
+  await launcher.click();
+  await page.getByRole("button", { name: "Προσβασιμότητα" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Προσβασιμότητα" });
   await expect(dialog).toBeVisible();
