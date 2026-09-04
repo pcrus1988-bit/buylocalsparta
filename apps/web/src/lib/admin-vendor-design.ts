@@ -74,8 +74,8 @@ export async function adminVendorDesignWorkspace(principal: SessionPrincipal) {
         WHERE m.code='sparta'
         ORDER BY CASE v.status::text
           WHEN 'active' THEN 0 WHEN 'test_ready' THEN 1 WHEN 'catalog_onboarding' THEN 2
-          WHEN 'verification_pending' THEN 3 WHEN 'invited' THEN 4 WHEN 'restricted' THEN 5
-          WHEN 'suspended' THEN 6 WHEN 'closed' THEN 7 ELSE 8 END,
+          WHEN 'verification_pending' THEN 3 WHEN 'application_started' THEN 4 WHEN 'invited' THEN 5 WHEN 'restricted' THEN 6
+          WHEN 'suspended' THEN 7 WHEN 'closed' THEN 8 ELSE 9 END,
           lower(v.trading_name),v.public_id
       `),
       tx.query<SqlRow>(`
@@ -153,12 +153,13 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
     }
     const applicationState = text(row.application_status);
     if (["restricted", "suspended", "closed"].includes(applicationState)) throw new Error(`Cannot create a shop while the application is ${applicationState}`);
-    const vendorStatus = applicationState === "application_started" ? "invited" : applicationState;
+    const vendorStatus = applicationState;
+    const verificationCompletedAt = ["catalog_onboarding", "test_ready", "active"].includes(applicationState) ? now : null;
     const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
     const inserted = await tx.query<SqlRow>(`INSERT INTO vendor_businesses(
         id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,verification_completed_at,
         contract_started_at,public_directory_visible,demo_mode,created_at,updated_at
-      ) VALUES($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,NULL,false,false,$9,$9)
+      ) VALUES($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,NULL,false,false,$10,$10)
       ON CONFLICT (market_id,trading_name) DO UPDATE SET
         public_id=EXCLUDED.public_id,legal_name=EXCLUDED.legal_name,
         tax_number=COALESCE(EXCLUDED.tax_number,vendor_businesses.tax_number),
@@ -170,7 +171,7 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
       WHERE vendor_businesses.public_id LIKE 'vendor_research_%' AND vendor_businesses.status='invited'
       RETURNING id::text AS id,public_id`, [
       randomUUID(), vendorPublicId, text(row.market_uuid), text(row.legal_name), text(row.trading_name), optionalText(row.tax_number) ?? null,
-      optionalText(row.gemi_number) ?? null, vendorStatus, now
+      optionalText(row.gemi_number) ?? null, vendorStatus, verificationCompletedAt, now
     ]);
     if (!inserted.rowCount) throw new Error("A non-research vendor with the same trading name already exists. Resolve the duplicate before creating a shop.");
     const vendorUuid = text(inserted.rows[0].id);
@@ -180,13 +181,13 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
       WHERE vendor_id=$1::uuid ORDER BY is_primary DESC NULLS LAST,active DESC,created_at ASC LIMIT 1 FOR UPDATE`, [vendorUuid]);
     if (existingLocation.rowCount) {
       await tx.query(`UPDATE vendor_locations SET market_id=$2::uuid,name=$3,address_line1=$4,locality='Sparta',postcode=$5,
-        country_code='GR',phone=$6,public_email=$7,active=true,verified_at=COALESCE(verified_at,$8),updated_at=$8 WHERE id=$1::uuid`, [
+        country_code='GR',phone=$6,public_email=$7,active=true,updated_at=$8 WHERE id=$1::uuid`, [
         text(existingLocation.rows[0].id), text(row.market_uuid), text(row.trading_name), text(row.address_line1), text(row.postcode),
         optionalText(row.phone) ?? null, text(row.contact_email), now
       ]);
     } else {
-      await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,verified_at,created_at,updated_at)
-        VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10,$10)`, [
+      await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,created_at,updated_at)
+        VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10)`, [
         randomUUID(), `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`, vendorUuid, text(row.market_uuid), text(row.trading_name),
         text(row.address_line1), text(row.postcode), optionalText(row.phone) ?? null, text(row.contact_email), now
       ]);
