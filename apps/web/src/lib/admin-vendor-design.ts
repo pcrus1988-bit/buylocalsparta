@@ -43,6 +43,7 @@ export type AdminVendorDesignUnlinkedApplication = Readonly<{
 function text(value: unknown): string { return typeof value === "string" ? value : String(value ?? ""); }
 function optionalText(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
 function bool(value: unknown): boolean { return value === true; }
+function normalized(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
 
 export async function adminVendorDesignWorkspace(principal: SessionPrincipal) {
   assertAdminPermission(principal, "vendor.manage");
@@ -161,7 +162,7 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
         contract_started_at,public_directory_visible,demo_mode,created_at,updated_at
       ) VALUES($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,NULL,false,false,$10,$10)
       ON CONFLICT (market_id,trading_name) DO UPDATE SET
-        public_id=EXCLUDED.public_id,legal_name=EXCLUDED.legal_name,
+        legal_name=EXCLUDED.legal_name,
         tax_number=COALESCE(EXCLUDED.tax_number,vendor_businesses.tax_number),
         gemi_number=COALESCE(EXCLUDED.gemi_number,vendor_businesses.gemi_number),status=EXCLUDED.status,
         verification_completed_at=EXCLUDED.verification_completed_at,contract_started_at=NULL,
@@ -177,19 +178,25 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
     const vendorUuid = text(inserted.rows[0].id);
     const actualVendorPublicId = text(inserted.rows[0].public_id);
 
-    const existingLocation = await tx.query<SqlRow>(`SELECT id::text AS id FROM vendor_locations
+    const existingLocation = await tx.query<SqlRow>(`SELECT id::text AS id,address_line1,locality,postcode FROM vendor_locations
       WHERE vendor_id=$1::uuid ORDER BY is_primary DESC NULLS LAST,active DESC,created_at ASC LIMIT 1 FOR UPDATE`, [vendorUuid]);
     if (existingLocation.rowCount) {
+      const locationRow = existingLocation.rows[0];
+      const locationChanged = normalized(locationRow.address_line1) !== normalized(row.address_line1)
+        || normalized(locationRow.locality) !== "Sparta"
+        || normalized(locationRow.postcode) !== normalized(row.postcode);
       await tx.query(`UPDATE vendor_locations SET market_id=$2::uuid,name=$3,address_line1=$4,locality='Sparta',postcode=$5,
-        country_code='GR',phone=$6,public_email=$7,active=true,updated_at=$8 WHERE id=$1::uuid`, [
-        text(existingLocation.rows[0].id), text(row.market_uuid), text(row.trading_name), text(row.address_line1), text(row.postcode),
-        optionalText(row.phone) ?? null, text(row.contact_email), now
+        country_code='GR',phone=$6,public_email=$7,active=true,
+        coordinates=CASE WHEN $8::boolean THEN NULL ELSE coordinates END,
+        verified_at=$9,updated_at=$10 WHERE id=$1::uuid`, [
+        text(locationRow.id), text(row.market_uuid), text(row.trading_name), text(row.address_line1), text(row.postcode),
+        optionalText(row.phone) ?? null, text(row.contact_email), locationChanged, verificationCompletedAt, now
       ]);
     } else {
-      await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,created_at,updated_at)
-        VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$10)`, [
+      await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,verified_at,created_at,updated_at)
+        VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$11,$11)`, [
         randomUUID(), `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`, vendorUuid, text(row.market_uuid), text(row.trading_name),
-        text(row.address_line1), text(row.postcode), optionalText(row.phone) ?? null, text(row.contact_email), now
+        text(row.address_line1), text(row.postcode), optionalText(row.phone) ?? null, text(row.contact_email), verificationCompletedAt, now
       ]);
     }
 
@@ -248,27 +255,48 @@ export async function updateAdminVendorDesign(principal: SessionPrincipal, input
       VALUES($1::uuid,'el',$2,$3)
       ON CONFLICT(vendor_id,locale) DO UPDATE SET short_description=EXCLUDED.short_description,story=EXCLUDED.story`, [vendorUuid, shortDescription, story]);
 
-    const location = await tx.query<SqlRow>(`SELECT id::text AS id FROM vendor_locations WHERE vendor_id=$1::uuid
+    const location = await tx.query<SqlRow>(`SELECT id::text AS id,address_line1,address_line2,locality,postcode,verified_at,coordinates IS NOT NULL AS has_coordinates
+      FROM vendor_locations WHERE vendor_id=$1::uuid
       ORDER BY is_primary DESC NULLS LAST,active DESC,created_at ASC LIMIT 1 FOR UPDATE`, [vendorUuid]);
     const addressLine1 = input.addressLine1?.trim() || undefined;
+    const addressLine2 = input.addressLine2?.trim() || undefined;
     const locality = input.locality?.trim() || undefined;
     const postcode = input.postcode?.trim() || undefined;
+    let locationIdentityChanged = false;
     if (location.rowCount) {
-      await tx.query(`UPDATE vendor_locations SET name=$2,address_line1=$3,address_line2=$4,locality=$5,postcode=$6,phone=$7,public_email=$8,updated_at=$9
-        WHERE id=$1::uuid`, [
-        text(location.rows[0].id), input.locationName?.trim() || tradingName, addressLine1 ?? "", input.addressLine2?.trim() || null,
-        locality ?? "Sparta", postcode ?? "", input.phone?.trim() || null, input.publicEmail?.trim() || null, now
+      const locationRow = location.rows[0];
+      const nextAddressLine1 = addressLine1 ?? "";
+      const nextAddressLine2 = addressLine2 ?? "";
+      const nextLocality = locality ?? "Sparta";
+      const nextPostcode = postcode ?? "";
+      locationIdentityChanged = normalized(locationRow.address_line1) !== nextAddressLine1
+        || normalized(locationRow.address_line2) !== nextAddressLine2
+        || normalized(locationRow.locality) !== nextLocality
+        || normalized(locationRow.postcode) !== nextPostcode;
+      await tx.query(`UPDATE vendor_locations SET name=$2,address_line1=$3,address_line2=$4,locality=$5,postcode=$6,phone=$7,public_email=$8,
+        coordinates=CASE WHEN $9::boolean THEN NULL ELSE coordinates END,
+        verified_at=CASE WHEN $9::boolean THEN NULL ELSE verified_at END,
+        updated_at=$10 WHERE id=$1::uuid`, [
+        text(locationRow.id), input.locationName?.trim() || tradingName, nextAddressLine1, addressLine2 ?? null,
+        nextLocality, nextPostcode, input.phone?.trim() || null, input.publicEmail?.trim() || null, locationIdentityChanged, now
       ]);
     } else if (addressLine1 && locality && postcode) {
       const market = await tx.query<SqlRow>("SELECT market_id::text AS market_uuid FROM vendor_businesses WHERE id=$1::uuid", [vendorUuid]);
       await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,address_line2,locality,postcode,country_code,phone,public_email,active,created_at,updated_at)
         VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,'GR',$10,$11,true,$12,$12)`, [
         randomUUID(), `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`, vendorUuid, text(market.rows[0].market_uuid),
-        input.locationName?.trim() || tradingName, addressLine1, input.addressLine2?.trim() || null, locality, postcode,
+        input.locationName?.trim() || tradingName, addressLine1, addressLine2 ?? null, locality, postcode,
         input.phone?.trim() || null, input.publicEmail?.trim() || null, now
       ]);
+      locationIdentityChanged = true;
     }
-    return { vendorId: text(row.public_id), tradingName, status: text(row.status), updatedAt: now.toISOString() };
+    return {
+      vendorId: text(row.public_id),
+      tradingName,
+      status: text(row.status),
+      locationIdentityChanged,
+      updatedAt: now.toISOString()
+    };
   }, { isolation: "serializable" });
 
   await recordAdminAudit(principal, "vendor.storefront_design_updated", "vendor_business", result.vendorId, reason, result);
