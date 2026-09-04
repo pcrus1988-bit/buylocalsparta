@@ -79,6 +79,32 @@ test("accessibility controls manage opening focus, Escape, and focus return", as
   await expect(launcher).toBeFocused();
 });
 
+test("dedicated accessibility widget exposes and persists personalization tools", async ({ page }) => {
+  await page.goto("/");
+  const quickLauncher = page.getByRole("button", { name: "Άνοιγμα εργαλείων προσβασιμότητας" });
+  await quickLauncher.click();
+
+  const dialog = page.getByRole("dialog", { name: "Προσβασιμότητα" });
+  await expect(dialog).toBeVisible();
+
+  const contrast = page.getByRole("button", { name: /^Αντίθεση\+/ });
+  const readableFont = page.getByRole("button", { name: /^Ευανάγνωστη γραμματοσειρά/ });
+  const hideImages = page.getByRole("button", { name: /^Απόκρυψη εικόνων/ });
+  await expect(contrast).toHaveAttribute("aria-pressed", "false");
+  await contrast.click();
+  await readableFont.click();
+  await hideImages.click();
+
+  await expect(page.locator("html")).toHaveAttribute("data-a11y-contrast", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-a11y-readable-font", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-a11y-hide-images", "true");
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-a11y-contrast", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-a11y-readable-font", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-a11y-hide-images", "true");
+});
+
 test("core public pages reflow without document-level horizontal overflow at 320px", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Run reflow once on desktop Chromium.");
   await page.setViewportSize({ width: 320, height: 900 });
