@@ -3,10 +3,36 @@
   left: max(16px, env(safe-area-inset-left));
   bottom: max(16px, env(safe-area-inset-bottom));
   z-index: 10019;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
 }
+.site-accessibility-launcher {
+  width: 56px;
+  height: 56px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid #173127;
+  border-radius: 50%;
+  background: #173127;
+  color: #ffffff;
+  box-shadow: 0 12px 32px rgba(0,0,0,.2);
+  font: 900 22px/1 Arial, sans-serif;
+  cursor: pointer;
+}
+.site-accessibility-launcher > span {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+.site-accessibility-launcher:hover { background: #0f271e; }
 .site-utility-launcher {
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   display: inline-grid;
   place-items: center;
   padding: 0;
@@ -15,17 +41,22 @@
   background: #fffdf8;
   color: #173127;
   box-shadow: 0 10px 28px rgba(0,0,0,.16);
-  font: 900 23px/1 Georgia, serif;
+  font: 900 20px/1 Georgia, serif;
   cursor: pointer;
 }
 .site-utility-launcher:hover { background: #f4f0e6; }
 .site-utility-launcher[aria-expanded="true"] { background: #173127; color: #fffdf8; }
+.site-accessibility-launcher:focus-visible,
 .site-utility-launcher:focus-visible,
-.site-utility-menu button:focus-visible { outline: 3px solid #b29661; outline-offset: 3px; }
+.site-utility-menu button:focus-visible {
+  outline: 3px solid var(--a11y-focus-ring, #0a5c45);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px #fffdf8;
+}
 .site-utility-menu {
   position: absolute;
   left: 0;
-  bottom: 58px;
+  bottom: 66px;
   width: min(270px, calc(100vw - 24px));
   overflow: hidden;
   border: 1px solid rgba(23,49,39,.25);
@@ -65,9 +96,20 @@
 .site-utility-hide .site-utility-menu-icon { font-size: 18px; font-weight: 500; }
 @media (max-width: 760px) {
   .site-utility-root { left: max(10px, env(safe-area-inset-left)); bottom: 33.333vh; }
-  .site-utility-launcher { width: 46px; height: 46px; }
-  .site-utility-menu { bottom: 56px; }
+  .site-accessibility-launcher { width: 54px; height: 54px; }
+  .site-utility-launcher { width: 40px; height: 40px; }
+  .site-utility-menu { bottom: 64px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .site-utility-launcher, .site-utility-menu { transition: none !important; animation: none !important; }
+  .site-accessibility-launcher,
+  .site-utility-launcher,
+  .site-utility-menu { transition: none !important; animation: none !important; }
+}
+@media (forced-colors: active) {
+  .site-accessibility-launcher,
+  .site-utility-launcher {
+    border-color: ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
 }
