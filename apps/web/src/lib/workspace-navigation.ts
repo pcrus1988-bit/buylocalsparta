@@ -121,10 +121,11 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Επισκόπηση Καταλόγου", href: "/admin/catalogue", icon: "▦", permission: "catalog.read" },
       { label: "Quick Add", href: "/admin/quickadd", icon: "+", permission: "catalog.write" },
+      { label: "Icecat Control Center", href: "/admin/icecat", icon: "◈", permission: "catalog.read" },
       { label: "Catalogue Intake", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
       { label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read" },
       { label: "Controlled Values", href: "/admin/catalogue-intake/values", icon: "≡", permission: "catalog.read", contextHidden: true },
-      { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write", contextHidden: true },
+      { label: "File Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write", contextHidden: true },
       { label: "Catalogue Crawler", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
       { label: "Product Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
       { label: "Κατηγορίες & policies", href: "/admin/categories", icon: "▦", permission: "catalog.read" }

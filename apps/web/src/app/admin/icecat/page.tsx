@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { IcecatSettingsForm } from "../../../components/IcecatSettingsForm";
 import {
@@ -9,11 +10,13 @@ import {
   WorkspaceStatusBadge
 } from "../../../components/WorkspacePagePrimitives";
 import { adminOpenIcecatHealth } from "../../../lib/admin-open-icecat-health";
+import { adminOpenIcecatIngestionStatus } from "../../../lib/admin-open-icecat-ingestion";
 import { adminIcecatWorkspace } from "../../../lib/admin-icecat-control";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Admin · Icecat Control Center", robots: { index: false, follow: false, nocache: true } };
 
 function ageLabel(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -25,10 +28,10 @@ function ageLabel(seconds: number | null): string {
   return `${Math.floor(hours / 24)} d`;
 }
 
-function dateLabel(value?: string): string {
+function dateLabel(value?: string | number): string {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toLocaleString("el-GR") : value;
+  return Number.isFinite(date.getTime()) ? date.toLocaleString("el-GR") : String(value);
 }
 
 export default async function Page() {
@@ -36,14 +39,17 @@ export default async function Page() {
   if (!principal) redirect("/admin/login");
   if (!hasAdminPermission(principal, "catalog.read")) redirect("/admin");
 
-  const [workspace, health] = await Promise.all([
+  const [workspace, health, ingestion] = await Promise.all([
     adminIcecatWorkspace(principal),
-    adminOpenIcecatHealth(principal)
+    adminOpenIcecatHealth(principal),
+    adminOpenIcecatIngestionStatus(principal)
+      .then((data) => ({ state: "available" as const, data }))
+      .catch(() => ({ state: "unavailable" as const }))
   ]);
   const writable = hasAdminPermission(principal, "catalog.write");
 
   return <main className="vendor-app admin-app admin-icecat-control">
-    <AdminWorkspaceHeader csrfToken={workspace.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={workspace.csrfToken} entityLabel="Icecat Control Center" />
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
@@ -136,14 +142,15 @@ export default async function Page() {
       </section>
 
       <section className="vendor-section section-tint"><div className="shell">
-        <WorkspaceSectionHeading eyebrow="Index ingestion" title="Latest provider runs" note="The newest full and daily runs are shown independently so recovery and freshness are visible at a glance." />
-        {workspace.latestRuns.length === 0 ? <WorkspaceEmptyState eyebrow="No runs" title="No bulk ingestion run is recorded yet." body="Once the index worker completes or fails a provider run, its state will appear here." /> : <div className="catalogue-attention-grid">
-          {workspace.latestRuns.map((run) => <article className="workspace-queue-card" key={run.kind}>
+        <WorkspaceSectionHeading eyebrow="Index ingestion" title="Provider run history" note="The latest 12 full and daily runs stay here with their durable checkpoint, source fingerprint and reconciliation result." />
+        {ingestion.state === "unavailable" ? <WorkspaceEmptyState eyebrow="Temporarily unavailable" title="Icecat run history could not be loaded." body="Source settings remain usable above. Retry this page to reload the isolated ingestion history read." /> : ingestion.data.runs.length === 0 ? <WorkspaceEmptyState eyebrow="No runs" title="No bulk ingestion run is recorded yet." body="Once the index worker completes or fails a provider run, its state will appear here." /> : <div className="catalogue-attention-grid">
+          {ingestion.data.runs.map((run) => <article className="workspace-queue-card" key={run.runId}>
             <div className="workspace-queue-head">
-              <div><strong>{run.kind === "full" ? "Full index" : "Daily index"}</strong><small>Started {dateLabel(run.startedAt)}</small></div>
+              <div><strong>{run.importKind === "full" ? "Full index" : "Daily index"}</strong><small>Started {dateLabel(run.startedAt)} · {run.sourceName}</small></div>
               <WorkspaceStatusBadge status={run.status} label={run.status} tone={run.status === "completed" ? "positive" : run.status === "failed" ? "danger" : "attention"} />
             </div>
             <div className="workspace-queue-primary">
+              <span><strong>{run.checkpoint}</strong> checkpoint</span>
               <span><strong>{run.sourceRows}</strong> rows</span>
               <span><strong>{run.persisted}</strong> persisted</span>
               <span><strong>{run.removed}</strong> removed</span>
@@ -151,6 +158,10 @@ export default async function Page() {
               <span><strong>{run.filtered}</strong> filtered</span>
             </div>
             <WorkspaceRecordDetails label="Run details"><div className="workspace-compact-list">
+              <div className="workspace-compact-row"><strong>Current index</strong><span>{run.activeIndexProducts} active · {run.removedIndexProducts} removed</span></div>
+              <div className="workspace-compact-row"><strong>Processing version</strong><span>{run.processingVersion}</span></div>
+              <div className="workspace-compact-row"><strong>Source fingerprint</strong><span title={run.sourceFingerprint}>{run.sourceFingerprint.length > 36 ? `${run.sourceFingerprint.slice(0, 33)}…` : run.sourceFingerprint}</span></div>
+              <div className="workspace-compact-row"><strong>Last update</strong><span>{dateLabel(run.updatedAt)}</span></div>
               <div className="workspace-compact-row"><strong>Completed</strong><span>{dateLabel(run.completedAt)}</span></div>
               <div className="workspace-compact-row"><strong>Failed</strong><span>{dateLabel(run.failedAt)}</span></div>
               <div className="workspace-compact-row"><strong>Last error</strong><span>{run.lastError ?? "—"}</span></div>

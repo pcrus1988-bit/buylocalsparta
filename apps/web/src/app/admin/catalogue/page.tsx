@@ -9,7 +9,6 @@ import {
   WorkspaceStatusBadge
 } from "../../../components/WorkspacePagePrimitives";
 import { adminCatalogueOverviewWorkspace } from "../../../lib/admin-catalogue-overview-runtime";
-import { adminOpenIcecatHealth, type OpenIcecatAdminHealth } from "../../../lib/admin-open-icecat-health";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const dynamic = "force-dynamic";
@@ -26,94 +25,6 @@ function taxonomyRoleLabel(role: string): string {
   }
 }
 
-function ageLabel(seconds: number | null): string {
-  if (seconds === null) return "—";
-  if (seconds < 60) return `${seconds} δευτ.`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} λεπ.`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours} ώρ.`;
-  return `${Math.floor(hours / 24)} ημ.`;
-}
-
-function OpenIcecatHealthPanel({ health }: Readonly<{ health: OpenIcecatAdminHealth }>) {
-  if (health.state !== "available") {
-    const notConfigured = health.state === "not_configured";
-    return <section className="vendor-section">
-      <div className="shell">
-        <WorkspaceSectionHeading
-          eyebrow="Open Icecat · source enrichment"
-          title="Υγεία εμπλουτισμού καταλόγου"
-          note="Read-only παρακολούθηση της πηγής Icecat. Δεν αλλάζει canonical προϊόντα, offers, τιμές, stock ή publication state."
-        />
-        <WorkspaceEmptyState
-          eyebrow={notConfigured ? "Δεν έχει ρυθμιστεί" : "Προσωρινά μη διαθέσιμο"}
-          title={notConfigured
-            ? "Δεν υπάρχει ενεργή Open Icecat πηγή για τη Σπάρτη."
-            : "Τα Icecat operational metrics δεν είναι διαθέσιμα αυτή τη στιγμή."}
-          body={notConfigured
-            ? "Η επισκόπηση θα ενεργοποιηθεί αυτόματα μόλις υπάρχει ενεργή catalog source."
-            : "Η υπόλοιπη διαχείριση καταλόγου παραμένει διαθέσιμη. Δεν εμφανίζονται provider credentials, raw payloads ή database errors στο Admin."}
-        />
-      </div>
-    </section>;
-  }
-
-  const status = health.queue.failed > 0
-    ? { status: "failed", label: `${health.queue.failed} αποτυχίες`, tone: "danger" as const }
-    : health.queue.retry > 0
-      ? { status: "retry", label: `${health.queue.retry} retries`, tone: "attention" as const }
-      : health.actionableBacklog > 0
-        ? { status: "processing", label: "Σε εξέλιξη", tone: "attention" as const }
-        : { status: "active", label: "Σταθερό", tone: "positive" as const };
-
-  return <section className="vendor-section">
-    <div className="shell">
-      <WorkspaceSectionHeading
-        eyebrow="Open Icecat · source enrichment"
-        title="Υγεία εμπλουτισμού καταλόγου"
-        note="Το Ready εδώ σημαίνει ότι υπάρχει ελληνικό Icecat source evidence που περνά το quality gate. Δεν σημαίνει ότι το προϊόν εγκρίθηκε ή δημοσιεύτηκε ως canonical."
-      />
-      <WorkspaceMetricStrip
-        ariaLabel="Open Icecat enrichment metrics"
-        items={[
-          { label: "Icecat index", value: health.activeIndexProducts, hint: `${health.queueableProducts} με GTIN · ${health.missingGtinPct}% χωρίς GTIN` },
-          { label: "Detail coverage", value: `${health.detailCoveragePct}%`, hint: `${health.detailProcessed} προϊόντα με detail evidence` },
-          { label: "Greek-ready evidence", value: `${health.readyCoveragePct}%`, tone: health.readyCoveragePct >= 90 ? "positive" : "default", hint: `${health.queue.ready} Ready · ${health.queue.needsEnrichment} needs enrichment` },
-          { label: "Actionable backlog", value: health.actionableBacklog, tone: health.queue.failed > 0 || health.queue.retry > 0 ? "attention" : "default", hint: `${health.completedLastHour} ολοκληρώθηκαν την τελευταία ώρα` }
-        ]}
-      />
-      <div className="workspace-queue-list">
-        <article className="workspace-queue-card">
-          <div className="workspace-queue-head">
-            <div><strong>Detail enrichment queue</strong><small>Processing version · {health.processingVersion}</small></div>
-            <WorkspaceStatusBadge status={status.status} label={status.label} tone={status.tone} />
-          </div>
-          <div className="workspace-queue-primary">
-            <span><strong>{health.queue.pending}</strong> pending</span>
-            <span><strong>{health.queue.processing}</strong> processing</span>
-            <span><strong>{health.queue.retry}</strong> retry</span>
-            <span><strong>{health.queue.ready}</strong> ready</span>
-            <span><strong>{health.queue.needsEnrichment}</strong> needs enrichment</span>
-            <span><strong>{health.queue.failed}</strong> failed</span>
-            <span><strong>{health.queue.skipped}</strong> skipped</span>
-          </div>
-          <WorkspaceRecordDetails label="Operational details">
-            <div className="workspace-compact-list">
-              <div className="workspace-compact-row"><strong>Ενεργά index προϊόντα</strong><span>{health.activeIndexProducts}</span></div>
-              <div className="workspace-compact-row"><strong>Queueable με GTIN</strong><span>{health.queueableProducts}</span></div>
-              <div className="workspace-compact-row"><strong>Χωρίς GTIN</strong><span>{health.missingGtin} · {health.missingGtinPct}%</span></div>
-              <div className="workspace-compact-row"><strong>Παλιότερη actionable εργασία</strong><span>{ageLabel(health.oldestActionableAgeSeconds)}</span></div>
-              <div className="workspace-compact-row"><strong>Ολοκληρώσεις τελευταίας ώρας</strong><span>{health.completedLastHour}</span></div>
-              <div className="workspace-compact-row"><strong>Governance boundary</strong><span>Source evidence only · no canonical publication or commerce mutation</span></div>
-            </div>
-          </WorkspaceRecordDetails>
-        </article>
-      </div>
-    </div>
-  </section>;
-}
-
 export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -124,8 +35,6 @@ export default async function Page() {
   } catch {
     redirect("/admin");
   }
-  const openIcecat = await adminOpenIcecatHealth(principal);
-
   return <main className="vendor-app admin-app admin-catalogue-overview">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
 
@@ -147,8 +56,6 @@ export default async function Page() {
       ]}
     />
 
-    <OpenIcecatHealthPanel health={openIcecat} />
-
     <section className="shell vendor-section">
       <WorkspaceSectionHeading
         eyebrow="Operator workflow"
@@ -158,7 +65,8 @@ export default async function Page() {
       <div className="catalogue-workflow-grid">
         <Link className="catalogue-workflow-card" href="/admin/quickadd"><span>Acquire · one product</span><strong>Quick Add</strong><p>Barcode/search → reuse canonical or create safely → assign vendor offer and stock.</p><i>Open workbench →</i></Link>
         <Link className="catalogue-workflow-card" href="/admin/catalogue-crawler"><span>Acquire · website</span><strong>Website Import</strong><p>Crawl one page or a full online shop and promote extracted evidence into Supplier PIM.</p><i>Open website import →</i></Link>
-        <Link className="catalogue-workflow-card" href="/admin/catalogue-intake/import"><span>Acquire · files & providers</span><strong>Files & Icecat</strong><p>Supplier CSV/TSV, trusted adapters and Open Icecat staging/enrichment status.</p><i>Open source import →</i></Link>
+        <Link className="catalogue-workflow-card" href="/admin/icecat"><span>Acquire · data provider</span><strong>Icecat Control Center</strong><p>Live index and detail health, run history, queue diagnostics and worker settings.</p><i>Open Icecat →</i></Link>
+        <Link className="catalogue-workflow-card" href="/admin/catalogue-intake/import"><span>Acquire · supplier files</span><strong>File Import</strong><p>Analyze supplier CSV/TSV files and operate checksum-sealed trusted adapters.</p><i>Open file import →</i></Link>
         <Link className="catalogue-workflow-card" href="/admin/catalogue-intake"><span>Normalize · source evidence</span><strong>Supplier PIM</strong><p>Immutable snapshots, price/classification review, source evidence and vendor assortment hand-off.</p><i>Open PIM review →</i></Link>
         <Link className={`catalogue-workflow-card${data.attributes.unmappedObservations > 0 ? " needs-attention" : ""}`} href="/admin/catalogue-intake/attributes"><span>Normalize · attributes</span><strong>Attributes</strong><p>Resolve repeated supplier attribute meanings once per governed source context.</p><b>{data.attributes.unmappedObservations.toLocaleString("el-GR")}</b><i>unmapped observations →</i></Link>
         <Link className="catalogue-workflow-card" href="/admin/matching"><span>Resolve identity</span><strong>Product Matching</strong><p>Approve canonical candidates, reject false matches or create a genuinely new canonical.</p><i>Open matching queue →</i></Link>

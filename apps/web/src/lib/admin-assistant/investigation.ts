@@ -58,7 +58,7 @@ export function planAssistantInvestigation(
   if (context.pageType === "customer_detail" || contains(question, /customer|account state|support case|privacy request|active session|notification failure|πελάτ|λογαριασμ|υποστήριξ|απόρρητ/)) {
     if (context.entityType === "customer" && context.entityId) add("getCustomerOperationalIntelligence", { customerId: context.entityId });
   }
-  if (context.pageType === "catalogue_import" || contains(question, /icecat|ingestion|checkpoint|rejected row|reject|filtered row|enrichment|gtin|εισαγωγ|απόρριψ/)) {
+  if (context.pageType === "icecat_control" || contains(question, /icecat|ingestion|checkpoint|rejected row|reject|filtered row|enrichment|gtin|εισαγωγ|απόρριψ/)) {
     add("getOpenIcecatIngestionStatus");
   }
   if (context.pageType === "catalogue_crawler" || contains(question, /crawler|website import|crawl job|source drift|extract(?:ion|or)|expired lease|robots|fetched page|scrap(?:e|ing)|ιστοσελίδ.*εισαγωγ|ανίχνευσ.*ιστοσελίδ/)) {
@@ -83,7 +83,7 @@ export function planAssistantInvestigation(
 
   if (!candidates.length) {
     if (context.domain === "catalogue") {
-      if (context.pageType === "catalogue_import") add("getOpenIcecatIngestionStatus");
+      if (context.pageType === "icecat_control") add("getOpenIcecatIngestionStatus");
       else if (context.pageType === "catalogue_crawler") add("getCatalogueCrawlerIntelligence");
       else if (context.pageType === "product_matching") add("getProductMatchingIntelligence", context.filters.submission ? { submissionId: context.filters.submission } : {});
       else add("getCatalogueHealth");
