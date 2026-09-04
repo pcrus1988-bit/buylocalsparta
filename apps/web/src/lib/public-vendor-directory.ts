@@ -53,6 +53,8 @@ export type PublicVendorDirectoryEntry = Readonly<{
   adviser?: string;
   location?: PublicVendorLocation;
   story?: PublicVendorStory;
+  profileShortDescription?: string;
+  profileStory?: string;
   categoryCodes: readonly string[];
   researchCategory?: string;
   taxonomies: readonly PublicVendorTaxonomy[];
@@ -83,6 +85,8 @@ type VendorDirectoryRow = SqlRow & {
   story_title?: string | null;
   story_excerpt?: string | null;
   story_media_id?: string | null;
+  profile_short_description?: string | null;
+  profile_story?: string | null;
   category_codes?: readonly string[] | null;
   research_source_kind?: string | null;
   research_source_count?: number | string | null;
@@ -184,6 +188,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     adviser: isPartner ? optionalText(row.adviser_name) : undefined,
     location,
     story,
+    profileShortDescription: isPartner ? optionalText(row.profile_short_description) : undefined,
+    profileStory: isPartner ? optionalText(row.profile_story) : undefined,
     categoryCodes,
     researchCategory: isPartner ? undefined : subBranch,
     taxonomies: publicVendorTaxonomies({ majorBranch, subBranch, categoryCodes }),
@@ -216,6 +222,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            story.title AS story_title,
            story.excerpt AS story_excerpt,
            story.media_public_id AS story_media_id,
+           profile.short_description AS profile_short_description,
+           profile.story AS profile_story,
            COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
            vrp.source_kind AS research_source_kind,
            COALESCE(research_evidence.source_count,0)::integer AS research_source_count,
@@ -233,6 +241,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            COALESCE(assortment.canonical_count, 0)::integer AS canonical_count
     FROM vendor_businesses v
     JOIN markets m ON m.id=v.market_id
+    LEFT JOIN vendor_profile_translations profile ON profile.vendor_id=v.id AND profile.locale='el'
     LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id=v.id
     LEFT JOIN LATERAL (
       SELECT count(DISTINCT source_record.id)::integer AS source_count,
