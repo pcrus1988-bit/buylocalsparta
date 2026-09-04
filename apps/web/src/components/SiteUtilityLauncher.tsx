@@ -9,6 +9,8 @@ const HIDDEN_KEY = "bls_site_utility_launcher_hidden_v1";
 export function SiteUtilityLauncher() {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const firstActionRef = useRef<HTMLButtonElement>(null);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -21,8 +23,12 @@ export function SiteUtilityLauncher() {
   useEffect(() => {
     if (!open) return;
 
+    window.requestAnimationFrame(() => firstActionRef.current?.focus({ preventScroll: true }));
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      window.requestAnimationFrame(() => launcherRef.current?.focus({ preventScroll: true }));
     };
     const onPointerDown = (event: PointerEvent) => {
       const root = rootRef.current;
@@ -47,31 +53,34 @@ export function SiteUtilityLauncher() {
 
   function openCookies() {
     setOpen(false);
+    launcherRef.current?.focus({ preventScroll: true });
     requestCookieSettings();
   }
 
   function openAccessibility() {
     setOpen(false);
+    launcherRef.current?.focus({ preventScroll: true });
     requestAccessibilitySettings();
   }
 
   return <div ref={rootRef} className="site-utility-root">
-    {open && <div id={menuId} className="site-utility-menu" role="menu" aria-label="Ρυθμίσεις ιστοτόπου">
-      <button type="button" role="menuitem" onClick={openCookies}>
+    {open && <div id={menuId} className="site-utility-menu" role="group" aria-label="Ρυθμίσεις ιστοτόπου">
+      <button ref={firstActionRef} type="button" onClick={openCookies}>
         <span aria-hidden="true" className="site-utility-menu-icon">C</span>
         <span>Ρυθμίσεις cookies</span>
       </button>
-      <button type="button" role="menuitem" onClick={openAccessibility}>
+      <button type="button" onClick={openAccessibility}>
         <span aria-hidden="true" className="site-utility-menu-icon">A</span>
         <span>Προσβασιμότητα</span>
       </button>
-      <button type="button" role="menuitem" className="site-utility-hide" onClick={hideLauncher}>
+      <button type="button" className="site-utility-hide" onClick={hideLauncher}>
         <span aria-hidden="true" className="site-utility-menu-icon">×</span>
         <span>Απόκρυψη</span>
       </button>
     </div>}
 
     <button
+      ref={launcherRef}
       type="button"
       className="site-utility-launcher"
       aria-label="Πληροφορίες, cookies και προσβασιμότητα"

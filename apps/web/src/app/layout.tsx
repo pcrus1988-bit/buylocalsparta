@@ -171,7 +171,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       />
     </head>
     <body>
-      <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}</CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
+      <a className="skip-link" href="#main-content">Μετάβαση στο κύριο περιεχόμενο</a>
+      <div id="main-content" className="main-content-scope" tabIndex={-1}>
+        <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}</CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
+      </div>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
     </body>

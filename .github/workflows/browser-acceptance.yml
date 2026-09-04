@@ -98,9 +98,9 @@ jobs:
         run: npm run db:ready
       - name: Build web application with the locked workspace dependency tree
         run: npm run build:web
-      - name: Install Playwright only after the production build
+      - name: Install Playwright and axe only after the production build
         run: |
-          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npm install --no-save --package-lock=false @playwright/test@1.55.0 @axe-core/playwright@4.13.0
           npx playwright install --with-deps chromium
       - name: Start acceptance server
         run: |
@@ -112,7 +112,7 @@ jobs:
           done
           cat /tmp/kontamou-acceptance.log
           exit 1
-      - name: Exercise route matrix and browser controls
+      - name: Exercise route matrix, browser controls, and accessibility gates
         run: npx playwright test --config=playwright.acceptance.config.mjs
       - name: Print server log on failure
         if: failure()

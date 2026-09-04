@@ -1,3 +1,52 @@
+:root {
+  --a11y-focus-ring: #0a5c45;
+  --a11y-focus-halo: #fffdf8;
+}
+
+.skip-link {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  z-index: 12000;
+  max-width: calc(100vw - 20px);
+  transform: translateY(calc(-100% - 28px));
+  padding: 12px 16px;
+  border: 2px solid var(--a11y-focus-ring);
+  border-radius: 12px;
+  background: #fffdf8;
+  color: #173127;
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: .18em;
+  transition: transform 120ms ease;
+}
+.skip-link:focus,
+.skip-link:focus-visible { transform: translateY(0); }
+.main-content-scope { min-width: 0; }
+
+html :where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid var(--a11y-focus-ring) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 2px var(--a11y-focus-halo) !important;
+}
+
+main :where(p, li, dd, dt) a:not(.button),
+.text-link {
+  text-decoration: underline;
+  text-underline-offset: .18em;
+}
+
+/* Optional local text-size preference. Native browser zoom/reflow is tested separately. */
 html[data-a11y-text="112"] body { zoom: 1.12; }
 html[data-a11y-text="125"] body { zoom: 1.25; }
 
@@ -65,7 +114,7 @@ html[data-a11y-focus="true"] :focus-visible {
 .a11y-launcher > span:first-child { font-size: 18px; }
 .a11y-launcher:focus-visible,
 .a11y-close:focus-visible,
-.a11y-segmented button:focus-visible { outline: 3px solid #b29661; outline-offset: 3px; }
+.a11y-segmented button:focus-visible { outline: 3px solid var(--a11y-focus-ring); outline-offset: 3px; }
 
 .a11y-preferences-panel {
   position: fixed;
@@ -116,7 +165,7 @@ html[data-a11y-focus="true"] :focus-visible {
 }
 .a11y-report-form textarea { resize: vertical; }
 .a11y-report-form input:focus-visible,
-.a11y-report-form textarea:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.a11y-report-form textarea:focus-visible { outline: 3px solid var(--a11y-focus-ring); outline-offset: 2px; }
 .a11y-report-form label > small { font-weight: 500; color: var(--ink-soft); line-height: 1.5; }
 .a11y-contact-consent { grid-template-columns: 22px 1fr !important; align-items: start; margin: 18px 0 12px; }
 .a11y-contact-consent input { width: 20px; min-height: 20px; height: 20px; margin: 1px 0 0; }
@@ -133,5 +182,28 @@ html[data-a11y-focus="true"] :focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .skip-link { transition: none; }
   .a11y-preferences-panel, .a11y-launcher { transition: none !important; animation: none !important; }
+}
+
+@media (forced-colors: active) {
+  .skip-link {
+    border-color: ButtonText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  html :where(
+    a[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline: 3px solid Highlight !important;
+    box-shadow: none !important;
+  }
 }

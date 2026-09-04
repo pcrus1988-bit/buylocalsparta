@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 const STORAGE_KEY = "bls_accessibility_preferences_v1";
 const OPEN_EVENT = "bls:open-accessibility-settings";
@@ -56,6 +56,8 @@ function readPreferences(): Preferences {
 
 export function AccessibilityPreferences() {
   const headingId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [preferences, setPreferences] = useState<Preferences>(defaults);
   const [ready, setReady] = useState(false);
@@ -74,14 +76,29 @@ export function AccessibilityPreferences() {
   }, [preferences, ready]);
 
   useEffect(() => {
-    const listener = () => setOpen(true);
+    const listener = () => {
+      const activeElement = document.activeElement;
+      returnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+      setOpen(true);
+    };
     window.addEventListener(OPEN_EVENT, listener);
     return () => window.removeEventListener(OPEN_EVENT, listener);
   }, []);
 
   useEffect(() => {
     if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+
+    window.requestAnimationFrame(() => closeButtonRef.current?.focus({ preventScroll: true }));
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      window.requestAnimationFrame(() => {
+        const target = returnFocusRef.current;
+        if (target?.isConnected) target.focus({ preventScroll: true });
+      });
+    };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
@@ -92,11 +109,19 @@ export function AccessibilityPreferences() {
 
   function reset() { setPreferences(defaults); }
 
+  function closeAndRestoreFocus() {
+    setOpen(false);
+    window.requestAnimationFrame(() => {
+      const target = returnFocusRef.current;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    });
+  }
+
   return <div className="a11y-preferences-root">
-    {open && <aside id="a11y-preferences-panel" className="a11y-preferences-panel" role="dialog" aria-modal="false" aria-labelledby={headingId}>
+    {open && <aside id="a11y-preferences-panel" className="a11y-preferences-panel" role="dialog" aria-labelledby={headingId}>
       <div className="a11y-preferences-head">
         <div><small>Ρυθμίσεις εμφάνισης</small><h2 id={headingId}>Προσβασιμότητα</h2></div>
-        <button type="button" className="a11y-close" aria-label="Κλείσιμο ρυθμίσεων προσβασιμότητας" onClick={() => setOpen(false)}>×</button>
+        <button ref={closeButtonRef} type="button" className="a11y-close" aria-label="Κλείσιμο ρυθμίσεων προσβασιμότητας" onClick={closeAndRestoreFocus}>×</button>
       </div>
 
       <fieldset className="a11y-fieldset">
