@@ -48,31 +48,77 @@ export async function getDeliveryDriverMobileMeta(principal: DeliveryDriverPrinc
 }
 
 export async function clockInDeliveryDriverForToday(principal: DeliveryDriverPrincipal, now = Date.now()) {
+  const db = runtime();
+  const client = await db.nativePool.connect();
   const at = new Date(now);
   const endsAt = new Date(now + DEFAULT_SHIFT_MS);
-  await runtime().nativePool.query(`
-    UPDATE delivery_drivers
-    SET operational_status=CASE WHEN EXISTS(
-          SELECT 1 FROM delivery_jobs j
-          WHERE j.driver_id=delivery_drivers.id AND j.status IN ('assigned','in_progress')
-        ) THEN 'busy' ELSE 'available' END,
-        accepting_jobs=true,
-        shift_started_at=CASE
-          WHEN shift_started_at IS NULL
-            OR (shift_started_at AT TIME ZONE 'Europe/Athens')::date <> ($2::timestamptz AT TIME ZONE 'Europe/Athens')::date
-          THEN $2
-          ELSE shift_started_at
-        END,
-        shift_ends_at=CASE
-          WHEN shift_started_at IS NULL
-            OR (shift_started_at AT TIME ZONE 'Europe/Athens')::date <> ($2::timestamptz AT TIME ZONE 'Europe/Athens')::date
-            OR shift_ends_at IS NULL
-            OR shift_ends_at <= $2
-          THEN $3
-          ELSE shift_ends_at
-        END,
-        updated_at=$2
-    WHERE id=$1 AND status='active'
-  `, [principal.driverId, at, endsAt]);
+  try {
+    await client.query("BEGIN");
+
+    // A stale open shift can survive from a previous day (for example after a
+    // migrated/test driver never clocked out). The timekeeping layer reuses any
+    // open shift, so without closing it here it would immediately overwrite
+    // today's shift_started_at and keep the mobile app on the clock-in screen.
+    // Bound the automatic close to the normal 12-hour shift window so a stale
+    // record cannot inflate worked-time reporting for several days.
+    await client.query(`
+      UPDATE delivery_driver_breaks b
+      SET ended_at=GREATEST(
+            b.started_at,
+            LEAST($2::timestamptz, s.started_at + interval '12 hours')
+          ),
+          updated_at=$2
+      FROM delivery_driver_shifts s
+      WHERE b.shift_id=s.id
+        AND s.driver_id=$1
+        AND s.ended_at IS NULL
+        AND b.ended_at IS NULL
+        AND (s.started_at AT TIME ZONE 'Europe/Athens')::date
+              <> ($2::timestamptz AT TIME ZONE 'Europe/Athens')::date
+    `, [principal.driverId, at]);
+
+    await client.query(`
+      UPDATE delivery_driver_shifts
+      SET ended_at=LEAST($2::timestamptz, started_at + interval '12 hours'),
+          end_source='system',
+          updated_at=$2
+      WHERE driver_id=$1
+        AND ended_at IS NULL
+        AND (started_at AT TIME ZONE 'Europe/Athens')::date
+              <> ($2::timestamptz AT TIME ZONE 'Europe/Athens')::date
+    `, [principal.driverId, at]);
+
+    await client.query(`
+      UPDATE delivery_drivers
+      SET operational_status=CASE WHEN EXISTS(
+            SELECT 1 FROM delivery_jobs j
+            WHERE j.driver_id=delivery_drivers.id AND j.status IN ('assigned','in_progress')
+          ) THEN 'busy' ELSE 'available' END,
+          accepting_jobs=true,
+          shift_started_at=CASE
+            WHEN shift_started_at IS NULL
+              OR (shift_started_at AT TIME ZONE 'Europe/Athens')::date <> ($2::timestamptz AT TIME ZONE 'Europe/Athens')::date
+            THEN $2
+            ELSE shift_started_at
+          END,
+          shift_ends_at=CASE
+            WHEN shift_started_at IS NULL
+              OR (shift_started_at AT TIME ZONE 'Europe/Athens')::date <> ($2::timestamptz AT TIME ZONE 'Europe/Athens')::date
+              OR shift_ends_at IS NULL
+              OR shift_ends_at <= $2
+            THEN $3
+            ELSE shift_ends_at
+          END,
+          updated_at=$2
+      WHERE id=$1 AND status='active'
+    `, [principal.driverId, at, endsAt]);
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
   return getDeliveryDriverMobileMeta(principal);
 }
