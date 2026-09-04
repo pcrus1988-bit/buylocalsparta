@@ -110,7 +110,7 @@ function searchableText(value: string): string {
     .normalize("NFKD")
     .replace(/\p{M}+/gu, "")
     .toLowerCase()
-    .replace(/[_\W]+/gu, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
