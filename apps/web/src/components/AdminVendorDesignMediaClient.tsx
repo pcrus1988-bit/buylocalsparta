@@ -13,6 +13,7 @@ type Props = Readonly<{
   mediaUploadMode: "direct" | "development_memory" | "gated";
   assignments: readonly VendorProfileMediaAssignment[];
   canApprove: boolean;
+  previewEnabled: boolean;
 }>;
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -34,7 +35,7 @@ function statusLabel(asset: VendorProfileMediaAssignment): string {
   return "Review required";
 }
 
-export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadMode, assignments, canApprove }: Props) {
+export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadMode, assignments, canApprove, previewEnabled }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -109,20 +110,21 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
   return <>
     {error && <div className="form-error vendor-error" role="alert">{error}</div>}
     <WorkspaceMetricStrip items={[
-      { label: "Live images", value: published.length, tone: published.length ? "positive" : "default" },
+      { label: "Published images", value: published.length, tone: published.length ? "positive" : "default" },
       { label: "Pending / review", value: vendorAssignments.length - published.length, tone: vendorAssignments.length - published.length ? "attention" : "default" },
       { label: "Core visuals", value: ["logo", "storefront", "team"].filter((role) => currentByRole.has(role as Role)).length, hint: "logo / shop / team" },
       { label: "Gallery", value: published.filter((item) => item.role === "gallery").length }
     ]} />
 
     <section className="vendor-section">
-      <WorkspaceSectionHeading eyebrow="Visual identity" title="Logo, storefront, people & gallery" note="The same governed media assignments feed the live vendor storefront and, when DEMO mode is enabled, the DEMO storefront. Replacements do not displace the current live image until approved and published." />
+      <WorkspaceSectionHeading eyebrow="Visual identity" title="Logo, storefront, people & gallery" note="The same governed media assignments feed the live vendor storefront and, when DEMO mode is enabled, the DEMO storefront. Replacements do not displace the current published image until approved and published." />
       <div className="workspace-dual-grid">
         {(["logo", "storefront", "team"] as const).map((role) => {
           const current = currentByRole.get(role);
           return <article className="workspace-queue-card" key={role}>
-            <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[role]}</strong><small>{current ? current.altText ?? current.filename : "No published image yet"}</small></div><span className="status-pill">{current ? "Live" : "Empty"}</span></div>
-            {current && <div className="workspace-media-preview"><Image src={`/api/media/${encodeURIComponent(current.mediaId)}`} alt={current.altText ?? ROLE_LABELS[role]} width={720} height={420} style={{ width: "100%", height: 220, objectFit: role === "logo" ? "contain" : "cover", borderRadius: 16 }} /></div>}
+            <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[role]}</strong><small>{current ? current.altText ?? current.filename : "No published image yet"}</small></div><span className="status-pill">{current ? "Published" : "Empty"}</span></div>
+            {current && previewEnabled && <div className="workspace-media-preview"><Image src={`/api/media/${encodeURIComponent(current.mediaId)}`} alt={current.altText ?? ROLE_LABELS[role]} width={720} height={420} style={{ width: "100%", height: 220, objectFit: role === "logo" ? "contain" : "cover", borderRadius: 16 }} /></div>}
+            {current && !previewEnabled && <div className="workspace-inline-note">Published and ready. Enable DEMO (or make the active/research storefront publicly eligible) to expose the governed media URL for preview.</div>}
           </article>;
         })}
       </div>
