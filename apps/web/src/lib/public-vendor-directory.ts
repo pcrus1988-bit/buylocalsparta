@@ -1,6 +1,6 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { approvedVendorImages } from "./public-media-service";
+import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
 import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
 
@@ -318,14 +318,25 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
   return result.rows.map(fromDatabaseRow);
 }
 
+function preferredProfileMedia(media: readonly ApprovedVendorProfileMedia[], vendorId: string): ApprovedVendorProfileMedia | undefined {
+  const vendorMedia = media.filter((item) => item.vendorId === vendorId);
+  return vendorMedia.find((item) => item.role === "storefront") ?? vendorMedia.find((item) => item.role === "logo");
+}
+
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
   if (!productionDatabaseConfigured()) return [];
   const directory = await databaseDirectory();
   const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
-  const images = new Map((await approvedVendorImages(partnerIds)).map((image) => [image.vendorId, image]));
+  const [profileMedia, fallbackImages] = await Promise.all([
+    approvedVendorProfileMedia(partnerIds),
+    approvedVendorImages(partnerIds)
+  ]);
+  const fallbackByVendor = new Map(fallbackImages.map((image) => [image.vendorId, image]));
   return directory.map((vendor) => {
-    const image = images.get(vendor.id);
-    return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
+    const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+    if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
+    const fallback = fallbackByVendor.get(vendor.id);
+    return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
   });
 }
 
@@ -334,6 +345,12 @@ export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<P
   const vendor = (await databaseDirectory(vendorId))[0];
   if (!vendor) return undefined;
   if (vendor.directoryStatus !== "partner") return vendor;
-  const image = (await approvedVendorImages([vendor.id]))[0];
-  return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
+  const [profileMedia, fallbackImages] = await Promise.all([
+    approvedVendorProfileMedia([vendor.id]),
+    approvedVendorImages([vendor.id])
+  ]);
+  const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+  if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
+  const fallback = fallbackImages[0];
+  return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
 }
