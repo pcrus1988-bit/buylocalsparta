@@ -156,27 +156,67 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
     if (["restricted", "suspended", "closed"].includes(applicationState)) throw new Error(`Cannot create a shop while the application is ${applicationState}`);
     const vendorStatus = applicationState;
     const verificationCompletedAt = ["catalog_onboarding", "test_ready", "active"].includes(applicationState) ? now : null;
-    const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
-    const inserted = await tx.query<SqlRow>(`INSERT INTO vendor_businesses(
-        id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,verification_completed_at,
-        contract_started_at,public_directory_visible,demo_mode,created_at,updated_at
-      ) VALUES($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,NULL,false,false,$10,$10)
-      ON CONFLICT (market_id,trading_name) DO UPDATE SET
-        legal_name=EXCLUDED.legal_name,
-        tax_number=COALESCE(EXCLUDED.tax_number,vendor_businesses.tax_number),
-        gemi_number=COALESCE(EXCLUDED.gemi_number,vendor_businesses.gemi_number),status=EXCLUDED.status,
-        verification_completed_at=EXCLUDED.verification_completed_at,contract_started_at=NULL,
-        public_directory_visible=false,demo_mode=false,
-        public_directory_visibility_updated_at=EXCLUDED.updated_at,
-        public_directory_visibility_reason='Research prospect promoted to admin-created shop',updated_at=EXCLUDED.updated_at
-      WHERE vendor_businesses.public_id LIKE 'vendor_research_%' AND vendor_businesses.status='invited'
-      RETURNING id::text AS id,public_id`, [
-      randomUUID(), vendorPublicId, text(row.market_uuid), text(row.legal_name), text(row.trading_name), optionalText(row.tax_number) ?? null,
-      optionalText(row.gemi_number) ?? null, vendorStatus, verificationCompletedAt, now
-    ]);
-    if (!inserted.rowCount) throw new Error("A non-research vendor with the same trading name already exists. Resolve the duplicate before creating a shop.");
-    const vendorUuid = text(inserted.rows[0].id);
-    const actualVendorPublicId = text(inserted.rows[0].public_id);
+    const marketUuid = text(row.market_uuid);
+    const taxNumber = optionalText(row.tax_number) ?? null;
+    const gemiNumber = optionalText(row.gemi_number) ?? null;
+    let vendorUuid: string;
+    let actualVendorPublicId: string;
+
+    const identityMatches = taxNumber || gemiNumber
+      ? await tx.query<SqlRow>(`SELECT id::text AS id,public_id,status::text AS status,trading_name
+          FROM vendor_businesses
+          WHERE market_id=$1::uuid
+            AND (($2::text IS NOT NULL AND tax_number=$2) OR ($3::text IS NOT NULL AND gemi_number=$3))
+          ORDER BY created_at,public_id
+          FOR UPDATE`, [marketUuid, taxNumber, gemiNumber])
+      : undefined;
+
+    if (identityMatches && identityMatches.rowCount > 1) {
+      throw new Error("More than one vendor record matches this application ΑΦΜ/ΓΕΜΗ. Resolve the identity duplicates before creating the shop.");
+    }
+
+    if (identityMatches?.rowCount === 1) {
+      const identity = identityMatches.rows[0];
+      const identityStatus = text(identity.status);
+      const identityPublicId = text(identity.public_id);
+      if (!identityPublicId.startsWith("vendor_research_") || identityStatus !== "invited") {
+        throw new Error("This application ΑΦΜ/ΓΕΜΗ already belongs to a non-research vendor. Link or resolve that vendor instead of creating a duplicate shop.");
+      }
+      const identityUuid = text(identity.id);
+      const tradingNameConflict = await tx.query<SqlRow>(`SELECT public_id FROM vendor_businesses
+        WHERE market_id=$1::uuid AND trading_name=$2 AND id<>$3::uuid LIMIT 1`, [marketUuid, text(row.trading_name), identityUuid]);
+      if (tradingNameConflict.rowCount) {
+        throw new Error("The application trading name is already used by another vendor. Resolve the duplicate before promoting this research prospect.");
+      }
+      await tx.query(`UPDATE vendor_businesses SET legal_name=$2,trading_name=$3,tax_number=COALESCE($4,tax_number),gemi_number=COALESCE($5,gemi_number),
+        status=$6,verification_completed_at=$7,contract_started_at=NULL,public_directory_visible=false,demo_mode=false,
+        public_directory_visibility_updated_at=$8,public_directory_visibility_reason='Research prospect matched by ΑΦΜ/ΓΕΜΗ and promoted to admin-created shop',updated_at=$8
+        WHERE id=$1::uuid`, [identityUuid, text(row.legal_name), text(row.trading_name), taxNumber, gemiNumber, vendorStatus, verificationCompletedAt, now]);
+      vendorUuid = identityUuid;
+      actualVendorPublicId = identityPublicId;
+    } else {
+      const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+      const inserted = await tx.query<SqlRow>(`INSERT INTO vendor_businesses(
+          id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,verification_completed_at,
+          contract_started_at,public_directory_visible,demo_mode,created_at,updated_at
+        ) VALUES($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,NULL,false,false,$10,$10)
+        ON CONFLICT (market_id,trading_name) DO UPDATE SET
+          legal_name=EXCLUDED.legal_name,
+          tax_number=COALESCE(EXCLUDED.tax_number,vendor_businesses.tax_number),
+          gemi_number=COALESCE(EXCLUDED.gemi_number,vendor_businesses.gemi_number),status=EXCLUDED.status,
+          verification_completed_at=EXCLUDED.verification_completed_at,contract_started_at=NULL,
+          public_directory_visible=false,demo_mode=false,
+          public_directory_visibility_updated_at=EXCLUDED.updated_at,
+          public_directory_visibility_reason='Research prospect promoted to admin-created shop',updated_at=EXCLUDED.updated_at
+        WHERE vendor_businesses.public_id LIKE 'vendor_research_%' AND vendor_businesses.status='invited'
+        RETURNING id::text AS id,public_id`, [
+        randomUUID(), vendorPublicId, marketUuid, text(row.legal_name), text(row.trading_name), taxNumber,
+        gemiNumber, vendorStatus, verificationCompletedAt, now
+      ]);
+      if (!inserted.rowCount) throw new Error("A non-research vendor with the same trading name already exists. Resolve the duplicate before creating a shop.");
+      vendorUuid = text(inserted.rows[0].id);
+      actualVendorPublicId = text(inserted.rows[0].public_id);
+    }
 
     const existingLocation = await tx.query<SqlRow>(`SELECT id::text AS id,address_line1,locality,postcode FROM vendor_locations
       WHERE vendor_id=$1::uuid ORDER BY is_primary DESC NULLS LAST,active DESC,created_at ASC LIMIT 1 FOR UPDATE`, [vendorUuid]);
@@ -189,13 +229,13 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
         country_code='GR',phone=$6,public_email=$7,active=true,
         coordinates=CASE WHEN $8::boolean THEN NULL ELSE coordinates END,
         verified_at=$9,updated_at=$10 WHERE id=$1::uuid`, [
-        text(locationRow.id), text(row.market_uuid), text(row.trading_name), text(row.address_line1), text(row.postcode),
+        text(locationRow.id), marketUuid, text(row.trading_name), text(row.address_line1), text(row.postcode),
         optionalText(row.phone) ?? null, text(row.contact_email), locationChanged, verificationCompletedAt, now
       ]);
     } else {
       await tx.query(`INSERT INTO vendor_locations(id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,phone,public_email,active,verified_at,created_at,updated_at)
         VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,'Sparta',$7,'GR',$8,$9,true,$10,$11,$11)`, [
-        randomUUID(), `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`, vendorUuid, text(row.market_uuid), text(row.trading_name),
+        randomUUID(), `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`, vendorUuid, marketUuid, text(row.trading_name),
         text(row.address_line1), text(row.postcode), optionalText(row.phone) ?? null, text(row.contact_email), verificationCompletedAt, now
       ]);
     }
