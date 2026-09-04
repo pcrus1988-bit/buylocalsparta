@@ -57,6 +57,7 @@ async function saveDesign(formData: FormData) {
     reason: value(formData.get("reason"))
   });
   revalidatePath("/shops");
+  revalidatePath("/shops/map");
   revalidatePath(`/vendor/${encodeURIComponent(vendorId)}`);
   revalidatePath(`/demo/vendor/${encodeURIComponent(vendorId)}`);
   revalidatePath("/admin/partners/design");
@@ -88,11 +89,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
   const assignments = selectedShop ? await adminVendorProfileMediaAssignments(principal) : [];
   const canApproveMedia = hasAdminPermission(principal, "catalog.write");
   const publishedForSelected = selectedShop ? assignments.filter((item) => item.vendorId === selectedShop.id && item.publicationStatus === "published" && item.scanStatus === "clean" && item.rightsStatus === "approved" && item.moderationStatus === "approved").length : 0;
-  const mediaPreviewEnabled = Boolean(selectedShop && (
-    selectedShop.status === "active"
-    || selectedShop.demoMode
-    || (selectedShop.status === "invited" && selectedShop.publicDirectoryVisible && selectedShop.id.startsWith("vendor_research_"))
-  ));
 
   return <main className="vendor-app admin-app admin-partner-design">
     <AdminWorkspaceHeader csrfToken={workspace.csrfToken} entityLabel={selectedShop?.tradingName ?? selectedApplication?.tradingName ?? "Partner design"} />
@@ -115,7 +111,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         </select></label>
         <button className="button" type="submit">Open storefront</button>
       </form>
-      {(params.created || params.saved || params.demo) && <div className="workspace-inline-note" role="status">{params.created ? "Vendor shop created. It remains non-public and non-active until the governed lifecycle allows activation." : params.saved ? "Storefront identity saved. Shared identity/location fields are updated and the DEMO profile copy is current." : `DEMO mode turned ${params.demo}.`}</div>}
+      {(params.created || params.saved || params.demo) && <div className="workspace-inline-note" role="status">{params.created ? "Vendor shop created. It remains non-public and non-active until the governed lifecycle allows activation." : params.saved ? "Storefront identity saved. Eligible LIVE and DEMO views now use the Admin storefront copy and location data." : `DEMO mode turned ${params.demo}.`}</div>}
     </section>
 
     {!workspace.databaseConfigured ? <section className="shell vendor-section"><div className="workspace-inline-note">Production database is not configured, so partner design controls are unavailable.</div></section>
@@ -163,7 +159,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         </section>
 
         <section className="shell vendor-section section-tint">
-          <WorkspaceSectionHeading eyebrow="Identity & profile copy" title="Edit what the customer sees" note="Trading name and store contact/location are shared storefront data and therefore affect eligible LIVE and DEMO views. Short description and story are the pre-live/DEMO profile copy; an active LIVE shop continues to prefer its separately governed, vendor-approved Merchant Story when one exists." />
+          <WorkspaceSectionHeading eyebrow="Identity & profile copy" title="Edit what the customer sees" note="Trading name, storefront copy and store contact/location are shared storefront data. For active partners, Admin short description/story now take precedence on LIVE; a separately governed Merchant Story remains a fallback when the Admin fields are empty." />
           <form action={saveDesign}>
             <input type="hidden" name="csrfToken" value={workspace.csrfToken} /><input type="hidden" name="vendorId" value={selectedShop.id} />
             <div className="workspace-form-grid">
@@ -179,12 +175,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
               <label>Public email<input name="publicEmail" type="email" maxLength={254} defaultValue={selectedShop.location?.publicEmail ?? ""} /></label>
               <label className="workspace-form-span-2">Audit reason<input name="reason" required minLength={3} maxLength={500} defaultValue="Update vendor storefront presentation" /></label>
             </div>
-            <div className="workspace-action-bar"><span>Saving does not change lifecycle state, public visibility or commercial activation.</span><button className="button" type="submit">Save storefront identity</button></div>
+            <div className="workspace-action-bar"><span>Saving does not change lifecycle state, public visibility or commercial activation. If a verified address changes, stale coordinates/verification are cleared until the location is verified again.</span><button className="button" type="submit">Save storefront identity</button></div>
           </form>
         </section>
 
         <section className="shell vendor-section">
-          <AdminVendorDesignMediaClient csrfToken={workspace.csrfToken} vendorId={selectedShop.id} mediaUploadMode={mediaUploadMode()} assignments={assignments} canApprove={canApproveMedia} previewEnabled={mediaPreviewEnabled} />
+          <AdminVendorDesignMediaClient csrfToken={workspace.csrfToken} vendorId={selectedShop.id} mediaUploadMode={mediaUploadMode()} assignments={assignments} canApprove={canApproveMedia} />
         </section>
       </> : <section className="shell vendor-section"><WorkspaceSectionHeading eyebrow="Partner design" title="No vendor records are available yet" note="Once a research prospect or application exists it will appear in the selector above." /></section>}
   </main>;
