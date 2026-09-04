@@ -159,6 +159,7 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
     const marketUuid = text(row.market_uuid);
     const taxNumber = optionalText(row.tax_number) ?? null;
     const gemiNumber = optionalText(row.gemi_number) ?? null;
+    const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
     let vendorUuid: string;
     let actualVendorPublicId: string;
 
@@ -188,19 +189,19 @@ export async function createAdminVendorShop(principal: SessionPrincipal, input: 
       if (tradingNameConflict.rowCount) {
         throw new Error("The application trading name is already used by another vendor. Resolve the duplicate before promoting this research prospect.");
       }
-      await tx.query(`UPDATE vendor_businesses SET legal_name=$2,trading_name=$3,tax_number=COALESCE($4,tax_number),gemi_number=COALESCE($5,gemi_number),
-        status=$6,verification_completed_at=$7,contract_started_at=NULL,public_directory_visible=false,demo_mode=false,
-        public_directory_visibility_updated_at=$8,public_directory_visibility_reason='Research prospect matched by ΑΦΜ/ΓΕΜΗ and promoted to admin-created shop',updated_at=$8
-        WHERE id=$1::uuid`, [identityUuid, text(row.legal_name), text(row.trading_name), taxNumber, gemiNumber, vendorStatus, verificationCompletedAt, now]);
+      await tx.query(`UPDATE vendor_businesses SET public_id=$2,legal_name=$3,trading_name=$4,tax_number=COALESCE($5,tax_number),gemi_number=COALESCE($6,gemi_number),
+        status=$7,verification_completed_at=$8,contract_started_at=NULL,public_directory_visible=false,demo_mode=false,
+        public_directory_visibility_updated_at=$9,public_directory_visibility_reason='Research prospect matched by ΑΦΜ/ΓΕΜΗ and promoted to admin-created shop',updated_at=$9
+        WHERE id=$1::uuid`, [identityUuid, vendorPublicId, text(row.legal_name), text(row.trading_name), taxNumber, gemiNumber, vendorStatus, verificationCompletedAt, now]);
       vendorUuid = identityUuid;
-      actualVendorPublicId = identityPublicId;
+      actualVendorPublicId = vendorPublicId;
     } else {
-      const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
       const inserted = await tx.query<SqlRow>(`INSERT INTO vendor_businesses(
           id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,verification_completed_at,
           contract_started_at,public_directory_visible,demo_mode,created_at,updated_at
         ) VALUES($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,NULL,false,false,$10,$10)
         ON CONFLICT (market_id,trading_name) DO UPDATE SET
+          public_id=EXCLUDED.public_id,
           legal_name=EXCLUDED.legal_name,
           tax_number=COALESCE(EXCLUDED.tax_number,vendor_businesses.tax_number),
           gemi_number=COALESCE(EXCLUDED.gemi_number,vendor_businesses.gemi_number),status=EXCLUDED.status,
