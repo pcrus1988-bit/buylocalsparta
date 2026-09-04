@@ -1,6 +1,6 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { approvedVendorImages } from "./public-media-service";
+import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
 import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
 
@@ -53,6 +53,8 @@ export type PublicVendorDirectoryEntry = Readonly<{
   adviser?: string;
   location?: PublicVendorLocation;
   story?: PublicVendorStory;
+  profileShortDescription?: string;
+  profileStory?: string;
   categoryCodes: readonly string[];
   researchCategory?: string;
   taxonomies: readonly PublicVendorTaxonomy[];
@@ -83,6 +85,8 @@ type VendorDirectoryRow = SqlRow & {
   story_title?: string | null;
   story_excerpt?: string | null;
   story_media_id?: string | null;
+  profile_short_description?: string | null;
+  profile_story?: string | null;
   category_codes?: readonly string[] | null;
   research_source_kind?: string | null;
   research_source_count?: number | string | null;
@@ -184,6 +188,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     adviser: isPartner ? optionalText(row.adviser_name) : undefined,
     location,
     story,
+    profileShortDescription: isPartner ? optionalText(row.profile_short_description) : undefined,
+    profileStory: isPartner ? optionalText(row.profile_story) : undefined,
     categoryCodes,
     researchCategory: isPartner ? undefined : subBranch,
     taxonomies: publicVendorTaxonomies({ majorBranch, subBranch, categoryCodes }),
@@ -216,6 +222,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            story.title AS story_title,
            story.excerpt AS story_excerpt,
            story.media_public_id AS story_media_id,
+           profile.short_description AS profile_short_description,
+           profile.story AS profile_story,
            COALESCE(assortment.category_codes, ARRAY[]::text[]) AS category_codes,
            vrp.source_kind AS research_source_kind,
            COALESCE(research_evidence.source_count,0)::integer AS research_source_count,
@@ -233,6 +241,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
            COALESCE(assortment.canonical_count, 0)::integer AS canonical_count
     FROM vendor_businesses v
     JOIN markets m ON m.id=v.market_id
+    LEFT JOIN vendor_profile_translations profile ON profile.vendor_id=v.id AND profile.locale='el'
     LEFT JOIN vendor_research_profiles vrp ON vrp.vendor_id=v.id
     LEFT JOIN LATERAL (
       SELECT count(DISTINCT source_record.id)::integer AS source_count,
@@ -309,15 +318,43 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
   return result.rows.map(fromDatabaseRow);
 }
 
+function preferredProfileMedia(media: readonly ApprovedVendorProfileMedia[], vendorId: string): ApprovedVendorProfileMedia | undefined {
+  const vendorMedia = media.filter((item) => item.vendorId === vendorId);
+  return vendorMedia.find((item) => item.role === "storefront") ?? vendorMedia.find((item) => item.role === "logo");
+}
+
+function directoryPresentation(vendor: PublicVendorDirectoryEntry, profileMedia: readonly ApprovedVendorProfileMedia[], fallbackImage?: { mediaId: string; altText?: string }): PublicVendorDirectoryEntry {
+  if (vendor.directoryStatus !== "partner") return vendor;
+  const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+  const selectedImage = profileImage ?? fallbackImage;
+  const effectiveCopy = vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt;
+  const effectiveMediaUrl = profileImage
+    ? publicMediaUrl(profileImage.mediaId)
+    : vendor.story?.mediaUrl ?? (fallbackImage ? publicMediaUrl(fallbackImage.mediaId) : undefined);
+  const effectiveStory = effectiveCopy || effectiveMediaUrl
+    ? {
+        id: vendor.story?.id ?? `storefront_${vendor.id}`,
+        slug: vendor.story?.slug ?? vendor.id,
+        title: vendor.story?.title ?? vendor.name,
+        excerpt: effectiveCopy ?? `Δες το δημόσιο προφίλ του ${vendor.name}, τις κατηγορίες, τα προϊόντα και την τοπική συμβουλή του καταστήματος.`,
+        mediaUrl: effectiveMediaUrl
+      }
+    : vendor.story;
+  return selectedImage
+    ? { ...vendor, story: effectiveStory, mediaId: selectedImage.mediaId, mediaAlt: selectedImage.altText }
+    : { ...vendor, story: effectiveStory };
+}
+
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
   if (!productionDatabaseConfigured()) return [];
   const directory = await databaseDirectory();
   const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
-  const images = new Map((await approvedVendorImages(partnerIds)).map((image) => [image.vendorId, image]));
-  return directory.map((vendor) => {
-    const image = images.get(vendor.id);
-    return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
-  });
+  const [profileMedia, fallbackImages] = await Promise.all([
+    approvedVendorProfileMedia(partnerIds),
+    approvedVendorImages(partnerIds)
+  ]);
+  const fallbackByVendor = new Map(fallbackImages.map((image) => [image.vendorId, image]));
+  return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
 }
 
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
@@ -325,6 +362,12 @@ export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<P
   const vendor = (await databaseDirectory(vendorId))[0];
   if (!vendor) return undefined;
   if (vendor.directoryStatus !== "partner") return vendor;
-  const image = (await approvedVendorImages([vendor.id]))[0];
-  return image ? { ...vendor, mediaId: image.mediaId, mediaAlt: image.altText } : vendor;
+  const [profileMedia, fallbackImages] = await Promise.all([
+    approvedVendorProfileMedia([vendor.id]),
+    approvedVendorImages([vendor.id])
+  ]);
+  const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+  if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
+  const fallback = fallbackImages[0];
+  return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
 }

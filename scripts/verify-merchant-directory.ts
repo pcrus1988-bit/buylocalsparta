@@ -61,7 +61,7 @@ for (const publicMediaBoundary of [
 if (!directory.includes("mediaUrl: publicMediaUrl(row.story_media_id)")) failures.push("Merchant directory must emit only validated same-origin public media URLs");
 if (!shopsPage.includes('vendor.story?.mediaUrl') || !shopsPage.includes('className="shop-card-photo"')) failures.push("/shops must prefer governed merchant photography when available");
 if (!shopsPage.includes("!storyMedia &&") || !shopsPage.includes("shop-card-initial")) failures.push("/shops must retain generated merchant artwork as the no-photo fallback");
-if (!vendorPage.includes("const storyMedia = vendor.story?.mediaUrl") || !vendorPage.includes("<Image src={storyMedia}")) failures.push("Public vendor profile must prefer governed merchant photography when available");
+if (!vendorPage.includes("const merchantStoryMedia = vendor.story?.mediaUrl") || !vendorPage.includes("const storefrontUrl = mediaPath(storefrontMedia)") || !vendorPage.includes("{storefrontUrl ? (") || !vendorPage.includes(") : merchantStoryMedia ? (") || !vendorPage.includes("<Image src={storefrontUrl}") || !vendorPage.includes("<Image src={merchantStoryMedia}")) failures.push("Public vendor profile must prefer governed storefront photography and retain governed Merchant Story media as fallback");
 if (!vendorPage.includes("styles.mediaPlaceholder") || !vendorPage.includes("styles.logoMark") || !vendorPage.includes("initials(vendor.name)")) failures.push("Public vendor profile must retain a controlled merchant-identity fallback when no approved story photo exists");
 if (!layout.includes('import "./storefront-merchant-media.css"')) failures.push("Root layout must load merchant media presentation styles");
 if (!merchantMediaCss.includes("object-fit:cover") || !merchantMediaCss.includes(".merchant-portrait.has-photo")) failures.push("Merchant media styles must crop approved photography safely inside existing visual frames");
@@ -89,7 +89,7 @@ if (!shopsPage.includes('role="search"') || !shopsPage.includes('name="category"
 if (!shopsPage.includes('href="/fairness"') || !shopsPage.includes("δίκαιη συμμετοχή")) failures.push("/shops must explain directory visibility in the context of fair assignment");
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
 if (!vendorPage.includes("getVendorCatalogCards(id)")) failures.push("Public vendor profile products must retain the non-fairness vendor catalog projection");
-if (!vendorPage.includes("vendor.story?.excerpt ??") || !vendorPage.includes("Δεν έχει δημοσιευθεί ακόμη εγκεκριμένη ιστορία")) failures.push("Public vendor profile must distinguish approved storytelling from the no-story fallback");
+if (!vendorPage.includes("vendor.profileStory ?? vendor.story?.excerpt ??") || !vendorPage.includes("Δεν έχει δημοσιευθεί ακόμη ιστορία από το κατάστημα") || !vendorPage.includes("Storefront copy διαχειριζόμενο από Admin") || !vendorPage.includes("Merchant story δημοσιευμένο με καταγεγραμμένη έγκριση του vendor")) failures.push("Public vendor profile must distinguish Admin-managed, vendor-approved and no-story storytelling states");
 if (!PRIMARY_NAVIGATION.some((link) => link.href === "/shops")) failures.push("Primary navigation registry must link directly to /shops");
 if (!home.includes('href="/shops"') && !home.includes('href="/shops?status=partner"')) failures.push("Homepage merchant discovery must link to /shops");
 

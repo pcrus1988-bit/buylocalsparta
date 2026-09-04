@@ -72,10 +72,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
   const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
   const category = vendor.taxonomies[0];
-  const description = vendor.story?.excerpt ?? (isResearch
+  const description = vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? (isResearch
     ? `Δημόσια καταχώριση για το ${vendor.name}${category?.subcategoryLabel ? ` · ${category.subcategoryLabel}` : ""} στη χαρτογραφημένη αγορά της Σπάρτης.`
     : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το ΚΟΝΤΑ ΜΟΥ Sparta.`);
-  const ogMedia = vendor.story?.mediaUrl ?? mediaPath(firstRole(profileMedia, "storefront") ?? firstRole(profileMedia, "logo"));
+  const ogMedia = mediaPath(firstRole(profileMedia, "storefront")) ?? vendor.story?.mediaUrl ?? mediaPath(firstRole(profileMedia, "logo"));
   return buildGovernedSeoMetadata({
     reference,
     settings,
@@ -126,7 +126,7 @@ export default async function VendorPage({ params }: Props) {
     ? [[], undefined, []] as const
     : await Promise.all([getVendorCatalogCards(id), getAccountSession(), approvedVendorProfileMedia([id])]);
   const location = vendor.location;
-  const storyMedia = vendor.story?.mediaUrl;
+  const merchantStoryMedia = vendor.story?.mediaUrl;
   const logoMedia = firstRole(profileMedia, "logo");
   const storefrontMedia = firstRole(profileMedia, "storefront");
   const teamMedia = firstRole(profileMedia, "team");
@@ -142,8 +142,8 @@ export default async function VendorPage({ params }: Props) {
   const adviserName = vendor.adviser ?? "Η ομάδα του καταστήματος";
   const intro = isResearch
     ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το ΚΟΝΤΑ ΜΟΥ Sparta δεν έχει ακόμη ενεργοποιηθεί.`
-    : (vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
-  const structuredImages = [storyMedia, storefrontUrl, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
+    : (vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
+  const structuredImages = [storefrontUrl, merchantStoryMedia, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -151,7 +151,7 @@ export default async function VendorPage({ params }: Props) {
     "@id": `${vendorUrl}#business`,
     name: vendor.name,
     url: vendorUrl,
-    description: vendor.story?.excerpt ?? (isResearch ? "Χαρτογραφημένη τοπική επιχείρηση από δημόσιες επιχειρηματικές πηγές." : undefined),
+    description: vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? (isResearch ? "Χαρτογραφημένη τοπική επιχείρηση από δημόσιες επιχειρηματικές πηγές." : undefined),
     image: structuredImages.length ? structuredImages : undefined,
     logo: logoUrl ? absolutePublicMedia(logoUrl, settings.canonicalOrigin) : undefined,
     telephone: location?.phone,
@@ -224,20 +224,20 @@ export default async function VendorPage({ params }: Props) {
             </div>
 
             <div className={styles.mediaPanel} aria-label={`Φωτογραφία καταστήματος ${vendor.name}`}>
-              {storyMedia ? (
-                <>
-                  <Image src={storyMedia} alt={`Εγκεκριμένη merchant-story εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
-                  <div className={styles.mediaOverlay}>
-                    <strong>{vendor.name}</strong>
-                    <span>Εγκεκριμένο merchant-story visual. Η σελίδα δεν χρησιμοποιεί φωτογραφίες προϊόντων ως υποκατάστατο βιτρίνας.</span>
-                  </div>
-                </>
-              ) : storefrontUrl ? (
+              {storefrontUrl ? (
                 <>
                   <Image src={storefrontUrl} alt={storefrontMedia?.altText ?? `Εγκεκριμένη εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
                   <div className={styles.mediaOverlay}>
                     <strong>{vendor.name}</strong>
-                    <span>Εγκεκριμένη φωτογραφία φυσικού καταστήματος.</span>
+                    <span>Εγκεκριμένη storefront εικόνα του καταστήματος.</span>
+                  </div>
+                </>
+              ) : merchantStoryMedia ? (
+                <>
+                  <Image src={merchantStoryMedia} alt={`Εγκεκριμένη merchant-story εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
+                  <div className={styles.mediaOverlay}>
+                    <strong>{vendor.name}</strong>
+                    <span>Εγκεκριμένο merchant-story visual.</span>
                   </div>
                 </>
               ) : (
@@ -245,7 +245,7 @@ export default async function VendorPage({ params }: Props) {
                   <div className={styles.mediaPlaceholderInner}>
                     <span className={styles.mediaPlaceholderIcon}>⌂</span>
                     <strong>Φωτογραφία φυσικού καταστήματος</strong>
-                    <span>Η θέση είναι έτοιμη και θα εμφανίσει φωτογραφία μόλις υπάρχει εγκεκριμένο merchant ή storefront media.</span>
+                    <span>Η θέση είναι έτοιμη και θα εμφανίσει φωτογραφία μόλις υπάρχει εγκεκριμένο storefront ή merchant media.</span>
                   </div>
                 </div>
               )}
@@ -284,13 +284,14 @@ export default async function VendorPage({ params }: Props) {
 
           <article className={`${styles.card} ${styles.storyCard}`}>
             <div className="eyebrow light">{isResearch ? "Δημόσιο business dossier" : "Η σύντομη ιστορία"}</div>
-            <h2>{isResearch ? "Τι γνωρίζουμε δημόσια." : (vendor.story?.title ?? `Λίγα λόγια για το ${vendor.name}.`)}</h2>
+            <h2>{isResearch ? "Τι γνωρίζουμε δημόσια." : (vendor.profileStory ? `Λίγα λόγια για το ${vendor.name}.` : (vendor.story?.title ?? `Λίγα λόγια για το ${vendor.name}.`))}</h2>
             <p>
               {isResearch
                 ? "Η σελίδα συγκεντρώνει μόνο δημόσια επιχειρηματικά στοιχεία. Η παρουσία εδώ δεν σημαίνει συνεργασία, έγκριση προϊόντων ή εμπορική σχέση με το ΚΟΝΤΑ ΜΟΥ Sparta."
-                : (vendor.story?.excerpt ?? "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένη ιστορία από το κατάστημα. Το ΚΟΝΤΑ ΜΟΥ Sparta δεν εφευρίσκει storytelling ή προσωπικές πληροφορίες όταν ο vendor δεν τις έχει εγκρίνει.")}
+                : (vendor.profileStory ?? vendor.story?.excerpt ?? "Δεν έχει δημοσιευθεί ακόμη ιστορία από το κατάστημα. Το ΚΟΝΤΑ ΜΟΥ Sparta δεν εφευρίσκει storytelling ή προσωπικές πληροφορίες χωρίς καταγεγραμμένη πηγή.")}
             </p>
-            {!isResearch && vendor.story && <small className={styles.storyNote}>Merchant story δημοσιευμένο με καταγεγραμμένη έγκριση του vendor.</small>}
+            {!isResearch && vendor.profileStory && <small className={styles.storyNote}>Storefront copy διαχειριζόμενο από Admin με καταγεγραμμένο audit trail.</small>}
+            {!isResearch && !vendor.profileStory && vendor.story && <small className={styles.storyNote}>Merchant story δημοσιευμένο με καταγεγραμμένη έγκριση του vendor.</small>}
             {isResearch && checkedDate(vendor.research?.checkedAt) && <small className={styles.storyNote}>Τελευταίος δημόσιος έλεγχος: {checkedDate(vendor.research?.checkedAt)}</small>}
           </article>
         </div>

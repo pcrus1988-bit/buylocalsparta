@@ -13,7 +13,6 @@ type Props = Readonly<{
   mediaUploadMode: "direct" | "development_memory" | "gated";
   assignments: readonly VendorProfileMediaAssignment[];
   canApprove: boolean;
-  previewEnabled: boolean;
 }>;
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -35,7 +34,11 @@ function statusLabel(asset: VendorProfileMediaAssignment): string {
   return "Review required";
 }
 
-export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadMode, assignments, canApprove, previewEnabled }: Props) {
+function adminPreviewPath(mediaId: string): string {
+  return `/api/admin/vendor-design/media-preview/${encodeURIComponent(mediaId)}`;
+}
+
+export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadMode, assignments, canApprove }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -118,14 +121,13 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
     ]} />
 
     <section className="vendor-section">
-      <WorkspaceSectionHeading eyebrow="Visual identity" title="Logo, storefront, people & gallery" note="The same governed media assignments feed the live vendor storefront and, when DEMO mode is enabled, the DEMO storefront. Replacements do not displace the current published image until approved and published." />
+      <WorkspaceSectionHeading eyebrow="Visual identity" title="Logo, storefront, people & gallery" note="Clean media can be previewed privately here before anything becomes public. The same published assignments feed the LIVE storefront and, when DEMO mode is enabled, the DEMO storefront." />
       <div className="workspace-dual-grid">
         {(["logo", "storefront", "team"] as const).map((role) => {
           const current = currentByRole.get(role);
           return <article className="workspace-queue-card" key={role}>
             <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[role]}</strong><small>{current ? current.altText ?? current.filename : "No published image yet"}</small></div><span className="status-pill">{current ? "Published" : "Empty"}</span></div>
-            {current && previewEnabled && <div className="workspace-media-preview"><Image src={`/api/media/${encodeURIComponent(current.mediaId)}`} alt={current.altText ?? ROLE_LABELS[role]} width={720} height={420} style={{ width: "100%", height: 220, objectFit: role === "logo" ? "contain" : "cover", borderRadius: 16 }} /></div>}
-            {current && !previewEnabled && <div className="workspace-inline-note">Published and ready. Enable DEMO (or make the active/research storefront publicly eligible) to expose the governed media URL for preview.</div>}
+            {current && <div className="workspace-media-preview"><Image src={adminPreviewPath(current.mediaId)} alt={current.altText ?? ROLE_LABELS[role]} width={720} height={420} unoptimized style={{ width: "100%", height: 220, objectFit: role === "logo" ? "contain" : "cover", borderRadius: 16 }} /></div>}
           </article>;
         })}
       </div>
@@ -144,19 +146,20 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
               <label className="workspace-form-span-2">Alt text<input name="altText" required maxLength={240} placeholder="Describe exactly what the customer sees" /></label>
               <label className="workspace-form-span-2">Rights owner<input name="rightsOwner" required maxLength={200} placeholder="Business, photographer or rights holder" /></label>
             </div>
-            <div className="workspace-action-bar"><span>Upload creates a draft. Publication remains blocked until the automated scan is clean and rights/moderation are approved.</span><button className="button" type="submit" disabled={busy || mediaUploadMode !== "direct"}>{busy ? "Working…" : "Upload for review"}</button></div>
+            <div className="workspace-action-bar"><span>Upload creates a draft. The image remains private; Admin preview becomes available only after the automated scanner reports clean.</span><button className="button" type="submit" disabled={busy || mediaUploadMode !== "direct"}>{busy ? "Working…" : "Upload for review"}</button></div>
           </form>
         </div>
       </details>
     </div></section>
 
     <section className="vendor-section">
-      <WorkspaceSectionHeading eyebrow="Media queue" title="Review & publication" note="Use Approve & publish only after the automated scanner reports clean. Publishing a new logo/storefront/team image archives the previous published image in that role." />
+      <WorkspaceSectionHeading eyebrow="Media queue" title="Review & publication" note="A clean private preview is available before rights/moderation approval. Publishing still requires scan clean + rights approved + moderation approved; replacements do not displace the current published core image until then." />
       {vendorAssignments.length === 0 ? <WorkspaceEmptyState title="No storefront media has been submitted for this vendor." /> : <div className="workspace-compact-list">
         {vendorAssignments.map((asset) => <div className="workspace-compact-row" key={asset.id}>
           <strong>{ROLE_LABELS[asset.role]}</strong>
           <span>{asset.filename} · {statusLabel(asset)}</span>
           <small>{asset.altText ?? "No alt text"}</small>
+          {asset.scanStatus === "clean" && <div style={{ width: 112, height: 76, position: "relative", overflow: "hidden", borderRadius: 10 }}><Image src={adminPreviewPath(asset.mediaId)} alt={asset.altText ?? asset.filename} fill unoptimized sizes="112px" style={{ objectFit: asset.role === "logo" ? "contain" : "cover" }} /></div>}
           <div className="workspace-action-buttons">
             {asset.publicationStatus === "published" && approved(asset) ? <button className="button button-secondary" type="button" disabled={busy} onClick={() => act(asset.id, "unpublish")}>Unpublish</button>
               : approved(asset) ? <button className="button" type="button" disabled={busy} onClick={() => act(asset.id, "publish")}>Publish</button>
