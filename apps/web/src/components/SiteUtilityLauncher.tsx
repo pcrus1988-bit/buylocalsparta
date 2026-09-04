@@ -10,6 +10,7 @@ export function SiteUtilityLauncher() {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
+  const accessibilityLauncherRef = useRef<HTMLButtonElement>(null);
   const firstActionRef = useRef<HTMLButtonElement>(null);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
@@ -57,9 +58,15 @@ export function SiteUtilityLauncher() {
     requestCookieSettings();
   }
 
-  function openAccessibility() {
+  function openAccessibilityFromMenu() {
     setOpen(false);
     launcherRef.current?.focus({ preventScroll: true });
+    requestAccessibilitySettings();
+  }
+
+  function openAccessibilityQuick() {
+    setOpen(false);
+    accessibilityLauncherRef.current?.focus({ preventScroll: true });
     requestAccessibilitySettings();
   }
 
@@ -69,7 +76,7 @@ export function SiteUtilityLauncher() {
         <span aria-hidden="true" className="site-utility-menu-icon">C</span>
         <span>Ρυθμίσεις cookies</span>
       </button>
-      <button type="button" onClick={openAccessibility}>
+      <button type="button" onClick={openAccessibilityFromMenu}>
         <span aria-hidden="true" className="site-utility-menu-icon">A</span>
         <span>Προσβασιμότητα</span>
       </button>
@@ -78,6 +85,16 @@ export function SiteUtilityLauncher() {
         <span>Απόκρυψη</span>
       </button>
     </div>}
+
+    <button
+      ref={accessibilityLauncherRef}
+      type="button"
+      className="site-accessibility-launcher"
+      aria-label="Άνοιγμα εργαλείων προσβασιμότητας"
+      onClick={openAccessibilityQuick}
+    >
+      <span aria-hidden="true">A</span>
+    </button>
 
     <button
       ref={launcherRef}
