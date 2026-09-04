@@ -46,11 +46,12 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
     setError("");
     try {
       if (mediaUploadMode !== "direct") throw new Error("The production media pipeline is not ready for direct uploads.");
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formElement);
       const file = form.get("file");
       const profileRole = String(form.get("profileRole") ?? "") as Role;
       if (!(file instanceof File) || file.size <= 0) throw new Error("Choose an image first.");
@@ -79,7 +80,7 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
       });
       const result = await complete.json();
       if (!complete.ok) throw new Error(result.error ?? "Could not complete the image submission.");
-      event.currentTarget.reset();
+      formElement.reset();
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload failed.");
