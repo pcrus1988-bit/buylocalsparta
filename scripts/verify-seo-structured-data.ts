@@ -131,10 +131,10 @@ for (const contract of [
   'serviceType: "Local-commerce marketplace and merchant e-commerce infrastructure"',
   'provider: { "@id": organizationId }',
   'about: { "@id": serviceId }',
-  'με ένα καλάθι και ένα checkout',
+  'με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς',
   'διαχείριση παραγγελιών και εκπλήρωσης',
-  'πανελλαδική online ορατότητα',
-  'χωρίς να χρειάζεται να λειτουργούν δικό τους e-shop'
+  'πανελλαδική ψηφιακή ορατότητα',
+  'χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα'
 ]) expect(rootLayout.includes(contract), `Root marketplace AEO schema is missing ${contract}`);
 
 for (const contract of [
