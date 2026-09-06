@@ -115,7 +115,7 @@ export default async function ShopsPage({ searchParams }: Props) {
       <section className="shops-hero">
         <div className="shell shops-hero-grid">
           <div>
-            <div className="eyebrow">Know your vendor</div>
+            <div className="eyebrow">Γνώρισε την τοπική αγορά</div>
             <h1>Γνώρισε τα καταστήματα της Σπάρτης.</h1>
             <p>Οι ενεργοί συνεργάτες εμφανίζονται πρώτοι για να βρίσκεις άμεσα καταστήματα από τα οποία μπορείς να αγοράσεις ή να ζητήσεις συμβουλή. Η ευρύτερη τοπική αγορά παραμένει διαθέσιμη πιο κάτω, οργανωμένη ανά κατηγορία χωρίς να γεμίζει τη σελίδα.</p>
             <div className="hero-actions">
@@ -125,14 +125,14 @@ export default async function ShopsPage({ searchParams }: Props) {
             </div>
           </div>
           <div className="shops-hero-art" aria-hidden="true">
-            <div className="shops-orbit"><span className="shops-orbit-mark">LOCAL<br />PEOPLE</span></div>
+            <div className="shops-orbit"><span className="shops-orbit-mark">ΤΟΠΙΚΟΙ<br />ΑΝΘΡΩΠΟΙ</span></div>
             <span className="shops-orbit-note shops-orbit-note-a">Ενεργοί συνεργάτες πρώτα</span>
             <span className="shops-orbit-note shops-orbit-note-b">Υπόλοιπη αγορά · ανά κατηγορία</span>
           </div>
         </div>
       </section>
 
-      <div className="shops-principles" aria-label="Merchant directory principles">
+      <div className="shops-principles" aria-label="Αρχές καταλόγου τοπικών επιχειρήσεων">
         <div><strong>Ενεργοί συνεργάτες πρώτα</strong><span>Τα καταστήματα που έχουν ολοκληρώσει την ενεργοποίησή τους παρουσιάζονται ως κύριες κάρτες στην αρχή του καταλόγου.</span></div>
         <div><strong>Η υπόλοιπη αγορά σε τάξη</strong><span>Οι χαρτογραφημένες ή προσκεκλημένες επιχειρήσεις δεν χάνονται, αλλά ομαδοποιούνται ανά κύρια κατηγορία και ανοίγουν μόνο όταν το επιλέξεις.</span></div>
         <div><strong>Καθαρή διάκριση σταδίου</strong><span>Μια δημόσια ερευνητική καταχώριση δεν παρουσιάζεται ως συμβεβλημένος συνεργάτης. <a className="text-link" href="/fairness">Δες πώς λειτουργεί η δίκαιη συμμετοχή →</a></span></div>
@@ -144,13 +144,13 @@ export default async function ShopsPage({ searchParams }: Props) {
           <p>{partnerCount} ενεργοί συνεργάτες · {researchCount} επιπλέον χαρτογραφημένες/προσκεκλημένες επιχειρήσεις οργανωμένες ανά κατηγορία. <a className="text-link" href="/shops/map">Άνοιγμα χάρτη →</a></p>
         </div>
 
-        <div className="shop-category-list" aria-label="Κύριες κατηγορίες καταστημάτων">
+        <nav className="shop-category-list" aria-label="Κύριες κατηγορίες καταστημάτων">
           {PUBLIC_VENDOR_CATEGORIES.map((category) => {
             const count = categoryCounts.get(category.slug) ?? 0;
             if (!count) return null;
             return <a className="shop-category-chip" href={`/shops?category=${encodeURIComponent(category.slug)}`} key={category.slug}>{category.label} · {count}</a>;
           })}
-        </div>
+        </nav>
 
         <form className="shops-filter" action="/shops" method="get" role="search">
           <label><span>Αναζήτηση καταστήματος</span><input type="search" name="q" defaultValue={query} placeholder="Όνομα, ειδικότητα ή περιοχή" maxLength={80} /></label>
@@ -163,7 +163,7 @@ export default async function ShopsPage({ searchParams }: Props) {
 
         {!vendors.length ? (
           <div className="empty-state">
-            <h2>{allVendors.length ? "Δεν βρέθηκε κατάστημα με αυτά τα φίλτρα." : "Η βάση καταστημάτων ετοιμάζεται."}</h2>
+            <h2>{allVendors.length ? "Δεν βρέθηκε κατάστημα με αυτά τα φίλτρα." : "Δεν υπάρχουν δημοσιευμένα καταστήματα αυτή τη στιγμή."}</h2>
             <p>{allVendors.length ? "Δοκίμασε διαφορετικό όνομα, κατηγορία ή υποκατηγορία." : "Δεν υπάρχουν ακόμη δημοσιεύσιμες καταχωρίσεις στην παραγωγική βάση δεδομένων."}</p>
             <a className="button" href={allVendors.length ? "/shops" : "/shop"}>{allVendors.length ? "Καθαρισμός φίλτρων" : "Πήγαινε στα προϊόντα"}</a>
           </div>
@@ -186,7 +186,7 @@ export default async function ShopsPage({ searchParams }: Props) {
                         <article className="shop-card" key={vendor.id}>
                           <div className={`shop-card-visual${storyMedia ? " has-photo" : ""}`} aria-hidden="true">
                             {storyMedia && <img className="shop-card-photo" src={storyMedia} alt="" />}
-                            <span className="shop-card-index">ACTIVE · {String(index + 1).padStart(2, "0")}</span>
+                            <span className="shop-card-index">ΕΝΕΡΓΟ · {String(index + 1).padStart(2, "0")}</span>
                             {!storyMedia && <span className="shop-card-initial">{vendor.name.slice(0, 1).toUpperCase()}</span>}
                           </div>
                           <div className="shop-card-body">
@@ -198,12 +198,12 @@ export default async function ShopsPage({ searchParams }: Props) {
                               {vendor.adviser && <div className="shop-meta-row"><span>Συμβουλή</span><strong>{vendor.adviser}</strong></div>}
                               {location && <div className="shop-meta-row"><span>Τοποθεσία</span><strong>{location.addressLine1}, {location.postcode} {location.locality}{location.verified ? " · επαληθευμένο" : ""}</strong></div>}
                               {location?.phone && <div className="shop-meta-row"><span>Τηλέφωνο</span><strong>{location.phone}</strong></div>}
-                              {website && <div className="shop-meta-row"><span>Online shop</span><strong>Διαθέσιμο website</strong></div>}
+                              {website && <div className="shop-meta-row"><span>Ηλεκτρονικό κατάστημα</span><strong>Διαθέσιμος ιστότοπος</strong></div>}
                               <div className="shop-meta-row"><span>Κατάλογος</span><strong>{vendor.canonicalCount} {vendor.canonicalCount === 1 ? "προϊόν" : "προϊόντα"}</strong></div>
                             </div>
 
-                            {vendor.taxonomies.length > 0 && <div className="shop-category-list" aria-label="Κατηγορίες καταστήματος">
-                              {vendor.taxonomies.map((taxonomy) => <span className="shop-category-chip" key={`${taxonomy.categorySlug}-${taxonomy.subcategorySlug ?? "all"}`}>{taxonomy.categoryLabel}{taxonomy.subcategoryLabel ? ` · ${taxonomy.subcategoryLabel}` : ""}</span>)}
+                            {vendor.taxonomies.length > 0 && <div className="shop-category-list" role="list" aria-label="Κατηγορίες καταστήματος">
+                              {vendor.taxonomies.map((taxonomy) => <span className="shop-category-chip" role="listitem" key={`${taxonomy.categorySlug}-${taxonomy.subcategorySlug ?? "all"}`}>{taxonomy.categoryLabel}{taxonomy.subcategoryLabel ? ` · ${taxonomy.subcategoryLabel}` : ""}</span>)}
                             </div>}
 
                             <div className="shop-card-action">
