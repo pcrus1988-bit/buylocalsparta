@@ -49,7 +49,7 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsNamespace> {
   return browser.__blsVendorGoogleMapsPromise;
 }
 
-export function VendorLocationMap({ vendorId, vendorName, address, coordinates }: {
+export function VendorLocationMap({ vendorName, address, coordinates }: {
   vendorId: string;
   vendorName: string;
   address: string;
