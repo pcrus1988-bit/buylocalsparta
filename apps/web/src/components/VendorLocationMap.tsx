@@ -5,93 +5,94 @@ import { hasUsablePublicCoordinates } from "../lib/public-data-integrity";
 import styles from "./VendorStorefront.module.css";
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
-type LeafletMap = {
-  setView(latLng: [number, number], zoom: number): LeafletMap;
-  remove(): void;
-  invalidateSize(): void;
+type GoogleMapInstance = Record<string, unknown>;
+type GoogleMarkerInstance = { setMap(map: GoogleMapInstance | null): void };
+type GoogleMapsNamespace = {
+  Map: new (element: HTMLElement, options?: Record<string, unknown>) => GoogleMapInstance;
+  Marker: new (options?: Record<string, unknown>) => GoogleMarkerInstance;
 };
-type LeafletMarker = { addTo(map: LeafletMap): LeafletMarker; bindTooltip(label: string, options?: Record<string, unknown>): LeafletMarker };
-type LeafletNamespace = {
-  map(element: HTMLElement, options?: Record<string, unknown>): LeafletMap;
-  tileLayer(url: string, options?: Record<string, unknown>): { addTo(map: LeafletMap): unknown };
-  marker(latLng: [number, number], options?: Record<string, unknown>): LeafletMarker;
-  divIcon(options: Record<string, unknown>): unknown;
-};
-type LeafletWindow = Window & typeof globalThis & {
-  L?: LeafletNamespace;
-  __blsVendorLeafletPromise?: Promise<LeafletNamespace>;
+type GoogleMapsWindow = Window & typeof globalThis & {
+  google?: { maps?: GoogleMapsNamespace };
+  __blsVendorGoogleMapsPromise?: Promise<GoogleMapsNamespace>;
 };
 
-const LEAFLET_VERSION = "1.9.4";
-const OSM_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-const MARKER_HTML = '<span style="display:block;width:24px;height:24px;border-radius:50% 50% 50% 0;background:#183027;border:3px solid #fff;box-shadow:0 5px 16px rgba(24,48,39,.28);transform:rotate(-45deg)"></span>';
+function loadGoogleMaps(apiKey: string): Promise<GoogleMapsNamespace> {
+  const browser = window as GoogleMapsWindow;
+  if (browser.google?.maps) return Promise.resolve(browser.google.maps);
+  if (browser.__blsVendorGoogleMapsPromise) return browser.__blsVendorGoogleMapsPromise;
 
-function loadLeaflet(): Promise<LeafletNamespace> {
-  const browser = window as LeafletWindow;
-  if (browser.L) return Promise.resolve(browser.L);
-  if (browser.__blsVendorLeafletPromise) return browser.__blsVendorLeafletPromise;
+  browser.__blsVendorGoogleMapsPromise = new Promise<GoogleMapsNamespace>((resolve, reject) => {
+    const finish = () => browser.google?.maps
+      ? resolve(browser.google.maps)
+      : reject(new Error("Google Maps did not initialise"));
+    const existing = document.querySelector<HTMLScriptElement>('script[data-bls-google-maps="true"]');
 
-  browser.__blsVendorLeafletPromise = new Promise<LeafletNamespace>((resolve, reject) => {
-    const cssHref = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
-    if (!document.querySelector(`link[href="${cssHref}"]`)) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = cssHref;
-      link.crossOrigin = "anonymous";
-      document.head.appendChild(link);
-    }
-
-    const finish = () => browser.L ? resolve(browser.L) : reject(new Error("Leaflet did not initialise"));
-    const existing = document.querySelector<HTMLScriptElement>('script[data-bls-leaflet="true"]');
     if (existing) {
-      if (browser.L) finish();
+      if (browser.google?.maps) finish();
       else {
         existing.addEventListener("load", finish, { once: true });
-        existing.addEventListener("error", () => reject(new Error("Leaflet failed to load")), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Google Maps failed to load")), { once: true });
       }
       return;
     }
 
     const script = document.createElement("script");
-    script.src = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly`;
     script.async = true;
     script.defer = true;
-    script.crossOrigin = "anonymous";
-    script.dataset.blsLeaflet = "true";
+    script.dataset.blsGoogleMaps = "true";
     script.addEventListener("load", finish, { once: true });
-    script.addEventListener("error", () => reject(new Error("Leaflet failed to load")), { once: true });
+    script.addEventListener("error", () => reject(new Error("Google Maps failed to load")), { once: true });
     document.head.appendChild(script);
   });
 
-  return browser.__blsVendorLeafletPromise;
+  return browser.__blsVendorGoogleMapsPromise;
 }
 
-export function VendorLocationMap({ vendorId, vendorName, address, coordinates }: {
+export function VendorLocationMap({ vendorName, address, coordinates }: {
   vendorId: string;
   vendorName: string;
   address: string;
   coordinates?: Coordinates;
 }) {
   const elementRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<LeafletMap | null>(null);
   const [failed, setFailed] = useState(false);
-  const mapHref = `/shops/map?vendor=${encodeURIComponent(vendorId)}`;
   const usableCoordinates = hasUsablePublicCoordinates(coordinates) ? coordinates : undefined;
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY?.trim();
+  const mapQuery = usableCoordinates
+    ? `${usableCoordinates.latitude},${usableCoordinates.longitude}`
+    : [vendorName, address].filter(Boolean).join(", ");
+  const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
 
   useEffect(() => {
     if (!usableCoordinates || !elementRef.current) return undefined;
-    let cancelled = false;
+    if (!apiKey) {
+      setFailed(true);
+      return undefined;
+    }
 
-    loadLeaflet()
-      .then((leaflet) => {
-        if (cancelled || !elementRef.current || mapRef.current) return;
-        const point: [number, number] = [usableCoordinates.latitude, usableCoordinates.longitude];
-        const map = leaflet.map(elementRef.current, { scrollWheelZoom: false, zoomControl: true }).setView(point, 16);
-        leaflet.tileLayer(OSM_TILE_URL, { attribution: "&copy; OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
-        const icon = leaflet.divIcon({ className: "", html: MARKER_HTML, iconSize: [30, 30], iconAnchor: [15, 24] });
-        leaflet.marker(point, { icon }).addTo(map).bindTooltip(vendorName, { permanent: false, direction: "top" });
-        mapRef.current = map;
-        window.setTimeout(() => map.invalidateSize(), 0);
+    let cancelled = false;
+    let marker: GoogleMarkerInstance | undefined;
+
+    loadGoogleMaps(apiKey)
+      .then((googleMaps) => {
+        if (cancelled || !elementRef.current) return;
+        const point = { lat: usableCoordinates.latitude, lng: usableCoordinates.longitude };
+        const map = new googleMaps.Map(elementRef.current, {
+          center: point,
+          zoom: 16,
+          mapTypeControl: false,
+          streetViewControl: true,
+          fullscreenControl: true,
+          zoomControl: true,
+          gestureHandling: "cooperative",
+          clickableIcons: true
+        });
+        marker = new googleMaps.Marker({
+          map,
+          position: point,
+          title: vendorName
+        });
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
@@ -99,10 +100,9 @@ export function VendorLocationMap({ vendorId, vendorName, address, coordinates }
 
     return () => {
       cancelled = true;
-      mapRef.current?.remove();
-      mapRef.current = null;
+      marker?.setMap(null);
     };
-  }, [usableCoordinates, vendorName]);
+  }, [apiKey, usableCoordinates, vendorName]);
 
   if (!usableCoordinates || failed) {
     return (
@@ -110,8 +110,10 @@ export function VendorLocationMap({ vendorId, vendorName, address, coordinates }
         <div className={styles.mapFallback}>
           <div>
             <h3>{vendorName}</h3>
-            <p>{usableCoordinates ? "Ο διαδραστικός χάρτης δεν μπόρεσε να φορτώσει." : "Δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες για αυτό το κατάστημα."} Η φυσική διεύθυνση παραμένει διαθέσιμη στα στοιχεία καταστήματος.</p>
-            <a className="button button-secondary" href={mapHref}>Άνοιξε τον χάρτη καταστημάτων</a>
+            <p>{usableCoordinates
+              ? "Ο διαδραστικός χάρτης Google Maps δεν μπόρεσε να φορτώσει μέσα στη σελίδα."
+              : "Δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες για αυτό το κατάστημα."} Η φυσική διεύθυνση παραμένει διαθέσιμη στα στοιχεία καταστήματος.</p>
+            <a className="button button-secondary" href={mapHref} target="_blank" rel="noopener noreferrer">Άνοιξε στο Google Maps</a>
           </div>
         </div>
       </div>
@@ -120,13 +122,13 @@ export function VendorLocationMap({ vendorId, vendorName, address, coordinates }
 
   return (
     <div className={styles.mapCard}>
-      <div ref={elementRef} className={styles.mapCanvas} aria-label={`Χάρτης φυσικού καταστήματος ${vendorName}`} />
+      <div ref={elementRef} className={styles.mapCanvas} aria-label={`Google Maps χάρτης φυσικού καταστήματος ${vendorName}`} />
       <div className={styles.mapOverlay}>
         <div>
           <strong>{vendorName}</strong>
           <span>{address}</span>
         </div>
-        <a className={styles.mapLink} href={mapHref}>Μεγαλύτερος χάρτης →</a>
+        <a className={styles.mapLink} href={mapHref} target="_blank" rel="noopener noreferrer">Άνοιξε στο Google Maps →</a>
       </div>
     </div>
   );
