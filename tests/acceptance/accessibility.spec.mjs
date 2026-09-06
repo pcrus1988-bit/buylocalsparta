@@ -61,18 +61,18 @@ test("skip link is first keyboard stop and moves focus to the page content", asy
 
 test("accessibility controls manage opening focus, Escape, and focus return", async ({ page }) => {
   await page.goto("/");
-  const launcher = page.getByRole("button", { name: "Πληροφορίες, cookies και προσβασιμότητα" });
+  const launcher = page.getByRole("button", { name: "Πληροφορίες, cookies και προσβασιμότητα", exact: true });
 
   await launcher.click();
-  const utilityGroup = page.getByRole("group", { name: "Ρυθμίσεις ιστοτόπου" });
+  const utilityGroup = page.getByRole("group", { name: "Ρυθμίσεις ιστοτόπου", exact: true });
   await expect(utilityGroup).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ρυθμίσεις cookies" })).toBeFocused();
+  await expect(utilityGroup.getByRole("button", { name: "Ρυθμίσεις cookies", exact: true })).toBeFocused();
 
-  await page.getByRole("button", { name: "Προσβασιμότητα" }).click();
+  await utilityGroup.getByRole("button", { name: "Προσβασιμότητα", exact: true }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Προσβασιμότητα" });
+  const dialog = page.getByRole("dialog", { name: "Προσβασιμότητα", exact: true });
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole("button", { name: "Κλείσιμο ρυθμίσεων προσβασιμότητας" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Κλείσιμο ρυθμίσεων προσβασιμότητας", exact: true })).toBeFocused();
 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
@@ -81,13 +81,14 @@ test("accessibility controls manage opening focus, Escape, and focus return", as
 
 test("single info launcher exposes and persists accessibility personalization tools", async ({ page }) => {
   await page.goto("/");
-  const launcher = page.getByRole("button", { name: "Πληροφορίες, cookies και προσβασιμότητα" });
-  await expect(page.getByRole("button", { name: "Άνοιγμα εργαλείων προσβασιμότητας" })).toHaveCount(0);
+  const launcher = page.getByRole("button", { name: "Πληροφορίες, cookies και προσβασιμότητα", exact: true });
+  await expect(page.getByRole("button", { name: "Άνοιγμα εργαλείων προσβασιμότητας", exact: true })).toHaveCount(0);
 
   await launcher.click();
-  await page.getByRole("button", { name: "Προσβασιμότητα" }).click();
+  const utilityGroup = page.getByRole("group", { name: "Ρυθμίσεις ιστοτόπου", exact: true });
+  await utilityGroup.getByRole("button", { name: "Προσβασιμότητα", exact: true }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Προσβασιμότητα" });
+  const dialog = page.getByRole("dialog", { name: "Προσβασιμότητα", exact: true });
   await expect(dialog).toBeVisible();
 
   const contrast = page.getByRole("button", { name: /^Αντίθεση\+/ });
