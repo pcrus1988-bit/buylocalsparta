@@ -14,6 +14,8 @@
 - Return pickup and vendor return receipt use separate signed QR scopes and custody events.
 - Pause, resume, end shift and logout paths are implemented.
 - No production runtime errors were found for `/api/driver/operations` or `/api/driver/location` in the inspected seven-day window.
+- Migration `0210_delivery_stop_coordinate_hydration.sql` is installed in production and reconciled in `schema_migrations` with the repository checksum.
+- The stale Test-driver return assignment from August was recovered without deleting history: the source return was already rejected/closed, so the delivery job is now cancelled, its remaining stops are skipped, driver ownership is cleared, tracking is disabled, and an audit event records the recovery.
 
 ## Blocking / launch-relevant findings
 
@@ -35,11 +37,17 @@ The customer address persistence flow currently stores address text but does not
 
 ### 3. Stale active delivery recovery
 
-Production contains evidence that an old in-progress return can remain assigned for a long time. Admin can assign jobs but currently lacks a dedicated audited requeue/cancel/recovery action, and the driver can decline only new offers—not escalate an already active task. Add explicit incident/recovery handling rather than silently auto-cancelling real deliveries.
+The specific stale Test return has been recovered and no longer occupies the driver. The incident exposed a generic operational gap: Admin can assign jobs but currently lacks a dedicated audited requeue/cancel/recovery action, and the driver can decline only new offers—not escalate an already active task. Add explicit incident/recovery handling rather than silently auto-cancelling real deliveries.
+
+A second hardening follow-up is recommended for return jobs: when a source return becomes terminal or non-dispatchable after assignment, active offers/assignments should be invalidated automatically in the same way outbound deliveries are invalidated when their source order becomes non-dispatchable.
 
 ### 4. Mobile background tracking limitation
 
 The driver web app uses browser `navigator.geolocation.watchPosition`. This is suitable while the PWA/page remains active, but mobile browsers can throttle or suspend JavaScript when backgrounded. Opening an external navigation app can therefore interrupt continuous live tracking. Treat true background tracking as a native/PWA platform capability decision rather than assuming foreground browser tracking is continuous.
+
+## Production deployment reconciliation
+
+PR #445 fixed the missing additive checksum fragment for migration 0210. The first production build after that merge was correctly blocked by the production schema gate because production had not yet recorded migration 0210 in `public.schema_migrations`. The migration is now reconciled in the ledger with the repository SHA-256, so the next production deployment should pass the schema-head gate. This documentation update intentionally triggers that clean production build for verification.
 
 ## Remaining end-to-end acceptance
 
