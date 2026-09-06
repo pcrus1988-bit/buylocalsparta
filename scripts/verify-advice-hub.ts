@@ -3,7 +3,7 @@ import { INDEXABLE_STATIC_ROUTES, PRIMARY_NAVIGATION } from "../apps/web/src/lib
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const page = read("apps/web/src/app/advice/page.tsx"),product = read("apps/web/src/app/product/[id]/page.tsx"),vendor = read("apps/web/src/app/vendor/[id]/page.tsx"),vendorAsk = read("apps/web/src/components/VendorAskLocalPanel.tsx");
 const failures: string[] = [];
-for (const contract of ["getPublicVendorDirectory()", "vendor.adviser", "requestedVendor", "getCanonicalProductSummary", "Ask Local", "δημόσιο bidding"]) if (!page.includes(contract)) failures.push(`Advice hub is missing ${contract}`);
+for (const contract of ["getPublicVendorDirectory()", "vendor.adviser", "requestedVendor", "getCanonicalProductSummary", "Ask Local", "δημόσια διαδικασία προσφορών"]) if (!page.includes(contract)) failures.push(`Advice hub is missing ${contract}`);
 if (!PRIMARY_NAVIGATION.some((link) => link.href === "/advice")) failures.push("Primary navigation registry must link to the advice hub");
 if (!product.includes("/ask-local?product=")) failures.push("Product advice calls must preserve product context in the live Ask Local workflow");
 const vendorContextPreserved = vendor.includes("<VendorAskLocalPanel vendorId={vendor.id}") && vendorAsk.includes("preferredVendorId: vendorId") && vendorAsk.includes("/api/account/ask-local");
