@@ -51,6 +51,7 @@ import "./legal-pages.css";
 import "./accessibility-controls.css";
 import "./site-utility-launcher.css";
 import "./customer-mobile-commerce.css";
+import "./public-release-readiness.css";
 import { CartProvider } from "../components/CartProvider";
 import { CustomerMobileCommerceProvider } from "../components/CustomerMobileCommerceNav";
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
@@ -61,7 +62,7 @@ import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications"
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 
-const LOCAL_COMMERCE_DESCRIPTION = "Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και ένα checkout. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική online ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους e-shop.";
+const LOCAL_COMMERCE_DESCRIPTION = "Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική ψηφιακή ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { settings } = await getSeoGlobalSettingsSnapshot();

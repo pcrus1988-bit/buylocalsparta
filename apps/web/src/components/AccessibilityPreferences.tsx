@@ -243,7 +243,7 @@ export function AccessibilityPreferences() {
         <button type="button" className="button button-secondary" onClick={reset}>Επαναφορά όλων</button>
         <Link className="text-link" href="/accessibility" onClick={() => setOpen(false)}>Δήλωση & αναφορά προβλήματος →</Link>
       </div>
-      <p className="a11y-preferences-note">Τα εργαλεία αυτά είναι προαιρετικά βοηθήματα εξατομίκευσης. Η προσβασιμότητα του ΚΟΝΤΑ ΜΟΥ υλοποιείται στο ίδιο το προϊόν και δεν βασίζεται στο widget για συμμόρφωση WCAG.</p>
+      <p className="a11y-preferences-note">Τα εργαλεία αυτά είναι προαιρετικά βοηθήματα εξατομίκευσης. Δεν αποτελούν overlay προσβασιμότητας ή πιστοποιητικό συμμόρφωσης (accessibility overlay/certificate). Η προσβασιμότητα του ΚΟΝΤΑ ΜΟΥ υλοποιείται στο ίδιο το προϊόν και δεν βασίζεται στο widget για συμμόρφωση WCAG.</p>
     </aside>}
   </div>;
 }

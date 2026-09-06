@@ -74,7 +74,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = vendor.taxonomies[0];
   const description = vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? (isResearch
     ? `Δημόσια καταχώριση για το ${vendor.name}${category?.subcategoryLabel ? ` · ${category.subcategoryLabel}` : ""} στη χαρτογραφημένη αγορά της Σπάρτης.`
-    : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το ΚΟΝΤΑ ΜΟΥ Sparta.`);
+    : `Γνώρισε το ${vendor.name}, τους ανθρώπους του, τα διαθέσιμα προϊόντα και την τοπική συμβουλή που προσφέρει μέσα από το ΚΟΝΤΑ ΜΟΥ Σπάρτη.`);
   const ogMedia = mediaPath(firstRole(profileMedia, "storefront")) ?? vendor.story?.mediaUrl ?? mediaPath(firstRole(profileMedia, "logo"));
   return buildGovernedSeoMetadata({
     reference,
@@ -141,7 +141,7 @@ export default async function VendorPage({ params }: Props) {
   const mapHref = `/shops/map?vendor=${encodeURIComponent(vendor.id)}`;
   const adviserName = vendor.adviser ?? "Η ομάδα του καταστήματος";
   const intro = isResearch
-    ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το ΚΟΝΤΑ ΜΟΥ Sparta δεν έχει ακόμη ενεργοποιηθεί.`
+    ? `Το ${vendor.name} έχει χαρτογραφηθεί ως τοπική επιχείρηση${location?.locality ? ` στην περιοχή ${location.locality}` : ""}. Η συνεργασία με το ΚΟΝΤΑ ΜΟΥ Σπάρτη δεν έχει ακόμη ενεργοποιηθεί.`
     : (vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
   const structuredImages = [storefrontUrl, merchantStoryMedia, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
@@ -177,7 +177,7 @@ export default async function VendorPage({ params }: Props) {
       <div className="announcement">
         {isResearch
           ? "Τοπικός επιχειρηματικός κατάλογος · δημόσια στοιχεία και σαφές στάδιο συνεργασίας."
-          : "Local storefront · άνθρωποι, προϊόντα και άμεση τοπική βοήθεια σε μία σελίδα."}
+          : "Τοπική βιτρίνα · άνθρωποι, προϊόντα και άμεση τοπική βοήθεια σε μία σελίδα."}
       </div>
       <SiteHeader />
 
@@ -191,12 +191,12 @@ export default async function VendorPage({ params }: Props) {
                   {logoUrl ? <Image src={logoUrl} alt={logoMedia?.altText ?? `Λογότυπο ${vendor.name}`} width={82} height={82} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }} /> : initials(vendor.name)}
                 </div>
                 <div className={styles.brandMeta}>
-                  <strong>{isResearch ? "Τοπική επιχείρηση" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Sparta"}</strong>
+                  <strong>{isResearch ? "Τοπική επιχείρηση" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</strong>
                   <span>{location?.locality ? `${location.locality}${location.postcode ? ` · ${location.postcode}` : ""}` : "Σπάρτη & τοπική αγορά"}</span>
-                  <span>{logoUrl ? "Εγκεκριμένο λογότυπο του vendor." : "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένο λογότυπο· εμφανίζεται ουδέτερο μονόγραμμα."}</span>
+                  <span>{logoUrl ? "Εγκεκριμένο λογότυπο του καταστήματος." : "Δεν έχει δημοσιευθεί ακόμη εγκεκριμένο λογότυπο· εμφανίζεται ουδέτερο μονόγραμμα."}</span>
                 </div>
               </div>
-              <div className="eyebrow">{isResearch ? "Public local-business profile" : "Meet the local shop"}</div>
+              <div className="eyebrow">{isResearch ? "Δημόσιο προφίλ τοπικής επιχείρησης" : "Γνώρισε το τοπικό κατάστημα"}</div>
               <h1>{vendor.name}</h1>
               <p className={styles.intro}>{intro}</p>
               <div className={styles.quickFacts}>
@@ -216,7 +216,7 @@ export default async function VendorPage({ params }: Props) {
                   </>
                 ) : (
                   <>
-                    {website && <a className="button" href={website} target="_blank" rel="noreferrer">Website επιχείρησης ↗</a>}
+                    {website && <a className="button" href={website} target="_blank" rel="noreferrer">Ιστότοπος επιχείρησης ↗</a>}
                     <a className="button button-secondary" href="#store-info">Στοιχεία & χάρτης</a>
                   </>
                 )}
@@ -229,15 +229,15 @@ export default async function VendorPage({ params }: Props) {
                   <Image src={storefrontUrl} alt={storefrontMedia?.altText ?? `Εγκεκριμένη εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
                   <div className={styles.mediaOverlay}>
                     <strong>{vendor.name}</strong>
-                    <span>Εγκεκριμένη storefront εικόνα του καταστήματος.</span>
+                    <span>Εγκεκριμένη εικόνα βιτρίνας του καταστήματος.</span>
                   </div>
                 </>
               ) : merchantStoryMedia ? (
                 <>
-                  <Image src={merchantStoryMedia} alt={`Εγκεκριμένη merchant-story εικόνα για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
+                  <Image src={merchantStoryMedia} alt={`Εγκεκριμένη εικόνα ιστορίας για ${vendor.name}`} fill priority sizes="(max-width: 980px) 100vw, 54vw" />
                   <div className={styles.mediaOverlay}>
                     <strong>{vendor.name}</strong>
-                    <span>Εγκεκριμένο merchant-story visual.</span>
+                    <span>Εγκεκριμένη εικόνα ιστορίας καταστήματος.</span>
                   </div>
                 </>
               ) : (
@@ -245,7 +245,7 @@ export default async function VendorPage({ params }: Props) {
                   <div className={styles.mediaPlaceholderInner}>
                     <span className={styles.mediaPlaceholderIcon}>⌂</span>
                     <strong>Φωτογραφία φυσικού καταστήματος</strong>
-                    <span>Η θέση είναι έτοιμη και θα εμφανίσει φωτογραφία μόλις υπάρχει εγκεκριμένο storefront ή merchant media.</span>
+                    <span>Η θέση είναι έτοιμη και θα εμφανίσει φωτογραφία μόλις υπάρχει εγκεκριμένη εικόνα βιτρίνας ή άλλο εγκεκριμένο υλικό.</span>
                   </div>
                 </div>
               )}
@@ -265,7 +265,7 @@ export default async function VendorPage({ params }: Props) {
 
         <div className={styles.peopleStoryGrid}>
           <article className={`${styles.card} ${styles.peopleCard}`}>
-            <div className="eyebrow">Meet the vendor</div>
+            <div className="eyebrow">Γνώρισε το κατάστημα</div>
             <div className={styles.peopleHead}>
               <div className={styles.personAvatar} aria-hidden={!teamUrl} style={{ overflow: "hidden" }}>
                 {teamUrl ? <Image src={teamUrl} alt={teamMedia?.altText ?? `Η ομάδα του ${vendor.name}`} width={76} height={76} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(adviserName)}
@@ -277,33 +277,33 @@ export default async function VendorPage({ params }: Props) {
             </div>
             <p className={styles.peopleCopy}>
               {isResearch
-                ? "Η δημόσια καταχώριση δεν συμπληρώνει ονόματα ή φωτογραφίες ανθρώπων χωρίς onboarding και έγκριση από την επιχείρηση."
+                ? "Η δημόσια καταχώριση δεν συμπληρώνει ονόματα ή φωτογραφίες ανθρώπων χωρίς ένταξη και έγκριση από την επιχείρηση."
                 : `Αν χρειάζεσαι διευκρίνιση πριν αγοράσεις, μπορείς να απευθυνθείς απευθείας στο ${vendor.name} μέσω του Ask Local στο κάτω μέρος της σελίδας.`}
             </p>
           </article>
 
           <article className={`${styles.card} ${styles.storyCard}`}>
-            <div className="eyebrow light">{isResearch ? "Δημόσιο business dossier" : "Η σύντομη ιστορία"}</div>
+            <div className="eyebrow light">{isResearch ? "Δημόσιος φάκελος επιχείρησης" : "Η σύντομη ιστορία"}</div>
             <h2>{isResearch ? "Τι γνωρίζουμε δημόσια." : (vendor.profileStory ? `Λίγα λόγια για το ${vendor.name}.` : (vendor.story?.title ?? `Λίγα λόγια για το ${vendor.name}.`))}</h2>
             <p>
               {isResearch
-                ? "Η σελίδα συγκεντρώνει μόνο δημόσια επιχειρηματικά στοιχεία. Η παρουσία εδώ δεν σημαίνει συνεργασία, έγκριση προϊόντων ή εμπορική σχέση με το ΚΟΝΤΑ ΜΟΥ Sparta."
-                : (vendor.profileStory ?? vendor.story?.excerpt ?? "Δεν έχει δημοσιευθεί ακόμη ιστορία από το κατάστημα. Το ΚΟΝΤΑ ΜΟΥ Sparta δεν εφευρίσκει storytelling ή προσωπικές πληροφορίες χωρίς καταγεγραμμένη πηγή.")}
+                ? "Η σελίδα συγκεντρώνει μόνο δημόσια επιχειρηματικά στοιχεία. Η παρουσία εδώ δεν σημαίνει συνεργασία, έγκριση προϊόντων ή εμπορική σχέση με το ΚΟΝΤΑ ΜΟΥ Σπάρτη."
+                : (vendor.profileStory ?? vendor.story?.excerpt ?? "Δεν έχει δημοσιευθεί ακόμη ιστορία από το κατάστημα. Το ΚΟΝΤΑ ΜΟΥ Σπάρτη δεν επινοεί ιστορίες ή προσωπικές πληροφορίες χωρίς καταγεγραμμένη πηγή.")}
             </p>
-            {!isResearch && vendor.profileStory && <small className={styles.storyNote}>Storefront copy διαχειριζόμενο από Admin με καταγεγραμμένο audit trail.</small>}
-            {!isResearch && !vendor.profileStory && vendor.story && <small className={styles.storyNote}>Merchant story δημοσιευμένο με καταγεγραμμένη έγκριση του vendor.</small>}
+            {!isResearch && vendor.profileStory && <small className={styles.storyNote}>Κείμενο βιτρίνας διαχειριζόμενο από Admin με καταγεγραμμένο ιστορικό ενεργειών.</small>}
+            {!isResearch && !vendor.profileStory && vendor.story && <small className={styles.storyNote}>Ιστορία καταστήματος δημοσιευμένη με καταγεγραμμένη έγκριση του συνεργάτη.</small>}
             {isResearch && checkedDate(vendor.research?.checkedAt) && <small className={styles.storyNote}>Τελευταίος δημόσιος έλεγχος: {checkedDate(vendor.research?.checkedAt)}</small>}
           </article>
         </div>
 
         {galleryMedia.length > 0 && <div style={{ marginTop: 28 }}>
           <div className={styles.sectionHeader} style={{ marginBottom: 18 }}>
-            <div><div className="eyebrow">Store gallery</div><h2>Μια ματιά στο {vendor.name}</h2></div>
+            <div><div className="eyebrow">Φωτογραφίες καταστήματος</div><h2>Μια ματιά στο {vendor.name}</h2></div>
             <p className={styles.sectionLead}>Εγκεκριμένες φωτογραφίες του χώρου και της εμπειρίας του φυσικού καταστήματος.</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
             {galleryMedia.map((media) => <div className={styles.card} key={media.mediaId} style={{ position: "relative", overflow: "hidden", minHeight: 240 }}>
-              <Image src={mediaPath(media)!} alt={media.altText ?? `${vendor.name} gallery`} fill sizes="(max-width: 640px) 100vw, 33vw" style={{ objectFit: "cover" }} />
+              <Image src={mediaPath(media)!} alt={media.altText ?? `Φωτογραφία από το ${vendor.name}`} fill sizes="(max-width: 640px) 100vw, 33vw" style={{ objectFit: "cover" }} />
             </div>)}
           </div>
         </div>}
@@ -313,19 +313,19 @@ export default async function VendorPage({ params }: Props) {
         <div className="shell">
           <div className={styles.sectionHeader}>
             <div>
-              <div className="eyebrow">Shop this vendor</div>
+              <div className="eyebrow">Προϊόντα καταστήματος</div>
               <h2 id="vendor-products-title">Προϊόντα από το {vendor.name}</h2>
             </div>
             <p className={styles.sectionLead}>
               {isResearch
-                ? "Ο κατάλογος ενεργοποιείται μόνο όταν ολοκληρωθεί onboarding, verification και publication review."
+                ? "Ο κατάλογος ενεργοποιείται μόνο όταν ολοκληρωθούν η ένταξη, η επαλήθευση και ο έλεγχος δημοσίευσης."
                 : "Αναζήτησε μόνο μέσα στο συγκεκριμένο κατάστημα και περιόρισε άμεσα τα αποτελέσματα ανά κατηγορία, μάρκα, χρώμα ή διαθεσιμότητα."}
             </p>
           </div>
 
           {isResearch ? (
             <div className={styles.researchNotice}>
-              <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός marketplace vendor.
+              <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
           ) : products.length > 0 ? (
             <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} />
@@ -343,19 +343,19 @@ export default async function VendorPage({ params }: Props) {
         <div className="shell">
           <div className={styles.askPanel}>
             <div className={styles.askCopy}>
-              <div className="eyebrow">Ask Local · vendor specific</div>
+              <div className="eyebrow">Ask Local · για το συγκεκριμένο κατάστημα</div>
               <h2 id="vendor-ask-title">Δεν το βλέπεις; Ρώτησε.</h2>
               <p>
                 {isResearch
-                  ? "Αυτό το κατάστημα δεν είναι ακόμη ενεργός συνεργάτης, επομένως ένα Ask Local αίτημα δεν μπορεί να δεθεί σε αυτό. Μπορείς όμως να ζητήσεις το προϊόν από το δίκτυο ενεργών τοπικών συνεργατών."
-                  : `Στείλε μια ιδιωτική ερώτηση απευθείας στο ${vendor.name}. Το αίτημα αποθηκεύεται με το συγκεκριμένο vendor ως προτιμώμενο κατάστημα και δεν μετατρέπεται σε δημόσιο bidding.`}
+                  ? "Αυτό το κατάστημα δεν είναι ακόμη ενεργός συνεργάτης, επομένως ένα αίτημα Ask Local δεν μπορεί να συνδεθεί με αυτό. Μπορείς όμως να ζητήσεις το προϊόν από το δίκτυο ενεργών τοπικών συνεργατών."
+                  : `Στείλε μια ιδιωτική ερώτηση απευθείας στο ${vendor.name}. Το αίτημα αποθηκεύεται με το συγκεκριμένο κατάστημα ως προτίμηση και δεν μετατρέπεται σε δημόσια διαδικασία προσφορών.`}
               </p>
               <span className={styles.askVendorBadge}>{isResearch ? "Γενικό Ask Local" : `Δρομολόγηση → ${vendor.name}`}</span>
             </div>
             {isResearch ? (
               <div className={styles.askLoginCard}>
                 <h3>Ρώτησε την τοπική αγορά</h3>
-                <p>Το αίτημα θα δρομολογηθεί μόνο σε κατάλληλους ενεργούς συνεργάτες, χωρίς να παρουσιάζεται το συγκεκριμένο research listing ως συνεργάτης.</p>
+                <p>Το αίτημα θα δρομολογηθεί μόνο σε κατάλληλους ενεργούς συνεργάτες, χωρίς να παρουσιάζεται η συγκεκριμένη δημόσια καταχώριση ως συνεργάτης.</p>
                 <a className="button" href="/ask-local">Άνοιξε το Ask Local</a>
               </div>
             ) : (
@@ -369,7 +369,7 @@ export default async function VendorPage({ params }: Props) {
         <div className={`shell ${styles.infoShell}`}>
           <div className={styles.sectionHeader}>
             <div>
-              <div className="eyebrow">General information</div>
+              <div className="eyebrow">Γενικές πληροφορίες</div>
               <h2 id="store-info-title">Κατάστημα, επικοινωνία & φυσική τοποθεσία</h2>
             </div>
             <p className={styles.sectionLead}>Οι πρακτικές πληροφορίες μένουν συγκεντρωμένες στο τέλος της σελίδας, δίπλα στον πραγματικό χάρτη του αποθηκευμένου σημείου.</p>
@@ -377,7 +377,7 @@ export default async function VendorPage({ params }: Props) {
 
           <div className={styles.infoGrid}>
             <article className={`${styles.card} ${styles.infoCard}`}>
-              <div className="eyebrow">Store details</div>
+              <div className="eyebrow">Στοιχεία καταστήματος</div>
               <dl className={styles.infoList}>
                 <div className={styles.infoRow}>
                   <dt>Επιχείρηση</dt>
@@ -385,7 +385,7 @@ export default async function VendorPage({ params }: Props) {
                 </div>
                 <div className={styles.infoRow}>
                   <dt>Κατάσταση</dt>
-                  <dd>{isResearch ? "Χαρτογραφημένη / προσκεκλημένη · όχι ακόμη ενεργός συνεργάτης" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Sparta"}</dd>
+                  <dd>{isResearch ? "Χαρτογραφημένη / προσκεκλημένη · όχι ακόμη ενεργός συνεργάτης" : "Ενεργός συνεργάτης ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</dd>
                 </div>
                 {location && (
                   <div className={styles.infoRow}>
@@ -407,7 +407,7 @@ export default async function VendorPage({ params }: Props) {
                 )}
                 {website && (
                   <div className={styles.infoRow}>
-                    <dt>Website</dt>
+                    <dt>Ιστότοπος</dt>
                     <dd><a className="text-link" href={website} target="_blank" rel="noreferrer">{website.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗</a></dd>
                   </div>
                 )}

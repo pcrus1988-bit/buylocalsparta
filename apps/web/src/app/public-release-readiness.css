@@ -1,0 +1,29 @@
+/* Final public launch accessibility baseline.
+   These rules intentionally sit after the existing storefront and accessibility layers. */
+
+.eyebrow:not(.light) {
+  color: var(--olive-dark);
+}
+
+.category-card small {
+  color: var(--ink-soft);
+}
+
+.legal-page .content-hero-grid > *,
+.legal-page .legal-section,
+.legal-page .legal-card-grid > *,
+.legal-page .legal-choice-grid > *,
+.legal-page .a11y-form-grid > * {
+  min-width: 0;
+}
+
+.legal-page :where(h1, h2, h3, p, li, dd, dt, code, a, strong, span, label) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 390px) {
+  .legal-page .legal-list {
+    min-width: 0;
+    padding-left: 1rem;
+  }
+}

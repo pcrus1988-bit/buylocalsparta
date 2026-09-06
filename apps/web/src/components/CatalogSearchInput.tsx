@@ -8,8 +8,6 @@ export function CatalogSearchInput({ defaultValue = "", placeholder = "Τι ψά
   const [query, setQuery] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const { items, loading } = useSearchDiscovery(query, 12);
-  const normalizedQuery = query.trim();
-  const shouldShow = open && normalizedQuery.length >= 2 && (loading || items.length > 0);
 
   return <div
     className={styles.root}
@@ -29,8 +27,6 @@ export function CatalogSearchInput({ defaultValue = "", placeholder = "Τι ψά
       maxLength={120}
       autoComplete="off"
       className={styles.input}
-      aria-expanded={shouldShow}
-      aria-controls="catalog-search-discovery"
     />
     <SearchDiscoveryPanel
       id="catalog-search-discovery"

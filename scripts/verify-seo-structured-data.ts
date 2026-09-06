@@ -131,19 +131,19 @@ for (const contract of [
   'serviceType: "Local-commerce marketplace and merchant e-commerce infrastructure"',
   'provider: { "@id": organizationId }',
   'about: { "@id": serviceId }',
-  'με ένα καλάθι και ένα checkout',
+  'με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς',
   'διαχείριση παραγγελιών και εκπλήρωσης',
-  'πανελλαδική online ορατότητα',
-  'χωρίς να χρειάζεται να λειτουργούν δικό τους e-shop'
+  'πανελλαδική ψηφιακή ορατότητα',
+  'χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα'
 ]) expect(rootLayout.includes(contract), `Root marketplace AEO schema is missing ${contract}`);
 
 for (const contract of [
   'title: "Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη"',
   'id="what-is-kontamou"',
   'Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη.',
-  'με ένα καλάθι και ένα checkout',
+  'με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς',
   'Υποδομή για μικρές επιχειρήσεις',
-  'χωρίς να χρειάζεται να συντηρεί μόνο του ένα πλήρες e-shop'
+  'χωρίς να χρειάζεται να συντηρεί μόνο του ένα πλήρες ηλεκτρονικό κατάστημα'
 ]) expect(aboutPage.includes(contract), `About-page AEO positioning is missing ${contract}`);
 
 if (failures.length) {
