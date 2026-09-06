@@ -65,11 +65,7 @@ export function VendorLocationMap({ vendorName, address, coordinates }: {
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
 
   useEffect(() => {
-    if (!usableCoordinates || !elementRef.current) return undefined;
-    if (!apiKey) {
-      setFailed(true);
-      return undefined;
-    }
+    if (!usableCoordinates || !elementRef.current || !apiKey) return undefined;
 
     let cancelled = false;
     let marker: GoogleMarkerInstance | undefined;
@@ -104,15 +100,17 @@ export function VendorLocationMap({ vendorName, address, coordinates }: {
     };
   }, [apiKey, usableCoordinates, vendorName]);
 
-  if (!usableCoordinates || failed) {
+  if (!usableCoordinates || !apiKey || failed) {
     return (
       <div className={styles.mapCard}>
         <div className={styles.mapFallback}>
           <div>
             <h3>{vendorName}</h3>
-            <p>{usableCoordinates
-              ? "Ο διαδραστικός χάρτης Google Maps δεν μπόρεσε να φορτώσει μέσα στη σελίδα."
-              : "Δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες για αυτό το κατάστημα."} Η φυσική διεύθυνση παραμένει διαθέσιμη στα στοιχεία καταστήματος.</p>
+            <p>{!usableCoordinates
+              ? "Δεν υπάρχουν ακόμη επαληθευμένες συντεταγμένες για αυτό το κατάστημα."
+              : !apiKey
+                ? "Ο ενσωματωμένος χάρτης Google Maps δεν είναι διαθέσιμος αυτή τη στιγμή."
+                : "Ο διαδραστικός χάρτης Google Maps δεν μπόρεσε να φορτώσει μέσα στη σελίδα."} Η φυσική διεύθυνση παραμένει διαθέσιμη στα στοιχεία καταστήματος.</p>
             <a className="button button-secondary" href={mapHref} target="_blank" rel="noopener noreferrer">Άνοιξε στο Google Maps</a>
           </div>
         </div>
