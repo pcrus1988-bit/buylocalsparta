@@ -150,7 +150,7 @@ function initialMapZoom(): number {
 }
 
 function selectedMapZoom(): number {
-  return window.matchMedia("(max-width: 760px)").matches ? 9 : 9;
+  return 9;
 }
 
 export function LocationGateway() {
@@ -279,7 +279,7 @@ export function LocationGateway() {
     userLayerRef.current = null;
     if (!userCoordinates) return;
 
-    userLayerRef.current = leaflet.circleMarker([userCoordinates.latitude, userCoordinates.longitude], {
+    const layer = leaflet.circleMarker([userCoordinates.latitude, userCoordinates.longitude], {
       radius: 7,
       color: "#ffffff",
       weight: 3,
@@ -287,7 +287,10 @@ export function LocationGateway() {
       fillColor: "#176fca",
       fillOpacity: 1
     });
-    userLayerRef.current.bindTooltip("Η τοποθεσία σου", { direction: "top", opacity: 0.95 }).addTo(map).bringToFront();
+    layer.bindTooltip("Η τοποθεσία σου", { direction: "top", opacity: 0.95 });
+    layer.addTo(map);
+    layer.bringToFront();
+    userLayerRef.current = layer;
   }, [mapState, userCoordinates]);
 
   useEffect(() => {
@@ -409,7 +412,6 @@ export function LocationGateway() {
           </button>
 
           <div className={styles.locationFeedback} aria-live="polite">
-            {locationState === "ready" ? "Βρήκαμε τον κοντινότερο κόμβο με βάση την τοποθεσία σου." : null}
             {locationState === "denied" ? "Η πρόσβαση στην τοποθεσία δεν επιτράπηκε. Επίλεξε πόλη χειροκίνητα." : null}
             {locationState === "error" ? "Δεν μπορέσαμε να εντοπίσουμε την τοποθεσία. Η αναζήτηση πόλης λειτουργεί κανονικά." : null}
           </div>
