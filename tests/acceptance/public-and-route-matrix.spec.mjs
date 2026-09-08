@@ -109,7 +109,14 @@ test("public utility pages render and expose a real heading", async ({ page }) =
   }
 });
 
-test("location gateway renders DB lifecycle state without activating prospect hubs", async ({ page }) => {
+test("location gateway renders DB lifecycle state without activating prospect hubs", async ({ page, request }) => {
+  const crossOriginConsent = await request.post("/api/privacy/consent", {
+    failOnStatusCode: false,
+    headers: { origin: "https://attacker.invalid" },
+    data: { personalisation: false, analytics: false, marketing: false, source: "banner" }
+  });
+  expect(crossOriginConsent.status()).toBe(403);
+
   await page.goto("/choose-location");
   await expect(page.getByRole("heading", { name: "Καλωσόρισες!" })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
