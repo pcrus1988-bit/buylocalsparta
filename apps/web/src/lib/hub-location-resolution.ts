@@ -38,7 +38,7 @@ export async function resolveExpansionHubForGemiCompany(
     };
   }
 
-  const localityHub = resolveByRegistryLocality(company);
+  const localityHub = resolveByRegistryCity(company);
   if (localityHub) {
     return {
       status: "matched",
@@ -96,16 +96,14 @@ export function nearestEligibleHub(latitude: number, longitude: number): { hub: 
     .sort((left, right) => left.distanceKm - right.distanceKm || left.hub.id.localeCompare(right.hub.id))[0];
 }
 
-function resolveByRegistryLocality(company: GemiCompanyRecord): ExpansionHub | undefined {
-  const registryLocalities = [company.city, company.municipality]
-    .map(normalizeLocationText)
-    .filter(Boolean);
-  if (!registryLocalities.length) return undefined;
+function resolveByRegistryCity(company: GemiCompanyRecord): ExpansionHub | undefined {
+  const registryCity = normalizeLocationText(company.city);
+  if (!registryCity) return undefined;
 
   const matches = EXPANSION_HUBS.filter((hub) => {
     const hubName = normalizeLocationText(hub.nameEl);
     if (!hubName || hubName.length < 4) return false;
-    return registryLocalities.some((locality) => locality === hubName || locality.includes(hubName));
+    return registryCity === hubName || registryCity.includes(hubName);
   });
   return matches.length === 1 ? matches[0] : undefined;
 }
