@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   EXPANSION_HUBS,
   EXPANSION_REGION_CODES,
@@ -27,23 +27,13 @@ type GoogleMapsNamespace = {
   Marker: new (options?: Record<string, unknown>) => GoogleMarkerInstance;
   Circle: new (options?: Record<string, unknown>) => GoogleCircleInstance;
 };
-type LocationGatewayWindow = Window & typeof globalThis & {
+type GatewayWindow = Window & typeof globalThis & {
   google?: { maps?: GoogleMapsNamespace };
   __kontaMouLocationMapsPromise?: Promise<GoogleMapsNamespace>;
 };
-
 type MapState = "loading" | "ready" | "fallback";
 type LocationState = "idle" | "locating" | "ready" | "denied" | "error";
-
-type SavedLocality = Readonly<{
-  slug: string;
-  savedAt: string;
-}>;
-
-type DistanceHub = Readonly<{
-  hub: ExpansionHub;
-  distanceKm?: number;
-}>;
+type DistanceHub = Readonly<{ hub: ExpansionHub; distanceKm?: number }>;
 
 const STORAGE_KEY = "konta-mou-locality";
 const COOKIE_KEY = "km_locality";
@@ -62,11 +52,11 @@ function normalizeSearch(value: string): string {
 
 function haversineDistanceKm(from: Coordinates, to: Coordinates): number {
   const earthRadiusKm = 6371;
-  const toRadians = (degrees: number) => degrees * (Math.PI / 180);
-  const latitudeDelta = toRadians(to.latitude - from.latitude);
-  const longitudeDelta = toRadians(to.longitude - from.longitude);
-  const fromLatitude = toRadians(from.latitude);
-  const toLatitude = toRadians(to.latitude);
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const latitudeDelta = radians(to.latitude - from.latitude);
+  const longitudeDelta = radians(to.longitude - from.longitude);
+  const fromLatitude = radians(from.latitude);
+  const toLatitude = radians(to.latitude);
   const a = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDelta / 2) ** 2;
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
@@ -80,12 +70,11 @@ function coverageLabel(hub: ExpansionHub): string {
 }
 
 function regionShortLabel(regionCode: ExpansionRegionCode): string {
-  if (regionCode === "EMT") return "Αν. Μακεδονία & Θράκη";
-  return EXPANSION_REGION_LABELS[regionCode];
+  return regionCode === "EMT" ? "Αν. Μακεδονία & Θράκη" : EXPANSION_REGION_LABELS[regionCode];
 }
 
 function loadGoogleMaps(apiKey: string): Promise<GoogleMapsNamespace> {
-  const browser = window as LocationGatewayWindow;
+  const browser = window as GatewayWindow;
   if (browser.google?.maps) return Promise.resolve(browser.google.maps);
   if (browser.__kontaMouLocationMapsPromise) return browser.__kontaMouLocationMapsPromise;
 
@@ -118,12 +107,10 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleMapsNamespace> {
 }
 
 function saveLocality(hub: ExpansionHub): void {
-  const value: SavedLocality = { slug: hub.slug, savedAt: new Date().toISOString() };
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ slug: hub.slug, savedAt: new Date().toISOString() }));
   } catch {
-    // Storage can be unavailable in hardened/private browser contexts. The cookie
-    // below remains the server-readable locality hint when allowed.
+    // Cookie remains the server-readable locality hint if storage is unavailable.
   }
   document.cookie = `${COOKIE_KEY}=${encodeURIComponent(hub.slug)}; Max-Age=31536000; Path=/; SameSite=Lax`;
 }
@@ -132,28 +119,31 @@ function readSavedLocality(): ExpansionHub | undefined {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as Partial<SavedLocality>;
-    if (!parsed.slug) return undefined;
-    return EXPANSION_HUBS.find((hub) => hub.slug === parsed.slug);
+    const parsed = JSON.parse(raw) as { slug?: string };
+    return parsed.slug ? EXPANSION_HUBS.find((hub) => hub.slug === parsed.slug) : undefined;
   } catch {
     return undefined;
   }
 }
 
-function mapPointStyle(hub: ExpansionHub): React.CSSProperties {
-  const x = ((hub.longitude - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng)) * 100;
-  const y = (1 - ((hub.latitude - MAP_BOUNDS.minLat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat))) * 100;
-  return { left: `${Math.min(98, Math.max(2, x))}%`, top: `${Math.min(97, Math.max(3, y))}%` };
+function mapPointStyle(point: Coordinates): CSSProperties {
+  const x = ((point.longitude - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng)) * 100;
+  const y = (1 - ((point.latitude - MAP_BOUNDS.minLat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat))) * 100;
+  return {
+    left: `${Math.min(98, Math.max(2, x))}%`,
+    top: `${Math.min(97, Math.max(3, y))}%`
+  };
 }
 
 export function LocationGateway() {
   const [query, setQuery] = useState("");
   const [regionCode, setRegionCode] = useState<ExpansionRegionCode | "ALL">("ALL");
-  const [selectedHub, setSelectedHub] = useState<ExpansionHub | undefined>();
-  const [userCoordinates, setUserCoordinates] = useState<Coordinates | undefined>();
+  const [selectedHub, setSelectedHub] = useState<ExpansionHub>();
+  const [userCoordinates, setUserCoordinates] = useState<Coordinates>();
   const [locationState, setLocationState] = useState<LocationState>("idle");
   const [mapState, setMapState] = useState<MapState>(() => process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY?.trim() ? "loading" : "fallback");
   const [savedMessage, setSavedMessage] = useState("");
+  const [showAllHubs, setShowAllHubs] = useState(false);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const googleMapsRef = useRef<GoogleMapsNamespace | null>(null);
@@ -180,28 +170,18 @@ export function LocationGateway() {
 
   const filteredHubs = useMemo(() => {
     const normalizedQuery = normalizeSearch(query);
-    const candidates = EXPANSION_HUBS.filter((hub) => {
-      if (regionCode !== "ALL" && hub.regionCode !== regionCode) return false;
-      if (!normalizedQuery) return true;
-      const haystack = normalizeSearch([
-        hub.nameEl,
-        hub.slug,
-        hub.regionEl,
-        hub.regionalUnit
-      ].join(" "));
-      return haystack.includes(normalizedQuery);
-    });
-
-    return candidates
+    return EXPANSION_HUBS
+      .filter((hub) => {
+        if (regionCode !== "ALL" && hub.regionCode !== regionCode) return false;
+        if (!normalizedQuery) return true;
+        return normalizeSearch([hub.nameEl, hub.slug, hub.regionEl, hub.regionalUnit].join(" ")).includes(normalizedQuery);
+      })
       .map<DistanceHub>((hub) => ({ hub, distanceKm: distanceByHubId.get(hub.id) }))
       .sort((a, b) => {
-        if (userCoordinates && a.distanceKm !== undefined && b.distanceKm !== undefined) {
-          return a.distanceKm - b.distanceKm;
-        }
+        if (userCoordinates && a.distanceKm !== undefined && b.distanceKm !== undefined) return a.distanceKm - b.distanceKm;
         if (a.hub.isLive !== b.hub.isLive) return a.hub.isLive ? -1 : 1;
         const priority = PRIORITY_ORDER[a.hub.researchPriority] - PRIORITY_ORDER[b.hub.researchPriority];
-        if (priority !== 0) return priority;
-        return a.hub.nameEl.localeCompare(b.hub.nameEl, "el");
+        return priority || a.hub.nameEl.localeCompare(b.hub.nameEl, "el");
       });
   }, [distanceByHubId, query, regionCode, userCoordinates]);
 
@@ -237,9 +217,7 @@ export function LocationGateway() {
         if (!cancelled) setMapState("fallback");
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [apiKey]);
 
   useEffect(() => {
@@ -252,7 +230,7 @@ export function LocationGateway() {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
-    for (const hub of visibleMapHubs) {
+    visibleMapHubs.forEach((hub) => {
       const marker = new googleMaps.Marker({
         map,
         position: { lat: hub.latitude, lng: hub.longitude },
@@ -265,7 +243,7 @@ export function LocationGateway() {
       });
       markersRef.current.push(marker);
       markerListenersRef.current.push(listener);
-    }
+    });
 
     return () => {
       markerListenersRef.current.forEach((listener) => listener.remove());
@@ -319,25 +297,18 @@ export function LocationGateway() {
     setLocationState("locating");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const coordinates = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        };
+        const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
         setUserCoordinates(coordinates);
         setLocationState("ready");
         setQuery("");
         setRegionCode("ALL");
-        const nearest = [...EXPANSION_HUBS]
-          .map((hub) => ({
-            hub,
-            distance: haversineDistanceKm(coordinates, { latitude: hub.latitude, longitude: hub.longitude })
-          }))
+        setShowAllHubs(true);
+        const nearest = EXPANSION_HUBS
+          .map((hub) => ({ hub, distance: haversineDistanceKm(coordinates, { latitude: hub.latitude, longitude: hub.longitude }) }))
           .sort((a, b) => a.distance - b.distance)[0];
         if (nearest) setSelectedHub(nearest.hub);
       },
-      (error) => {
-        setLocationState(error.code === error.PERMISSION_DENIED ? "denied" : "error");
-      },
+      (error) => setLocationState(error.code === error.PERMISSION_DENIED ? "denied" : "error"),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
     );
   }
@@ -358,8 +329,8 @@ export function LocationGateway() {
 
   const selectedDistance = selectedHub ? distanceByHubId.get(selectedHub.id) : undefined;
   const resultCount = filteredHubs.length;
-  const listLimit = query.trim() || regionCode !== "ALL" || userCoordinates ? resultCount : Math.min(35, resultCount);
-  const listHubs = filteredHubs.slice(0, listLimit);
+  const shouldShowAll = showAllHubs || Boolean(query.trim()) || regionCode !== "ALL" || Boolean(userCoordinates);
+  const listHubs = shouldShowAll ? filteredHubs : filteredHubs.slice(0, 35);
 
   return (
     <main className={styles.gateway}>
@@ -405,7 +376,10 @@ export function LocationGateway() {
 
           <div className={styles.scopeCard}>
             <span className={styles.scopeIcon} aria-hidden="true">⌖</span>
-            <div><strong>131 κόμβοι σε όλη την Ελλάδα</strong><p>Οι ακτίνες είναι όρια σχεδιασμού. Τα νησιά παραμένουν στις δικές τους τοπικές αγορές.</p></div>
+            <div>
+              <strong>131 κόμβοι σε όλη την Ελλάδα</strong>
+              <p>Οι ακτίνες είναι όρια σχεδιασμού. Τα νησιά παραμένουν στις δικές τους τοπικές αγορές.</p>
+            </div>
           </div>
         </div>
 
@@ -422,21 +396,13 @@ export function LocationGateway() {
                   type="button"
                   key={hub.id}
                   className={`${styles.mapPin} ${hub.isLive ? styles.mapPinLive : ""} ${selectedHub?.id === hub.id ? styles.mapPinSelected : ""}`}
-                  style={mapPointStyle(hub)}
+                  style={mapPointStyle({ latitude: hub.latitude, longitude: hub.longitude })}
                   onClick={() => chooseHub(hub)}
                   aria-label={`${hub.nameEl}, ${hub.regionEl}${hub.isLive ? ", ενεργή περιοχή" : ", στο πλάνο επέκτασης"}`}
                   title={hub.nameEl}
-                >
-                  <span />
-                </button>
+                ><span /></button>
               ))}
-              {userCoordinates ? (
-                <span
-                  className={styles.userPoint}
-                  style={mapPointStyle({ ...EXPANSION_HUBS[0], latitude: userCoordinates.latitude, longitude: userCoordinates.longitude })}
-                  aria-label="Η τοποθεσία σου"
-                />
-              ) : null}
+              {userCoordinates ? <span className={styles.userPoint} style={mapPointStyle(userCoordinates)} aria-label="Η τοποθεσία σου" /> : null}
               <div className={styles.mapLegend}>
                 <span><i className={styles.legendLive} /> Ενεργή</span>
                 <span><i /> Στο πλάνο</span>
@@ -470,12 +436,7 @@ export function LocationGateway() {
           <div className={styles.regionFilters} aria-label="Φίλτρο περιφέρειας">
             <button type="button" className={regionCode === "ALL" ? styles.regionActive : ""} onClick={() => setRegionCode("ALL")}>Όλη η Ελλάδα</button>
             {EXPANSION_REGION_CODES.map((code) => (
-              <button
-                type="button"
-                key={code}
-                className={regionCode === code ? styles.regionActive : ""}
-                onClick={() => setRegionCode(code)}
-              >
+              <button type="button" key={code} className={regionCode === code ? styles.regionActive : ""} onClick={() => setRegionCode(code)}>
                 {regionShortLabel(code)}
               </button>
             ))}
@@ -500,12 +461,7 @@ export function LocationGateway() {
 
           <div className={styles.hubList}>
             {listHubs.length ? listHubs.map(({ hub, distanceKm }) => (
-              <button
-                key={hub.id}
-                type="button"
-                className={`${styles.hubRow} ${selectedHub?.id === hub.id ? styles.hubRowSelected : ""}`}
-                onClick={() => chooseHub(hub)}
-              >
+              <button key={hub.id} type="button" className={`${styles.hubRow} ${selectedHub?.id === hub.id ? styles.hubRowSelected : ""}`} onClick={() => chooseHub(hub)}>
                 <span className={`${styles.rowPin} ${hub.isLive ? styles.rowPinLive : ""}`} aria-hidden="true">●</span>
                 <span className={styles.rowCopy}>
                   <strong>{hub.nameEl}</strong>
@@ -514,12 +470,15 @@ export function LocationGateway() {
                 <span className={styles.rowMeta}>{distanceKm !== undefined ? `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km` : "›"}</span>
               </button>
             )) : (
-              <div className={styles.emptyState}><strong>Δεν βρέθηκε περιοχή.</strong><span>Δοκίμασε διαφορετική ονομασία ή επίλεξε άλλη περιφέρεια.</span></div>
+              <div className={styles.emptyState}>
+                <strong>Δεν βρέθηκε περιοχή.</strong>
+                <span>Δοκίμασε διαφορετική ονομασία ή επίλεξε άλλη περιφέρεια.</span>
+              </div>
             )}
           </div>
 
-          {!query.trim() && regionCode === "ALL" && resultCount > listLimit ? (
-            <button className={styles.showAll} type="button" onClick={() => setQuery(" ")}>Προβολή και των 131 περιοχών</button>
+          {!shouldShowAll && resultCount > 35 ? (
+            <button className={styles.showAll} type="button" onClick={() => setShowAllHubs(true)}>Προβολή και των 131 περιοχών</button>
           ) : null}
 
           <div className={styles.savedFeedback} aria-live="polite">{savedMessage}</div>
