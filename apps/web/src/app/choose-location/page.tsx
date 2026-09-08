@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LocationGateway } from "../../components/LocationGateway";
 import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
+import { assertExpansionHubStatusAlignment } from "../../lib/expansion-hub-status";
 
 export const metadata: Metadata = {
   title: "Επίλεξε περιοχή | ΚΟΝΤΑ ΜΟΥ",
@@ -15,5 +16,6 @@ export const metadata: Metadata = {
 
 export default function ChooseLocationPage() {
   assertExpansionHubMaster();
+  assertExpansionHubStatusAlignment();
   return <LocationGateway />;
 }
