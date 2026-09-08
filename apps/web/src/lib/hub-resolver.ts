@@ -3,7 +3,6 @@ import { EXPANSION_HUBS, getExpansionHubBySlug, type ExpansionHub } from "./expa
 export const SPARTA_HUB_ID = "KM-HUB-015";
 export const SPARTA_GATEWAY_SLUG = "sparti";
 export const SPARTA_MARKET_CODE = "sparta";
-export const SPARTA_MARKET_ID = "e174202e-9b12-4dc4-a0d4-c2263491f292";
 export const KALAMATA_HUB_ID = "KM-HUB-019";
 export const KALAMATA_GATEWAY_SLUG = "kalamata";
 
