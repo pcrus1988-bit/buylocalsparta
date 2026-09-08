@@ -34,6 +34,7 @@ jobs:
       NODE_ENV: production
       BLS_WORKER_ROLE: icecat-detail
       BLS_DB_APPLICATION_NAME: buy-local-sparta:icecat-detail:github-actions
+      PGOPTIONS: "-c search_path=public,extensions"
       ICECAT_RUNTIME_BROKER_URL: https://eemihhfreggbigxejjhj.supabase.co/functions/v1/icecat-runtime-broker
       ICECAT_RUNTIME_AUDIENCE: kontamou-icecat-runtime
 
