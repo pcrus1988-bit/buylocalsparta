@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import "../../../admin-catalogue-structure.css";
+import "../../../admin-catalogue-structure-review.css";
 import { AdminCatalogueStructureClient } from "../../../../components/AdminCatalogueStructureClient";
 import { AdminCatalogueStructureReviewClient } from "../../../../components/AdminCatalogueStructureReviewClient";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
