@@ -29,7 +29,7 @@ export function SiteFooter() {
 
           <section className="site-footer-business" aria-labelledby="footer-business-title">
             <span className="site-footer-business-eyebrow">Νομικά & επικοινωνία</span>
-            <strong id="footer-business-title">{BUSINESS_NAME}</strong>
+            <span className="site-footer-business-name" id="footer-business-title">{BUSINESS_NAME}</span>
             <dl>
               <div>
                 <dt>Νόμιμος εκπρόσωπος</dt>
@@ -64,25 +64,14 @@ export function SiteFooter() {
           </section>
         </div>
 
-        <nav className="site-footer-nav-desktop" aria-label="Σύνδεσμοι υποσέλιδου">
+        <nav className="site-footer-nav" aria-label="Σύνδεσμοι υποσέλιδου">
           {MAIN_FOOTER_NAVIGATION.map((group) => (
             <section className="site-footer-nav-group" key={group.title}>
-              <strong>{group.title}</strong>
+              <span className="site-footer-nav-title">{group.title}</span>
               <div className="site-footer-links">
                 {group.links.map((link) => <Link href={link.href} key={link.href}>{link.label}</Link>)}
               </div>
             </section>
-          ))}
-        </nav>
-
-        <nav className="site-footer-nav-mobile" aria-label="Σύνδεσμοι υποσέλιδου">
-          {MAIN_FOOTER_NAVIGATION.map((group) => (
-            <details className="site-footer-disclosure" key={group.title}>
-              <summary>{group.title}</summary>
-              <div className="site-footer-links">
-                {group.links.map((link) => <Link href={link.href} key={link.href}>{link.label}</Link>)}
-              </div>
-            </details>
           ))}
         </nav>
       </div>
