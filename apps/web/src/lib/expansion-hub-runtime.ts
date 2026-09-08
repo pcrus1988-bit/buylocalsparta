@@ -1,5 +1,5 @@
 import { EXPANSION_HUBS } from "./expansion-hubs.ts";
-import { SPARTA_GATEWAY_SLUG, SPARTA_MARKET_ID } from "./hub-resolver.ts";
+import { SPARTA_GATEWAY_SLUG, SPARTA_MARKET_CODE } from "./hub-resolver.ts";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type ExpansionHubLifecycleState = "inactive" | "prospect" | "active";
@@ -20,6 +20,7 @@ export type ExpansionHubRuntimeState = Readonly<{
   registryIsLive: boolean;
   isSpartaLegacy: boolean;
   marketId?: string;
+  marketCode?: string;
   gatewaySlug?: string;
   isOperational: boolean;
   gatewayVisible: boolean;
@@ -53,7 +54,7 @@ function safeFallbackSnapshot(): ExpansionHubRuntimeSnapshot {
         isLive: isSparta,
         registryIsLive: isSparta,
         isSpartaLegacy: isSparta,
-        marketId: isSparta ? SPARTA_MARKET_ID : undefined,
+        marketCode: isSparta ? SPARTA_MARKET_CODE : undefined,
         gatewaySlug: isSparta ? SPARTA_GATEWAY_SLUG : undefined,
         isOperational: isSparta,
         gatewayVisible: isSparta,
@@ -94,6 +95,7 @@ function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
   const registryIsLive = row.is_live === true;
   const isSpartaLegacy = row.is_sparta_legacy === true;
   const marketId = optionalString(row.market_id);
+  const marketCode = optionalString(row.market_code);
   const gatewaySlug = optionalString(row.gateway_slug);
   const isOperational = row.is_operational === true;
   const gatewayVisible = row.gateway_visible === true;
@@ -106,6 +108,7 @@ function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
 
   const enterable = registryIsLive
     && Boolean(marketId)
+    && Boolean(marketCode)
     && isOperational
     && gatewayVisible
     && shoppingEnabled;
@@ -126,6 +129,7 @@ function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
     registryIsLive,
     isSpartaLegacy,
     marketId,
+    marketCode,
     gatewaySlug,
     isOperational,
     gatewayVisible,
@@ -156,7 +160,7 @@ function validateSnapshot(hubs: readonly ExpansionHubRuntimeState[]): void {
     || sparta.registryLifecycleState !== "active"
     || sparta.lifecycleState !== "active"
     || !sparta.enterable
-    || sparta.marketId !== SPARTA_MARKET_ID
+    || sparta.marketCode !== SPARTA_MARKET_CODE
     || sparta.gatewaySlug !== SPARTA_GATEWAY_SLUG
     || !sparta.isDefaultFallback
   ) {
@@ -176,6 +180,7 @@ export async function getExpansionHubRuntimeSnapshot(): Promise<ExpansionHubRunt
              h.is_live,
              h.is_sparta_legacy,
              c.market_id,
+             m.code AS market_code,
              c.gateway_slug,
              c.is_operational,
              c.gateway_visible,
@@ -185,6 +190,8 @@ export async function getExpansionHubRuntimeSnapshot(): Promise<ExpansionHubRunt
       FROM public.expansion_hubs AS h
       LEFT JOIN public.market_hub_config AS c
         ON c.hub_code = h.hub_id
+      LEFT JOIN public.markets AS m
+        ON m.id = c.market_id
       ORDER BY h.hub_id
     `);
     const hubs = result.rows.map((row) => parseRow(row));
