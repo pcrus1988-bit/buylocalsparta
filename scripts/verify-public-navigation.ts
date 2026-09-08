@@ -14,6 +14,7 @@ const sourceRoots = [appRoot, join(root, "apps/web/src/components")];
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const failures: string[] = [];
 const PUBLIC_CMS_CATCH_ALL = "/[...cmsPath]";
+const PUBLIC_NOINDEX_UTILITY_ROUTES = new Set(["/choose-location"]);
 
 function walk(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
@@ -57,11 +58,17 @@ for (const duplicateSource of [INDEXABLE_STATIC_ROUTES.map((route) => route.href
 }
 
 for (const route of pageRoutes) {
-  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || route === PUBLIC_CMS_CATCH_ALL || hasRegisteredPrivateParent(route, nonIndexableRoutes) || route.startsWith("/demo/");
+  const classified = indexableRoutes.has(route) || dynamicPublicRoutes.has(route) || nonIndexableRoutes.has(route) || PUBLIC_NOINDEX_UTILITY_ROUTES.has(route) || route === PUBLIC_CMS_CATCH_ALL || hasRegisteredPrivateParent(route, nonIndexableRoutes) || route.startsWith("/demo/");
   if (!classified) failures.push(`Unclassified App Router page ${route}; declare whether it is public/indexable, dynamic public, governed CMS, or private/utility`);
 }
-for (const route of [...indexableRoutes, ...dynamicPublicRoutes, ...nonIndexableRoutes]) {
+for (const route of [...indexableRoutes, ...dynamicPublicRoutes, ...nonIndexableRoutes, ...PUBLIC_NOINDEX_UTILITY_ROUTES]) {
   if (!pageRouteSet.has(route)) failures.push(`Navigation registry references missing page ${route}`);
+}
+for (const route of PUBLIC_NOINDEX_UTILITY_ROUTES) {
+  const pagePath = `apps/web/src/app${route}/page.tsx`;
+  const source = read(pagePath);
+  if (!source.includes("index: false")) failures.push(`${route} public utility route must remain explicitly noindex`);
+  if (!source.includes("follow: false")) failures.push(`${route} public utility route must remain explicitly nofollow while it is a gateway utility`);
 }
 if (!existsSync(join(appRoot, "not-found.tsx"))) failures.push("Missing useful public 404 recovery page");
 if (!pageRouteSet.has("/sitemap")) failures.push("Missing human-readable /sitemap page");
