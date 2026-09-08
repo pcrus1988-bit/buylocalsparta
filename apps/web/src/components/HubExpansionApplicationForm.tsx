@@ -1,16 +1,36 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { ExpansionHub } from "../lib/expansion-hubs";
 import type { HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 import styles from "./HubExpansionApplicationForm.module.css";
 
-type HubOption = Pick<ExpansionHub, "id" | "slug" | "nameEl" | "regionEl">;
+type LookupStage = "afm" | "loading" | "matched";
 
-type Props = Readonly<{
-  hubs: readonly HubOption[];
-  initialHubSlug?: string;
-  planCode: HubExpansionPlanCode;
+type GemiCompany = Readonly<{
+  afm: string;
+  gemiNumber: string;
+  legalName: string;
+  tradingName?: string;
+  companyStatus?: string;
+  legalType?: string;
+  address?: string;
+  city?: string;
+  municipality?: string;
+  prefecture?: string;
+  postcode?: string;
+  email?: string;
+  phone?: string;
+  url?: string;
+  checkedAt: number;
+}>;
+
+type ResolvedHub = Readonly<{
+  id: string;
+  slug: string;
+  nameEl: string;
+  regionEl: string;
+  isLive: boolean;
+  isSpartaLegacy: boolean;
 }>;
 
 type Receipt = Readonly<{
@@ -20,6 +40,10 @@ type Receipt = Readonly<{
   planCode: HubExpansionPlanCode;
   paymentRequired: false;
   message: string;
+}>;
+
+type Props = Readonly<{
+  planCode: HubExpansionPlanCode;
 }>;
 
 const categories = [
@@ -36,10 +60,58 @@ const categories = [
   "Άλλη μη διατροφική λιανική"
 ] as const;
 
-export function HubExpansionApplicationForm({ hubs, initialHubSlug, planCode }: Props) {
+export function HubExpansionApplicationForm({ planCode }: Props) {
   const [busy, setBusy] = useState(false);
+  const [lookupStage, setLookupStage] = useState<LookupStage>("afm");
+  const [lookupError, setLookupError] = useState("");
+  const [taxNumber, setTaxNumber] = useState("");
+  const [company, setCompany] = useState<GemiCompany>();
+  const [hub, setHub] = useState<ResolvedHub>();
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<Receipt>();
+
+  async function lookupCompany() {
+    setLookupError("");
+    setError("");
+    setLookupStage("loading");
+    try {
+      const response = await fetch("/api/hubs/resolve-company-by-afm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ afm: taxNumber })
+      });
+      const data = await response.json() as {
+        company?: GemiCompany;
+        hub?: ResolvedHub;
+        error?: string;
+        redirectTo?: string;
+      };
+      if (!response.ok || !data.company || !data.hub) {
+        throw new Error(data.error ?? "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
+      }
+      if (data.hub.isSpartaLegacy) {
+        window.location.assign(data.redirectTo ?? "/join/apply");
+        return;
+      }
+      setCompany(data.company);
+      setHub(data.hub);
+      setTaxNumber(data.company.afm);
+      setLookupStage("matched");
+    } catch (cause) {
+      setCompany(undefined);
+      setHub(undefined);
+      setLookupError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
+      setLookupStage("afm");
+    }
+  }
+
+  function changeAfm() {
+    setCompany(undefined);
+    setHub(undefined);
+    setLookupError("");
+    setError("");
+    setLookupStage("afm");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,8 +130,14 @@ export function HubExpansionApplicationForm({ hubs, initialHubSlug, planCode }: 
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const result = await response.json() as Partial<Receipt> & { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "Η αίτηση δεν καταχωρίστηκε.");
+      const result = await response.json() as Partial<Receipt> & { error?: string; code?: string; redirectTo?: string };
+      if (!response.ok) {
+        if (result.code === "sparta_uses_existing_join") {
+          window.location.assign(result.redirectTo ?? "/join/apply");
+          return;
+        }
+        throw new Error(result.error ?? "Η αίτηση δεν καταχωρίστηκε.");
+      }
       if (!result.reference || result.status !== "pending" || !result.hubName || !result.planCode) {
         throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε έγκυρη απόδειξη.");
       }
@@ -87,8 +165,8 @@ export function HubExpansionApplicationForm({ hubs, initialHubSlug, planCode }: 
         <h2>{receipt.hubName} · {receipt.planCode.toUpperCase()}</h2>
         <p>{receipt.message}</p>
         <div className={styles.reference}>Αριθμός αναφοράς <strong>{receipt.reference}</strong></div>
-        <p className={styles.receiptNote}>Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός. Θα επικοινωνήσουμε για verification και τα επόμενα βήματα του HUB.</p>
-        <a className="button button-secondary" href="/hubs/join">Επιστροφή στα HUB</a>
+        <p className={styles.receiptNote}>Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός.</p>
+        <a className="button button-secondary" href="/hubs/join">Επιστροφή στα προγράμματα</a>
       </div>
     </div>;
   }
@@ -97,49 +175,77 @@ export function HubExpansionApplicationForm({ hubs, initialHubSlug, planCode }: 
     <input type="hidden" name="planCode" value={planCode} />
     <div className={styles.honeypot} aria-hidden="true"><label>Website<input name="companyWebsiteCheck" tabIndex={-1} autoComplete="off" /></label></div>
 
-    <fieldset>
-      <legend>1. HUB και επιχείρηση</legend>
-      <div className={styles.grid}>
-        <label className={styles.full}>HUB / πόλη <span>*</span>
-          <select name="hubSlug" required defaultValue={initialHubSlug ?? ""}>
-            <option value="" disabled>Επίλεξε το HUB της επιχείρησης…</option>
-            {hubs.map((hub) => <option value={hub.slug} key={hub.id}>{hub.nameEl} · {hub.regionEl}</option>)}
-          </select>
-        </label>
-        <label>Εμπορική ονομασία <span>*</span><input name="businessName" required maxLength={120} autoComplete="organization" /></label>
-        <label>Νομική επωνυμία<input name="legalName" maxLength={160} /></label>
-        <label>Ονοματεπώνυμο υπευθύνου <span>*</span><input name="contactName" required maxLength={120} autoComplete="name" /></label>
-        <label>Κύρια κατηγορία <span>*</span><select name="primaryCategory" required defaultValue=""><option value="" disabled>Επίλεξε κατηγορία…</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+    <section className={styles.lookupPanel} aria-labelledby="afm-title">
+      <div>
+        <div className={styles.stepLabel}>1 · Ταυτοποίηση με ΑΦΜ</div>
+        <h2 id="afm-title">Βρες την επιχείρησή σου στο Γ.Ε.ΜΗ.</h2>
+        <p>Από το ΑΦΜ ανακτούμε τα δημόσια στοιχεία Γ.Ε.ΜΗ. και προσδιορίζουμε αυτόματα το σωστό KONTA MOY HUB από την επαληθευμένη τοποθεσία και τον ταχυδρομικό κώδικα.</p>
       </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>2. Επικοινωνία και τοποθεσία</legend>
-      <div className={styles.grid}>
-        <label>Email <span>*</span><input name="email" type="email" required maxLength={160} autoComplete="email" /></label>
-        <label>Τηλέφωνο <span>*</span><input name="phone" type="tel" required maxLength={32} autoComplete="tel" /></label>
-        <label className={styles.full}>Διεύθυνση καταστήματος <span>*</span><input name="addressLine" required maxLength={180} autoComplete="street-address" /></label>
-        <label>Ταχυδρομικός κώδικας <span>*</span><input name="postalCode" required inputMode="numeric" pattern="[0-9]{5}" maxLength={5} autoComplete="postal-code" /></label>
-        <label>Υφιστάμενο website / e-shop<input name="websiteUrl" type="url" maxLength={240} placeholder="https://…" /></label>
+      <label htmlFor="hub-vendor-tax-number">ΑΦΜ επιχείρησης *</label>
+      <div className={styles.lookupRow}>
+        <input
+          id="hub-vendor-tax-number"
+          name="taxNumber"
+          required
+          inputMode="numeric"
+          pattern="[0-9]{9}"
+          maxLength={9}
+          placeholder="9 ψηφία"
+          value={taxNumber}
+          readOnly={lookupStage === "matched"}
+          onChange={(event) => setTaxNumber(event.target.value.replace(/\D/g, "").slice(0, 9))}
+        />
+        {lookupStage === "matched"
+          ? <button className="button button-secondary" type="button" onClick={changeAfm}>Αλλαγή ΑΦΜ</button>
+          : <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={lookupCompany}>{lookupStage === "loading" ? "Έλεγχος…" : "Ανάκτηση από ΓΕΜΗ"}</button>}
       </div>
-    </fieldset>
+      {lookupError && <div className={styles.error} role="alert">{lookupError}</div>}
+    </section>
 
-    <fieldset>
-      <legend>3. Σημερινή εμπορική παρουσία</legend>
-      <div className={styles.grid}>
-        <label className={styles.full}>Πού πουλάς σήμερα;<textarea name="currentSalesChannels" maxLength={600} rows={3} placeholder="π.χ. φυσικό κατάστημα, δικό μας e-shop, Skroutz, social media…" /></label>
-        <label className={styles.full}>Σημειώσεις / τι θα ήθελες από το ΚΟΝΤΑ ΜΟΥ;<textarea name="notes" maxLength={1500} rows={4} /></label>
+    {company && hub && <>
+      <section className={styles.verifiedPanel} aria-label="Επαληθευμένη επιχείρηση και HUB">
+        <div className={styles.verifiedHeader}>
+          <div><span className={styles.verifiedBadge}>Γ.Ε.ΜΗ. ✓</span><strong>{company.tradingName ?? company.legalName}</strong><small>{company.legalName}</small></div>
+          <div className={styles.hubResult}><span>Αυτόματο HUB</span><strong>{hub.nameEl}</strong><small>{hub.regionEl}</small></div>
+        </div>
+        <div className={styles.registryGrid}>
+          <div><span>ΑΦΜ</span><strong>{company.afm}</strong></div>
+          <div><span>Αρ. Γ.Ε.ΜΗ.</span><strong>{company.gemiNumber}</strong></div>
+          <div><span>Διεύθυνση Γ.Ε.ΜΗ.</span><strong>{[company.address, company.city || company.municipality].filter(Boolean).join(", ") || "—"}</strong></div>
+          <div><span>Τ.Κ.</span><strong>{company.postcode ?? "—"}</strong></div>
+        </div>
+        <p className={styles.lockedNote}>Το HUB δεν επιλέγεται χειροκίνητα. Κατά την τελική υποβολή το σύστημα επαναλαμβάνει την επαλήθευση ΑΦΜ → Γ.Ε.ΜΗ. → τοποθεσία → HUB.</p>
+      </section>
+
+      <fieldset>
+        <legend>2. Στοιχεία συνεργασίας</legend>
+        <div className={styles.grid}>
+          <label>Εμπορική ονομασία <span>*</span><input name="businessName" required maxLength={120} autoComplete="organization" defaultValue={company.tradingName ?? company.legalName} /></label>
+          <label>Ονοματεπώνυμο υπευθύνου <span>*</span><input name="contactName" required maxLength={120} autoComplete="name" /></label>
+          <label>Email επικοινωνίας <span>*</span><input name="email" type="email" required maxLength={160} autoComplete="email" defaultValue={company.email ?? ""} /></label>
+          <label>Τηλέφωνο <span>*</span><input name="phone" type="tel" required maxLength={32} autoComplete="tel" defaultValue={company.phone ?? ""} /></label>
+          <label>Κύρια κατηγορία <span>*</span><select name="primaryCategory" required defaultValue=""><option value="" disabled>Επίλεξε κατηγορία…</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+          <label>Υφιστάμενο website / e-shop<input name="websiteUrl" type="url" maxLength={240} placeholder="https://…" defaultValue={company.url ?? ""} /></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>3. Σημερινή εμπορική παρουσία</legend>
+        <div className={styles.grid}>
+          <label className={styles.full}>Πού πουλάς σήμερα;<textarea name="currentSalesChannels" maxLength={600} rows={3} placeholder="π.χ. φυσικό κατάστημα, δικό μας e-shop, Skroutz, social media…" /></label>
+          <label className={styles.full}>Σημειώσεις / τι θα ήθελες από το ΚΟΝΤΑ ΜΟΥ;<textarea name="notes" maxLength={1500} rows={4} /></label>
+        </div>
+      </fieldset>
+
+      <div className={styles.consentBox}>
+        <label><input type="checkbox" name="acceptedAccuracy" required /> <span>Επιβεβαιώνω ότι έχω ελέγξει τα στοιχεία και μπορώ να εκπροσωπώ ή να υποβάλω ενδιαφέρον για αυτή την επιχείρηση.</span></label>
+        <label><input type="checkbox" name="acceptedProspectStatus" required /> <span>Κατανοώ ότι αυτή είναι αίτηση prospect για HUB επέκτασης και δεν ενεργοποιεί αυτόματα vendor account, πωλήσεις, συνδρομή ή χρέωση.</span></label>
+        <label><input type="checkbox" name="acceptedPrivacy" required /> <span>Συμφωνώ με την επεξεργασία των στοιχείων για επαλήθευση, επικοινωνία και προετοιμασία της συνεργασίας σύμφωνα με την πολιτική απορρήτου.</span></label>
       </div>
-    </fieldset>
 
-    <div className={styles.consentBox}>
-      <label><input type="checkbox" name="acceptedAccuracy" required /> <span>Επιβεβαιώνω ότι τα στοιχεία της επιχείρησης είναι ακριβή και μπορώ να εκπροσωπώ ή να υποβάλω ενδιαφέρον για αυτήν.</span></label>
-      <label><input type="checkbox" name="acceptedProspectStatus" required /> <span>Κατανοώ ότι αυτή είναι αίτηση prospect για HUB επέκτασης και δεν ενεργοποιεί αυτόματα vendor account, πωλήσεις, συνδρομή ή χρέωση.</span></label>
-      <label><input type="checkbox" name="acceptedPrivacy" required /> <span>Συμφωνώ με την επεξεργασία των στοιχείων για έλεγχο, επικοινωνία και προετοιμασία της συνεργασίας σύμφωνα με την πολιτική απορρήτου.</span></label>
-    </div>
-
-    {error && <div className={styles.error} role="alert">{error}</div>}
-    <button className={`button ${styles.submit}`} type="submit" disabled={busy}>{busy ? "Καταχώριση…" : planCode === "claim" ? "Υποβολή δωρεάν CLAIM" : `Υποβολή ενδιαφέροντος · ${planCode.toUpperCase()}`}</button>
-    <p className={styles.noPayment}>Δεν ζητούνται στοιχεία κάρτας. Για εμπορικό πλάνο, οποιαδήποτε χρέωση συζητείται μόνο μετά το verification και πριν από την ενεργοποίηση.</p>
+      {error && <div className={styles.error} role="alert">{error}</div>}
+      <button className={`button ${styles.submit}`} type="submit" disabled={busy}>{busy ? "Καταχώριση…" : planCode === "claim" ? "Υποβολή δωρεάν CLAIM" : `Υποβολή ενδιαφέροντος · ${planCode.toUpperCase()}`}</button>
+      <p className={styles.noPayment}>Δεν ζητούνται στοιχεία κάρτας. Για εμπορικό πλάνο, οποιαδήποτε χρέωση συμφωνείται μόνο μετά το verification και πριν από την ενεργοποίηση.</p>
+    </>}
   </form>;
 }
