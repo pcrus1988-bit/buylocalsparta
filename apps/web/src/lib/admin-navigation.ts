@@ -22,6 +22,13 @@ const ICECAT_NAV_LINK: WorkspaceNavLink = {
   permission: "catalog.read"
 };
 
+const STRUCTURE_NAV_LINK: WorkspaceNavLink = {
+  label: "STRUCTURE",
+  href: "/admin/catalogue/structure",
+  icon: "≡",
+  permission: "catalog.read"
+};
+
 const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string; contextHidden?: boolean }>([
   ["/admin/catalogue", { order: 0, label: "Overview" }],
   ["/admin/quickadd", { order: 1, label: "Quick Add" }],
@@ -31,7 +38,8 @@ const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string
   ["/admin/catalogue-intake", { order: 5, label: "Supplier PIM" }],
   ["/admin/catalogue-intake/attributes", { order: 6, label: "Attributes" }],
   ["/admin/matching", { order: 7, label: "Matching" }],
-  ["/admin/categories", { order: 8, label: "Categories & Policies" }]
+  ["/admin/catalogue/structure", { order: 8, label: "STRUCTURE" }],
+  ["/admin/categories", { order: 9, label: "Categories & Policies" }]
 ]);
 
 const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
@@ -78,9 +86,10 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
   }
 
   if (group.href === "/admin/catalogue") {
-    const catalogueLinks = links.some((link) => link.href === ICECAT_NAV_LINK.href)
-      ? links
+    let catalogueLinks = links.some((link) => link.href === ICECAT_NAV_LINK.href)
+      ? [...links]
       : [...links, ICECAT_NAV_LINK];
+    if (!catalogueLinks.some((link) => link.href === STRUCTURE_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, STRUCTURE_NAV_LINK];
     return catalogueLinks
       .map((link) => {
         const presentation = CATALOGUE_OPERATOR_LINKS.get(link.href);
@@ -148,6 +157,7 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal, attenti
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
   if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
+  if (href === STRUCTURE_NAV_LINK.href) return canAccessAdminNavLink(principal, STRUCTURE_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);
   return link ? canAccessAdminNavLink(principal, link) : false;
 }
