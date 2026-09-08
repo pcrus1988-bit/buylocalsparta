@@ -11,7 +11,6 @@ import {
   SPARTA_GATEWAY_SLUG,
   SPARTA_HUB_ID,
   SPARTA_MARKET_CODE,
-  SPARTA_MARKET_ID,
   getExpansionHubById,
   isReservedHubRouteSegment,
   resolveHubContext,
@@ -38,8 +37,10 @@ assert.ok(sparta, "Sparta HUB must exist");
 assert.equal(sparta.id, "KM-HUB-015");
 assert.equal(sparta.slug, SPARTA_GATEWAY_SLUG);
 assert.equal(SPARTA_MARKET_CODE, "sparta");
-assert.equal(SPARTA_MARKET_ID, "e174202e-9b12-4dc4-a0d4-c2263491f292");
 assert.equal(sparta.futureSeoPath, "/", "Sparta must retain the existing root storefront");
+
+const hubResolver = readFileSync("apps/web/src/lib/hub-resolver.ts", "utf8");
+assert.ok(!hubResolver.includes("SPARTA_MARKET_ID"), "HUB routing must never pin Sparta to a generated database UUID");
 
 const kalamata = getExpansionHubById(KALAMATA_HUB_ID);
 assert.ok(kalamata, "Kalamata HUB must exist");
@@ -99,20 +100,25 @@ assert.ok(postgresRuntime.includes("export const EXPECTED_SCHEMA_VERSION = 214;"
 
 // The public gateway consumes lifecycle plus operational-market binding from
 // PostgreSQL on the server. Active UI/entry is fail-closed unless both layers agree.
+// Market UUIDs are generated/internal; stable validation uses markets.code.
 const runtimeReader = readFileSync("apps/web/src/lib/expansion-hub-runtime.ts", "utf8");
 for (const boundary of [
   "getProductionPostgresRuntime().sqlPool.query",
   "FROM public.expansion_hubs AS h",
   "LEFT JOIN public.market_hub_config AS c",
   "ON c.hub_code = h.hub_id",
+  "LEFT JOIN public.markets AS m",
+  "ON m.id = c.market_id",
+  "m.code AS market_code",
   "Active HUBs require an operational market binding",
   "Runtime HUB registry must contain 131 rows",
   'source: "safe-fallback"',
-  "SPARTA_MARKET_ID",
+  "SPARTA_MARKET_CODE",
   "SPARTA_GATEWAY_SLUG"
 ]) {
   assert.ok(runtimeReader.includes(boundary), `Expansion HUB runtime reader is missing safety boundary: ${boundary}`);
 }
+assert.ok(!runtimeReader.includes("SPARTA_MARKET_ID"), "Gateway runtime must not compare generated market UUIDs");
 assert.ok(!runtimeReader.includes("createClient("), "Gateway runtime must not create a browser/Supabase client");
 
 const gatewayPage = readFileSync("apps/web/src/app/choose-location/page.tsx", "utf8");
@@ -126,7 +132,7 @@ for (const boundary of [
 ]) {
   assert.ok(gatewayPage.includes(boundary), `Choose-location page is missing runtime/SEO boundary: ${boundary}`);
 }
-for (const privateField of ["marketId:", "gatewaySlug:", "shoppingEnabled:", "searchIndexable:", "isDefaultFallback:"]) {
+for (const privateField of ["marketId:", "marketCode:", "gatewaySlug:", "shoppingEnabled:", "searchIndexable:", "isDefaultFallback:"]) {
   assert.ok(!gatewayPage.includes(privateField), `Choose-location client projection must not serialize operational field ${privateField}`);
 }
 
@@ -185,4 +191,4 @@ const fallback = resolveHubContext({ pathname: "/admin" });
 assert.equal(fallback.hub.id, SPARTA_HUB_ID, "Missing HUB context must safely fall back to Sparta");
 assert.equal(fallback.source, "fallback");
 
-console.log("Expansion HUB verification passed: static master + DB lifecycle + market binding + ACL hardening + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");
+console.log("Expansion HUB verification passed: static master + DB lifecycle + stable market-code binding + ACL hardening + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");
