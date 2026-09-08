@@ -181,7 +181,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
   if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL runtime");
   return {
     connectionString,
-    applicationName,
+    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
     maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
     connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
     idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
