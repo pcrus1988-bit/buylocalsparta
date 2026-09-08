@@ -5,7 +5,7 @@ const STATIC_ROUTE_MATRIX = [
   "/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/confirm-email-change",
   "/how-it-works", "/fairness", "/delivery-pickup", "/payments-security", "/returns-refunds",
   "/privacy", "/cookies", "/privacy-controls", "/accessibility", "/about", "/help", "/join",
-  "/join/requirements", "/sitemap",
+  "/join/requirements", "/choose-location", "/sitemap",
   "/account", "/account/appointments", "/account/ask-local", "/account/notifications", "/account/orders",
   "/account/privacy", "/account/profile", "/account/saved", "/account/security", "/account/support",
   "/vendor", "/vendor/login", "/vendor/catalog", "/vendor/orders", "/vendor/notifications", "/vendor/advice",
@@ -103,8 +103,40 @@ test("location permission control can be exercised when mapped vendors exist", a
 });
 
 test("public utility pages render and expose a real heading", async ({ page }) => {
-  for (const route of ["/login", "/register", "/privacy-controls", "/help", "/join/requirements"]) {
+  for (const route of ["/login", "/register", "/privacy-controls", "/help", "/join/requirements", "/choose-location"]) {
     await page.goto(route);
     await expect(page.locator("h1").first(), `${route} should expose an h1`).toBeVisible();
   }
+});
+
+test("location gateway renders DB lifecycle state without activating prospect hubs", async ({ page, request }) => {
+  const crossOriginConsent = await request.post("/api/privacy/consent", {
+    failOnStatusCode: false,
+    headers: { origin: "https://attacker.invalid" },
+    data: { personalisation: false, analytics: false, marketing: false, source: "banner" }
+  });
+  expect(crossOriginConsent.status()).toBe(403);
+
+  await page.goto("/choose-location");
+  await expect(page.getByRole("heading", { name: "Καλωσόρισες!" })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+
+  const consentBanner = page.locator("aside.privacy-consent-banner");
+  await expect(consentBanner).toBeVisible();
+  await consentBanner.getByRole("button", { name: "Απόρριψη προαιρετικών" }).click();
+  await expect(consentBanner).toBeHidden();
+
+  const search = page.getByPlaceholder("Αναζήτησε πόλη ή περιοχή…");
+  await search.fill("Καλαμάτα");
+  const kalamata = page.getByRole("button", { name: /Καλαμάτα.*17 prospect vendors/i }).first();
+  await expect(kalamata).toBeVisible();
+  await kalamata.click();
+  await expect(page.getByRole("button", { name: /Αποθήκευση · Έρχεται σύντομα/ })).toBeVisible();
+
+  await search.fill("Σπάρτη");
+  const sparta = page.getByRole("button", { name: /Σπάρτη.*Ενεργή τοπική αγορά/i }).first();
+  await expect(sparta).toBeVisible();
+  await sparta.click();
+  await expect(page.getByRole("button", { name: /Μπες στην περιοχή σου/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
 });

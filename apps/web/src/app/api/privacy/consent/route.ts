@@ -27,11 +27,39 @@ function consentAction(input: { personalisation: boolean; analytics: boolean; ma
   return "custom";
 }
 
+function effectiveRequestOrigin(request: Request, requestUrl: URL): string {
+  const host = request.headers.get("host")?.trim();
+  if (!host) return requestUrl.origin;
+
+  const forwardedProtocol = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  const protocol = forwardedProtocol === "https" || forwardedProtocol === "http"
+    ? forwardedProtocol
+    : requestUrl.protocol.replace(/:$/, "").toLowerCase();
+
+  return `${protocol}://${host.toLowerCase()}`;
+}
+
+function isSameOriginRequest(request: Request, requestUrl: URL): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+
+  try {
+    return new URL(origin).origin.toLowerCase() === effectiveRequestOrigin(request, requestUrl).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const requestUrl = new URL(request.url);
-    const origin = request.headers.get("origin");
-    if (origin && origin !== requestUrl.origin) return Response.json({ error: "cross_origin_consent_update_denied" }, { status: 403, headers: { "cache-control": "no-store" } });
+    if (!isSameOriginRequest(request, requestUrl)) {
+      return Response.json({ error: "cross_origin_consent_update_denied" }, { status: 403, headers: { "cache-control": "no-store" } });
+    }
 
     const raw = await request.json().catch(() => null) as ConsentBody | null;
     if (!raw || typeof raw.personalisation !== "boolean" || typeof raw.analytics !== "boolean" || typeof raw.marketing !== "boolean") {
