@@ -79,6 +79,24 @@ for (const boundary of [
   assert.ok(marketBindingMigration.includes(boundary), `0213 market/HUB binding is missing boundary: ${boundary}`);
 }
 
+// Migration 0214 repairs effective table ACLs. Project-level default grants can
+// otherwise leave the web application runtime able to mutate HUB control state.
+const aclMigration = readFileSync("db/migrations/0214_hub_runtime_acl_hardening.sql", "utf8");
+for (const boundary of [
+  "REVOKE ALL ON TABLE public.expansion_hubs",
+  "REVOKE ALL ON TABLE public.market_hub_config",
+  "GRANT SELECT ON TABLE public.expansion_hubs, public.market_hub_config",
+  "TO bls_app_runtime",
+  "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.expansion_hubs, public.market_hub_config",
+  "TO bls_platform_runtime",
+  "bls_app_runtime must be read-only on HUB runtime tables",
+  "client Data API roles must not access HUB runtime tables"
+]) {
+  assert.ok(aclMigration.includes(boundary), `0214 HUB ACL hardening is missing boundary: ${boundary}`);
+}
+const postgresRuntime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
+assert.ok(postgresRuntime.includes("export const EXPECTED_SCHEMA_VERSION = 214;"), "PostgreSQL runtime must require schema 214 after HUB ACL hardening");
+
 // The public gateway consumes lifecycle plus operational-market binding from
 // PostgreSQL on the server. Active UI/entry is fail-closed unless both layers agree.
 const runtimeReader = readFileSync("apps/web/src/lib/expansion-hub-runtime.ts", "utf8");
@@ -167,4 +185,4 @@ const fallback = resolveHubContext({ pathname: "/admin" });
 assert.equal(fallback.hub.id, SPARTA_HUB_ID, "Missing HUB context must safely fall back to Sparta");
 assert.equal(fallback.source, "fallback");
 
-console.log("Expansion HUB verification passed: static master + DB lifecycle + market binding + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");
+console.log("Expansion HUB verification passed: static master + DB lifecycle + market binding + ACL hardening + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");
