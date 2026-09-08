@@ -64,7 +64,7 @@ export default function HubExpansionJoinPage() {
       <div className="shell section">
         <div className={styles.planIntro}>
           <div><div className="eyebrow">Προγράμματα επέκτασης</div><h2 id="plans-title">Μία ματιά. Όλες οι διαφορές.</h2></div>
-          <p>CLAIM για δωρεάν παρουσία ή εμπορικό πλάνο όταν θέλεις περισσότερες λειτουργίες. Καμία χρέωση δεν γίνεται μέσα στην αίτηση.</p>
+          <p>CLAIM για δωρεάν παρουσία ή εμπορικό πλάνο όταν θέλεις περισσότερες λειτουργίες. Μηνιαία ή ετήσια χρέωση επιλέγεται πριν την υποβολή· καμία πληρωμή δεν γίνεται μέσα στην αίτηση.</p>
         </div>
 
         <div className={styles.tableWrap} tabIndex={0} aria-label="Οριζόντια σύγκριση προγραμμάτων">
@@ -81,7 +81,8 @@ export default function HubExpansionJoinPage() {
             </thead>
             <tbody>
               <tr className={styles.priceRow}><th scope="row">Ένταξη</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.setupLabel}</strong></td>)}</tr>
-              <tr className={styles.priceRow}><th scope="row">Συνδρομή</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.recurringLabel}</strong></td>)}</tr>
+              <tr className={styles.priceRow}><th scope="row">Μηνιαία</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.monthlyLabel}</strong></td>)}</tr>
+              <tr className={styles.priceRow}><th scope="row">Ετήσια</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.annualLabel}</strong></td>)}</tr>
               <tr className={styles.priceRow}><th scope="row">Προμήθεια</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.commissionLabel}</strong></td>)}</tr>
               {featureRows.map((row) => <tr key={row.label}>
                 <th scope="row">{row.label}</th>
@@ -96,13 +97,13 @@ export default function HubExpansionJoinPage() {
               <tr className={styles.actionRow}>
                 <th scope="row"><span className={styles.srOnly}>Επιλογή προγράμματος</span></th>
                 {HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
-                  <a className={`button ${styles.planButton}`} href={`/hubs/join/apply?plan=${plan.code}#application-form`}>{plan.code === "claim" ? "Δωρεάν CLAIM" : `Επίλεξε ${plan.name}`}</a>
+                  <a className={`button ${styles.planButton}`} href={`/hubs/join/apply?plan=${plan.code}&billing=annual#application-form`}>{plan.code === "claim" ? "Δωρεάν CLAIM" : `Επίλεξε ${plan.name}`}</a>
                 </td>)}
               </tr>
             </tbody>
           </table>
         </div>
-        <p className={styles.swipeHint}>Σε κινητό: σύρε οριζόντια για να συγκρίνεις όλα τα πλάνα.</p>
+        <p className={styles.swipeHint}>Σε κινητό: σύρε οριζόντια για να συγκρίνεις όλα τα πλάνα. Η ετήσια επιλογή αντιστοιχεί περίπου σε δύο μήνες χωρίς συνδρομή σε σχέση με τη μηνιαία.</p>
         <p className={styles.footnote}>Οι τιμές εμφανίζονται προ ΦΠΑ όπου εφαρμόζεται. Το CLAIM δεν απαιτεί πληρωμή. Τα υψηλότερα πλάνα αγοράζουν περισσότερες υπηρεσίες και χαμηλότερη προμήθεια — όχι προνομιακή κατάταξη. Η δίκαιη συμμετοχή παραμένει κοινή για όλους.</p>
       </div>
     </section>
@@ -134,8 +135,8 @@ export default function HubExpansionJoinPage() {
     </section>
 
     <section className={`shell section ${styles.finalCta}`}>
-      <div><div className="eyebrow">Έτοιμος;</div><h2>Ξεκίνα με το ΑΦΜ.</h2><p>Το CLAIM είναι προεπιλεγμένο και δωρεάν. Μπορείς να αλλάξεις πλάνο πριν την υποβολή.</p></div>
-      <a className="button" href="/hubs/join/apply?plan=claim#application-form">Βρες την επιχείρησή μου</a>
+      <div><div className="eyebrow">Έτοιμος;</div><h2>Ξεκίνα με το ΑΦΜ.</h2><p>Το CLAIM είναι προεπιλεγμένο και δωρεάν. Μπορείς να αλλάξεις πλάνο και κύκλο χρέωσης πριν την υποβολή.</p></div>
+      <a className="button" href="/hubs/join/apply?plan=claim&billing=annual#application-form">Βρες την επιχείρησή μου</a>
     </section>
 
     <SiteFooter />
