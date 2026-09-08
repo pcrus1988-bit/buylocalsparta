@@ -35,25 +35,26 @@ async function approveAction(formData: FormData) {
   const productTypeId = String(formData.get("productTypeId") ?? "").trim();
   const attributeId = String(formData.get("attributeId") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
+  let result;
   try {
-    const result = await mapCatalogueSourceAttribute(principal, {
+    result = await mapCatalogueSourceAttribute(principal, {
       sourceProductId,
       sourceAttributeKey,
       productTypeId,
       attributeId,
       reason: reason || "Confirmed from Attribute Matching trainer"
     });
-    revalidateTrainerPaths();
-    redirect(trainerHref({
-      saved: "1",
-      action: "mapped",
-      changed: String(result.mappedObservations + result.reviewRequiredObservations),
-      key: result.sourceAttributeKey,
-      target: `${result.productTypeCode} / ${result.attributeCode}`
-    }));
   } catch (error) {
     redirect(trainerHref({ error: errorMessage(error) }));
   }
+  revalidateTrainerPaths();
+  redirect(trainerHref({
+    saved: "1",
+    action: "mapped",
+    changed: String(result.mappedObservations + result.reviewRequiredObservations),
+    key: result.sourceAttributeKey,
+    target: `${result.productTypeCode} / ${result.attributeCode}`
+  }));
 }
 
 async function rejectAction(formData: FormData) {
@@ -63,22 +64,23 @@ async function rejectAction(formData: FormData) {
   const sourceProductId = String(formData.get("sourceProductId") ?? "").trim();
   const sourceAttributeKey = String(formData.get("sourceAttributeKey") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
+  let result;
   try {
-    const result = await rejectCatalogueSourceAttribute(principal, {
+    result = await rejectCatalogueSourceAttribute(principal, {
       sourceProductId,
       sourceAttributeKey,
       reason: reason || "Marked as not a product attribute in Attribute Matching trainer"
     });
-    revalidateTrainerPaths();
-    redirect(trainerHref({
-      saved: "1",
-      action: "rejected",
-      changed: String(result.rejectedObservations),
-      key: result.sourceAttributeKey
-    }));
   } catch (error) {
     redirect(trainerHref({ error: errorMessage(error) }));
   }
+  revalidateTrainerPaths();
+  redirect(trainerHref({
+    saved: "1",
+    action: "rejected",
+    changed: String(result.rejectedObservations),
+    key: result.sourceAttributeKey
+  }));
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<Params> }) {
