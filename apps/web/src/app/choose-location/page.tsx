@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { LocationGateway } from "../../components/LocationGateway";
 import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
 import { assertExpansionHubStatusAlignment } from "../../lib/expansion-hub-status";
+import "./location-gateway-overrides.css";
 
 export const metadata: Metadata = {
   title: "Επίλεξε περιοχή | ΚΟΝΤΑ ΜΟΥ",
