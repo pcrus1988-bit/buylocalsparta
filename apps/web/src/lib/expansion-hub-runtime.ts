@@ -1,16 +1,27 @@
 import { EXPANSION_HUBS } from "./expansion-hubs.ts";
+import { SPARTA_GATEWAY_SLUG, SPARTA_MARKET_ID } from "./hub-resolver.ts";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type ExpansionHubLifecycleState = "inactive" | "prospect" | "active";
+export type ExpansionHubDisplayState = "inactive" | "prospect" | "active";
 export type ExpansionHubResearchStatus = "IN_PROGRESS" | "ACTIVE_REFERENCE" | null;
 
 export type ExpansionHubRuntimeState = Readonly<{
   hubId: string;
   lifecycleState: ExpansionHubLifecycleState;
+  displayState: ExpansionHubDisplayState;
   prospectCount: number;
   researchStatus: ExpansionHubResearchStatus;
-  isLive: boolean;
+  registryIsLive: boolean;
   isSpartaLegacy: boolean;
+  marketId?: string;
+  gatewaySlug?: string;
+  isOperational: boolean;
+  gatewayVisible: boolean;
+  shoppingEnabled: boolean;
+  searchIndexable: boolean;
+  isDefaultFallback: boolean;
+  enterable: boolean;
 }>;
 
 export type ExpansionHubRuntimeSnapshot = Readonly<{
@@ -24,14 +35,26 @@ const MASTER_IDS = new Set(EXPANSION_HUBS.map((hub) => hub.id));
 function safeFallbackSnapshot(): ExpansionHubRuntimeSnapshot {
   return {
     source: "safe-fallback",
-    hubs: EXPANSION_HUBS.map((hub) => ({
-      hubId: hub.id,
-      lifecycleState: hub.isSpartaLegacy ? "active" : "inactive",
-      prospectCount: 0,
-      researchStatus: hub.isSpartaLegacy ? "ACTIVE_REFERENCE" : null,
-      isLive: hub.isSpartaLegacy,
-      isSpartaLegacy: hub.isSpartaLegacy
-    }))
+    hubs: EXPANSION_HUBS.map((hub) => {
+      const isSparta = hub.isSpartaLegacy;
+      return {
+        hubId: hub.id,
+        lifecycleState: isSparta ? "active" : "inactive",
+        displayState: isSparta ? "active" : "inactive",
+        prospectCount: 0,
+        researchStatus: isSparta ? "ACTIVE_REFERENCE" : null,
+        registryIsLive: isSparta,
+        isSpartaLegacy: isSparta,
+        marketId: isSparta ? SPARTA_MARKET_ID : undefined,
+        gatewaySlug: isSparta ? SPARTA_GATEWAY_SLUG : undefined,
+        isOperational: isSparta,
+        gatewayVisible: isSparta,
+        shoppingEnabled: isSparta,
+        searchIndexable: isSparta,
+        isDefaultFallback: isSparta,
+        enterable: isSparta
+      } satisfies ExpansionHubRuntimeState;
+    })
   };
 }
 
@@ -45,28 +68,89 @@ function parseResearchStatus(value: unknown, hubId: string): ExpansionHubResearc
   throw new Error(`Invalid research_status for ${hubId}`);
 }
 
+function optionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
 function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
   const hubId = String(row.hub_id ?? "");
   if (!MASTER_IDS.has(hubId)) throw new Error(`Runtime registry references unknown HUB ${hubId || "<empty>"}`);
+
   const lifecycleState = parseLifecycle(row.lifecycle_state, hubId);
   const prospectCount = Number(row.prospect_count ?? 0);
   if (!Number.isInteger(prospectCount) || prospectCount < 0) throw new Error(`Invalid prospect_count for ${hubId}`);
-  const researchStatus = parseResearchStatus(row.research_status ?? null, hubId);
-  const isLive = row.is_live === true;
-  const isSpartaLegacy = row.is_sparta_legacy === true;
 
-  if (isLive !== (lifecycleState === "active")) throw new Error(`Generated is_live mismatch for ${hubId}`);
+  const researchStatus = parseResearchStatus(row.research_status ?? null, hubId);
+  const registryIsLive = row.is_live === true;
+  const isSpartaLegacy = row.is_sparta_legacy === true;
+  const marketId = optionalString(row.market_id);
+  const gatewaySlug = optionalString(row.gateway_slug);
+  const isOperational = row.is_operational === true;
+  const gatewayVisible = row.gateway_visible === true;
+  const shoppingEnabled = row.shopping_enabled === true;
+  const searchIndexable = row.search_indexable === true;
+  const isDefaultFallback = row.is_default_fallback === true;
+
+  if (registryIsLive !== (lifecycleState === "active")) throw new Error(`Generated is_live mismatch for ${hubId}`);
   if (isSpartaLegacy !== (hubId === "KM-HUB-015")) throw new Error(`Generated is_sparta_legacy mismatch for ${hubId}`);
 
-  return { hubId, lifecycleState, prospectCount, researchStatus, isLive, isSpartaLegacy };
+  const enterable = registryIsLive
+    && Boolean(marketId)
+    && isOperational
+    && gatewayVisible
+    && shoppingEnabled;
+  const displayState: ExpansionHubDisplayState = enterable
+    ? "active"
+    : lifecycleState === "prospect"
+      ? "prospect"
+      : "inactive";
+
+  return {
+    hubId,
+    lifecycleState,
+    displayState,
+    prospectCount,
+    researchStatus,
+    registryIsLive,
+    isSpartaLegacy,
+    marketId,
+    gatewaySlug,
+    isOperational,
+    gatewayVisible,
+    shoppingEnabled,
+    searchIndexable,
+    isDefaultFallback,
+    enterable
+  };
 }
 
 function validateSnapshot(hubs: readonly ExpansionHubRuntimeState[]): void {
   if (hubs.length !== EXPANSION_HUBS.length) throw new Error(`Runtime HUB registry must contain 131 rows; found ${hubs.length}`);
   if (new Set(hubs.map((hub) => hub.hubId)).size !== hubs.length) throw new Error("Runtime HUB registry contains duplicate hub_id values");
+
+  const activeWithoutOperationalBinding = hubs.filter((hub) => hub.lifecycleState === "active" && !hub.enterable);
+  if (activeWithoutOperationalBinding.length) {
+    throw new Error(`Active HUBs require an operational market binding: ${activeWithoutOperationalBinding.map((hub) => hub.hubId).join(", ")}`);
+  }
+
+  const defaultFallbacks = hubs.filter((hub) => hub.isDefaultFallback);
+  if (defaultFallbacks.length !== 1) throw new Error(`Runtime HUB registry must have exactly one default market fallback; found ${defaultFallbacks.length}`);
+
   const sparta = hubs.find((hub) => hub.hubId === "KM-HUB-015");
-  if (!sparta || !sparta.isLive || !sparta.isSpartaLegacy || sparta.lifecycleState !== "active") {
-    throw new Error("Sparta KM-HUB-015 must remain the live legacy HUB");
+  if (
+    !sparta
+    || !sparta.registryIsLive
+    || !sparta.isSpartaLegacy
+    || sparta.lifecycleState !== "active"
+    || sparta.displayState !== "active"
+    || !sparta.enterable
+    || sparta.marketId !== SPARTA_MARKET_ID
+    || sparta.gatewaySlug !== SPARTA_GATEWAY_SLUG
+    || !sparta.isDefaultFallback
+  ) {
+    throw new Error("Sparta KM-HUB-015 must remain the enterable default legacy market");
   }
 }
 
@@ -75,14 +159,23 @@ export async function getExpansionHubRuntimeSnapshot(): Promise<ExpansionHubRunt
 
   try {
     const result = await getProductionPostgresRuntime().sqlPool.query(`
-      SELECT hub_id,
-             lifecycle_state,
-             prospect_count,
-             research_status,
-             is_live,
-             is_sparta_legacy
-      FROM public.expansion_hubs
-      ORDER BY hub_id
+      SELECT h.hub_id,
+             h.lifecycle_state,
+             h.prospect_count,
+             h.research_status,
+             h.is_live,
+             h.is_sparta_legacy,
+             c.market_id,
+             c.gateway_slug,
+             c.is_operational,
+             c.gateway_visible,
+             c.shopping_enabled,
+             c.search_indexable,
+             c.is_default_fallback
+      FROM public.expansion_hubs AS h
+      LEFT JOIN public.market_hub_config AS c
+        ON c.hub_code = h.hub_id
+      ORDER BY h.hub_id
     `);
     const hubs = result.rows.map((row) => parseRow(row));
     validateSnapshot(hubs);
