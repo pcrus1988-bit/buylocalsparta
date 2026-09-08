@@ -90,6 +90,25 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/viva-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  // kontamou.site is the only public SEO authority. Keep the retired .info host
+  // attached only long enough to preserve old links and redirect every path with
+  // a permanent host-level redirect instead of serving duplicate indexable HTML.
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "kontamou.info" }],
+        destination: "https://kontamou.site/:path*",
+        permanent: true
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.kontamou.info" }],
+        destination: "https://kontamou.site/:path*",
+        permanent: true
+      }
+    ];
+  },
   // QuickAddWorkbench is shared by vendor-owner and Daily operator surfaces. When a
   // Daily session cookie is present, keep its existing client URLs but route the two
   // media mutations to Daily-specific handlers so Daily CSRF/session validation is
