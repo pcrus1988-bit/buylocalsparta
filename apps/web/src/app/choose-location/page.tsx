@@ -20,5 +20,13 @@ export const metadata: Metadata = {
 export default async function ChooseLocationPage() {
   assertExpansionHubMaster();
   const runtime = await getExpansionHubRuntimeSnapshot();
-  return <LocationGateway runtimeHubs={runtime.hubs} />;
+  const publicRuntimeHubs = runtime.hubs.map((hub) => ({
+    hubId: hub.hubId,
+    lifecycleState: hub.lifecycleState,
+    prospectCount: hub.prospectCount,
+    researchStatus: hub.researchStatus,
+    isLive: hub.isLive,
+    isSpartaLegacy: hub.isSpartaLegacy
+  }));
+  return <LocationGateway runtimeHubs={publicRuntimeHubs} />;
 }
