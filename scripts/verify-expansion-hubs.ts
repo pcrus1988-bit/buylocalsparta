@@ -61,17 +61,37 @@ for (const boundary of [
   assert.ok(runtimeRegistryMigration.includes(boundary), `0212 runtime HUB registry is missing boundary: ${boundary}`);
 }
 
-// The public gateway must consume mutable lifecycle state from PostgreSQL on the
-// server, with a fail-closed database-less fallback. It must never introduce a
-// browser-side database client or a second hard-coded research snapshot.
+// Migration 0213 binds mutable HUB identity to the existing operational market
+// boundary without changing markets.id/code or enabling any second market.
+const marketBindingMigration = readFileSync("db/migrations/0213_market_hub_gateway_foundation.sql", "utf8");
+for (const boundary of [
+  "CREATE TABLE public.market_hub_config",
+  "market_id uuid PRIMARY KEY REFERENCES public.markets(id)",
+  "hub_code text NOT NULL UNIQUE",
+  "gateway_slug text NOT NULL UNIQUE",
+  "'KM-HUB-015'",
+  "'sparti'",
+  "WHERE code = 'sparta'",
+  "shopping_enabled",
+  "search_indexable",
+  "is_default_fallback"
+]) {
+  assert.ok(marketBindingMigration.includes(boundary), `0213 market/HUB binding is missing boundary: ${boundary}`);
+}
+
+// The public gateway consumes lifecycle plus operational-market binding from
+// PostgreSQL on the server. Active UI/entry is fail-closed unless both layers agree.
 const runtimeReader = readFileSync("apps/web/src/lib/expansion-hub-runtime.ts", "utf8");
 for (const boundary of [
   "getProductionPostgresRuntime().sqlPool.query",
-  "FROM public.expansion_hubs",
-  "ORDER BY hub_id",
+  "FROM public.expansion_hubs AS h",
+  "LEFT JOIN public.market_hub_config AS c",
+  "ON c.hub_code = h.hub_id",
+  "Active HUBs require an operational market binding",
   "Runtime HUB registry must contain 131 rows",
   'source: "safe-fallback"',
-  'lifecycleState: hub.isSpartaLegacy ? "active" : "inactive"'
+  "SPARTA_MARKET_ID",
+  "SPARTA_GATEWAY_SLUG"
 ]) {
   assert.ok(runtimeReader.includes(boundary), `Expansion HUB runtime reader is missing safety boundary: ${boundary}`);
 }
@@ -81,17 +101,22 @@ const gatewayPage = readFileSync("apps/web/src/app/choose-location/page.tsx", "u
 for (const boundary of [
   'export const dynamic = "force-dynamic"',
   "getExpansionHubRuntimeSnapshot()",
-  "runtimeHubs={runtime.hubs}",
+  "publicRuntimeHubs",
+  "runtimeHubs={publicRuntimeHubs}",
   "index: false",
   "follow: false"
 ]) {
   assert.ok(gatewayPage.includes(boundary), `Choose-location page is missing runtime/SEO boundary: ${boundary}`);
 }
+for (const privateField of ["marketId:", "gatewaySlug:", "shoppingEnabled:", "searchIndexable:", "isDefaultFallback:"]) {
+  assert.ok(!gatewayPage.includes(privateField), `Choose-location client projection must not serialize operational field ${privateField}`);
+}
 
 const gatewayClient = readFileSync("apps/web/src/components/LocationGateway.tsx", "utf8");
 assert.ok(gatewayClient.includes("runtimeHubs"), "Location gateway must receive server-projected runtime HUB state");
-assert.ok(gatewayClient.includes('window.location.assign("/")'), "Only the active legacy gateway action may enter the existing root storefront");
+assert.ok(gatewayClient.includes('window.location.assign("/")'), "Only a gateway-safe active HUB may enter the existing root storefront during compatibility rollout");
 assert.ok(!gatewayClient.includes("expansion-hub-status"), "Location gateway must not use a hard-coded mutable HUB status module");
+assert.ok(!gatewayClient.includes("marketId"), "Location gateway client must not receive operational market identifiers");
 
 assert.equal(resolveHubSelection("sparti")?.id, SPARTA_HUB_ID);
 assert.equal(resolveHubSelection("sparta")?.id, SPARTA_HUB_ID, "Existing market code remains a compatibility alias");
@@ -142,4 +167,4 @@ const fallback = resolveHubContext({ pathname: "/admin" });
 assert.equal(fallback.hub.id, SPARTA_HUB_ID, "Missing HUB context must safely fall back to Sparta");
 assert.equal(fallback.source, "fallback");
 
-console.log("Expansion HUB verification passed: static master + DB runtime registry + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");
+console.log("Expansion HUB verification passed: static master + DB lifecycle + market binding + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");
