@@ -72,7 +72,8 @@ export async function generateMetadata(): Promise<Metadata> {
     description: settings.defaultDescription,
     icons: {
       icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
-      shortcut: "/favicon.svg"
+      shortcut: "/favicon.svg",
+      apple: [{ url: "/brand/kontamou-sparta-logo.webp" }]
     },
     openGraph: {
       title: settings.defaultOpenGraphTitle,
