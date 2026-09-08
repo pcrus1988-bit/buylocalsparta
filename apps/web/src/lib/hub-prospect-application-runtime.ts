@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, id } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
-import { getExpansionHubBySlug } from "./expansion-hubs";
+import { normalizeGreekAfm, resolveGemiCompanyByAfm } from "./gemi-runtime";
+import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
 import { getHubExpansionPlan, type HubExpansionPlanCode } from "./hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
@@ -10,15 +11,12 @@ const globals = globalThis as typeof globalThis & {
 };
 
 export type HubProspectApplicationInput = Readonly<{
-  hubSlug: string;
+  taxNumber: string;
   planCode: HubExpansionPlanCode;
   businessName: string;
-  legalName?: string;
   contactName: string;
   email: string;
   phone: string;
-  addressLine: string;
-  postalCode: string;
   primaryCategory: string;
   websiteUrl?: string;
   currentSalesChannels?: string;
@@ -63,17 +61,36 @@ export async function submitHubProspectApplication(input: {
   now: number;
 }): Promise<HubProspectApplicationReceipt> {
   const application = normalizeApplication(input.application);
-  const hub = getExpansionHubBySlug(application.hubSlug);
-  if (!hub) throw new HubProspectApplicationError(400, "hub_invalid", "Επίλεξε έγκυρο HUB επέκτασης.");
-  if (hub.isSpartaLegacy) {
-    throw new HubProspectApplicationError(409, "sparta_uses_existing_join", "Η Σπάρτη χρησιμοποιεί την ενεργή διαδικασία συνεργασίας στο /join.");
-  }
   const plan = getHubExpansionPlan(application.planCode);
   if (!plan) throw new HubProspectApplicationError(400, "plan_invalid", "Επίλεξε έγκυρο πρόγραμμα συνεργασίας.");
+
+  const registry = await resolveGemiCompanyByAfm(application.taxNumber, input.now);
+  if (registry.lookupStatus === "not_found") {
+    throw new HubProspectApplicationError(422, "company_not_found", "Δεν βρέθηκε επιχείρηση στο Γ.Ε.ΜΗ. με αυτό το ΑΦΜ.");
+  }
+  if (registry.lookupStatus === "unavailable") {
+    throw new HubProspectApplicationError(503, "gemi_unavailable", registry.message);
+  }
+
+  const resolution = await resolveExpansionHubForGemiCompany(registry);
+  if (resolution.status === "unresolved") {
+    throw new HubProspectApplicationError(422, "hub_unresolved", resolution.message);
+  }
+  const hub = resolution.hub;
+  if (hub.isSpartaLegacy) {
+    throw new HubProspectApplicationError(409, "sparta_uses_existing_join", "Η επαληθευμένη τοποθεσία ανήκει στο HUB Σπάρτης. Συνέχισε από την ενεργή διαδικασία /join.");
+  }
+
+  const registryPostcode = registry.postcode?.replace(/\D/g, "") ?? "";
+  if (!/^\d{5}$/.test(registryPostcode)) {
+    throw new HubProspectApplicationError(422, "registry_postcode_missing", "Το Γ.Ε.ΜΗ. δεν επέστρεψε έγκυρο ταχυδρομικό κώδικα για την επιχείρηση.");
+  }
+  const registryAddress = registryAddressLine(registry.addressLine1, registry.city, registry.municipality, registryPostcode);
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   const createdAt = new Date(input.now);
+  const registryCheckedAt = new Date(registry.checkedAt);
   const applicationUuid = randomUUID();
   const reference = id("hubprospect");
 
@@ -83,25 +100,24 @@ export async function submitHubProspectApplication(input: {
       const duplicate = await tx.query(`
         SELECT 1 AS present
         FROM hub_expansion_prospects
-        WHERE hub_slug=$1
-          AND lower(email)=lower($2)
-          AND lower(business_name)=lower($3)
+        WHERE tax_number=$1
           AND status NOT IN ('declined','converted')
         LIMIT 1
-      `, [hub.slug, application.email, application.businessName]);
+      `, [application.taxNumber]);
       if (duplicate.rowCount) {
-        throw new HubProspectApplicationError(409, "application_exists", "Υπάρχει ήδη ενεργή αίτηση για αυτή την επιχείρηση στο συγκεκριμένο HUB.");
+        throw new HubProspectApplicationError(409, "application_exists", "Υπάρχει ήδη ενεργή αίτηση για αυτή την επιχείρηση.");
       }
 
       await tx.query(`
         INSERT INTO hub_expansion_prospects (
-          id,public_id,hub_id,hub_slug,hub_city,hub_region,plan_code,business_name,legal_name,
-          contact_name,email,phone,address_line,postal_code,primary_category,website_url,
-          current_sales_channels,notes,source,status,setup_fee_cents,annual_fee_cents,commission_bps,
-          payment_state,consent_at,created_at,updated_at
+          id,public_id,hub_id,hub_slug,hub_city,hub_region,plan_code,tax_number,gemi_number,
+          business_name,legal_name,contact_name,email,phone,address_line,postal_code,primary_category,
+          website_url,current_sales_channels,notes,source,status,setup_fee_cents,annual_fee_cents,
+          commission_bps,payment_state,consent_at,registry_checked_at,hub_resolution_method,
+          hub_resolution_latitude,hub_resolution_longitude,hub_distance_km,created_at,updated_at
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-          'hub_expansion_join','pending',$19,$20,$21,$22,$23,$23,$23
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+          'hub_expansion_join','pending',$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$31
         )
       `, [
         applicationUuid,
@@ -111,21 +127,29 @@ export async function submitHubProspectApplication(input: {
         hub.nameEl,
         hub.regionEl,
         plan.code,
+        application.taxNumber,
+        registry.gemiNumber,
         application.businessName,
-        application.legalName ?? null,
+        registry.legalName,
         application.contactName,
         application.email,
         application.phone,
-        application.addressLine,
-        application.postalCode,
+        registryAddress,
+        registryPostcode,
         application.primaryCategory,
-        application.websiteUrl ?? null,
+        application.websiteUrl ?? registry.url ?? null,
         application.currentSalesChannels ?? null,
         application.notes ?? null,
         plan.setupFeeCents,
         plan.annualFeeCents,
         plan.commissionBps,
         plan.code === "claim" ? "not_required" : "not_requested",
+        createdAt,
+        registryCheckedAt,
+        resolution.method,
+        resolution.latitude ?? null,
+        resolution.longitude ?? null,
+        resolution.distanceKm ?? null,
         createdAt
       ]);
 
@@ -143,15 +167,19 @@ export async function submitHubProspectApplication(input: {
 }
 
 function normalizeApplication(input: HubProspectApplicationInput): HubProspectApplicationInput {
-  const hubSlug = requiredSlug(input.hubSlug, "HUB");
+  let taxNumber: string;
+  try {
+    taxNumber = normalizeGreekAfm(input.taxNumber);
+  } catch (error) {
+    throw new HubProspectApplicationError(400, "invalid_afm", error instanceof Error ? error.message : "Το ΑΦΜ δεν είναι έγκυρο.");
+  }
+
   const plan = getHubExpansionPlan(input.planCode);
   if (!plan) throw new HubProspectApplicationError(400, "plan_invalid", "Επίλεξε έγκυρο πρόγραμμα συνεργασίας.");
   const email = requiredLimited(input.email, "Email", 160).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HubProspectApplicationError(400, "email_invalid", "Χρειάζεται έγκυρο email επικοινωνίας.");
   const phone = requiredLimited(input.phone, "Τηλέφωνο", 32);
   if (!/^[+0-9 ()-]{8,32}$/.test(phone)) throw new HubProspectApplicationError(400, "phone_invalid", "Το τηλέφωνο δεν έχει έγκυρη μορφή.");
-  const postalCode = requiredLimited(input.postalCode, "Ταχυδρομικός κώδικας", 5);
-  if (!/^\d{5}$/.test(postalCode)) throw new HubProspectApplicationError(400, "postcode_invalid", "Ο ταχυδρομικός κώδικας πρέπει να έχει 5 ψηφία.");
   const websiteUrl = optionalLimited(input.websiteUrl, 240);
   if (websiteUrl) {
     try {
@@ -163,15 +191,12 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
   }
 
   return {
-    hubSlug,
+    taxNumber,
     planCode: plan.code,
     businessName: requiredLimited(input.businessName, "Εμπορική ονομασία", 120),
-    legalName: optionalLimited(input.legalName, 160),
     contactName: requiredLimited(input.contactName, "Υπεύθυνος επικοινωνίας", 120),
     email,
     phone,
-    addressLine: requiredLimited(input.addressLine, "Διεύθυνση", 180),
-    postalCode,
     primaryCategory: requiredLimited(input.primaryCategory, "Κατηγορία", 100),
     websiteUrl,
     currentSalesChannels: optionalLimited(input.currentSalesChannels, 600),
@@ -179,10 +204,13 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
   };
 }
 
-function requiredSlug(value: string, label: string): string {
-  const normalized = value.trim().toLowerCase();
-  if (!/^[a-z0-9-]{2,80}$/.test(normalized)) throw new HubProspectApplicationError(400, "hub_invalid", `${label}: επίλεξε έγκυρη τιμή.`);
-  return normalized;
+function registryAddressLine(address: string | undefined, city: string | undefined, municipality: string | undefined, postcode: string): string {
+  const normalized = [address, city || municipality, postcode]
+    .filter(Boolean)
+    .join(", ")
+    .trim()
+    .replace(/\s+/g, " ");
+  return normalized.slice(0, 240);
 }
 
 function requiredLimited(value: string, label: string, max: number): string {
