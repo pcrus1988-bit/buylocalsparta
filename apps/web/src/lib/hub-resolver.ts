@@ -59,11 +59,16 @@ export const RESERVED_HUB_ROUTE_SEGMENTS = new Set([
 ]);
 
 const HUB_BY_ID = new Map(EXPANSION_HUBS.map((hub) => [hub.id, hub] as const));
-const SPARTA_HUB = HUB_BY_ID.get(SPARTA_HUB_ID);
 
-if (!SPARTA_HUB || SPARTA_HUB.slug !== SPARTA_GATEWAY_SLUG || !SPARTA_HUB.isSpartaLegacy) {
-  throw new Error("Expansion master must expose Sparta as KM-HUB-015 / sparti");
+function requireSpartaHub(): ExpansionHub {
+  const hub = HUB_BY_ID.get(SPARTA_HUB_ID);
+  if (!hub || hub.slug !== SPARTA_GATEWAY_SLUG || !hub.isSpartaLegacy) {
+    throw new Error("Expansion master must expose Sparta as KM-HUB-015 / sparti");
+  }
+  return hub;
 }
+
+const SPARTA_HUB: ExpansionHub = requireSpartaHub();
 
 function normaliseSegment(value: string): string {
   let decoded = value;
