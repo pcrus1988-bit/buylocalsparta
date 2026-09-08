@@ -2,12 +2,27 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import "../../../admin-catalogue-structure.css";
 import { AdminCatalogueStructureClient } from "../../../../components/AdminCatalogueStructureClient";
+import { AdminCatalogueStructureReviewClient } from "../../../../components/AdminCatalogueStructureReviewClient";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { adminCatalogueStructureWorkspace } from "../../../../lib/admin-catalogue-structure-runtime";
+import {
+  adminCatalogueStructureReviewSummary,
+  type CatalogueStructureReviewSummary
+} from "../../../../lib/admin-catalogue-structure-review-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 
 export const dynamic = "force-dynamic";
+
+const EMPTY_REVIEW_SUMMARY: CatalogueStructureReviewSummary = {
+  currentSourceProducts: 0,
+  unlinkedProducts: 0,
+  unclassifiedProducts: 0,
+  productsWithUnmappedAttributes: 0,
+  unmappedAttributeObservations: 0,
+  unmappedAttributeKeys: 0,
+  reviewRequiredAttributeObservations: 0
+};
 
 export default async function Page() {
   const principal = await getAdminSession();
@@ -20,6 +35,13 @@ export default async function Page() {
     redirect("/admin/catalogue");
   }
 
+  let reviewSummary = EMPTY_REVIEW_SUMMARY;
+  try {
+    reviewSummary = await adminCatalogueStructureReviewSummary(principal);
+  } catch {
+    // STRUCTURE must remain usable even if an intake source is temporarily unavailable.
+  }
+
   return <main className="vendor-app admin-app admin-catalogue-structure">
     <AdminWorkspaceHeader csrfToken={workspace.csrfToken} entityLabel="STRUCTURE" />
 
@@ -27,7 +49,7 @@ export default async function Page() {
       <div>
         <div className="eyebrow">Catalogue · taxonomy structure</div>
         <h1>STRUCTURE</h1>
-        <p className="lead">Η πραγματική δομή του καταλόγου σε ένα σημείο: κατηγορία → υποκατηγορία → οποιοδήποτε βάθος, με προϊόντα, Product Types και attributes. Άνοιξε μόνο το branch που χρειάζεσαι και επεξεργάσου category ή attribute επιτόπου.</p>
+        <p className="lead">Η πραγματική δομή του καταλόγου σε ένα σημείο: κατηγορία → υποκατηγορία → οποιοδήποτε βάθος, με προϊόντα, Product Types και attributes. Τα unmapped intake records εμφανίζονται πλέον πριν χαρτογραφηθούν, ώστε τίποτα να μη μένει κρυφό εκτός της δομής.</p>
       </div>
       <div className="structure-hero-actions">
         <Link className="button button-secondary" href="/admin/catalogue">Catalogue overview</Link>
@@ -40,23 +62,27 @@ export default async function Page() {
       items={[
         { label: "Categories", value: workspace.metrics.totalCategories, hint: `${workspace.metrics.activeCategories} active` },
         { label: "Levels", value: workspace.metrics.taxonomyLevels, hint: `${workspace.metrics.rootCategories} root categories` },
-        { label: "Products", value: workspace.metrics.totalProducts, hint: `${workspace.metrics.liveProducts} live canonical` },
-        { label: "Attributes", value: workspace.metrics.configuredAttributes, hint: "active governed definitions" }
+        { label: "Canonical products", value: workspace.metrics.totalProducts, hint: `${workspace.metrics.liveProducts} live · ${reviewSummary.currentSourceProducts.toLocaleString("el-GR")} current intake records` },
+        { label: "Governed attributes", value: workspace.metrics.configuredAttributes, hint: `${reviewSummary.unmappedAttributeObservations.toLocaleString("el-GR")} unmapped source observations` }
       ]}
     />
 
     <section className="shell vendor-section structure-intro">
       <WorkspaceSectionHeading
         eyebrow="Live catalogue model"
-        title="Collapse, inspect, edit"
-        note="Counts are calculated from the canonical Sparta catalogue. Category and attribute edits write to the same production records used by catalogue, browse and product governance; stable codes remain locked so references cannot be broken accidentally."
+        title="Collapse, inspect, edit — and see what is still outside the tree"
+        note="The normal hierarchy remains the governed canonical Sparta catalogue. The review section below exposes current source products and raw attributes before they are linked or mapped. Latest snapshots are used per source, preventing historical re-imports from being counted repeatedly."
       />
       <div className="structure-guidance">
-        <span><b>Branch</b> shows every product below the category, at any depth.</span>
-        <span><b>Direct</b> shows products assigned to that exact category.</span>
-        <span><b>Attributes</b> combines category rules, Product Type contracts and values actually present on products.</span>
-        <span><b>Lazy loading</b> keeps large branches responsive instead of loading the whole catalogue at once.</span>
+        <span><b>Branch</b> shows every canonical product below the category, at any depth.</span>
+        <span><b>Direct</b> shows canonical products assigned to that exact category.</span>
+        <span><b>Unmapped</b> shows source products/attributes even before they can belong to the taxonomy tree.</span>
+        <span><b>Lazy loading</b> keeps large branches and review queues responsive instead of loading everything at once.</span>
       </div>
+    </section>
+
+    <section className="shell vendor-section structure-review-section">
+      <AdminCatalogueStructureReviewClient summary={reviewSummary} />
     </section>
 
     <section className="shell vendor-section structure-workspace">
