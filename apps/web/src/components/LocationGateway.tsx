@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EXPANSION_HUBS,
   EXPANSION_REGION_CODES,
@@ -12,35 +12,44 @@ import {
 import styles from "./LocationGateway.module.css";
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
-type MapsListener = { remove(): void };
-type GoogleMapInstance = {
-  panTo(point: { lat: number; lng: number }): void;
-  setZoom(zoom: number): void;
+type LatLngTuple = readonly [number, number];
+type LeafletMap = {
+  setView(center: LatLngTuple, zoom: number, options?: Record<string, unknown>): LeafletMap;
+  invalidateSize(options?: Record<string, unknown>): void;
+  remove(): void;
 };
-type GoogleMarkerInstance = {
-  setMap(map: GoogleMapInstance | null): void;
-  addListener(eventName: "click", handler: () => void): MapsListener;
+type LeafletLayer = {
+  addTo(map: LeafletMap): LeafletLayer;
+  remove(): void;
 };
-type GoogleCircleInstance = { setMap(map: GoogleMapInstance | null): void };
-type GoogleMapsNamespace = {
-  Map: new (element: HTMLElement, options?: Record<string, unknown>) => GoogleMapInstance;
-  Marker: new (options?: Record<string, unknown>) => GoogleMarkerInstance;
-  Circle: new (options?: Record<string, unknown>) => GoogleCircleInstance;
+type LeafletInteractiveLayer = LeafletLayer & {
+  on(eventName: "click", handler: () => void): LeafletInteractiveLayer;
+  bindTooltip(content: string, options?: Record<string, unknown>): LeafletInteractiveLayer;
+  bringToFront(): LeafletInteractiveLayer;
+};
+type LeafletNamespace = {
+  map(element: HTMLElement, options?: Record<string, unknown>): LeafletMap;
+  tileLayer(url: string, options?: Record<string, unknown>): LeafletLayer;
+  circleMarker(point: LatLngTuple, options?: Record<string, unknown>): LeafletInteractiveLayer;
+  circle(point: LatLngTuple, options?: Record<string, unknown>): LeafletLayer;
 };
 type GatewayWindow = Window & typeof globalThis & {
-  google?: { maps?: GoogleMapsNamespace };
-  __kontaMouLocationMapsPromise?: Promise<GoogleMapsNamespace>;
+  L?: LeafletNamespace;
+  __kontaMouLeafletPromise?: Promise<LeafletNamespace>;
 };
-type MapState = "loading" | "ready" | "fallback";
+type MapState = "loading" | "ready" | "error";
 type LocationState = "idle" | "locating" | "ready" | "denied" | "error";
 type DistanceHub = Readonly<{ hub: ExpansionHub; distanceKm?: number }>;
 
 const STORAGE_KEY = "konta-mou-locality";
 const COOKIE_KEY = "km_locality";
-const GOOGLE_MAP_SCRIPT_SELECTOR = 'script[data-bls-google-maps="true"]';
-const GREECE_CENTER = { lat: 38.45, lng: 23.45 };
+const LEAFLET_VERSION = "1.9.4";
+const LEAFLET_SCRIPT_URL = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js`;
+const LEAFLET_STYLE_URL = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
+const LEAFLET_SCRIPT_SELECTOR = 'script[data-km-leaflet="true"]';
+const LEAFLET_STYLE_SELECTOR = 'link[data-km-leaflet="true"]';
+const GREECE_CENTER: LatLngTuple = [38.35, 23.65];
 const PRIORITY_ORDER: Record<ExpansionHub["researchPriority"], number> = { S: 0, A: 1, B: 2, C: 3 };
-const MAP_BOUNDS = { minLat: 34.65, maxLat: 41.7, minLng: 19.15, maxLng: 28.65 } as const;
 
 function normalizeSearch(value: string): string {
   return value
@@ -63,8 +72,8 @@ function haversineDistanceKm(from: Coordinates, to: Coordinates): number {
 }
 
 function coverageLabel(hub: ExpansionHub): string {
-  if (hub.isSpartaLegacy) return "Υφιστάμενη περιοχή ΚΟΝΤΑ ΜΟΥ";
-  if (hub.coverageMode === "WHOLE_ISLAND") return "Νησιωτική περιοχή";
+  if (hub.isSpartaLegacy) return "Ενεργή περιοχή · ακτίνα 25 km";
+  if (hub.coverageMode === "WHOLE_ISLAND") return "Ολόκληρο το νησί";
   if (hub.coverageMode === "ISLAND_LOCKED_RADIUS_25KM") return "Έως 25 km · ίδιο νησί";
   return "Ακτίνα σχεδιασμού 25 km";
 }
@@ -73,37 +82,47 @@ function regionShortLabel(regionCode: ExpansionRegionCode): string {
   return regionCode === "EMT" ? "Αν. Μακεδονία & Θράκη" : EXPANSION_REGION_LABELS[regionCode];
 }
 
-function loadGoogleMaps(apiKey: string): Promise<GoogleMapsNamespace> {
-  const browser = window as GatewayWindow;
-  if (browser.google?.maps) return Promise.resolve(browser.google.maps);
-  if (browser.__kontaMouLocationMapsPromise) return browser.__kontaMouLocationMapsPromise;
+function ensureLeafletStyle(): void {
+  if (document.querySelector(LEAFLET_STYLE_SELECTOR)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = LEAFLET_STYLE_URL;
+  link.dataset.kmLeaflet = "true";
+  document.head.appendChild(link);
+}
 
-  browser.__kontaMouLocationMapsPromise = new Promise<GoogleMapsNamespace>((resolve, reject) => {
-    const finish = () => browser.google?.maps
-      ? resolve(browser.google.maps)
-      : reject(new Error("Google Maps did not initialise"));
-    const existing = document.querySelector<HTMLScriptElement>(GOOGLE_MAP_SCRIPT_SELECTOR);
+function loadLeaflet(): Promise<LeafletNamespace> {
+  const browser = window as GatewayWindow;
+  if (browser.L) return Promise.resolve(browser.L);
+  if (browser.__kontaMouLeafletPromise) return browser.__kontaMouLeafletPromise;
+
+  ensureLeafletStyle();
+  browser.__kontaMouLeafletPromise = new Promise<LeafletNamespace>((resolve, reject) => {
+    const finish = () => browser.L
+      ? resolve(browser.L)
+      : reject(new Error("Leaflet did not initialise"));
+    const existing = document.querySelector<HTMLScriptElement>(LEAFLET_SCRIPT_SELECTOR);
 
     if (existing) {
-      if (browser.google?.maps) finish();
+      if (browser.L) finish();
       else {
         existing.addEventListener("load", finish, { once: true });
-        existing.addEventListener("error", () => reject(new Error("Google Maps failed to load")), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Leaflet failed to load")), { once: true });
       }
       return;
     }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly`;
+    script.src = LEAFLET_SCRIPT_URL;
     script.async = true;
     script.defer = true;
-    script.dataset.blsGoogleMaps = "true";
+    script.dataset.kmLeaflet = "true";
     script.addEventListener("load", finish, { once: true });
-    script.addEventListener("error", () => reject(new Error("Google Maps failed to load")), { once: true });
+    script.addEventListener("error", () => reject(new Error("Leaflet failed to load")), { once: true });
     document.head.appendChild(script);
   });
 
-  return browser.__kontaMouLocationMapsPromise;
+  return browser.__kontaMouLeafletPromise;
 }
 
 function saveLocality(hub: ExpansionHub): void {
@@ -126,13 +145,12 @@ function readSavedLocality(): ExpansionHub | undefined {
   }
 }
 
-function mapPointStyle(point: Coordinates): CSSProperties {
-  const x = ((point.longitude - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng)) * 100;
-  const y = (1 - ((point.latitude - MAP_BOUNDS.minLat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat))) * 100;
-  return {
-    left: `${Math.min(98, Math.max(2, x))}%`,
-    top: `${Math.min(97, Math.max(3, y))}%`
-  };
+function initialMapZoom(): number {
+  return window.matchMedia("(max-width: 760px)").matches ? 5 : 6;
+}
+
+function selectedMapZoom(): number {
+  return window.matchMedia("(max-width: 760px)").matches ? 9 : 9;
 }
 
 export function LocationGateway() {
@@ -141,16 +159,16 @@ export function LocationGateway() {
   const [selectedHub, setSelectedHub] = useState<ExpansionHub>();
   const [userCoordinates, setUserCoordinates] = useState<Coordinates>();
   const [locationState, setLocationState] = useState<LocationState>("idle");
-  const [mapState, setMapState] = useState<MapState>(() => process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY?.trim() ? "loading" : "fallback");
+  const [mapState, setMapState] = useState<MapState>("loading");
   const [savedMessage, setSavedMessage] = useState("");
   const [showAllHubs, setShowAllHubs] = useState(false);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
-  const googleMapsRef = useRef<GoogleMapsNamespace | null>(null);
-  const markersRef = useRef<GoogleMarkerInstance[]>([]);
-  const markerListenersRef = useRef<MapsListener[]>([]);
-  const coverageCircleRef = useRef<GoogleCircleInstance | null>(null);
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY?.trim();
+  const leafletRef = useRef<LeafletNamespace | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const hubLayersRef = useRef<LeafletInteractiveLayer[]>([]);
+  const userLayerRef = useRef<LeafletInteractiveLayer | null>(null);
+  const coverageLayerRef = useRef<LeafletLayer | null>(null);
 
   useEffect(() => {
     const saved = readSavedLocality();
@@ -188,104 +206,115 @@ export function LocationGateway() {
   const visibleMapHubs = useMemo(() => filteredHubs.map(({ hub }) => hub), [filteredHubs]);
 
   useEffect(() => {
-    if (!apiKey || !mapElementRef.current) {
-      setMapState("fallback");
-      return undefined;
-    }
-
+    if (!mapElementRef.current) return undefined;
     let cancelled = false;
-    loadGoogleMaps(apiKey)
-      .then((googleMaps) => {
+
+    loadLeaflet()
+      .then((leaflet) => {
         if (cancelled || !mapElementRef.current) return;
-        googleMapsRef.current = googleMaps;
-        mapInstanceRef.current = new googleMaps.Map(mapElementRef.current, {
-          center: GREECE_CENTER,
-          zoom: 6,
+        leafletRef.current = leaflet;
+        const map = leaflet.map(mapElementRef.current, {
+          zoomControl: true,
+          attributionControl: false,
           minZoom: 5,
           maxZoom: 15,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          zoomControl: true,
-          gestureHandling: "cooperative",
-          clickableIcons: false,
-          backgroundColor: "#dcecf5"
+          zoomAnimation: true
         });
+        leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          minZoom: 5,
+          maxZoom: 19
+        }).addTo(map);
+        map.setView(GREECE_CENTER, initialMapZoom());
+        mapRef.current = map;
         setMapState("ready");
+        window.setTimeout(() => map.invalidateSize(), 0);
       })
       .catch(() => {
-        if (!cancelled) setMapState("fallback");
+        if (!cancelled) setMapState("error");
       });
-
-    return () => { cancelled = true; };
-  }, [apiKey]);
-
-  useEffect(() => {
-    const googleMaps = googleMapsRef.current;
-    const map = mapInstanceRef.current;
-    if (!googleMaps || !map || mapState !== "ready") return undefined;
-
-    markerListenersRef.current.forEach((listener) => listener.remove());
-    markerListenersRef.current = [];
-    markersRef.current.forEach((marker) => marker.setMap(null));
-    markersRef.current = [];
-
-    visibleMapHubs.forEach((hub) => {
-      const marker = new googleMaps.Marker({
-        map,
-        position: { lat: hub.latitude, lng: hub.longitude },
-        title: `${hub.nameEl} · ${hub.regionEl}`,
-        zIndex: hub.isLive ? 1000 : selectedHub?.id === hub.id ? 900 : 100
-      });
-      const listener = marker.addListener("click", () => {
-        setSelectedHub(hub);
-        setSavedMessage("");
-      });
-      markersRef.current.push(marker);
-      markerListenersRef.current.push(listener);
-    });
 
     return () => {
-      markerListenersRef.current.forEach((listener) => listener.remove());
-      markerListenersRef.current = [];
-      markersRef.current.forEach((marker) => marker.setMap(null));
-      markersRef.current = [];
+      cancelled = true;
+      hubLayersRef.current.forEach((layer) => layer.remove());
+      hubLayersRef.current = [];
+      userLayerRef.current?.remove();
+      coverageLayerRef.current?.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
+      leafletRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const leaflet = leafletRef.current;
+    const map = mapRef.current;
+    if (!leaflet || !map || mapState !== "ready") return;
+
+    hubLayersRef.current.forEach((layer) => layer.remove());
+    hubLayersRef.current = visibleMapHubs.map((hub) => {
+      const selected = selectedHub?.id === hub.id;
+      const layer = leaflet.circleMarker([hub.latitude, hub.longitude], {
+        radius: selected ? 9 : hub.isLive ? 7 : 5,
+        color: "#ffffff",
+        weight: selected ? 3 : 2,
+        opacity: 1,
+        fillColor: selected ? "#126c29" : hub.isLive ? "#1f6f2d" : "#58a968",
+        fillOpacity: 0.96
+      });
+      layer
+        .bindTooltip(`${hub.nameEl} · ${hub.regionEl}`, { direction: "top", offset: [0, -5], opacity: 0.92 })
+        .on("click", () => chooseHub(hub))
+        .addTo(map);
+      if (selected) layer.bringToFront();
+      return layer;
+    });
   }, [mapState, selectedHub?.id, visibleMapHubs]);
 
   useEffect(() => {
-    const googleMaps = googleMapsRef.current;
-    const map = mapInstanceRef.current;
-    if (!googleMaps || !map || mapState !== "ready") return;
+    const leaflet = leafletRef.current;
+    const map = mapRef.current;
+    if (!leaflet || !map || mapState !== "ready") return;
 
-    coverageCircleRef.current?.setMap(null);
-    coverageCircleRef.current = null;
+    userLayerRef.current?.remove();
+    userLayerRef.current = null;
+    if (!userCoordinates) return;
+
+    userLayerRef.current = leaflet.circleMarker([userCoordinates.latitude, userCoordinates.longitude], {
+      radius: 7,
+      color: "#ffffff",
+      weight: 3,
+      opacity: 1,
+      fillColor: "#176fca",
+      fillOpacity: 1
+    });
+    userLayerRef.current.bindTooltip("Η τοποθεσία σου", { direction: "top", opacity: 0.95 }).addTo(map).bringToFront();
+  }, [mapState, userCoordinates]);
+
+  useEffect(() => {
+    const leaflet = leafletRef.current;
+    const map = mapRef.current;
+    if (!leaflet || !map || mapState !== "ready") return;
+
+    coverageLayerRef.current?.remove();
+    coverageLayerRef.current = null;
     if (!selectedHub) return;
 
-    const point = { lat: selectedHub.latitude, lng: selectedHub.longitude };
-    map.panTo(point);
-    map.setZoom(9);
+    const point: LatLngTuple = [selectedHub.latitude, selectedHub.longitude];
+    map.setView(point, selectedMapZoom(), { animate: true });
 
-    if (selectedHub.coverageMode === "GEODESIC_RADIUS_25KM" || selectedHub.coverageMode === "ISLAND_LOCKED_RADIUS_25KM") {
-      coverageCircleRef.current = new googleMaps.Circle({
-        map,
-        center: point,
+    if (selectedHub.coverageMode !== "WHOLE_ISLAND") {
+      coverageLayerRef.current = leaflet.circle(point, {
         radius: selectedHub.radiusKm * 1000,
-        strokeColor: "#2f8a3d",
-        strokeOpacity: 0.75,
-        strokeWeight: 2,
+        color: "#2f8a3d",
+        weight: 2,
+        opacity: 0.72,
         fillColor: "#69b96f",
-        fillOpacity: 0.12,
-        clickable: false
+        fillOpacity: 0.11,
+        interactive: false
       });
+      coverageLayerRef.current.addTo(map);
     }
   }, [mapState, selectedHub]);
-
-  useEffect(() => () => {
-    coverageCircleRef.current?.setMap(null);
-    markerListenersRef.current.forEach((listener) => listener.remove());
-    markersRef.current.forEach((marker) => marker.setMap(null));
-  }, []);
 
   function requestLocation() {
     setSavedMessage("");
@@ -303,19 +332,21 @@ export function LocationGateway() {
         setQuery("");
         setRegionCode("ALL");
         setShowAllHubs(true);
+        setSheetExpanded(false);
         const nearest = EXPANSION_HUBS
           .map((hub) => ({ hub, distance: haversineDistanceKm(coordinates, { latitude: hub.latitude, longitude: hub.longitude }) }))
           .sort((a, b) => a.distance - b.distance)[0];
         if (nearest) setSelectedHub(nearest.hub);
       },
       (error) => setLocationState(error.code === error.PERMISSION_DENIED ? "denied" : "error"),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 120000 }
     );
   }
 
   function chooseHub(hub: ExpansionHub) {
     setSelectedHub(hub);
     setSavedMessage("");
+    setSheetExpanded(false);
   }
 
   function confirmHub(hub: ExpansionHub) {
@@ -325,6 +356,11 @@ export function LocationGateway() {
       return;
     }
     setSavedMessage(`${hub.nameEl}: η περιοχή αποθηκεύτηκε. Είναι ήδη στο πλάνο επέκτασης του ΚΟΝΤΑ ΜΟΥ.`);
+  }
+
+  function selectRegion(code: ExpansionRegionCode | "ALL") {
+    setRegionCode(code);
+    setSheetExpanded(true);
   }
 
   const selectedDistance = selectedHub ? distanceByHubId.get(selectedHub.id) : undefined;
@@ -339,7 +375,7 @@ export function LocationGateway() {
           <Image src="/favicon.svg" width={42} height={42} alt="" priority />
           <span>ΚΟΝΤΑ ΜΟΥ</span>
         </a>
-        <span className={styles.scopeBadge}><strong>131</strong> περιοχές στο πλάνο επέκτασης</span>
+        <span className={styles.scopeBadge}><strong>131</strong><span> περιοχές στο πλάνο επέκτασης</span></span>
       </header>
 
       <section className={styles.layout} aria-labelledby="location-gateway-title">
@@ -354,7 +390,11 @@ export function LocationGateway() {
             <input
               type="search"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setQuery(next);
+                if (next.trim()) setSheetExpanded(true);
+              }}
               placeholder="Αναζήτησε πόλη ή περιοχή…"
               autoComplete="off"
             />
@@ -369,47 +409,31 @@ export function LocationGateway() {
           </button>
 
           <div className={styles.locationFeedback} aria-live="polite">
-            {locationState === "ready" ? "Βρήκαμε τους κοντινότερους κόμβους με βάση την τοποθεσία σου." : null}
-            {locationState === "denied" ? "Η πρόσβαση στην τοποθεσία δεν επιτράπηκε. Μπορείς να επιλέξεις πόλη χειροκίνητα." : null}
+            {locationState === "ready" ? "Βρήκαμε τον κοντινότερο κόμβο με βάση την τοποθεσία σου." : null}
+            {locationState === "denied" ? "Η πρόσβαση στην τοποθεσία δεν επιτράπηκε. Επίλεξε πόλη χειροκίνητα." : null}
             {locationState === "error" ? "Δεν μπορέσαμε να εντοπίσουμε την τοποθεσία. Η αναζήτηση πόλης λειτουργεί κανονικά." : null}
           </div>
 
           <div className={styles.scopeCard}>
             <span className={styles.scopeIcon} aria-hidden="true">⌖</span>
-            <div>
-              <strong>131 κόμβοι σε όλη την Ελλάδα</strong>
-              <p>Οι ακτίνες είναι όρια σχεδιασμού. Τα νησιά παραμένουν στις δικές τους τοπικές αγορές.</p>
-            </div>
+            <div><strong>131 κόμβοι σε όλη την Ελλάδα</strong><p>Οι ακτίνες είναι όρια σχεδιασμού. Τα νησιά παραμένουν στις δικές τους τοπικές αγορές.</p></div>
           </div>
         </div>
 
-        <section className={styles.mapSection} aria-label="Χάρτης περιοχών ΚΟΝΤΑ ΜΟΥ">
-          <div ref={mapElementRef} className={`${styles.googleMap} ${mapState === "ready" ? styles.googleMapReady : ""}`} />
-          {mapState !== "ready" ? (
-            <div className={styles.fallbackMap} role="group" aria-label="Διαδραστικός χάρτης περιοχών">
-              <div className={styles.fallbackSea} aria-hidden="true" />
-              <div className={styles.mainlandShape} aria-hidden="true" />
-              <div className={styles.creteShape} aria-hidden="true" />
-              <div className={styles.mapGrid} aria-hidden="true" />
-              {visibleMapHubs.map((hub) => (
-                <button
-                  type="button"
-                  key={hub.id}
-                  className={`${styles.mapPin} ${hub.isLive ? styles.mapPinLive : ""} ${selectedHub?.id === hub.id ? styles.mapPinSelected : ""}`}
-                  style={mapPointStyle({ latitude: hub.latitude, longitude: hub.longitude })}
-                  onClick={() => chooseHub(hub)}
-                  aria-label={`${hub.nameEl}, ${hub.regionEl}${hub.isLive ? ", ενεργή περιοχή" : ", στο πλάνο επέκτασης"}`}
-                  title={hub.nameEl}
-                ><span /></button>
-              ))}
-              {userCoordinates ? <span className={styles.userPoint} style={mapPointStyle(userCoordinates)} aria-label="Η τοποθεσία σου" /> : null}
-              <div className={styles.mapLegend}>
-                <span><i className={styles.legendLive} /> Ενεργή</span>
-                <span><i /> Στο πλάνο</span>
-              </div>
-              {mapState === "loading" ? <div className={styles.mapLoading}>Φόρτωση χάρτη…</div> : null}
+        <section className={styles.mapSection} aria-label="Ακριβής χάρτης περιοχών ΚΟΝΤΑ ΜΟΥ">
+          <div ref={mapElementRef} className={styles.mapCanvas} />
+          {mapState === "loading" ? <div className={styles.mapLoading}>Φόρτωση ακριβούς χάρτη…</div> : null}
+          {mapState === "error" ? (
+            <div className={styles.mapError} role="status">
+              <strong>Ο χάρτης δεν μπόρεσε να φορτώσει.</strong>
+              <span>Η αναζήτηση και η επιλογή περιοχής παραμένουν διαθέσιμες.</span>
             </div>
           ) : null}
+          <div className={styles.mapLegend}>
+            <span><i className={styles.legendLive} /> Ενεργή</span>
+            <span><i /> Στο πλάνο</span>
+          </div>
+          <a className={styles.mapAttribution} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
 
           {selectedHub ? (
             <div className={styles.mapSelection}>
@@ -423,8 +447,15 @@ export function LocationGateway() {
           ) : null}
         </section>
 
-        <aside className={styles.sheet} aria-label="Επιλογή περιοχής">
-          <div className={styles.sheetHandle} aria-hidden="true" />
+        <aside className={`${styles.sheet} ${sheetExpanded ? styles.sheetExpanded : ""}`} aria-label="Επιλογή περιοχής">
+          <button
+            className={styles.sheetHandleButton}
+            type="button"
+            onClick={() => setSheetExpanded((current) => !current)}
+            aria-expanded={sheetExpanded}
+            aria-label={sheetExpanded ? "Σύμπτυξη λίστας περιοχών" : "Άνοιγμα λίστας περιοχών"}
+          ><span className={styles.sheetHandle} aria-hidden="true" /></button>
+
           <div className={styles.sheetTop}>
             <div>
               <small>Επίλεξε την περιοχή σου</small>
@@ -434,11 +465,9 @@ export function LocationGateway() {
           </div>
 
           <div className={styles.regionFilters} aria-label="Φίλτρο περιφέρειας">
-            <button type="button" className={regionCode === "ALL" ? styles.regionActive : ""} onClick={() => setRegionCode("ALL")}>Όλη η Ελλάδα</button>
+            <button type="button" className={regionCode === "ALL" ? styles.regionActive : ""} onClick={() => selectRegion("ALL")}>Όλη η Ελλάδα</button>
             {EXPANSION_REGION_CODES.map((code) => (
-              <button type="button" key={code} className={regionCode === code ? styles.regionActive : ""} onClick={() => setRegionCode(code)}>
-                {regionShortLabel(code)}
-              </button>
+              <button type="button" key={code} className={regionCode === code ? styles.regionActive : ""} onClick={() => selectRegion(code)}>{regionShortLabel(code)}</button>
             ))}
           </div>
 
@@ -452,7 +481,7 @@ export function LocationGateway() {
                 </div>
                 <span className={styles.statusPill}>{selectedHub.isLive ? "Ενεργή" : "Στο πλάνο"}</span>
               </div>
-              {selectedDistance !== undefined ? <p>Περίπου {selectedDistance < 10 ? selectedDistance.toFixed(1) : Math.round(selectedDistance)} km από την τρέχουσα τοποθεσία σου.</p> : null}
+              {selectedDistance !== undefined ? <p>Περίπου {selectedDistance < 10 ? selectedDistance.toFixed(1) : Math.round(selectedDistance)} km από την τοποθεσία σου.</p> : null}
               <button type="button" className={styles.primaryAction} onClick={() => confirmHub(selectedHub)}>
                 {selectedHub.isLive ? "Μπες στην περιοχή σου" : "Αποθήκευση περιοχής"}<span aria-hidden="true">→</span>
               </button>
@@ -470,19 +499,13 @@ export function LocationGateway() {
                 <span className={styles.rowMeta}>{distanceKm !== undefined ? `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km` : "›"}</span>
               </button>
             )) : (
-              <div className={styles.emptyState}>
-                <strong>Δεν βρέθηκε περιοχή.</strong>
-                <span>Δοκίμασε διαφορετική ονομασία ή επίλεξε άλλη περιφέρεια.</span>
-              </div>
+              <div className={styles.emptyState}><strong>Δεν βρέθηκε περιοχή.</strong><span>Δοκίμασε διαφορετική ονομασία ή επίλεξε άλλη περιφέρεια.</span></div>
             )}
           </div>
 
-          {!shouldShowAll && resultCount > 35 ? (
-            <button className={styles.showAll} type="button" onClick={() => setShowAllHubs(true)}>Προβολή και των 131 περιοχών</button>
-          ) : null}
-
+          {!shouldShowAll && resultCount > 35 ? <button className={styles.showAll} type="button" onClick={() => setShowAllHubs(true)}>Προβολή και των 131 περιοχών</button> : null}
           <div className={styles.savedFeedback} aria-live="polite">{savedMessage}</div>
-          <p className={styles.planNote}>Η Σπάρτη παραμένει η ενεργή πιλοτική αγορά. Οι υπόλοιπες περιοχές εμφανίζονται ως μέρος του επίσημου πλάνου επέκτασης και δεν παρουσιάζονται ως ενεργές πριν την ενεργοποίησή τους.</p>
+          <p className={styles.planNote}>Η Σπάρτη παραμένει η ενεργή πιλοτική αγορά. Οι υπόλοιπες περιοχές εμφανίζονται ως μέρος του επίσημου πλάνου επέκτασης.</p>
         </aside>
       </section>
     </main>
