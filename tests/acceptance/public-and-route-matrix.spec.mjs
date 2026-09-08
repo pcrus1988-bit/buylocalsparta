@@ -114,6 +114,11 @@ test("location gateway renders DB lifecycle state without activating prospect hu
   await expect(page.getByRole("heading", { name: "Καλωσόρισες!" })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 
+  const consentBanner = page.locator("aside.privacy-consent-banner");
+  await expect(consentBanner).toBeVisible();
+  await consentBanner.getByRole("button", { name: "Απόρριψη προαιρετικών" }).click();
+  await expect(consentBanner).toBeHidden();
+
   const search = page.getByPlaceholder("Αναζήτησε πόλη ή περιοχή…");
   await search.fill("Καλαμάτα");
   const kalamata = page.getByRole("button", { name: /Καλαμάτα.*17 prospect vendors/i }).first();
