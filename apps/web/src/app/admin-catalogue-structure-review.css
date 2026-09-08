@@ -1,0 +1,339 @@
+.structure-review-section {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.structure-review-zone {
+  overflow: hidden;
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  border-radius: 22px;
+  background: #fffdf9;
+  box-shadow: 0 20px 55px rgba(120, 53, 15, 0.07);
+}
+
+.structure-review-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(180, 83, 9, 0.12);
+  background: linear-gradient(135deg, #fffaf2 0%, #fff 72%);
+}
+
+.structure-review-heading h2 {
+  margin: 5px 0 5px;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  letter-spacing: -0.02em;
+}
+
+.structure-review-heading p,
+.structure-review-drawer-head p {
+  max-width: 860px;
+  margin: 0;
+  color: #6f6258;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.structure-review-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+  background: #fff;
+}
+
+.structure-review-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  background: #f8fafc;
+  color: #172033;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+button.structure-review-card,
+a.structure-review-card {
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+button.structure-review-card:hover,
+a.structure-review-card:hover,
+button.structure-review-card:focus-visible,
+a.structure-review-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: #c9a56c;
+  box-shadow: 0 8px 24px rgba(120, 53, 15, 0.09);
+  outline: none;
+}
+
+.structure-review-card.is-attention {
+  border-color: #f0c99f;
+  background: #fff7ed;
+}
+
+.structure-review-card.is-review {
+  border-color: #d8dce5;
+  background: #f8f8fb;
+}
+
+.structure-review-card > span {
+  color: #5f6b7a;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.structure-review-card > strong {
+  margin-top: auto;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.structure-review-card > small {
+  color: #7b8492;
+  font-size: 0.67rem;
+  line-height: 1.35;
+}
+
+.structure-review-drawer {
+  padding: 18px;
+  border-top: 1px solid rgba(15, 23, 42, 0.09);
+  background: #fcfdff;
+}
+
+.structure-review-drawer + .structure-review-drawer {
+  border-top-color: #e8dccb;
+}
+
+.structure-review-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.structure-review-drawer-head h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.structure-review-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.structure-review-tabs button {
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #d7dee8;
+  border-radius: 999px;
+  background: #fff;
+  color: #465469;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.structure-review-tabs button.is-selected {
+  border-color: #b7791f;
+  background: #fff7ed;
+  color: #7c4208;
+}
+
+.structure-review-tabs b {
+  margin-left: 4px;
+}
+
+.structure-review-search {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.structure-review-search label {
+  display: grid;
+  gap: 5px;
+}
+
+.structure-review-search label > span {
+  color: #596579;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.structure-review-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #cfd6e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+
+.structure-review-search input:focus {
+  outline: 3px solid rgba(180, 83, 9, 0.14);
+  outline-offset: 2px;
+  border-color: #b7791f;
+}
+
+.structure-review-result-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 4px 0 9px;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.structure-review-result-head strong {
+  color: #1f2937;
+  font-size: 0.9rem;
+}
+
+.structure-review-product-list {
+  display: grid;
+  gap: 8px;
+}
+
+.structure-review-product {
+  padding: 13px;
+  border: 1px solid #dde4ed;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.structure-review-product-main {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.structure-review-product-main > div:first-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.structure-review-product-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #152033;
+  font-size: 0.86rem;
+}
+
+.structure-review-product-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7b8798;
+  font-size: 0.67rem;
+}
+
+.structure-review-badges {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.structure-review-badges span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 0.61rem;
+  font-weight: 800;
+}
+
+.structure-review-badges span.is-attention {
+  background: #fff0dc;
+  color: #914c09;
+}
+
+.structure-review-badges span.is-ok {
+  background: #eaf8ef;
+  color: #18743a;
+}
+
+.structure-review-product-meta {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.structure-review-product-meta span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: #f7f9fc;
+  color: #596579;
+  font-size: 0.67rem;
+  overflow-wrap: anywhere;
+}
+
+.structure-review-product-meta b {
+  color: #8a96a7;
+  font-size: 0.59rem;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1080px) {
+  .structure-review-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .structure-review-heading,
+  .structure-review-drawer-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .structure-review-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-review-card {
+    min-height: 94px;
+  }
+
+  .structure-review-search,
+  .structure-review-product-main,
+  .structure-review-product-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-review-badges {
+    justify-content: flex-start;
+  }
+}
