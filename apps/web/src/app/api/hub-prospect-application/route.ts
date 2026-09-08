@@ -40,15 +40,12 @@ export async function POST(request: Request) {
     }
 
     const application: HubProspectApplicationInput = {
-      hubSlug: stringField(body.hubSlug),
+      taxNumber: stringField(body.taxNumber),
       planCode: planField(body.planCode),
       businessName: stringField(body.businessName),
-      legalName: optionalStringField(body.legalName),
       contactName: stringField(body.contactName),
       email: stringField(body.email),
       phone: stringField(body.phone),
-      addressLine: stringField(body.addressLine),
-      postalCode: stringField(body.postalCode),
       primaryCategory: stringField(body.primaryCategory),
       websiteUrl: optionalStringField(body.websiteUrl),
       currentSalesChannels: optionalStringField(body.currentSalesChannels),
@@ -59,12 +56,19 @@ export async function POST(request: Request) {
     return Response.json({
       ...receipt,
       message: receipt.planCode === "claim"
-        ? "Η δωρεάν καταχώριση CLAIM μπήκε σε έλεγχο για το συγκεκριμένο HUB. Θα επικοινωνήσουμε αν χρειαστούμε επιπλέον στοιχεία επαλήθευσης."
-        : "Το ενδιαφέρον συνεργασίας καταχωρίστηκε για το συγκεκριμένο HUB. Δεν έγινε χρέωση· οι όροι και η ενεργοποίηση θα επιβεβαιωθούν μετά το verification."
+        ? "Η δωρεάν καταχώριση CLAIM μπήκε σε έλεγχο για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ."
+        : "Το ενδιαφέρον συνεργασίας καταχωρίστηκε για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση."
     }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof HubProspectApplicationError) {
-      return Response.json({ code: error.code, error: error.message }, { status: error.status, headers: { "Cache-Control": "no-store" } });
+      return Response.json(
+        {
+          code: error.code,
+          error: error.message,
+          redirectTo: error.code === "sparta_uses_existing_join" ? "/join/apply" : undefined
+        },
+        { status: error.status, headers: { "Cache-Control": "no-store" } }
+      );
     }
     const message = error instanceof Error ? error.message : String(error);
     console.error(JSON.stringify({ level: "error", event: "hub_prospect_application.submit_failed", message }));
