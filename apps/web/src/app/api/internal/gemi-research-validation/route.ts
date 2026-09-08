@@ -4,7 +4,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TOKEN_SHA256 = "7d8a3e14764ce3f4297508fff520956b045691577e80aacf1dc2ccef1fee7e30";
+const TOKEN_SHA256 = "3de65ea92a631e61212a8fc3aee115101893178820d2df3018eb8e6e0a6ea0b5";
 const GEMI_BASE_URL = "https://opendata-api.businessportal.gr/api/opendata/v1";
 const SOURCE_TYPE = "gemi_opendata_official";
 
@@ -334,7 +334,7 @@ async function finalizeUnresolved() {
 }
 
 export async function GET(request: Request) {
-  if (process.env.VERCEL_ENV !== "preview") return json({ error: "not_found" }, 404);
+  if (process.env.VERCEL_ENV !== "production") return json({ error: "not_found" }, 404);
   if (!authorized(request)) return json({ error: "forbidden" }, 403);
   if (!productionDatabaseConfigured()) return json({ error: "database_unavailable" }, 503);
 
