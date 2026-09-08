@@ -9,6 +9,13 @@ import {
   type ExpansionHub,
   type ExpansionRegionCode
 } from "../lib/expansion-hubs";
+import {
+  getExpansionHubDisplayState,
+  getExpansionHubProspectCount,
+  getExpansionHubStateDescription,
+  getExpansionHubStateLabel,
+  type ExpansionHubDisplayState
+} from "../lib/expansion-hub-status";
 import styles from "./LocationGateway.module.css";
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
@@ -50,6 +57,22 @@ const LEAFLET_SCRIPT_SELECTOR = 'script[data-km-leaflet="true"]';
 const LEAFLET_STYLE_SELECTOR = 'link[data-km-leaflet="true"]';
 const GREECE_CENTER: LatLngTuple = [38.35, 23.65];
 const PRIORITY_ORDER: Record<ExpansionHub["researchPriority"], number> = { S: 0, A: 1, B: 2, C: 3 };
+const HUB_STATE_ORDER: Record<ExpansionHubDisplayState, number> = { active: 0, prospect: 1, inactive: 2 };
+const HUB_STATE_COLORS: Record<ExpansionHubDisplayState, string> = {
+  inactive: "#9aa39d",
+  prospect: "#d8b548",
+  active: "#23853a"
+};
+const HUB_STATE_SOFT_COLORS: Record<ExpansionHubDisplayState, string> = {
+  inactive: "rgba(154, 163, 157, 0.15)",
+  prospect: "rgba(216, 181, 72, 0.18)",
+  active: "rgba(35, 133, 58, 0.14)"
+};
+const HUB_STATE_TEXT_COLORS: Record<ExpansionHubDisplayState, string> = {
+  inactive: "#68716b",
+  prospect: "#806719",
+  active: "#267535"
+};
 
 function normalizeSearch(value: string): string {
   return value
@@ -80,6 +103,10 @@ function coverageLabel(hub: ExpansionHub): string {
 
 function regionShortLabel(regionCode: ExpansionRegionCode): string {
   return regionCode === "EMT" ? "Αν. Μακεδονία & Θράκη" : EXPANSION_REGION_LABELS[regionCode];
+}
+
+function hubStateColor(hub: ExpansionHub): string {
+  return HUB_STATE_COLORS[getExpansionHubDisplayState(hub)];
 }
 
 function ensureLeafletStyle(): void {
@@ -197,7 +224,8 @@ export function LocationGateway() {
       .map<DistanceHub>((hub) => ({ hub, distanceKm: distanceByHubId.get(hub.id) }))
       .sort((a, b) => {
         if (userCoordinates && a.distanceKm !== undefined && b.distanceKm !== undefined) return a.distanceKm - b.distanceKm;
-        if (a.hub.isLive !== b.hub.isLive) return a.hub.isLive ? -1 : 1;
+        const stateOrder = HUB_STATE_ORDER[getExpansionHubDisplayState(a.hub)] - HUB_STATE_ORDER[getExpansionHubDisplayState(b.hub)];
+        if (stateOrder !== 0) return stateOrder;
         const priority = PRIORITY_ORDER[a.hub.researchPriority] - PRIORITY_ORDER[b.hub.researchPriority];
         return priority || a.hub.nameEl.localeCompare(b.hub.nameEl, "el");
       });
@@ -253,16 +281,21 @@ export function LocationGateway() {
     hubLayersRef.current.forEach((layer) => layer.remove());
     hubLayersRef.current = visibleMapHubs.map((hub) => {
       const selected = selectedHub?.id === hub.id;
+      const state = getExpansionHubDisplayState(hub);
+      const prospectCount = getExpansionHubProspectCount(hub);
       const layer = leaflet.circleMarker([hub.latitude, hub.longitude], {
-        radius: selected ? 9 : hub.isLive ? 7 : 5,
+        radius: selected ? 9 : state === "active" ? 7 : state === "prospect" ? 6 : 5,
         color: "#ffffff",
         weight: selected ? 3 : 2,
         opacity: 1,
-        fillColor: selected ? "#126c29" : hub.isLive ? "#1f6f2d" : "#58a968",
-        fillOpacity: 0.96
+        fillColor: HUB_STATE_COLORS[state],
+        fillOpacity: state === "inactive" ? 0.88 : 0.98
       });
+      const tooltipStatus = state === "prospect" && prospectCount
+        ? `${getExpansionHubStateLabel(hub)} · ${prospectCount}`
+        : getExpansionHubStateLabel(hub);
       layer
-        .bindTooltip(`${hub.nameEl} · ${hub.regionEl}`, { direction: "top", offset: [0, -5], opacity: 0.92 })
+        .bindTooltip(`${hub.nameEl} · ${hub.regionEl} · ${tooltipStatus}`, { direction: "top", offset: [0, -5], opacity: 0.94 })
         .on("click", () => chooseHub(hub))
         .addTo(map);
       if (selected) layer.bringToFront();
@@ -303,16 +336,17 @@ export function LocationGateway() {
     if (!selectedHub) return;
 
     const point: LatLngTuple = [selectedHub.latitude, selectedHub.longitude];
+    const stateColor = hubStateColor(selectedHub);
     map.setView(point, selectedMapZoom(), { animate: true });
 
     if (selectedHub.coverageMode !== "WHOLE_ISLAND") {
       coverageLayerRef.current = leaflet.circle(point, {
         radius: selectedHub.radiusKm * 1000,
-        color: "#2f8a3d",
+        color: stateColor,
         weight: 2,
         opacity: 0.72,
-        fillColor: "#69b96f",
-        fillOpacity: 0.11,
+        fillColor: stateColor,
+        fillOpacity: 0.1,
         interactive: false
       });
       coverageLayerRef.current.addTo(map);
@@ -354,11 +388,17 @@ export function LocationGateway() {
 
   function confirmHub(hub: ExpansionHub) {
     saveLocality(hub);
-    if (hub.isLive) {
+    const state = getExpansionHubDisplayState(hub);
+    if (state === "active") {
       window.location.assign("/");
       return;
     }
-    setSavedMessage(`${hub.nameEl}: η περιοχή αποθηκεύτηκε. Είναι ήδη στο πλάνο επέκτασης του ΚΟΝΤΑ ΜΟΥ.`);
+    if (state === "prospect") {
+      const prospectCount = getExpansionHubProspectCount(hub);
+      setSavedMessage(`${hub.nameEl}: η περιοχή αποθηκεύτηκε. Το hub είναι υπό ανάπτυξη${prospectCount ? ` με ${prospectCount} prospect vendors` : " με prospect vendors"}.`);
+      return;
+    }
+    setSavedMessage(`${hub.nameEl}: η περιοχή αποθηκεύτηκε. Το hub δεν είναι ακόμη ενεργό.`);
   }
 
   function selectRegion(code: ExpansionRegionCode | "ALL") {
@@ -367,6 +407,7 @@ export function LocationGateway() {
   }
 
   const selectedDistance = selectedHub ? distanceByHubId.get(selectedHub.id) : undefined;
+  const selectedState = selectedHub ? getExpansionHubDisplayState(selectedHub) : undefined;
   const resultCount = filteredHubs.length;
   const shouldShowAll = showAllHubs || Boolean(query.trim()) || regionCode !== "ALL" || Boolean(userCoordinates);
   const listHubs = shouldShowAll ? filteredHubs : filteredHubs.slice(0, 35);
@@ -432,19 +473,26 @@ export function LocationGateway() {
             </div>
           ) : null}
           <div className={styles.mapLegend}>
-            <span><i className={styles.legendLive} /> Ενεργή</span>
-            <span><i /> Στο πλάνο</span>
+            <span><i style={{ background: HUB_STATE_COLORS.inactive }} /> Ανενεργό</span>
+            <span><i style={{ background: HUB_STATE_COLORS.prospect }} /> Με prospects</span>
+            <span><i style={{ background: HUB_STATE_COLORS.active, boxShadow: "0 0 0 3px rgba(35, 133, 58, 0.15)" }} /> Ενεργό</span>
           </div>
           <a className={styles.mapAttribution} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
 
-          {selectedHub ? (
+          {selectedHub && selectedState ? (
             <div className={styles.mapSelection}>
               <div>
                 <small>{selectedHub.regionEl}</small>
                 <strong>{selectedHub.nameEl}</strong>
-                <span>{coverageLabel(selectedHub)}</span>
+                <span>{coverageLabel(selectedHub)} · {getExpansionHubStateDescription(selectedHub)}</span>
               </div>
-              <span className={selectedHub.isLive ? styles.liveDot : styles.plannedDot} aria-hidden="true" />
+              <span
+                style={{
+                  background: HUB_STATE_COLORS[selectedState],
+                  boxShadow: `0 0 0 5px ${HUB_STATE_SOFT_COLORS[selectedState]}`
+                }}
+                aria-hidden="true"
+              />
             </div>
           ) : null}
         </section>
@@ -473,41 +521,51 @@ export function LocationGateway() {
             ))}
           </div>
 
-          {selectedHub ? (
-            <div className={`${styles.selectedCard} ${selectedHub.isLive ? styles.selectedCardLive : ""}`}>
+          {selectedHub && selectedState ? (
+            <div className={`${styles.selectedCard} ${selectedState === "active" ? styles.selectedCardLive : ""}`}>
               <div className={styles.selectedHeader}>
-                <span className={styles.selectedPin} aria-hidden="true">●</span>
+                <span className={styles.selectedPin} style={{ color: HUB_STATE_COLORS[selectedState] }} aria-hidden="true">●</span>
                 <div>
                   <strong>{selectedHub.nameEl}</strong>
                   <small>{selectedHub.regionEl} · {coverageLabel(selectedHub)}</small>
                 </div>
-                <span className={styles.statusPill}>{selectedHub.isLive ? "Ενεργή" : "Στο πλάνο"}</span>
+                <span
+                  className={styles.statusPill}
+                  style={{
+                    background: HUB_STATE_SOFT_COLORS[selectedState],
+                    color: HUB_STATE_TEXT_COLORS[selectedState]
+                  }}
+                >{getExpansionHubStateLabel(selectedHub)}</span>
               </div>
+              <p>{getExpansionHubStateDescription(selectedHub)}</p>
               {selectedDistance !== undefined ? <p>Περίπου {selectedDistance < 10 ? selectedDistance.toFixed(1) : Math.round(selectedDistance)} km από την τοποθεσία σου.</p> : null}
               <button type="button" className={styles.primaryAction} onClick={() => confirmHub(selectedHub)}>
-                {selectedHub.isLive ? "Μπες στην περιοχή σου" : "Αποθήκευση περιοχής"}<span aria-hidden="true">→</span>
+                {selectedState === "active" ? "Μπες στην περιοχή σου" : selectedState === "prospect" ? "Αποθήκευση · Έρχεται σύντομα" : "Αποθήκευση περιοχής"}<span aria-hidden="true">→</span>
               </button>
             </div>
           ) : null}
 
           <div className={styles.hubList}>
-            {listHubs.length ? listHubs.map(({ hub, distanceKm }) => (
-              <button key={hub.id} type="button" className={`${styles.hubRow} ${selectedHub?.id === hub.id ? styles.hubRowSelected : ""}`} onClick={() => chooseHub(hub)}>
-                <span className={`${styles.rowPin} ${hub.isLive ? styles.rowPinLive : ""}`} aria-hidden="true">●</span>
-                <span className={styles.rowCopy}>
-                  <strong>{hub.nameEl}</strong>
-                  <small>{hub.regionEl} · {hub.isLive ? "Ενεργή τοπική αγορά" : "Στο πλάνο επέκτασης"}</small>
-                </span>
-                <span className={styles.rowMeta}>{distanceKm !== undefined ? `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km` : "›"}</span>
-              </button>
-            )) : (
+            {listHubs.length ? listHubs.map(({ hub, distanceKm }) => {
+              const state = getExpansionHubDisplayState(hub);
+              return (
+                <button key={hub.id} type="button" className={`${styles.hubRow} ${selectedHub?.id === hub.id ? styles.hubRowSelected : ""}`} onClick={() => chooseHub(hub)}>
+                  <span className={styles.rowPin} style={{ color: HUB_STATE_COLORS[state] }} aria-hidden="true">●</span>
+                  <span className={styles.rowCopy}>
+                    <strong>{hub.nameEl}</strong>
+                    <small>{hub.regionEl} · {getExpansionHubStateDescription(hub)}</small>
+                  </span>
+                  <span className={styles.rowMeta}>{distanceKm !== undefined ? `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km` : "›"}</span>
+                </button>
+              );
+            }) : (
               <div className={styles.emptyState}><strong>Δεν βρέθηκε περιοχή.</strong><span>Δοκίμασε διαφορετική ονομασία ή επίλεξε άλλη περιφέρεια.</span></div>
             )}
           </div>
 
           {!shouldShowAll && resultCount > 35 ? <button className={styles.showAll} type="button" onClick={() => setShowAllHubs(true)}>Προβολή και των 131 περιοχών</button> : null}
           <div className={styles.savedFeedback} aria-live="polite">{savedMessage}</div>
-          <p className={styles.planNote}>Η Σπάρτη παραμένει η ενεργή πιλοτική αγορά. Οι υπόλοιπες περιοχές εμφανίζονται ως μέρος του επίσημου πλάνου επέκτασης.</p>
+          <p className={styles.planNote}>Γκρι = ανενεργό hub. Κίτρινο = hub με prospect vendors / υπό ανάπτυξη. Πράσινο = ενεργό hub με ενεργούς vendors. Τα hub IDs και οι τοποθεσίες ακολουθούν το 131-hub expansion master.</p>
         </aside>
       </section>
     </main>
