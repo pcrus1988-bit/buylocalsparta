@@ -8,10 +8,15 @@ export type ExpansionHubResearchStatus = "IN_PROGRESS" | "ACTIVE_REFERENCE" | nu
 
 export type ExpansionHubRuntimeState = Readonly<{
   hubId: string;
-  lifecycleState: ExpansionHubLifecycleState;
+  /** Gateway-safe effective state. `active` always means customer-enterable. */
+  lifecycleState: ExpansionHubDisplayState;
+  /** Raw mutable registry lifecycle from public.expansion_hubs. */
+  registryLifecycleState: ExpansionHubLifecycleState;
   displayState: ExpansionHubDisplayState;
   prospectCount: number;
   researchStatus: ExpansionHubResearchStatus;
+  /** Compatibility alias consumed by the gateway client; equivalent to enterable. */
+  isLive: boolean;
   registryIsLive: boolean;
   isSpartaLegacy: boolean;
   marketId?: string;
@@ -37,12 +42,15 @@ function safeFallbackSnapshot(): ExpansionHubRuntimeSnapshot {
     source: "safe-fallback",
     hubs: EXPANSION_HUBS.map((hub) => {
       const isSparta = hub.isSpartaLegacy;
+      const state: ExpansionHubDisplayState = isSparta ? "active" : "inactive";
       return {
         hubId: hub.id,
-        lifecycleState: isSparta ? "active" : "inactive",
-        displayState: isSparta ? "active" : "inactive",
+        lifecycleState: state,
+        registryLifecycleState: state,
+        displayState: state,
         prospectCount: 0,
         researchStatus: isSparta ? "ACTIVE_REFERENCE" : null,
+        isLive: isSparta,
         registryIsLive: isSparta,
         isSpartaLegacy: isSparta,
         marketId: isSparta ? SPARTA_MARKET_ID : undefined,
@@ -78,7 +86,7 @@ function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
   const hubId = String(row.hub_id ?? "");
   if (!MASTER_IDS.has(hubId)) throw new Error(`Runtime registry references unknown HUB ${hubId || "<empty>"}`);
 
-  const lifecycleState = parseLifecycle(row.lifecycle_state, hubId);
+  const registryLifecycleState = parseLifecycle(row.lifecycle_state, hubId);
   const prospectCount = Number(row.prospect_count ?? 0);
   if (!Number.isInteger(prospectCount) || prospectCount < 0) throw new Error(`Invalid prospect_count for ${hubId}`);
 
@@ -93,7 +101,7 @@ function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
   const searchIndexable = row.search_indexable === true;
   const isDefaultFallback = row.is_default_fallback === true;
 
-  if (registryIsLive !== (lifecycleState === "active")) throw new Error(`Generated is_live mismatch for ${hubId}`);
+  if (registryIsLive !== (registryLifecycleState === "active")) throw new Error(`Generated is_live mismatch for ${hubId}`);
   if (isSpartaLegacy !== (hubId === "KM-HUB-015")) throw new Error(`Generated is_sparta_legacy mismatch for ${hubId}`);
 
   const enterable = registryIsLive
@@ -103,16 +111,18 @@ function parseRow(row: RuntimeRow): ExpansionHubRuntimeState {
     && shoppingEnabled;
   const displayState: ExpansionHubDisplayState = enterable
     ? "active"
-    : lifecycleState === "prospect"
+    : registryLifecycleState === "prospect"
       ? "prospect"
       : "inactive";
 
   return {
     hubId,
-    lifecycleState,
+    lifecycleState: displayState,
+    registryLifecycleState,
     displayState,
     prospectCount,
     researchStatus,
+    isLive: enterable,
     registryIsLive,
     isSpartaLegacy,
     marketId,
@@ -130,7 +140,7 @@ function validateSnapshot(hubs: readonly ExpansionHubRuntimeState[]): void {
   if (hubs.length !== EXPANSION_HUBS.length) throw new Error(`Runtime HUB registry must contain 131 rows; found ${hubs.length}`);
   if (new Set(hubs.map((hub) => hub.hubId)).size !== hubs.length) throw new Error("Runtime HUB registry contains duplicate hub_id values");
 
-  const activeWithoutOperationalBinding = hubs.filter((hub) => hub.lifecycleState === "active" && !hub.enterable);
+  const activeWithoutOperationalBinding = hubs.filter((hub) => hub.registryLifecycleState === "active" && !hub.enterable);
   if (activeWithoutOperationalBinding.length) {
     throw new Error(`Active HUBs require an operational market binding: ${activeWithoutOperationalBinding.map((hub) => hub.hubId).join(", ")}`);
   }
@@ -143,8 +153,8 @@ function validateSnapshot(hubs: readonly ExpansionHubRuntimeState[]): void {
     !sparta
     || !sparta.registryIsLive
     || !sparta.isSpartaLegacy
+    || sparta.registryLifecycleState !== "active"
     || sparta.lifecycleState !== "active"
-    || sparta.displayState !== "active"
     || !sparta.enterable
     || sparta.marketId !== SPARTA_MARKET_ID
     || sparta.gatewaySlug !== SPARTA_GATEWAY_SLUG
