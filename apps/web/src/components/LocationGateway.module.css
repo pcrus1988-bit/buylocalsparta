@@ -5,15 +5,13 @@
   --km-ink: #151d19;
   --km-muted: #68746c;
   --km-line: #dfe7e1;
-  --km-surface: #ffffff;
-  --km-surface-soft: #f7faf8;
   min-height: 100dvh;
+  padding-bottom: 28px;
   background:
     radial-gradient(circle at 16% 8%, rgba(85, 175, 103, 0.08), transparent 26rem),
     linear-gradient(180deg, #ffffff 0%, #f6faf7 100%);
   color: var(--km-ink);
   font-family: var(--font-comfortaa), Arial, Helvetica, sans-serif;
-  padding-bottom: 28px;
 }
 
 .header {
@@ -39,14 +37,14 @@
 .brand img { width: 42px; height: 42px; }
 
 .scopeBadge {
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 38px;
   padding: 0 14px;
   border: 1px solid #dce5df;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.86);
   color: #536158;
   font-size: 12px;
   box-shadow: 0 8px 24px rgba(20, 42, 27, 0.04);
@@ -68,7 +66,6 @@
   padding: 32px 12px 16px 6px;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
 }
 
 .eyebrow {
@@ -82,7 +79,6 @@
 .intro h1 {
   margin: 12px 0 14px;
   max-width: 420px;
-  color: var(--km-ink);
   font-family: var(--font-comfortaa), Arial, Helvetica, sans-serif;
   font-size: clamp(40px, 4.4vw, 66px);
   font-weight: 900;
@@ -129,17 +125,17 @@
 .search input::placeholder { color: #98a29b; }
 
 .locationButton {
-  margin-top: 12px;
+  width: 100%;
   min-height: 62px;
+  margin-top: 12px;
   display: grid;
   grid-template-columns: 38px 1fr;
   align-items: center;
   gap: 11px;
-  width: 100%;
   padding: 8px 13px;
   border: 1px solid #d8e1da;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   text-align: left;
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -169,12 +165,14 @@
 }
 
 .locationFeedback {
-  min-height: 36px;
+  min-height: 34px;
   padding: 8px 4px 0;
   color: #68766d;
   font-size: 10px;
   line-height: 1.45;
 }
+
+.locationFeedback:empty { min-height: 0; padding: 0; }
 
 .scopeCard {
   margin-top: auto;
@@ -207,122 +205,39 @@
   overflow: hidden;
   border: 1px solid #dce6e0;
   border-radius: 28px;
-  background: #dcecf5;
+  background: #e7eff2;
   box-shadow: 0 22px 60px rgba(27, 60, 37, 0.1);
   isolation: isolate;
 }
 
-.googleMap {
+.mapCanvas {
   position: absolute;
   inset: 0;
-  opacity: 0;
-  transition: opacity 220ms ease;
+  z-index: 1;
+  background: #dcecf5;
 }
 
-.googleMapReady { opacity: 1; }
+.mapCanvas :global(.leaflet-container) { font-family: var(--font-comfortaa), Arial, Helvetica, sans-serif; }
+.mapCanvas :global(.leaflet-tooltip) { border-radius: 8px; font-size: 10px; }
 
-.fallbackMap {
+.mapLoading,
+.mapError {
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  background:
-    linear-gradient(rgba(255,255,255,0.15), rgba(255,255,255,0.15)),
-    radial-gradient(circle at 45% 48%, rgba(255,255,255,0.9) 0 3%, transparent 3.5%),
-    linear-gradient(155deg, #d8edf7 0%, #c9e4f1 100%);
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 28px;
+  background: #eef5f1;
+  color: #476052;
+  text-align: center;
+  font-size: 11px;
 }
 
-.fallbackSea {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 42% 40%, rgba(239, 242, 217, 0.95) 0 10%, transparent 10.5%),
-    radial-gradient(ellipse at 32% 52%, rgba(234, 239, 209, 0.98) 0 16%, transparent 16.5%),
-    radial-gradient(ellipse at 49% 22%, rgba(235, 240, 213, 0.92) 0 12%, transparent 12.5%),
-    radial-gradient(ellipse at 64% 58%, rgba(235, 240, 213, 0.8) 0 5%, transparent 5.5%);
-  opacity: 0.9;
-}
-
-.mainlandShape {
-  position: absolute;
-  left: 18%;
-  top: 9%;
-  width: 48%;
-  height: 61%;
-  border-radius: 45% 52% 40% 48%;
-  background: linear-gradient(145deg, rgba(239, 242, 218, 0.92), rgba(214, 230, 199, 0.85));
-  clip-path: polygon(30% 0, 58% 4%, 73% 15%, 69% 29%, 91% 37%, 78% 49%, 67% 44%, 59% 57%, 73% 66%, 60% 81%, 43% 70%, 38% 99%, 27% 76%, 13% 84%, 8% 62%, 19% 49%, 3% 37%, 12% 18%);
-  box-shadow: inset 0 0 40px rgba(83, 127, 77, 0.12);
-}
-
-.creteShape {
-  position: absolute;
-  left: 34%;
-  top: 78%;
-  width: 30%;
-  height: 6%;
-  border-radius: 58% 42% 50% 45%;
-  background: rgba(225, 235, 207, 0.95);
-  transform: rotate(-3deg);
-}
-
-.mapGrid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.22;
-  background-image:
-    linear-gradient(rgba(53, 103, 69, 0.17) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(53, 103, 69, 0.17) 1px, transparent 1px);
-  background-size: 84px 84px;
-}
-
-.mapPin {
-  position: absolute;
-  width: 13px;
-  height: 13px;
-  padding: 0;
-  border: 2px solid rgba(255,255,255,0.96);
-  border-radius: 50%;
-  background: #5fa968;
-  box-shadow: 0 2px 7px rgba(17, 80, 35, 0.24);
-  cursor: pointer;
-  transform: translate(-50%, -50%);
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
-  z-index: 4;
-}
-
-.mapPin:hover, .mapPin:focus-visible {
-  transform: translate(-50%, -50%) scale(1.55);
-  box-shadow: 0 0 0 6px rgba(65, 153, 79, 0.18);
-  z-index: 9;
-}
-
-.mapPinLive {
-  width: 18px;
-  height: 18px;
-  background: var(--km-green-dark);
-  box-shadow: 0 0 0 8px rgba(47, 138, 61, 0.17), 0 4px 13px rgba(21, 91, 37, 0.28);
-  z-index: 8;
-}
-
-.mapPinSelected {
-  width: 21px;
-  height: 21px;
-  background: #166d28;
-  box-shadow: 0 0 0 10px rgba(47, 138, 61, 0.18), 0 5px 18px rgba(20, 82, 34, 0.28);
-  z-index: 10;
-}
-
-.userPoint {
-  position: absolute;
-  width: 13px;
-  height: 13px;
-  border: 3px solid white;
-  border-radius: 50%;
-  background: #1368ce;
-  box-shadow: 0 0 0 9px rgba(19, 104, 206, 0.16);
-  transform: translate(-50%, -50%);
-  z-index: 12;
-}
+.mapError strong { font-size: 13px; }
+.mapError span { color: #728078; font-size: 9px; }
 
 .mapLegend {
   position: absolute;
@@ -333,28 +248,29 @@
   align-items: center;
   gap: 12px;
   padding: 9px 11px;
-  border: 1px solid rgba(255,255,255,0.85);
+  border: 1px solid rgba(255,255,255,0.9);
   border-radius: 12px;
-  background: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.92);
   color: #526158;
   font-size: 9px;
   backdrop-filter: blur(10px);
+  pointer-events: none;
 }
 
 .mapLegend span { display: inline-flex; align-items: center; gap: 5px; }
-.mapLegend i { width: 8px; height: 8px; border-radius: 50%; background: #5fa968; }
+.mapLegend i { width: 8px; height: 8px; border-radius: 50%; background: #58a968; }
 .mapLegend .legendLive { background: var(--km-green-dark); box-shadow: 0 0 0 3px rgba(47, 138, 61, 0.15); }
 
-.mapLoading {
+.mapAttribution {
   position: absolute;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  background: rgba(240, 248, 244, 0.52);
-  color: #476052;
-  font-size: 11px;
-  backdrop-filter: blur(1px);
+  right: 8px;
+  bottom: 8px;
+  z-index: 20;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.88);
+  color: #65746b;
+  font-size: 7px;
 }
 
 .mapSelection {
@@ -363,15 +279,15 @@
   right: 18px;
   top: 18px;
   z-index: 40;
+  max-width: 330px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  max-width: 330px;
   padding: 12px 14px;
-  border: 1px solid rgba(255,255,255,0.86);
+  border: 1px solid rgba(255,255,255,0.9);
   border-radius: 16px;
-  background: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.94);
   box-shadow: 0 12px 35px rgba(26, 58, 36, 0.11);
   backdrop-filter: blur(14px);
 }
@@ -393,12 +309,13 @@
   padding: 18px;
   border: 1px solid #dce5df;
   border-radius: 28px;
-  background: rgba(255,255,255,0.96);
+  background: rgba(255,255,255,0.97);
   box-shadow: 0 20px 55px rgba(25, 57, 35, 0.08);
   overflow: hidden;
 }
 
-.sheetHandle { display: none; }
+.sheetHandleButton { display: none; }
+.sheetHandle { display: block; }
 
 .sheetTop {
   display: flex;
@@ -485,6 +402,7 @@
 .selectedHeader strong, .selectedHeader small { display: block; }
 .selectedHeader strong { font-size: 12px; }
 .selectedHeader small { margin-top: 4px; color: #748078; font-size: 7.5px; line-height: 1.35; }
+
 .statusPill {
   min-height: 23px;
   display: inline-flex;
@@ -582,13 +500,9 @@
   font-size: 7.5px;
   line-height: 1.4;
 }
+.savedFeedback:empty { min-height: 0; padding: 0; }
 
-.planNote {
-  margin: 7px 2px 0;
-  color: #89938c;
-  font-size: 6.8px;
-  line-height: 1.45;
-}
+.planNote { margin: 7px 2px 0; color: #89938c; font-size: 6.8px; line-height: 1.45; }
 
 .srOnly {
   position: absolute;
@@ -612,107 +526,198 @@
 @media (max-width: 1180px) {
   .layout { grid-template-columns: minmax(250px, 0.72fr) minmax(450px, 1.28fr); }
   .sheet { grid-column: 1 / -1; max-height: 540px; }
-  .intro { min-height: 650px; }
-  .mapSection { min-height: 650px; }
+  .intro, .mapSection { min-height: 650px; }
 }
 
 @media (max-width: 760px) {
-  .gateway { padding-bottom: 0; }
+  .gateway {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 0;
+    overflow: hidden;
+    background: #f8fbf9;
+  }
+
   .header {
-    width: calc(100% - 28px);
-    min-height: 70px;
+    width: calc(100% - 24px);
+    min-height: 58px;
+    height: 58px;
     border-bottom: 0;
   }
-  .brand { font-size: 15px; }
-  .brand img { width: 38px; height: 38px; }
-  .scopeBadge { padding: 0 10px; min-height: 31px; font-size: 8px; }
+
+  .brand { gap: 8px; font-size: 13px; }
+  .brand img { width: 34px; height: 34px; }
+  .scopeBadge { min-height: 28px; padding: 0 9px; font-size: 8px; gap: 4px; }
   .scopeBadge strong { font-size: 11px; }
+  .scopeBadge span { display: none; }
 
   .layout {
+    position: relative;
     width: 100%;
+    height: calc(100dvh - 58px);
     margin: 0;
-    display: block;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0;
+    overflow: hidden;
   }
 
   .intro {
     min-height: 0;
-    padding: 18px 18px 15px;
+    padding: 6px 14px 10px;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
     text-align: center;
-    align-items: center;
   }
 
-  .eyebrow { font-size: 8px; }
-  .intro h1 { margin: 9px 0 9px; font-size: clamp(34px, 11vw, 48px); }
-  .intro > p { margin: 0 0 17px; max-width: 340px; font-size: 12px; line-height: 1.5; }
-  .search, .locationButton { width: min(100%, 520px); }
-  .search { min-height: 50px; border-radius: 15px; }
-  .search input { font-size: 11px; }
-  .locationButton { min-height: 55px; }
-  .locationFeedback { min-height: 25px; max-width: 500px; padding-top: 6px; }
+  .eyebrow { display: none; }
+  .intro h1 { margin: 1px 0 3px; max-width: none; font-size: 29px; line-height: 1.05; letter-spacing: -0.045em; }
+  .intro > p { margin: 0 0 8px; max-width: none; font-size: 9.5px; line-height: 1.35; }
+
+  .search {
+    width: 100%;
+    min-height: 44px;
+    height: 44px;
+    gap: 8px;
+    padding: 0 13px;
+    border-radius: 13px;
+    box-shadow: 0 5px 18px rgba(24, 48, 32, 0.05);
+  }
+  .search > span:not(.srOnly) { font-size: 20px; }
+  .search input { font-size: 10px; }
+
+  .locationButton {
+    width: 100%;
+    min-height: 44px;
+    height: 44px;
+    margin-top: 7px;
+    grid-template-columns: 30px 1fr;
+    gap: 9px;
+    padding: 4px 11px;
+    border-radius: 13px;
+  }
+  .locationIcon { width: 29px; height: 29px; font-size: 19px; }
+  .locationButton strong { font-size: 9px; }
+  .locationButton small { margin-top: 1px; font-size: 7px; }
+
+  .locationFeedback {
+    min-height: 0;
+    padding: 4px 2px 0;
+    font-size: 7px;
+    line-height: 1.25;
+  }
+
   .scopeCard { display: none; }
 
   .mapSection {
-    min-height: 54dvh;
-    height: 530px;
-    border-left: 0;
-    border-right: 0;
+    grid-row: 2;
+    min-height: 0;
+    height: 100%;
+    border: 0;
     border-radius: 0;
     box-shadow: none;
   }
 
-  .mapSelection {
-    left: 14px;
-    right: 14px;
-    top: 14px;
-    max-width: none;
-    width: auto;
-    padding: 10px 12px;
+  .mapSelection { display: none; }
+  .mapSection :global(.leaflet-control-zoom) { display: none; }
+
+  .mapLegend {
+    left: 10px;
+    bottom: 230px;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 7px;
+    border-radius: 9px;
+  }
+  .mapLegend i { width: 6px; height: 6px; }
+
+  .mapAttribution {
+    top: 7px;
+    right: 7px;
+    bottom: auto;
+    font-size: 5.5px;
   }
 
-  .mapLegend { bottom: 90px; }
-
   .sheet {
-    position: relative;
-    z-index: 50;
-    width: calc(100% - 16px);
-    max-height: none;
-    min-height: 470px;
-    margin: -78px auto 0;
-    padding: 12px 12px 18px;
-    border-radius: 25px 25px 0 0;
-    border-bottom: 0;
-    box-shadow: 0 -16px 45px rgba(22, 53, 31, 0.12);
-    background: rgba(255,255,255,0.98);
-    backdrop-filter: blur(20px);
+    position: absolute;
+    z-index: 70;
+    left: 7px;
+    right: 7px;
+    bottom: 7px;
+    width: auto;
+    max-height: 224px;
+    padding: 7px 10px 10px;
+    border-radius: 22px;
+    border: 1px solid rgba(218, 228, 221, 0.95);
+    box-shadow: 0 -10px 35px rgba(20, 54, 30, 0.14);
+    background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(18px);
+    transition: max-height 180ms ease, height 180ms ease;
+  }
+
+  .sheetExpanded {
+    height: min(52dvh, 430px);
+    max-height: min(52dvh, 430px);
+  }
+
+  .sheetHandleButton {
+    width: 100%;
+    height: 17px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
   }
 
   .sheetHandle {
-    width: 38px;
+    width: 34px;
     height: 4px;
-    display: block;
-    margin: 0 auto 10px;
     border-radius: 999px;
-    background: #d9dfdb;
+    background: #d7ded9;
   }
 
-  .sheetTop { padding-bottom: 8px; }
-  .sheetTop h2 { font-size: 17px; }
-  .regionFilters { margin: 0 -2px; padding-bottom: 9px; }
-  .regionFilters button { min-height: 31px; font-size: 8px; }
-  .selectedCard { margin-bottom: 8px; }
-  .hubList { max-height: 330px; border-top-color: #e8eeea; }
-  .hubRow { min-height: 58px; padding-inline: 7px; }
-  .rowCopy strong { font-size: 10.5px; }
-  .rowCopy small { font-size: 7.5px; }
-  .planNote { font-size: 7px; }
+  .sheetTop { padding: 0 2px 5px; }
+  .sheetTop small { font-size: 7px; }
+  .sheetTop h2 { margin-top: 2px; font-size: 15px; }
+  .sheetTop > span { min-width: 28px; height: 28px; border-radius: 10px; font-size: 8px; }
+
+  .regionFilters { gap: 5px; padding: 0 0 6px; }
+  .regionFilters button { min-height: 25px; padding: 0 8px; font-size: 6.5px; }
+
+  .selectedCard { margin: 0; padding: 8px 9px; border-radius: 13px; }
+  .selectedHeader { grid-template-columns: 14px minmax(0, 1fr) auto; gap: 6px; }
+  .selectedPin { font-size: 9px; }
+  .selectedHeader strong { font-size: 9px; }
+  .selectedHeader small { margin-top: 2px; font-size: 6px; }
+  .statusPill { min-height: 19px; padding: 0 6px; font-size: 5.7px; }
+  .selectedCard p { margin-top: 5px; font-size: 6px; }
+  .primaryAction { min-height: 31px; margin-top: 6px; padding: 0 10px; border-radius: 9px; font-size: 7px; }
+
+  .hubList { display: none; }
+  .sheetExpanded .selectedCard { display: none; }
+  .sheetExpanded .hubList { display: block; flex: 1 1 auto; }
+
+  .hubRow { min-height: 47px; padding: 6px 5px; }
+  .rowCopy strong { font-size: 9px; }
+  .rowCopy small { margin-top: 3px; font-size: 6.5px; }
+  .rowMeta { font-size: 6.5px; }
+
+  .showAll { display: none; }
+  .savedFeedback { padding-top: 4px; font-size: 6px; }
+  .planNote { display: none; }
 }
 
 @media (max-width: 390px) {
-  .scopeBadge span { display: none; }
-  .scopeBadge { gap: 3px; }
-  .intro { padding-inline: 14px; }
-  .mapSection { height: 500px; }
-  .sheet { width: calc(100% - 10px); }
+  .header { width: calc(100% - 18px); }
+  .intro { padding-inline: 10px; }
+  .intro h1 { font-size: 27px; }
+  .sheet { left: 5px; right: 5px; bottom: 5px; }
+  .mapLegend { bottom: 226px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
