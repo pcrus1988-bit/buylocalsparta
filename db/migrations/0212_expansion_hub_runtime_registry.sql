@@ -116,10 +116,21 @@ $$;
 
 ALTER TABLE public.expansion_hubs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY expansion_hubs_platform_all
+REVOKE ALL ON TABLE public.expansion_hubs FROM anon, authenticated;
+GRANT SELECT ON TABLE public.expansion_hubs TO bls_app_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.expansion_hubs TO bls_platform_runtime;
+
+CREATE POLICY expansion_hubs_runtime_read
+  ON public.expansion_hubs
+  FOR SELECT
+  TO bls_app_runtime, bls_platform_runtime
+  USING (true);
+
+CREATE POLICY expansion_hubs_platform_write
   ON public.expansion_hubs
   FOR ALL
-  USING ((SELECT bls_private.is_platform_runtime()))
-  WITH CHECK ((SELECT bls_private.is_platform_runtime()));
+  TO bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
 
 COMMIT;
