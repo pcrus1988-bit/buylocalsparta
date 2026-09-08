@@ -61,6 +61,38 @@ for (const boundary of [
   assert.ok(runtimeRegistryMigration.includes(boundary), `0212 runtime HUB registry is missing boundary: ${boundary}`);
 }
 
+// The public gateway must consume mutable lifecycle state from PostgreSQL on the
+// server, with a fail-closed database-less fallback. It must never introduce a
+// browser-side database client or a second hard-coded research snapshot.
+const runtimeReader = readFileSync("apps/web/src/lib/expansion-hub-runtime.ts", "utf8");
+for (const boundary of [
+  "getProductionPostgresRuntime().sqlPool.query",
+  "FROM public.expansion_hubs",
+  "ORDER BY hub_id",
+  "Runtime HUB registry must contain 131 rows",
+  'source: "safe-fallback"',
+  'lifecycleState: hub.isSpartaLegacy ? "active" : "inactive"'
+]) {
+  assert.ok(runtimeReader.includes(boundary), `Expansion HUB runtime reader is missing safety boundary: ${boundary}`);
+}
+assert.ok(!runtimeReader.includes("createClient("), "Gateway runtime must not create a browser/Supabase client");
+
+const gatewayPage = readFileSync("apps/web/src/app/choose-location/page.tsx", "utf8");
+for (const boundary of [
+  'export const dynamic = "force-dynamic"',
+  "getExpansionHubRuntimeSnapshot()",
+  "runtimeHubs={runtime.hubs}",
+  "index: false",
+  "follow: false"
+]) {
+  assert.ok(gatewayPage.includes(boundary), `Choose-location page is missing runtime/SEO boundary: ${boundary}`);
+}
+
+const gatewayClient = readFileSync("apps/web/src/components/LocationGateway.tsx", "utf8");
+assert.ok(gatewayClient.includes("runtimeHubs"), "Location gateway must receive server-projected runtime HUB state");
+assert.ok(gatewayClient.includes('window.location.assign("/")'), "Only the active legacy gateway action may enter the existing root storefront");
+assert.ok(!gatewayClient.includes("expansion-hub-status"), "Location gateway must not use a hard-coded mutable HUB status module");
+
 assert.equal(resolveHubSelection("sparti")?.id, SPARTA_HUB_ID);
 assert.equal(resolveHubSelection("sparta")?.id, SPARTA_HUB_ID, "Existing market code remains a compatibility alias");
 assert.equal(resolveHubSelection("kalamata")?.id, KALAMATA_HUB_ID);
@@ -110,4 +142,4 @@ const fallback = resolveHubContext({ pathname: "/admin" });
 assert.equal(fallback.hub.id, SPARTA_HUB_ID, "Missing HUB context must safely fall back to Sparta");
 assert.equal(fallback.source, "fallback");
 
-console.log("Expansion HUB verification passed: static 131-HUB master aligned with runtime registry, Sparta compatibility preserved, Kalamata protected, routes guarded.");
+console.log("Expansion HUB verification passed: static master + DB runtime registry + choose-location gateway aligned; Sparta compatibility preserved; Kalamata protected.");

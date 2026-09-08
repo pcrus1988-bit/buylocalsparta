@@ -1,0 +1,107 @@
+/* Desktop/tablet hierarchy fixes for the location gateway.
+   Scoped to the location browser aside so these rules cannot leak into other pages. */
+@media (min-width: 761px) {
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(1) {
+    align-items: flex-end;
+    padding: 4px 4px 16px;
+    margin-bottom: 2px;
+    border-bottom: 1px solid #edf1ee;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(1) > div > small {
+    margin-bottom: 5px;
+    color: #4f6255;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.025em;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(1) > div > h2 {
+    margin-top: 0;
+    color: #172019;
+    font-size: 27px;
+    line-height: 1.05;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(1) > span {
+    width: auto;
+    min-width: 86px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 11px;
+    border: 1px solid #d5ead9;
+    border-radius: 12px;
+    background: #eef8ef;
+    color: #267535;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(1) > span::after {
+    content: " περιοχές";
+    font-size: 8px;
+    font-weight: 700;
+    color: #5e7964;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    padding: 12px 1px 14px;
+    scrollbar-width: auto;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2)::before {
+    content: "Περιφέρεια";
+    grid-column: 1 / -1;
+    margin: 0 1px 2px;
+    color: #435449;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.025em;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2) > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    height: auto;
+    padding: 7px 8px;
+    border-radius: 10px;
+    font-size: 8.5px;
+    font-weight: 800;
+    line-height: 1.25;
+    white-space: normal;
+    text-align: center;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2) > button:hover {
+    transform: translateY(-1px);
+    border-color: #a9c8af;
+    background: #f8fbf9;
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2) > button:first-of-type {
+    grid-column: span 3;
+    min-height: 40px;
+    border-color: #c9decf;
+    font-size: 9px;
+  }
+}
+
+/* The tablet panel spans the full viewport width, so four columns are easier to scan. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  aside[aria-label="Επιλογή περιοχής"] > div:nth-of-type(2) > button:first-of-type {
+    grid-column: span 4;
+  }
+}
