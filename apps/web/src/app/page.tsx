@@ -160,7 +160,7 @@ export default async function Home() {
 
           <div className={styles.heroVisual}>
             <section className={styles.heroSearchCard} aria-labelledby="home-search-title">
-              <div className="searchIntro">
+              <div className={styles.searchIntro}>
                 <div className="eyebrow">Ξεκίνα εδώ</div>
                 <h2 id="home-search-title">Τι ψάχνεις σήμερα;</h2>
                 <p>Μία απλή αναζήτηση, χωρίς φίλτρα. Αν δεν υπάρχει αποτέλεσμα, θα σου προτείνουμε αμέσως Ask Local.</p>
@@ -238,9 +238,9 @@ export default async function Home() {
             <h2 id="how-title">Καταλαβαίνεις πώς λειτουργεί σε λίγα δευτερόλεπτα.</h2>
           </div>
           <div className={styles.stepsGrid}>
-            <article><span>01</span><span style={{ display: "block", fontWeight: 800 }}>Ψάχνεις</span><p>Βρες το προϊόν χωρίς να χαθείς σε δεκάδες φίλτρα.</p></article>
-            <article><span>02</span><span style={{ display: "block", fontWeight: 800 }}>Ρωτάς αν χρειάζεται</span><p>Όταν δεν υπάρχει αποτέλεσμα, το Ask Local εμφανίζεται ακριβώς τη σωστή στιγμή.</p></article>
-            <article><span>03</span><span style={{ display: "block", fontWeight: 800 }}>Αγοράζεις τοπικά</span><p>Ένα checkout, δίκαιη ανάθεση και επιλογή τοπικής παραλαβής όπου υποστηρίζεται.</p></article>
+            <article><span>01</span><strong>Ψάχνεις</strong><p>Βρες το προϊόν χωρίς να χαθείς σε δεκάδες φίλτρα.</p></article>
+            <article><span>02</span><strong>Ρωτάς αν χρειάζεται</strong><p>Όταν δεν υπάρχει αποτέλεσμα, το Ask Local εμφανίζεται ακριβώς τη σωστή στιγμή.</p></article>
+            <article><span>03</span><strong>Αγοράζεις τοπικά</strong><p>Ένα checkout, δίκαιη ανάθεση και επιλογή τοπικής παραλαβής όπου υποστηρίζεται.</p></article>
           </div>
           <div className={styles.howActions}>
             <a className="button" href="/how-it-works">Πώς λειτουργεί το ΚΟΝΤΑ ΜΟΥ</a>
