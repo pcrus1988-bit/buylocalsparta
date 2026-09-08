@@ -56,7 +56,7 @@ requireText(applicationRoute, "acceptedProspectStatus", "Prospect submission end
 
 // HUB assignment must be bounded and geocoded where exact registry locality is insufficient.
 requireText(locationRuntime, "GOOGLE_MAPS_GEOCODING_SERVER_KEY", "HUB resolver must use a server-only Google geocoding key for catchment resolution");
-requireText(locationRuntime, "25", "HUB resolver must enforce the governed 25 km expansion radius");
+requireText(locationRuntime, "distanceKm <= hub.radiusKm", "HUB resolver must enforce each governed HUB radius from the 131-HUB master");
 requireText(locationRuntime, 'status: "unresolved"', "HUB resolver must support safe unresolved results instead of guessing");
 
 // Database boundary: after HUB foundation, no Sparta prospect, AFM uniqueness, immutable checksum.
