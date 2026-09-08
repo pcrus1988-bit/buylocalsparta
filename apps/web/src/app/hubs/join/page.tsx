@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { EXPANSION_HUBS } from "../../../lib/expansion-hubs";
 import { HUB_EXPANSION_PLANS } from "../../../lib/hub-expansion-plans";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import styles from "./page.module.css";
@@ -9,110 +8,134 @@ import styles from "./page.module.css";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/hubs/join", {
     title: "Συμμετοχή στα νέα HUB του ΚΟΝΤΑ ΜΟΥ",
-    description: "Δήλωσε την επιχείρησή σου για ένα από τα νέα τοπικά HUB του ΚΟΝΤΑ ΜΟΥ. CLAIM, PRESENCE, SHOP, GROWTH και PRO για την επόμενη πόλη."
+    description: "Ξεκίνα με το ΑΦΜ, επαλήθευσε την επιχείρησή σου μέσω Γ.Ε.ΜΗ., άφησε το ΚΟΝΤΑ ΜΟΥ να εντοπίσει αυτόματα το HUB και σύγκρινε CLAIM, PRESENCE, SHOP, GROWTH και PRO."
   });
 }
 
-const expansionHubs = EXPANSION_HUBS
-  .filter((hub) => !hub.isSpartaLegacy)
-  .slice()
-  .sort((a, b) => a.nameEl.localeCompare(b.nameEl, "el"));
-
 const steps = [
-  ["01", "Επίλεξε HUB", "Διάλεξε την πόλη/περιοχή στην οποία βρίσκεται η επιχείρησή σου."],
-  ["02", "Δήλωσε ενδιαφέρον", "Επίλεξε πρόγραμμα και υπέβαλε τα πραγματικά στοιχεία της επιχείρησης."],
-  ["03", "Έλεγχος", "Η ομάδα μας ελέγχει την επιχείρηση και τη σχέση της με το συγκεκριμένο HUB."],
-  ["04", "Ενεργοποίηση όταν είναι έτοιμο", "Η αίτηση δεν ενεργοποιεί αυτόματα πωλήσεις ή χρέωση. Προχωράμε μαζί όταν το HUB και η επιχείρηση είναι έτοιμα."]
+  ["01", "Βάλε ΑΦΜ", "Ξεκινάς μόνο με το ΑΦΜ της επιχείρησης."],
+  ["02", "Γ.Ε.ΜΗ. → HUB", "Ανακτούμε τα δημόσια στοιχεία Γ.Ε.ΜΗ. και αντιστοιχίζουμε αυτόματα την επαληθευμένη τοποθεσία στο σωστό HUB."],
+  ["03", "Διάλεξε πρόγραμμα", "Συγκρίνεις καθαρά τι περιλαμβάνει κάθε πλάνο και συμπληρώνεις μόνο ό,τι λείπει."],
+  ["04", "Έλεγχος & ενεργοποίηση", "Η αίτηση μένει prospect μέχρι να ολοκληρωθούν verification και εμπορικοί όροι. Δεν γίνεται αυτόματη χρέωση ή ενεργοποίηση."]
+] as const;
+
+const featureRows = [
+  { label: "Επαληθευμένη καταχώριση", plans: ["claim", "presence", "shop", "growth", "pro"] },
+  { label: "Βασικό προφίλ επιχείρησης", plans: ["claim", "presence", "shop", "growth", "pro"] },
+  { label: "Πλούσιο προφίλ & media", plans: ["presence", "shop", "growth", "pro"] },
+  { label: "Αιτήματα πελατών", plans: ["presence", "shop", "growth", "pro"] },
+  { label: "Προϊόντα στο marketplace", plans: ["shop", "growth", "pro"] },
+  { label: "Vendor workspace", plans: ["shop", "growth", "pro"] },
+  { label: "Παραγγελίες & fulfilment", plans: ["shop", "growth", "pro"] },
+  { label: "Ενισχυμένο catalogue onboarding", plans: ["growth", "pro"] },
+  { label: "Ενισχυμένη εμπορική υποστήριξη", plans: ["growth", "pro"] },
+  { label: "Priority support", plans: ["pro"] }
 ] as const;
 
 export default function HubExpansionJoinPage() {
   return <main>
-    <div className={styles.announcement}>Για επιχειρήσεις εκτός του ενεργού HUB Σπάρτης · 130 περιοχές επέκτασης</div>
+    <div className={styles.announcement}>Για επιχειρήσεις στα 130 HUB επέκτασης · το HUB προκύπτει αυτόματα από Γ.Ε.ΜΗ.</div>
     <SiteHeader compact />
 
     <section className={`shell page-hero ${styles.hero}`}>
       <div className="eyebrow">KONTA MOY · HUB expansion</div>
-      <h1>Άνοιξε τον επόμενο τοπικό HUB μαζί μας.</h1>
-      <p className="lead">Η ΚΟΝΤΑ ΜΟΥ επεκτείνεται πόλη-πόλη. Δήλωσε από τώρα την επιχείρησή σου για το HUB της περιοχής σου, κατοχύρωσε την παρουσία σου ή προετοιμάσου για πωλήσεις όταν το HUB ενεργοποιηθεί.</p>
+      <h1>Τοπική παρουσία με ένα ΑΦΜ.</h1>
+      <p className="lead">Δεν χρειάζεται να ξέρεις ποιο HUB να διαλέξεις. Βάζεις το ΑΦΜ, βρίσκουμε την επιχείρησή σου στο Γ.Ε.ΜΗ., διαβάζουμε την επαληθευμένη τοποθεσία και αντιστοιχίζουμε αυτόματα το σωστό KONTA MOY HUB.</p>
       <div className={styles.heroActions}>
-        <a className="button" href="#hub-selector">Βρες το HUB σου</a>
-        <a className="button button-secondary" href="#plans">Δες τα προγράμματα</a>
+        <a className="button" href="/hubs/join/apply?plan=claim#application-form">Ξεκίνα δωρεάν με ΑΦΜ</a>
+        <a className="button button-secondary" href="#plans">Σύγκρινε προγράμματα</a>
       </div>
-      <p className="section-note">Έχεις κατάστημα στη Σπάρτη ή στην ενεργή περιοχή της; <a href="/join">Χρησιμοποίησε την υπάρχουσα αίτηση συνεργασίας Σπάρτης →</a></p>
+      <p className="section-note">Αν η τοποθεσία Γ.Ε.ΜΗ. ανήκει στο ενεργό HUB Σπάρτης, σε μεταφέρουμε αυτόματα στην υπάρχουσα διαδικασία <a href="/join">/join</a>.</p>
     </section>
 
-    <section className={`shell section ${styles.selectorSection}`} id="hub-selector" aria-labelledby="hub-title">
-      <div className={styles.selectorCopy}>
-        <div className="eyebrow">130 HUB επέκτασης</div>
-        <h2 id="hub-title">Πρώτα, πες μας πού ανήκει η επιχείρησή σου.</h2>
-        <p>Η επιλογή HUB αποθηκεύεται μαζί με την αίτησή σου. Δεν μεταφέρει προϊόντα, παραγγελίες ή δεδομένα στη Σπάρτη και δεν κάνει το HUB δημόσιο πριν την επίσημη ενεργοποίησή του.</p>
+    <section className={styles.autoBand} aria-label="Αυτόματη αντιστοίχιση HUB">
+      <div className={`shell ${styles.autoGrid}`}>
+        <div><span>1</span><strong>ΑΦΜ</strong></div>
+        <i aria-hidden="true">→</i>
+        <div><span>2</span><strong>Γ.Ε.ΜΗ. ✓</strong></div>
+        <i aria-hidden="true">→</i>
+        <div><span>3</span><strong>Διεύθυνση + Τ.Κ.</strong></div>
+        <i aria-hidden="true">→</i>
+        <div><span>4</span><strong>Αυτόματο HUB ✓</strong></div>
       </div>
-      <form className={styles.hubForm} action="/hubs/join/apply" method="get">
-        <input type="hidden" name="plan" value="claim" />
-        <label htmlFor="hub">Πόλη / HUB</label>
-        <select id="hub" name="hub" required defaultValue="">
-          <option value="" disabled>Επίλεξε περιοχή…</option>
-          {expansionHubs.map((hub) => <option key={hub.id} value={hub.slug}>{hub.nameEl} · {hub.regionEl}</option>)}
-        </select>
-        <button className="button" type="submit">Συνέχισε με δωρεάν CLAIM</button>
-        <span>Μπορείς να αλλάξεις πρόγραμμα στην επόμενη οθόνη.</span>
-      </form>
     </section>
 
     <section className={styles.planBand} id="plans" aria-labelledby="plans-title">
       <div className="shell section">
         <div className={styles.planIntro}>
-          <div><div className="eyebrow">Προγράμματα επέκτασης</div><h2 id="plans-title">Από δωρεάν παρουσία μέχρι πλήρες local commerce.</h2></div>
-          <p>Η επιλογή εδώ είναι δήλωση ενδιαφέροντος. Δεν γίνεται online χρέωση κατά την αίτηση και δεν δημιουργείται αυτόματα ενεργός vendor λογαριασμός.</p>
+          <div><div className="eyebrow">Προγράμματα επέκτασης</div><h2 id="plans-title">Μία ματιά. Όλες οι διαφορές.</h2></div>
+          <p>CLAIM για δωρεάν παρουσία ή εμπορικό πλάνο όταν θέλεις περισσότερες λειτουργίες. Καμία χρέωση δεν γίνεται μέσα στην αίτηση.</p>
         </div>
-        <div className={styles.planGrid}>
-          {HUB_EXPANSION_PLANS.map((plan) => <article className={`${styles.planCard} ${plan.featured ? styles.featured : ""}`} key={plan.code}>
-            <div className={styles.planTop}><span>{plan.eyebrow}</span>{plan.featured && <b>Πλήρες marketplace</b>}</div>
-            <h3>{plan.name}</h3>
-            <p className={styles.planSummary}>{plan.summary}</p>
-            <div className={styles.metrics}>
-              <div><span>Ένταξη</span><strong>{plan.setupLabel}</strong></div>
-              <div><span>Συνδρομή</span><strong>{plan.recurringLabel}</strong></div>
-              <div><span>Προμήθεια</span><strong>{plan.commissionLabel}</strong></div>
-            </div>
-            <p className={styles.bestFor}>{plan.bestFor}</p>
-            <ul>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
-            <a className={`button ${styles.planButton}`} href={`/hubs/join/apply?plan=${plan.code}`}>{plan.code === "claim" ? "Κατοχύρωσε δωρεάν παρουσία" : `Επίλεξε ${plan.name}`}</a>
-          </article>)}
+
+        <div className={styles.tableWrap} tabIndex={0} aria-label="Οριζόντια σύγκριση προγραμμάτων">
+          <table className={styles.comparisonTable}>
+            <thead>
+              <tr>
+                <th scope="col">Περιλαμβάνει</th>
+                {HUB_EXPANSION_PLANS.map((plan) => <th scope="col" className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
+                  <span>{plan.eyebrow}</span>
+                  <strong>{plan.name}</strong>
+                  {plan.featured && <b>Marketplace</b>}
+                </th>)}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className={styles.priceRow}><th scope="row">Ένταξη</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.setupLabel}</strong></td>)}</tr>
+              <tr className={styles.priceRow}><th scope="row">Συνδρομή</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.recurringLabel}</strong></td>)}</tr>
+              <tr className={styles.priceRow}><th scope="row">Προμήθεια</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.commissionLabel}</strong></td>)}</tr>
+              {featureRows.map((row) => <tr key={row.label}>
+                <th scope="row">{row.label}</th>
+                {HUB_EXPANSION_PLANS.map((plan) => {
+                  const included = (row.plans as readonly string[]).includes(plan.code);
+                  return <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
+                    <span className={included ? styles.check : styles.dash} aria-hidden="true">{included ? "✓" : "—"}</span>
+                    <span className={styles.srOnly}>{included ? "Περιλαμβάνεται" : "Δεν περιλαμβάνεται"}</span>
+                  </td>;
+                })}
+              </tr>)}
+              <tr className={styles.actionRow}>
+                <th scope="row"><span className={styles.srOnly}>Επιλογή προγράμματος</span></th>
+                {HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
+                  <a className={`button ${styles.planButton}`} href={`/hubs/join/apply?plan=${plan.code}#application-form`}>{plan.code === "claim" ? "Δωρεάν CLAIM" : `Επίλεξε ${plan.name}`}</a>
+                </td>)}
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <p className={styles.footnote}>Οι αναγραφόμενες τιμές είναι προ ΦΠΑ όπου εφαρμόζεται. Τα εμπορικά προγράμματα οριστικοποιούνται πριν την ενεργοποίηση. Το CLAIM δεν απαιτεί πληρωμή. Η τιμή προγράμματος δεν αγοράζει προνομιακή κατάταξη: η συμμετοχή στην ανακάλυψη και η ανάθεση πωλήσεων διέπονται από τους κανόνες Fair Vendor Exposure και επιλεξιμότητας.</p>
+        <p className={styles.swipeHint}>Σε κινητό: σύρε οριζόντια για να συγκρίνεις όλα τα πλάνα.</p>
+        <p className={styles.footnote}>Οι τιμές εμφανίζονται προ ΦΠΑ όπου εφαρμόζεται. Το CLAIM δεν απαιτεί πληρωμή. Τα υψηλότερα πλάνα αγοράζουν περισσότερες υπηρεσίες και χαμηλότερη προμήθεια — όχι προνομιακή κατάταξη. Η δίκαιη συμμετοχή παραμένει κοινή για όλους.</p>
       </div>
     </section>
 
     <section className="shell section">
-      <div className={styles.stepsHeader}><div className="eyebrow">Πώς λειτουργεί</div><h2>Prospect τώρα. Ενεργός vendor μόνο όταν εγκριθεί.</h2></div>
+      <div className={styles.stepsHeader}><div className="eyebrow">Πώς λειτουργεί</div><h2>Ίδια λογική onboarding. Αυτόματο HUB.</h2></div>
       <div className={styles.steps}>{steps.map(([number, title, copy]) => <article key={number}><span>{number}</span><h3>{title}</h3><p>{copy}</p></article>)}</div>
     </section>
 
     <section className={styles.trustBand}>
       <div className={`shell ${styles.trustGrid}`}>
-        <div><div className="eyebrow light">Μία Ελλάδα, τοπικά HUB</div><h2>Η επέκταση δεν πρέπει να μπερδέψει τις τοπικές αγορές.</h2></div>
+        <div><div className="eyebrow light">Γ.Ε.ΜΗ. verified routing</div><h2>Ο vendor δεν μπορεί να δηλώσει μόνος του άλλη πόλη.</h2></div>
         <div className={styles.trustPoints}>
-          <p><strong>Ξεχωριστή τοπική ταυτότητα.</strong> Η αίτησή σου συνδέεται με το συγκεκριμένο HUB και όχι με το ενεργό marketplace Σπάρτης.</p>
-          <p><strong>Καμία αυτόματη ενεργοποίηση.</strong> Prospect, verification και εμπορική ενεργοποίηση είναι ξεχωριστά στάδια.</p>
-          <p><strong>Δίκαιη συμμετοχή.</strong> Τα υψηλότερα πακέτα μειώνουν κόστος/προμήθεια και αυξάνουν υπηρεσίες — δεν αγοράζουν την πρώτη θέση.</p>
+          <p><strong>Registry first.</strong> Νομική ταυτότητα, διεύθυνση και Τ.Κ. προέρχονται από τα δημόσια στοιχεία Γ.Ε.ΜΗ.</p>
+          <p><strong>Server-side επανέλεγχος.</strong> Στην υποβολή επαναλαμβάνεται ΑΦΜ → Γ.Ε.ΜΗ. → τοποθεσία → HUB ώστε το browser να μην μπορεί να αλλάξει την αντιστοίχιση.</p>
+          <p><strong>Σπάρτη παραμένει ξεχωριστή.</strong> Αν η επαληθευμένη τοποθεσία ανήκει στο HUB Σπάρτης, η αίτηση συνεχίζει στο υπάρχον /join.</p>
         </div>
       </div>
     </section>
 
     <section className={`shell section ${styles.faq}`}>
-      <div><div className="eyebrow">Συχνές ερωτήσεις</div><h2>Πριν υποβάλεις αίτηση.</h2></div>
+      <div><div className="eyebrow">Συχνές ερωτήσεις</div><h2>Χωρίς περιττές επιλογές.</h2></div>
       <div className={styles.faqItems}>
-        <details><summary>Το HUB της πόλης μου είναι ήδη ενεργό;</summary><p>Η συγκεκριμένη σελίδα αφορά HUB επέκτασης. Η αίτηση καταγράφει ενδιαφέρον και προετοιμάζει την επιχείρησή σου· δεν σημαίνει ότι η αγορά της πόλης είναι ήδη διαθέσιμη στους πελάτες.</p></details>
-        <details><summary>Πληρώνω κατά την αίτηση;</summary><p>Όχι. Δεν συλλέγουμε πληρωμή στο prospect form. Το CLAIM παραμένει χωρίς χρέωση. Για τα εμπορικά προγράμματα, οι όροι επιβεβαιώνονται ξεχωριστά πριν από οποιαδήποτε ενεργοποίηση ή χρέωση.</p></details>
-        <details><summary>Τι γίνεται αν έχω επιχείρηση στη Σπάρτη;</summary><p>Η Σπάρτη είναι το ενεργό legacy pilot και έχει ανεξάρτητη διαδικασία onboarding. Χρησιμοποίησε τη σελίδα /join.</p></details>
-        <details><summary>Μπορώ να αλλάξω πρόγραμμα αργότερα;</summary><p>Ναι. Η αρχική επιλογή αποθηκεύεται ως requested plan για την επικοινωνία μας και μπορεί να αλλάξει πριν την τελική εμπορική ενεργοποίηση.</p></details>
+        <details><summary>Πρέπει να ξέρω ποιο HUB ανήκει το κατάστημά μου;</summary><p>Όχι. Το σύστημα το προσδιορίζει αυτόματα από την επαληθευμένη τοποθεσία και τον ταχυδρομικό κώδικα που επιστρέφει το Γ.Ε.ΜΗ.</p></details>
+        <details><summary>Μπορώ να αλλάξω χειροκίνητα το HUB;</summary><p>Όχι. Αν η αντιστοίχιση δεν μπορεί να γίνει με ασφάλεια, η αίτηση δεν καταχωρίζεται σε αυθαίρετο HUB και χρειάζεται έλεγχο.</p></details>
+        <details><summary>Πληρώνω κατά την αίτηση;</summary><p>Όχι. Δεν συλλέγουμε πληρωμή στο prospect form. Για εμπορικά πλάνα οι όροι επιβεβαιώνονται πριν από οποιαδήποτε ενεργοποίηση ή χρέωση.</p></details>
+        <details><summary>Τι γίνεται αν έχω επιχείρηση στη Σπάρτη;</summary><p>Το σύστημα αναγνωρίζει το ενεργό HUB Σπάρτης και σε μεταφέρει στην υπάρχουσα διαδικασία συνεργασίας /join.</p></details>
       </div>
     </section>
 
     <section className={`shell section ${styles.finalCta}`}>
-      <div><div className="eyebrow">Η πόλη σου, η αγορά της</div><h2>Κατοχύρωσε την επιχείρησή σου στο επόμενο HUB.</h2><p>Ξεκίνα δωρεάν με CLAIM ή διάλεξε από τώρα το επίπεδο συνεργασίας που σε ενδιαφέρει.</p></div>
-      <a className="button" href="#hub-selector">Επίλεξε HUB</a>
+      <div><div className="eyebrow">Έτοιμος;</div><h2>Ξεκίνα με το ΑΦΜ.</h2><p>Το CLAIM είναι προεπιλεγμένο και δωρεάν. Μπορείς να αλλάξεις πλάνο πριν την υποβολή.</p></div>
+      <a className="button" href="/hubs/join/apply?plan=claim#application-form">Βρες την επιχείρησή μου</a>
     </section>
 
     <SiteFooter />
