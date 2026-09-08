@@ -4,10 +4,12 @@ export const HUB_EXPANSION_PLANS = [
     name: "CLAIM",
     eyebrow: "Δωρεάν καταχώριση",
     setupFeeCents: 0,
+    monthlyFeeCents: 0,
     annualFeeCents: 0,
     commissionBps: 0,
     setupLabel: "€0",
-    recurringLabel: "€0",
+    monthlyLabel: "€0",
+    annualLabel: "€0",
     commissionLabel: "0%",
     summary: "Επαλήθευση και βασική παρουσία στον τοπικό κατάλογο του HUB.",
     bestFor: "Για επιχειρήσεις που θέλουν να κατοχυρώσουν δωρεάν την παρουσία τους πριν ενεργοποιηθεί η αγορά της πόλης.",
@@ -20,10 +22,12 @@ export const HUB_EXPANSION_PLANS = [
     name: "PRESENCE",
     eyebrow: "Ενισχυμένη παρουσία",
     setupFeeCents: 4900,
+    monthlyFeeCents: 990,
     annualFeeCents: 9900,
     commissionBps: 0,
     setupLabel: "€49",
-    recurringLabel: "€99 / έτος",
+    monthlyLabel: "€9,90 / μήνα",
+    annualLabel: "€99 / έτος",
     commissionLabel: "0%",
     summary: "Πλουσιότερη ψηφιακή βιτρίνα χωρίς marketplace checkout.",
     bestFor: "Για καταστήματα που θέλουν ισχυρή τοπική ανακάλυψη, περιεχόμενο και αιτήματα πελατών χωρίς online πωλήσεις μέσω ΚΟΝΤΑ ΜΟΥ.",
@@ -36,13 +40,15 @@ export const HUB_EXPANSION_PLANS = [
     name: "SHOP",
     eyebrow: "Marketplace selling",
     setupFeeCents: 14900,
-    annualFeeCents: 34900,
-    commissionBps: 700,
+    monthlyFeeCents: 1900,
+    annualFeeCents: 19000,
+    commissionBps: 800,
     setupLabel: "€149",
-    recurringLabel: "€349 / έτος",
-    commissionLabel: "7%",
-    summary: "Πλήρης συμμετοχή στο marketplace και δυνατότητα πώλησης προϊόντων.",
-    bestFor: "Για καταστήματα που θέλουν να πουλούν μέσα από το ενιαίο checkout του τοπικού HUB.",
+    monthlyLabel: "€19 / μήνα",
+    annualLabel: "€190 / έτος",
+    commissionLabel: "8%",
+    summary: "Πλήρης συμμετοχή στο marketplace με χαμηλό σταθερό κόστος και χρέωση όταν πραγματοποιούνται πωλήσεις.",
+    bestFor: "Για καταστήματα που θέλουν να δοκιμάσουν πραγματικές online πωλήσεις μέσα από το ενιαίο checkout του τοπικού HUB.",
     features: ["Όλα του PRESENCE", "Marketplace προϊόντα", "Vendor workspace", "Παραγγελίες & fulfilment"],
     ecommerce: true,
     featured: true
@@ -50,15 +56,17 @@ export const HUB_EXPANSION_PLANS = [
   {
     code: "growth",
     name: "GROWTH",
-    eyebrow: "Για ανάπτυξη",
+    eyebrow: "Καλύτερη ισορροπία",
     setupFeeCents: 29900,
-    annualFeeCents: 64900,
-    commissionBps: 450,
+    monthlyFeeCents: 3900,
+    annualFeeCents: 39000,
+    commissionBps: 500,
     setupLabel: "€299",
-    recurringLabel: "€649 / έτος",
-    commissionLabel: "4,5%",
-    summary: "Χαμηλότερη προμήθεια και περισσότερη υποστήριξη για ενεργούς πωλητές.",
-    bestFor: "Για επιχειρήσεις με μεγαλύτερο κατάλογο και συστηματική εμπορική δραστηριότητα στο HUB.",
+    monthlyLabel: "€39 / μήνα",
+    annualLabel: "€390 / έτος",
+    commissionLabel: "5%",
+    summary: "Χαμηλότερη προμήθεια και περισσότερα εργαλεία για καταστήματα με συστηματικές πωλήσεις.",
+    bestFor: "Για επιχειρήσεις με μεγαλύτερο κατάλογο και ουσιαστική εμπορική δραστηριότητα στο HUB.",
     features: ["Όλα του SHOP", "Χαμηλότερη προμήθεια", "Ενισχυμένο onboarding καταλόγου", "Περισσότερη εμπορική υποστήριξη"],
     ecommerce: true,
     featured: false
@@ -66,15 +74,17 @@ export const HUB_EXPANSION_PLANS = [
   {
     code: "pro",
     name: "PRO",
-    eyebrow: "Υψηλότερο επίπεδο υπηρεσίας",
-    setupFeeCents: 59900,
-    annualFeeCents: 119000,
-    commissionBps: 250,
-    setupLabel: "€599",
-    recurringLabel: "€1.190 / έτος",
-    commissionLabel: "2,5%",
-    summary: "Η χαμηλότερη προμήθεια και το υψηλότερο επίπεδο υποστήριξης.",
-    bestFor: "Για ώριμες επιχειρήσεις που θέλουν να αξιοποιήσουν το HUB ως σημαντικό κανάλι πωλήσεων.",
+    eyebrow: "Πλήρης κλίμακα",
+    setupFeeCents: 49900,
+    monthlyFeeCents: 9900,
+    annualFeeCents: 99000,
+    commissionBps: 300,
+    setupLabel: "€499",
+    monthlyLabel: "€99 / μήνα",
+    annualLabel: "€990 / έτος",
+    commissionLabel: "3%",
+    summary: "Η χαμηλότερη προμήθεια και το υψηλότερο επίπεδο εργαλείων, αυτοματοποίησης και υποστήριξης.",
+    bestFor: "Για ώριμες επιχειρήσεις που θέλουν να χρησιμοποιούν το KONTA MOY ως σημαντικό κανάλι online πωλήσεων.",
     features: ["Όλα του GROWTH", "Χαμηλότερη προμήθεια", "Προτεραιοποιημένη υποστήριξη", "Advanced εμπορική ενεργοποίηση"],
     ecommerce: true,
     featured: false
@@ -83,6 +93,7 @@ export const HUB_EXPANSION_PLANS = [
 
 export type HubExpansionPlanCode = typeof HUB_EXPANSION_PLANS[number]["code"];
 export type HubExpansionPlan = typeof HUB_EXPANSION_PLANS[number];
+export type HubBillingCycle = "annual" | "monthly";
 
 export function getHubExpansionPlan(code: string | undefined): HubExpansionPlan | undefined {
   return HUB_EXPANSION_PLANS.find((plan) => plan.code === code);
@@ -90,4 +101,13 @@ export function getHubExpansionPlan(code: string | undefined): HubExpansionPlan 
 
 export function normalizeHubExpansionPlanCode(code: string | undefined): HubExpansionPlanCode {
   return getHubExpansionPlan(code)?.code ?? "claim";
+}
+
+export function normalizeHubBillingCycle(value: string | undefined): HubBillingCycle {
+  return value === "monthly" ? "monthly" : "annual";
+}
+
+export function billingLabelForPlan(plan: HubExpansionPlan, billingCycle: HubBillingCycle): string {
+  if (plan.code === "claim") return "€0";
+  return billingCycle === "monthly" ? plan.monthlyLabel : plan.annualLabel;
 }
