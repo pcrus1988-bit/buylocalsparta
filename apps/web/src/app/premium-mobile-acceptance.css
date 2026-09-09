@@ -33,6 +33,12 @@
   box-shadow: none !important;
 }
 
+/* Reserve pills for chips/statuses. Primary commerce actions become calmer
+   12px surfaces so the public storefront does not read as a collection of pills. */
+.main-content-scope > main:not(.dashboard):not(.workspace) .button {
+  border-radius: 12px !important;
+}
+
 @media (max-width: 1080px) {
   /* Avoid the cramped pseudo-desktop header seen on narrow tablets / mobile desktop-view. */
   .site-header {
