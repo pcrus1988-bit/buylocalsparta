@@ -54,6 +54,44 @@ jobs:
           if 'export const EXPECTED_SCHEMA_VERSION = 214;' not in s:
             raise SystemExit('Expected schema version 214 marker not found')
           p.write_text(s.replace('export const EXPECTED_SCHEMA_VERSION = 214;', 'export const EXPECTED_SCHEMA_VERSION = 215;', 1))
+
+          p = Path('apps/web/src/lib/mydata-runtime.ts')
+          s = p.read_text()
+          s = s.replace('type ApprovedPolicy = Readonly<{ version:string; fiscalisationRoute:"viva_fiscal_provider"|"aade_direct_erp"; compatibilityTarget:string }>;', 'type ApprovedPolicy = Readonly<{ version:string; fiscalisationRoute:"aade_direct_erp"; compatibilityTarget:string }>;')
+          s = s.replace('  vivaFiscalEnabled: boolean;\n', '')
+          s = s.replace('  if (input.issuanceEnabled && !input.ecrTokenEnabled && !input.vivaFiscalEnabled) throw new Error("Fiscal issuance requires an enabled ECRToken or Viva Fiscal capability");', '  if (input.issuanceEnabled && !input.ecrTokenEnabled) throw new Error("Fiscal issuance requires the enabled AADE Direct ERP ECRToken capability");')
+          s = s.replace('    vivaFiscalEnabled: Boolean(input.vivaFiscalEnabled),\n', '')
+          start = s.find('    if(policy.fiscalisationRoute==="viva_fiscal_provider"){')
+          if start != -1:
+            end = s.find('    if(!runtimeConfig.issuanceEnabled)', start)
+            if end == -1: raise SystemExit('Could not locate end of legacy Viva fiscal readiness block')
+            s = s[:start] + s[end:]
+          s = s.replace('  if(row.fiscalisation_route!=="viva_fiscal_provider"&&row.fiscalisation_route!=="aade_direct_erp")return undefined;', '  if(row.fiscalisation_route!=="aade_direct_erp")return undefined;')
+          s = s.replace('    vivaFiscalEnabled:process.env.BLS_VIVA_FISCAL_ENABLED==="true",\n', '')
+          s = s.replace('    vivaFiscalEnabled:typeof v.vivaFiscalEnabled==="boolean"?v.vivaFiscalEnabled:fallback.vivaFiscalEnabled,\n', '')
+          p.write_text(s)
+
+          p = Path('apps/web/src/app/api/admin/tax/policy/route.ts')
+          s = p.read_text().replace('["unselected","viva_fiscal_provider","aade_direct_erp"]', '["unselected","aade_direct_erp"]').replace('"unselected"|"viva_fiscal_provider"|"aade_direct_erp"', '"unselected"|"aade_direct_erp"')
+          p.write_text(s)
+
+          p = Path('apps/web/src/app/api/admin/tax/config/route.ts')
+          s = p.read_text().replace(',vivaFiscalEnabled:bool(body,"vivaFiscalEnabled")', '')
+          p.write_text(s)
+
+          p = Path('apps/web/src/lib/admin-tax-policy-runtime.ts')
+          s = p.read_text().replace('  if(input.vivaFiscalEnabled)throw new Error("Viva Fiscal provider integration is not implemented in this build; the provider capability cannot be marked ready from Admin");\n', '').replace(',vivaFiscalEnabled:false', '')
+          p.write_text(s)
+
+          p = Path('apps/web/src/components/TaxConfigurationEditor.tsx')
+          s = p.read_text()
+          s = s.replace('fiscalisationRoute:"unselected"|"viva_fiscal_provider"|"aade_direct_erp"', 'fiscalisationRoute:"unselected"|"aade_direct_erp"')
+          s = s.replace(';vivaFiscalEnabled:boolean', '')
+          s = s.replace(',vivaFiscalEnabled:runtime.vivaFiscalEnabled', '')
+          s = s.replace('Create pending fiscal record after captured Viva payment', 'Create pending fiscal record after captured Mollie payment')
+          s = s.replace('        <label className="checkbox-label"><input type="checkbox" checked={runtime.vivaFiscalEnabled} onChange={e=>setRuntime(v=>({...v,vivaFiscalEnabled:e.target.checked}))} />Viva Fiscal provider capability enabled</label>\n', '')
+          s = s.replace('<option value="aade_direct_erp">AADE Direct ERP</option><option value="viva_fiscal_provider">Viva Fiscal provider</option>', '<option value="aade_direct_erp">AADE Direct ERP</option>')
+          p.write_text(s)
           PY
 
       - name: Add forward-only accounting migration
@@ -64,15 +102,13 @@ jobs:
           -- Viva remains only in immutable historical migration/audit data after this migration.
           BEGIN;
 
-          -- Any environment that had selected Viva as a fiscal provider must fail closed and
-          -- return to accountant review. Production Sparta is already on aade_direct_erp.
           UPDATE accounting_tax_policies
           SET fiscalisation_route='unselected',
               status=CASE WHEN status='approved' THEN 'review' ELSE status END,
               approved_at=CASE WHEN status='approved' THEN NULL ELSE approved_at END,
               approved_by=CASE WHEN status='approved' THEN NULL ELSE approved_by END,
               policy_hash=CASE WHEN status='approved' THEN NULL ELSE policy_hash END,
-              approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),'Viva fiscal route retired during Mollie payment cutover; accountant must select AADE Direct ERP.'),
+              approval_notes=concat_ws(E'\n',NULLIF(approval_notes,''),'Legacy Viva fiscal route retired during Mollie payment cutover; accountant must select AADE Direct ERP.'),
               updated_at=now()
           WHERE fiscalisation_route='viva_fiscal_provider';
 
@@ -91,68 +127,36 @@ jobs:
               updated_at=now()
           WHERE c.check_code IN ('fiscalisation_channel','payment_reconciliation');
 
-          ALTER TABLE accounting_tax_policies
-            DROP CONSTRAINT IF EXISTS accounting_tax_policies_fiscalisation_route_check;
-          ALTER TABLE accounting_tax_policies
-            ADD CONSTRAINT accounting_tax_policies_fiscalisation_route_check
-            CHECK (fiscalisation_route IN ('unselected','aade_direct_erp'));
+          ALTER TABLE accounting_tax_policies DROP CONSTRAINT IF EXISTS accounting_tax_policies_fiscalisation_route_check;
+          ALTER TABLE accounting_tax_policies ADD CONSTRAINT accounting_tax_policies_fiscalisation_route_check CHECK (fiscalisation_route IN ('unselected','aade_direct_erp'));
+          ALTER TABLE tax_documents DROP CONSTRAINT IF EXISTS tax_documents_fiscalisation_route_check;
+          ALTER TABLE tax_documents ADD CONSTRAINT tax_documents_fiscalisation_route_check CHECK (fiscalisation_route IS NULL OR fiscalisation_route='aade_direct_erp');
 
-          ALTER TABLE tax_documents
-            DROP CONSTRAINT IF EXISTS tax_documents_fiscalisation_route_check;
-          ALTER TABLE tax_documents
-            ADD CONSTRAINT tax_documents_fiscalisation_route_check
-            CHECK (fiscalisation_route IS NULL OR fiscalisation_route='aade_direct_erp');
+          INSERT INTO mydata_payment_mappings(policy_id,processor,processor_method,mydata_payment_type,requires_transaction_id,erp_requires_ecr_token,provider_signature_route,production_status,notes)
+          SELECT policy_id,'MOLLIE','CREDITCARD',mydata_payment_type,requires_transaction_id,erp_requires_ecr_token,false,production_status,
+                 concat_ws(E'\n',NULLIF(notes,''),'Migrated from the legacy card processor to Mollie Hosted Checkout. Fiscalisation remains AADE Direct ERP; no payment-provider signature route.')
+          FROM mydata_payment_mappings WHERE processor='VIVA' AND processor_method='CARD'
+          ON CONFLICT (policy_id,processor,processor_method) DO UPDATE SET mydata_payment_type=EXCLUDED.mydata_payment_type,requires_transaction_id=EXCLUDED.requires_transaction_id,erp_requires_ecr_token=EXCLUDED.erp_requires_ecr_token,provider_signature_route=false,production_status=EXCLUDED.production_status,notes=EXCLUDED.notes;
 
-          -- Preserve the accountant-approved card classification while changing the processor.
-          -- Mollie Hosted Checkout reports card wallets on the card rail; fiscal mapping therefore
-          -- uses one CREDITCARD mapping and does not pretend Mollie is a Greek fiscal provider.
-          INSERT INTO mydata_payment_mappings(
-            policy_id,processor,processor_method,mydata_payment_type,requires_transaction_id,
-            erp_requires_ecr_token,provider_signature_route,production_status,notes
-          )
-          SELECT policy_id,'MOLLIE','CREDITCARD',mydata_payment_type,requires_transaction_id,
-                 erp_requires_ecr_token,false,production_status,
-                 concat_ws(E'\n',NULLIF(notes,''),'Migrated from VIVA/CARD to Mollie Hosted Checkout. Fiscalisation remains AADE Direct ERP; no payment-provider signature route.')
-          FROM mydata_payment_mappings
-          WHERE processor='VIVA' AND processor_method='CARD'
-          ON CONFLICT (policy_id,processor,processor_method) DO UPDATE
-            SET mydata_payment_type=EXCLUDED.mydata_payment_type,
-                requires_transaction_id=EXCLUDED.requires_transaction_id,
-                erp_requires_ecr_token=EXCLUDED.erp_requires_ecr_token,
-                provider_signature_route=false,
-                production_status=EXCLUDED.production_status,
-                notes=EXCLUDED.notes;
-
-          -- A policy with no legacy VIVA/CARD row still receives a conservative proposed mapping.
-          INSERT INTO mydata_payment_mappings(
-            policy_id,processor,processor_method,mydata_payment_type,requires_transaction_id,
-            erp_requires_ecr_token,provider_signature_route,production_status,notes
-          )
-          SELECT p.id,'MOLLIE','CREDITCARD',7,true,true,false,'proposed',
-                 'Mollie Hosted Checkout card rail. Requires verified Mollie payment id; fiscalisation is AADE Direct ERP.'
+          INSERT INTO mydata_payment_mappings(policy_id,processor,processor_method,mydata_payment_type,requires_transaction_id,erp_requires_ecr_token,provider_signature_route,production_status,notes)
+          SELECT p.id,'MOLLIE','CREDITCARD',7,true,true,false,'proposed','Mollie Hosted Checkout card rail. Requires verified Mollie payment id; fiscalisation is AADE Direct ERP.'
           FROM accounting_tax_policies p
-          WHERE NOT EXISTS (
-            SELECT 1 FROM mydata_payment_mappings m
-            WHERE m.policy_id=p.id AND m.processor='MOLLIE' AND m.processor_method='CREDITCARD'
-          );
+          WHERE NOT EXISTS (SELECT 1 FROM mydata_payment_mappings m WHERE m.policy_id=p.id AND m.processor='MOLLIE' AND m.processor_method='CREDITCARD');
 
           DELETE FROM mydata_payment_mappings WHERE processor='VIVA';
-
           COMMIT;
           SQL
 
       - name: Reject active Viva fiscal/payment configuration outside immutable migrations
         shell: bash
         run: |
-          ! grep -RniI -E 'viva_fiscal_provider|BLS_VIVA_FISCAL|\[.VIVA.,.CARD.\]|\[.VIVA.,.IRIS.\]' \
-            apps packages scripts workers .env.example \
-            --exclude-dir=node_modules
+          ! grep -RniI -E 'viva_fiscal_provider|BLS_VIVA_FISCAL|vivaFiscal|Viva Fiscal|\[.VIVA.,.CARD.\]|\[.VIVA.,.IRIS.\]' apps packages scripts workers .env.example --exclude-dir=node_modules
 
       - name: Commit source cutover
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/postgres-runtime/src/accounting-policy.ts packages/postgres-runtime/src/index.ts apps/web/src/lib/admin-fiscal-preparation.ts db/migrations/0215_mollie_accounting_cutover.sql
+          git add packages/postgres-runtime/src/accounting-policy.ts packages/postgres-runtime/src/index.ts apps/web/src/lib/admin-fiscal-preparation.ts apps/web/src/lib/mydata-runtime.ts apps/web/src/app/api/admin/tax/policy/route.ts apps/web/src/app/api/admin/tax/config/route.ts apps/web/src/lib/admin-tax-policy-runtime.ts apps/web/src/components/TaxConfigurationEditor.tsx db/migrations/0215_mollie_accounting_cutover.sql
           git commit -m 'Separate Mollie payments from AADE fiscalisation'
           git push origin HEAD:migration/mollie-payments-v2
