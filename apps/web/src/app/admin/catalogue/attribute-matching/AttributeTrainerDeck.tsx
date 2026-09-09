@@ -120,8 +120,9 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
       tabIndex={0}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onPointerCancel={() => { start.current = null; }}
       onKeyDown={handleKeyDown}
-      style={{ maxWidth: "760px", margin: "0 auto", padding: "1.35rem", touchAction: "pan-y" }}
+      style={{ maxWidth: "760px", margin: "0 auto", padding: "1.35rem", touchAction: "none" }}
     >
       <div className="workspace-queue-head">
         <div>
@@ -210,6 +211,11 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
         {createName && <form
           key={`${card.id}:${createName}`}
           action={createAction}
+          onSubmit={(event) => {
+            if (!window.confirm(`Create or reuse canonical attribute “${createName}” and immediately learn this supplier mapping?`)) {
+              event.preventDefault();
+            }
+          }}
           className="workspace-queue-card"
           style={{ marginTop: "1rem" }}
         >
