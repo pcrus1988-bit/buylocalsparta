@@ -27,4 +27,27 @@ if (root.version !== web.version) throw new Error(`Build version mismatch: root 
 if (!Array.isArray(root.workspaces) || !root.workspaces.includes("apps/*") || !root.workspaces.includes("packages/*")) {
   throw new Error("Monorepo workspace declaration is missing apps/* or packages/*");
 }
-console.log(`Build context OK: Buy Local Sparta ${root.version} monorepo workspace is visible.`);
+
+const legacyVivaKeys = Object.keys(process.env)
+  .filter((key) => key.startsWith("VIVA_") || key.includes("VIVA_FISCAL"))
+  .sort();
+const vercelProduction = process.env.VERCEL_ENV === "production";
+
+if (legacyVivaKeys.length) {
+  const message = `Legacy Viva environment variables remain configured: ${legacyVivaKeys.join(", ")}`;
+  if (vercelProduction) throw new Error(`${message}. Production is Mollie-only; remove these variables before deployment.`);
+  console.warn(`${message}. They are ignored by the Mollie runtime and must be removed before production cutover.`);
+}
+
+if (vercelProduction) {
+  if (process.env.MOLLIE_PAYMENTS_ENABLED !== "true") {
+    throw new Error("Production deployment requires MOLLIE_PAYMENTS_ENABLED=true; KONTA MOY is Mollie-only.");
+  }
+  const mollieApiKey = process.env.MOLLIE_API_KEY?.trim();
+  if (!mollieApiKey) throw new Error("Production deployment requires MOLLIE_API_KEY.");
+  if (!mollieApiKey.startsWith("live_")) {
+    throw new Error("Production deployment requires a Mollie live_ API key; test credentials are preview/test only.");
+  }
+}
+
+console.log(`Build context OK: Buy Local Sparta ${root.version} monorepo workspace is visible; payment provider policy is Mollie-only.`);
