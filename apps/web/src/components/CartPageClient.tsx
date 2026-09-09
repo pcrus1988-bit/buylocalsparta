@@ -15,9 +15,27 @@ function trackCartDelta(eventName: "add_to_cart" | "remove_from_cart", item: Car
   });
 }
 
+function CartLoadingState() {
+  return (
+    <div className="cart-loading" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Φόρτωση καλαθιού και στοιχείων προϊόντων…</span>
+      <div className="cart-loading-lines">
+        {[0, 1].map((item) => (
+          <div className="cart-loading-line" key={item} aria-hidden="true">
+            <span className="cart-loading-thumb" />
+            <span className="cart-loading-copy"><i /><i /><i /></span>
+            <span className="cart-loading-price" />
+          </div>
+        ))}
+      </div>
+      <div className="cart-loading-summary" aria-hidden="true"><i /><i /><i /></div>
+    </div>
+  );
+}
+
 export function CartPageClient() {
-  const { items, count, subtotalMinor, hydrated, setQuantity, removeItem } = useCart();
-  if (!hydrated) return <div className="empty-state"><p>Φόρτωση καλαθιού…</p></div>;
+  const { items, count, subtotalMinor, hydrated, detailsReady, setQuantity, removeItem } = useCart();
+  if (!hydrated || !detailsReady) return <CartLoadingState />;
   if (items.length === 0) return <div className="empty-state"><div className="eyebrow">Το καλάθι σου είναι άδειο</div><h2>Βρες κάτι καλό στη Σπάρτη.</h2><p>Ό,τι διαλέξεις από τα τοπικά καταστήματα συγκεντρώνεται εδώ και ολοκληρώνεται με μία αγορά.</p><a className="button" href="/shop">Βρες προϊόντα</a></div>;
 
   return <div className="cart-layout cart-friendly-layout">
@@ -25,7 +43,7 @@ export function CartPageClient() {
       <div className="cart-friendly-intro"><div><div className="eyebrow">{count} {count === 1 ? "προϊόν" : "προϊόντα"}</div><strong>Έλεγξέ τα με μια ματιά.</strong></div><span>Μέγεθος, χρώμα και κωδικοί εμφανίζονται όπου υπάρχουν στο προϊόν.</span></div>
       {items.map((item) => <article className="cart-line cart-friendly-line" key={item.canonicalVariantId}>
         <a className={`cart-thumb cart-product-thumb ${item.imageUrl ? "has-image" : ""}`} href={`/product/${encodeURIComponent(item.canonicalVariantId)}`} aria-label={`Άνοιγμα προϊόντος ${item.title}`}>
-          {item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="lazy" /> : <span>{item.title.slice(0, 2).toUpperCase()}</span>}
+          {item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="eager" /> : <span aria-hidden="true">{item.title.slice(0, 2).toUpperCase()}</span>}
         </a>
         <div className="cart-line-main">
           <h2><a href={`/product/${encodeURIComponent(item.canonicalVariantId)}`}>{item.title}</a></h2>
