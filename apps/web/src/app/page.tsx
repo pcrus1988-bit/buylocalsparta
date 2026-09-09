@@ -5,6 +5,7 @@ import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
+import { HomeLocalMarketScene } from "../components/HomeLocalMarketScene";
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
@@ -192,16 +193,7 @@ export default async function Home() {
               <a href="/ask-local">Ask Local <span aria-hidden="true">↗</span></a>
             </div>
           </div>
-          <div className={styles.heroScene} aria-hidden="true">
-            <div className={styles.sceneWindow}>
-              <span className={styles.sceneLight} />
-              <span className={styles.sceneShelfOne} />
-              <span className={styles.sceneShelfTwo} />
-              <span className={styles.scenePerson} />
-              <span className={styles.sceneCaption}>ΣΠΑΡΤΗ · ΤΟΠΙΚΗ ΑΓΟΡΑ</span>
-            </div>
-            <div className={styles.sceneNote}>Άνθρωποι, προϊόντα και πραγματικά καταστήματα — στο ίδιο μέρος.</div>
-          </div>
+          <HomeLocalMarketScene vendors={activeVendors} />
         </section>
       </HomeHeroCarousel>
 
