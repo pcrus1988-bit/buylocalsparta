@@ -8,6 +8,7 @@ import {
   shouldRedirectToPrimaryLocationGateway
 } from "../../../apps/web/src/lib/primary-location-gateway.ts";
 import { isReadOnlyPublicCrawlerUserAgent } from "../../../apps/web/src/lib/public-crawler.ts";
+import { seoDocumentRobotsHeader } from "../../../apps/web/src/lib/seo-request-indexing.ts";
 
 test("primary location gateway constants remain stable", () => {
   assert.equal(HUB_LOCALITY_COOKIE, "km_locality");
@@ -57,4 +58,8 @@ test("public crawlers and KONTA MOY SEO monitor retain the Sparta SEO root", () 
     assert.equal(isReadOnlyPublicCrawlerUserAgent(userAgent), true, userAgent);
     assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/", method: "GET", userAgent }), false, userAgent);
   }
+});
+
+test("location gateway response robots policy matches page metadata", () => {
+  assert.equal(seoDocumentRobotsHeader("/choose-location", new URLSearchParams()), "noindex, nofollow, noarchive");
 });
