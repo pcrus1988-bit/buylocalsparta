@@ -22,8 +22,15 @@ function normaliseLocality(value: string | null | undefined): string | undefined
   return normalized || undefined;
 }
 
+/**
+ * The national location gateway is the default storefront entry contract.
+ * An explicit server-side `false` is the emergency rollback switch; any other
+ * explicitly configured value must be `true`, so typos fail safely to the
+ * legacy Sparta-first root instead of unexpectedly changing traffic routing.
+ */
 export function primaryLocationGatewayEnforcementEnabled(value: string | null | undefined): boolean {
-  return value?.trim().toLowerCase() === "true";
+  if (value == null) return true;
+  return value.trim().toLowerCase() === "true";
 }
 
 export function isLiveLocalitySelection(value: string | null | undefined): boolean {
