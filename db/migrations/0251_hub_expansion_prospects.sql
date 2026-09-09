@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS hub_expansion_prospects (
   hub_city text NOT NULL CHECK (length(btrim(hub_city)) BETWEEN 2 AND 120),
   hub_region text NOT NULL CHECK (length(btrim(hub_region)) BETWEEN 2 AND 120),
   plan_code text NOT NULL CHECK (plan_code IN ('claim','presence','shop','growth','pro')),
+  billing_cycle text NOT NULL DEFAULT 'annual' CHECK (billing_cycle IN ('annual','monthly')),
   tax_number text NOT NULL CHECK (tax_number ~ '^[0-9]{9}$'),
   gemi_number text NOT NULL CHECK (gemi_number ~ '^[0-9]+$'),
   business_name text NOT NULL CHECK (length(btrim(business_name)) BETWEEN 1 AND 120),
@@ -27,7 +28,9 @@ CREATE TABLE IF NOT EXISTS hub_expansion_prospects (
   source text NOT NULL DEFAULT 'hub_expansion_join' CHECK (source IN ('hub_expansion_join','admin','import')),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','contacted','qualified','verified','approved','declined','converted')),
   setup_fee_cents integer NOT NULL DEFAULT 0 CHECK (setup_fee_cents >= 0),
+  monthly_fee_cents integer NOT NULL DEFAULT 0 CHECK (monthly_fee_cents >= 0),
   annual_fee_cents integer NOT NULL DEFAULT 0 CHECK (annual_fee_cents >= 0),
+  recurring_fee_cents integer NOT NULL DEFAULT 0 CHECK (recurring_fee_cents >= 0),
   commission_bps integer NOT NULL DEFAULT 0 CHECK (commission_bps BETWEEN 0 AND 10000),
   payment_state text NOT NULL DEFAULT 'not_requested' CHECK (payment_state IN ('not_required','not_requested','terms_sent','paid','waived')),
   consent_at timestamptz NOT NULL DEFAULT now(),
@@ -39,7 +42,14 @@ CREATE TABLE IF NOT EXISTS hub_expansion_prospects (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (hub_id <> 'KM-HUB-015'),
-  CHECK ((plan_code = 'claim' AND payment_state = 'not_required') OR plan_code <> 'claim')
+  CHECK (
+    (billing_cycle = 'monthly' AND recurring_fee_cents = monthly_fee_cents)
+    OR (billing_cycle = 'annual' AND recurring_fee_cents = annual_fee_cents)
+  ),
+  CHECK (
+    (plan_code = 'claim' AND billing_cycle = 'annual' AND recurring_fee_cents = 0 AND payment_state = 'not_required')
+    OR plan_code <> 'claim'
+  )
 );
 
 CREATE INDEX IF NOT EXISTS hub_expansion_prospects_hub_status_idx
@@ -66,6 +76,10 @@ COMMENT ON TABLE hub_expansion_prospects IS
   'Pre-launch merchant interest for non-Sparta expansion HUBs. HUB identity is derived from verified GEMI location evidence; prospect records never imply active marketplace/vendor access.';
 COMMENT ON COLUMN hub_expansion_prospects.tax_number IS
   'Greek AFM revalidated server-side at submission and used to prevent duplicate open prospect records.';
+COMMENT ON COLUMN hub_expansion_prospects.billing_cycle IS
+  'Requested subscription cadence captured at prospect submission. CLAIM is normalized to annual because it has no recurring charge.';
+COMMENT ON COLUMN hub_expansion_prospects.recurring_fee_cents IS
+  'Price snapshot for the selected billing cycle at submission; constrained to the corresponding monthly or annual plan price.';
 COMMENT ON COLUMN hub_expansion_prospects.hub_resolution_method IS
   'How the application mapped verified registry location to the governed 131-HUB master.';
 COMMENT ON COLUMN hub_expansion_prospects.payment_state IS
