@@ -1,0 +1,26 @@
+name: Return line schema diagnostic
+
+on:
+  push:
+    branches:
+      - migration/mollie-payments-v2
+    paths:
+      - .github/workflows/return-line-schema-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: migration/mollie-payments-v2
+      - name: Locate invalid return line identifiers
+        shell: bash
+        run: |
+          echo '=== return_line_uuid references ==='
+          grep -RniI -C 8 'return_line_uuid\|rl\.id' packages apps scripts db/migrations || true
+          echo '=== return_lines DDL / key definitions ==='
+          grep -RniI -C 12 -E 'CREATE TABLE( IF NOT EXISTS)? return_lines|CREATE TABLE( IF NOT EXISTS)? public\.return_lines|return_lines.*PRIMARY KEY|PRIMARY KEY.*return_lines|ALTER TABLE.*return_lines' db/migrations || true
