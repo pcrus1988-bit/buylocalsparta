@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CatalogCard } from "../lib/catalog-view";
 import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local-commerce-proof";
-import { publicCatalogPriceLabel, publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
+import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 import { LocalCommerceProof } from "./LocalCommerceProof";
@@ -12,7 +12,7 @@ const catalogImageStyle = {
   width: "100%",
   height: "100%",
   objectFit: "contain",
-  padding: "18px",
+  padding: "16px",
   background: "#fff",
   zIndex: 1
 } as const;
@@ -24,11 +24,11 @@ function demoBookCover(product: CatalogCard): string | undefined {
   return `https://covers.openlibrary.org/b/isbn/${product.mpn}-L.jpg?default=false`;
 }
 
-function availabilityBadge(product: CatalogCardWithPreview, demoMode: boolean): string {
-  if (demoMode) return "DEMO · Προεπισκόπηση";
-  if (product.localProof?.stockConfirmedToday) return "Τοπικό απόθεμα · σήμερα";
-  if (product.localProof?.freshLocalStock) return "Τοπικό απόθεμα";
-  if (product.available) return "Διαθέσιμο τοπικά";
+function availabilityLabel(product: CatalogCardWithPreview, demoMode: boolean): string {
+  if (demoMode) return "Προεπισκόπηση · η αγορά είναι απενεργοποιημένη";
+  if (product.localProof?.stockConfirmedToday) return "Σε τοπικό απόθεμα · επιβεβαιωμένο σήμερα";
+  if (product.localProof?.freshLocalStock) return "Σε τοπικό απόθεμα";
+  if (product.available) return "Διαθέσιμο από τοπικό κατάστημα";
   return "Προσωρινά μη διαθέσιμο";
 }
 
@@ -40,10 +40,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
 }) {
   const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
   const displayTitle = publicCatalogueTitleLabel(product.title);
-  const displayDescription = product.description ? publicCatalogueCardDescription(product.description) : undefined;
   const vendorName = vendorContext?.name ?? product.vendorName;
-  const adviser = vendorContext?.adviser ?? product.adviser;
-  const vendorHref = !vendorContext && product.vendorId ? `/vendor/${product.vendorId}` : undefined;
   const externalDemoCover = demoBookCover(product);
   const directImageSrc = product.mediaId
     ? `/api/media/${encodeURIComponent(product.mediaId)}`
@@ -71,23 +68,17 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           referrerPolicy={externalImage ? "no-referrer" : undefined}
           style={catalogImageStyle}
         />
-        <span className="product-badge">{availabilityBadge(product, demoMode)}</span>
       </Link>
       <div className="product-body">
-        <div className="eyebrow">{product.categoryLabel ?? category.label}{product.mpn ? ` · Κωδ. ${product.mpn}` : ""}</div>
+        <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
         <h3><Link href={productHref}>{displayTitle}</Link></h3>
-        {displayDescription ? <p className="partner">{displayDescription}</p> : null}
-        {demoMode && vendorName ? (
-          <p className="partner">Προεπισκόπηση καταλόγου από <strong>{vendorName}</strong>. Η αγορά παραμένει απενεργοποιημένη σε DEMO.</p>
-        ) : vendorName && adviser ? (
-          <p className="partner">Συμβουλή & παραλαβή από <strong>{vendorHref ? <a href={vendorHref}>{vendorName}</a> : vendorName}</strong> · Ρώτησε {adviser}.</p>
-        ) : vendorName ? (
-          <p className="partner">Εξυπηρέτηση από <strong>{vendorHref ? <a href={vendorHref}>{vendorName}</a> : vendorName}</strong>.</p>
-        ) : (
-          <p className="partner">Δεν υπάρχει αυτή τη στιγμή επιλέξιμος τοπικός συνεργάτης εκπλήρωσης.</p>
-        )}
+        <div className="product-bottom">
+          <div className="price">{priceLabel}</div>
+          <Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link>
+        </div>
+        <p className={`catalog-card-availability${product.available ? " is-available" : ""}`}>{availabilityLabel(product, demoMode)}</p>
+        {vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
         {!demoMode ? <LocalCommerceProof proof={product.localProof} compact /> : null}
-        <div className="product-bottom"><div className="price">{priceLabel}</div><Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link></div>
       </div>
     </article>
   );
