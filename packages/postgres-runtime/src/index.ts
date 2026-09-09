@@ -119,7 +119,7 @@ export class ProductionPostgresRuntime {
     this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
     this.search = config.search ? new PostgresProductionSearchService(this.sqlPool, config.search) : undefined;
     this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
-    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow), { emailNotificationsEnabled: Boolean(config.resend) }) : undefined;
+    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
     this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool);
     this.cartRecovery = new PostgresCartRecoveryService(this.sqlPool);
   }
@@ -181,7 +181,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
   if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL runtime");
   return {
     connectionString,
-    applicationName,
+    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
     maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
     connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
     idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
