@@ -76,7 +76,7 @@ test("readiness calls Mollie methods endpoint with bearer authentication", async
   assert.equal(seenAuth, `Bearer ${config.apiKey}`);
 });
 
-test("createPayment sends exact EUR amount, order identity, redirect and webhook metadata", async () => {
+test("createPayment sends exact EUR amount, approved card method, order identity, redirect and webhook metadata", async () => {
   let body: Record<string, unknown> | undefined;
   const fetchFn: typeof fetch = async (input, init) => {
     assert.equal(String(input), "https://api.mollie.test/v2/payments");
@@ -99,6 +99,7 @@ test("createPayment sends exact EUR amount, order identity, redirect and webhook
   assert.equal(created.paymentId, "tr_TestPayment123");
   assert.equal(created.checkoutUrl, "https://www.mollie.com/checkout/tr_TestPayment123");
   assert.deepEqual(body?.amount, { currency: "EUR", value: "12.34" });
+  assert.equal(body?.method, "creditcard");
   assert.equal(body?.webhookUrl, "https://kontamou.site/api/payments/mollie/webhook");
   assert.deepEqual(body?.metadata, { attempt: "attempt-1", orderId: "order_test_123", orderNumber: "KM-1001" });
 });
