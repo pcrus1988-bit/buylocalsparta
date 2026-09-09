@@ -70,7 +70,7 @@ export async function finalizeCapturedCustomerPayment(orderId: string, now = Dat
       eventCode: "b2c_goods_gr",
       processor: "MOLLIE",
       processorMethod,
-      reason: `automatic fiscalization after verified Mollie Smart Checkout ${processorMethod} capture`
+      reason: `automatic fiscalization after verified Mollie Checkout ${processorMethod} capture`
     });
     const service = await configuredMyDataService();
     if (!service) throw new Error("AADE myDATA service is not configured");
