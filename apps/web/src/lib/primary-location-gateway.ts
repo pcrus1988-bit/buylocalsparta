@@ -1,4 +1,4 @@
-import { isReadOnlyPublicCrawlerUserAgent } from "./public-crawler";
+import { isReadOnlyPublicCrawlerUserAgent } from "./public-crawler.ts";
 
 export const HUB_LOCALITY_COOKIE = "km_locality";
 export const PRIMARY_LOCATION_GATEWAY_PATH = "/choose-location";
