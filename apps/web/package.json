@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "prebuild": "node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs && node scripts/verify-vendor-merchant-readiness.mjs && node --experimental-strip-types ../../scripts/verify-production-schema-head.ts --vercel-production-only"
+    "test:location-gateway": "node --experimental-strip-types --test src/lib/location-gateway-enforcement.test.ts",
+    "prebuild": "npm run test:location-gateway && node scripts/verify-build-context.mjs && node scripts/ensure-resend-webhook.mjs && node scripts/verify-vendor-merchant-readiness.mjs && node --experimental-strip-types ../../scripts/verify-production-schema-head.ts --vercel-production-only"
   },
   "dependencies": {
     "@buy-local-sparta/core": "0.24.0",
