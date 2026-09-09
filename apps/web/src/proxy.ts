@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
+import {
+  HUB_LOCALITY_COOKIE,
+  PRIMARY_LOCATION_GATEWAY_PATH,
+  primaryLocationGatewayEnforcementEnabled,
+  shouldRedirectToPrimaryLocationGateway
+} from "./lib/primary-location-gateway";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
@@ -10,7 +16,7 @@ const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
 
 const REDIRECT_PROTECTED_ROOTS = [
-  "/api", "/admin", "/account", "/daily", "/checkout", "/cart",
+  "/api", "/admin", "/account", "/daily", "/checkout", "/cart", "/choose-location",
   "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password", "/join/apply",
   "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance",
   "/vendor/notifications", "/vendor/orders", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping",
@@ -37,6 +43,32 @@ function needsOperationalPersistence(pathname: string): boolean {
 function needsSessionContinuity(pathname: string): boolean {
   const routeRoots = ["/shop", "/category", "/product", "/ask-local", "/advice", "/api"];
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
+}
+
+function isLocationGatewayPrefetch(request: NextRequest): boolean {
+  return request.headers.get("purpose") === "prefetch"
+    || request.headers.get("sec-purpose")?.includes("prefetch") === true
+    || request.headers.has("next-router-prefetch");
+}
+
+function primaryLocationGatewayResponse(request: NextRequest): NextResponse | undefined {
+  if (!primaryLocationGatewayEnforcementEnabled(process.env.BLS_LOCATION_GATEWAY_ENFORCEMENT_ENABLED)) return undefined;
+  if (!shouldRedirectToPrimaryLocationGateway({
+    pathname: request.nextUrl.pathname,
+    method: request.method,
+    localityCookie: request.cookies.get(HUB_LOCALITY_COOKIE)?.value,
+    userAgent: request.headers.get("user-agent"),
+    prefetch: isLocationGatewayPrefetch(request)
+  })) {
+    return undefined;
+  }
+
+  const destination = request.nextUrl.clone();
+  destination.pathname = PRIMARY_LOCATION_GATEWAY_PATH;
+  const response = NextResponse.redirect(destination, 307);
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Vary", "Cookie, User-Agent");
+  return response;
 }
 
 function allowsContentRedirect(request: NextRequest): boolean {
@@ -66,6 +98,9 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
 }
 
 export async function proxy(request: NextRequest) {
+  const locationRedirect = primaryLocationGatewayResponse(request);
+  if (locationRedirect) return locationRedirect;
+
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
