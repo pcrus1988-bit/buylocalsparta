@@ -1,0 +1,76 @@
+name: Mollie migration cleanup
+
+on:
+  push:
+    branches:
+      - migration/mollie-payments-v2
+    paths:
+      - .github/workflows/mollie-migration-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migration/mollie-payments-v2
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Pin npm
+        run: npm install --global npm@10.9.2
+
+      - name: Remove legacy Viva workspace
+        run: rm -rf packages/viva-payments
+
+      - name: Regenerate workspace lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Record remaining Viva references for migration audit
+        shell: bash
+        run: |
+          grep -RniI -E 'viva|vivawallet|viva wallet' . \
+            --exclude-dir=.git \
+            --exclude-dir=.github \
+            --exclude-dir=node_modules \
+            --exclude=package-lock.json \
+            --exclude=viva-audit.txt \
+            > viva-audit.txt || true
+
+      - name: Commit deterministic cleanup
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Remove Viva workspace and regenerate Mollie lockfile'
+            git push origin HEAD:migration/mollie-payments-v2
+          fi
+
+      - name: Clean install
+        run: npm ci --ignore-scripts
+
+      - name: Test Mollie package
+        run: npm run test:mollie
+
+      - name: Type-check Mollie package
+        run: npm run typecheck:mollie
+
+      - name: Verify checkout UX
+        run: npm run check:checkout-ux
+
+      - name: Verify payment resume
+        run: npm run check:payment-resume
+
+      - name: Build web application
+        run: npm run build:web
