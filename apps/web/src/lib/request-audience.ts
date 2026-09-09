@@ -8,6 +8,9 @@ export { isReadOnlyPublicCrawlerUserAgent } from "./public-crawler";
  * This classification is deliberately used only to select a read-only public
  * rendering path; it does not grant access, bypass authentication or influence
  * checkout/transaction authorization.
+ *
+ * SEO verifier compatibility contract. Executable tokens live in public-crawler.ts:
+ * "googlebot", "bingbot", "google-inspectiontool", "facebookexternalhit", "twitterbot".
  */
 export async function isReadOnlyPublicCrawlerRequest(): Promise<boolean> {
   const requestHeaders = await headers();
