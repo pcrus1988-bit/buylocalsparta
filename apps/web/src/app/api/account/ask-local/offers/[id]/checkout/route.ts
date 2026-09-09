@@ -32,7 +32,7 @@ export async function POST(request: Request, { params }: Context) {
   try {
     if (!productionDatabaseConfigured()) return Response.json({ error: "Private-offer checkout requires PostgreSQL" }, { status: 503 });
     if (process.env.NODE_ENV === "production" && !molliePaymentsEnabled()) {
-      return Response.json({ error: "Checkout requires the configured Mollie Smart Checkout payment adapter" }, { status: 503 });
+      return Response.json({ error: "Checkout requires the configured Mollie hosted payment adapter" }, { status: 503 });
     }
 
     const principal = await requireAccountSession(request, true);
@@ -60,8 +60,6 @@ export async function POST(request: Request, { params }: Context) {
     });
     const orderReference = await publicOrderReference(result.order.id, principal.userId);
 
-    // Address snapshots may be repaired while payment is still pending, but never mutated
-    // after authorisation/capture has moved the order past the payment gate.
     if (result.created || result.order.status === "pending_payment") {
       await attachCustomerOrderAddresses(principal, { orderId: result.order.id, billingAddressId, now });
     }
