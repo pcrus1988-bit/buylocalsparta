@@ -96,7 +96,7 @@ for (const boundary of [
   assert.ok(aclMigration.includes(boundary), `0214 HUB ACL hardening is missing boundary: ${boundary}`);
 }
 const postgresRuntime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
-assert.ok(postgresRuntime.includes("export const EXPECTED_SCHEMA_VERSION = 214;"), "PostgreSQL runtime must require schema 214 after HUB ACL hardening");
+assert.ok(postgresRuntime.includes("export const EXPECTED_SCHEMA_VERSION = 215;"), "PostgreSQL runtime must require schema 215 after the Mollie accounting cutover");
 
 // The public gateway consumes lifecycle plus operational-market binding from
 // PostgreSQL on the server. Active UI/entry is fail-closed unless both layers agree.
