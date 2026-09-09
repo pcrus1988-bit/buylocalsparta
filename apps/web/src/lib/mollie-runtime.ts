@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { MolliePaymentsClient, mollieConfigFromEnv, mollieEnvironment } from "@buy-local-sparta/mollie-payments";
+import { MolliePaymentsClient, mollieConfigFromEnv, mollieEnvironment, type MolliePayment } from "@buy-local-sparta/mollie-payments";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1_000;
@@ -74,7 +74,7 @@ function createdAtMs(row: StoredMolliePayment): number {
   return value;
 }
 
-function assertProviderIdentity(provider: Awaited<ReturnType<MolliePaymentsClient["retrievePayment"]>>, row: StoredMolliePayment): void {
+function assertProviderIdentity(provider: MolliePayment, row: StoredMolliePayment): void {
   const expectedAmount = amountMinor(row);
   if (provider.orderId !== row.order_id) throw new Error("Mollie payment/order id mismatch");
   if (provider.amountCurrency !== "EUR" || provider.amountMinor !== expectedAmount) throw new Error("Mollie payment amount mismatch");
@@ -82,15 +82,16 @@ function assertProviderIdentity(provider: Awaited<ReturnType<MolliePaymentsClien
 
 async function recordTerminalAttemptWithoutCancelling(
   row: StoredMolliePayment,
-  provider: Awaited<ReturnType<MolliePaymentsClient["retrievePayment"]>>,
+  provider: MolliePayment,
   source: "redirect" | "webhook" | "manual",
   now: number
 ) {
   const runtime = getProductionPostgresRuntime();
   const localStatus = provider.status === "failed" ? "failed" : "cancelled";
-  await runtime.nativePool.query("BEGIN");
+  const client = await runtime.nativePool.connect();
   try {
-    const current = await runtime.nativePool.query(`
+    await client.query("BEGIN");
+    const current = await client.query(`
       UPDATE payments
       SET status=$3::payment_status,provider_verified_at=$4,
           provider_payload=provider_payload||$5::jsonb,updated_at=$4
@@ -104,7 +105,7 @@ async function recordTerminalAttemptWithoutCancelling(
       JSON.stringify({ lastProviderStatus: provider.status, lastVerifiedSource: source, terminalRetryAllowedUntil: new Date(createdAtMs(row) + PAYMENT_WINDOW_MS).toISOString() })
     ]);
     if (current.rowCount) {
-      await runtime.nativePool.query(`
+      await client.query(`
         INSERT INTO payment_events(id,public_id,payment_id,provider,provider_event_id,event_type,signature_valid,payload,processed_at,created_at)
         VALUES($1,$2,$3::uuid,'mollie',$4,$5,true,$6::jsonb,$7,$7)
         ON CONFLICT(provider,provider_event_id) DO NOTHING
@@ -118,10 +119,12 @@ async function recordTerminalAttemptWithoutCancelling(
         new Date(now)
       ]);
     }
-    await runtime.nativePool.query("COMMIT");
+    await client.query("COMMIT");
   } catch (error) {
-    await runtime.nativePool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
   }
   return {
     orderId: row.order_id,
