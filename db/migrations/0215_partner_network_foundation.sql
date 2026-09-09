@@ -81,9 +81,9 @@ CREATE TABLE IF NOT EXISTS public.partner_attributions (
   CHECK (vendor_business_id IS NOT NULL OR external_subject_key IS NOT NULL),
   CHECK (expires_at > attributed_at),
   CHECK (level_1_partner_id IS NULL OR level_1_partner_id = partner_id),
-  CHECK (level_2_partner_id IS DISTINCT FROM level_1_partner_id),
-  CHECK (level_3_partner_id IS DISTINCT FROM level_1_partner_id),
-  CHECK (level_3_partner_id IS DISTINCT FROM level_2_partner_id)
+  CHECK (level_2_partner_id IS NULL OR level_2_partner_id IS DISTINCT FROM level_1_partner_id),
+  CHECK (level_3_partner_id IS NULL OR level_3_partner_id IS DISTINCT FROM level_1_partner_id),
+  CHECK (level_3_partner_id IS NULL OR level_2_partner_id IS NULL OR level_3_partner_id IS DISTINCT FROM level_2_partner_id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_partner_attribution_vendor_active
