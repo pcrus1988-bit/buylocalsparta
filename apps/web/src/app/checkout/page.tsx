@@ -16,9 +16,15 @@ export default async function CheckoutPage() {
   return <main>
     <div className="announcement">{checkoutEnabled ? "Λίγα βήματα ακόμη · διάλεξε παραλαβή ή παράδοση και ολοκλήρωσε με ασφάλεια." : "Η online πληρωμή είναι προσωρινά μη διαθέσιμη. Το καλάθι σου παραμένει αποθηκευμένο."}</div>
     <SiteHeader compact />
-    <section className="shell page-hero">
+    <section className="shell page-hero checkout-hero">
       <div className="eyebrow">Ολοκλήρωση αγοράς</div>
-      <h1>{checkoutEnabled ? "Τελειώνουμε εύκολα." : "Το καλάθι σου παραμένει ασφαλές."}</h1>
+      <h1>{checkoutEnabled ? "Ολοκλήρωσε την αγορά σου." : "Το καλάθι σου παραμένει ασφαλές."}</h1>
+      {checkoutEnabled ? <p className="checkout-hero-note">Τα στοιχεία, η παραλαβή και η πληρωμή μένουν σε τρία καθαρά βήματα. Αν δεν έχεις συνδεθεί, θα το ζητήσουμε πριν δημιουργηθεί παραγγελία ώστε να συνδεθούν σωστά το παραστατικό και η υποστήριξή σου.</p> : null}
+      <ol className="checkout-progress" aria-label="Βήματα ολοκλήρωσης αγοράς">
+        <li className="is-current"><span>01</span><strong>Στοιχεία</strong></li>
+        <li><span>02</span><strong>Παραλαβή</strong></li>
+        <li><span>03</span><strong>Πληρωμή</strong></li>
+      </ol>
       <div className="checkout-context-links"><a className="text-link" href="/cart">← Πίσω στο καλάθι</a><a className="text-link" href="/delivery-pickup">Παράδοση & παραλαβή →</a><a className="text-link" href="/payments-security">Ασφαλής πληρωμή →</a></div>
     </section>
     <section className="shell page-section"><CheckoutPageClient checkoutEnabled={checkoutEnabled} paymentMode={paymentMode} boxNowEnabled={boxNowEnabled} /></section>
