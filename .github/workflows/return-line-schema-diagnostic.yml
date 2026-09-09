@@ -1,4 +1,4 @@
-name: Return line schema diagnostic
+name: Fix Mollie return line key
 
 on:
   push:
@@ -8,19 +8,61 @@ on:
       - .github/workflows/return-line-schema-diagnostic.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  fix:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: migration/mollie-payments-v2
-      - name: Locate invalid return line identifiers
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Replace nonexistent return_lines.id with composite key
         shell: bash
         run: |
-          echo '=== return_line_uuid references ==='
-          grep -RniI -C 8 'return_line_uuid\|rl\.id' packages apps scripts db/migrations || true
-          echo '=== return_lines DDL / key definitions ==='
-          grep -RniI -C 12 -E 'CREATE TABLE( IF NOT EXISTS)? return_lines|CREATE TABLE( IF NOT EXISTS)? public\.return_lines|return_lines.*PRIMARY KEY|PRIMARY KEY.*return_lines|ALTER TABLE.*return_lines' db/migrations || true
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/postgres-runtime/src/mollie-payments.ts')
+          src = path.read_text()
+          old = '''    const rows = await tx.query<SqlRow>(`SELECT r.id::text AS return_uuid,r.status::text,o.id::text AS order_uuid,rl.id::text AS return_line_uuid,rl.order_line_id::text AS line_uuid,rl.quantity
+      FROM returns r JOIN customer_orders o ON o.id=r.order_id JOIN return_lines rl ON rl.return_id=r.id WHERE r.public_id=$1 FOR UPDATE OF r,rl`, [returnId]);'''
+          new = '''    const rows = await tx.query<SqlRow>(`SELECT r.id::text AS return_uuid,r.status::text,o.id::text AS order_uuid,rl.order_line_id::text AS line_uuid,rl.quantity
+      FROM returns r JOIN customer_orders o ON o.id=r.order_id JOIN return_lines rl ON rl.return_id=r.id WHERE r.public_id=$1 FOR UPDATE OF r,rl`, [returnId]);'''
+          if old not in src:
+            raise SystemExit('Expected invalid return_lines.id query was not found')
+          src = src.replace(old, new, 1)
+          old_update = '      await tx.query(`UPDATE return_lines SET refund_id=$2 WHERE id=$1`, [text(row.return_line_uuid, "return_line_uuid"), refundUuid]);'
+          new_update = '      await tx.query(`UPDATE return_lines SET refund_id=$3 WHERE return_id=$1 AND order_line_id=$2`, [text(row.return_uuid, "return_uuid"), text(row.line_uuid, "line_uuid"), refundUuid]);'
+          if old_update not in src:
+            raise SystemExit('Expected invalid return_lines update was not found')
+          src = src.replace(old_update, new_update, 1)
+          path.write_text(src)
+          PY
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Type-check PostgreSQL runtime
+        run: npm run typecheck:postgres-runtime
+
+      - name: Type-check returns acceptance
+        run: npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck scripts/customer-returns-lifecycle-acceptance.ts
+
+      - name: Assert composite return-line linkage
+        shell: bash
+        run: |
+          grep -F 'UPDATE return_lines SET refund_id=$3 WHERE return_id=$1 AND order_line_id=$2' packages/postgres-runtime/src/mollie-payments.ts
+          ! grep -n 'rl.id\|return_line_uuid\|UPDATE return_lines SET refund_id=.*WHERE id=' packages/postgres-runtime/src/mollie-payments.ts
+
+      - name: Commit runtime fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/postgres-runtime/src/mollie-payments.ts
+          git commit -m 'Fix Mollie return refund line linkage'
+          git push origin HEAD:migration/mollie-payments-v2
