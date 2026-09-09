@@ -3,19 +3,21 @@
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useFormStatus } from "react-dom";
 import type { AttributeTrainerCard, AttributeTrainerTarget } from "../../../../lib/admin-catalogue-attribute-trainer";
+import type { CatalogueProductTypeOption } from "../../../../lib/admin-catalogue-product-type-options";
 
 type Action = (formData: FormData) => Promise<void>;
 
 type Props = Readonly<{
   cards: readonly AttributeTrainerCard[];
   targets: readonly AttributeTrainerTarget[];
+  productTypes: readonly CatalogueProductTypeOption[];
   canWrite: boolean;
   approveAction: Action;
   createAction: Action;
   rejectAction: Action;
 }>;
 
-export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, createAction, rejectAction }: Props) {
+export function AttributeTrainerDeck({ cards, targets, productTypes, canWrite, approveAction, createAction, rejectAction }: Props) {
   const [index, setIndex] = useState(0);
   const [manualOpen, setManualOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -30,6 +32,11 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
     const allowed = new Set(card.allowedProductTypeIds);
     return targets.filter((target) => allowed.has(target.productTypeId));
   }, [card, targets]);
+  const eligibleProductTypes = useMemo(() => {
+    if (!card || card.scopeKind !== "taxonomy_node") return productTypes;
+    const allowed = new Set(card.allowedProductTypeIds);
+    return productTypes.filter((productType) => allowed.has(productType.id));
+  }, [card, productTypes]);
   const filteredTargets = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("el-GR");
     const source = needle
@@ -37,17 +44,6 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
       : eligibleTargets;
     return source.slice(0, 80);
   }, [eligibleTargets, query]);
-  const productTypes = useMemo(() => {
-    const unique = new Map<string, { id: string; code: string; name: string }>();
-    for (const target of eligibleTargets) {
-      if (!unique.has(target.productTypeId)) unique.set(target.productTypeId, {
-        id: target.productTypeId,
-        code: target.productTypeCode,
-        name: target.productTypeName
-      });
-    }
-    return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, "el"));
-  }, [eligibleTargets]);
 
   if (!card) {
     return <div className="workspace-queue-card" style={{ textAlign: "center", padding: "2rem" }}>
@@ -104,9 +100,9 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
   };
 
   const createName = query.trim();
-  const defaultProductTypeId = primary?.productTypeId && productTypes.some((item) => item.id === primary.productTypeId)
+  const defaultProductTypeId = primary?.productTypeId && eligibleProductTypes.some((item) => item.id === primary.productTypeId)
     ? primary.productTypeId
-    : productTypes[0]?.id ?? "";
+    : eligibleProductTypes[0]?.id ?? "";
 
   return <>
     <div className="workspace-action-bar" style={{ marginBottom: "1rem" }}>
@@ -232,7 +228,7 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
             <label>
               <span>Product Type</span>
               <select name="productTypeId" defaultValue={defaultProductTypeId} required style={{ width: "100%" }}>
-                {productTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.code}</option>)}
+                {eligibleProductTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.code}</option>)}
               </select>
             </label>
             <label>
@@ -258,12 +254,12 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
             New attributes start optional, customer-visible, non-filterable and non-searchable. Existing exact label/code matches are reused instead of duplicated.
           </div>
           <div className="workspace-action-bar" style={{ marginTop: ".9rem" }}>
-            <CreateAttributeSubmit disabled={!canWrite || !card.actionable || productTypes.length === 0} label={createName} />
+            <CreateAttributeSubmit disabled={!canWrite || !card.actionable || eligibleProductTypes.length === 0} label={createName} />
           </div>
         </form>}
 
         {filteredTargets.length === 0 && !createName && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>No existing canonical attribute matches this search. Type the canonical attribute name above to create it here.</div>}
-        {productTypes.length === 0 && createName && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>No eligible Product Type with existing attribute contracts is available in this context. Resolve the Product Type/category contract first.</div>}
+        {eligibleProductTypes.length === 0 && createName && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>No eligible active Product Type is available in this context. Resolve the Product Type/category contract first.</div>}
       </div>
     </div>}
   </>;
