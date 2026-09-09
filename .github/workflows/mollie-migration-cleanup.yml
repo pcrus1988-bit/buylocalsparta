@@ -58,7 +58,9 @@ jobs:
         run: npm run check:consistency
 
       - name: Test Mollie package
-        run: npm run test:mollie
+        run: |
+          test -f packages/mollie-payments/test/mollie-payments.test.ts
+          npm run test:mollie
 
       - name: Type-check Mollie package
         run: npm run typecheck:mollie
@@ -71,6 +73,12 @@ jobs:
 
       - name: Type-check return refund lifecycle
         run: npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck scripts/customer-returns-lifecycle-acceptance.ts
+
+      - name: Verify return refund composite-key linkage
+        shell: bash
+        run: |
+          grep -F 'UPDATE return_lines SET refund_id=$3 WHERE return_id=$1 AND order_line_id=$2' packages/postgres-runtime/src/mollie-payments.ts
+          ! grep -nE 'rl\.id|return_line_uuid|UPDATE return_lines SET refund_id=.*WHERE id=' packages/postgres-runtime/src/mollie-payments.ts
 
       - name: Verify checkout UX
         run: npm run check:checkout-ux
