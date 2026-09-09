@@ -1,4 +1,4 @@
-import { getHubExpansionPlan, type HubExpansionPlanCode } from "../../../lib/hub-expansion-plans";
+import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "../../../lib/hub-expansion-plans";
 import {
   consumeHubProspectRateLimit,
   HubProspectApplicationError,
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const application: HubProspectApplicationInput = {
       taxNumber: stringField(body.taxNumber),
       planCode: planField(body.planCode),
+      billingCycle: billingField(body.billingCycle),
       businessName: stringField(body.businessName),
       contactName: stringField(body.contactName),
       email: stringField(body.email),
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
       ...receipt,
       message: receipt.planCode === "claim"
         ? "Η δωρεάν καταχώριση CLAIM μπήκε σε έλεγχο για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ."
-        : "Το ενδιαφέρον συνεργασίας καταχωρίστηκε για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση."
+        : `Το ενδιαφέρον συνεργασίας καταχωρίστηκε με ${receipt.billingCycle === "annual" ? "ετήσια" : "μηνιαία"} χρέωση για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση.`
     }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof HubProspectApplicationError) {
@@ -91,4 +92,9 @@ function planField(value: unknown): HubExpansionPlanCode {
   const plan = getHubExpansionPlan(typeof value === "string" ? value : undefined);
   if (!plan) throw new HubProspectApplicationError(400, "plan_invalid", "Επίλεξε έγκυρο πρόγραμμα συνεργασίας.");
   return plan.code;
+}
+
+function billingField(value: unknown): HubBillingCycle {
+  if (value === "annual" || value === "monthly") return value;
+  throw new HubProspectApplicationError(400, "billing_cycle_invalid", "Επίλεξε έγκυρο τρόπο χρέωσης συνδρομής.");
 }
