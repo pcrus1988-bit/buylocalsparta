@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   HUB_LOCALITY_COOKIE,
   PRIMARY_LOCATION_GATEWAY_PATH,
-  isLegacySpartaLocality,
+  isLiveLocalitySelection,
+  primaryLocationGatewayEnforcementEnabled,
   shouldRedirectToPrimaryLocationGateway
 } from "../../../apps/web/src/lib/primary-location-gateway.ts";
 import { isReadOnlyPublicCrawlerUserAgent } from "../../../apps/web/src/lib/public-crawler.ts";
@@ -13,16 +14,25 @@ test("primary location gateway constants remain stable", () => {
   assert.equal(PRIMARY_LOCATION_GATEWAY_PATH, "/choose-location");
 });
 
-test("Sparta locality aliases retain the legacy root storefront", () => {
-  assert.equal(isLegacySpartaLocality("sparti"), true);
-  assert.equal(isLegacySpartaLocality("SPARTI"), true);
-  assert.equal(isLegacySpartaLocality("sparta"), true);
-  assert.equal(isLegacySpartaLocality("kalamata"), false);
-  assert.equal(isLegacySpartaLocality("%E0%A4%A"), false);
-  assert.equal(isLegacySpartaLocality(undefined), false);
+test("production interception remains off unless explicitly enabled", () => {
+  assert.equal(primaryLocationGatewayEnforcementEnabled(undefined), false);
+  assert.equal(primaryLocationGatewayEnforcementEnabled(""), false);
+  assert.equal(primaryLocationGatewayEnforcementEnabled("false"), false);
+  assert.equal(primaryLocationGatewayEnforcementEnabled("1"), false);
+  assert.equal(primaryLocationGatewayEnforcementEnabled(" true "), true);
+  assert.equal(primaryLocationGatewayEnforcementEnabled("TRUE"), true);
 });
 
-test("bare human root requires a locality selection", () => {
+test("live locality selections retain the existing storefront", () => {
+  assert.equal(isLiveLocalitySelection("sparti"), true);
+  assert.equal(isLiveLocalitySelection("SPARTI"), true);
+  assert.equal(isLiveLocalitySelection("sparta"), true);
+  assert.equal(isLiveLocalitySelection("kalamata"), false);
+  assert.equal(isLiveLocalitySelection("%E0%A4%A"), false);
+  assert.equal(isLiveLocalitySelection(undefined), false);
+});
+
+test("bare human root requires a locality selection when interception is enabled", () => {
   const base = { pathname: "/", method: "GET", userAgent: "Mozilla/5.0" } as const;
   assert.equal(shouldRedirectToPrimaryLocationGateway(base), true);
   assert.equal(shouldRedirectToPrimaryLocationGateway({ ...base, localityCookie: "kalamata" }), true);
@@ -30,10 +40,11 @@ test("bare human root requires a locality selection", () => {
   assert.equal(shouldRedirectToPrimaryLocationGateway({ ...base, localityCookie: "sparta" }), false);
 });
 
-test("direct routes and non-navigation methods are never location-gated", () => {
+test("direct routes, prefetches and non-navigation methods are never location-gated", () => {
   assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/shop", method: "GET", userAgent: "Mozilla/5.0" }), false);
   assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/admin", method: "GET", userAgent: "Mozilla/5.0" }), false);
   assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/", method: "POST", userAgent: "Mozilla/5.0" }), false);
+  assert.equal(shouldRedirectToPrimaryLocationGateway({ pathname: "/", method: "GET", userAgent: "Mozilla/5.0", prefetch: true }), false);
 });
 
 test("public crawlers and KONTA MOY SEO monitor retain the Sparta SEO root", () => {
