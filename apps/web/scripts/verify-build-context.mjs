@@ -32,6 +32,14 @@ const legacyVivaKeys = Object.keys(process.env)
   .filter((key) => key.startsWith("VIVA_") || key.includes("VIVA_FISCAL"))
   .sort();
 const vercelProduction = process.env.VERCEL_ENV === "production";
+const mollieApiKey = process.env.MOLLIE_API_KEY?.trim();
+const mollieKeyEnvironment = !mollieApiKey
+  ? "missing"
+  : mollieApiKey.startsWith("live_")
+    ? "live"
+    : mollieApiKey.startsWith("test_")
+      ? "test"
+      : "invalid";
 
 if (legacyVivaKeys.length) {
   const message = `Legacy Viva environment variables remain configured: ${legacyVivaKeys.join(", ")}`;
@@ -43,11 +51,12 @@ if (vercelProduction) {
   if (process.env.MOLLIE_PAYMENTS_ENABLED !== "true") {
     throw new Error("Production deployment requires MOLLIE_PAYMENTS_ENABLED=true; KONTA MOY is Mollie-only.");
   }
-  const mollieApiKey = process.env.MOLLIE_API_KEY?.trim();
   if (!mollieApiKey) throw new Error("Production deployment requires MOLLIE_API_KEY.");
-  if (!mollieApiKey.startsWith("live_")) {
+  if (mollieKeyEnvironment !== "live") {
     throw new Error("Production deployment requires a Mollie live_ API key; test credentials are preview/test only.");
   }
+} else if (process.env.VERCEL_ENV === "preview") {
+  console.log(`Mollie preview configuration: enabled=${process.env.MOLLIE_PAYMENTS_ENABLED === "true"}; apiKeyEnvironment=${mollieKeyEnvironment}.`);
 }
 
 console.log(`Build context OK: Buy Local Sparta ${root.version} monorepo workspace is visible; payment provider policy is Mollie-only.`);
