@@ -58,6 +58,7 @@ import "./premium-checkout.css";
 import "./premium-cart.css";
 import "./premium-interactions.css";
 import "./premium-responsive.css";
+import "./premium-mobile-acceptance.css";
 import { CartProvider } from "../components/CartProvider";
 import { CustomerMobileCommerceProvider } from "../components/CustomerMobileCommerceNav";
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
