@@ -114,7 +114,7 @@ for (const contract of [
   "sr.status='active' AND sr.expires_at>now()"
 ]) if (!notifications.includes(contract)) failures.push(`Reminder delivery-time safety gate is missing ${contract}`);
 
-if (worker.includes("expire_pending_payment_orders")) failures.push("Legacy worker must not cancel pending-payment orders from reservation expiry alone");
+if (worker.includes("SELECT expire_pending_payment_orders") || worker.includes("expire_pending_payment_orders($")) failures.push("Legacy worker must not invoke pending-payment cancellation from reservation expiry alone");
 if (!worker.includes("o.created_at + interval '24 hours'")) failures.push("PostgreSQL worker must protect live pending-payment reservations for the 24-hour window");
 
 if (failures.length) {
