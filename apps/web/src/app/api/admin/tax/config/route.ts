@@ -15,7 +15,7 @@ export async function POST(request:Request){
     const action=required(body,"action");
     if(action==="save_runtime"){
       const environment=required(body,"environment");if(environment!=="test"&&environment!=="production")throw new Error("Unsupported AADE environment");
-      return Response.json(await adminUpdateMyDataRuntimeConfig(principal,{environment,specVersion:required(body,"specVersion"),requestTimeoutMs:integer(body,"requestTimeoutMs"),issuanceEnabled:bool(body,"issuanceEnabled"),ecrTokenEnabled:bool(body,"ecrTokenEnabled"),vivaFiscalEnabled:bool(body,"vivaFiscalEnabled"),mappingVersionPin:optional(body,"mappingVersionPin"),capturePaidOrders:bool(body,"capturePaidOrders"),emailAcceptedDocuments:bool(body,"emailAcceptedDocuments"),confirmation:optional(body,"confirmation"),reason:required(body,"reason")}));
+      return Response.json(await adminUpdateMyDataRuntimeConfig(principal,{environment,specVersion:required(body,"specVersion"),requestTimeoutMs:integer(body,"requestTimeoutMs"),issuanceEnabled:bool(body,"issuanceEnabled"),ecrTokenEnabled:bool(body,"ecrTokenEnabled"),mappingVersionPin:optional(body,"mappingVersionPin"),capturePaidOrders:bool(body,"capturePaidOrders"),emailAcceptedDocuments:bool(body,"emailAcceptedDocuments"),confirmation:optional(body,"confirmation"),reason:required(body,"reason")}));
     }
     if(action==="save_credentials")return Response.json(await adminUpdateMyDataCredentials(principal,{userId:optional(body,"userId"),subscriptionKey:optional(body,"subscriptionKey"),reason:required(body,"reason")}));
     throw new Error("Unsupported myDATA configuration action");

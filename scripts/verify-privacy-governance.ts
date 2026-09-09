@@ -29,7 +29,7 @@ for (const activity of ["account_auth", "orders_checkout", "payments_refunds", "
 for (const retention of ["identity_sessions", "marketplace_identity", "consent_evidence", "personalization", "analytics", "security_audit", "financial_records", "commerce_records", "communications", "privacy_requests", "vendor_governance"]) {
   expect(files.governance, `key: \"${retention}\"`, `retention registry contains ${retention}`);
 }
-for (const provider of ["Supabase", "Vercel", "Resend", "Viva.com", "BOX NOW", "AADE / myDATA"]) {
+for (const provider of ["Supabase", "Vercel", "Resend", "Mollie.com", "BOX NOW", "AADE / myDATA"]) {
   expect(files.governance, `name: \"${provider}\"`, `provider registry contains ${provider}`);
 }
 expect(files.adminPrivacy, "PROCESSING_ACTIVITIES", "admin privacy renders ROPA registry");

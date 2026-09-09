@@ -8,7 +8,7 @@ function money(minor: number) { return new Intl.NumberFormat("el-GR", { style: "
 
 type Props = Readonly<{
   checkoutEnabled: boolean;
-  paymentMode: "viva" | "development" | "unavailable";
+  paymentMode: "mollie" | "development" | "unavailable";
   boxNowEnabled: boolean;
 }>;
 
@@ -306,7 +306,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
       }
       if (!response.ok) throw new Error(body.error ?? "Το checkout δεν ολοκληρώθηκε.");
       const orderId = body.id ?? body.orderId ?? "created";
-      if (body.payment?.provider === "viva" && body.payment.redirectUrl) {
+      if (body.payment?.provider === "mollie" && body.payment.redirectUrl) {
         window.location.assign(body.payment.redirectUrl);
         return;
       }
@@ -396,8 +396,8 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
 
       <div className="checkout-section">
         <div className="eyebrow">03 · Πληρωμή</div>
-        <h2>{paymentMode === "viva" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2>
-        <div className="payment-placeholder"><strong>{paymentMode === "viva" ? "Viva Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "viva" ? "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Viva μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
+        <h2>{paymentMode === "mollie" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2>
+        <div className="payment-placeholder"><strong>{paymentMode === "mollie" ? "Mollie Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "mollie" ? "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Mollie μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
         <div className="shipping-provider-fields">
           <div className="account-card-head"><div><strong>Έχεις δωροκάρτα ΚΟΝΤΑ ΜΟΥ;</strong><small>Βάλε τον κωδικό που δημιουργήθηκε από το ΚΟΝΤΑ ΜΟΥ.</small></div></div>
           <label>Κωδικός δωροκάρτας <small>προαιρετικό</small><input aria-label="Κωδικός δωροκάρτας" autoComplete="off" value={giftCardCode} onChange={(event) => { setGiftCardCode(event.target.value); setGiftCardHint(""); }} placeholder="KM-XXXXXX-XXXXXX-XXXXXX-XXXXXX" /></label>
@@ -405,7 +405,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
           {giftCardHint ? <p className="workspace-inline-note" role="status">{giftCardHint}</p> : null}
         </div>
       </div>
-      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εφαρμογή δωροκάρτας & συνέχεια" : paymentMode === "viva" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
+      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εφαρμογή δωροκάρτας & συνέχεια" : paymentMode === "mollie" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
       {result && <div className={`checkout-result ${result.ok ? "success" : "error"}`} role="status"><strong>{result.ok ? "Έτοιμο" : "Δεν ολοκληρώθηκε"}</strong><p>{result.message}</p>{result.totalMinor !== undefined && <p><strong>Σύνολο: {money(result.totalMinor)}</strong></p>}{result.orderId && <code>Order: {result.orderId}</code>}</div>}
     </form>
     {summary}

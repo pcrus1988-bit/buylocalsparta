@@ -12,7 +12,7 @@
   "dependencies": {
     "@buy-local-sparta/core": "0.24.0",
     "pg": "8.22.0",
-    "@buy-local-sparta/viva-payments": "0.45.0",
+    "@buy-local-sparta/mollie-payments": "0.45.0",
     "@buy-local-sparta/aade-mydata": "0.45.0",
     "@buy-local-sparta/meilisearch-search": "0.45.0",
     "@buy-local-sparta/resend-notifications": "0.45.0",

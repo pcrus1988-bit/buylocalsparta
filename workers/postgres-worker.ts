@@ -25,7 +25,7 @@ runner.register({
 });
 
 runner.register({
-  name: "payments.viva_reconciliation_watch",
+  name: "payments.mollie_reconciliation_watch",
   intervalMs: 5 * 60 * 1_000,
   retryMs: 60_000,
   run: async (now) => {
@@ -33,21 +33,21 @@ runner.register({
     const staleOrders = await runtime.nativePool.query(
       `UPDATE payments
        SET provider_payload=provider_payload||jsonb_build_object(
-         'orderCreationState','manual_review',
-         'orderCreationWatchdogAt',$2::text,
-         'orderCreationWatchdogReason','creation_attempt_stale'
+         'paymentCreationState','manual_review',
+         'paymentCreationWatchdogAt',$2::text,
+         'paymentCreationWatchdogReason','creation_attempt_stale'
        ),updated_at=$2
-       WHERE provider='viva' AND provider_order_code IS NULL
-         AND provider_payload->>'orderCreationState'='creating' AND updated_at<$1`,
+       WHERE provider='mollie' AND provider_payment_id IS NULL
+         AND provider_payload->>'paymentCreationState'='creating' AND updated_at<$1`,
       [cutoff, new Date(now)]
     );
     const staleRefunds = await runtime.nativePool.query(
       `UPDATE refunds SET status='manual_review',failure_code='provider_outcome_unknown',
-         failure_message=COALESCE(failure_message,'Viva refund attempt became stale before a definitive provider outcome'),updated_at=$2
+         failure_message=COALESCE(failure_message,'Mollie refund attempt became stale before a definitive provider outcome'),updated_at=$2
        WHERE status='processing' AND updated_at<$1`,
       [cutoff, new Date(now)]
     );
-    log("info", "worker.viva_reconciliation_watch", { stalePaymentOrders: staleOrders.rowCount ?? 0, staleRefunds: staleRefunds.rowCount ?? 0 });
+    log("info", "worker.mollie_reconciliation_watch", { stalePaymentOrders: staleOrders.rowCount ?? 0, staleRefunds: staleRefunds.rowCount ?? 0 });
   }
 });
 

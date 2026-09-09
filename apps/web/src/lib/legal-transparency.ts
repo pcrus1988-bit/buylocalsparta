@@ -150,7 +150,7 @@ export const TRACKER_REGISTRY: readonly TrackerRegistryEntry[] = [
 
 export const DATA_RECIPIENTS = [
   {
-    name: "Viva.com",
+    name: "Mollie.com",
     purpose: "Πληρωμή, επιβεβαίωση συναλλαγής, reconciliation και refund",
     data: "Όνομα όπου υπάρχει, email, τηλέφωνο, γλώσσα, ποσό και αναφορά παραγγελίας/συναλλαγής"
   },

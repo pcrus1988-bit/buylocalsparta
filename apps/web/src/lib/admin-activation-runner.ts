@@ -2,7 +2,7 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter, type ActivationCheckKind, type ActivationProvider, type ActivationStatus } from "@buy-local-sparta/postgres-runtime";
 import { ResendEmailProvider, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { vivaPaymentsProviderReadiness } from "./viva-runtime";
+import { molliePaymentsProviderReadiness } from "./mollie-runtime";
 import { myDataConnectivityCheck, myDataReadiness } from "./mydata-runtime";
 import { mediaPipelineReadiness } from "./media-upload-service";
 import { postgresStorefrontSearchReadiness } from "./postgres-storefront-search";
@@ -46,7 +46,7 @@ export async function runProductionActivationReadiness(principal: SessionPrincip
   const checks: ProductionActivationCheck[] = [];
 
   checks.push(await databaseCheck());
-  checks.push(await vivaCheck());
+  checks.push(await mollieCheck());
   checks.push(await myDataCheck());
   checks.push(await emailCheck());
   checks.push(await searchCheck());
@@ -100,20 +100,19 @@ async function databaseCheck(): Promise<ProductionActivationCheck> {
   };
 }
 
-async function vivaCheck(): Promise<ProductionActivationCheck> {
-  if (process.env.VIVA_PAYMENTS_ENABLED !== "true") return skipped("viva", "disabled", "viva-live-readiness", "Viva payments are intentionally disabled");
-  const result = await vivaPaymentsProviderReadiness();
+async function mollieCheck(): Promise<ProductionActivationCheck> {
+  if (process.env.MOLLIE_PAYMENTS_ENABLED !== "true") return skipped("mollie", "disabled", "mollie-live-readiness", "Mollie payments are intentionally disabled");
+  const result = await molliePaymentsProviderReadiness();
   return {
-    provider: "viva",
+    provider: "mollie",
     environment: result.environment,
-    checkName: "viva-live-readiness",
+    checkName: "mollie-live-readiness",
     checkKind: "connectivity",
     status: result.ready ? "passed" : "failed",
     details: {
       enabled: result.enabled,
-      smartCheckoutScope: result.smartCheckoutScope ?? false,
-      webhookKeyAvailable: result.webhookKeyAvailable ?? false,
-      message: result.message ?? (result.ready ? "Viva OAuth and webhook-key checks passed" : "Viva readiness failed")
+      providerApiReady: result.ready,
+      message: result.message ?? (result.ready ? "Mollie API readiness check passed" : "Mollie readiness failed")
     }
   };
 }

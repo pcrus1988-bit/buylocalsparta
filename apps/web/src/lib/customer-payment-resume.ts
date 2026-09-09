@@ -1,11 +1,11 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { requireVivaPayments, vivaPaymentsEnabled } from "./viva-runtime";
+import { requireMolliePayments, molliePaymentsEnabled } from "./mollie-runtime";
 
 export type CustomerPaymentResumeResult = Readonly<{
   orderId: string;
-  provider: "viva";
-  orderCode: string;
+  provider: "mollie";
+  paymentId: string;
   redirectUrl: string;
   amountMinor: number;
   reservationExpiresAt: number;
@@ -63,13 +63,13 @@ export async function resumeCustomerOrderPayment(
 ): Promise<CustomerPaymentResumeResult> {
   if (!principal.roles.includes("customer")) throw new Error("AUTH_REQUIRED");
   if (!productionDatabaseConfigured()) throw new Error("PAYMENT_SERVICE_UNAVAILABLE");
-  if (!vivaPaymentsEnabled()) throw new Error("PAYMENT_SERVICE_UNAVAILABLE");
+  if (!molliePaymentsEnabled()) throw new Error("PAYMENT_SERVICE_UNAVAILABLE");
   const orderId = input.orderId.trim();
   if (!orderId || orderId.length > 160) throw new Error("ORDER_NOT_FOUND");
   const startedAt = input.now ?? Date.now();
 
   await activePaymentWindow(principal, orderId, startedAt);
-  const payment = await requireVivaPayments().initiateOrderPayment({
+  const payment = await requireMolliePayments().initiateOrderPayment({
     orderId,
     customerId: principal.userId,
     visitorKey: input.visitorKey,
@@ -79,8 +79,8 @@ export async function resumeCustomerOrderPayment(
 
   return {
     orderId,
-    provider: "viva",
-    orderCode: payment.orderCode,
+    provider: "mollie",
+    paymentId: payment.paymentId,
     redirectUrl: payment.checkoutUrl,
     amountMinor: payment.amountMinor,
     reservationExpiresAt: window.reservationExpiresAt

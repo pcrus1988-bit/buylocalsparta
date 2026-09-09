@@ -45,16 +45,16 @@ if (!pendingCancellationMatch) {
 } else {
   const pendingCancellation = pendingCancellationMatch[1];
   const localCancellation = pendingCancellation.indexOf("runtime.customerCommerce.cancelCustomerOrder");
-  const vivaPreparation = pendingCancellation.indexOf("runtime.vivaPayments.prepareOrderCancellation");
+  const molliePreparation = pendingCancellation.indexOf("runtime.molliePayments.prepareOrderCancellation");
   if (localCancellation < 0) failures.push("Pending-payment cancellation no longer cancels the order locally");
-  if (vivaPreparation < 0) failures.push("Pending-payment cancellation no longer performs the post-cancel payment race check");
-  if (localCancellation >= 0 && vivaPreparation >= 0 && localCancellation > vivaPreparation) {
-    failures.push("Pending-payment cancellation must complete its local cancellation before any Viva cancellation preparation");
+  if (molliePreparation < 0) failures.push("Pending-payment cancellation no longer performs the post-cancel payment race check");
+  if (localCancellation >= 0 && molliePreparation >= 0 && localCancellation > molliePreparation) {
+    failures.push("Pending-payment cancellation must complete its local cancellation before any Mollie cancellation preparation");
   }
 }
 
 if (!postgresCommerce.includes("status IN ('created','requires_action','authorised','failed') THEN 'cancelled'")) {
-  failures.push("Postgres customer cancellation no longer marks uncharged payment states as cancelled before the post-cancel Viva check");
+  failures.push("Postgres customer cancellation no longer marks uncharged payment states as cancelled before the post-cancel Mollie check");
 }
 
 if (failures.length) {
@@ -62,4 +62,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer order actionability checks passed: pending payment is prioritized on the dashboard, explicit in the order directory, orange in lifecycle semantics, recoverable from order detail, and customer cancellation closes an unpaid order locally before any Viva cancellation preparation.");
+console.log("Customer order actionability checks passed: pending payment is prioritized on the dashboard, explicit in the order directory, orange in lifecycle semantics, recoverable from order detail, and customer cancellation closes an unpaid order locally before any Mollie cancellation preparation.");

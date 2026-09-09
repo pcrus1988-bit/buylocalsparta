@@ -14,7 +14,7 @@ type GateState = "passed" | "failed" | "blocked" | "skipped" | "missing" | "expi
 
 const PROVIDER_GATES = [
   { key: "database", label: "Database", hint: "PostgreSQL · PostGIS · schema", match: ["postgres", "database"] },
-  { key: "payments", label: "Payments", hint: "Viva OAuth · checkout · webhook", match: ["viva", "payment"] },
+  { key: "payments", label: "Payments", hint: "Mollie API · checkout · webhook", match: ["mollie", "payment"] },
   { key: "tax", label: "Tax / myDATA", hint: "AADE connectivity · mapping boundary", match: ["aade", "mydata"] },
   { key: "email", label: "Transactional email", hint: "Resend domain · webhook readiness", match: ["resend", "email"] },
   { key: "search", label: "Search", hint: "Meilisearch health · index provider", match: ["meili", "search"] },
@@ -92,7 +92,7 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Production verification" title="Run fresh provider checks" note="Checks PostgreSQL, Viva, AADE myDATA, Resend, search, object storage, BOX NOW and the deployed web. It does not create a payment, invoice, email or shipment." />
+      <WorkspaceSectionHeading eyebrow="Production verification" title="Run fresh provider checks" note="Checks PostgreSQL, Mollie, AADE myDATA, Resend, search, object storage, BOX NOW and the deployed web. It does not create a payment, invoice, email or shipment." />
       {canRun ? <div className="workspace-inline-actions">
         <AdminActionButton label="Run production readiness checks" endpoint="/api/admin/activation/run" csrfToken={data.csrfToken} />
       </div> : <p className="workspace-muted">Running and recording production evidence is restricted to super admin. Existing evidence remains readable according to Admin permissions.</p>}

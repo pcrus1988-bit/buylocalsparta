@@ -46,15 +46,15 @@ export async function cancelCustomerCommerceOrder(principal: SessionPrincipal, i
 
     // A pending-payment order has not charged the customer. Cancel it locally first so
     // the payment row becomes `cancelled`; prepareOrderCancellation then performs only
-    // its database check and cannot call Viva for an uncharged payment. If a capture
+    // its database check and cannot call Mollie for an uncharged payment. If a capture
     // races with this cancellation, the captured balance is still detected and refunded.
     if (order.status === "pending_payment") {
       const cancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId: principal.userId, orderId: input.orderId, reason: input.reason, now: input.now });
-      if (runtime.vivaPayments) await runtime.vivaPayments.prepareOrderCancellation({ orderId: input.orderId, reason: input.reason, now: input.now });
+      if (runtime.molliePayments) await runtime.molliePayments.prepareOrderCancellation({ orderId: input.orderId, reason: input.reason, now: input.now });
       return cancelled;
     }
 
-    if (runtime.vivaPayments) await runtime.vivaPayments.prepareOrderCancellation({ orderId: input.orderId, reason: input.reason, now: input.now });
+    if (runtime.molliePayments) await runtime.molliePayments.prepareOrderCancellation({ orderId: input.orderId, reason: input.reason, now: input.now });
     return runtime.customerCommerce.cancelCustomerOrder({ customerId: principal.userId, orderId: input.orderId, reason: input.reason, now: input.now });
   }
   const order = developmentRuntime.commerce.orders().find((entry) => entry.id === input.orderId);

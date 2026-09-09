@@ -28,8 +28,8 @@ export async function POST(request:Request){
     const action=required(body,"action");
     const policyId=typeof body.policyId==="string"?body.policyId.trim():"";
     if(action==="set_route"){
-      if(!policyId)throw new Error("policyId is required");const route=required(body,"route");if(!["unselected","viva_fiscal_provider","aade_direct_erp"].includes(route))throw new Error("Unsupported fiscalisation route");
-      return Response.json(await adminSetFiscalisationRoute(principal,{policyId,route:route as "unselected"|"viva_fiscal_provider"|"aade_direct_erp",reason:required(body,"reason")}));
+      if(!policyId)throw new Error("policyId is required");const route=required(body,"route");if(!["unselected","aade_direct_erp"].includes(route))throw new Error("Unsupported fiscalisation route");
+      return Response.json(await adminSetFiscalisationRoute(principal,{policyId,route:route as "unselected"|"aade_direct_erp",reason:required(body,"reason")}));
     }
     if(action==="update_policy"){
       if(!policyId)throw new Error("policyId is required");return Response.json(await adminUpdateAccountingPolicy(principal,{policyId,sellerOfRecord:bool(body,"sellerOfRecord"),sellerLegalName:required(body,"sellerLegalName"),sellerTaxNumber:required(body,"sellerTaxNumber"),compatibilityTarget:required(body,"compatibilityTarget"),productionPublishedSchema:optional(body,"productionPublishedSchema"),effectiveFrom:optional(body,"effectiveFrom"),reason:required(body,"reason")}));

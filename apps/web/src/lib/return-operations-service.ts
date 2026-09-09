@@ -103,8 +103,30 @@ export async function reconcileRefundedReturnFinance(returnId: string, actorUser
   if (!productionDatabaseConfigured()) return;
   const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
   await uow.withTransaction({ actorUserId, marketId: "sparta", platformAccess: true }, async (tx) => {
+    const actor = await tx.query<SqlRow>(`SELECT id::text AS actor_uuid,public_id AS actor_public_id FROM users WHERE public_id=$1 OR id::text=$1`, [actorUserId]);
+    if (!actor.rowCount) throw new Error("Admin actor not found for return finance reconciliation");
+    const actorUuid = text(actor.rows[0].actor_uuid, "actor_uuid");
+    const actorPublicId = text(actor.rows[0].actor_public_id, "actor_public_id");
+
     const already = await tx.query<SqlRow>(`SELECT 1 AS hit FROM audit_events WHERE action='return.vendor_finance.reconciled' AND entity_type='return' AND entity_id=$1 LIMIT 1`, [returnId]);
-    if (already.rowCount) return;
+    if (already.rowCount) {
+      const refundEvidence = await tx.query<SqlRow>(`
+        SELECT rf.public_id AS refund_id,rf.provider_refund_id,rf.amount_minor
+        FROM returns r JOIN return_lines rl ON rl.return_id=r.id JOIN refunds rf ON rf.id=rl.refund_id
+        WHERE r.public_id=$1 AND r.status='refunded' ORDER BY rf.created_at DESC LIMIT 1`, [returnId]);
+      if (refundEvidence.rowCount) {
+        const refund = refundEvidence.rows[0];
+        await tx.query(`INSERT INTO audit_events(id,public_id,market_id,actor_user_id,actor_public_id,actor_role,action,entity_type,entity_id,reason,after_state,created_at)
+          SELECT $1,$2,(SELECT id FROM markets WHERE code='sparta'),$3,$4,'platform_finance','return.refund.executed','return',$5,$6,$7::jsonb,$8
+          WHERE NOT EXISTS(SELECT 1 FROM audit_events WHERE action='return.refund.executed' AND entity_type='return' AND entity_id=$5)`, [
+          randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 24)}`, actorUuid, actorPublicId, returnId,
+          `Mollie refund ${optionalText(refund.provider_refund_id) ?? text(refund.refund_id, "refund_id")}`,
+          JSON.stringify({ refundId: text(refund.refund_id, "refund_id"), amountMinor: integer(refund.amount_minor, "refund.amount_minor"), providerRefundId: optionalText(refund.provider_refund_id) }),
+          new Date(now)
+        ]);
+      }
+      return;
+    }
 
     const rows = await tx.query<SqlRow>(`
       SELECT r.id::text AS return_uuid,r.status::text AS return_status,o.id::text AS order_uuid,o.public_id AS order_public_id,
@@ -129,6 +151,13 @@ export async function reconcileRefundedReturnFinance(returnId: string, actorUser
       WHERE r.public_id=$1
       ORDER BY ol.public_id`, [returnId]);
     if (!rows.rowCount || text(rows.rows[0].return_status, "return.status") !== "refunded") return;
+
+    const refundEvidence = await tx.query<SqlRow>(`
+      SELECT rf.public_id AS refund_id,rf.provider_refund_id,rf.amount_minor
+      FROM returns r JOIN return_lines rl ON rl.return_id=r.id JOIN refunds rf ON rf.id=rl.refund_id
+      WHERE r.public_id=$1 ORDER BY rf.created_at DESC LIMIT 1`, [returnId]);
+    if (!refundEvidence.rowCount) throw new Error("Completed return refund evidence not found");
+    const refund = refundEvidence.rows[0];
 
     let adjustedBeforeSettlement = 0;
     let vendorReceivable = 0;
@@ -170,11 +199,17 @@ export async function reconcileRefundedReturnFinance(returnId: string, actorUser
       }
     }
 
-    const actor = await tx.query<SqlRow>(`SELECT id::text AS actor_uuid,public_id AS actor_public_id FROM users WHERE public_id=$1 OR id::text=$1`, [actorUserId]);
-    if (!actor.rowCount) throw new Error("Admin actor not found for return finance reconciliation");
+    await tx.query(`INSERT INTO audit_events(id,public_id,market_id,actor_user_id,actor_public_id,actor_role,action,entity_type,entity_id,reason,after_state,created_at)
+      SELECT $1,$2,(SELECT id FROM markets WHERE code='sparta'),$3,$4,'platform_finance','return.refund.executed','return',$5,$6,$7::jsonb,$8
+      WHERE NOT EXISTS(SELECT 1 FROM audit_events WHERE action='return.refund.executed' AND entity_type='return' AND entity_id=$5)`, [
+      randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 24)}`, actorUuid, actorPublicId, returnId,
+      `Mollie refund ${optionalText(refund.provider_refund_id) ?? text(refund.refund_id, "refund_id")}`,
+      JSON.stringify({ refundId: text(refund.refund_id, "refund_id"), amountMinor: integer(refund.amount_minor, "refund.amount_minor"), providerRefundId: optionalText(refund.provider_refund_id) }),
+      new Date(now)
+    ]);
     await tx.query(`INSERT INTO audit_events(id,public_id,market_id,actor_user_id,actor_public_id,actor_role,action,entity_type,entity_id,reason,after_state,created_at)
       VALUES($1,$2,(SELECT id FROM markets WHERE code='sparta'),$3,$4,'platform_finance','return.vendor_finance.reconciled','return',$5,$6,$7::jsonb,$8)`, [
-      randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 24)}`, text(actor.rows[0].actor_uuid, "actor_uuid"), text(actor.rows[0].actor_public_id, "actor_public_id"), returnId,
+      randomUUID(), `audit_${randomUUID().replaceAll("-", "").slice(0, 24)}`, actorUuid, actorPublicId, returnId,
       "Customer refund vendor settlement reconciliation",
       JSON.stringify({ adjustedBeforeSettlementMinor: adjustedBeforeSettlement, postSettlementVendorReceivableMinor: vendorReceivable, missingProcurements }),
       new Date(now)

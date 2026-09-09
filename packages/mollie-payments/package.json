@@ -1,5 +1,5 @@
 {
-  "name": "@buy-local-sparta/viva-payments",
+  "name": "@buy-local-sparta/mollie-payments",
   "version": "0.45.0",
   "private": true,
   "type": "module",

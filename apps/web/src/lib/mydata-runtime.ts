@@ -9,7 +9,7 @@ export const MYDATA_ADMIN_CONFIG_KEY = "mydata.admin_runtime_config";
 
 type ResolvedMyDataConfig = Readonly<{ config: MyDataConfig; credentialSource: "environment" | "supabase_vault" }>;
 type ProbeSnapshot = Readonly<{ state: "armed" | "running" | "succeeded" | "failed"; checkedAt?: number; environment?: string; specVersion?: string; responseBytes?: number; error?: string }>;
-type ApprovedPolicy = Readonly<{ version:string; fiscalisationRoute:"viva_fiscal_provider"|"aade_direct_erp"; compatibilityTarget:string }>;
+type ApprovedPolicy = Readonly<{ version:string; fiscalisationRoute:"aade_direct_erp"; compatibilityTarget:string }>;
 
 export type MyDataAdminRuntimeConfig = Readonly<{
   environment: MyDataEnvironment;
@@ -18,7 +18,6 @@ export type MyDataAdminRuntimeConfig = Readonly<{
   requestTimeoutMs: number;
   issuanceEnabled: boolean;
   ecrTokenEnabled: boolean;
-  vivaFiscalEnabled: boolean;
   mappingVersionPin?: string;
   capturePaidOrders: boolean;
   emailAcceptedDocuments: boolean;
@@ -44,7 +43,6 @@ export async function updateMyDataAdminRuntimeConfig(input: {
   requestTimeoutMs: number;
   issuanceEnabled: boolean;
   ecrTokenEnabled: boolean;
-  vivaFiscalEnabled: boolean;
   mappingVersionPin?: string;
   capturePaidOrders: boolean;
   emailAcceptedDocuments: boolean;
@@ -55,7 +53,7 @@ export async function updateMyDataAdminRuntimeConfig(input: {
   if (!/^\d+\.\d+\.\d+$/.test(specVersion)) throw new Error("AADE specification version must use x.y.z format");
   if (!Number.isSafeInteger(input.requestTimeoutMs) || input.requestTimeoutMs < 1000 || input.requestTimeoutMs > 60000) throw new Error("AADE timeout must be between 1000 and 60000 ms");
   if (input.issuanceEnabled && process.env.NODE_ENV === "production" && environment !== "production") throw new Error("Live BLS cannot enable fiscal issuance against the AADE test environment");
-  if (input.issuanceEnabled && !input.ecrTokenEnabled && !input.vivaFiscalEnabled) throw new Error("Fiscal issuance requires an enabled ECRToken or Viva Fiscal capability");
+  if (input.issuanceEnabled && !input.ecrTokenEnabled) throw new Error("Fiscal issuance requires the enabled AADE Direct ERP ECRToken capability");
   const value = {
     environment,
     baseUrl: officialBaseUrl(environment),
@@ -63,7 +61,6 @@ export async function updateMyDataAdminRuntimeConfig(input: {
     requestTimeoutMs: input.requestTimeoutMs,
     issuanceEnabled: Boolean(input.issuanceEnabled),
     ecrTokenEnabled: Boolean(input.ecrTokenEnabled),
-    vivaFiscalEnabled: Boolean(input.vivaFiscalEnabled),
     mappingVersionPin: input.mappingVersionPin?.trim() || null,
     capturePaidOrders: Boolean(input.capturePaidOrders),
     emailAcceptedDocuments: Boolean(input.emailAcceptedDocuments),
@@ -157,10 +154,6 @@ export async function myDataReadiness() {
     if (!policy) return { enabled: runtimeConfig.issuanceEnabled, configured: true, ready: false, environment: config.environment, specVersion: config.specVersion, credentialSource, probe, message: "No approved Accounting Mapping exists in the database" };
     const deploymentPin=runtimeConfig.mappingVersionPin;
     if(deploymentPin&&deploymentPin!==policy.version)return{enabled:runtimeConfig.issuanceEnabled,configured:true,ready:false,environment:config.environment,specVersion:config.specVersion,credentialSource,probe,approvedMappingVersion:policy.version,fiscalisationRoute:policy.fiscalisationRoute,message:`Admin mapping pin ${deploymentPin} does not match approved Accounting Mapping ${policy.version}`};
-    if(policy.fiscalisationRoute==="viva_fiscal_provider"){
-      const providerReady=runtimeConfig.vivaFiscalEnabled;
-      return{enabled:providerReady,configured:true,ready:providerReady,environment:config.environment,specVersion:config.specVersion,credentialSource,probe,approvedMappingVersion:policy.version,fiscalisationRoute:policy.fiscalisationRoute,message:providerReady?"Approved policy uses Viva Fiscal provider; direct AADE ERP SendInvoices is intentionally not the issuance route":"Approved policy selects Viva Fiscal provider, but the provider integration is not enabled in Admin"};
-    }
     if(!runtimeConfig.issuanceEnabled)return{enabled:false,configured:true,ready:false,environment:config.environment,specVersion:config.specVersion,credentialSource,probe,approvedMappingVersion:policy.version,fiscalisationRoute:policy.fiscalisationRoute,message:"Approved policy selects AADE Direct ERP, but the Admin issuance switch is disabled"};
     if(process.env.NODE_ENV==="production"&&config.environment!=="production")return{enabled:true,configured:true,ready:false,environment:config.environment,specVersion:config.specVersion,credentialSource,probe,approvedMappingVersion:policy.version,fiscalisationRoute:policy.fiscalisationRoute,message:"Production fiscal issuance cannot target the AADE test environment"};
     if(!runtimeConfig.ecrTokenEnabled)return{enabled:true,configured:true,ready:false,environment:config.environment,specVersion:config.specVersion,credentialSource,probe,approvedMappingVersion:policy.version,fiscalisationRoute:policy.fiscalisationRoute,message:"AADE Direct ERP is selected, but POS/e-POS ECRToken capability is not enabled in Admin"};
@@ -185,7 +178,7 @@ export async function myDataConnectivityCheck() {
 async function approvedAccountingPolicy():Promise<ApprovedPolicy|undefined>{
   const result=await getProductionPostgresRuntime().nativePool.query<{version:string;fiscalisation_route:string;compatibility_target:string}>(`SELECT p.version,p.fiscalisation_route,p.compatibility_target FROM accounting_tax_policies p JOIN markets m ON m.id=p.market_id WHERE m.code=$1 AND p.status='approved' ORDER BY p.approved_at DESC LIMIT 1`,[marketCode()]);
   const row=result.rows[0];if(!row)return undefined;
-  if(row.fiscalisation_route!=="viva_fiscal_provider"&&row.fiscalisation_route!=="aade_direct_erp")return undefined;
+  if(row.fiscalisation_route!=="aade_direct_erp")return undefined;
   return{version:row.version,fiscalisationRoute:row.fiscalisation_route,compatibilityTarget:row.compatibility_target};
 }
 
@@ -224,7 +217,6 @@ function defaultAdminRuntimeConfig():MyDataAdminRuntimeConfig{
     requestTimeoutMs:positiveInteger(process.env.AADE_MYDATA_REQUEST_TIMEOUT_MS,15000),
     issuanceEnabled:process.env.BLS_MYDATA_ISSUANCE_ENABLED==="true",
     ecrTokenEnabled:process.env.BLS_MYDATA_ECR_TOKEN_ENABLED==="true",
-    vivaFiscalEnabled:process.env.BLS_VIVA_FISCAL_ENABLED==="true",
     mappingVersionPin:process.env.BLS_MYDATA_MAPPING_VERSION?.trim()||undefined,
     capturePaidOrders:true,
     emailAcceptedDocuments:true
@@ -243,7 +235,6 @@ function normalizeAdminRuntimeConfig(value:unknown,fallback:MyDataAdminRuntimeCo
     requestTimeoutMs:Number.isSafeInteger(timeout)&&timeout>=1000&&timeout<=60000?timeout:fallback.requestTimeoutMs,
     issuanceEnabled:typeof v.issuanceEnabled==="boolean"?v.issuanceEnabled:fallback.issuanceEnabled,
     ecrTokenEnabled:typeof v.ecrTokenEnabled==="boolean"?v.ecrTokenEnabled:fallback.ecrTokenEnabled,
-    vivaFiscalEnabled:typeof v.vivaFiscalEnabled==="boolean"?v.vivaFiscalEnabled:fallback.vivaFiscalEnabled,
     mappingVersionPin:typeof v.mappingVersionPin==="string"&&v.mappingVersionPin.trim()?v.mappingVersionPin.trim():undefined,
     capturePaidOrders:typeof v.capturePaidOrders==="boolean"?v.capturePaidOrders:fallback.capturePaidOrders,
     emailAcceptedDocuments:typeof v.emailAcceptedDocuments==="boolean"?v.emailAcceptedDocuments:fallback.emailAcceptedDocuments,

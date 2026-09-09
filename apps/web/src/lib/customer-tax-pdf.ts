@@ -335,8 +335,8 @@ function paymentMethodLabel(method: string | undefined, mydataType: number | und
 
 function providerLabel(provider: string): string {
   const normalized = provider.trim().toLowerCase();
-  if (normalized === "viva") return "Viva.com";
-  if (normalized === "viva.com") return "Viva.com";
+  if (normalized === "mollie") return "Mollie.com";
+  if (normalized === "mollie.com") return "Mollie.com";
   return provider || "—";
 }
 

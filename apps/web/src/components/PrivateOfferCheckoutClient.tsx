@@ -62,7 +62,7 @@ export function PrivateOfferCheckoutClient({
       const payload = await response.json() as { id?: string; referenceNumber?: string; error?: string; payment?: { provider?: string; redirectUrl?: string } };
       if (!response.ok) throw new Error(payload.error ?? "Η αγορά της ιδιωτικής προσφοράς δεν ολοκληρώθηκε.");
       const orderReference = payload.referenceNumber ?? payload.id;
-      if (payload.payment?.provider === "viva" && payload.payment.redirectUrl) {
+      if (payload.payment?.provider === "mollie" && payload.payment.redirectUrl) {
         window.location.assign(payload.payment.redirectUrl);
         return;
       }

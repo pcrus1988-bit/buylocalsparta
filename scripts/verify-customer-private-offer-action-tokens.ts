@@ -61,8 +61,11 @@ for (const contract of [
   "const orderReference = await publicOrderReference(result.order.id, principal.userId)",
   "payload: { orderReference }",
   "id: orderReference, orderId: orderReference",
-  "requireVivaPayments().initiateOrderPayment({ orderId: result.order.id"
+  "molliePaymentsEnabled()",
+  "requireMolliePayments().initiateOrderPayment({ orderId: result.order.id",
+  'provider: "mollie"'
 ]) if (!checkoutRoute.includes(contract)) failures.push(`Private-offer checkout route is missing server/internal vs browser/public separation: ${contract}`);
+if (checkoutRoute.includes("Viva") || checkoutRoute.includes("viva")) failures.push("Private-offer checkout route must not retain Viva payment behavior");
 if (checkoutRoute.includes("return Response.json({ ...result.order")) failures.push("Private-offer checkout must not serialize the raw CustomerOrder object");
 if (checkoutRoute.includes("payload: { orderId:") || checkoutRoute.includes("privateOfferId: offerToken") || checkoutRoute.includes("privateOfferId: resolvedOffer")) failures.push("Customer checkout notification payload must not expose technical order/private-offer ids");
 
@@ -82,4 +85,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer private-offer action-token checks passed: browser state uses customer-bound HMAC tokens, technical offer/order ids resolve only server-side under ownership, legacy URLs canonicalize, and checkout responses/notifications use public references only.");
+console.log("Customer private-offer action-token checks passed: browser state uses customer-bound HMAC tokens, technical offer/order ids resolve only server-side under ownership, Mollie payment creation uses internal ids, and checkout responses/notifications use public references only.");

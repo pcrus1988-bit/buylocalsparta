@@ -87,7 +87,7 @@ const SEARCH_EXCLUDED_SOURCES = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: MONOREPO_ROOT,
-  transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/viva-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
+  transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/mollie-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
   // kontamou.site is the only public SEO authority. Keep the retired .info host

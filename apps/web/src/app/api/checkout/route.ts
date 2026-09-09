@@ -6,11 +6,11 @@ import { checkoutCustomer, postgresCommerceEnabled, syncPersistentCustomerCart }
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
 import { GiftCardRemainderBelowMinimumError, redeemGiftCardForOrder } from "../../../lib/gift-card-service";
 import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
-import { requireVivaPayments, vivaPaymentsEnabled } from "../../../lib/viva-runtime";
+import { molliePaymentsEnabled, requireMolliePayments } from "../../../lib/mollie-runtime";
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
-const VIVA_MINIMUM_AMOUNT_MINOR = 100;
+const ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR = 100;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
 function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
 function belowMinimumPaymentResponse(remainingMinor: number) {
@@ -18,7 +18,7 @@ function belowMinimumPaymentResponse(remainingMinor: number) {
     error: `Απομένουν ${(remainingMinor / 100).toFixed(2)} € για online πληρωμή. Η ελάχιστη online πληρωμή είναι 1,00 €.`,
     code: "PAYMENT_REMAINDER_BELOW_MINIMUM",
     remainingMinor,
-    minimumMinor: VIVA_MINIMUM_AMOUNT_MINOR
+    minimumMinor: ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR
   }, { status: 422 });
 }
 
@@ -63,11 +63,11 @@ async function assertCheckoutRequestIntegrity(
 
 export async function POST(request: Request) {
   try {
-    if (process.env.NODE_ENV === "production" && postgresCommerceEnabled() && !vivaPaymentsEnabled()) {
-      return Response.json({ error: "Checkout requires the configured Viva Smart Checkout payment adapter" }, { status: 503 });
+    if (process.env.NODE_ENV === "production" && postgresCommerceEnabled() && !molliePaymentsEnabled()) {
+      return Response.json({ error: "Checkout requires the configured Mollie payment adapter" }, { status: 503 });
     }
-    if (vivaPaymentsEnabled() && !postgresCommerceEnabled()) {
-      return Response.json({ error: "Viva payments require the PostgreSQL commerce runtime" }, { status: 503 });
+    if (molliePaymentsEnabled() && !postgresCommerceEnabled()) {
+      return Response.json({ error: "Mollie payments require the PostgreSQL commerce runtime" }, { status: 503 });
     }
     if (!postgresCommerceEnabled()) {
       return Response.json({ error: "Checkout requires the PostgreSQL customer address runtime" }, { status: 503 });
@@ -146,14 +146,14 @@ export async function POST(request: Request) {
       shipping
     });
 
-    if (!giftCardId && vivaPaymentsEnabled() && fulfilmentMode === "pickup") {
+    if (!giftCardId && molliePaymentsEnabled() && fulfilmentMode === "pickup") {
       let pickupTotalMinor = 0;
       for (const item of items) {
         const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
         if (!availability) throw new Error(`Product ${item.canonicalVariantId} is unavailable`);
         pickupTotalMinor += availability.product.priceMinor * item.quantity;
       }
-      if (pickupTotalMinor > 0 && pickupTotalMinor < VIVA_MINIMUM_AMOUNT_MINOR) return belowMinimumPaymentResponse(pickupTotalMinor);
+      if (pickupTotalMinor > 0 && pickupTotalMinor < ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR) return belowMinimumPaymentResponse(pickupTotalMinor);
     }
 
     const now = Date.now();
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
     let giftCard: { id: string; suffix: string; balanceMinor: number; amountMinor: number; deliveryMinor: number; remainingPayableMinor: number } | undefined;
     if (giftCardId) {
       try {
-        const redemption = await redeemGiftCardForOrder(principal, { giftCardId, orderId: order.id, minimumExternalPaymentMinor: VIVA_MINIMUM_AMOUNT_MINOR, now });
+        const redemption = await redeemGiftCardForOrder(principal, { giftCardId, orderId: order.id, minimumExternalPaymentMinor: ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR, now });
         giftCard = {
           id: redemption.card.id,
           suffix: redemption.card.suffix,
@@ -185,16 +185,16 @@ export async function POST(request: Request) {
     }
 
     const payableMinor = giftCard?.remainingPayableMinor ?? order.total.minor;
-    if (payableMinor > 0 && payableMinor < VIVA_MINIMUM_AMOUNT_MINOR) {
+    if (payableMinor > 0 && payableMinor < ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR) {
       await syncPersistentCustomerCart(principal, items, now).catch(() => undefined);
       return belowMinimumPaymentResponse(payableMinor);
     }
 
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardAmountMinor: giftCard?.amountMinor ?? 0, remainingPayableMinor: payableMinor }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
-    if (postgresCommerceEnabled() && vivaPaymentsEnabled()) {
-      const payment = await requireVivaPayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
-      return Response.json({ ...order, giftCard, payment: { provider:"viva", orderCode:payment.orderCode, redirectUrl:payment.checkoutUrl, amountMinor:payment.amountMinor } }, { status: 201 });
+    if (postgresCommerceEnabled() && molliePaymentsEnabled()) {
+      const payment = await requireMolliePayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
+      return Response.json({ ...order, giftCard, payment: { provider: "mollie", paymentId: payment.paymentId, orderNumber: payment.orderNumber, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: 201 });
     }
     return Response.json({ ...order, giftCard }, { status: 201 });
   } catch (error) {
