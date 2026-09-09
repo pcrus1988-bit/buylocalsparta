@@ -78,12 +78,14 @@ export function ProductVariantSelector({
               {option.imageSrc ? (
                 <span className={styles.imageFrame}>
                   <img src={option.imageSrc} alt={option.imageAlt ?? label} loading={selected ? "eager" : "lazy"} />
+                  {unavailable ? <span className={styles.unavailableImageLabel}>Μη διαθέσιμο</span> : null}
                 </span>
               ) : null}
 
               <span className={styles.optionBody}>
                 {color ? <span className={styles.swatch} style={swatchStyle(color)} aria-hidden="true" /> : null}
                 <span className={styles.label}>{label}</span>
+                {unavailable && !option.imageSrc ? <span className={styles.unavailableText}>Μη διαθέσιμο</span> : null}
                 {selected ? <span className={styles.check} aria-hidden="true">✓</span> : null}
               </span>
             </a>
