@@ -129,6 +129,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/delivery/manage",
   "/driver",
   "/driver/login",
+  "/partner",
   "/vendor",
   "/vendor/login",
   "/vendor/advice",
