@@ -1,0 +1,194 @@
+/* Acceptance hardening derived from the 09 Sep public UX review and real-device branch checks.
+   This layer is intentionally public-storefront-only and loaded after the premium styles. */
+
+@media (max-width: 1080px) {
+  /* Avoid the cramped pseudo-desktop header seen on narrow tablets / mobile desktop-view. */
+  .site-header {
+    position: sticky;
+    min-height: 70px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .public-menu-toggle {
+    display: inline-flex;
+    margin-left: auto;
+  }
+  .site-header .nav {
+    order: 10;
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 8px;
+    border-radius: 16px;
+  }
+  .site-header.is-menu-open .nav { display: flex; }
+  .site-header .nav a {
+    min-height: 44px;
+    justify-content: flex-start;
+    padding: 0 14px;
+    border-radius: 11px;
+    font-size: 13px;
+  }
+  .header-action-text { display: none !important; }
+
+  /* The homepage hero should never keep a squeezed two-column desktop composition at tablet widths. */
+  #top {
+    min-height: auto !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 30px !important;
+    padding-top: 34px !important;
+    padding-bottom: 46px !important;
+  }
+  #top > :first-child,
+  #top > :last-child {
+    width: 100%;
+    max-width: 780px;
+    justify-self: center;
+  }
+
+  [aria-labelledby="home-categories-title"] > :first-child,
+  [aria-labelledby="featured-title"] > :first-child,
+  [aria-labelledby="collections-title"] > :first-child,
+  [aria-labelledby="market-walk-title"] > .shell > :first-child {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 14px !important;
+  }
+  [aria-labelledby="featured-title"] > :first-child > p,
+  [aria-labelledby="collections-title"] > :first-child > p,
+  [aria-labelledby="market-walk-title"] > .shell > :first-child > p {
+    max-width: 680px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Review requirement: locality + search first, then the short promise. */
+  #top > :first-child {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  #top > :first-child > :nth-child(1) { order: 0; }
+  #top > :first-child > :nth-child(5) { order: 1; margin-top: 16px !important; }
+  #top > :first-child > :nth-child(2) { order: 2; margin-top: 22px !important; }
+  #top > :first-child > :nth-child(3) { order: 3; }
+  #top > :first-child > :nth-child(4) { order: 4; }
+  #top > :first-child > :nth-child(6) { order: 5; }
+
+  #top h1 {
+    max-width: 560px;
+    font-size: clamp(36px, 9.5vw, 44px) !important;
+    line-height: .95 !important;
+    letter-spacing: -.045em !important;
+  }
+  #top p {
+    max-width: 620px;
+    font-size: 16px !important;
+    line-height: 1.58 !important;
+  }
+
+  /* Keep the real-local-market visual, but make it a compact landscape scene instead of a tall side column. */
+  #top > :last-child {
+    min-height: 0 !important;
+    display: block !important;
+    padding-top: 8px;
+  }
+  #top > :last-child > :first-child {
+    width: 100% !important;
+    max-width: none !important;
+    aspect-ratio: 4 / 3 !important;
+    border-radius: 20px !important;
+  }
+  #top > :last-child > :last-child {
+    position: relative !important;
+    inset: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    max-width: none !important;
+    margin: -18px 12px 0 !important;
+  }
+
+  #featured-title,
+  #collections-title,
+  #market-walk-title,
+  #home-categories-title {
+    overflow-wrap: anywhere;
+  }
+
+  [aria-labelledby="featured-title"],
+  [aria-labelledby="collections-title"] {
+    padding-top: 58px !important;
+    padding-bottom: 62px !important;
+  }
+
+  /* Empty-state rows must not preserve a desktop two-end layout on a phone. */
+  [aria-labelledby="featured-title"] > :nth-child(2):not(:has(.product-card)) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: start !important;
+    align-items: start !important;
+    gap: 10px !important;
+  }
+
+  .site-header.shell {
+    width: calc(100% - 16px) !important;
+  }
+  .site-header .brand img {
+    width: 72px !important;
+    height: 50px !important;
+  }
+  .public-menu-toggle,
+  .site-header .cart-button,
+  .site-header .account-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 520px) {
+  #top {
+    gap: 22px !important;
+    padding-top: 24px !important;
+    padding-bottom: 36px !important;
+  }
+  #top h1 {
+    font-size: 36px !important;
+    line-height: .94 !important;
+  }
+  #top > :last-child > :first-child {
+    aspect-ratio: 1.22 / 1 !important;
+    border-radius: 16px !important;
+  }
+  #top > :last-child > :last-child {
+    margin: -14px 8px 0 !important;
+    padding: 12px 13px !important;
+    font-size: 11px !important;
+  }
+  [aria-labelledby="featured-title"] h2,
+  [aria-labelledby="collections-title"] h2,
+  [aria-labelledby="market-walk-title"] h2,
+  [aria-labelledby="home-categories-title"] h2 {
+    font-size: 36px !important;
+    line-height: .98 !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #top h1 { font-size: 34px !important; }
+  [aria-labelledby="featured-title"] h2,
+  [aria-labelledby="collections-title"] h2,
+  [aria-labelledby="market-walk-title"] h2,
+  [aria-labelledby="home-categories-title"] h2 { font-size: 33px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #top *,
+  .site-header * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
