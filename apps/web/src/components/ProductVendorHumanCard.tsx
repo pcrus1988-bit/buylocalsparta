@@ -1,5 +1,22 @@
 import { getPublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
 
+const mediaFrameStyle = {
+  width: "96px",
+  minWidth: "96px",
+  height: "112px",
+  overflow: "hidden",
+  borderRadius: "14px",
+  background: "#e9e2d5",
+  display: "grid",
+  placeItems: "center"
+} as const;
+
+const mediaImageStyle = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover"
+} as const;
+
 export async function ProductVendorHumanCard({
   productId,
   vendorId,
@@ -35,13 +52,13 @@ export async function ProductVendorHumanCard({
     ?? presentation?.profileStory;
 
   return <div className="vendor-card product-vendor-human">
-    <div className={`product-vendor-human-media${mediaSrc ? " has-image" : ""}`}>
+    <div className={`product-vendor-human-media${mediaSrc ? " has-image" : ""}`} style={mediaFrameStyle}>
       {mediaSrc
-        ? <img src={mediaSrc} alt={presentation?.mediaAlt ?? `Το κατάστημα ${vendorName}`} loading="lazy" decoding="async" />
+        ? <img src={mediaSrc} alt={presentation?.mediaAlt ?? `Το κατάστημα ${vendorName}`} loading="lazy" decoding="async" style={mediaImageStyle} />
         : <span className="vendor-avatar">{(adviser ?? vendorName).slice(0, 1)}</span>}
     </div>
     <div>
-      <div className="eyebrow">Τοπικό κατάστημα · πραγματικός άνθρωπος</div>
+      <div className="eyebrow">Τοπικό κατάστημα · πραγματική παρουσία</div>
       <strong><a href={`/vendor/${encodeURIComponent(vendorId)}`}>{vendorName}</a></strong>
       {adviser
         ? <p><strong>{adviser}</strong> μπορεί να σε βοηθήσει με συμβατότητα, χρήση, διαθεσιμότητα ή τη σωστή παραλλαγή.</p>
