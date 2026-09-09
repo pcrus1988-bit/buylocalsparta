@@ -50,6 +50,10 @@ jobs:
             --exclude='*.md' \
             --exclude='0031_viva_payments.sql' \
             --exclude='0076_accounting_mapping_v1.sql'
+          ! grep -RniI -E 'Viva(\.com)?|Smart Checkout|Mollie OAuth' \
+            apps/web/src packages scripts workers deploy \
+            --exclude-dir=node_modules \
+            --exclude='*.md'
 
       - name: Verify migration chain
         run: npm run db:verify
