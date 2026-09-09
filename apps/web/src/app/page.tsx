@@ -247,6 +247,7 @@ export default async function Home() {
                   ?? (vendor.canonicalCount > 0 ? `${vendor.canonicalCount} ενεργά προϊόντα στην τοπική αγορά.` : "Γνώρισε το κατάστημα και όσα μπορεί να σε βοηθήσει να βρεις.");
                 const vendorHref = `/vendor/${encodeURIComponent(vendor.id)}`;
                 const askHref = `/ask-local?vendor=${encodeURIComponent(vendor.id)}`;
+                const vendorProducts = featuredProducts.filter((product) => product.vendorId === vendor.id).slice(0, 3);
                 return (
                   <article className={styles.shopWindow} key={vendor.id}>
                     <a href={vendorHref} aria-label={`Μπες στο κατάστημα ${vendor.name}`}>
@@ -260,6 +261,28 @@ export default async function Home() {
                       <strong><a href={vendorHref}>{vendor.name}</a></strong>
                       <span>{intro}</span>
                       {vendor.adviser ? <span>Μπορείς να ρωτήσεις {vendor.adviser} πριν αγοράσεις.</span> : null}
+                      {vendorProducts.length ? (
+                        <details className="market-window-products">
+                          <summary>Δες {vendorProducts.length === 1 ? "το διαθέσιμο προϊόν" : `${vendorProducts.length} διαθέσιμα προϊόντα`}</summary>
+                          <div className="market-window-product-list">
+                            {vendorProducts.map((product) => {
+                              const productImage = product.mediaId
+                                ? `/api/media/${encodeURIComponent(product.mediaId)}`
+                                : product.sourceImageAvailable
+                                  ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+                                  : undefined;
+                              return (
+                                <a className="market-window-product" href={`/product/${encodeURIComponent(product.slug)}`} key={product.id}>
+                                  <span className="market-window-product-image">
+                                    {productImage ? <img src={productImage} alt="" loading="lazy" /> : <span aria-hidden="true">{product.title.slice(0, 1)}</span>}
+                                  </span>
+                                  <span className="market-window-product-copy"><strong>{product.title}</strong><b>{product.price}</b></span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      ) : vendor.canonicalCount > 0 ? <a className="market-window-product-fallback" href={vendorHref}>Δες τα προϊόντα του καταστήματος →</a> : null}
                       <div className="market-window-actions">
                         <a href={vendorHref}>Μπες στο κατάστημα</a>
                         <a href={askHref}>Ρώτησε</a>
