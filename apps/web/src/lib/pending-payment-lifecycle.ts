@@ -17,12 +17,17 @@ type PendingOrder = Readonly<{
 }>;
 
 export type PendingPaymentLifecycleResult = Readonly<{
+  reservationsExtended: number;
   scanned: number;
   reminder2hQueued: number;
   reminder22hQueued: number;
   cancelled: number;
   deferred: number;
 }>;
+
+function emptyResult(): PendingPaymentLifecycleResult {
+  return { reservationsExtended: 0, scanned: 0, reminder2hQueued: 0, reminder22hQueued: 0, cancelled: 0, deferred: 0 };
+}
 
 function orderAgeMs(order: PendingOrder, now: number): number {
   const createdAt = order.created_at instanceof Date ? order.created_at.getTime() : new Date(order.created_at).getTime();
@@ -115,8 +120,24 @@ async function cancelPendingOrder(client: PoolClient, order: PendingOrder, now: 
 }
 
 export async function runPendingPaymentLifecycle(now = Date.now()): Promise<PendingPaymentLifecycleResult> {
-  if (!productionDatabaseConfigured()) return { scanned: 0, reminder2hQueued: 0, reminder22hQueued: 0, cancelled: 0, deferred: 0 };
+  if (!productionDatabaseConfigured()) return emptyResult();
   const runtime = getProductionPostgresRuntime();
+
+  // Checkout historically created a 15-minute reservation. The minute-level lifecycle extends
+  // every still-valid pending-payment reservation to the explicit 24-hour payment deadline.
+  // We deliberately do not revive an already expired/released reservation because that stock
+  // may already have become available to another customer.
+  const extended = await runtime.nativePool.query(`
+    UPDATE stock_reservations sr
+    SET expires_at=GREATEST(sr.expires_at,o.created_at + interval '24 hours')
+    FROM order_lines ol,customer_orders o
+    WHERE sr.order_line_id=ol.id AND ol.order_id=o.id
+      AND o.status='pending_payment'
+      AND o.created_at > $1
+      AND sr.status='active' AND sr.expires_at>$2
+      AND sr.expires_at < o.created_at + interval '24 hours'
+  `, [new Date(now - PAYMENT_WINDOW_MS), new Date(now)]);
+
   const candidates = await runtime.nativePool.query<PendingOrder>(`
     SELECT o.id::text AS order_uuid,o.public_id AS order_id,
            COALESCE(o.order_number,o.public_id) AS order_number,o.user_id::text AS user_uuid,o.created_at
@@ -165,5 +186,12 @@ export async function runPendingPaymentLifecycle(now = Date.now()): Promise<Pend
     client.release();
   }
 
-  return { scanned: candidates.rowCount ?? 0, reminder2hQueued, reminder22hQueued, cancelled, deferred };
+  return {
+    reservationsExtended: extended.rowCount ?? 0,
+    scanned: candidates.rowCount ?? 0,
+    reminder2hQueued,
+    reminder22hQueued,
+    cancelled,
+    deferred
+  };
 }
