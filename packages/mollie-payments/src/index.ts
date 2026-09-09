@@ -126,6 +126,7 @@ export class MolliePaymentsClient {
 
     const body: Record<string, unknown> = {
       amount: { currency: "EUR", value: minorToMollieValue(input.amountMinor) },
+      method: "creditcard",
       description,
       redirectUrl: input.redirectUrl,
       webhookUrl: input.webhookUrl,
