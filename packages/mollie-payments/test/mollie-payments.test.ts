@@ -109,7 +109,7 @@ test("access-token readiness discovers one profile and scopes the test-mode meth
   ]);
 });
 
-test("createPayment sends exact EUR amount, approved card method, order identity, redirect and webhook metadata", async () => {
+test("createPayment sends exact EUR amount, lets Mollie choose available methods, and preserves order identity, redirect and webhook metadata", async () => {
   let body: Record<string, unknown> | undefined;
   const fetchFn: typeof fetch = async (input, init) => {
     assert.equal(String(input), "https://api.mollie.test/v2/payments");
@@ -132,12 +132,12 @@ test("createPayment sends exact EUR amount, approved card method, order identity
   assert.equal(created.paymentId, "tr_TestPayment123");
   assert.equal(created.checkoutUrl, "https://www.mollie.com/checkout/tr_TestPayment123");
   assert.deepEqual(body?.amount, { currency: "EUR", value: "12.34" });
-  assert.equal(body?.method, "creditcard");
+  assert.equal(body?.method, undefined);
   assert.equal(body?.webhookUrl, "https://kontamou.site/api/payments/mollie/webhook");
   assert.deepEqual(body?.metadata, { attempt: "attempt-1", orderId: "order_test_123", orderNumber: "KM-1001" });
 });
 
-test("access-token payment creation includes the required profile and test mode", async () => {
+test("access-token payment creation includes the required profile and test mode without forcing a payment method", async () => {
   let body: Record<string, unknown> | undefined;
   const accessConfig = {
     apiKey: "access_abcdefghijklmnopqrstuvwxyz012345",
@@ -162,7 +162,7 @@ test("access-token payment creation includes the required profile and test mode"
   });
   assert.equal(body?.profileId, "pfl_TestProfile123");
   assert.equal(body?.testmode, true);
-  assert.equal(body?.method, "creditcard");
+  assert.equal(body?.method, undefined);
 });
 
 test("retrievePayment parses paid and refunded provider state with order identity", async () => {
