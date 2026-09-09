@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CatalogCard } from "../lib/catalog-view";
 import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local-commerce-proof";
 import { publicCatalogPriceLabel, publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
+import { getVisibleOfferMsrpMinor } from "../lib/public-offer-msrp";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 import { LocalCommerceProof } from "./LocalCommerceProof";
@@ -30,6 +31,18 @@ function availabilityBadge(product: CatalogCardWithPreview, demoMode: boolean): 
   if (product.localProof?.freshLocalStock) return "Τοπικό απόθεμα";
   if (product.available) return "Διαθέσιμο τοπικά";
   return "Προσωρινά μη διαθέσιμο";
+}
+
+const formatEuroMinor = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+
+async function PublicCatalogPrice({ product, demoMode, priceLabel }: { product: CatalogCardWithPreview; demoMode: boolean; priceLabel: string }) {
+  const msrpMinor = demoMode || !product.available
+    ? undefined
+    : await getVisibleOfferMsrpMinor(product.id, product.vendorId, product.priceMinor);
+  return <div className="price">
+    {msrpMinor !== undefined ? <><s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ display: "block", fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>{formatEuroMinor(msrpMinor)}</s></> : null}
+    <span>{priceLabel}</span>
+  </div>;
 }
 
 export function CatalogProductCard({ product, index = 0, vendorContext, demoVendorId }: {
@@ -87,7 +100,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           <p className="partner">Δεν υπάρχει αυτή τη στιγμή επιλέξιμος τοπικός συνεργάτης εκπλήρωσης.</p>
         )}
         {!demoMode ? <LocalCommerceProof proof={product.localProof} compact /> : null}
-        <div className="product-bottom"><div className="price">{priceLabel}</div><Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link></div>
+        <div className="product-bottom"><PublicCatalogPrice product={product} demoMode={demoMode} priceLabel={priceLabel} /><Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link></div>
       </div>
     </article>
   );
