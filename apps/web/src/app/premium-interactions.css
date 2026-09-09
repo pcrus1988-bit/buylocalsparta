@@ -1,0 +1,142 @@
+/* Purposeful storefront interaction layer. Kept additive so admin/vendor workspaces are unaffected. */
+
+.main-content-scope > main:not(.dashboard):not(.workspace) :is(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(166, 133, 80, .48);
+  outline-offset: 3px;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) .button {
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.main-content-scope > main:not(.dashboard):not(.workspace) .button:not(:disabled):active {
+  transform: translateY(1px) scale(.99);
+}
+
+.product-card:focus-within {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 45px rgba(18, 55, 44, .09);
+}
+.product-card .product-art img {
+  transition: transform .28s cubic-bezier(.2,.7,.2,1);
+}
+.product-card:hover .product-art img,
+.product-card:focus-within .product-art img {
+  transform: scale(1.025);
+}
+
+.add-to-cart-wrap {
+  position: relative;
+  display: inline-grid;
+  min-width: min(100%, 240px);
+}
+.add-to-cart-wrap > .button {
+  width: 100%;
+}
+.cart-add-toast {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: min(290px, 88vw);
+  padding: 9px 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  transform: translate(-50%, 8px);
+  background: #0d2a22;
+  color: #fff;
+  box-shadow: 0 14px 36px rgba(13,42,34,.22);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.cart-add-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.cart-add-toast::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -5px) rotate(45deg);
+  background: #0d2a22;
+}
+
+.purchase-confidence {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(18,55,44,.12);
+}
+.purchase-confidence-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: #68736c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.purchase-confidence-item > span:first-child {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(79,140,97,.12);
+  color: #2f6942;
+  font-size: 11px;
+  font-weight: 900;
+}
+.purchase-confidence-item strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #12372c;
+  font-size: 12px;
+}
+
+/* Keep customer-facing commerce text legible instead of shrinking metadata into UI chrome. */
+.catalog-card-availability { font-size: 12px; }
+.catalog-card-vendor { font-size: 11px; }
+.results-toolbar,
+.categoryMeta { font-size: 13px; }
+
+@media (max-width: 760px) {
+  .main-content-scope > main:not(.dashboard):not(.workspace) :is(input, select, textarea) {
+    font-size: 16px;
+  }
+  .purchase-confidence {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .catalog-results .product-body h3 { font-size: 15px; }
+  .catalog-results .product-bottom .price { font-size: 20px; }
+  .catalog-card-availability { font-size: 11px; }
+  .add-to-cart-wrap { width: 100%; max-width: none; }
+}
+
+@media (max-width: 350px) {
+  .catalog-results .product-body h3 { font-size: 16px; }
+  .catalog-results .product-bottom .price { font-size: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-content-scope > main:not(.dashboard):not(.workspace) .button,
+  .product-card .product-art img,
+  .cart-add-toast {
+    transition: none;
+  }
+  .product-card:hover .product-art img,
+  .product-card:focus-within .product-art img {
+    transform: none;
+  }
+}
