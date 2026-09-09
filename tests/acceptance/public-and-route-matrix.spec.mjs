@@ -47,6 +47,15 @@ async function showLegacyHomepageHero(page) {
   return input;
 }
 
+async function openSpartaHomepage(page) {
+  await page.goto("/choose-location");
+  await page.evaluate(() => {
+    document.cookie = "km_locality=sparti; Path=/; SameSite=Lax";
+  });
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/$/);
+}
+
 test("all fixed public/private route entry points avoid server errors", async ({ request }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "route inventory only needs one HTTP pass");
   const failures = [];
@@ -57,12 +66,53 @@ test("all fixed public/private route entry points avoid server errors", async ({
   expect(failures, `5xx route failures:\n${failures.join("\n")}`).toEqual([]);
 });
 
-test("homepage primary navigation works through real browser clicks", async ({ page }) => {
+test("bare human root uses the location gateway while crawlers retain the Sparta SEO root", async ({ page, request }) => {
+  const human = await request.get("/?utm_source=gateway-acceptance", {
+    failOnStatusCode: false,
+    maxRedirects: 0,
+    headers: { "user-agent": "Mozilla/5.0 KONTA-MOU-Gateway-Acceptance" }
+  });
+  expect(human.status()).toBe(307);
+  expect(human.headers().location).toContain("/choose-location?utm_source=gateway-acceptance");
+  expect(human.headers()["cache-control"]).toContain("no-store");
+  expect(human.headers().vary).toContain("Cookie");
+  expect(human.headers().vary).toContain("User-Agent");
+
+  for (const userAgent of [
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "KONTA-MOU-SEO-Monitor/1.0 (+https://kontamou.site)"
+  ]) {
+    const crawler = await request.get("/", {
+      failOnStatusCode: false,
+      maxRedirects: 0,
+      headers: { "user-agent": userAgent }
+    });
+    expect(crawler.status(), userAgent).toBe(200);
+  }
+
   await page.goto("/");
+  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
+
+  await page.evaluate(() => {
+    document.cookie = "km_locality=kalamata; Path=/; SameSite=Lax";
+  });
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
+
+  await page.evaluate(() => {
+    document.cookie = "km_locality=sparti; Path=/; SameSite=Lax";
+  });
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("main")).toBeVisible();
+});
+
+test("homepage primary navigation works through real browser clicks", async ({ page }) => {
+  await openSpartaHomepage(page);
   await expect(page.locator("main")).toBeVisible();
 
   for (const href of ["/shop", "/shops", "/advice", "/ask-local", "/cart"]) {
-    await page.goto("/");
+    await openSpartaHomepage(page);
     const link = await visibleHomepageLink(page, href);
     await expect(link, `missing visible homepage link ${href}`).toBeVisible();
     await link.click();
@@ -71,7 +121,7 @@ test("homepage primary navigation works through real browser clicks", async ({ p
 });
 
 test("homepage search submits into governed shop search", async ({ page }) => {
-  await page.goto("/");
+  await openSpartaHomepage(page);
   const input = await showLegacyHomepageHero(page);
   await input.fill("Bormann");
   const form = input.locator("xpath=ancestor::form");
@@ -86,8 +136,8 @@ test("map page does not render zero-zero as a public mapped point", async ({ pag
   await page.goto("/shops/map");
   await expect(page.locator("main")).toBeVisible();
   const html = await page.content();
-  expect(html).not.toContain('"latitude":0,"longitude":0');
-  expect(html).not.toContain('"lat":0,"lng":0');
+  expect(html).not.toContain('\"latitude\":0,\"longitude\":0');
+  expect(html).not.toContain('\"lat\":0,\"lng\":0');
 });
 
 test("location permission control can be exercised when mapped vendors exist", async ({ page, context }) => {
