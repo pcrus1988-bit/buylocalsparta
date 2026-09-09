@@ -20,7 +20,7 @@ if (!client.includes("checkout-availability-gate") || !client.includes("if (!che
 if (!client.includes("if (boxNowEnabled) fulfilmentOptions.push")) failures.push("Checkout fulfilment choices must omit BOX NOW when the provider is disabled");
 if (!client.includes('paymentMode === "mollie"')) failures.push("Checkout payment copy must reflect the actual Mollie payment mode");
 if (!client.includes('body.payment?.provider === "mollie"') || !client.includes("window.location.assign(body.payment.redirectUrl)")) failures.push("Checkout client must follow only the Mollie hosted-payment redirect");
-if (!client.includes("if (!checkoutEnabled || !hydrated")) failures.push("Disabled checkout must not create an idempotency key as if a transaction could proceed");
+if (!client.includes("const identityReady = checkoutEnabled") || !client.includes("if (!identityReady)")) failures.push("Disabled or incompletely hydrated checkout must not create an idempotency key as if a transaction could proceed");
 if (!checkoutRoute.includes('payment: { provider: "mollie"') || !checkoutRoute.includes("requireMolliePayments().initiateOrderPayment")) failures.push("Checkout API must create Mollie payments and expose Mollie as the provider");
 if (!mollieWebhook.includes("parseMollieWebhookBody") || !mollieWebhook.includes("reconcileMolliePaymentSafely")) failures.push("Mollie webhook must verify provider state through server-side retrieval/reconciliation");
 if (!cart.includes("robots: { index: false, follow: false }")) failures.push("Cart must remain a noindex utility route");
@@ -34,4 +34,4 @@ if (failures.length) {
   console.error("Checkout UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Checkout UX checks passed: Mollie-only provider gating, hosted redirect, webhook reconciliation, utility noindex policy and legacy Viva route removal verified.");
+console.log("Checkout UX checks passed: Mollie-only provider gating, hydrated checkout idempotency, hosted redirect, webhook reconciliation, utility noindex policy and legacy Viva route removal verified.");
