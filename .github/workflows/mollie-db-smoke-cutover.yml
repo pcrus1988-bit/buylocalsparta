@@ -1,0 +1,233 @@
+name: Mollie DB smoke cutover
+
+on:
+  push:
+    branches:
+      - migration/mollie-payments-v2
+    paths:
+      - .github/workflows/mollie-db-smoke-cutover.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: migration/mollie-payments-v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Replace Viva DB smoke gateway and scenarios with Mollie
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/db-integration-smoke.ts')
+          src = path.read_text()
+          src = src.replace('  PostgresVivaPaymentsService,', '  PostgresMolliePaymentsService,')
+          src = src.replace('  type VivaPaymentsGateway', '  type MolliePaymentsGateway')
+
+          class_start = src.index('class FakeVivaGateway')
+          class_end = src.index('class FakeMeilisearch', class_start)
+          fake = r'''class FakeMollieGateway implements MolliePaymentsGateway {
+  readonly environment = "test" as const;
+  createCount = 0;
+  refundCount = 0;
+  lastRefundId?: string;
+  readonly #payments = new Map<string, Awaited<ReturnType<MolliePaymentsGateway["retrievePayment"]>>>();
+  readonly #refunds = new Map<string, Awaited<ReturnType<MolliePaymentsGateway["retrieveRefund"]>>>();
+
+  async createPayment(input: Parameters<MolliePaymentsGateway["createPayment"]>[0]) {
+    this.createCount += 1;
+    const paymentId = `tr_DB${String(this.createCount).padStart(8, "0")}${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+    const checkoutUrl = `https://www.mollie.com/checkout/${paymentId}`;
+    this.#payments.set(paymentId, {
+      paymentId,
+      status: "open",
+      amountMinor: input.amountMinor,
+      amountCurrency: "EUR",
+      amountRefundedMinor: 0,
+      description: input.description,
+      orderId: input.orderId,
+      orderNumber: input.orderNumber,
+      method: "creditcard",
+      checkoutUrl,
+      redirectUrl: input.redirectUrl,
+      webhookUrl: input.webhookUrl,
+      metadata: { ...(input.metadata ?? {}), orderId: input.orderId, orderNumber: input.orderNumber }
+    });
+    return { paymentId, status: "open" as const, checkoutUrl };
+  }
+
+  confirm(paymentId: string) {
+    const payment = this.#payments.get(paymentId);
+    if (!payment) throw new Error(`Fake Mollie payment ${paymentId} not found`);
+    this.#payments.set(paymentId, { ...payment, status: "paid" });
+    return paymentId;
+  }
+
+  async retrievePayment(paymentId: string) {
+    const payment = this.#payments.get(paymentId);
+    if (!payment) throw new Error(`Fake Mollie payment ${paymentId} not found`);
+    return payment;
+  }
+
+  async refund(input: Parameters<MolliePaymentsGateway["refund"]>[0]) {
+    const payment = this.#payments.get(input.paymentId);
+    if (!payment) throw new Error("Fake Mollie original payment not found");
+    this.refundCount += 1;
+    const refundId = `re_DB${String(this.refundCount).padStart(8, "0")}${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+    this.lastRefundId = refundId;
+    const refund = { refundId, paymentId: input.paymentId, status: "refunded", amountMinor: input.amountMinor, amountCurrency: "EUR" };
+    this.#refunds.set(`${input.paymentId}:${refundId}`, refund);
+    this.#payments.set(input.paymentId, {
+      ...payment,
+      amountRefundedMinor: Math.min(payment.amountMinor, payment.amountRefundedMinor + input.amountMinor)
+    });
+    return refund;
+  }
+
+  async retrieveRefund(paymentId: string, refundId: string) {
+    const refund = this.#refunds.get(`${paymentId}:${refundId}`);
+    if (!refund) throw new Error(`Fake Mollie refund ${refundId} not found`);
+    return refund;
+  }
+
+  async cancelPayment(paymentId: string) {
+    const payment = this.#payments.get(paymentId);
+    if (!payment) throw new Error(`Fake Mollie payment ${paymentId} not found`);
+    const cancelled = { ...payment, status: "canceled" as const };
+    this.#payments.set(paymentId, cancelled);
+    return cancelled;
+  }
+}
+
+'''
+          src = src[:class_start] + fake + src[class_end:]
+
+          block_start = src.index('  // Viva Smart Checkout provider proof without external network access.')
+          block_end = src.index('  let tenantIsolation = false;', block_start)
+          block = r'''  // Mollie Hosted Checkout provider proof without external network access. Both services share PostgreSQL
+  // but are independent application-runtime facades over one deterministic fake provider gateway.
+  const mollieGateway = new FakeMollieGateway();
+  const mollieA = new PostgresMolliePaymentsService(runtime.sqlPool, mollieGateway, { publicBaseUrl:"https://kontamou.example.test", emailNotificationsEnabled:true });
+  const mollieB = new PostgresMolliePaymentsService(runtimeB.sqlPool, mollieGateway, { publicBaseUrl:"https://kontamou.example.test", emailNotificationsEnabled:true });
+  const mollieCheckoutKey = `checkout-${suffix}-mollie`;
+  const mollieVisitorKey = `visitor_${suffix}_mollie`;
+  const mollieOrder = await runtime.customerCommerce.checkout({ checkoutKey:mollieCheckoutKey, visitorKey:mollieVisitorKey, customerId:userId, postcode:"23100", fulfilmentMode:"pickup", items:[{canonicalVariantId:canonicalId,quantity:1}], now:now+3_150 });
+  if (mollieOrder.status !== "pending_payment") throw new Error("Mollie proof order must begin pending_payment");
+  const mollieInitiatedA = await mollieA.initiateOrderPayment({ orderId:mollieOrder.id, customerId:userId, visitorKey:mollieVisitorKey, now:now+3_160 });
+  const mollieInitiatedB = await mollieB.initiateOrderPayment({ orderId:mollieOrder.id, customerId:userId, visitorKey:mollieVisitorKey, now:now+3_170 });
+  if (mollieInitiatedA.paymentId !== mollieInitiatedB.paymentId || mollieGateway.createCount !== 1) throw new Error("Cross-instance Mollie initiation was not provider-payment idempotent");
+  mollieGateway.confirm(mollieInitiatedA.paymentId);
+  const mollieConfirmed = await mollieB.reconcilePayment({ paymentId:mollieInitiatedA.paymentId, source:"webhook", now:now+3_180 });
+  if (mollieConfirmed.paymentStatus !== "captured" || mollieConfirmed.orderStatus !== "confirmed") throw new Error("Verified Mollie payment did not confirm the customer order");
+
+  // Payment confirmation emits a durable transactional email. A second runtime can deliver and
+  // reconcile its provider webhook against the same PostgreSQL state.
+  const resendRequests:Array<{url:string;body:Record<string,unknown>;idempotency?:string}>=[];
+  const resendFetch:typeof fetch=async(url,init)=>{
+    const headerSource=init?.headers as Record<string,string>|undefined;
+    const body=JSON.parse(String(init?.body)) as Record<string,unknown>;
+    resendRequests.push({url:String(url),body,idempotency:headerSource?.["idempotency-key"]});
+    return jsonResponse(200,{id:`resend-${suffix}-${resendRequests.length}`});
+  };
+  const resendConfig={apiKey:"re_db_smoke",from:"Buy Local Sparta <noreply@example.test>",baseUrl:"https://api.resend.db-smoke.test",timeoutMs:1_000};
+  const suppressionSecret=`db-smoke-notification-suppression-${suffix}-0123456789`;
+  const emailWorkerA=new PostgresResendNotificationService({db:runtime.sqlPool,store:runtime.persistence.notificationOperations,attemptSink:runtime.persistence.notificationOperations,config:resendConfig,suppressionSecret,workerId:`db-smoke-email-${suffix}`,fetchImpl:resendFetch});
+  const deliveredEmail=await emailWorkerA.runOnce(now+3_185,50);
+  if(deliveredEmail.sent<1||!resendRequests.some(request=>String(request.body.subject??"").includes("πληρωμή"))) throw new Error("Durable payment confirmation email was not sent through Resend adapter");
+  const sentNotification=await runtime.sqlPool.query<{provider_message_id:string}&Record<string,unknown>>(`SELECT provider_message_id FROM notifications WHERE user_id=(SELECT id FROM users WHERE public_id=$1) AND event_type='order.payment_confirmed' AND channel='email' AND status='sent' ORDER BY created_at DESC LIMIT 1`,[userId]);
+  const providerMessageId=String(sentNotification.rows[0]?.provider_message_id??"");
+  if(!providerMessageId) throw new Error("Resend provider message id was not persisted");
+  const emailWorkerB=new PostgresResendNotificationService({db:runtimeB.sqlPool,store:runtimeB.persistence.notificationOperations,attemptSink:runtimeB.persistence.notificationOperations,config:resendConfig,suppressionSecret,workerId:`db-smoke-email-b-${suffix}`,fetchImpl:resendFetch});
+  const providerEvent={id:`svix-${suffix}`,type:"email.delivered",createdAt:now+3_186,emailId:providerMessageId,data:{email_id:providerMessageId}};
+  const webhookResult=await emailWorkerB.processWebhook(providerEvent,now+3_186);
+  if(webhookResult.duplicate) throw new Error("First Resend webhook was treated as duplicate");
+  if(!(await emailWorkerA.processWebhook(providerEvent,now+3_187)).duplicate) throw new Error("Resend webhook idempotency was not shared across runtimes");
+
+  await runtime.sqlPool.query("UPDATE stock_reservations SET expires_at=$2 WHERE checkout_key=$1 AND status='active'", [mollieCheckoutKey, new Date(now + 3_000)]);
+  await runtime.persistence.inventory.expireReservations({ now:now+3_190, limit:100 });
+  const paidReservation = await runtime.sqlPool.query<{status:string} & Record<string,unknown>>("SELECT status::text AS status FROM stock_reservations WHERE checkout_key=$1", [mollieCheckoutKey]);
+  if (paidReservation.rows[0]?.status !== "active") throw new Error("Paid Mollie reservation was incorrectly expired by the reservation worker");
+  const mollieFulfilment = (await runtime.vendorOperations.dashboard(vendorLogin.principal)).fulfilments.find((item)=>item.orderId===mollieOrder.id);
+  if (!mollieFulfilment) throw new Error("Paid Mollie fulfilment was not visible to the assigned vendor");
+  const stockBeforeMollieAccept = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
+  await runtimeB.vendorOperations.actOnFulfilment(vendorPrincipalB,{fulfilmentId:mollieFulfilment.id,action:"accept",now:now+3_200});
+  const stockAfterMollieAccept = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
+  if (Number(stockAfterMollieAccept.rows[0]?.on_hand) !== Number(stockBeforeMollieAccept.rows[0]?.on_hand)-1 || Number(stockAfterMollieAccept.rows[0]?.active_reservations)!==Number(stockBeforeMollieAccept.rows[0]?.active_reservations)-1) throw new Error("Vendor acceptance did not consume the paid Mollie stock reservation exactly once");
+
+  await mollieA.prepareOrderCancellation({ orderId:mollieOrder.id, reason:"DB smoke Mollie refund/cancellation proof", now:now+3_210 });
+  if (mollieGateway.refundCount !== 1 || !mollieGateway.lastRefundId) throw new Error("Captured Mollie cancellation did not execute exactly one provider refund");
+  const mollieCancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId:userId, orderId:mollieOrder.id, reason:"DB smoke Mollie refund/cancellation proof", now:now+3_220 });
+  if (mollieCancelled.status !== "cancelled") throw new Error("Refunded Mollie order did not persist customer cancellation");
+  const stockAfterMollieCancel = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
+  if (Number(stockAfterMollieCancel.rows[0]?.on_hand) !== Number(stockBeforeMollieAccept.rows[0]?.on_hand)) throw new Error("Cancellation after Vendor acceptance did not restore consumed Mollie stock");
+  const paymentAfterRefund = await runtime.sqlPool.query<{captured_minor:number;refunded_minor:number;status:string} & Record<string,unknown>>("SELECT captured_minor,refunded_minor,status::text AS status FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[mollieOrder.id]);
+  if (Number(paymentAfterRefund.rows[0]?.refunded_minor)!==Number(paymentAfterRefund.rows[0]?.captured_minor) || paymentAfterRefund.rows[0]?.status!=="refunded") throw new Error("Mollie cancellation refund did not reconcile payment totals");
+
+  // Mollie webhook payloads are deliberately untrusted payment ids. Reconciliation always re-fetches
+  // canonical provider state, so repeated/stale webhook deliveries cannot double-count a refund or regress status.
+  await mollieB.reconcilePayment({ paymentId:mollieInitiatedA.paymentId, source:"webhook", now:now+3_230 });
+  const paymentAfterDuplicateWebhook = await runtime.sqlPool.query<{status:string;refunded_minor:number} & Record<string,unknown>>("SELECT status::text AS status,refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[mollieOrder.id]);
+  if (paymentAfterDuplicateWebhook.rows[0]?.status!=="refunded" || Number(paymentAfterDuplicateWebhook.rows[0]?.refunded_minor)!==mollieOrder.total.minor) throw new Error("Repeated Mollie webhook reconciliation changed a fully refunded payment");
+  if (mollieGateway.refundCount !== 1) throw new Error("Repeated Mollie webhook reconciliation duplicated a completed refund");
+
+  const lateCaptureKey = `checkout-${suffix}-mollie-late-capture`;
+  const lateCaptureVisitor = `visitor_${suffix}_mollie_late_capture`;
+  const lateCaptureOrder = await runtime.customerCommerce.checkout({ checkoutKey:lateCaptureKey, visitorKey:lateCaptureVisitor, customerId:userId, postcode:"23100", fulfilmentMode:"pickup", items:[{canonicalVariantId:canonicalId,quantity:1}], now:now+3_250 });
+  const lateCaptureInitiated = await mollieA.initiateOrderPayment({ orderId:lateCaptureOrder.id, customerId:userId, visitorKey:lateCaptureVisitor, now:now+3_260 });
+  await mollieA.prepareOrderCancellation({ orderId:lateCaptureOrder.id, reason:"DB smoke cancel before provider capture", now:now+3_270 });
+  const lateCaptureCancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId:userId, orderId:lateCaptureOrder.id, reason:"DB smoke cancel before provider capture", now:now+3_280 });
+  if (lateCaptureCancelled.status !== "cancelled") throw new Error("Late-capture proof order did not cancel before provider capture");
+  const refundsBeforeLateCapture = mollieGateway.refundCount;
+  mollieGateway.confirm(lateCaptureInitiated.paymentId);
+  const lateCaptureReconciled = await mollieB.reconcilePayment({ paymentId:lateCaptureInitiated.paymentId, source:"webhook", now:now+3_290 });
+  if (lateCaptureReconciled.orderStatus !== "cancelled" || lateCaptureReconciled.paymentStatus !== "refunded") throw new Error("Late Mollie capture after cancellation was not automatically refunded");
+  if (mollieGateway.refundCount !== refundsBeforeLateCapture + 1) throw new Error("Late capture did not execute exactly one provider refund");
+  await mollieA.reconcilePayment({ paymentId:lateCaptureInitiated.paymentId, source:"webhook", now:now+3_300 });
+  if (mollieGateway.refundCount !== refundsBeforeLateCapture + 1) throw new Error("Late-capture reconciliation retried an already-recorded provider refund");
+  const lateCapturePayment = await runtime.sqlPool.query<{status:string;captured_minor:number;refunded_minor:number} & Record<string,unknown>>("SELECT status::text AS status,captured_minor,refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[lateCaptureOrder.id]);
+  if (lateCapturePayment.rows[0]?.status !== "refunded" || Number(lateCapturePayment.rows[0]?.captured_minor) !== Number(lateCapturePayment.rows[0]?.refunded_minor)) throw new Error("Late-capture payment totals did not settle back to fully refunded");
+  const lateCaptureRefund = await runtime.sqlPool.query<{status:string} & Record<string,unknown>>("SELECT status::text AS status FROM refunds WHERE idempotency_key=$1",[`late-capture:${lateCaptureOrder.id}`]);
+  if (lateCaptureRefund.rows[0]?.status !== "completed") throw new Error("Late-capture refund was not durably recorded under its stable idempotency key");
+
+'''
+          src = src[:block_start] + block + src[block_end:]
+
+          for old, new in {
+            'vivaCrossInstancePaymentOrder': 'mollieCrossInstancePayment',
+            'vivaVerifiedPaymentConfirmation': 'mollieVerifiedPaymentConfirmation',
+            'vivaPaidReservationProtection': 'molliePaidReservationProtection',
+            'vivaRefundCancellation': 'mollieRefundCancellation',
+            'vivaReversalDeduplication': 'mollieWebhookReconciliationIdempotency',
+            'vivaOutOfOrderWebhookMonotonicity': 'mollieCanonicalStateMonotonicity',
+            'vivaLateCaptureAutoRefund': 'mollieLateCaptureAutoRefund'
+          }.items():
+            src = src.replace(old, new)
+
+          if 'PostgresVivaPaymentsService' in src or 'VivaPaymentsGateway' in src or 'FakeVivaGateway' in src or 'vivaGateway' in src or 'vivaA.' in src or 'vivaB.' in src:
+            raise SystemExit('Active Viva DB-smoke payment runtime remains after conversion')
+          path.write_text(src)
+          PY
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck DB smoke
+        run: npm run typecheck:db-smoke
+
+      - name: Commit Mollie DB smoke
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/db-integration-smoke.ts
+          git commit -m 'Replace Viva DB smoke with Mollie scenarios'
+          git push origin HEAD:migration/mollie-payments-v2
