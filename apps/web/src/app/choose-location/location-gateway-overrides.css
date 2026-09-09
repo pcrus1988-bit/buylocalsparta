@@ -105,3 +105,16 @@
     grid-column: span 4;
   }
 }
+
+/* Once the gateway becomes the primary mobile entry point, these two compact
+   labels are part of the WCAG baseline. Keep them above AA contrast without
+   changing the established visual hierarchy or HUB-state palette. */
+@media (max-width: 760px) {
+  main:has(#location-gateway-title) > header > span > strong {
+    color: #1f6f2d;
+  }
+
+  section[aria-labelledby="location-gateway-title"] button > span:nth-child(2) > small {
+    color: #5f6d63;
+  }
+}
