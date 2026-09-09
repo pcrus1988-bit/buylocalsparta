@@ -5,6 +5,9 @@ const port = Number(process.env.SEO_HTTP_SMOKE_PORT ?? "3117");
 const origin = `http://${host}:${port}`;
 const failures = [];
 const useProcessGroup = process.platform !== "win32";
+const seoMonitorHeaders = {
+  "user-agent": "KONTA-MOU-SEO-Monitor/1.0 (+https://kontamou.site)"
+};
 const googlebotHeaders = {
   "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 };
@@ -146,12 +149,12 @@ async function run() {
     assert(!sitemap.includes(forbidden), `sitemap.xml must not contain private/internal path ${forbidden}`);
   }
 
-  const homeResponse = await request("/");
+  const homeResponse = await request("/", { headers: seoMonitorHeaders });
   const home = await homeResponse.text();
-  assert(homeResponse.status === 200, `Homepage returned ${homeResponse.status}, expected 200`);
-  assert(!(homeResponse.headers.get("x-robots-tag") ?? "").toLowerCase().includes("noindex"), "Homepage must not receive a private noindex response header");
+  assert(homeResponse.status === 200, `SEO monitor homepage returned ${homeResponse.status}, expected 200`);
+  assert(!(homeResponse.headers.get("x-robots-tag") ?? "").toLowerCase().includes("noindex"), "SEO monitor homepage must not receive a private noindex response header");
   const homeCanonical = canonicalHref(home);
-  assert(Boolean(homeCanonical), "Homepage must render a canonical link");
+  assert(Boolean(homeCanonical), "SEO monitor homepage must render a canonical link");
   if (homeCanonical) {
     const canonical = new URL(homeCanonical, origin);
     assert(canonical.pathname === "/" && !canonical.search && !canonical.hash, `Homepage canonical must target /, received ${canonical.toString()}`);
@@ -229,4 +232,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("SEO HTTP smoke passed: rendered robots/sitemap/canonical/filter/private-route contracts and Googlebot read-only public rendering verified against the built Next.js application.");
+console.log("SEO HTTP smoke passed: rendered robots/sitemap/canonical/filter/private-route contracts and crawler read-only public rendering verified against the built Next.js application.");
