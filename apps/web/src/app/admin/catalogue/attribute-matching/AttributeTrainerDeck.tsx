@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useFormStatus } from "react-dom";
 import type { AttributeTrainerCard, AttributeTrainerTarget } from "../../../../lib/admin-catalogue-attribute-trainer";
 
 type Action = (formData: FormData) => Promise<void>;
@@ -10,10 +11,11 @@ type Props = Readonly<{
   targets: readonly AttributeTrainerTarget[];
   canWrite: boolean;
   approveAction: Action;
+  createAction: Action;
   rejectAction: Action;
 }>;
 
-export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, rejectAction }: Props) {
+export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, createAction, rejectAction }: Props) {
   const [index, setIndex] = useState(0);
   const [manualOpen, setManualOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -23,13 +25,29 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
 
   const card = cards[index];
   const primary = card?.suggestions[0];
+  const eligibleTargets = useMemo(() => {
+    if (!card || card.scopeKind !== "taxonomy_node") return targets;
+    const allowed = new Set(card.allowedProductTypeIds);
+    return targets.filter((target) => allowed.has(target.productTypeId));
+  }, [card, targets]);
   const filteredTargets = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("el-GR");
     const source = needle
-      ? targets.filter((target) => `${target.productTypeName} ${target.productTypeCode} ${target.attributeCode} ${target.groupCode ?? ""}`.toLocaleLowerCase("el-GR").includes(needle))
-      : targets;
+      ? eligibleTargets.filter((target) => `${target.productTypeName} ${target.productTypeCode} ${target.attributeCode} ${target.groupCode ?? ""}`.toLocaleLowerCase("el-GR").includes(needle))
+      : eligibleTargets;
     return source.slice(0, 80);
-  }, [query, targets]);
+  }, [eligibleTargets, query]);
+  const productTypes = useMemo(() => {
+    const unique = new Map<string, { id: string; code: string; name: string }>();
+    for (const target of eligibleTargets) {
+      if (!unique.has(target.productTypeId)) unique.set(target.productTypeId, {
+        id: target.productTypeId,
+        code: target.productTypeCode,
+        name: target.productTypeName
+      });
+    }
+    return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, "el"));
+  }, [eligibleTargets]);
 
   if (!card) {
     return <div className="workspace-queue-card" style={{ textAlign: "center", padding: "2rem" }}>
@@ -46,6 +64,11 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
   const submitReject = () => {
     if (!canWrite || card.scopeKind === "unscoped") return;
     rejectForm.current?.requestSubmit();
+  };
+  const openManual = () => {
+    if (!canWrite || !card.actionable) return;
+    setQuery(card.sourceAttributeKey);
+    setManualOpen(true);
   };
   const skip = () => {
     setManualOpen(false);
@@ -69,20 +92,25 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
       else submitReject();
       return;
     }
-    if (dy < 0) setManualOpen(true);
+    if (dy < 0) openManual();
     else skip();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowLeft") { event.preventDefault(); submitApprove(); }
     else if (event.key === "ArrowRight") { event.preventDefault(); submitReject(); }
-    else if (event.key === "ArrowUp") { event.preventDefault(); setManualOpen(true); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); openManual(); }
     else if (event.key === "ArrowDown") { event.preventDefault(); skip(); }
   };
 
+  const createName = query.trim();
+  const defaultProductTypeId = primary?.productTypeId && productTypes.some((item) => item.id === primary.productTypeId)
+    ? primary.productTypeId
+    : productTypes[0]?.id ?? "";
+
   return <>
     <div className="workspace-action-bar" style={{ marginBottom: "1rem" }}>
-      <span>Card {Math.min(index + 1, cards.length)} / {cards.length} · keyboard: ← confirm · → not attribute · ↑ remap · ↓ later</span>
+      <span>Card {Math.min(index + 1, cards.length)} / {cards.length} · keyboard: ← confirm · → not attribute · ↑ remap/create · ↓ later</span>
     </div>
 
     <div
@@ -136,7 +164,7 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
       <div className="workspace-action-bar" style={{ marginTop: "1rem", justifyContent: "center", gap: ".6rem", flexWrap: "wrap" }}>
         <button className="button button-primary" type="button" disabled={!canWrite || !card.actionable || !primary} onClick={submitApprove}>← Confirm</button>
         <button className="button button-secondary" type="button" disabled={!canWrite || card.scopeKind === "unscoped"} onClick={submitReject}>Not an attribute →</button>
-        <button className="button button-secondary" type="button" disabled={!canWrite || !card.actionable} onClick={() => setManualOpen(true)}>↑ Search / remap</button>
+        <button className="button button-secondary" type="button" disabled={!canWrite || !card.actionable} onClick={openManual}>↑ Search / create</button>
         <button className="button button-secondary" type="button" onClick={skip}>Later ↓</button>
       </div>
     </div>
@@ -154,16 +182,17 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
       <input name="reason" value="Marked as not a product attribute in Attribute Matching trainer" readOnly />
     </form>
 
-    {manualOpen && <div role="dialog" aria-modal="true" aria-label="Search canonical attribute" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.48)", display: "grid", placeItems: "center", padding: "1rem" }} onMouseDown={(event) => { if (event.currentTarget === event.target) setManualOpen(false); }}>
+    {manualOpen && <div role="dialog" aria-modal="true" aria-label="Search or create canonical attribute" style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.48)", display: "grid", placeItems: "center", padding: "1rem" }} onMouseDown={(event) => { if (event.currentTarget === event.target) setManualOpen(false); }}>
       <div className="workspace-queue-card" style={{ width: "min(920px, 100%)", maxHeight: "88vh", overflow: "auto", padding: "1.25rem" }}>
         <div className="workspace-queue-head">
           <div><small>Manual canonical match</small><strong>{card.sourceAttributeKey}</strong></div>
           <button className="button button-secondary" type="button" onClick={() => setManualOpen(false)}>Close</button>
         </div>
         <label style={{ display: "block", marginTop: "1rem" }}>
-          <span>Search Product Type, canonical attribute or group</span>
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. colour, battery capacity, dimensions…" style={{ width: "100%" }} />
+          <span>Search Product Type, canonical attribute or type a new attribute name</span>
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. χρώμα, battery capacity, dimensions…" style={{ width: "100%" }} />
         </label>
+
         <div className="workspace-queue-list" style={{ marginTop: "1rem" }}>
           {filteredTargets.map((target) => <form action={approveAction} className="workspace-queue-card" key={`${target.productTypeId}:${target.attributeId}`}>
             <input type="hidden" name="sourceProductId" value={card.representativeProductId} />
@@ -177,10 +206,68 @@ export function AttributeTrainerDeck({ cards, targets, canWrite, approveAction, 
             </div>
           </form>)}
         </div>
-        {filteredTargets.length === 0 && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>No existing canonical attribute matches this search. Create or edit the canonical structure first, then return here; source evidence remains untouched.</div>}
+
+        {createName && <form
+          key={`${card.id}:${createName}`}
+          action={createAction}
+          className="workspace-queue-card"
+          style={{ marginTop: "1rem" }}
+        >
+          <input type="hidden" name="sourceProductId" value={card.representativeProductId} />
+          <input type="hidden" name="sourceAttributeKey" value={card.sourceAttributeKey} />
+          <input type="hidden" name="labelEl" value={createName} />
+          <div className="workspace-queue-head">
+            <div>
+              <small>No suitable canonical match?</small>
+              <strong>Create or reuse “{createName}”</strong>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: ".75rem", marginTop: ".9rem" }}>
+            <label>
+              <span>Product Type</span>
+              <select name="productTypeId" defaultValue={defaultProductTypeId} required style={{ width: "100%" }}>
+                {productTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.code}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Data type</span>
+              <select name="dataType" defaultValue="text" required style={{ width: "100%" }}>
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="boolean">Yes / no</option>
+                <option value="dimension">Dimension</option>
+                <option value="enum">Single controlled value</option>
+                <option value="multienum">Multiple controlled values</option>
+              </select>
+            </label>
+            <label>
+              <span>Store at</span>
+              <select name="valueLevel" defaultValue="variant" required style={{ width: "100%" }}>
+                <option value="variant">Variant level</option>
+                <option value="family">Product family level</option>
+              </select>
+            </label>
+          </div>
+          <div className="workspace-inline-note" style={{ marginTop: ".9rem" }}>
+            New attributes start optional, customer-visible, non-filterable and non-searchable. Existing exact label/code matches are reused instead of duplicated.
+          </div>
+          <div className="workspace-action-bar" style={{ marginTop: ".9rem" }}>
+            <CreateAttributeSubmit disabled={!canWrite || !card.actionable || productTypes.length === 0} label={createName} />
+          </div>
+        </form>}
+
+        {filteredTargets.length === 0 && !createName && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>No existing canonical attribute matches this search. Type the canonical attribute name above to create it here.</div>}
+        {productTypes.length === 0 && createName && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>No eligible Product Type with existing attribute contracts is available in this context. Resolve the Product Type/category contract first.</div>}
       </div>
     </div>}
   </>;
+}
+
+function CreateAttributeSubmit({ disabled, label }: { disabled: boolean; label: string }) {
+  const { pending } = useFormStatus();
+  return <button className="button button-primary" type="submit" disabled={disabled || pending}>
+    {pending ? "Creating and learning…" : `Create / use “${label}”`}
+  </button>;
 }
 
 function compact(value: unknown): string {
