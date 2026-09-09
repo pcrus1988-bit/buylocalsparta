@@ -14,8 +14,12 @@ function optionalMinor(body: Record<string, unknown>, key: string): number | nul
   return Number(body[key]);
 }
 
-function adjustmentType(value: unknown): VendorPricingAdjustmentType | undefined {
-  return value === "percent" || value === "fixed" ? value : undefined;
+function adjustmentType(body: Record<string, unknown>, key: string): VendorPricingAdjustmentType | null | undefined {
+  if (!(key in body)) return undefined;
+  const value = body[key];
+  if (value === "" || value == null) return null;
+  if (value === "percent" || value === "fixed") return value;
+  throw new Error("Μη έγκυρος τύπος προσαύξησης τιμής.");
 }
 
 export async function GET(request: Request) {
@@ -48,9 +52,9 @@ export async function PUT(request: Request) {
       pricingMode,
       priceMinor: optionalNumber(body, "priceMinor"),
       buyingPriceMinor: optionalMinor(body, "buyingPriceMinor"),
-      markupType: adjustmentType(body.markupType),
+      markupType: adjustmentType(body, "markupType"),
       markupValue: optionalNumber(body, "markupValue"),
-      discountType: adjustmentType(body.discountType),
+      discountType: adjustmentType(body, "discountType"),
       discountValue: optionalNumber(body, "discountValue"),
       msrpMinor: optionalMinor(body, "msrpMinor"),
       showMsrp: typeof body.showMsrp === "boolean" ? body.showMsrp : undefined
