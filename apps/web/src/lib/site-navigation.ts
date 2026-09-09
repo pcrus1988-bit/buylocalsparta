@@ -95,8 +95,6 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/cart",
   "/checkout",
   "/checkout/private-offer/[id]",
-  "/checkout/failure",
-  "/checkout/success",
   "/login",
   "/register",
   "/verify-email",
