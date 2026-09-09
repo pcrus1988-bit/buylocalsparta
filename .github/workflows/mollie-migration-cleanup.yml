@@ -27,13 +27,131 @@ jobs:
       - name: Pin npm
         run: npm install --global npm@10.9.2
 
-      - name: Remove legacy Viva workspace
-        run: rm -rf packages/viva-payments
+      - name: Remove legacy Viva runtime and switch active callers to Mollie
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def text(path):
+              return Path(path).read_text()
+
+          def write(path, value):
+              Path(path).write_text(value)
+
+          def switch(path):
+              p = Path(path)
+              if not p.exists():
+                  return
+              value = p.read_text()
+              value = value.replace('VIVA', 'MOLLIE').replace('Viva', 'Mollie').replace('viva', 'mollie')
+              p.write_text(value)
+
+          for path in [
+              'apps/web/next.config.ts',
+              'apps/web/scripts/verify-build-context.mjs',
+              'deploy/media-worker.Dockerfile',
+              'deploy/worker.Dockerfile',
+              'apps/web/src/app/checkout/page.tsx',
+              'apps/web/src/app/checkout/private-offer/[id]/page.tsx',
+              'apps/web/src/lib/customer-commerce-runtime.ts',
+              'apps/web/src/lib/admin-governance-runtime.ts',
+              'apps/web/src/lib/customer-payment-finalization.ts',
+              'apps/web/src/lib/customer-payment-resume.ts',
+              'apps/web/src/lib/privacy-governance.ts',
+              'apps/web/src/lib/legal-transparency.ts',
+              'apps/web/src/lib/admin-activation-runner.ts',
+              'apps/web/src/lib/admin-launch-control.ts',
+              'apps/web/src/lib/admin-fiscal-preparation.ts',
+              'apps/web/src/lib/customer-tax-pdf.ts',
+              'apps/web/src/app/api/health/ready/route.ts',
+              'apps/web/src/app/api/account/ask-local/offers/[id]/checkout/route.ts',
+              'apps/web/src/components/PrivateOfferCheckoutClient.tsx',
+              'apps/web/src/components/OrderDetailClient.tsx',
+              'apps/web/src/components/CheckoutPageClient.tsx',
+              'apps/web/src/app/payments-security/page.tsx',
+              'apps/web/src/app/help/page.tsx',
+              'apps/web/src/app/admin/activation/page.tsx',
+              'packages/postgres-runtime/src/admin-operations.ts',
+              'packages/postgres-runtime/src/admin-governance.ts',
+              'packages/postgres-runtime/src/activation-evidence.ts',
+              'scripts/record-activation-evidence.ts',
+              'scripts/verify-checkout-ux.ts',
+              'scripts/verify-customer-payment-resume.ts',
+              'scripts/verify-privacy-governance.ts',
+              'workers/postgres-worker.ts'
+          ]:
+              switch(path)
+
+          # Mollie payment resume uses the provider payment id rather than Viva's numeric order code.
+          p = Path('apps/web/src/lib/customer-payment-resume.ts')
+          value = p.read_text().replace('orderCode: string;', 'paymentId: string;').replace('orderCode: payment.orderCode,', 'paymentId: payment.paymentId,')
+          p.write_text(value)
+
+          p = Path('scripts/verify-customer-payment-resume.ts')
+          value = p.read_text()
+          value = value.replace('Payment order belongs to another customer', 'Payment belongs to another customer')
+          value = value.replace('provider_order_code', 'provider_payment_id')
+          value = value.replace('if (existing) return { kind:\"existing\"', 'if (existingPaymentId)')
+          p.write_text(value)
+
+          # Mollie hosted checkout is remote e-commerce; retain the existing fiscal branch name but use Mollie provider payload semantics.
+          p = Path('apps/web/src/lib/admin-fiscal-preparation.ts')
+          value = p.read_text().replace('isRemoteEcommerceMolliePayment(record(d.provider_payload))', 'isRemoteEcommerceMolliePayment(record(d.provider_payload))')
+          value = value.replace("function isRemoteEcommerceMolliePayment(payload:Record<string,unknown>):boolean{if(stringValue(payload.paymentChannel)===\"remote_ecommerce\")return true;return [\"creating\",\"created\",\"manual_review\"].includes(stringValue(payload.orderCreationState));}",
+                                "function isRemoteEcommerceMolliePayment(payload:Record<string,unknown>):boolean{if(stringValue(payload.paymentChannel)===\"remote_ecommerce\")return true;return [\"creating\",\"created\",\"manual_review\"].includes(stringValue(payload.paymentCreationState));}")
+          p.write_text(value)
+
+          # Mollie watchdog keys mirror the durable Mollie service persistence.
+          p = Path('workers/postgres-worker.ts')
+          value = p.read_text()
+          value = value.replace("'orderCreationState'", "'paymentCreationState'")
+          value = value.replace("'orderCreationWatchdogAt'", "'paymentCreationWatchdogAt'")
+          value = value.replace("'orderCreationWatchdogReason'", "'paymentCreationWatchdogReason'")
+          value = value.replace("provider_payment_code IS NULL", "provider_payment_id IS NULL")
+          value = value.replace("provider_order_code IS NULL", "provider_payment_id IS NULL")
+          value = value.replace("provider_payload->>'orderCreationState'", "provider_payload->>'paymentCreationState'")
+          p.write_text(value)
+
+          # Replace the server-side environment contract with Mollie-only configuration.
+          p = Path('.env.example')
+          value = p.read_text()
+          start = value.index('# Payments — Viva.com Smart Checkout')
+          end = value.index('# Tax / ERP / AADE myDATA', start)
+          payment_block = '''# Payments — Mollie hosted checkout (seller-of-record merchant account)\n# Keep false until the Mollie account and API key are configured.\nMOLLIE_PAYMENTS_ENABLED=false\n# Server-only API key. test_* keys are allowed only outside live production unless the explicit preview escape hatch is enabled.\nMOLLIE_API_KEY=\n# Optional API base override; normally leave blank to use https://api.mollie.com/v2.\nMOLLIE_API_BASE_URL=\n# Public origin used for Mollie redirect and webhook URLs; Vercel URLs are detected automatically when blank.\nMOLLIE_PUBLIC_BASE_URL=\nMOLLIE_REQUEST_TIMEOUT_MS=10000\n# Preview-only. Never use a Mollie test key for real production traffic.\nBLS_ALLOW_MOLLIE_TEST_PREVIEW=false\n\n'''
+          value = value[:start] + payment_block + value[end:]
+          value = value.replace('database,viva,mydata', 'database,mollie,mydata')
+          p.write_text(value)
+
+          # Staging preflight must validate Mollie without inventing a separate environment variable.
+          p = Path('scripts/staging-preflight.ts')
+          value = p.read_text().replace('VIVA', 'MOLLIE').replace('Viva', 'Mollie').replace('viva', 'mollie')
+          pattern = re.compile(r'await run\("mollie",process\.env\.MOLLIE_PAYMENTS_ENABLED===\"true\".*?\n\}\);', re.S)
+          replacement = '''await run("mollie",process.env.MOLLIE_PAYMENTS_ENABLED==="true","configured","mollie-readonly-connectivity",async()=>{\n  const result=await new MolliePaymentsClient(mollieConfigFromEnv(process.env)).readiness();\n  if(deploymentEnvironment==="staging"&&result.environment==="live")throw new Error("Staging preflight refuses Mollie live credentials");\n  return{ok:result.ok,message:"Mollie payment-method API connectivity is reachable",details:{environment:result.environment}};\n});'''
+          value, count = pattern.subn(replacement, value, count=1)
+          if count != 1:
+              raise SystemExit('Could not rewrite Mollie staging preflight block')
+          p.write_text(value)
+
+          # Remove Viva-only runtime, webhook and return UI. Mollie returns to the account order view.
+          for path in [
+              'packages/postgres-runtime/src/viva-payments.ts',
+              'apps/web/src/lib/viva-runtime.ts',
+              'apps/web/src/app/api/payments/viva/webhook/route.ts',
+              'apps/web/src/app/checkout/success/page.tsx',
+              'apps/web/src/app/checkout/failure/page.tsx',
+              'apps/web/src/components/VivaPaymentResultClient.tsx'
+          ]:
+              p = Path(path)
+              if p.exists():
+                  p.unlink()
+          PY
 
       - name: Regenerate workspace lockfile
         run: npm install --package-lock-only --ignore-scripts
 
-      - name: Record remaining Viva references for migration audit
+      - name: Refresh remaining Viva-reference audit
         shell: bash
         run: |
           grep -RniI -E 'viva|vivawallet|viva wallet' . \
@@ -44,7 +162,7 @@ jobs:
             --exclude=viva-audit.txt \
             > viva-audit.txt || true
 
-      - name: Commit deterministic cleanup
+      - name: Commit cutover changes
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
@@ -53,7 +171,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No generated changes to commit.'
           else
-            git commit -m 'Remove Viva workspace and regenerate Mollie lockfile'
+            git commit -m 'Complete active Viva to Mollie cutover'
             git push origin HEAD:migration/mollie-payments-v2
           fi
 
@@ -65,6 +183,9 @@ jobs:
 
       - name: Type-check Mollie package
         run: npm run typecheck:mollie
+
+      - name: Type-check PostgreSQL runtime
+        run: npm run typecheck:postgres-runtime
 
       - name: Verify checkout UX
         run: npm run check:checkout-ux
