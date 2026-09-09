@@ -39,8 +39,11 @@ for (const contract of [
   "billingAddressId",
   "checkoutCustomerPrivateOffer",
   "attachCustomerOrderAddresses",
-  "requireVivaPayments().initiateOrderPayment"
+  "molliePaymentsEnabled()",
+  "requireMolliePayments().initiateOrderPayment",
+  'provider: "mollie"'
 ]) if (!route.includes(contract)) failures.push(`Private-offer checkout route is missing ${contract}`);
+if (route.includes("Viva") || route.includes("viva")) failures.push("Private-offer checkout route must not retain Viva payment behavior");
 
 for (const contract of [
   "customerPrivateOfferBrowserPreview",
@@ -66,4 +69,4 @@ if (failures.length) {
   console.error("Private-offer checkout checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Private-offer checkout checks passed: accepted ownership, exact vendor inventory, pickup-only fulfilment, private price provenance, CSRF/Viva flow and non-indexable routing verified.");
+console.log("Private-offer checkout checks passed: accepted ownership, exact vendor inventory, pickup-only fulfilment, private price provenance, CSRF/Mollie flow and non-indexable routing verified.");
