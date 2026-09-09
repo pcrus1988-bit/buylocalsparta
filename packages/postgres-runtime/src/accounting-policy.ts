@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlPool, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "./admin-auth.ts";
 
-export type FiscalisationRoute = "unselected" | "viva_fiscal_provider" | "aade_direct_erp";
+export type FiscalisationRoute = "unselected" | "aade_direct_erp";
 export type PolicyDecisionStatus = "pending" | "approved" | "rejected" | "not_applicable";
 export type MappingProductionStatus = "proposed" | "approved" | "future" | "exception";
 
@@ -18,8 +18,8 @@ export type AccountingPolicyWorkspace = Readonly<{
   series: readonly Readonly<{ series:string; invoiceType:string; purpose:string; fiscalYear:number; nextAa:number; lastIssuedAa?:number; lastMark?:string; locked:boolean }>[];
   vatCategories: readonly Readonly<{ code:number; rateBps:number; label:string; specialCategory:boolean }>[];
   taxProfileCoverage: Readonly<{ activeVariants:number; coveredVariants:number; missingVariants:number; approvedProfiles:number; unapprovedProfiles:number; approvedProfileHashes:readonly string[] }>;
-  runtimeConfig: Readonly<{ environment:string; specVersion:string; requestTimeoutMs:number; issuanceEnabled:boolean; ecrTokenEnabled:boolean; vivaFiscalEnabled:boolean; mappingVersionPin?:string; capturePaidOrders:boolean; emailAcceptedDocuments:boolean }>;
-  technicalCapabilities: Readonly<{ directErpEcrToken:boolean; vivaFiscalProvider:boolean }>;
+  runtimeConfig: Readonly<{ environment:string; specVersion:string; requestTimeoutMs:number; issuanceEnabled:boolean; ecrTokenEnabled:boolean; mappingVersionPin?:string; capturePaidOrders:boolean; emailAcceptedDocuments:boolean }>;
+  technicalCapabilities: Readonly<{ directErpEcrToken:boolean }>;
   productionReady:boolean;
   blockers:readonly string[];
 }>;
@@ -35,7 +35,7 @@ export class PostgresAccountingPolicyService {
     return this.#uow.withTransaction(platformScope(principal.userId), async tx => {
       const runtimeSetting=await tx.query<SqlRow>(`SELECT s.value FROM system_settings s JOIN markets m ON m.id=s.market_id WHERE m.code=$1 AND s.key=$2 LIMIT 1`,[this.#marketCode(),RUNTIME_CONFIG_KEY]);
       const runtimeConfig=runtimeConfigFromValue(runtimeSetting.rows[0]?.value,this.#env);
-      const technicalCapabilities={directErpEcrToken:runtimeConfig.ecrTokenEnabled,vivaFiscalProvider:runtimeConfig.vivaFiscalEnabled};
+      const technicalCapabilities={directErpEcrToken:runtimeConfig.ecrTokenEnabled};
       const p=await tx.query<SqlRow>(`SELECT public_id,version,status,seller_of_record,seller_legal_name,seller_tax_number,compatibility_target,
           production_published_schema,fiscalisation_route,effective_from,accountant_name,approved_at,approval_notes,policy_hash
         FROM accounting_tax_policies
@@ -192,17 +192,16 @@ function policyBlockers(input:{policy?:AccountingPolicyWorkspace["policy"];check
   for(const c of input.checks)if(c.required&&!['approved','not_applicable'].includes(c.status))blockers.push(`Required check ${c.code} is ${c.status}`);
   const requiredDocs=['b2c_goods_gr','b2b_goods_gr','b2c_services_gr','b2b_services_gr','b2c_credit','b2b_credit_correlated','platform_vendor_service'];
   for(const code of requiredDocs){const m=input.documentMappings.find(x=>x.eventCode===code);if(!m||m.status!=='approved')blockers.push(`Document mapping ${code} is not approved`);}
-  const requiredPayments=[['VIVA','CARD'],['VIVA','IRIS'],['OFFLINE','CASH'],['OFFLINE','CREDIT'],['OFFLINE','WEB_BANKING']] as const;
+  const requiredPayments=[['MOLLIE','CREDITCARD'],['OFFLINE','CASH'],['OFFLINE','CREDIT'],['OFFLINE','WEB_BANKING']] as const;
   for(const [processor,method] of requiredPayments){const m=input.paymentMappings.find(x=>x.processor===processor&&x.processorMethod===method);if(!m||m.status!=='approved')blockers.push(`Payment mapping ${processor}/${method} is not approved`);}
   if(input.taxProfileCoverage.missingVariants>0)blockers.push(`${input.taxProfileCoverage.missingVariants} active product(s) lack an approved effective VAT profile`);
   if(p.fiscalisationRoute==='aade_direct_erp'&&!input.technicalCapabilities.directErpEcrToken)blockers.push("Direct ERP card fiscalisation has no enabled ECRToken capability");
-  if(p.fiscalisationRoute==='viva_fiscal_provider'&&!input.technicalCapabilities.vivaFiscalProvider)blockers.push("Viva Fiscal provider integration is not enabled");
   return[...new Set(blockers)];
 }
 
 function runtimeConfigFromValue(raw:unknown,env:NodeJS.ProcessEnv):AccountingPolicyWorkspace['runtimeConfig']{
   const value=jsonRecord(raw);const environment=value.environment==='test'?'test':value.environment==='production'?'production':env.AADE_MYDATA_ENVIRONMENT==='test'?'test':'production';const timeout=Number(value.requestTimeoutMs);
-  return{environment,specVersion:typeof value.specVersion==='string'&&value.specVersion.trim()?value.specVersion.trim():env.AADE_MYDATA_SPEC_VERSION?.trim()||'2.0.2',requestTimeoutMs:Number.isSafeInteger(timeout)&&timeout>0?timeout:15000,issuanceEnabled:typeof value.issuanceEnabled==='boolean'?value.issuanceEnabled:env.BLS_MYDATA_ISSUANCE_ENABLED==='true',ecrTokenEnabled:typeof value.ecrTokenEnabled==='boolean'?value.ecrTokenEnabled:env.BLS_MYDATA_ECR_TOKEN_ENABLED==='true',vivaFiscalEnabled:typeof value.vivaFiscalEnabled==='boolean'?value.vivaFiscalEnabled:env.BLS_VIVA_FISCAL_ENABLED==='true',mappingVersionPin:typeof value.mappingVersionPin==='string'&&value.mappingVersionPin.trim()?value.mappingVersionPin.trim():env.BLS_MYDATA_MAPPING_VERSION?.trim()||undefined,capturePaidOrders:typeof value.capturePaidOrders==='boolean'?value.capturePaidOrders:true,emailAcceptedDocuments:typeof value.emailAcceptedDocuments==='boolean'?value.emailAcceptedDocuments:true};
+  return{environment,specVersion:typeof value.specVersion==='string'&&value.specVersion.trim()?value.specVersion.trim():env.AADE_MYDATA_SPEC_VERSION?.trim()||'2.0.2',requestTimeoutMs:Number.isSafeInteger(timeout)&&timeout>0?timeout:15000,issuanceEnabled:typeof value.issuanceEnabled==='boolean'?value.issuanceEnabled:env.BLS_MYDATA_ISSUANCE_ENABLED==='true',ecrTokenEnabled:typeof value.ecrTokenEnabled==='boolean'?value.ecrTokenEnabled:env.BLS_MYDATA_ECR_TOKEN_ENABLED==='true',mappingVersionPin:typeof value.mappingVersionPin==='string'&&value.mappingVersionPin.trim()?value.mappingVersionPin.trim():env.BLS_MYDATA_MAPPING_VERSION?.trim()||undefined,capturePaidOrders:typeof value.capturePaidOrders==='boolean'?value.capturePaidOrders:true,emailAcceptedDocuments:typeof value.emailAcceptedDocuments==='boolean'?value.emailAcceptedDocuments:true};
 }
 function policyHash(s:AccountingPolicyWorkspace):string{return createHash('sha256').update(JSON.stringify({version:s.policy?.version,sellerOfRecord:s.policy?.sellerOfRecord,sellerLegalName:s.policy?.sellerLegalName,sellerTaxNumber:s.policy?.sellerTaxNumber,compatibilityTarget:s.policy?.compatibilityTarget,productionPublishedSchema:s.policy?.productionPublishedSchema,fiscalisationRoute:s.policy?.fiscalisationRoute,checks:s.checks.map(x=>[x.code,x.status,x.evidence]),documents:s.documentMappings.map(x=>[x.eventCode,x.customerKind,x.itemKind,x.geography,x.direction,x.invoiceType,x.incomeCategory,x.e3Code,x.seriesCode,x.status,x.correlationRequired,x.negativeOriginalClassification]),payments:s.paymentMappings.map(x=>[x.processor,x.processorMethod,x.mydataPaymentType,x.requiresTransactionId,x.erpRequiresEcrToken,x.providerSignatureRoute,x.status]),series:s.series.map(x=>[x.series,x.invoiceType,x.fiscalYear]),productTaxProfileHashes:s.taxProfileCoverage.approvedProfileHashes})).digest('hex');}
 function actorUuidExpression(index:number){return `(SELECT u.id FROM users u WHERE u.id::text=$${index} OR u.public_id=$${index} LIMIT 1)`;}

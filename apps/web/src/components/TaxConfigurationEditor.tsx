@@ -7,13 +7,13 @@ import { FormEvent, useMemo, useState } from "react";
 
 type Policy = Readonly<{
   id:string; version:string; status:string; sellerOfRecord:boolean; sellerLegalName:string; sellerTaxNumber:string;
-  compatibilityTarget:string; productionPublishedSchema?:string; fiscalisationRoute:"unselected"|"viva_fiscal_provider"|"aade_direct_erp"; effectiveFrom?:string;
+  compatibilityTarget:string; productionPublishedSchema?:string; fiscalisationRoute:"unselected"|"aade_direct_erp"; effectiveFrom?:string;
 }>;
 type DocumentMapping = Readonly<{eventCode:string;customerKind:string;itemKind:string;geography:string;direction:string;invoiceType:string;incomeCategory?:string;e3Code?:string;seriesCode:string;status:"proposed"|"approved"|"future"|"exception";correlationRequired:boolean;negativeOriginalClassification:boolean;notes?:string}>;
 type PaymentMapping = Readonly<{processor:string;processorMethod:string;mydataPaymentType:number;requiresTransactionId:boolean;erpRequiresEcrToken:boolean;providerSignatureRoute:boolean;status:"proposed"|"approved"|"future"|"exception";notes?:string}>;
 type FiscalSeries = Readonly<{series:string;invoiceType:string;purpose:string;fiscalYear:number;nextAa:number;lastIssuedAa?:number;lastMark?:string;locked:boolean}>;
 type VatCategory = Readonly<{code:number;rateBps:number;label:string;specialCategory:boolean}>;
-type RuntimeConfig = Readonly<{environment:string;baseUrl?:string;specVersion:string;requestTimeoutMs:number;issuanceEnabled:boolean;ecrTokenEnabled:boolean;vivaFiscalEnabled:boolean;mappingVersionPin?:string;capturePaidOrders:boolean;emailAcceptedDocuments:boolean;updatedAt?:number}>;
+type RuntimeConfig = Readonly<{environment:string;baseUrl?:string;specVersion:string;requestTimeoutMs:number;issuanceEnabled:boolean;ecrTokenEnabled:boolean;mappingVersionPin?:string;capturePaidOrders:boolean;emailAcceptedDocuments:boolean;updatedAt?:number}>;
 
 type Props = Readonly<{
   csrfToken:string;
@@ -85,7 +85,7 @@ export function TaxConfigurationEditor(props:Props){
     event.preventDefault();const reason=askReason("Αιτιολογία αλλαγής AADE/myDATA runtime configuration");if(!reason)return;
     let confirmation:string|undefined;
     if(runtime.issuanceEnabled&&!props.runtimeConfig.issuanceEnabled){confirmation=window.prompt("Για ενεργοποίηση πραγματικής φορολογικής διαβίβασης γράψτε ακριβώς: ENABLE LIVE FISCAL")?.trim();if(confirmation!=="ENABLE LIVE FISCAL")return;}
-    await post("/api/admin/tax/config",{action:"save_runtime",environment:runtime.environment,specVersion:runtime.specVersion,requestTimeoutMs:Number(runtime.requestTimeoutMs),issuanceEnabled:runtime.issuanceEnabled,ecrTokenEnabled:runtime.ecrTokenEnabled,vivaFiscalEnabled:runtime.vivaFiscalEnabled,mappingVersionPin:runtime.mappingVersionPin||undefined,capturePaidOrders:runtime.capturePaidOrders,emailAcceptedDocuments:runtime.emailAcceptedDocuments,confirmation,reason},"Η AADE/myDATA runtime configuration αποθηκεύτηκε.");
+    await post("/api/admin/tax/config",{action:"save_runtime",environment:runtime.environment,specVersion:runtime.specVersion,requestTimeoutMs:Number(runtime.requestTimeoutMs),issuanceEnabled:runtime.issuanceEnabled,ecrTokenEnabled:runtime.ecrTokenEnabled,mappingVersionPin:runtime.mappingVersionPin||undefined,capturePaidOrders:runtime.capturePaidOrders,emailAcceptedDocuments:runtime.emailAcceptedDocuments,confirmation,reason},"Η AADE/myDATA runtime configuration αποθηκεύτηκε.");
   }
   async function saveCredentials(event:FormEvent){
     event.preventDefault();if(!userId.trim()&&!subscriptionKey.trim()){setMessage("Συμπληρώστε τουλάχιστον ένα credential για ενημέρωση.");return;}const reason=askReason("Αιτιολογία αλλαγής AADE credentials");if(!reason)return;
@@ -116,10 +116,9 @@ export function TaxConfigurationEditor(props:Props){
         <label>myDATA spec version<input value={runtime.specVersion} onChange={e=>setRuntime(v=>({...v,specVersion:e.target.value}))} /></label>
         <label>Request timeout (ms)<input type="number" min={1000} max={60000} value={runtime.requestTimeoutMs} onChange={e=>setRuntime(v=>({...v,requestTimeoutMs:Number(e.target.value)}))} /></label>
         <label>Approved mapping pin<input value={runtime.mappingVersionPin} onChange={e=>setRuntime(v=>({...v,mappingVersionPin:e.target.value}))} placeholder="blank = current approved policy" /></label>
-        <label className="checkbox-label"><input type="checkbox" checked={runtime.capturePaidOrders} onChange={e=>setRuntime(v=>({...v,capturePaidOrders:e.target.checked}))} />Create pending fiscal record after captured Viva payment</label>
+        <label className="checkbox-label"><input type="checkbox" checked={runtime.capturePaidOrders} onChange={e=>setRuntime(v=>({...v,capturePaidOrders:e.target.checked}))} />Create pending fiscal record after captured Mollie payment</label>
         <label className="checkbox-label"><input type="checkbox" checked={runtime.emailAcceptedDocuments} onChange={e=>setRuntime(v=>({...v,emailAcceptedDocuments:e.target.checked}))} />Email accepted fiscal document to customer</label>
         <label className="checkbox-label"><input type="checkbox" checked={runtime.ecrTokenEnabled} onChange={e=>setRuntime(v=>({...v,ecrTokenEnabled:e.target.checked}))} />Direct ERP / ECRToken capability enabled</label>
-        <label className="checkbox-label"><input type="checkbox" checked={runtime.vivaFiscalEnabled} onChange={e=>setRuntime(v=>({...v,vivaFiscalEnabled:e.target.checked}))} />Viva Fiscal provider capability enabled</label>
         <label className="checkbox-label"><input type="checkbox" checked={runtime.issuanceEnabled} onChange={e=>setRuntime(v=>({...v,issuanceEnabled:e.target.checked}))} />Allow live fiscal issuance when all policy gates pass</label>
         <div className="workspace-action-buttons"><button className="button button-secondary" type="submit" disabled={busy}>{busy?"…":"Save runtime configuration"}</button></div>
       </form>
@@ -143,7 +142,7 @@ export function TaxConfigurationEditor(props:Props){
         <label>Compatibility target<input value={policyForm.compatibilityTarget} onChange={e=>setPolicyForm(v=>({...v,compatibilityTarget:e.target.value}))} /></label>
         <label>Published production schema<input value={policyForm.productionPublishedSchema} onChange={e=>setPolicyForm(v=>({...v,productionPublishedSchema:e.target.value}))} /></label>
         <label>Effective from<input type="date" value={policyForm.effectiveFrom} onChange={e=>setPolicyForm(v=>({...v,effectiveFrom:e.target.value}))} /></label>
-        <label>Fiscalisation route<select value={policyForm.route} onChange={e=>setPolicyForm(v=>({...v,route:e.target.value as typeof v.route}))}><option value="unselected">unselected</option><option value="aade_direct_erp">AADE Direct ERP</option><option value="viva_fiscal_provider">Viva Fiscal provider</option></select></label>
+        <label>Fiscalisation route<select value={policyForm.route} onChange={e=>setPolicyForm(v=>({...v,route:e.target.value as typeof v.route}))}><option value="unselected">unselected</option><option value="aade_direct_erp">AADE Direct ERP</option></select></label>
         <label className="checkbox-label"><input type="checkbox" checked={policyForm.sellerOfRecord} onChange={e=>setPolicyForm(v=>({...v,sellerOfRecord:e.target.checked}))} />KONTA MOY / SP BUSINESS LAB is seller of record</label>
         <div className="workspace-action-buttons"><button className="button button-secondary" type="submit" disabled={busy}>{busy?"…":"Save Accounting Policy"}</button></div>
       </form>:<div className="workspace-action-bar"><span>Approved policy records are immutable. Change tax policy through a new auditable revision.</span><div className="workspace-action-buttons"><input aria-label="New policy version" value={revisionVersion} onChange={e=>setRevisionVersion(e.target.value)} placeholder="e.g. 1.1" /><button type="button" className="button button-secondary" disabled={busy||!revisionVersion.trim()} onClick={()=>void createRevision()}>Create revision</button></div></div>}

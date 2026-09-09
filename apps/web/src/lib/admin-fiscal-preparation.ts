@@ -68,7 +68,7 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
     const policy=await client.query<{id:string;public_id:string;version:string;policy_hash:string|null;seller_tax_number:string;status:string;fiscalisation_route:string}>(
       `SELECT p.id::text,p.public_id,p.version,p.policy_hash,p.seller_tax_number,p.status,p.fiscalisation_route FROM accounting_tax_policies p WHERE p.market_id=$1::uuid AND p.status='approved' ORDER BY p.approved_at DESC LIMIT 1 FOR SHARE`,[d.market_id]);
     if(!policy.rowCount)throw new Error("No approved Accounting Policy exists for this market");const p=policy.rows[0]!;
-    if(p.fiscalisation_route!=="aade_direct_erp")throw new Error("Built-in fiscal preparation currently supports only the approved AADE Direct ERP route; Mollie Fiscal provider transmission is not implemented");
+    if(p.fiscalisation_route!=="aade_direct_erp")throw new Error("Built-in fiscal preparation requires the approved AADE Direct ERP route; payment processing remains separate in Mollie");
 
     const mapping=await client.query<{invoice_type:string;income_category:string|null;e3_code:string|null;series_code:string;customer_kind:string;item_kind:string;geography:string;direction:string;production_status:string}>(
       `SELECT d.invoice_type,d.income_category,d.e3_code,d.series_code,d.customer_kind,d.item_kind,d.geography,d.direction,d.production_status
