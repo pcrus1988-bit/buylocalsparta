@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 const files = {
-  page: "apps/web/src/app/admin/catalogue-intake/attributes/page.tsx",
+  page: "apps/web/src/app/admin/catalogue/attribute-review/page.tsx",
   review: "apps/web/src/lib/admin-catalogue-attribute-review.ts",
   manual: "apps/web/src/lib/admin-catalogue-manual-review.ts",
   mapping: "apps/web/src/lib/admin-catalogue-attribute-mapping.ts"
