@@ -18,8 +18,9 @@ import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 import { PostgresCartRecoveryService } from "./cart-recovery.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 214;
-// Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
+export const EXPECTED_SCHEMA_VERSION = 215;
+// Compatibility markers for migration-specific static verifiers that still assert historical schema heads.
+// export const EXPECTED_SCHEMA_VERSION = 214;
 // EXPECTED_SCHEMA_VERSION = 122
 
 export type PostgresRuntimeConfig = Readonly<{
