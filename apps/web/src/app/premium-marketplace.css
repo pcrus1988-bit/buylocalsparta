@@ -34,10 +34,64 @@
   height: 2px;
   background: var(--km-premium-brass);
 }
+.site-header .header-actions { gap: 7px; }
 .site-header .cart-button {
   border-radius: 12px;
   background: rgba(255,255,255,.44);
 }
+.header-location {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--km-premium-line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.34);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.header-location-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4f8c61;
+}
+.header-search {
+  width: clamp(128px, 13vw, 190px);
+  min-height: 39px;
+  display: grid;
+  grid-template-columns: 18px minmax(0,1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--km-premium-line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.54);
+}
+.header-search:focus-within {
+  border-color: var(--km-premium-brass);
+  box-shadow: 0 0 0 3px rgba(166,133,80,.11);
+}
+.header-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--km-premium-forest-dark);
+  font-size: 12px;
+}
+.header-search-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.header-action-text { width: auto !important; height: auto !important; display: inline !important; background: transparent !important; color: inherit !important; font-size: inherit !important; }
 
 /* Catalogue: shopping information before editorial detail. */
 .catalog-hero {
@@ -174,8 +228,13 @@
   box-shadow: none;
 }
 
+@media (max-width: 1180px) {
+  .header-search { display: none; }
+}
+
 @media (max-width: 1100px) {
   .catalog-results .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .header-location { display: none; }
 }
 
 @media (max-width: 960px) {
@@ -203,6 +262,7 @@
   .public-menu-toggle,
   .site-header .cart-button { min-height: 44px; }
   .site-header .nav a { font-size: 14px; }
+  .header-action-text { display: none !important; }
   .catalog-hero { padding-top: 28px; }
   .catalog-hero h1 { font-size: 42px; }
   .catalog-results .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
