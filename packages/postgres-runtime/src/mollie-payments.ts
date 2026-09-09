@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, id, type SqlExecutor, type SqlPool, type SqlRow } from "@buy-local-sparta/core";
-import { MollieApiError, MolliePaymentsClient, type MolliePayment, type MollieRefund } from "@buy-local-sparta/mollie-payments";
+import { MollieApiError, MolliePaymentsClient, type MollieAddress, type MolliePayment, type MolliePaymentLine, type MollieRefund } from "@buy-local-sparta/mollie-payments";
 
-export type MolliePaymentsGateway = Pick<MolliePaymentsClient, "environment" | "createPayment" | "retrievePayment" | "refund" | "retrieveRefund" | "cancelPayment">;
+export type MolliePaymentsGateway = Pick<MolliePaymentsClient, "environment" | "createPayment" | "retrievePayment" | "createCapture" | "refund" | "retrieveRefund" | "cancelPayment" | "releaseAuthorization">;
+export type MollieCheckoutPaymentMethod = "card" | "klarna";
 
 const PAID_RESERVATION_HOLD_MS = 48 * 60 * 60 * 1000;
 const REFUND_TERMINAL_FAILURES = new Set(["failed", "canceled", "cancelled"]);
@@ -11,6 +12,7 @@ const REFUND_PENDING = new Set(["queued", "pending", "processing"]);
 export type MolliePaymentInitiation = Readonly<{ orderId: string; orderNumber: string; paymentId: string; checkoutUrl: string; amountMinor: number }>;
 export type MolliePaymentReconciliation = Readonly<{ orderId: string; orderNumber: string; paymentStatus: string; orderStatus: string; paymentId: string; amountMinor: number }>;
 export type MollieRefundState = Readonly<{ id: string; status: string; amountMinor: number; providerRefundId?: string; error?: string }>;
+export type MollieCaptureState = Readonly<{ requested: boolean; paymentId?: string; captureId?: string; status?: string }>;
 
 export class PostgresMolliePaymentsService {
   readonly #uow: PostgresUnitOfWork;
@@ -25,12 +27,24 @@ export class PostgresMolliePaymentsService {
     this.#emailNotificationsEnabled = options.emailNotificationsEnabled === true;
   }
 
-  async initiateOrderPayment(input: { orderId: string; customerId?: string; visitorKey: string; now?: number }): Promise<MolliePaymentInitiation> {
+  async initiateOrderPayment(input: {
+    orderId: string;
+    customerId?: string;
+    visitorKey: string;
+    paymentMethod?: MollieCheckoutPaymentMethod;
+    billingAddress?: MollieAddress;
+    shippingAddress?: MollieAddress;
+    now?: number;
+  }): Promise<MolliePaymentInitiation> {
     const now = input.now ?? Date.now();
+    const paymentMethod = input.paymentMethod ?? "card";
     if (!/^[A-Za-z0-9_-]{16,128}$/.test(input.visitorKey)) throw new Error("Trusted visitor identity is required");
+    if (paymentMethod !== "card" && paymentMethod !== "klarna") throw new Error("Unsupported Mollie payment method");
+    if (paymentMethod === "klarna" && !input.billingAddress) throw new Error("Klarna requires a billing address");
 
     const prepared = await this.#uow.withTransaction({ actorUserId: input.customerId, marketId: "sparta", platformAccess: true }, async (tx) => {
-      const result = await tx.query<SqlRow>(`SELECT o.id::text AS order_uuid,o.public_id AS order_id,o.order_number,o.status::text,o.total_minor,o.currency,o.visitor_hash,
+      const result = await tx.query<SqlRow>(`SELECT o.id::text AS order_uuid,o.public_id AS order_id,o.order_number,o.status::text,o.total_minor,o.shipping_minor,o.discount_minor,o.currency,o.visitor_hash,
+          COALESCE((SELECT SUM(-gcl.amount_minor) FROM gift_card_ledger gcl WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'),0) AS gift_card_minor,
           GREATEST(0,o.total_minor-COALESCE((SELECT SUM(-gcl.amount_minor) FROM gift_card_ledger gcl WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'),0)) AS payable_minor,
           u.public_id AS customer_public_id,u.preferred_locale,
           p.id::text AS payment_uuid,p.provider,p.provider_payment_id,p.provider_transaction_id,p.provider_correlation_id,p.provider_payload,p.status::text AS payment_status
@@ -57,15 +71,22 @@ export class PostgresMolliePaymentsService {
       if (creationState === "creating" || creationState === "manual_review") {
         return { kind: "blocked" as const, state: creationState, attemptId: optionalText(row.provider_correlation_id) };
       }
+      const lines = paymentMethod === "klarna" ? await klarnaLinesForOrder(tx, {
+        orderUuid: text(row.order_uuid, "order_uuid"),
+        payableMinor: amountMinor,
+        shippingMinor: integer(row.shipping_minor ?? 0, "shipping_minor"),
+        discountMinor: integer(row.discount_minor ?? 0, "discount_minor"),
+        giftCardMinor: integer(row.gift_card_minor ?? 0, "gift_card_minor")
+      }) : undefined;
       const attemptId = randomUUID();
       await tx.query(`UPDATE payments SET provider='mollie',status='requires_action',provider_correlation_id=$2,
         provider_payload=provider_payload||$3::jsonb,updated_at=$4 WHERE id=$1`, [
         text(row.payment_uuid, "payment_uuid"), attemptId,
-        JSON.stringify({ paymentCreationState: "creating", paymentCreationAttemptId: attemptId, paymentCreationStartedAt: new Date(now).toISOString(), environment: this.#client.environment, orderNumber }),
+        JSON.stringify({ paymentCreationState: "creating", paymentCreationAttemptId: attemptId, paymentCreationStartedAt: new Date(now).toISOString(), environment: this.#client.environment, orderNumber, paymentMethod }),
         new Date(now)
       ]);
-      await this.#paymentEvent(tx, text(row.payment_uuid, "payment_uuid"), `payment-attempt:${attemptId}`, "payment_creation_started", { attemptId, orderId: input.orderId, orderNumber, amountMinor }, now);
-      return { kind: "create" as const, paymentUuid: text(row.payment_uuid, "payment_uuid"), attemptId, amountMinor, orderNumber, locale: locale(optionalText(row.preferred_locale)) };
+      await this.#paymentEvent(tx, text(row.payment_uuid, "payment_uuid"), `payment-attempt:${attemptId}`, "payment_creation_started", { attemptId, orderId: input.orderId, orderNumber, amountMinor, paymentMethod }, now);
+      return { kind: "create" as const, paymentUuid: text(row.payment_uuid, "payment_uuid"), attemptId, amountMinor, orderNumber, locale: locale(optionalText(row.preferred_locale)), lines };
     }, { isolation: "serializable" });
 
     if (prepared.kind === "blocked") throw new Error(`Mollie payment creation is ${prepared.state}; automatic retry is blocked pending reconciliation${prepared.attemptId ? ` (${prepared.attemptId})` : ""}`);
@@ -73,6 +94,8 @@ export class PostgresMolliePaymentsService {
     if (prepared.kind === "existing") {
       const existing = await this.#client.retrievePayment(prepared.paymentId);
       this.#assertProviderIdentity(existing, input.orderId, prepared.orderNumber, prepared.amountMinor);
+      if (paymentMethod === "klarna" && existing.method && existing.method !== "klarna") throw new Error("Existing Mollie payment was created with a different payment method");
+      if (paymentMethod === "card" && existing.method && existing.method !== "creditcard") throw new Error("Existing Mollie payment was created with a different payment method");
       if (existing.status === "paid" || existing.status === "authorized" || existing.status === "failed" || existing.status === "expired" || existing.status === "canceled") {
         await this.reconcilePayment({ paymentId: existing.paymentId, source: "manual", now });
       }
@@ -96,7 +119,12 @@ export class PostgresMolliePaymentsService {
         cancelUrl: orderReturnUrl(this.#publicBaseUrl, input.orderId, "cancelled"),
         webhookUrl: new URL("/api/payments/mollie/webhook", this.#publicBaseUrl).toString(),
         locale: prepared.locale,
-        metadata: { paymentCreationAttemptId: prepared.attemptId }
+        method: paymentMethod === "klarna" ? "klarna" : "creditcard",
+        captureMode: paymentMethod === "klarna" ? "manual" : undefined,
+        lines: paymentMethod === "klarna" ? prepared.lines : undefined,
+        billingAddress: paymentMethod === "klarna" ? input.billingAddress : undefined,
+        shippingAddress: paymentMethod === "klarna" ? input.shippingAddress : undefined,
+        metadata: { paymentCreationAttemptId: prepared.attemptId, paymentMethod }
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -122,10 +150,10 @@ export class PostgresMolliePaymentsService {
       if (optionalText(current.rows[0].provider_correlation_id) !== prepared.attemptId) throw new Error("Mollie payment creation attempt was superseded and requires reconciliation");
       await tx.query(`UPDATE payments SET provider_payment_id=$2,provider_transaction_id=$2,provider_payload=provider_payload||$3::jsonb,updated_at=$4 WHERE id=$1`, [
         prepared.paymentUuid, created.paymentId,
-        JSON.stringify({ paymentCreationState: "created", paymentCreationCompletedAt: new Date(now).toISOString(), initialProviderStatus: created.status, orderNumber: prepared.orderNumber }),
+        JSON.stringify({ paymentCreationState: "created", paymentCreationCompletedAt: new Date(now).toISOString(), initialProviderStatus: created.status, orderNumber: prepared.orderNumber, paymentMethod }),
         new Date(now)
       ]);
-      await this.#paymentEvent(tx, prepared.paymentUuid, `payment:${created.paymentId}`, "payment_created", { paymentId: created.paymentId, orderId: input.orderId, orderNumber: prepared.orderNumber, amountMinor: prepared.amountMinor, attemptId: prepared.attemptId }, now);
+      await this.#paymentEvent(tx, prepared.paymentUuid, `payment:${created.paymentId}`, "payment_created", { paymentId: created.paymentId, orderId: input.orderId, orderNumber: prepared.orderNumber, amountMinor: prepared.amountMinor, attemptId: prepared.attemptId, paymentMethod }, now);
       return { orderId: input.orderId, orderNumber: prepared.orderNumber, paymentId: created.paymentId, checkoutUrl: created.checkoutUrl, amountMinor: prepared.amountMinor };
     }, { isolation: "serializable" });
   }
@@ -145,6 +173,63 @@ export class PostgresMolliePaymentsService {
       }
     }
     return applied;
+  }
+
+  async captureKlarnaOrderIfFulfilled(input: { orderId: string; now?: number }): Promise<MollieCaptureState> {
+    const now = input.now ?? Date.now();
+    const prepared = await this.#uow.withTransaction({ marketId: "sparta", platformAccess: true }, async (tx) => {
+      const result = await tx.query<SqlRow>(`SELECT o.id::text AS order_uuid,o.order_number,o.status::text AS order_status,p.id::text AS payment_uuid,p.status::text AS payment_status,
+          p.provider,p.provider_payment_id,p.provider_transaction_id,p.provider_payload,
+          EXISTS(SELECT 1 FROM fulfilment_orders fo WHERE fo.order_id=o.id AND fo.status='delivered') AS has_delivered,
+          NOT EXISTS(SELECT 1 FROM fulfilment_orders fo WHERE fo.order_id=o.id AND fo.status NOT IN ('delivered','cancelled','rejected')) AS all_terminal
+        FROM customer_orders o JOIN payments p ON p.order_id=o.id WHERE o.public_id=$1 FOR UPDATE OF o,p`, [input.orderId]);
+      if (!result.rowCount) throw new Error("ORDER_NOT_FOUND");
+      const row = result.rows[0];
+      if (text(row.provider, "payment.provider") !== "mollie" || text(row.payment_status, "payment.status") !== "authorised") return { kind: "noop" as const };
+      if (row.has_delivered !== true || row.all_terminal !== true) return { kind: "noop" as const };
+      const paymentId = optionalText(row.provider_payment_id) ?? optionalText(row.provider_transaction_id);
+      if (!paymentId) throw new Error("Authorised Mollie payment has no provider payment id");
+      const payload = object(row.provider_payload);
+      const state = optionalText(payload.klarnaCaptureState);
+      if (state === "requested" || state === "creating" || state === "manual_review") {
+        return { kind: "existing" as const, paymentId, captureId: optionalText(payload.klarnaCaptureId), status: state };
+      }
+      const attemptId = randomUUID();
+      await tx.query(`UPDATE payments SET provider_payload=provider_payload||$3::jsonb,updated_at=$4 WHERE id=$1 AND status='authorised'`, [
+        text(row.payment_uuid, "payment_uuid"), paymentId,
+        JSON.stringify({ klarnaCaptureState: "creating", klarnaCaptureAttemptId: attemptId, klarnaCaptureStartedAt: new Date(now).toISOString() }), new Date(now)
+      ]);
+      await this.#paymentEvent(tx, text(row.payment_uuid, "payment_uuid"), `capture-attempt:${attemptId}`, "capture_started", { orderId: input.orderId, paymentId, attemptId }, now);
+      return { kind: "create" as const, paymentUuid: text(row.payment_uuid, "payment_uuid"), paymentId, attemptId, orderNumber: optionalText(row.order_number) ?? input.orderId };
+    }, { isolation: "serializable" });
+
+    if (prepared.kind === "noop") return { requested: false };
+    if (prepared.kind === "existing") return { requested: true, paymentId: prepared.paymentId, captureId: prepared.captureId, status: prepared.status };
+
+    const provider = await this.#client.retrievePayment(prepared.paymentId);
+    this.#assertProviderIdentity(provider, input.orderId, prepared.orderNumber, provider.amountMinor);
+    if (provider.method !== "klarna") throw new Error("Manual capture is reserved for Klarna payments");
+    if (provider.status === "paid") {
+      await this.reconcilePayment({ paymentId: prepared.paymentId, source: "manual", now });
+      return { requested: true, paymentId: prepared.paymentId, status: "paid" };
+    }
+    if (provider.status !== "authorized") throw new Error(`Klarna payment cannot be captured from ${provider.status}`);
+
+    try {
+      const capture = await this.#client.createCapture({ paymentId: prepared.paymentId, description: `KONTA MOY fulfilment ${prepared.orderNumber}`, metadata: { orderId: input.orderId, orderNumber: prepared.orderNumber, captureAttemptId: prepared.attemptId } });
+      await this.#uow.withTransaction({ marketId: "sparta", platformAccess: true }, async (tx) => {
+        await tx.query(`UPDATE payments SET provider_payload=provider_payload||$3::jsonb,updated_at=$4 WHERE id=$1`, [prepared.paymentUuid, prepared.paymentId, JSON.stringify({ klarnaCaptureState: "requested", klarnaCaptureId: capture.captureId, klarnaCaptureProviderStatus: capture.status, klarnaCaptureRequestedAt: new Date(now).toISOString() }), new Date(now)]);
+        await this.#paymentEvent(tx, prepared.paymentUuid, `capture:${capture.captureId}`, "capture_requested", { orderId: input.orderId, paymentId: prepared.paymentId, captureId: capture.captureId, status: capture.status, amountMinor: capture.amountMinor }, now);
+      });
+      await this.reconcilePayment({ paymentId: prepared.paymentId, source: "manual", now }).catch(() => undefined);
+      return { requested: true, paymentId: prepared.paymentId, captureId: capture.captureId, status: capture.status };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.#uow.withTransaction({ marketId: "sparta", platformAccess: true }, async (tx) => {
+        await tx.query(`UPDATE payments SET provider_payload=provider_payload||$2::jsonb,updated_at=$3 WHERE id=$1`, [prepared.paymentUuid, JSON.stringify({ klarnaCaptureState: "manual_review", klarnaCaptureError: message.slice(0, 500), klarnaCaptureFailedAt: new Date(now).toISOString() }), new Date(now)]);
+      });
+      throw new Error("Klarna capture outcome requires reconciliation; automatic retry is blocked");
+    }
   }
 
   async requestRefund(input: { orderId: string; amountMinor: number; idempotencyKey: string; reason: string; now?: number }): Promise<MollieRefundState> {
@@ -277,7 +362,12 @@ export class PostgresMolliePaymentsService {
       return;
     }
     if (state.paymentId && !["cancelled", "refunded"].includes(state.status)) {
-      try { await this.#client.cancelPayment(state.paymentId); } catch { /* Reconciliation below detects a race to payment completion. */ }
+      const provider = await this.#client.retrievePayment(state.paymentId);
+      if (provider.status === "authorized") {
+        try { await this.#client.releaseAuthorization(state.paymentId); } catch { /* Reconciliation below detects a race to capture/payment completion. */ }
+      } else {
+        try { await this.#client.cancelPayment(state.paymentId); } catch { /* Reconciliation below detects a race to payment completion. */ }
+      }
       const reconciled = await this.reconcilePayment({ paymentId: state.paymentId, source: "manual", now });
       if (reconciled.paymentStatus === "captured") {
         const refund = await this.requestRefund({ orderId: input.orderId, amountMinor: reconciled.amountMinor, idempotencyKey: `order-cancel:${input.orderId}`, reason: `customer_cancellation:${input.reason.trim()}`, now });
@@ -333,6 +423,12 @@ export class PostgresMolliePaymentsService {
       if (capturedMinor === 0 && ["created", "requires_action", "authorised", "failed"].includes(currentPaymentStatus)) {
         paymentStatus = "authorised";
         await tx.query(`UPDATE payments SET status='authorised',provider_payment_id=$2,provider_transaction_id=$2,authorised_minor=GREATEST(authorised_minor,$3),provider_verified_at=$4,provider_payload=provider_payload||$5::jsonb,updated_at=$4 WHERE id=$1`, [paymentUuid, provider.paymentId, total, new Date(now), JSON.stringify({ lastProviderStatus: provider.status, lastVerifiedSource: source, method: provider.method ?? null })]);
+        if (provider.method === "klarna" && !["cancelled", "refunded", "partially_refunded"].includes(orderStatus)) {
+          orderStatus = "authorised";
+          await tx.query(`UPDATE customer_orders SET status='authorised',updated_at=$2 WHERE id=$1 AND status='pending_payment'`, [orderUuid, new Date(now)]);
+          await tx.query(`UPDATE stock_reservations SET expires_at=GREATEST(expires_at,$2) WHERE order_line_id IN (SELECT id FROM order_lines WHERE order_id=$1) AND status='active'`, [orderUuid, new Date(now + PAID_RESERVATION_HOLD_MS)]);
+          await this.#enqueueOrderNotification(tx, { paymentUuid, eventType: "order.payment_authorised", dedupeKey: `order:${orderId}:payment-authorised`, title: "Η πληρωμή με Klarna εγκρίθηκε", body: `Η Klarna ενέκρινε την παραγγελία ${orderNumber}. Η χρέωση θα οριστικοποιηθεί με την εκτέλεση της παραγγελίας.`, payload: { orderId, orderNumber, amountMinor: total, method: "klarna" }, now });
+        }
       }
     } else if (provider.status === "open" || provider.status === "pending") {
       if (capturedMinor === 0 && ["created", "requires_action", "authorised", "failed"].includes(currentPaymentStatus)) {
@@ -421,8 +517,35 @@ export class PostgresMolliePaymentsService {
     for (const row of reservations.rows) await tx.query(`SELECT release_stock_reservation($1::uuid,$2,$3,NULL)`, [text(row.reservation_uuid, "reservation_uuid"), new Date(now), reason]);
     await tx.query(`UPDATE order_lines SET status='cancelled' WHERE order_id=$1 AND status IN ('awaiting_vendor','accepted')`, [orderUuid]);
     await tx.query(`UPDATE fulfilment_orders SET status='cancelled',updated_at=$2 WHERE order_id=$1 AND status NOT IN ('delivered','cancelled')`, [orderUuid, new Date(now)]);
-    await tx.query(`UPDATE customer_orders SET status='cancelled',cancelled_at=$2,cancellation_reason=$3,updated_at=$2 WHERE id=$1 AND status='pending_payment'`, [orderUuid, new Date(now), reason]);
+    await tx.query(`UPDATE customer_orders SET status='cancelled',cancelled_at=$2,cancellation_reason=$3,updated_at=$2 WHERE id=$1 AND status IN ('pending_payment','authorised')`, [orderUuid, new Date(now), reason]);
   }
+}
+
+async function klarnaLinesForOrder(tx: SqlExecutor, input: { orderUuid: string; payableMinor: number; shippingMinor: number; discountMinor: number; giftCardMinor: number }): Promise<readonly MolliePaymentLine[]> {
+  const result = await tx.query<SqlRow>(`SELECT ol.public_id,ol.quantity,ol.retail_unit_price_minor,ol.tax_rate_bps,ol.tax_minor,COALESCE(ol.product_snapshot->>'title',cv.public_id) AS title,cv.public_id AS sku
+    FROM order_lines ol JOIN canonical_variants cv ON cv.id=ol.canonical_variant_id WHERE ol.order_id=$1 AND ol.status<>'cancelled' ORDER BY ol.created_at,ol.public_id`, [input.orderUuid]);
+  if (!result.rowCount) throw new Error("Klarna payment requires at least one order line");
+  const lines: MolliePaymentLine[] = result.rows.map((row) => {
+    const quantity = integer(row.quantity, "line.quantity");
+    const unitPriceMinor = integer(row.retail_unit_price_minor, "line.retail_unit_price_minor");
+    const taxRateBps = integer(row.tax_rate_bps, "line.tax_rate_bps");
+    return {
+      type: "physical",
+      description: text(row.title, "line.title"),
+      quantity,
+      unitPriceMinor,
+      totalAmountMinor: unitPriceMinor * quantity,
+      vatRate: (taxRateBps / 100).toFixed(2),
+      vatAmountMinor: integer(row.tax_minor, "line.tax_minor"),
+      sku: optionalText(row.sku)
+    };
+  });
+  if (input.shippingMinor > 0) lines.push({ type: "shipping_fee", description: "Shipping / delivery", quantity: 1, unitPriceMinor: input.shippingMinor, totalAmountMinor: input.shippingMinor, vatRate: "0.00", vatAmountMinor: 0 });
+  if (input.discountMinor > 0) lines.push({ type: "discount", description: "Order discount", quantity: 1, unitPriceMinor: -input.discountMinor, totalAmountMinor: -input.discountMinor, vatRate: "0.00", vatAmountMinor: 0 });
+  if (input.giftCardMinor > 0) lines.push({ type: "discount", description: "KONTA MOY Gift Card", quantity: 1, unitPriceMinor: -input.giftCardMinor, totalAmountMinor: -input.giftCardMinor, vatRate: "0.00", vatAmountMinor: 0 });
+  const total = lines.reduce((sum, line) => sum + line.totalAmountMinor, 0);
+  if (total !== input.payableMinor) throw new Error(`Klarna order lines do not reconcile to payable amount (${total} != ${input.payableMinor})`);
+  return lines;
 }
 
 function orderReturnUrl(baseUrl: string, orderId: string, payment: string): string {
