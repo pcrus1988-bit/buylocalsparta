@@ -283,7 +283,9 @@ CREATE TRIGGER trg_guard_partner_commission_event_financial_fields
 BEFORE UPDATE OR DELETE ON public.partner_commission_events
 FOR EACH ROW EXECUTE FUNCTION public.guard_partner_commission_event_financial_fields();
 
-CREATE OR REPLACE VIEW public.partner_earnings_summary AS
+CREATE OR REPLACE VIEW public.partner_earnings_summary
+WITH (security_invoker = true)
+AS
 SELECT
   pa.id AS partner_id,
   pa.partner_code,
@@ -295,6 +297,126 @@ SELECT
 FROM public.partner_accounts pa
 LEFT JOIN public.partner_commission_events pce ON pce.partner_id = pa.id
 GROUP BY pa.id, pa.partner_code, pa.rank;
+
+-- Partner data is server-side only. The ordinary web runtime may read it; all
+-- writes are reserved for the privileged platform runtime. Browser/Data API
+-- roles receive no direct table/view access.
+DO $$
+DECLARE
+  v_table TEXT;
+BEGIN
+  FOREACH v_table IN ARRAY ARRAY[
+    'partner_program_config',
+    'partner_accounts',
+    'partner_market_assignments',
+    'partner_attributions',
+    'partner_commission_rules',
+    'partner_bonus_tiers',
+    'partner_rank_rules',
+    'partner_rank_history',
+    'partner_commission_events',
+    'partner_payouts',
+    'partner_payout_items'
+  ]
+  LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', v_table);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO bls_app_runtime, bls_platform_runtime USING (true)',
+      v_table || '_runtime_read',
+      v_table
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO bls_platform_runtime USING (true) WITH CHECK (true)',
+      v_table || '_platform_write',
+      v_table
+    );
+  END LOOP;
+END
+$$;
+
+REVOKE ALL ON TABLE
+  public.partner_program_config,
+  public.partner_accounts,
+  public.partner_market_assignments,
+  public.partner_attributions,
+  public.partner_commission_rules,
+  public.partner_bonus_tiers,
+  public.partner_rank_rules,
+  public.partner_rank_history,
+  public.partner_commission_events,
+  public.partner_payouts,
+  public.partner_payout_items
+FROM PUBLIC, anon, authenticated, bls_app_runtime, bls_platform_runtime;
+
+GRANT SELECT ON TABLE
+  public.partner_program_config,
+  public.partner_accounts,
+  public.partner_market_assignments,
+  public.partner_attributions,
+  public.partner_commission_rules,
+  public.partner_bonus_tiers,
+  public.partner_rank_rules,
+  public.partner_rank_history,
+  public.partner_commission_events,
+  public.partner_payouts,
+  public.partner_payout_items
+TO bls_app_runtime;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public.partner_program_config,
+  public.partner_accounts,
+  public.partner_market_assignments,
+  public.partner_attributions,
+  public.partner_commission_rules,
+  public.partner_bonus_tiers,
+  public.partner_rank_rules,
+  public.partner_rank_history,
+  public.partner_commission_events,
+  public.partner_payouts,
+  public.partner_payout_items
+TO bls_platform_runtime;
+
+REVOKE ALL ON TABLE public.partner_earnings_summary
+FROM PUBLIC, anon, authenticated, bls_app_runtime, bls_platform_runtime;
+GRANT SELECT ON TABLE public.partner_earnings_summary
+TO bls_app_runtime, bls_platform_runtime;
+
+DO $$
+BEGIN
+  IF NOT has_table_privilege('bls_app_runtime', 'public.partner_accounts', 'SELECT')
+     OR NOT has_table_privilege('bls_app_runtime', 'public.partner_commission_events', 'SELECT')
+     OR NOT has_table_privilege('bls_app_runtime', 'public.partner_earnings_summary', 'SELECT') THEN
+    RAISE EXCEPTION 'bls_app_runtime must retain read access to Partner Network data';
+  END IF;
+
+  IF has_table_privilege('bls_app_runtime', 'public.partner_accounts', 'INSERT')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_accounts', 'UPDATE')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_accounts', 'DELETE')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_commission_events', 'INSERT')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_commission_events', 'UPDATE')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_commission_events', 'DELETE')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_payouts', 'INSERT')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_payouts', 'UPDATE')
+     OR has_table_privilege('bls_app_runtime', 'public.partner_payouts', 'DELETE') THEN
+    RAISE EXCEPTION 'bls_app_runtime must be read-only on Partner Network financial/control tables';
+  END IF;
+
+  IF NOT has_table_privilege('bls_platform_runtime', 'public.partner_accounts', 'INSERT')
+     OR NOT has_table_privilege('bls_platform_runtime', 'public.partner_commission_events', 'INSERT')
+     OR NOT has_table_privilege('bls_platform_runtime', 'public.partner_payouts', 'INSERT') THEN
+    RAISE EXCEPTION 'bls_platform_runtime must retain controlled Partner Network write access';
+  END IF;
+
+  IF has_table_privilege('anon', 'public.partner_accounts', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.partner_accounts', 'SELECT')
+     OR has_table_privilege('anon', 'public.partner_commission_events', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.partner_commission_events', 'SELECT')
+     OR has_table_privilege('anon', 'public.partner_earnings_summary', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.partner_earnings_summary', 'SELECT') THEN
+    RAISE EXCEPTION 'client Data API roles must not access Partner Network data';
+  END IF;
+END
+$$;
 
 COMMENT ON TABLE public.partner_accounts IS 'Free-to-join KONTA MOY Partner Network accounts. Sponsor relationships alone never create commission.';
 COMMENT ON TABLE public.partner_attributions IS '180-day referral attribution records. Conversion snapshots up to three eligible earning levels.';
