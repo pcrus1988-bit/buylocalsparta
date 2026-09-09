@@ -166,6 +166,7 @@ for (const route of [
   "choose-location",
   "driver",
   "join",
+  "partner",
   "products",
   "search",
   "shops",
