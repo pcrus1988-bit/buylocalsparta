@@ -1,8 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
 import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local-commerce-proof";
 import { publicCatalogPriceLabel, publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
-import { getVisibleOfferMsrpMinor } from "../lib/public-offer-msrp";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 import { LocalCommerceProof } from "./LocalCommerceProof";
@@ -35,12 +37,44 @@ function availabilityBadge(product: CatalogCardWithPreview, demoMode: boolean): 
 
 const formatEuroMinor = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 
-async function PublicCatalogPrice({ product, demoMode, priceLabel }: { product: CatalogCardWithPreview; demoMode: boolean; priceLabel: string }) {
-  const msrpMinor = demoMode || !product.available
-    ? undefined
-    : await getVisibleOfferMsrpMinor(product.id, product.vendorId, product.priceMinor);
+function PublicCatalogPrice({ product, demoMode, priceLabel }: { product: CatalogCardWithPreview; demoMode: boolean; priceLabel: string }) {
+  const [msrpMinor, setMsrpMinor] = useState<number | undefined>();
+
+  useEffect(() => {
+    setMsrpMinor(undefined);
+    if (demoMode || !product.available || !product.vendorId || !Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) return;
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      productId: product.id,
+      vendorId: product.vendorId,
+      retailPriceMinor: String(product.priceMinor)
+    });
+
+    void fetch(`/api/catalog/msrp?${params.toString()}`, {
+      method: "GET",
+      credentials: "same-origin",
+      signal: controller.signal,
+      headers: { accept: "application/json" }
+    })
+      .then(async (response) => {
+        if (!response.ok) return undefined;
+        const payload = await response.json() as { msrpMinor?: unknown };
+        const value = Number(payload.msrpMinor);
+        return Number.isSafeInteger(value) && value > product.priceMinor ? value : undefined;
+      })
+      .then((value) => {
+        if (!controller.signal.aborted) setMsrpMinor(value);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) setMsrpMinor(undefined);
+      });
+
+    return () => controller.abort();
+  }, [demoMode, product.available, product.id, product.priceMinor, product.vendorId]);
+
   return <div className="price">
-    {msrpMinor !== undefined ? <><s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ display: "block", fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>{formatEuroMinor(msrpMinor)}</s></> : null}
+    {msrpMinor !== undefined ? <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ display: "block", fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>{formatEuroMinor(msrpMinor)}</s> : null}
     <span>{priceLabel}</span>
   </div>;
 }
