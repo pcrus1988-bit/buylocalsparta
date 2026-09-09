@@ -9,6 +9,8 @@ if (!readiness.ok) {
   throw new Error(`PostgreSQL worker refused to start: ${readiness.message}`);
 }
 
+// Legacy schema marker only: expire_pending_payment_orders remains in migration history, but the worker must not invoke it directly.
+// Provider-safe cancellation is owned by the explicit 24-hour pending-payment lifecycle.
 const ownerId = process.env.BLS_WORKER_ID?.trim() || `postgres-worker:${hostname()}:${process.pid}`;
 const pollMs = positiveInteger(process.env.BLS_WORKER_POLL_MS, 5_000, "BLS_WORKER_POLL_MS");
 const runner = new ScheduledJobRunner({ store: runtime.persistence.scheduledJobs, ownerId, leaseMs: 60_000 });
