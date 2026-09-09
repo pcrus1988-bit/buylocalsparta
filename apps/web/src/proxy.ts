@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  LOCATION_GATEWAY_COOKIE,
+  LOCATION_GATEWAY_PATH,
+  isLocationGatewayRootEnforcementEnabled,
+  shouldRedirectRootToLocationGateway
+} from "./lib/location-gateway-enforcement";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
 
@@ -39,6 +45,23 @@ function needsSessionContinuity(pathname: string): boolean {
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
+function locationGatewayRedirectResponse(request: NextRequest): NextResponse | undefined {
+  if (request.method !== "GET" && request.method !== "HEAD") return undefined;
+
+  const enforcementEnabled = isLocationGatewayRootEnforcementEnabled(
+    process.env.BLS_LOCATION_GATEWAY_ROOT_ENFORCEMENT_ENABLED
+  );
+  const localitySlug = request.cookies.get(LOCATION_GATEWAY_COOKIE)?.value;
+  const shouldRedirect = shouldRedirectRootToLocationGateway({
+    pathname: request.nextUrl.pathname,
+    localitySlug,
+    enforcementEnabled
+  });
+  if (!shouldRedirect) return undefined;
+
+  return NextResponse.redirect(new URL(LOCATION_GATEWAY_PATH, request.url), 307);
+}
+
 function allowsContentRedirect(request: NextRequest): boolean {
   if (request.method !== "GET" && request.method !== "HEAD") return false;
   const pathname = request.nextUrl.pathname;
@@ -66,6 +89,9 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
 }
 
 export async function proxy(request: NextRequest) {
+  const locationRedirect = locationGatewayRedirectResponse(request);
+  if (locationRedirect) return locationRedirect;
+
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
