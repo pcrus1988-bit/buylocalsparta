@@ -69,17 +69,9 @@ jobs:
           src = src[:start] + '\n'.join(lines) + '\n' + src[end:]
           src = src.replace('if (!read("packages/postgres-runtime/src/viva-payments.ts").includes("order.payment_confirmed") || !read("packages/postgres-runtime/src/viva-payments.ts").includes("order.refund_completed")) errors.push("Captured/refunded customer payments must enqueue durable transactional notifications when email delivery is enabled");', 'if (!read("packages/postgres-runtime/src/mollie-payments.ts").includes("order.payment_confirmed") || !read("packages/postgres-runtime/src/mollie-payments.ts").includes("order.refund_completed")) errors.push("Captured/refunded customer payments must enqueue durable transactional notifications when email delivery is enabled");')
           src = src.replace('for (const boundary of ["VivaPaymentsClient", "requestTransmittedDocs", "ResendEmailProvider", "S3ObjectStorage", "ClamAvScanner", "boxNowShipping", "/api/health/ready", "--record"])', 'for (const boundary of ["MolliePaymentsClient", "requestTransmittedDocs", "ResendEmailProvider", "S3ObjectStorage", "ClamAvScanner", "boxNowShipping", "/api/health/ready", "--record"])')
-          src = src.replace('"vivaCrossInstancePaymentOrder", "vivaVerifiedPaymentConfirmation", "vivaPaidReservationProtection", "vivaRefundCancellation", "vivaReversalDeduplication", "vivaOutOfOrderWebhookMonotonicity", "vivaLateCaptureAutoRefund"', '"mollieCrossInstancePayment", "mollieVerifiedPaymentConfirmation", "molliePaidReservationProtection", "mollieRefundCancellation", "mollieReversalDeduplication", "mollieOutOfOrderWebhookMonotonicity", "mollieLateCaptureAutoRefund"')
+          src = src.replace('"vivaCrossInstancePaymentOrder", "vivaVerifiedPaymentConfirmation", "vivaPaidReservationProtection", "vivaRefundCancellation", "vivaReversalDeduplication", "vivaOutOfOrderWebhookMonotonicity", "vivaLateCaptureAutoRefund"', '"mollieCrossInstancePayment", "mollieVerifiedPaymentConfirmation", "molliePaidReservationProtection", "mollieRefundCancellation", "mollieWebhookReconciliationIdempotency", "mollieCanonicalStateMonotonicity", "mollieLateCaptureAutoRefund"')
           src = src.replace('if (!postgresAdminGovernance.includes("route approved refunds through the configured Viva payments orchestration service") || !adminGovernance.includes("executeApprovedReturnRefund")) errors.push("Direct Admin refund mutation must stay fail-closed while the web orchestration routes approved money movement through Viva");', 'if (!postgresAdminGovernance.includes("route approved refunds through the configured Mollie payments orchestration service") || !adminGovernance.includes("executeApprovedReturnRefund")) errors.push("Direct Admin refund mutation must stay fail-closed while the web orchestration routes approved money movement through Mollie");')
           path.write_text(src)
-
-          ci = Path('.github/workflows/production-ci.yml')
-          ci_src = ci.read_text()
-          old = '      - name: Typecheck Viva payment adapter\n        run: npm run typecheck:viva'
-          new = '      - name: Typecheck Mollie payment adapter\n        run: npm run typecheck:mollie'
-          if old not in ci_src:
-            raise SystemExit('Production CI Viva typecheck block not found')
-          ci.write_text(ci_src.replace(old, new))
           PY
 
       - name: Regenerate package lock from current Mollie-only workspaces
@@ -97,10 +89,13 @@ jobs:
             --exclude='0031_viva_payments.sql' \
             --exclude='0076_accounting_mapping_v1.sql'
 
+      - name: Verify project consistency
+        run: node --experimental-strip-types scripts/verify-project-consistency.ts
+
       - name: Commit release cutover
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add scripts/verify-project-consistency.ts .github/workflows/production-ci.yml package-lock.json
+          git add scripts/verify-project-consistency.ts package-lock.json
           git commit -m 'Replace Viva release assertions with Mollie'
           git push origin HEAD:migration/mollie-payments-v2
