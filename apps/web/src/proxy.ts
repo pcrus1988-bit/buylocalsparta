@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  LOCATION_GATEWAY_COOKIE,
+  LOCATION_GATEWAY_PATH,
+  locationGatewayEnforcementEnabled,
+  locationGatewayRedirectDecision,
+  locationGatewayRequestTarget
+} from "./lib/location-gateway-routing";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
 
@@ -10,7 +17,7 @@ const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
 
 const REDIRECT_PROTECTED_ROOTS = [
-  "/api", "/admin", "/account", "/daily", "/checkout", "/cart",
+  "/api", "/admin", "/account", "/daily", "/checkout", "/cart", "/choose-location",
   "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password", "/join/apply",
   "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance",
   "/vendor/notifications", "/vendor/orders", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping",
@@ -59,6 +66,34 @@ async function contentRedirectResponse(request: NextRequest): Promise<NextRespon
   }
 }
 
+function isLocationGatewayPrefetch(request: NextRequest): boolean {
+  return request.headers.get("purpose") === "prefetch"
+    || request.headers.get("sec-purpose")?.includes("prefetch") === true
+    || request.headers.has("next-router-prefetch");
+}
+
+function locationGatewayRedirectResponse(request: NextRequest): NextResponse | undefined {
+  const decision = locationGatewayRedirectDecision({
+    enabled: locationGatewayEnforcementEnabled(process.env.BLS_LOCATION_GATEWAY_ENFORCEMENT_ENABLED),
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    userAgent: request.headers.get("user-agent") ?? undefined,
+    localityCookie: request.cookies.get(LOCATION_GATEWAY_COOKIE)?.value,
+    prefetch: isLocationGatewayPrefetch(request)
+  });
+  if (!decision.redirect) return undefined;
+
+  const destination = request.nextUrl.clone();
+  const next = locationGatewayRequestTarget(request.nextUrl.pathname, request.nextUrl.search);
+  destination.pathname = LOCATION_GATEWAY_PATH;
+  destination.search = "";
+  destination.hash = "";
+  destination.searchParams.set("next", next);
+  const response = NextResponse.redirect(destination, 307);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
 function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): NextResponse {
   const robots = seoDocumentRobotsHeader(request.nextUrl.pathname, request.nextUrl.searchParams);
   if (robots) response.headers.set("X-Robots-Tag", robots);
@@ -66,6 +101,9 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
 }
 
 export async function proxy(request: NextRequest) {
+  const locationRedirect = locationGatewayRedirectResponse(request);
+  if (locationRedirect) return locationRedirect;
+
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
