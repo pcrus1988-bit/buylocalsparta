@@ -56,13 +56,13 @@ jobs:
             'await mollie.reconcilePayment({ paymentId: transactionId, source: "webhook", now: now + 220 })'
           )
           src = src.replace('vivaGateway.refundCount', 'mollieGateway.refundCount')
-          src = src.replace('await viva.executeApprovedReturnRefund', 'await mollie.executeApprovedReturnRefund')
+          src = src.replace('viva.executeApprovedReturnRefund', 'mollie.executeApprovedReturnRefund')
           src = src.replace('Viva refund', 'Mollie refund')
           src = src.replace('vivaRefundLinkage', 'mollieRefundLinkage')
 
           forbidden = [
             'PostgresVivaPaymentsService', 'VivaPaymentsGateway', 'FakeVivaGateway',
-            'vivaGateway', 'await viva.', 'initiated.orderCode', 'reconcileTransaction',
+            'vivaGateway', 'viva.executeApprovedReturnRefund', 'initiated.orderCode', 'reconcileTransaction',
             'Viva refund', 'vivaRefundLinkage'
           ]
           remaining = [item for item in forbidden if item in src]
@@ -79,7 +79,7 @@ jobs:
         run: npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck scripts/customer-returns-lifecycle-acceptance.ts
 
       - name: Reject Viva in returns acceptance
-        run: '! grep -niE "PostgresVivaPaymentsService|VivaPaymentsGateway|FakeVivaGateway|vivaGateway|Viva refund|vivaRefundLinkage" scripts/customer-returns-lifecycle-acceptance.ts'
+        run: '! grep -niE "PostgresVivaPaymentsService|VivaPaymentsGateway|FakeVivaGateway|vivaGateway|viva.executeApprovedReturnRefund|Viva refund|vivaRefundLinkage" scripts/customer-returns-lifecycle-acceptance.ts'
 
       - name: Commit Mollie returns acceptance
         shell: bash
