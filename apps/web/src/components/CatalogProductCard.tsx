@@ -38,6 +38,15 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   vendorContext?: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
 }) {
+  const demoMode = Boolean(demoVendorId);
+  const publicPurchasable = product.available && product.priceMinor > 0 && Boolean(product.vendorId || vendorContext);
+
+  // Standard customer shopping surfaces must never render a misleading card for a
+  // canonical that has no positive selling price or no eligible fulfilment vendor.
+  // Deliberate DEMO previews stay visible, while unavailable product detail routes
+  // can still communicate their state separately when intentionally linked.
+  if (!demoMode && !publicPurchasable) return null;
+
   const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
   const displayTitle = publicCatalogueTitleLabel(product.title);
   const vendorName = vendorContext?.name ?? product.vendorName;
@@ -51,7 +60,6 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
-  const demoMode = Boolean(demoVendorId);
   const priceLabel = publicCatalogPriceLabel(product);
 
   return (
