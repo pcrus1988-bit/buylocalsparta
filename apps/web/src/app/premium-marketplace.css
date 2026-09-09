@@ -164,6 +164,14 @@
 .catalog-results .product-badge { display: none; }
 .catalog-sidebar .fairness-note { margin-top: 16px; opacity: .78; }
 
+/* Mobile catalogue controls are mounted once in the root layout and only become
+   visible on catalogue routes. The existing server-rendered filter form becomes
+   the drawer content, so search/filter semantics and URLs remain unchanged. */
+.km-mobile-filter-controls { display: none; }
+.km-mobile-filter-backdrop,
+.km-mobile-filter-trigger,
+.km-mobile-filter-close { font: inherit; }
+
 /* Product detail: premium image/product information hierarchy. */
 .product-detail {
   gap: clamp(28px, 5vw, 68px);
@@ -239,21 +247,107 @@
 
 @media (max-width: 960px) {
   .catalog-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 26px;
+    display: block;
+    padding-bottom: 94px;
   }
-  .catalog-results { order: 1; }
+  .catalog-results { width: 100%; }
   .catalog-sidebar {
-    order: 2;
-    position: static;
-    border-top: 1px solid var(--km-premium-line);
-    padding-top: 24px;
+    position: fixed;
+    z-index: 86;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(92vw, 410px);
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 72px 18px calc(34px + env(safe-area-inset-bottom));
+    border: 0;
+    border-left: 1px solid var(--km-premium-line);
+    background: var(--km-premium-ivory);
+    box-shadow: -24px 0 80px rgba(13,42,34,.18);
+    transform: translateX(105%);
+    visibility: hidden;
+    transition: transform .22s ease, visibility 0s linear .22s;
   }
-  .filter-form {
-    max-width: 620px;
-    margin: 0 auto;
+  .km-catalog-filters-open .catalog-sidebar {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform .22s ease;
   }
+  .catalog-sidebar .filter-form {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  .catalog-sidebar .filter-form::before {
+    content: "Φίλτρα & ταξινόμηση";
+    display: block;
+    margin-bottom: 8px;
+    color: var(--km-premium-forest-dark);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 28px;
+    line-height: 1;
+  }
+  .catalog-sidebar .fairness-note { display: none; }
+  .km-mobile-filter-controls { display: contents; }
+  .km-mobile-filter-trigger {
+    position: fixed;
+    z-index: 76;
+    left: 50%;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transform: translateX(-50%);
+    padding: 0 18px;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 999px;
+    background: var(--km-premium-forest-dark);
+    color: white;
+    box-shadow: 0 14px 34px rgba(13,42,34,.22);
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .km-mobile-filter-trigger > span { font-size: 18px; line-height: 1; }
+  .km-mobile-filter-backdrop {
+    position: fixed;
+    z-index: 82;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgba(13,42,34,.46);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .km-catalog-filters-open .km-mobile-filter-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .km-mobile-filter-close {
+    position: fixed;
+    z-index: 92;
+    top: max(15px, env(safe-area-inset-top));
+    right: 15px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--km-premium-line);
+    border-radius: 50%;
+    background: white;
+    color: var(--km-premium-forest-dark);
+    font-size: 25px;
+    cursor: pointer;
+  }
+  html.km-catalog-filters-open { overflow: hidden; }
   .product-detail { grid-template-columns: 1fr; }
 }
 
@@ -285,5 +379,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .product-card { transition: none; }
+  .product-card,
+  .catalog-sidebar,
+  .km-mobile-filter-backdrop { transition: none; }
 }
