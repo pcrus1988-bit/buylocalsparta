@@ -43,10 +43,10 @@ export type VendorStructuredPricingUpdate = Readonly<{
   pricingMode: VendorPricingMode;
   priceMinor?: number;
   buyingPriceMinor?: number | null;
-  markupType?: VendorPricingAdjustmentType;
-  markupValue?: number;
-  discountType?: VendorPricingAdjustmentType;
-  discountValue?: number;
+  markupType?: VendorPricingAdjustmentType | null;
+  markupValue?: number | null;
+  discountType?: VendorPricingAdjustmentType | null;
+  discountValue?: number | null;
   msrpMinor?: number | null;
   showMsrp?: boolean;
 }>;
@@ -116,17 +116,35 @@ export async function updateVendorStructuredPricing(principal: SessionPrincipal,
         throw new Error("Η τιμή αγοράς πρέπει να είναι έγκυρο ποσό από 0 € έως 1.000.000 €.");
       }
 
-      const markupType = input.markupType;
-      const markupValue = input.markupValue;
-      const discountType = input.discountType;
-      const discountValue = input.discountValue;
-      validateAdjustment(markupType, markupValue, "Προσαύξηση");
-      validateAdjustment(discountType, discountValue, "Έκπτωση");
+      const markupType = input.markupType === undefined
+        ? optionalAdjustmentType(row.markup_type)
+        : input.markupType ?? undefined;
+      const markupValue = input.markupType === null
+        ? undefined
+        : input.markupValue === undefined
+          ? optionalNumber(row.markup_value)
+          : input.markupValue ?? undefined;
+      const discountType = input.discountType === undefined
+        ? optionalAdjustmentType(row.discount_type)
+        : input.discountType ?? undefined;
+      const discountValue = input.discountType === null
+        ? undefined
+        : input.discountValue === undefined
+          ? optionalNumber(row.discount_value)
+          : input.discountValue ?? undefined;
+      validateAdjustment(markupType, markupType ? markupValue : undefined, "Προσαύξηση");
+      validateAdjustment(discountType, discountType ? discountValue : undefined, "Έκπτωση");
 
       let priceMinor: number;
       if (input.pricingMode === "calculated") {
         if (buyingPriceMinor === undefined) throw new Error("Η υπολογιζόμενη τιμή χρειάζεται τιμή αγοράς.");
-        priceMinor = calculateRetailPriceMinor({ buyingPriceMinor, markupType, markupValue, discountType, discountValue });
+        priceMinor = calculateRetailPriceMinor({
+          buyingPriceMinor,
+          markupType,
+          markupValue: markupType ? markupValue : undefined,
+          discountType,
+          discountValue: discountType ? discountValue : undefined
+        });
       } else {
         if (input.priceMinor === undefined || !validPriceMinor(input.priceMinor)) {
           throw new Error("Η τιμή λιανικής πρέπει να είναι έγκυρο ποσό από 0 € έως 1.000.000 €.");
@@ -151,7 +169,7 @@ export async function updateVendorStructuredPricing(principal: SessionPrincipal,
           discount_type=EXCLUDED.discount_type,
           discount_value=EXCLUDED.discount_value,
           updated_at=now()
-      `, [String(row.offer_uuid), String(row.vendor_uuid), buyingPriceMinor ?? null, input.pricingMode, markupType ?? null, markupValue ?? null, discountType ?? null, discountValue ?? null]);
+      `, [String(row.offer_uuid), String(row.vendor_uuid), buyingPriceMinor ?? null, input.pricingMode, markupType ?? null, markupType ? markupValue ?? null : null, discountType ?? null, discountType ? discountValue ?? null : null]);
 
       const changed = await tx.query<SqlRow>(`
         UPDATE vendor_offers
@@ -170,7 +188,14 @@ export async function updateVendorStructuredPricing(principal: SessionPrincipal,
         discountType: optionalAdjustmentType(row.discount_type),
         discountValue: optionalNumber(row.discount_value)
       };
-      const nextPrivate = { pricingMode: input.pricingMode, buyingPriceMinor, markupType, markupValue, discountType, discountValue };
+      const nextPrivate = {
+        pricingMode: input.pricingMode,
+        buyingPriceMinor,
+        markupType,
+        markupValue: markupType ? markupValue : undefined,
+        discountType,
+        discountValue: discountType ? discountValue : undefined
+      };
       const didChange = previousPriceMinor !== priceMinor
         || previousMsrpMinor !== msrpMinor
         || Boolean(row.show_msrp) !== showMsrp
@@ -184,9 +209,9 @@ export async function updateVendorStructuredPricing(principal: SessionPrincipal,
         buyingPriceMinor,
         pricingMode: input.pricingMode,
         markupType,
-        markupValue,
+        markupValue: markupType ? markupValue : undefined,
         discountType,
-        discountValue,
+        discountValue: discountType ? discountValue : undefined,
         msrpMinor: optionalSafeInteger(changed.rows[0]?.msrp_minor),
         showMsrp: Boolean(changed.rows[0]?.show_msrp),
         changedAt: String(changed.rows[0]?.customer_price_updated_at ?? "")
