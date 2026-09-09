@@ -5,6 +5,7 @@ import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
 import {
   HUB_LOCALITY_COOKIE,
   PRIMARY_LOCATION_GATEWAY_PATH,
+  primaryLocationGatewayEnforcementEnabled,
   shouldRedirectToPrimaryLocationGateway
 } from "./lib/primary-location-gateway";
 
@@ -15,7 +16,7 @@ const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
 
 const REDIRECT_PROTECTED_ROOTS = [
-  "/api", "/admin", "/account", "/daily", "/checkout", "/cart",
+  "/api", "/admin", "/account", "/daily", "/checkout", "/cart", "/choose-location",
   "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password", "/join/apply",
   "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance",
   "/vendor/notifications", "/vendor/orders", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping",
@@ -44,12 +45,20 @@ function needsSessionContinuity(pathname: string): boolean {
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
+function isLocationGatewayPrefetch(request: NextRequest): boolean {
+  return request.headers.get("purpose") === "prefetch"
+    || request.headers.get("sec-purpose")?.includes("prefetch") === true
+    || request.headers.has("next-router-prefetch");
+}
+
 function primaryLocationGatewayResponse(request: NextRequest): NextResponse | undefined {
+  if (!primaryLocationGatewayEnforcementEnabled(process.env.BLS_LOCATION_GATEWAY_ENFORCEMENT_ENABLED)) return undefined;
   if (!shouldRedirectToPrimaryLocationGateway({
     pathname: request.nextUrl.pathname,
     method: request.method,
     localityCookie: request.cookies.get(HUB_LOCALITY_COOKIE)?.value,
-    userAgent: request.headers.get("user-agent")
+    userAgent: request.headers.get("user-agent"),
+    prefetch: isLocationGatewayPrefetch(request)
   })) {
     return undefined;
   }
