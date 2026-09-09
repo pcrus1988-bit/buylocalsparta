@@ -178,7 +178,17 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   }, [profile, billingAddressId, effectiveDeliveryAddressId, needsDeliveryAddress]);
 
   useEffect(() => {
-    if (!checkoutEnabled || !hydrated || items.length === 0) return;
+    const identityReady = checkoutEnabled
+      && hydrated
+      && items.length > 0
+      && accountState === "authenticated"
+      && Boolean(billingAddressId)
+      && (!needsDeliveryAddress || Boolean(effectiveDeliveryAddressId))
+      && (!needsBoxNowRecipient || Boolean(boxNowLocker && recipientName.trim() && recipientEmail.trim() && recipientPhone.trim()));
+    if (!identityReady) {
+      setCheckoutKey("");
+      return;
+    }
     const storageKey = "buy-local-sparta-checkout-v1";
     try {
       const stored = JSON.parse(window.sessionStorage.getItem(storageKey) ?? "null") as { fingerprint?: unknown; checkoutKey?: unknown } | null;
@@ -192,7 +202,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     const nextKey = crypto.randomUUID();
     window.sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint: checkoutFingerprint, checkoutKey: nextKey }));
     setCheckoutKey(nextKey);
-  }, [checkoutEnabled, hydrated, items.length, checkoutFingerprint]);
+  }, [checkoutEnabled, hydrated, items.length, accountState, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker, recipientName, recipientEmail, recipientPhone, checkoutFingerprint]);
 
   if (!hydrated) return <div className="empty-state"><p>Φόρτωση checkout…</p></div>;
   if (items.length === 0 && !result?.ok) return <div className="empty-state"><h2>Το καλάθι σου είναι άδειο.</h2><a className="button" href="/shop">Βρες προϊόντα</a></div>;
