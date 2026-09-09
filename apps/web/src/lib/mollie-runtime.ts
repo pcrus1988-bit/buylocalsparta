@@ -27,7 +27,9 @@ export async function molliePaymentsProviderReadiness(): Promise<{
   } catch (error) {
     let environment = "unknown";
     try { environment = mollieEnvironment(mollieConfigFromEnv()); } catch { /* configuration error is returned below */ }
-    return { enabled: true, ready: false, environment, message: error instanceof Error ? error.message : "Mollie readiness failed" };
+    const message = error instanceof Error ? error.message : "Mollie readiness failed";
+    console.error(JSON.stringify({ level: "error", event: "mollie.readiness_failed", environment, message }));
+    return { enabled: true, ready: false, environment, message };
   }
 }
 
