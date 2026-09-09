@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Comfortaa } from "next/font/google";
+import { Comfortaa, Noto_Sans } from "next/font/google";
 import "./globals.css";
 import "./storefront-merchants.css";
 import "./storefront-advice.css";
@@ -63,6 +63,7 @@ import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
+const notoSans = Noto_Sans({ subsets: ["greek", "latin"], display: "swap", variable: "--font-km-sans" });
 
 const LOCAL_COMMERCE_DESCRIPTION = "Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική ψηφιακή ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα.";
 
@@ -167,7 +168,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     ]
   };
 
-  return <html lang="el" className={comfortaa.variable}>
+  return <html lang="el" className={`${comfortaa.variable} ${notoSans.variable}`}>
     <head>
       <script
         type="application/ld+json"
