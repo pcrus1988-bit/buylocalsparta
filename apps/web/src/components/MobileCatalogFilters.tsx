@@ -14,6 +14,7 @@ const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), selec
 export function MobileCatalogFilters() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [resultLabel, setResultLabel] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const visible = isCatalogPath(pathname);
 
@@ -25,6 +26,23 @@ export function MobileCatalogFilters() {
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!visible) {
+      setResultLabel("");
+      return;
+    }
+    const update = () => {
+      const text = document.querySelector<HTMLElement>(".catalog-results .results-toolbar strong")?.textContent?.trim() ?? "";
+      setResultLabel(text);
+    };
+    update();
+    const results = document.querySelector<HTMLElement>(".catalog-results");
+    if (!results) return;
+    const observer = new MutationObserver(update);
+    observer.observe(results, { subtree: true, childList: true, characterData: true });
+    return () => observer.disconnect();
+  }, [visible]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -123,7 +141,8 @@ export function MobileCatalogFilters() {
         onClick={() => open ? close(false) : setOpen(true)}
       >
         <span aria-hidden="true">☷</span>
-        {open ? "Κλείσιμο" : "Φίλτρα & ταξινόμηση"}
+        <span>{open ? "Κλείσιμο" : "Φίλτρα & ταξινόμηση"}</span>
+        {!open && resultLabel ? <small className="km-mobile-filter-count">{resultLabel}</small> : null}
       </button>
       {open ? (
         <button className="km-mobile-filter-close" type="button" onClick={() => close()} aria-label="Κλείσιμο φίλτρων">×</button>
