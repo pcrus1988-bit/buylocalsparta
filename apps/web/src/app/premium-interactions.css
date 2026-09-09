@@ -104,6 +104,37 @@
   font-size: 12px;
 }
 
+.market-window-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.market-window-actions a {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.market-window-actions a:first-child {
+  background: #fbf8f1;
+  color: #0d2a22;
+}
+.market-window-actions a:last-child {
+  border: 1px solid rgba(255,255,255,.28);
+  background: transparent;
+  color: #fff;
+}
+.market-window-actions a:hover,
+.market-window-actions a:focus-visible {
+  transform: translateY(-1px);
+}
+
 /* Keep customer-facing commerce text legible instead of shrinking metadata into UI chrome. */
 .catalog-card-availability { font-size: 12px; }
 .catalog-card-vendor { font-size: 11px; }
@@ -122,6 +153,7 @@
   .catalog-results .product-bottom .price { font-size: 20px; }
   .catalog-card-availability { font-size: 11px; }
   .add-to-cart-wrap { width: 100%; max-width: none; }
+  .market-window-actions a { flex: 1 1 130px; min-height: 44px; }
 }
 
 @media (max-width: 350px) {
@@ -132,11 +164,14 @@
 @media (prefers-reduced-motion: reduce) {
   .main-content-scope > main:not(.dashboard):not(.workspace) .button,
   .product-card .product-art img,
-  .cart-add-toast {
+  .cart-add-toast,
+  .market-window-actions a {
     transition: none;
   }
   .product-card:hover .product-art img,
-  .product-card:focus-within .product-art img {
+  .product-card:focus-within .product-art img,
+  .market-window-actions a:hover,
+  .market-window-actions a:focus-visible {
     transform: none;
   }
 }
