@@ -18,12 +18,22 @@ export function MobileCatalogFilters() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const sidebar = document.querySelector<HTMLElement>(".catalog-sidebar");
+    const previousId = sidebar?.id;
+    if (sidebar) sidebar.id = "km-catalog-filter-panel";
+
     root.classList.toggle("km-catalog-filters-open", visible && open);
     if (visible && open) {
-      const sidebar = document.querySelector<HTMLElement>(".catalog-sidebar");
       window.setTimeout(() => sidebar?.querySelector<HTMLElement>("input, select, button")?.focus(), 60);
     }
-    return () => root.classList.remove("km-catalog-filters-open");
+
+    return () => {
+      root.classList.remove("km-catalog-filters-open");
+      if (sidebar) {
+        if (previousId) sidebar.id = previousId;
+        else sidebar.removeAttribute("id");
+      }
+    };
   }, [open, visible]);
 
   useEffect(() => {
@@ -31,8 +41,21 @@ export function MobileCatalogFilters() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    const onSubmit = (event: SubmitEvent) => {
+      if (event.target instanceof HTMLFormElement && event.target.closest(".catalog-sidebar")) setOpen(false);
+    };
+    const onClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target.closest(".catalog-sidebar a") : null;
+      if (target) setOpen(false);
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("submit", onSubmit);
+    document.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("submit", onSubmit);
+      document.removeEventListener("click", onClick);
+    };
   }, [open]);
 
   if (!visible) return null;
