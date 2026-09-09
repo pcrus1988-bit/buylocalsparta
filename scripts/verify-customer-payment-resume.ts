@@ -5,7 +5,9 @@ const service = read("apps/web/src/lib/customer-payment-resume.ts");
 const route = read("apps/web/src/app/api/account/orders/[id]/payment/route.ts");
 const client = read("apps/web/src/components/OrderDetailClient.tsx");
 const ordersPage = read("apps/web/src/app/account/orders/page.tsx");
+const checkoutRoute = read("apps/web/src/app/api/checkout/route.ts");
 const mollie = read("packages/postgres-runtime/src/mollie-payments.ts");
+const mollieRuntime = read("apps/web/src/lib/mollie-runtime.ts");
 const worker = read("workers/postgres-worker.ts");
 const lifecycle = read("apps/web/src/lib/pending-payment-lifecycle.ts");
 const lifecycleRoute = read("apps/web/src/app/api/cron/pending-payments/route.ts");
@@ -22,6 +24,7 @@ for (const contract of [
   "sr.status='active' AND sr.expires_at>$3",
   "activeReservedLineCount !== lineCount",
   "PAYMENT_WINDOW_EXPIRED",
+  "prepareMolliePaymentRetry",
   "requireMolliePayments().initiateOrderPayment",
   "activePaymentWindow(principal, orderId, startedAt)",
   "activePaymentWindow(principal, orderId, Date.now())"
@@ -67,6 +70,21 @@ for (const contract of [
 ]) if (!mollie.includes(contract)) failures.push(`Mollie payment service no longer guarantees ${contract}`);
 
 for (const contract of [
+  'new Set(["failed", "canceled", "expired"])',
+  "prepareMolliePaymentRetry",
+  "historicalPaymentIds",
+  "paymentRetryPreparedAt",
+  "recordTerminalAttemptWithoutCancelling",
+  'orderStatus: "pending_payment"',
+  "createdAtMs(row) + PAYMENT_WINDOW_MS > now",
+  "TERMINAL_RETRYABLE_PROVIDER_STATUSES.has(provider.status)"
+]) if (!mollieRuntime.includes(contract)) failures.push(`Mollie terminal retry protection is missing ${contract}`);
+
+if (!checkoutRoute.includes("prepareMolliePaymentRetry({ orderId: order.id, customerId: principal.userId, now })")) {
+  failures.push("Normal checkout retry must rotate a terminal Mollie attempt without creating a new KONTA MOY order");
+}
+
+for (const contract of [
   "const TWO_HOURS_MS = 2 * 60 * 60 * 1_000",
   "const TWENTY_TWO_HOURS_MS = 22 * 60 * 60 * 1_000",
   "const PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1_000",
@@ -104,4 +122,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer payment-resume checks passed: dashboard CTA, CSRF/customer ownership, active reservation checks, Mollie payment reuse, 2h/22h transactional reminder scheduling with stale-send suppression, 24h reservation protection and provider-safe automatic cancellation verified.");
+console.log("Customer payment-resume checks passed: dashboard CTA, same-order terminal Mollie retry, CSRF/customer ownership, active reservation checks, 2h/22h transactional reminder scheduling with stale-send suppression, 24h reservation protection and provider-safe automatic cancellation verified.");
