@@ -58,6 +58,7 @@ import { CustomerMobileCommerceProvider } from "../components/CustomerMobileComm
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
+import { MobileCatalogFilters } from "../components/MobileCatalogFilters";
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 
@@ -176,7 +177,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <body>
       <a className="skip-link" href="#main-content">Μετάβαση στο κύριο περιεχόμενο</a>
       <div id="main-content" className="main-content-scope" tabIndex={-1}>
-        <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}</CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
+        <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}<MobileCatalogFilters /></CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
       </div>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
