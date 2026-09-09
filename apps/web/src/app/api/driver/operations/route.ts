@@ -80,7 +80,17 @@ export async function POST(request: Request) {
       const token = String(body.token ?? "");
       await assertCustomerDeliveryLegActive(principal, token);
       const result = await driverScanDeliveryProof(principal, token);
-      if (result.completed) await captureKlarnaAfterConfirmedDelivery(token);
+      if (result.completed) {
+        try {
+          await captureKlarnaAfterConfirmedDelivery(token);
+        } catch (error) {
+          console.error(JSON.stringify({
+            level: "error",
+            event: "mollie.klarna_capture_after_delivery_failed",
+            message: error instanceof Error ? error.message : String(error),
+          }));
+        }
+      }
       return Response.json(result);
     }
     if (action === "start_customer_leg") {
