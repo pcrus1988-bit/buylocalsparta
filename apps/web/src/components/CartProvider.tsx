@@ -25,6 +25,7 @@ type CartContextValue = Readonly<{
   removeItem: (id: string) => void;
   clear: () => void;
   hydrated: boolean;
+  detailsReady: boolean;
 }>;
 
 type CartProductDetails = Readonly<{
@@ -85,6 +86,7 @@ function localStorageRemove(key: string): void {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [detailsReady, setDetailsReady] = useState(false);
   const [persistentCsrf, setPersistentCsrf] = useState<string>();
   const persistentEnabled = useRef(false);
   const initialMergeDone = useRef(false);
@@ -119,9 +121,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !itemIdsKey || !/^\/(?:cart|checkout)\/?$/.test(window.location.pathname)) return;
+    if (!hydrated) return;
+    if (!itemIdsKey || !/^\/(?:cart|checkout)\/?$/.test(window.location.pathname)) {
+      setDetailsReady(true);
+      return;
+    }
+
     const controller = new AbortController();
     const ids = itemIdsKey.split("|").filter(Boolean);
+    setDetailsReady(false);
     void fetch("/api/cart/details", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -138,7 +146,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return detail ? { ...item, ...detail } : item;
         }));
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) console.error("Cart presentation details unavailable", error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDetailsReady(true);
+      });
     return () => controller.abort();
   }, [hydrated, itemIdsKey]);
 
@@ -177,7 +190,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeItem = useCallback((id: string) => setItems((current) => current.filter((item) => item.canonicalVariantId !== id)), []);
   const clear = useCallback(() => setItems([]), []);
-  const value = useMemo(() => ({ items, count: items.reduce((sum, item) => sum + item.quantity, 0), subtotalMinor: items.reduce((sum, item) => sum + item.priceMinor * item.quantity, 0), addItem, setQuantity, removeItem, clear, hydrated }), [items, addItem, setQuantity, removeItem, clear, hydrated]);
+  const value = useMemo(() => ({
+    items,
+    count: items.reduce((sum, item) => sum + item.quantity, 0),
+    subtotalMinor: items.reduce((sum, item) => sum + item.priceMinor * item.quantity, 0),
+    addItem,
+    setQuantity,
+    removeItem,
+    clear,
+    hydrated,
+    detailsReady
+  }), [items, addItem, setQuantity, removeItem, clear, hydrated, detailsReady]);
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
