@@ -51,7 +51,12 @@ for (const contract of [
   "orderStatus !== \"pending_payment\"",
   "Payment belongs to another customer",
   "provider_payment_id",
-  "if (existing) return { kind:\"existing\""
+  "const existingPaymentId =",
+  "if (existingPaymentId) {",
+  'return { kind: "existing" as const',
+  'if (prepared.kind === "existing") {',
+  "this.#client.retrievePayment(prepared.paymentId)",
+  "this.#assertProviderIdentity(existing, input.orderId, prepared.orderNumber, prepared.amountMinor)"
 ]) if (!mollie.includes(contract)) failures.push(`Mollie payment service no longer guarantees ${contract}`);
 
 if (!worker.includes("expire_pending_payment_orders")) failures.push("Pending-payment reservation expiry worker is not wired");
@@ -61,4 +66,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer payment-resume checks passed: CSRF/customer ownership, pending-payment gating, double active-reservation checks, Mollie order reuse, expiry cleanup and customer recovery CTA verified.");
+console.log("Customer payment-resume checks passed: CSRF/customer ownership, pending-payment gating, double active-reservation checks, Mollie provider-payment reuse and identity verification, expiry cleanup and customer recovery CTA verified.");
