@@ -42,6 +42,7 @@ export type MollieFetch = typeof fetch;
 
 const DEFAULT_API_BASE_URL = "https://api.mollie.com/v2";
 const PAYMENT_ID = /^tr_[A-Za-z0-9]+$/;
+const REFUND_ID = /^re_[A-Za-z0-9]+$/;
 
 export function molliePaymentsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.MOLLIE_PAYMENTS_ENABLED === "true";
@@ -163,6 +164,16 @@ export class MolliePaymentsClient {
     return parseRefund(payload, input.paymentId);
   }
 
+  async retrieveRefund(paymentId: string, refundId: string): Promise<MollieRefund> {
+    assertPaymentId(paymentId);
+    assertRefundId(refundId);
+    const payload = await this.#jsonRequest(
+      `${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`,
+      { method: "GET" }
+    );
+    return parseRefund(payload, paymentId);
+  }
+
   async cancelPayment(paymentId: string): Promise<MolliePayment> {
     assertPaymentId(paymentId);
     const payload = await this.#jsonRequest(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}`, { method: "DELETE" });
@@ -254,6 +265,7 @@ function parsePayment(payload: Record<string, unknown>): MolliePayment {
 
 function parseRefund(payload: Record<string, unknown>, expectedPaymentId: string): MollieRefund {
   const refundId = text(payload.id, "Mollie refund id");
+  assertRefundId(refundId);
   const paymentId = optionalText(payload.paymentId) ?? expectedPaymentId;
   if (paymentId !== expectedPaymentId) throw new Error("Mollie refund payment id did not match the requested payment");
   const amount = object(payload.amount, "Mollie refund amount");
@@ -283,6 +295,7 @@ function parsePaymentStatus(value: unknown): MolliePaymentStatus {
   throw new Error("Mollie payment status is unsupported");
 }
 function assertPaymentId(value: string): void { if (!PAYMENT_ID.test(value)) throw new Error("Invalid Mollie payment id"); }
+function assertRefundId(value: string): void { if (!REFUND_ID.test(value)) throw new Error("Invalid Mollie refund id"); }
 function assertPositiveMinor(value: number, label: string): void { if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer in minor units`); }
 function assertHttpUrl(value: string, label: string): void { const parsed = new URL(value); if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error(`${label} must use HTTP or HTTPS`); }
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number { if (!raw?.trim()) return fallback; const value = Number(raw); if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`); return value; }
