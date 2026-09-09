@@ -22,7 +22,7 @@ export const SITE_LINKS = {
   howItWorks: { label: "Πώς λειτουργεί", href: "/how-it-works", description: "Από την ανακάλυψη μέχρι checkout, fulfilment και υποστήριξη." },
   fairness: { label: "Δίκαιη ανάθεση", href: "/fairness", description: "Οι κανόνες που αποτρέπουν την άσκοπη εσωτερική σύγκρουση εμπόρων." },
   delivery: { label: "Παράδοση & παραλαβή", href: "/delivery-pickup", description: "Τοπική παραλαβή, αποστολή και επιλογές fulfilment." },
-  payments: { label: "Πληρωμές & ασφάλεια", href: "/payments-security", description: "Πώς προστατεύεται η ενιαία συναλλή του marketplace." },
+  payments: { label: "Πληρωμές & ασφάλεια", href: "/payments-security", description: "Πώς προστατεύεται η ενιαία συναλλαγή του marketplace." },
   returns: { label: "Επιστροφές & refunds", href: "/returns-refunds", description: "Επιστροφές, επισκευές, αντικαταστάσεις και επιστροφές χρημάτων." },
   terms: { label: "Όροι Χρήσης", href: "/terms", description: "Οι βασικοί κανόνες για λογαριασμούς, αγορές, υπηρεσίες και χρήση της πλατφόρμας." },
   privacy: { label: "Privacy controls", href: "/privacy-controls", description: "Διαχείριση ιδιωτικότητας, προσωποποίησης και δικαιωμάτων δεδομένων." },
