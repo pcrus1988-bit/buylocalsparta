@@ -18,9 +18,19 @@ runner.register({
   intervalMs: 60_000,
   retryMs: 10_000,
   run: async (now) => {
+    const paymentWindowMs = 24 * 60 * 60 * 1_000;
+    const extended = await runtime.nativePool.query(`
+      UPDATE stock_reservations sr
+      SET expires_at=GREATEST(sr.expires_at,o.created_at + interval '24 hours')
+      FROM order_lines ol,customer_orders o
+      WHERE sr.order_line_id=ol.id AND ol.order_id=o.id
+        AND o.status='pending_payment'
+        AND o.created_at>$1
+        AND sr.status='active' AND sr.expires_at>$2
+        AND sr.expires_at < o.created_at + interval '24 hours'
+    `, [new Date(now - paymentWindowMs), new Date(now)]);
     const expired = await runtime.persistence.inventory.expireReservations({ now, limit: 1_000 });
-    const abandoned = await runtime.nativePool.query<{ expired: number }>("SELECT expire_pending_payment_orders($1,$2) AS expired", [new Date(now), 1_000]);
-    log("info", "worker.inventory_reservation_expiry", { expired, pendingPaymentOrdersCancelled: Number(abandoned.rows[0]?.expired ?? 0) });
+    log("info", "worker.inventory_reservation_expiry", { expired, pendingPaymentReservationsExtended: extended.rowCount ?? 0 });
   }
 });
 
