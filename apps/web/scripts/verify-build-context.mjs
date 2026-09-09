@@ -28,6 +28,7 @@ if (!Array.isArray(root.workspaces) || !root.workspaces.includes("apps/*") || !r
   throw new Error("Monorepo workspace declaration is missing apps/* or packages/*");
 }
 
+// Never print payment secret values. This gate reports only legacy key names and Mollie key mode.
 const legacyVivaKeys = Object.keys(process.env)
   .filter((key) => key.startsWith("VIVA_") || key.includes("VIVA_FISCAL"))
   .sort();
