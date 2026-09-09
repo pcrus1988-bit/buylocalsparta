@@ -31,6 +31,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/buy_local_sparta_acceptance
       BLS_AUTH_SECRET: browser-acceptance-only-secret-2026-rotate-never-production
       BLS_EMAIL_DELIVERY_ENABLED: "false"
+      BLS_LOCATION_GATEWAY_ENFORCEMENT_ENABLED: "true"
       BLS_ACCEPTANCE_BASE_URL: http://127.0.0.1:3000
       NODE_ENV: production
     steps:
