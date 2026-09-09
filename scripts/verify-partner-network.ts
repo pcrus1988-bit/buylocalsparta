@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   calculateFirstYearAnnualPlanPartnerPayoutCents,
   calculateNonCumulativeMonthlyBonusCents,
@@ -31,4 +32,21 @@ assert.equal(calculateNonCumulativeMonthlyBonusCents(100), 250_000);
 assert.equal(normalizePartnerCode(" km_sparta01 "), "KM_SPARTA01");
 assert.equal(normalizePartnerCode("bad code"), null);
 
-console.log("Partner Network financial invariants verified.");
+const migration = readFileSync("db/migrations/0215_partner_network_foundation.sql", "utf8");
+for (const boundary of [
+  "recruitment_commission_enabled BOOLEAN NOT NULL DEFAULT FALSE CHECK (recruitment_commission_enabled = FALSE)",
+  "source_type IN ('ACTIVATION','SUBSCRIPTION','PLATFORM_COMMISSION','DIRECT_RENEWAL','PERFORMANCE_BONUS','ADJUSTMENT','CLAWBACK')",
+  "partner commission events are append-only; use a clawback event",
+  "WITH (security_invoker = true)",
+  "ENABLE ROW LEVEL SECURITY",
+  "FROM PUBLIC, anon, authenticated, bls_app_runtime, bls_platform_runtime",
+  "TO bls_app_runtime",
+  "TO bls_platform_runtime",
+  "client Data API roles must not access Partner Network data",
+  "PLATFORM_COMMISSION base_amount_cents is KONTA MOY platform fee revenue, never vendor GMV"
+]) {
+  assert.ok(migration.includes(boundary), `Partner Network migration is missing safety boundary: ${boundary}`);
+}
+assert.ok(!migration.includes("'RECRUITMENT'"), "Recruitment must never be a commission source type");
+
+console.log("Partner Network financial, anti-recruitment and database-access invariants verified.");
