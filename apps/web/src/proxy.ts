@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  LOCATION_GATEWAY_COOKIE,
+  LOCATION_GATEWAY_PATH,
+  isLocationGatewayRootEnforcementEnabled,
+  shouldRedirectRootToLocationGateway
+} from "./lib/location-gateway-enforcement.ts";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
 
@@ -66,6 +72,19 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
 }
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const enforceLocationGateway = isLocationGatewayRootEnforcementEnabled(process.env.LOCATION_GATEWAY_ROOT_ENFORCEMENT_ENABLED);
+  if (shouldRedirectRootToLocationGateway({
+    pathname,
+    method: request.method,
+    localitySlug: request.cookies.get(LOCATION_GATEWAY_COOKIE)?.value,
+    enforcementEnabled: enforceLocationGateway
+  })) {
+    const destination = request.nextUrl.clone();
+    destination.pathname = LOCATION_GATEWAY_PATH;
+    return NextResponse.redirect(destination, 307);
+  }
+
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
@@ -76,7 +95,6 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set(VISITOR_HEADER, visitorKey);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  const pathname = request.nextUrl.pathname;
   const identityNeutral = isConsentOrAnalytics(pathname);
   const persistOperationally = !identityNeutral && needsOperationalPersistence(pathname);
   const persistForSession = !identityNeutral && !persistOperationally && (Boolean(current || legacy) || needsSessionContinuity(pathname));
