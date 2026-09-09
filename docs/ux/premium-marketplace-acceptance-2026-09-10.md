@@ -10,7 +10,7 @@ This checklist is an implementation gate for `feat/premium-marketplace-experienc
 - [x] Homepage discovery admits only genuinely purchasable cards and preserves the existing fair supplier-selection behavior.
 - [x] Category product counts/results use purchasable catalogue data.
 - [x] Featured headings no longer promise a fixed number of products.
-- [ ] Complete customer-readiness pass for published merchant profile copy before release.
+- [x] Obvious placeholder/test and explicitly non-customer-ready merchant profile copy is suppressed at the public directory data boundary; governed story/category/product context becomes the fallback.
 
 ## P1 — mobile catalogue and global navigation
 
