@@ -108,6 +108,37 @@ function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function normalizedPublicCopy(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("el-GR")
+    .replace(/[.!?;,]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Vendor-authored profile fields are public storefront copy, not private notes.
+ * Suppress only unmistakable placeholder/test or explicitly anti-commerce copy;
+ * legitimate merchant descriptions remain untouched and the public surfaces fall
+ * back to governed story/category/product context when this returns undefined.
+ */
+function customerReadyProfileText(value: unknown): string | undefined {
+  const text = optionalText(value);
+  if (!text) return undefined;
+  const normalized = normalizedPublicCopy(text);
+  if (
+    normalized === "δεν πουλαμε τιποτα"
+    || normalized === "δεν πουλαμε τιποτα ακομα"
+    || normalized === "test"
+    || normalized === "demo"
+    || normalized === "placeholder"
+    || normalized.startsWith("lorem ipsum")
+  ) return undefined;
+  return text;
+}
+
 function publicMediaUrl(value: unknown): string | undefined {
   const mediaId = optionalText(value);
   return mediaId && /^media_[A-Za-z0-9_-]{8,128}$/.test(mediaId) ? `/api/media/${encodeURIComponent(mediaId)}` : undefined;
@@ -188,8 +219,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     adviser: isPartner ? optionalText(row.adviser_name) : undefined,
     location,
     story,
-    profileShortDescription: isPartner ? optionalText(row.profile_short_description) : undefined,
-    profileStory: isPartner ? optionalText(row.profile_story) : undefined,
+    profileShortDescription: isPartner ? customerReadyProfileText(row.profile_short_description) : undefined,
+    profileStory: isPartner ? customerReadyProfileText(row.profile_story) : undefined,
     categoryCodes,
     researchCategory: isPartner ? undefined : subBranch,
     taxonomies: publicVendorTaxonomies({ majorBranch, subBranch, categoryCodes }),
