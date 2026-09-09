@@ -4,6 +4,9 @@
   "installCommand": "npm ci --ignore-scripts --prefix ../..",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
+  "env": {
+    "MOLLIE_PROFILE_ID": "pfl_M24SSJoWCE"
+  },
   "crons": [
     {
       "path": "/api/cron/catalogue-crawler",
