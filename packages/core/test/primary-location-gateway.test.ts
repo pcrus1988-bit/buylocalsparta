@@ -15,10 +15,12 @@ test("primary location gateway constants remain stable", () => {
   assert.equal(PRIMARY_LOCATION_GATEWAY_PATH, "/choose-location");
 });
 
-test("production interception remains off unless explicitly enabled", () => {
-  assert.equal(primaryLocationGatewayEnforcementEnabled(undefined), false);
-  assert.equal(primaryLocationGatewayEnforcementEnabled(""), false);
+test("production interception is default-on with explicit false rollback", () => {
+  assert.equal(primaryLocationGatewayEnforcementEnabled(undefined), true);
+  assert.equal(primaryLocationGatewayEnforcementEnabled(null), true);
   assert.equal(primaryLocationGatewayEnforcementEnabled("false"), false);
+  assert.equal(primaryLocationGatewayEnforcementEnabled(" FALSE "), false);
+  assert.equal(primaryLocationGatewayEnforcementEnabled(""), false);
   assert.equal(primaryLocationGatewayEnforcementEnabled("1"), false);
   assert.equal(primaryLocationGatewayEnforcementEnabled(" true "), true);
   assert.equal(primaryLocationGatewayEnforcementEnabled("TRUE"), true);
