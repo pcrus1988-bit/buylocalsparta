@@ -14,7 +14,7 @@ type GateState = "passed" | "failed" | "blocked" | "skipped" | "missing" | "expi
 
 const PROVIDER_GATES = [
   { key: "database", label: "Database", hint: "PostgreSQL · PostGIS · schema", match: ["postgres", "database"] },
-  { key: "payments", label: "Payments", hint: "Mollie OAuth · checkout · webhook", match: ["mollie", "payment"] },
+  { key: "payments", label: "Payments", hint: "Mollie API · checkout · webhook", match: ["mollie", "payment"] },
   { key: "tax", label: "Tax / myDATA", hint: "AADE connectivity · mapping boundary", match: ["aade", "mydata"] },
   { key: "email", label: "Transactional email", hint: "Resend domain · webhook readiness", match: ["resend", "email"] },
   { key: "search", label: "Search", hint: "Meilisearch health · index provider", match: ["meili", "search"] },
