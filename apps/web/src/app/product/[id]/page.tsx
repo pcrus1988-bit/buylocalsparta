@@ -11,6 +11,7 @@ import { ProductAccountActions } from "../../../components/ProductAccountActions
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
+import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -443,13 +444,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
               }} /><ProductAccountActions productId={product.id} /></>}
             </div>
             <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
-              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>Πραγματικό τοπικό απόθεμα</strong><span>Η διαθεσιμότητα προέρχεται από επιλέξιμο ενεργό offer του καταστήματος.</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>Πραγματικό τοπικό απόθεμα</strong><span>Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν.</span></div></div>
               <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>Παραλαβή ή αποστολή</strong><span>Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή.</span></div></div>
               <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
             </div>
           </div>
 
-          {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Διαθέσιμο από τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>{product.adviser} είναι ο άνθρωπός σου για συμβατότητα, χρήση, διαθεσιμότητα ή επιλογή της σωστής παραλλαγής.</p><div className="vendor-actions"><a className="button button-secondary" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Διαθέσιμο από τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα αντιστοιχούν στο επιλεγμένο τοπικό offer.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button button-secondary" href="/ask-local">Ask Local</a></div></div></div>}
+          <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} />
 
           {displayDescription ? (
             <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
