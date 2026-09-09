@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
 import styles from "./HomeLocalMarketScene.module.css";
 
@@ -12,7 +13,14 @@ export function HomeLocalMarketScene({ vendors }: { vendors: readonly PublicVend
   return <div className={styles.scene} aria-label={mediaUrl && vendor ? `Η τοπική αγορά της Σπάρτης · ${vendor.name}` : "Η τοπική αγορά της Σπάρτης"}>
     <div className={styles.frame}>
       {mediaUrl && vendor ? <>
-        <img className={styles.photo} src={mediaUrl} alt={vendor.story?.title || `Το κατάστημα ${vendor.name} στη Σπάρτη`} width={900} height={1100} loading="eager" fetchPriority="high" />
+        <Image
+          className={styles.photo}
+          src={mediaUrl}
+          alt={vendor.story?.title || `Το κατάστημα ${vendor.name} στη Σπάρτη`}
+          fill
+          sizes="(max-width: 760px) calc(100vw - 32px), (max-width: 1080px) 760px, 470px"
+          priority
+        />
         <span className={styles.photoShade} aria-hidden="true" />
         <div className={styles.caption}>
           <small>Σπάρτη · πραγματική τοπική παρουσία</small>
