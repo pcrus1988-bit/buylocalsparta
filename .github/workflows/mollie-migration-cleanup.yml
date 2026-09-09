@@ -69,6 +69,9 @@ jobs:
       - name: Type-check live database smoke
         run: npm run typecheck:db-smoke
 
+      - name: Type-check return refund lifecycle
+        run: npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck scripts/customer-returns-lifecycle-acceptance.ts
+
       - name: Verify checkout UX
         run: npm run check:checkout-ux
 
