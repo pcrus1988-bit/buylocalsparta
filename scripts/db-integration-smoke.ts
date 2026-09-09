@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { FakeMollieGateway } from "./fake-mollie-gateway.ts";
 import {
   NotificationService,
   PrivacyRequestService,
@@ -15,47 +16,10 @@ import {
   PostgresCustomerAuthService,
   PostgresFixedWindowRateLimiter,
   PostgresVendorAuthService,
-  PostgresVivaPaymentsService,
+  PostgresMolliePaymentsService,
   PostgresProductionSearchService,
   PostgresResendNotificationService,
-  type VivaPaymentsGateway
 } from "../packages/postgres-runtime/src/index.ts";
-
-class FakeVivaGateway implements VivaPaymentsGateway {
-  readonly environment = "demo" as const;
-  createCount = 0;
-  refundCount = 0;
-  lastRefundTransactionId?: string;
-  readonly #transactions = new Map<string, Awaited<ReturnType<VivaPaymentsGateway["retrieveTransaction"]>>>();
-
-  checkoutUrl(orderCode: string) { return `https://demo.vivapayments.com/web/checkout?ref=${orderCode}`; }
-  async createPaymentOrder(_input: Parameters<VivaPaymentsGateway["createPaymentOrder"]>[0]) {
-    this.createCount += 1;
-    const orderCode = (9_000_000_000_000_000n + BigInt(this.createCount)).toString();
-    return { orderCode, checkoutUrl: this.checkoutUrl(orderCode) };
-  }
-  confirm(orderCode: string, amountMinor: number) {
-    const transactionId = randomUUID();
-    this.#transactions.set(transactionId, { transactionId, orderCode, statusId:"F", amountMinor, currencyCode:978 });
-    return transactionId;
-  }
-  async retrieveTransaction(transactionId: string) {
-    const transaction = this.#transactions.get(transactionId);
-    if (!transaction) throw new Error(`Fake Viva transaction ${transactionId} not found`);
-    return transaction;
-  }
-  async refund(input: Parameters<VivaPaymentsGateway["refund"]>[0]) {
-    const original = this.#transactions.get(input.transactionId);
-    if (!original) throw new Error("Fake Viva original transaction not found");
-    this.refundCount += 1;
-    const transactionId = randomUUID();
-    this.lastRefundTransactionId = transactionId;
-    this.#transactions.set(transactionId, { ...original, transactionId, statusId:"F", amountMinor:input.amountMinor });
-    return { success:true, statusId:"F", transactionId, amountMinor:input.amountMinor };
-  }
-  async cancelPaymentOrder(_orderCode: string) {}
-  async webhookVerificationKey() { return "db-smoke-viva-webhook-key"; }
-}
 
 class FakeMeilisearch {
   readonly documents = new Map<string,Record<string,unknown>>();
@@ -368,21 +332,21 @@ try {
   if (!("id" in rescueReplay) || rescueReplay.id!==raceOrder.id) throw new Error("Vendor rescue retry was not idempotent");
   await runtime.sqlPool.query("UPDATE vendor_offers SET status='archived' WHERE public_id=$1",[rescueOfferId]);
 
-  // Viva Smart Checkout provider proof without external network access. Both services share PostgreSQL
+  // Mollie Smart Checkout provider proof without external network access. Both services share PostgreSQL
   // but are independent application-runtime facades over one deterministic fake provider gateway.
-  const vivaGateway = new FakeVivaGateway();
-  const vivaA = new PostgresVivaPaymentsService(runtime.sqlPool, vivaGateway, { emailNotificationsEnabled:true });
-  const vivaB = new PostgresVivaPaymentsService(runtimeB.sqlPool, vivaGateway, { emailNotificationsEnabled:true });
-  const vivaCheckoutKey = `checkout-${suffix}-viva`;
-  const vivaVisitorKey = `visitor_${suffix}_viva`;
-  const vivaOrder = await runtime.customerCommerce.checkout({ checkoutKey:vivaCheckoutKey, visitorKey:vivaVisitorKey, customerId:userId, postcode:"23100", fulfilmentMode:"pickup", items:[{canonicalVariantId:canonicalId,quantity:1}], now:now+3_150 });
-  if (vivaOrder.status !== "pending_payment") throw new Error("Viva proof order must begin pending_payment");
-  const vivaInitiatedA = await vivaA.initiateOrderPayment({ orderId:vivaOrder.id, customerId:userId, visitorKey:vivaVisitorKey, now:now+3_160 });
-  const vivaInitiatedB = await vivaB.initiateOrderPayment({ orderId:vivaOrder.id, customerId:userId, visitorKey:vivaVisitorKey, now:now+3_170 });
-  if (vivaInitiatedA.orderCode !== vivaInitiatedB.orderCode || vivaGateway.createCount !== 1) throw new Error("Cross-instance Viva initiation was not provider-order idempotent");
-  const vivaTransactionId = vivaGateway.confirm(vivaInitiatedA.orderCode, vivaOrder.total.minor);
-  const vivaConfirmed = await vivaB.reconcileTransaction({ transactionId:vivaTransactionId, expectedOrderCode:vivaInitiatedA.orderCode, source:"webhook", now:now+3_180 });
-  if (vivaConfirmed.paymentStatus !== "captured" || vivaConfirmed.orderStatus !== "confirmed") throw new Error("Verified Viva payment did not confirm the customer order");
+  const mollieGateway = new FakeMollieGateway();
+  const mollieA = new PostgresMolliePaymentsService(runtime.sqlPool, mollieGateway, { publicBaseUrl:"https://kontamou.example.test", emailNotificationsEnabled:true });
+  const mollieB = new PostgresMolliePaymentsService(runtimeB.sqlPool, mollieGateway, { publicBaseUrl:"https://kontamou.example.test", emailNotificationsEnabled:true });
+  const mollieCheckoutKey = `checkout-${suffix}-mollie`;
+  const mollieVisitorKey = `visitor_${suffix}_mollie`;
+  const mollieOrder = await runtime.customerCommerce.checkout({ checkoutKey:mollieCheckoutKey, visitorKey:mollieVisitorKey, customerId:userId, postcode:"23100", fulfilmentMode:"pickup", items:[{canonicalVariantId:canonicalId,quantity:1}], now:now+3_150 });
+  if (mollieOrder.status !== "pending_payment") throw new Error("Mollie proof order must begin pending_payment");
+  const mollieInitiatedA = await mollieA.initiateOrderPayment({ orderId:mollieOrder.id, customerId:userId, visitorKey:mollieVisitorKey, now:now+3_160 });
+  const mollieInitiatedB = await mollieB.initiateOrderPayment({ orderId:mollieOrder.id, customerId:userId, visitorKey:mollieVisitorKey, now:now+3_170 });
+  if (mollieInitiatedA.paymentId !== mollieInitiatedB.paymentId || mollieGateway.createCount !== 1) throw new Error("Cross-instance Mollie initiation was not provider-order idempotent");
+  const mollieTransactionId = mollieGateway.confirm(mollieInitiatedA.paymentId, mollieOrder.total.minor);
+  const mollieConfirmed = await mollieB.reconcilePayment({ paymentId:mollieTransactionId, source:"webhook", now:now+3_180 });
+  if (mollieConfirmed.paymentStatus !== "captured" || mollieConfirmed.orderStatus !== "confirmed") throw new Error("Verified Mollie payment did not confirm the customer order");
 
   // Payment confirmation emits a durable transactional email. A second runtime
   // can deliver and reconcile its provider webhook against the same PostgreSQL state.
@@ -406,46 +370,45 @@ try {
   const webhookResult=await emailWorkerB.processWebhook(providerEvent,now+3_186);
   if(webhookResult.duplicate) throw new Error("First Resend webhook was treated as duplicate");
   if(!(await emailWorkerA.processWebhook(providerEvent,now+3_187)).duplicate) throw new Error("Resend webhook idempotency was not shared across runtimes");
-  await runtime.sqlPool.query("UPDATE stock_reservations SET expires_at=$2 WHERE checkout_key=$1 AND status='active'", [vivaCheckoutKey, new Date(now + 3_000)]);
+  await runtime.sqlPool.query("UPDATE stock_reservations SET expires_at=$2 WHERE checkout_key=$1 AND status='active'", [mollieCheckoutKey, new Date(now + 3_000)]);
   await runtime.persistence.inventory.expireReservations({ now:now+3_190, limit:100 });
-  const paidReservation = await runtime.sqlPool.query<{status:string} & Record<string,unknown>>("SELECT status::text AS status FROM stock_reservations WHERE checkout_key=$1", [vivaCheckoutKey]);
-  if (paidReservation.rows[0]?.status !== "active") throw new Error("Paid Viva reservation was incorrectly expired by the reservation worker");
-  const vivaFulfilment = (await runtime.vendorOperations.dashboard(vendorLogin.principal)).fulfilments.find((item)=>item.orderId===vivaOrder.id);
-  if (!vivaFulfilment) throw new Error("Paid Viva fulfilment was not visible to the assigned vendor");
-  const stockBeforeVivaAccept = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
-  await runtimeB.vendorOperations.actOnFulfilment(vendorPrincipalB,{fulfilmentId:vivaFulfilment.id,action:"accept",now:now+3_200});
-  const stockAfterVivaAccept = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
-  if (Number(stockAfterVivaAccept.rows[0]?.on_hand) !== Number(stockBeforeVivaAccept.rows[0]?.on_hand)-1 || Number(stockAfterVivaAccept.rows[0]?.active_reservations)!==Number(stockBeforeVivaAccept.rows[0]?.active_reservations)-1) throw new Error("Vendor acceptance did not consume the paid Viva stock reservation exactly once");
-  await vivaA.prepareOrderCancellation({ orderId:vivaOrder.id, reason:"DB smoke Viva refund/cancellation proof", now:now+3_210 });
-  if (vivaGateway.refundCount !== 1 || !vivaGateway.lastRefundTransactionId) throw new Error("Captured Viva cancellation did not execute exactly one provider refund");
-  const vivaCancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId:userId, orderId:vivaOrder.id, reason:"DB smoke Viva refund/cancellation proof", now:now+3_220 });
-  if (vivaCancelled.status !== "cancelled") throw new Error("Refunded Viva order did not persist customer cancellation");
-  const stockAfterVivaCancel = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
-  if (Number(stockAfterVivaCancel.rows[0]?.on_hand) !== Number(stockBeforeVivaAccept.rows[0]?.on_hand)) throw new Error("Cancellation after Vendor acceptance did not restore consumed Viva stock");
-  const paymentAfterRefund = await runtime.sqlPool.query<{captured_minor:number;refunded_minor:number;status:string} & Record<string,unknown>>("SELECT captured_minor,refunded_minor,status::text AS status FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[vivaOrder.id]);
-  if (Number(paymentAfterRefund.rows[0]?.refunded_minor)!==Number(paymentAfterRefund.rows[0]?.captured_minor) || paymentAfterRefund.rows[0]?.status!=="refunded") throw new Error("Viva cancellation refund did not reconcile payment totals");
-  const refundTx=vivaGateway.lastRefundTransactionId;
-  await vivaB.handleWebhook({EventTypeId:1797,EventData:{TransactionId:refundTx,ParentId:vivaTransactionId,OrderCode:vivaInitiatedA.orderCode,Amount:-(vivaOrder.total.minor/100)}},now+3_230);
-  const paymentAfterDuplicateReversal = await runtime.sqlPool.query<{refunded_minor:number} & Record<string,unknown>>("SELECT refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[vivaOrder.id]);
-  if (Number(paymentAfterDuplicateReversal.rows[0]?.refunded_minor)!==vivaOrder.total.minor) throw new Error("Viva reversal webhook double-counted a synchronously recorded refund");
-  await vivaA.reconcileTransaction({transactionId:vivaTransactionId,expectedOrderCode:vivaInitiatedA.orderCode,source:"webhook",now:now+3_240});
-  const paymentAfterOldSuccess = await runtime.sqlPool.query<{status:string;refunded_minor:number} & Record<string,unknown>>("SELECT status::text AS status,refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[vivaOrder.id]);
-  if (paymentAfterOldSuccess.rows[0]?.status!=="refunded" || Number(paymentAfterOldSuccess.rows[0]?.refunded_minor)!==vivaOrder.total.minor) throw new Error("Out-of-order Viva success event regressed an already-refunded payment");
+  const paidReservation = await runtime.sqlPool.query<{status:string} & Record<string,unknown>>("SELECT status::text AS status FROM stock_reservations WHERE checkout_key=$1", [mollieCheckoutKey]);
+  if (paidReservation.rows[0]?.status !== "active") throw new Error("Paid Mollie reservation was incorrectly expired by the reservation worker");
+  const mollieFulfilment = (await runtime.vendorOperations.dashboard(vendorLogin.principal)).fulfilments.find((item)=>item.orderId===mollieOrder.id);
+  if (!mollieFulfilment) throw new Error("Paid Mollie fulfilment was not visible to the assigned vendor");
+  const stockBeforeMollieAccept = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
+  await runtimeB.vendorOperations.actOnFulfilment(vendorPrincipalB,{fulfilmentId:mollieFulfilment.id,action:"accept",now:now+3_200});
+  const stockAfterMollieAccept = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
+  if (Number(stockAfterMollieAccept.rows[0]?.on_hand) !== Number(stockBeforeMollieAccept.rows[0]?.on_hand)-1 || Number(stockAfterMollieAccept.rows[0]?.active_reservations)!==Number(stockBeforeMollieAccept.rows[0]?.active_reservations)-1) throw new Error("Vendor acceptance did not consume the paid Mollie stock reservation exactly once");
+  await mollieA.prepareOrderCancellation({ orderId:mollieOrder.id, reason:"DB smoke Mollie refund/cancellation proof", now:now+3_210 });
+  if (mollieGateway.refundCount !== 1 || !mollieGateway.lastRefundId) throw new Error("Captured Mollie cancellation did not execute exactly one provider refund");
+  const mollieCancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId:userId, orderId:mollieOrder.id, reason:"DB smoke Mollie refund/cancellation proof", now:now+3_220 });
+  if (mollieCancelled.status !== "cancelled") throw new Error("Refunded Mollie order did not persist customer cancellation");
+  const stockAfterMollieCancel = await runtime.sqlPool.query<{on_hand:number;active_reservations:number} & Record<string,unknown>>("SELECT on_hand,active_reservations FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)",[offerId]);
+  if (Number(stockAfterMollieCancel.rows[0]?.on_hand) !== Number(stockBeforeMollieAccept.rows[0]?.on_hand)) throw new Error("Cancellation after Vendor acceptance did not restore consumed Mollie stock");
+  const paymentAfterRefund = await runtime.sqlPool.query<{captured_minor:number;refunded_minor:number;status:string} & Record<string,unknown>>("SELECT captured_minor,refunded_minor,status::text AS status FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[mollieOrder.id]);
+  if (Number(paymentAfterRefund.rows[0]?.refunded_minor)!==Number(paymentAfterRefund.rows[0]?.captured_minor) || paymentAfterRefund.rows[0]?.status!=="refunded") throw new Error("Mollie cancellation refund did not reconcile payment totals");
+  await mollieB.reconcilePayment({ paymentId:mollieInitiatedA.paymentId, source:"webhook", now:now+3_230 });
+  const paymentAfterDuplicateReversal = await runtime.sqlPool.query<{refunded_minor:number} & Record<string,unknown>>("SELECT refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[mollieOrder.id]);
+  if (Number(paymentAfterDuplicateReversal.rows[0]?.refunded_minor)!==mollieOrder.total.minor) throw new Error("Mollie reversal webhook double-counted a synchronously recorded refund");
+  await mollieA.reconcilePayment({paymentId:mollieTransactionId,source:"webhook",now:now+3_240});
+  const paymentAfterOldSuccess = await runtime.sqlPool.query<{status:string;refunded_minor:number} & Record<string,unknown>>("SELECT status::text AS status,refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[mollieOrder.id]);
+  if (paymentAfterOldSuccess.rows[0]?.status!=="refunded" || Number(paymentAfterOldSuccess.rows[0]?.refunded_minor)!==mollieOrder.total.minor) throw new Error("Out-of-order Mollie success event regressed an already-refunded payment");
 
-  const lateCaptureKey = `checkout-${suffix}-viva-late-capture`;
-  const lateCaptureVisitor = `visitor_${suffix}_viva_late_capture`;
+  const lateCaptureKey = `checkout-${suffix}-mollie-late-capture`;
+  const lateCaptureVisitor = `visitor_${suffix}_mollie_late_capture`;
   const lateCaptureOrder = await runtime.customerCommerce.checkout({ checkoutKey:lateCaptureKey, visitorKey:lateCaptureVisitor, customerId:userId, postcode:"23100", fulfilmentMode:"pickup", items:[{canonicalVariantId:canonicalId,quantity:1}], now:now+3_250 });
-  const lateCaptureInitiated = await vivaA.initiateOrderPayment({ orderId:lateCaptureOrder.id, customerId:userId, visitorKey:lateCaptureVisitor, now:now+3_260 });
-  await vivaA.prepareOrderCancellation({ orderId:lateCaptureOrder.id, reason:"DB smoke cancel before provider capture", now:now+3_270 });
+  const lateCaptureInitiated = await mollieA.initiateOrderPayment({ orderId:lateCaptureOrder.id, customerId:userId, visitorKey:lateCaptureVisitor, now:now+3_260 });
+  await mollieA.prepareOrderCancellation({ orderId:lateCaptureOrder.id, reason:"DB smoke cancel before provider capture", now:now+3_270 });
   const lateCaptureCancelled = await runtime.customerCommerce.cancelCustomerOrder({ customerId:userId, orderId:lateCaptureOrder.id, reason:"DB smoke cancel before provider capture", now:now+3_280 });
   if (lateCaptureCancelled.status !== "cancelled") throw new Error("Late-capture proof order did not cancel before provider capture");
-  const refundsBeforeLateCapture = vivaGateway.refundCount;
-  const lateCaptureTransactionId = vivaGateway.confirm(lateCaptureInitiated.orderCode, lateCaptureOrder.total.minor);
-  const lateCaptureReconciled = await vivaB.reconcileTransaction({ transactionId:lateCaptureTransactionId, expectedOrderCode:lateCaptureInitiated.orderCode, source:"webhook", now:now+3_290 });
-  if (lateCaptureReconciled.orderStatus !== "cancelled" || lateCaptureReconciled.paymentStatus !== "refunded") throw new Error("Late Viva capture after cancellation was not automatically refunded");
-  if (vivaGateway.refundCount !== refundsBeforeLateCapture + 1) throw new Error("Late capture did not execute exactly one provider refund");
-  await vivaA.reconcileTransaction({ transactionId:lateCaptureTransactionId, expectedOrderCode:lateCaptureInitiated.orderCode, source:"webhook", now:now+3_300 });
-  if (vivaGateway.refundCount !== refundsBeforeLateCapture + 1) throw new Error("Late-capture reconciliation retried an already-recorded provider refund");
+  const refundsBeforeLateCapture = mollieGateway.refundCount;
+  const lateCaptureTransactionId = mollieGateway.confirm(lateCaptureInitiated.paymentId, lateCaptureOrder.total.minor);
+  const lateCaptureReconciled = await mollieB.reconcilePayment({ paymentId:lateCaptureTransactionId, source:"webhook", now:now+3_290 });
+  if (lateCaptureReconciled.orderStatus !== "cancelled" || lateCaptureReconciled.paymentStatus !== "refunded") throw new Error("Late Mollie capture after cancellation was not automatically refunded");
+  if (mollieGateway.refundCount !== refundsBeforeLateCapture + 1) throw new Error("Late capture did not execute exactly one provider refund");
+  await mollieA.reconcilePayment({ paymentId:lateCaptureTransactionId, source:"webhook", now:now+3_300 });
+  if (mollieGateway.refundCount !== refundsBeforeLateCapture + 1) throw new Error("Late-capture reconciliation retried an already-recorded provider refund");
   const lateCapturePayment = await runtime.sqlPool.query<{status:string;captured_minor:number;refunded_minor:number} & Record<string,unknown>>("SELECT status::text AS status,captured_minor,refunded_minor FROM payments WHERE order_id=(SELECT id FROM customer_orders WHERE public_id=$1)",[lateCaptureOrder.id]);
   if (lateCapturePayment.rows[0]?.status !== "refunded" || Number(lateCapturePayment.rows[0]?.captured_minor) !== Number(lateCapturePayment.rows[0]?.refunded_minor)) throw new Error("Late-capture payment totals did not settle back to fully refunded");
   const lateCaptureRefund = await runtime.sqlPool.query<{status:string} & Record<string,unknown>>("SELECT status::text AS status FROM refunds WHERE idempotency_key=$1",[`late-capture:${lateCaptureOrder.id}`]);
@@ -549,13 +512,13 @@ try {
     crossInstanceMediaPipeline: true,
     crossInstanceProductionSearchProjection: true,
     crossInstanceResendDeliveryWebhook: true,
-    vivaCrossInstancePaymentOrder: true,
-    vivaVerifiedPaymentConfirmation: true,
-    vivaPaidReservationProtection: true,
-    vivaRefundCancellation: true,
-    vivaReversalDeduplication: true,
-    vivaOutOfOrderWebhookMonotonicity: true,
-    vivaLateCaptureAutoRefund: true,
+    mollieCrossInstancePayment: true,
+    mollieVerifiedPaymentConfirmation: true,
+    molliePaidReservationProtection: true,
+    mollieRefundCancellation: true,
+    mollieWebhookReconciliationIdempotency: true,
+    mollieCanonicalStateMonotonicity: true,
+    mollieLateCaptureAutoRefund: true,
     vendorTenantIsolation: true,
     crossInstanceAdminSession: true,
     crossInstanceAdminCategoryGovernance: true,
