@@ -199,7 +199,8 @@ try {
   await reconcileRefundedReturnInventory(requested.returnId, now + 400);
   await reconcileRefundedReturnFinance(requested.returnId, finance.principal.userId, now + 401);
 
-  await expectFailure(() => mollie.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 410 }), /has not been approved/, "Refund replay did not stop after the return closed");
+  const replayedRefund = await mollie.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 410 });
+  expect(replayedRefund.id === refund.id && replayedRefund.status === "completed" && replayedRefund.amountMinor === refund.amountMinor, "Refund replay did not resolve to the existing completed refund");
   expect(mollieGateway.refundCount === refundsBefore + 1, "Refund replay executed a second provider refund");
 
   const finalState = await runtime.sqlPool.query<{
@@ -222,7 +223,6 @@ try {
   expect(Number(state?.refunded_minor) === refund.amountMinor && String(state?.refund_id ?? "") === refund.id, "Return line was not linked to the completed refund");
   expect(Number(state?.on_hand) === Number(stockBeforeRefund.rows[0]?.on_hand ?? 0) + 1 && Number(state?.restock_count) === 1, "Sellable return was not restocked exactly once");
   expect(Number(state?.receivable_minor) === vendorRecoveryMinor && Number(state?.finance_audit_count) === 1, "Post-settlement vendor recovery was not reconciled exactly once");
-
   const audit = await runtime.sqlPool.query<{ action: string } & Record<string, unknown>>(`SELECT action FROM audit_events WHERE entity_type='return' AND entity_id=$1 ORDER BY created_at`, [requested.returnId]);
   const actions = new Set(audit.rows.map((row) => String(row.action)));
   for (const required of ["return.approve", "return.authorize", "return.approve_refund", "return.refund.executed", "return.vendor_finance.reconciled"]) {
