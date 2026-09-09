@@ -81,9 +81,13 @@ export function CartPageClient() {
       <h2>{money(subtotalMinor)}</h2>
       <div className="summary-row"><span>{count === 1 ? "1 προϊόν" : `${count} προϊόντα`}</span><strong>{money(subtotalMinor)}</strong></div>
       <div className="summary-row"><span>Παράδοση</span><strong>Στο επόμενο βήμα</strong></div>
-      <p>Στο checkout διαλέγεις εύκολα παραλαβή ή παράδοση και επιβεβαιώνεις τη διεύθυνσή σου. Μία αγορά, χωρίς περιττά βήματα.</p>
+      <p>Στο checkout διαλέγεις παραλαβή ή παράδοση και επιβεβαιώνεις τη διεύθυνσή σου. Το τελικό κόστος παράδοσης εμφανίζεται πριν από την πληρωμή.</p>
+      <div className="cart-checkout-expectation" role="note">
+        <strong>Πριν συνεχίσεις</strong>
+        <span>Η online ολοκλήρωση απαιτεί λογαριασμό, ώστε η παραγγελία, η διεύθυνση και το παραστατικό να μείνουν μαζί. Το καλάθι σου διατηρείται.</span>
+      </div>
       <a className="button summary-cta" href="/checkout">Παράδοση & πληρωμή →</a>
-      <div className="cart-trust-note">Ασφαλής πληρωμή · Το καλάθι σου παραμένει αποθηκευμένο.</div>
+      <div className="cart-trust-note">Ασφαλής πληρωμή · <a href="/returns-refunds">Επιστροφές & επιστροφές χρημάτων</a></div>
       <a className="text-link" href="/shop">← Συνέχεια αγορών</a>
     </aside>
   </div>;
