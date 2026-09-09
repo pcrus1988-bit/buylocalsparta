@@ -3,7 +3,7 @@ import { PostgresUnitOfWork, id } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { normalizeGreekAfm, resolveGemiCompanyByAfm } from "./gemi-runtime";
 import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
-import { getHubExpansionPlan, type HubExpansionPlanCode } from "./hub-expansion-plans";
+import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "./hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const globals = globalThis as typeof globalThis & {
@@ -13,6 +13,7 @@ const globals = globalThis as typeof globalThis & {
 export type HubProspectApplicationInput = Readonly<{
   taxNumber: string;
   planCode: HubExpansionPlanCode;
+  billingCycle: HubBillingCycle;
   businessName: string;
   contactName: string;
   email: string;
@@ -29,6 +30,8 @@ export type HubProspectApplicationReceipt = Readonly<{
   hubSlug: string;
   hubName: string;
   planCode: HubExpansionPlanCode;
+  billingCycle: HubBillingCycle;
+  recurringFeeCents: number;
   paymentRequired: false;
 }>;
 
@@ -63,6 +66,7 @@ export async function submitHubProspectApplication(input: {
   const application = normalizeApplication(input.application);
   const plan = getHubExpansionPlan(application.planCode);
   if (!plan) throw new HubProspectApplicationError(400, "plan_invalid", "Επίλεξε έγκυρο πρόγραμμα συνεργασίας.");
+  const recurringFeeCents = application.billingCycle === "monthly" ? plan.monthlyFeeCents : plan.annualFeeCents;
 
   const registry = await resolveGemiCompanyByAfm(application.taxNumber, input.now);
   if (registry.lookupStatus === "not_found") {
@@ -110,14 +114,14 @@ export async function submitHubProspectApplication(input: {
 
       await tx.query(`
         INSERT INTO hub_expansion_prospects (
-          id,public_id,hub_id,hub_slug,hub_city,hub_region,plan_code,tax_number,gemi_number,
+          id,public_id,hub_id,hub_slug,hub_city,hub_region,plan_code,billing_cycle,tax_number,gemi_number,
           business_name,legal_name,contact_name,email,phone,address_line,postal_code,primary_category,
-          website_url,current_sales_channels,notes,source,status,setup_fee_cents,annual_fee_cents,
-          commission_bps,payment_state,consent_at,registry_checked_at,hub_resolution_method,
+          website_url,current_sales_channels,notes,source,status,setup_fee_cents,monthly_fee_cents,annual_fee_cents,
+          recurring_fee_cents,commission_bps,payment_state,consent_at,registry_checked_at,hub_resolution_method,
           hub_resolution_latitude,hub_resolution_longitude,hub_distance_km,created_at,updated_at
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-          'hub_expansion_join','pending',$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$31
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+          'hub_expansion_join','pending',$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$34
         )
       `, [
         applicationUuid,
@@ -127,6 +131,7 @@ export async function submitHubProspectApplication(input: {
         hub.nameEl,
         hub.regionEl,
         plan.code,
+        application.billingCycle,
         application.taxNumber,
         registry.gemiNumber,
         application.businessName,
@@ -141,7 +146,9 @@ export async function submitHubProspectApplication(input: {
         application.currentSalesChannels ?? null,
         application.notes ?? null,
         plan.setupFeeCents,
+        plan.monthlyFeeCents,
         plan.annualFeeCents,
+        recurringFeeCents,
         plan.commissionBps,
         plan.code === "claim" ? "not_required" : "not_requested",
         createdAt,
@@ -159,6 +166,8 @@ export async function submitHubProspectApplication(input: {
         hubSlug: hub.slug,
         hubName: hub.nameEl,
         planCode: plan.code,
+        billingCycle: application.billingCycle,
+        recurringFeeCents,
         paymentRequired: false as const
       };
     },
@@ -176,6 +185,7 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
 
   const plan = getHubExpansionPlan(input.planCode);
   if (!plan) throw new HubProspectApplicationError(400, "plan_invalid", "Επίλεξε έγκυρο πρόγραμμα συνεργασίας.");
+  const billingCycle = plan.code === "claim" ? "annual" : requireBillingCycle(input.billingCycle);
   const email = requiredLimited(input.email, "Email", 160).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HubProspectApplicationError(400, "email_invalid", "Χρειάζεται έγκυρο email επικοινωνίας.");
   const phone = requiredLimited(input.phone, "Τηλέφωνο", 32);
@@ -193,6 +203,7 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
   return {
     taxNumber,
     planCode: plan.code,
+    billingCycle,
     businessName: requiredLimited(input.businessName, "Εμπορική ονομασία", 120),
     contactName: requiredLimited(input.contactName, "Υπεύθυνος επικοινωνίας", 120),
     email,
@@ -202,6 +213,11 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     currentSalesChannels: optionalLimited(input.currentSalesChannels, 600),
     notes: optionalLimited(input.notes, 1500)
   };
+}
+
+function requireBillingCycle(value: HubBillingCycle): HubBillingCycle {
+  if (value === "annual" || value === "monthly") return value;
+  throw new HubProspectApplicationError(400, "billing_cycle_invalid", "Επίλεξε έγκυρο τρόπο χρέωσης συνδρομής.");
 }
 
 function registryAddressLine(address: string | undefined, city: string | undefined, municipality: string | undefined, postcode: string): string {
