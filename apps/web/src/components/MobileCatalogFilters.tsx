@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 function isCatalogPath(pathname: string): boolean {
-  return pathname === "/shop" || pathname.startsWith("/category/");
+  // Category pages own their compact filter disclosure inside CategoryCatalogBrowser.
+  // The global off-canvas drawer is only for /shop, where .catalog-sidebar exists.
+  return pathname === "/shop";
 }
 
 export function MobileCatalogFilters() {
