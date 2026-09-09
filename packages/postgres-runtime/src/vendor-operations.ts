@@ -134,13 +134,13 @@ export class PostgresVendorOperationsService {
       const row=found.rows[0],id=text(row.id,"id"),status=text(row.status,"status"),mode=text(row.mode,"mode"),orderStatus=text(row.order_status,"order_status");
       if(input.action==="accept"){
         if(status!=="awaiting_acceptance") throw new Error("Only awaiting fulfilment can be accepted");
-        if(!["confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must be payment-confirmed before vendor acceptance");
+        if(!["authorised","confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must have secured payment before vendor acceptance");
         await tx.query(`SELECT consume_stock_reservation(sr.id,$2,(SELECT id FROM users WHERE public_id=$3))
           FROM stock_reservations sr JOIN fulfilment_order_lines fol ON fol.order_line_id=sr.order_line_id
           WHERE fol.fulfilment_order_id=$1 AND sr.status='active'`,[id,new Date(now),principal.userId]);
         await tx.query("UPDATE fulfilment_orders SET status='accepted',accepted_at=$2,updated_at=$2 WHERE id=$1",[id,new Date(now)]);
       } else if(input.action==="ready"){
-        if(!["confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must be confirmed before pickup preparation can complete");
+        if(!["authorised","confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must have secured payment before pickup preparation can complete");
         if(!["pickup","local_delivery"].includes(mode)) throw new Error("Ready-for-handover is valid only for pickup or KONTA MOY local delivery");
         if(!["accepted","picking","packed"].includes(status)) throw new Error("Fulfilment is not ready for this action");
         await tx.query("UPDATE fulfilment_orders SET status='ready_for_handover',updated_at=$2 WHERE id=$1",[id,new Date(now)]);
@@ -320,4 +320,4 @@ export class PostgresVendorOperationsService {
 }
 
 function requiredVendorId(principal:SessionPrincipal):string{if(!principal.vendorId||!principal.roles.some(r=>r.startsWith("vendor_")))throw new Error("VENDOR_AUTH_REQUIRED");return principal.vendorId}
-function fulfilmentActions(orderStatus:string,mode:string,status:string):readonly string[]{if(!["confirmed","partially_fulfilled"].includes(orderStatus))return[];if(status==="awaiting_acceptance")return["accept","reject"];if(mode==="pickup"&&["accepted","picking","packed"].includes(status))return["ready"];if(mode==="local_delivery"&&["accepted","picking","packed"].includes(status))return["ready"];return[]}
+function fulfilmentActions(orderStatus:string,mode:string,status:string):readonly string[]{if(!["authorised","confirmed","partially_fulfilled"].includes(orderStatus))return[];if(status==="awaiting_acceptance")return["accept","reject"];if(mode==="pickup"&&["accepted","picking","packed"].includes(status))return["ready"];if(mode==="local_delivery"&&["accepted","picking","packed"].includes(status))return["ready"];return[]}
