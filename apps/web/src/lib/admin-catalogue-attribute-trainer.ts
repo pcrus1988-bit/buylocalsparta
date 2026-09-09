@@ -1,6 +1,6 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
-import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
+import { assertAdminPermission, postgresAdminRuntimeEnabled, recordAdminAudit } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 export type AttributeTrainerSuggestion = Readonly<{
@@ -33,6 +33,7 @@ export type AttributeTrainerCard = Readonly<{
   scopeKey?: string;
   contextLabel: string;
   approvedCategoryCode?: string;
+  allowedProductTypeIds: readonly string[];
   observationCount: number;
   productCount: number;
   sourceUnits: readonly string[];
@@ -63,12 +64,216 @@ export type AttributeTrainerWorkspace = Readonly<{
   targets: readonly AttributeTrainerTarget[];
 }>;
 
-type RawCard = Omit<AttributeTrainerCard, "id" | "suggestions" | "actionable" | "blocker"> & Readonly<{
-  allowedProductTypeIds: readonly string[];
+export type CreateAttributeTrainerTargetResult = Readonly<{
+  attributeId: string;
+  attributeCode: string;
+  labelEl: string;
+  dataType: string;
+  productTypeId: string;
+  productTypeCode: string;
+  valueLevel: "family" | "variant";
+  createdAttribute: boolean;
+  createdBinding: boolean;
 }>;
 
+type RawCard = Omit<AttributeTrainerCard, "id" | "suggestions" | "actionable" | "blocker">;
 type TargetInternal = AttributeTrainerTarget & Readonly<{ labels: readonly string[] }>;
 type HistoricalRule = Readonly<{ sourceId: string; sourceAttributeKey: string; productTypeId: string; attributeId: string }>;
+
+const CREATE_DATA_TYPES = ["boolean", "dimension", "enum", "multienum", "number", "text"] as const;
+const CREATE_VALUE_LEVELS = ["family", "variant"] as const;
+
+export async function createAttributeTrainerTarget(
+  principal: SessionPrincipal,
+  input: {
+    sourceProductId: string;
+    sourceAttributeKey: string;
+    productTypeId: string;
+    labelEl: string;
+    dataType: string;
+    valueLevel: string;
+  }
+): Promise<CreateAttributeTrainerTargetResult> {
+  assertAdminPermission(principal, "catalog.write");
+  if (!postgresAdminRuntimeEnabled()) throw new Error("Postgres catalogue runtime is not enabled");
+
+  const sourceProductId = input.sourceProductId.trim();
+  const sourceAttributeKey = input.sourceAttributeKey.trim();
+  const productTypeId = input.productTypeId.trim();
+  const labelEl = input.labelEl.trim().replace(/\s+/g, " ");
+  const dataType = input.dataType.trim() as (typeof CREATE_DATA_TYPES)[number];
+  const valueLevel = input.valueLevel.trim() as (typeof CREATE_VALUE_LEVELS)[number];
+  if (!sourceProductId || !sourceAttributeKey || !productTypeId || !labelEl) {
+    throw new Error("Source product, source attribute, Product Type and canonical attribute name are required");
+  }
+  if (labelEl.length < 2 || labelEl.length > 120) throw new Error("Canonical attribute name must be 2–120 characters");
+  if (!CREATE_DATA_TYPES.includes(dataType)) throw new Error("Invalid canonical attribute data type");
+  if (!CREATE_VALUE_LEVELS.includes(valueLevel)) throw new Error("Invalid Product Type value level");
+
+  const attributeCode = canonicalCode(labelEl);
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 20_000, lockTimeoutMs: 3_000 });
+  const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const sourceContext = await tx.query<SqlRow>(`
+      SELECT sp.source_taxonomy_node_id::text AS taxonomy_node_id,
+             m.category_id::text AS approved_category_id
+      FROM public.catalog_source_products sp
+      LEFT JOIN public.catalog_source_category_mappings m
+        ON m.source_taxonomy_node_id=sp.source_taxonomy_node_id
+       AND m.mapping_status='approved'
+      WHERE sp.id=$1::uuid
+        AND EXISTS (
+          SELECT 1 FROM public.catalog_source_attribute_observations a
+          WHERE a.source_product_id=sp.id
+            AND a.source_attribute_key=$2
+            AND a.mapping_status='unmapped'
+            AND a.attribute_id IS NULL
+        )
+      LIMIT 1
+    `, [sourceProductId, sourceAttributeKey]);
+    const context = sourceContext.rows[0];
+    if (!context) throw new Error("The selected source attribute is no longer unresolved");
+
+    const taxonomyNodeId = optional(context.taxonomy_node_id);
+    const approvedCategoryId = optional(context.approved_category_id);
+    if (taxonomyNodeId && !approvedCategoryId) {
+      throw new Error("Approve the supplier taxonomy → KONTAMOU category mapping before creating a reusable attribute");
+    }
+
+    const productTypeResult = await tx.query<SqlRow>(`
+      SELECT pt.id::text AS product_type_id, pt.code AS product_type_code
+      FROM public.product_types pt
+      WHERE pt.id=$1::uuid AND pt.status='active'
+      LIMIT 1
+    `, [productTypeId]);
+    const productType = productTypeResult.rows[0];
+    if (!productType) throw new Error("The selected Product Type is not active");
+    const productTypeCode = required(productType.product_type_code, "product type.code");
+
+    if (approvedCategoryId) {
+      const allowed = await tx.query<SqlRow>(`
+        SELECT 1 AS allowed
+        FROM public.category_product_types
+        WHERE category_id=$1::uuid AND product_type_id=$2::uuid
+        LIMIT 1
+      `, [approvedCategoryId, productTypeId]);
+      if (!allowed.rowCount) throw new Error(`Product Type ${productTypeCode} is not allowed for the approved category`);
+    }
+
+    const existing = await tx.query<SqlRow>(`
+      SELECT ad.id::text AS attribute_id, ad.code AS attribute_code, ad.data_type, ad.active
+      FROM public.attribute_definitions ad
+      WHERE ad.code=$1
+         OR EXISTS (
+           SELECT 1
+           FROM public.attribute_translations at
+           WHERE at.attribute_id=ad.id
+             AND lower(btrim(at.label))=lower(btrim($2))
+         )
+      ORDER BY (ad.code=$1) DESC, ad.active DESC, ad.id
+      LIMIT 1
+      FOR UPDATE
+    `, [attributeCode, labelEl]);
+
+    let attributeId: string;
+    let resolvedCode: string;
+    let resolvedDataType: string;
+    let createdAttribute = false;
+    const existingAttribute = existing.rows[0];
+    if (existingAttribute) {
+      if (existingAttribute.active !== true) {
+        throw new Error("A canonical attribute with this name/code already exists but is inactive. Reactivate it in Catalogue Structure instead of creating a duplicate.");
+      }
+      attributeId = required(existingAttribute.attribute_id, "attribute.id");
+      resolvedCode = required(existingAttribute.attribute_code, "attribute.code");
+      resolvedDataType = required(existingAttribute.data_type, "attribute.data_type");
+    } else {
+      const valueMode = dataType === "enum" || dataType === "multienum" ? "controlled" : "free";
+      const inserted = await tx.query<SqlRow>(`
+        INSERT INTO public.attribute_definitions(
+          code,data_type,value_mode,active,filterable,variant_identity
+        ) VALUES ($1,$2,$3,true,false,false)
+        RETURNING id::text AS attribute_id,code AS attribute_code,data_type
+      `, [attributeCode, dataType, valueMode]);
+      const row = inserted.rows[0];
+      attributeId = required(row?.attribute_id, "attribute.id");
+      resolvedCode = required(row?.attribute_code, "attribute.code");
+      resolvedDataType = required(row?.data_type, "attribute.data_type");
+      createdAttribute = true;
+    }
+
+    await tx.query(`
+      INSERT INTO public.attribute_translations(attribute_id,locale,label)
+      VALUES($1::uuid,'el',$2)
+      ON CONFLICT(attribute_id,locale) DO NOTHING
+    `, [attributeId, labelEl]);
+
+    const existingBinding = await tx.query<SqlRow>(`
+      SELECT value_level
+      FROM public.product_type_attributes
+      WHERE product_type_id=$1::uuid AND attribute_id=$2::uuid
+      FOR UPDATE
+    `, [productTypeId, attributeId]);
+    let createdBinding = false;
+    let resolvedValueLevel = valueLevel;
+    if (existingBinding.rowCount) {
+      const stored = required(existingBinding.rows[0]?.value_level, "product type attribute.value_level");
+      if (!CREATE_VALUE_LEVELS.includes(stored as (typeof CREATE_VALUE_LEVELS)[number])) {
+        throw new Error("Existing Product Type attribute binding has an unsupported value level");
+      }
+      resolvedValueLevel = stored as (typeof CREATE_VALUE_LEVELS)[number];
+    } else {
+      await tx.query(`
+        INSERT INTO public.product_type_attributes(
+          product_type_id,attribute_id,requirement_level,value_level,
+          filterable,searchable,customer_visible,comparable,variant_defining,
+          allow_multiple,sort_order,variant_axis_order,unit_override
+        )
+        SELECT $1::uuid,$2::uuid,'optional',$3,
+               false,false,true,false,false,
+               $4,
+               COALESCE(MAX(sort_order),-10)+10,
+               NULL,NULL
+        FROM public.product_type_attributes
+        WHERE product_type_id=$1::uuid
+      `, [productTypeId, attributeId, valueLevel, resolvedDataType === "multienum"]);
+      createdBinding = true;
+    }
+
+    return {
+      attributeId,
+      attributeCode: resolvedCode,
+      labelEl,
+      dataType: resolvedDataType,
+      productTypeId,
+      productTypeCode,
+      valueLevel: resolvedValueLevel,
+      createdAttribute,
+      createdBinding
+    } satisfies CreateAttributeTrainerTargetResult;
+  }, { isolation: "serializable", statementTimeoutMs: 20_000 });
+
+  await recordAdminAudit(
+    principal,
+    "catalogue.attribute_trainer.target_created",
+    "attribute_definition",
+    result.attributeId,
+    `Attribute Trainer: ${result.createdAttribute ? "created" : "reused"} ${result.attributeCode} for ${result.productTypeCode}`,
+    {
+      sourceProductId,
+      sourceAttributeKey,
+      productTypeId: result.productTypeId,
+      productTypeCode: result.productTypeCode,
+      attributeCode: result.attributeCode,
+      labelEl: result.labelEl,
+      dataType: result.dataType,
+      valueLevel: result.valueLevel,
+      createdAttribute: result.createdAttribute,
+      createdBinding: result.createdBinding
+    }
+  );
+  return result;
+}
 
 export async function adminCatalogueAttributeTrainerWorkspace(
   principal: SessionPrincipal,
@@ -250,9 +455,8 @@ function buildCards(cards: readonly RawCard[], targets: readonly TargetInternal[
       .sort((a, b) => b.score - a.score || a.productTypeName.localeCompare(b.productTypeName) || a.attributeCode.localeCompare(b.attributeCode))
       .slice(0, 5);
 
-    const { allowedProductTypeIds: _allowed, ...publicCard } = card;
     return {
-      ...publicCard,
+      ...card,
       id: [card.sourceId, card.sourceAttributeKey, card.scopeKind, card.scopeKey ?? "none"].join(":"),
       suggestions,
       actionable: !blocker,
@@ -346,6 +550,12 @@ function mapHistory(row: SqlRow): HistoricalRule {
     productTypeId: required(row.product_type_id, "history.product_type_id"),
     attributeId: required(row.attribute_id, "history.attribute_id")
   };
+}
+
+function canonicalCode(label: string): string {
+  const code = normalize(label).replace(/\s+/g, "_").replace(/^_+|_+$/g, "").slice(0, 96);
+  if (!code) throw new Error("Canonical attribute name cannot be converted to a stable code");
+  return code;
 }
 
 function similarityScore(a: string, b: string): number {
