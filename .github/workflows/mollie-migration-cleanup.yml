@@ -12,6 +12,7 @@ on:
       - scripts/**
       - workers/**
       - deploy/**
+      - db/migrations/**
       - package.json
       - package-lock.json
 
@@ -36,19 +37,25 @@ jobs:
       - name: Clean install
         run: npm ci --ignore-scripts
 
-      - name: Reject active Viva payment artifacts
+      - name: Reject active Viva payment and fiscal artifacts
         shell: bash
         run: |
           test ! -e packages/viva-payments
           test ! -e packages/postgres-runtime/src/viva-payments.ts
           test ! -e apps/web/src/lib/viva-runtime.ts
           test ! -e apps/web/src/app/api/payments/viva/webhook/route.ts
-          ! grep -RniI -E '@buy-local-sparta/viva-payments|VIVA_PAYMENTS_ENABLED|VIVA_CLIENT_ID|VIVA_CLIENT_SECRET|VIVA_MERCHANT_ID|VIVA_API_KEY|VIVA_SOURCE_CODE|requireVivaPayments|vivaPaymentsEnabled|provider=.viva.|provider=.VIVA.' \
+          ! grep -RniI -E '@buy-local-sparta/viva-payments|VIVA_PAYMENTS_ENABLED|VIVA_CLIENT_ID|VIVA_CLIENT_SECRET|VIVA_MERCHANT_ID|VIVA_API_KEY|VIVA_SOURCE_CODE|BLS_VIVA_FISCAL|viva_fiscal_provider|requireVivaPayments|vivaPaymentsEnabled|PostgresVivaPaymentsService|VivaPaymentsGateway|FakeVivaGateway|typecheck:viva|test:viva|vivaCrossInstance|provider=.viva.|provider=.VIVA.' \
             apps packages scripts workers deploy .env.example package.json package-lock.json \
             --exclude-dir=node_modules \
             --exclude='*.md' \
             --exclude='0031_viva_payments.sql' \
             --exclude='0076_accounting_mapping_v1.sql'
+
+      - name: Verify migration chain
+        run: npm run db:verify
+
+      - name: Verify project consistency
+        run: npm run check:consistency
 
       - name: Test Mollie package
         run: npm run test:mollie
@@ -59,8 +66,14 @@ jobs:
       - name: Type-check PostgreSQL runtime
         run: npm run typecheck:postgres-runtime
 
+      - name: Type-check live database smoke
+        run: npm run typecheck:db-smoke
+
       - name: Verify checkout UX
         run: npm run check:checkout-ux
+
+      - name: Verify private-offer checkout
+        run: npm run check:private-offer-checkout
 
       - name: Verify payment resume
         run: npm run check:payment-resume
