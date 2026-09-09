@@ -6,7 +6,7 @@ import { checkoutCustomer, postgresCommerceEnabled, syncPersistentCustomerCart }
 import { attachCustomerOrderAddresses, customerCheckoutProfile } from "../../../lib/customer-address-runtime";
 import { GiftCardRemainderBelowMinimumError, redeemGiftCardForOrder } from "../../../lib/gift-card-service";
 import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
-import { molliePaymentsEnabled, requireMolliePayments } from "../../../lib/mollie-runtime";
+import { molliePaymentsEnabled, prepareMolliePaymentRetry, requireMolliePayments } from "../../../lib/mollie-runtime";
 
 type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
@@ -193,6 +193,7 @@ export async function POST(request: Request) {
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardAmountMinor: giftCard?.amountMinor ?? 0, remainingPayableMinor: payableMinor }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
     if (postgresCommerceEnabled() && molliePaymentsEnabled()) {
+      await prepareMolliePaymentRetry({ orderId: order.id, customerId: principal.userId, now });
       const payment = await requireMolliePayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
       return Response.json({ ...order, giftCard, payment: { provider: "mollie", paymentId: payment.paymentId, orderNumber: payment.orderNumber, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: 201 });
     }

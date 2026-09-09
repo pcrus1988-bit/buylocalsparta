@@ -1,6 +1,6 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { requireMolliePayments, molliePaymentsEnabled } from "./mollie-runtime";
+import { requireMolliePayments, molliePaymentsEnabled, prepareMolliePaymentRetry } from "./mollie-runtime";
 
 export type CustomerPaymentResumeResult = Readonly<{
   orderId: string;
@@ -69,6 +69,7 @@ export async function resumeCustomerOrderPayment(
   const startedAt = input.now ?? Date.now();
 
   await activePaymentWindow(principal, orderId, startedAt);
+  await prepareMolliePaymentRetry({ orderId, customerId: principal.userId, now: startedAt });
   const payment = await requireMolliePayments().initiateOrderPayment({
     orderId,
     customerId: principal.userId,

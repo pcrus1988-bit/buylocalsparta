@@ -17,6 +17,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/pending-payments",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/order-sla",
       "schedule": "*/5 * * * *"
     },
