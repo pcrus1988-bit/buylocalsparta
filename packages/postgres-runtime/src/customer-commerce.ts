@@ -177,6 +177,17 @@ export class PostgresCustomerCommerceService {
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE (m.code=$1 OR m.id::text=$1)
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+        AND (
+          NOT EXISTS (SELECT 1 FROM vendor_offers any_vo WHERE any_vo.canonical_variant_id=cv.id)
+          OR EXISTS (
+            SELECT 1 FROM vendor_offers public_vo
+            WHERE public_vo.canonical_variant_id=cv.id
+              AND public_vo.status NOT IN ('archived','suppressed')
+              AND public_vo.merchant_visible=true
+              AND public_vo.merchant_pause_active=false
+              AND bls_private.vendor_category_effectively_visible(public_vo.vendor_id,cv.category_id)
+          )
+        )
       ORDER BY cv.created_at DESC,cv.public_id
     `, [marketId]), { readOnly: true });
     return result.rows.map((row) => this.#canonicalRecord(row));
@@ -241,6 +252,8 @@ export class PostgresCustomerCommerceService {
                  SELECT 1 FROM vendor_offers vo JOIN vendor_businesses v ON v.id=vo.vendor_id JOIN vendor_locations l ON l.id=vo.location_id
                  JOIN inventory_balances ib ON ib.offer_id=vo.id
                  WHERE vo.canonical_variant_id=cv.id AND vo.status='approved' AND v.status='active' AND l.active=true
+                   AND vo.merchant_visible=true AND vo.merchant_pause_active=false
+                   AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
                    AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
                    AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=ci.quantity
                    AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds) > now()
@@ -647,6 +660,8 @@ export class PostgresCustomerCommerceService {
         LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         WHERE vo.vendor_id=$1 AND vo.status='approved' AND l.active=true AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+          AND vo.merchant_visible=true AND vo.merchant_pause_active=false
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
           AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds) > $2
         GROUP BY cv.id,cv.public_id,cv.slug,m.id,m.code,c.code,el.title,en.title
         ORDER BY cv.public_id`, [vendorUuid, new Date(now)]);
@@ -664,6 +679,17 @@ export class PostgresCustomerCommerceService {
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE (cv.public_id=$1 OR cv.id::text=$1) AND (m.code=$2 OR m.id::text=$2)
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+        AND (
+          NOT EXISTS (SELECT 1 FROM vendor_offers any_vo WHERE any_vo.canonical_variant_id=cv.id)
+          OR EXISTS (
+            SELECT 1 FROM vendor_offers public_vo
+            WHERE public_vo.canonical_variant_id=cv.id
+              AND public_vo.status NOT IN ('archived','suppressed')
+              AND public_vo.merchant_visible=true
+              AND public_vo.merchant_pause_active=false
+              AND bls_private.vendor_category_effectively_visible(public_vo.vendor_id,cv.category_id)
+          )
+        )
       LIMIT 1`, [canonicalVariantId, marketId]);
     return result.rows[0];
   }
@@ -682,6 +708,7 @@ export class PostgresCustomerCommerceService {
              vo.supplier_unit_price_minor,vo.supplier_tax_rate_bps,
              GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) AS available_to_sell,ib.stock_confirmed_at
       FROM vendor_offers vo JOIN vendor_businesses v ON v.id=vo.vendor_id JOIN vendor_locations l ON l.id=vo.location_id
+      JOIN canonical_variants offer_cv ON offer_cv.id=vo.canonical_variant_id
       JOIN inventory_balances ib ON ib.offer_id=vo.id
       LEFT JOIN LATERAL (
         SELECT r.max_open_fulfilments FROM fulfilment_capacity_rules r
@@ -695,6 +722,8 @@ export class PostgresCustomerCommerceService {
           AND fo.status=ANY($5::fulfilment_status[]) AND co.status <> 'pending_payment'
       ) load ON true
       WHERE vo.canonical_variant_id=$1 AND vo.status='approved' AND v.status='active' AND l.active=true
+        AND vo.merchant_visible=true AND vo.merchant_pause_active=false
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,offer_cv.category_id)
         AND $2=ANY(vo.fulfilment_modes)
         AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
         AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) >= $3
