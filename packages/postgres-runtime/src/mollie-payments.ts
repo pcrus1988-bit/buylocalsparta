@@ -381,12 +381,12 @@ export class PostgresMolliePaymentsService {
   }
 
   async #completeApprovedReturn(tx: SqlExecutor, returnId: string, refundUuid: string, now: number): Promise<void> {
-    const rows = await tx.query<SqlRow>(`SELECT r.id::text AS return_uuid,r.status::text,o.id::text AS order_uuid,rl.id::text AS return_line_uuid,rl.order_line_id::text AS line_uuid,rl.quantity
+    const rows = await tx.query<SqlRow>(`SELECT r.id::text AS return_uuid,r.status::text,o.id::text AS order_uuid,rl.order_line_id::text AS line_uuid,rl.quantity
       FROM returns r JOIN customer_orders o ON o.id=r.order_id JOIN return_lines rl ON rl.return_id=r.id WHERE r.public_id=$1 FOR UPDATE OF r,rl`, [returnId]);
     if (!rows.rowCount || text(rows.rows[0].status, "return.status") === "refunded") return;
     for (const row of rows.rows) {
       await tx.query(`UPDATE order_lines SET refunded_quantity=LEAST(quantity,refunded_quantity+$2),status=CASE WHEN refunded_quantity+$2>=quantity THEN 'refunded' ELSE status END WHERE id=$1`, [text(row.line_uuid, "line_uuid"), integer(row.quantity, "return.quantity")]);
-      await tx.query(`UPDATE return_lines SET refund_id=$2 WHERE id=$1`, [text(row.return_line_uuid, "return_line_uuid"), refundUuid]);
+      await tx.query(`UPDATE return_lines SET refund_id=$3 WHERE return_id=$1 AND order_line_id=$2`, [text(row.return_uuid, "return_uuid"), text(row.line_uuid, "line_uuid"), refundUuid]);
     }
     const returnUuid = text(rows.rows[0].return_uuid, "return_uuid");
     const orderUuid = text(rows.rows[0].order_uuid, "order_uuid");
