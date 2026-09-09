@@ -1,0 +1,106 @@
+name: Mollie release consistency cutover
+
+on:
+  push:
+    branches:
+      - migration/mollie-payments-v2
+    paths:
+      - .github/workflows/mollie-finalize-consistency.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: migration/mollie-payments-v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Convert release consistency assertions to Mollie
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/verify-project-consistency.ts')
+          src = path.read_text()
+
+          replacements = {
+            'const vivaPackage = readJson("packages/viva-payments/package.json");': 'const molliePackage = readJson("packages/mollie-payments/package.json");',
+            'if (postgresPackage.dependencies?.["@buy-local-sparta/viva-payments"] !== vivaPackage.version || webPackage.dependencies?.["@buy-local-sparta/viva-payments"] !== vivaPackage.version) errors.push("Web/PostgreSQL runtime Viva dependency must match the local Viva package version");': 'if (postgresPackage.dependencies?.["@buy-local-sparta/mollie-payments"] !== molliePackage.version || webPackage.dependencies?.["@buy-local-sparta/mollie-payments"] !== molliePackage.version) errors.push("Web/PostgreSQL runtime Mollie dependency must match the local Mollie package version");',
+            'if ([vivaPackage, postgresPackage, myDataPackage, objectStoragePackage, mediaProcessingPackage, searchPackage, resendPackage, boxNowPackage].some((pkg) => pkg.version !== rootPackage.version)) errors.push("Release-scoped production adapter versions must match the root build version");': 'if ([molliePackage, postgresPackage, myDataPackage, objectStoragePackage, mediaProcessingPackage, searchPackage, resendPackage, boxNowPackage].some((pkg) => pkg.version !== rootPackage.version)) errors.push("Release-scoped production adapter versions must match the root build version");',
+            'if (!rootPackage.scripts?.["test:viva"] || !rootPackage.scripts?.["typecheck:viva"]) errors.push("Root scripts must include Viva provider tests and TypeScript typecheck");': 'if (!rootPackage.scripts?.["test:mollie"] || !rootPackage.scripts?.["typecheck:mollie"]) errors.push("Root scripts must include Mollie provider tests and TypeScript typecheck");',
+            'if (!nextConfig.includes(\'"@buy-local-sparta/viva-payments"\')) errors.push("Next.js must transpile the local Viva payments workspace");': 'if (!nextConfig.includes(\'"@buy-local-sparta/mollie-payments"\')) errors.push("Next.js must transpile the local Mollie payments workspace");',
+            'errors.push("Production readiness route must gate on PostgreSQL/Viva readiness and return HTTP 503 when unavailable")': 'errors.push("Production readiness route must gate on PostgreSQL/Mollie readiness and return HTTP 503 when unavailable")',
+            '"payments.viva_reconciliation_watch"': '"payments.mollie_reconciliation_watch"',
+            '"VIVA_PAYMENTS_ENABLED=", "VIVA_ENVIRONMENT=", "VIVA_CLIENT_ID=", "VIVA_CLIENT_SECRET=", "VIVA_MERCHANT_ID=", "VIVA_API_KEY=", "VIVA_SOURCE_CODE="': '"MOLLIE_PAYMENTS_ENABLED=", "MOLLIE_API_KEY=", "MOLLIE_API_BASE_URL=", "MOLLIE_PUBLIC_BASE_URL=", "MOLLIE_REQUEST_TIMEOUT_MS=", "BLS_ALLOW_MOLLIE_TEST_PREVIEW="'
+          }
+          for old, new in replacements.items():
+            if old not in src:
+              raise SystemExit(f'Missing expected consistency fragment: {old[:100]}')
+            src = src.replace(old, new)
+
+          start_marker = 'if (checkoutRoute.includes("BLS_ALLOW_PRE_PSP_CHECKOUT")'
+          end_marker = 'if (!postgresCustomerCommerce.includes("visitorHash: visitorHash(input.visitorKey)")'
+          start = src.index(start_marker)
+          end = src.index(end_marker, start)
+          mollie_block = '''if (checkoutRoute.includes("BLS_ALLOW_PRE_PSP_CHECKOUT") || read(".env.example").includes("BLS_ALLOW_PRE_PSP_CHECKOUT")) errors.push("Legacy pre-PSP checkout preview gate must be removed once Mollie hosted checkout is wired");
+if (!checkoutRoute.includes("molliePaymentsEnabled") || !checkoutRoute.includes("requireMolliePayments().initiateOrderPayment") || !checkoutRoute.includes("Checkout requires the configured Mollie payment adapter")) errors.push("Production PostgreSQL checkout must fail closed unless Mollie is configured and initiate the provider payment after internal checkout");
+const mollieRuntime = read("packages/postgres-runtime/src/mollie-payments.ts");
+const mollieProvider = read("packages/mollie-payments/src/index.ts");
+const paymentSchemaMigration = read("db/migrations/0031_viva_payments.sql");
+for (const boundary of ["provider_payment_id", "provider_transaction_id", "provider_verified_at", "provider_payload", "manual_review"]) if (!mollieRuntime.includes(boundary) && !paymentSchemaMigration.includes(boundary)) errors.push(`Payment persistence/runtime is missing ${boundary}`);
+for (const boundary of ['paymentCreationState: "creating"', 'paymentCreationState: "manual_review"', "automatic retry is blocked", "payment_creation_started"]) if (!mollieRuntime.includes(boundary)) errors.push(`Mollie payment distributed idempotency is missing ${boundary}`);
+for (const boundary of ["/payments", "/refunds", "mollieValueToMinor", "parseMollieWebhookBody", "Bearer ${this.#config.apiKey}"]) if (!mollieProvider.includes(boundary)) errors.push(`Mollie provider adapter is missing ${boundary}`);
+if (!paymentSchemaMigration.includes("COALESCE(o.status::text,'') NOT IN ('confirmed'") || !postgresVendorOperations.includes("consume_stock_reservation")) errors.push("Paid payment reservations must survive generic expiry and be consumed on confirmed Vendor acceptance");
+const mollieWebhook = read("apps/web/src/app/api/payments/mollie/webhook/route.ts");
+if (!mollieWebhook.includes("parseMollieWebhookBody") || !mollieWebhook.includes("reconcileMolliePaymentSafely")) errors.push("Mollie webhook route must parse the payment id and reconcile against provider state server-side");
+if (!mollieRuntime.includes("orderReturnUrl(this.#publicBaseUrl") || !mollieRuntime.includes("reconcilePayment")) errors.push("Mollie redirect flow must return to the order view and reconcile provider state server-side");
+if (!workerSource.includes("creation_attempt_stale") || !workerSource.includes("provider_outcome_unknown")) errors.push("Mollie stale payment/refund attempts must be promoted to manual reconciliation instead of automatically retried");
+if (!mollieRuntime.includes("late_capture_after_cancellation") || !mollieRuntime.includes("`late-capture:${applied.orderId}`")) errors.push("Late Mollie captures after cancellation must trigger one stable auto-refund attempt");
+if (!read("packages/postgres-runtime/src/admin-operations.ts").includes("status IN ('manual_review','failed')")) errors.push("Admin payment health must surface both uncertain and explicitly failed refund outcomes");
+if (!read("packages/core/src/commerce/types.ts").includes('"requires_action"')) errors.push("PaymentStatus must include the requires_action state persisted by Mollie hosted checkout");
+if (!read(".github/workflows/production-ci.yml").includes("Typecheck Mollie payment adapter") || !read(".github/workflows/production-ci.yml").includes("npm run typecheck:mollie")) errors.push("Production CI must typecheck the Mollie payment adapter before live database/build validation");
+'''
+          src = src[:start] + mollie_block + src[end:]
+          path.write_text(src)
+
+          ci = Path('.github/workflows/production-ci.yml')
+          ci_src = ci.read_text()
+          old = '      - name: Typecheck Viva payment adapter\n        run: npm run typecheck:viva'
+          new = '      - name: Typecheck Mollie payment adapter\n        run: npm run typecheck:mollie'
+          if old not in ci_src:
+            raise SystemExit('Production CI Viva typecheck block not found')
+          ci.write_text(ci_src.replace(old, new))
+          PY
+
+      - name: Regenerate package lock from current Mollie-only workspaces
+        shell: bash
+        run: |
+          rm package-lock.json
+          npm install --package-lock-only --ignore-scripts
+
+      - name: Confirm no active Viva payment artifacts remain in release paths
+        shell: bash
+        run: |
+          ! grep -RniI -E '@buy-local-sparta/viva-payments|VIVA_PAYMENTS_ENABLED|VIVA_CLIENT_ID|VIVA_CLIENT_SECRET|VIVA_MERCHANT_ID|VIVA_API_KEY|VIVA_SOURCE_CODE|requireVivaPayments|vivaPaymentsEnabled|provider=.viva.|provider=.VIVA.|typecheck:viva|test:viva' \
+            apps packages scripts workers deploy .github/workflows/production-ci.yml .env.example package.json package-lock.json \
+            --exclude-dir=node_modules \
+            --exclude='*.md' \
+            --exclude='0031_viva_payments.sql' \
+            --exclude='0076_accounting_mapping_v1.sql'
+
+      - name: Commit release cutover
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/verify-project-consistency.ts .github/workflows/production-ci.yml package-lock.json
+          git commit -m 'Replace Viva release assertions with Mollie'
+          git push origin HEAD:migration/mollie-payments-v2
