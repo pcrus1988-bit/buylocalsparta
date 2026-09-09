@@ -1,6 +1,14 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
+  isLiveLocalitySlug,
+  locationGatewayEnforcementEnabled,
+  locationGatewayRedirectDecision,
+  locationGatewayRequestTarget,
+  sanitizeLocationGatewayNext
+} from "../apps/web/src/lib/location-gateway-routing.ts";
+import { seoDocumentRobotsHeader } from "../apps/web/src/lib/seo-request-indexing.ts";
+import {
   FOOTER_NAVIGATION,
   INDEXABLE_STATIC_ROUTES,
   NON_INDEXABLE_PAGE_ROUTES,
@@ -136,6 +144,45 @@ const proxy = read("apps/web/src/proxy.ts");
 if (!proxy.includes("getActivePublicCmsRedirect")) failures.push("Public request boundary must consume persisted CMS redirects");
 if (!proxy.includes("REDIRECT_PROTECTED_ROOTS")) failures.push("CMS redirects must not override private, account, checkout or API route roots");
 if (!proxy.includes("request.method !== \"GET\"") || !proxy.includes("request.method !== \"HEAD\"")) failures.push("CMS redirects must be limited to safe read methods");
+if (!proxy.includes("BLS_LOCATION_GATEWAY_ENFORCEMENT_ENABLED")) failures.push("First-visit location interception must remain behind an explicit server-only feature flag");
+if (!proxy.includes("locationGatewayRedirectDecision")) failures.push("Request proxy must use the governed first-visit location routing policy");
+if (!proxy.includes('response.headers.set("Cache-Control", "private, no-store")')) failures.push("Cookie-dependent location redirects must not be shared-cached");
+if (!proxy.includes('"/choose-location"')) failures.push("CMS redirects must not override the location gateway route");
+
+if (locationGatewayEnforcementEnabled(undefined) || locationGatewayEnforcementEnabled("false") || locationGatewayEnforcementEnabled("1")) failures.push("Location gateway enforcement must fail closed/off unless explicitly set to true");
+if (!locationGatewayEnforcementEnabled(" true ") || !locationGatewayEnforcementEnabled("TRUE")) failures.push("Location gateway enforcement should accept an explicit case-insensitive true value");
+if (!isLiveLocalitySlug("sparti")) failures.push("Sparta must remain a live locality in the first-visit routing policy");
+if (isLiveLocalitySlug("kalamata")) failures.push("Kalamata must not bypass first-visit selection while it remains prospect-only");
+
+const browserUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36";
+const gatewayCases = [
+  { label: "flag off", input: { enabled: false, method: "GET", pathname: "/", userAgent: browserUserAgent }, redirect: false, reason: "disabled" },
+  { label: "new shopper", input: { enabled: true, method: "GET", pathname: "/", userAgent: browserUserAgent }, redirect: true, reason: "selection-required" },
+  { label: "returning Sparta shopper", input: { enabled: true, method: "GET", pathname: "/", userAgent: browserUserAgent, localityCookie: "sparti" }, redirect: false, reason: "live-locality" },
+  { label: "prospect locality cookie", input: { enabled: true, method: "GET", pathname: "/", userAgent: browserUserAgent, localityCookie: "kalamata" }, redirect: true, reason: "selection-required" },
+  { label: "invalid locality cookie", input: { enabled: true, method: "GET", pathname: "/", userAgent: browserUserAgent, localityCookie: "not-a-hub" }, redirect: true, reason: "selection-required" },
+  { label: "Googlebot", input: { enabled: true, method: "GET", pathname: "/", userAgent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" }, redirect: false, reason: "crawler-bypass" },
+  { label: "prefetch", input: { enabled: true, method: "GET", pathname: "/", userAgent: browserUserAgent, prefetch: true }, redirect: false, reason: "prefetch-bypass" },
+  { label: "POST root", input: { enabled: true, method: "POST", pathname: "/", userAgent: browserUserAgent }, redirect: false, reason: "method-bypass" },
+  { label: "gateway itself", input: { enabled: true, method: "GET", pathname: "/choose-location", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" },
+  { label: "admin", input: { enabled: true, method: "GET", pathname: "/admin", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" },
+  { label: "vendor", input: { enabled: true, method: "GET", pathname: "/vendor/orders", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" },
+  { label: "driver", input: { enabled: true, method: "GET", pathname: "/driver", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" },
+  { label: "API", input: { enabled: true, method: "GET", pathname: "/api/catalog", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" },
+  { label: "product SEO deep link", input: { enabled: true, method: "GET", pathname: "/product/example", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" },
+  { label: "category SEO deep link", input: { enabled: true, method: "GET", pathname: "/category/tools", userAgent: browserUserAgent }, redirect: false, reason: "route-bypass" }
+] as const;
+for (const testCase of gatewayCases) {
+  const decision = locationGatewayRedirectDecision(testCase.input);
+  if (decision.redirect !== testCase.redirect || decision.reason !== testCase.reason) failures.push(`Location gateway ${testCase.label} decision was ${decision.redirect}/${decision.reason}; expected ${testCase.redirect}/${testCase.reason}`);
+}
+
+if (sanitizeLocationGatewayNext("/product/example?q=drill#offers") !== "/product/example?q=drill#offers") failures.push("Location gateway must preserve safe same-origin return paths");
+for (const unsafe of ["https://evil.example/", "//evil.example/", "/\\evil.example/", "/choose-location", "javascript:alert(1)"]) {
+  if (sanitizeLocationGatewayNext(unsafe) !== "/") failures.push(`Location gateway accepted unsafe return target ${unsafe}`);
+}
+if (locationGatewayRequestTarget("/", "?utm_source=test") !== "/?utm_source=test") failures.push("Location gateway request target must preserve a safe root query string");
+if (seoDocumentRobotsHeader("/choose-location", new URLSearchParams()) !== "noindex, nofollow, noarchive") failures.push("Location gateway response robots header must match page-level noindex,nofollow policy");
 
 const product = read("apps/web/src/app/product/[id]/page.tsx");
 if (product.includes('href="/advice">Πώς λειτουργεί')) failures.push("Product page still misroutes the how-it-works CTA to advice");
@@ -155,4 +202,4 @@ for (const utilityLogin of ["apps/web/src/app/login/page.tsx", "apps/web/src/app
 }
 
 if (failures.length) { console.error("Public navigation checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n")); process.exit(1); }
-console.log(`Public navigation checks passed: ${pageRoutes.length} App Router pages classified, literal links resolved, governed CMS routing verified, private/public vendor states separated and responsive navigation verified.`);
+console.log(`Public navigation checks passed: ${pageRoutes.length} App Router pages classified, literal links resolved, governed CMS routing verified, private/public vendor states separated, first-visit location routing guarded and responsive navigation verified.`);
