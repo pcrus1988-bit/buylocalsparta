@@ -28,19 +28,34 @@ if (!Array.isArray(root.workspaces) || !root.workspaces.includes("apps/*") || !r
   throw new Error("Monorepo workspace declaration is missing apps/* or packages/*");
 }
 
-// Never print payment secret values. This gate reports only legacy key names and Mollie key mode.
+// Never print payment secret values. This gate reports only legacy key names and Mollie credential mode.
 const legacyVivaKeys = Object.keys(process.env)
   .filter((key) => key.startsWith("VIVA_") || key.includes("VIVA_FISCAL"))
   .sort();
 const vercelProduction = process.env.VERCEL_ENV === "production";
-const mollieApiKey = process.env.MOLLIE_API_KEY?.trim();
-const mollieKeyEnvironment = !mollieApiKey
+const vercelPreview = process.env.VERCEL_ENV === "preview";
+const mollieCredential = process.env.MOLLIE_API_KEY?.trim();
+const mollieCredentialType = !mollieCredential
   ? "missing"
-  : mollieApiKey.startsWith("live_")
-    ? "live"
-    : mollieApiKey.startsWith("test_")
-      ? "test"
+  : mollieCredential.startsWith("live_") || mollieCredential.startsWith("test_")
+    ? "api_key"
+    : mollieCredential.startsWith("access_")
+      ? "access_token"
       : "invalid";
+const configuredAccessEnvironment = process.env.MOLLIE_ACCESS_TOKEN_ENVIRONMENT?.trim();
+if (configuredAccessEnvironment && configuredAccessEnvironment !== "test" && configuredAccessEnvironment !== "live") {
+  throw new Error("MOLLIE_ACCESS_TOKEN_ENVIRONMENT must be test or live when configured.");
+}
+const mollieKeyEnvironment = !mollieCredential
+  ? "missing"
+  : mollieCredential.startsWith("live_")
+    ? "live"
+    : mollieCredential.startsWith("test_")
+      ? "test"
+      : mollieCredential.startsWith("access_")
+        ? configuredAccessEnvironment || (vercelProduction ? "live" : vercelPreview ? "test" : "unknown")
+        : "invalid";
+const mollieProfileConfigured = Boolean(process.env.MOLLIE_PROFILE_ID?.trim());
 
 if (legacyVivaKeys.length) {
   const message = `Legacy Viva environment variables remain configured: ${legacyVivaKeys.join(", ")}`;
@@ -52,12 +67,13 @@ if (vercelProduction) {
   if (process.env.MOLLIE_PAYMENTS_ENABLED !== "true") {
     throw new Error("Production deployment requires MOLLIE_PAYMENTS_ENABLED=true; KONTA MOY is Mollie-only.");
   }
-  if (!mollieApiKey) throw new Error("Production deployment requires MOLLIE_API_KEY.");
+  if (!mollieCredential) throw new Error("Production deployment requires MOLLIE_API_KEY.");
+  if (mollieCredentialType === "invalid") throw new Error("Production MOLLIE_API_KEY has an unsupported credential format.");
   if (mollieKeyEnvironment !== "live") {
-    throw new Error("Production deployment requires a Mollie live_ API key; test credentials are preview/test only.");
+    throw new Error("Production deployment requires live Mollie credentials; test credentials are preview/test only.");
   }
-} else if (process.env.VERCEL_ENV === "preview") {
-  console.log(`Mollie preview configuration: enabled=${process.env.MOLLIE_PAYMENTS_ENABLED === "true"}; apiKeyEnvironment=${mollieKeyEnvironment}.`);
+} else if (vercelPreview) {
+  console.log(`Mollie preview configuration: enabled=${process.env.MOLLIE_PAYMENTS_ENABLED === "true"}; credentialType=${mollieCredentialType}; environment=${mollieKeyEnvironment}; profileConfigured=${mollieProfileConfigured}.`);
 }
 
 console.log(`Build context OK: Buy Local Sparta ${root.version} monorepo workspace is visible; payment provider policy is Mollie-only.`);

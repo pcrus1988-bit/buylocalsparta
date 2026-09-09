@@ -4,6 +4,8 @@ export type MollieConfig = Readonly<{
   apiKey: string;
   apiBaseUrl: string;
   requestTimeoutMs: number;
+  profileId?: string;
+  environment?: MollieEnvironment;
 }>;
 
 export type MolliePaymentStatus = "open" | "pending" | "authorized" | "paid" | "failed" | "expired" | "canceled";
@@ -43,6 +45,9 @@ export type MollieFetch = typeof fetch;
 const DEFAULT_API_BASE_URL = "https://api.mollie.com/v2";
 const PAYMENT_ID = /^tr_[A-Za-z0-9]+$/;
 const REFUND_ID = /^re_[A-Za-z0-9]+$/;
+const PROFILE_ID = /^pfl_[A-Za-z0-9]+$/;
+const API_KEY = /^(test|live)_[A-Za-z0-9]+$/;
+const ACCESS_TOKEN = /^access_[A-Za-z0-9]+$/;
 
 export function molliePaymentsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.MOLLIE_PAYMENTS_ENABLED === "true";
@@ -51,7 +56,20 @@ export function molliePaymentsEnabled(env: NodeJS.ProcessEnv = process.env): boo
 export function mollieConfigFromEnv(env: NodeJS.ProcessEnv = process.env): MollieConfig {
   const apiKey = env.MOLLIE_API_KEY?.trim();
   if (!apiKey) throw new Error("MOLLIE_API_KEY is required when Mollie payments are enabled");
-  if (!/^(test|live)_[A-Za-z0-9]+$/.test(apiKey)) throw new Error("MOLLIE_API_KEY has an invalid format");
+  if (!API_KEY.test(apiKey) && !ACCESS_TOKEN.test(apiKey)) throw new Error("MOLLIE_API_KEY has an invalid format");
+
+  const profileId = env.MOLLIE_PROFILE_ID?.trim() || undefined;
+  if (profileId && !PROFILE_ID.test(profileId)) throw new Error("MOLLIE_PROFILE_ID has an invalid format");
+
+  let environment: MollieEnvironment | undefined;
+  if (ACCESS_TOKEN.test(apiKey)) {
+    const configured = env.MOLLIE_ACCESS_TOKEN_ENVIRONMENT?.trim();
+    if (configured && configured !== "test" && configured !== "live") {
+      throw new Error("MOLLIE_ACCESS_TOKEN_ENVIRONMENT must be test or live");
+    }
+    environment = configured as MollieEnvironment | undefined;
+    if (!environment) environment = env.VERCEL_ENV === "production" || env.NODE_ENV === "production" ? "live" : "test";
+  }
 
   const apiBaseUrl = (env.MOLLIE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL).replace(/\/+$/, "");
   const parsed = new URL(apiBaseUrl);
@@ -62,12 +80,17 @@ export function mollieConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Molli
   return {
     apiKey,
     apiBaseUrl,
-    requestTimeoutMs: positiveInteger(env.MOLLIE_REQUEST_TIMEOUT_MS, 10_000, "MOLLIE_REQUEST_TIMEOUT_MS")
+    requestTimeoutMs: positiveInteger(env.MOLLIE_REQUEST_TIMEOUT_MS, 10_000, "MOLLIE_REQUEST_TIMEOUT_MS"),
+    profileId,
+    environment
   };
 }
 
 export function mollieEnvironment(config: MollieConfig): MollieEnvironment {
-  return config.apiKey.startsWith("live_") ? "live" : "test";
+  if (config.apiKey.startsWith("live_")) return "live";
+  if (config.apiKey.startsWith("test_")) return "test";
+  if (ACCESS_TOKEN.test(config.apiKey)) return config.environment ?? "test";
+  throw new Error("Mollie credential has an invalid format");
 }
 
 export class MollieApiError extends Error {
@@ -87,6 +110,7 @@ export class MollieApiError extends Error {
 export class MolliePaymentsClient {
   readonly #config: MollieConfig;
   readonly #fetch: MollieFetch;
+  #resolvedProfileId?: Promise<string>;
 
   constructor(config: MollieConfig, fetchFn: MollieFetch = fetch) {
     this.#config = config;
@@ -98,7 +122,12 @@ export class MolliePaymentsClient {
   }
 
   async readiness(): Promise<{ ok: true; environment: MollieEnvironment }> {
-    await this.#request(`${this.#config.apiBaseUrl}/methods?sequenceType=oneoff`, { method: "GET" });
+    const url = new URL(`${this.#config.apiBaseUrl}/methods`);
+    url.searchParams.set("sequenceType", "oneoff");
+    const profileId = await this.#profileIdForAccessToken();
+    if (profileId) url.searchParams.set("profileId", profileId);
+    if (this.#accessTokenTestMode()) url.searchParams.set("testmode", "true");
+    await this.#request(url.toString(), { method: "GET" });
     return { ok: true, environment: this.environment };
   }
 
@@ -132,6 +161,9 @@ export class MolliePaymentsClient {
       webhookUrl: input.webhookUrl,
       metadata: { ...(input.metadata ?? {}), orderId, orderNumber }
     };
+    const profileId = await this.#profileIdForAccessToken();
+    if (profileId) body.profileId = profileId;
+    if (this.#accessTokenTestMode()) body.testmode = true;
     if (input.cancelUrl) body.cancelUrl = input.cancelUrl;
     if (input.locale) body.locale = bounded(input.locale, 16);
 
@@ -147,7 +179,7 @@ export class MolliePaymentsClient {
 
   async retrievePayment(paymentId: string): Promise<MolliePayment> {
     assertPaymentId(paymentId);
-    const payload = await this.#jsonRequest(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}`, { method: "GET" });
+    const payload = await this.#jsonRequest(this.#accessTokenModeUrl(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}`), { method: "GET" });
     return parsePayment(payload);
   }
 
@@ -157,6 +189,7 @@ export class MolliePaymentsClient {
     const body: Record<string, unknown> = { amount: { currency: "EUR", value: minorToMollieValue(input.amountMinor) } };
     if (input.description) body.description = bounded(input.description, 255);
     if (input.metadata) body.metadata = input.metadata;
+    if (this.#accessTokenTestMode()) body.testmode = true;
 
     const payload = await this.#jsonRequest(
       `${this.#config.apiBaseUrl}/payments/${encodeURIComponent(input.paymentId)}/refunds`,
@@ -169,7 +202,7 @@ export class MolliePaymentsClient {
     assertPaymentId(paymentId);
     assertRefundId(refundId);
     const payload = await this.#jsonRequest(
-      `${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`,
+      this.#accessTokenModeUrl(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`),
       { method: "GET" }
     );
     return parseRefund(payload, paymentId);
@@ -177,13 +210,65 @@ export class MolliePaymentsClient {
 
   async cancelPayment(paymentId: string): Promise<MolliePayment> {
     assertPaymentId(paymentId);
-    const payload = await this.#jsonRequest(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}`, { method: "DELETE" });
+    const init: RequestInit = { method: "DELETE" };
+    if (this.#accessTokenTestMode()) {
+      init.headers = { "content-type": "application/json" };
+      init.body = JSON.stringify({ testmode: true });
+    }
+    const payload = await this.#jsonRequest(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}`, init);
     return parsePayment(payload);
   }
 
   async releaseAuthorization(paymentId: string): Promise<void> {
     assertPaymentId(paymentId);
-    await this.#request(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}/release-authorization`, { method: "POST" });
+    const init: RequestInit = { method: "POST" };
+    if (this.#accessTokenTestMode()) {
+      init.headers = { "content-type": "application/json" };
+      init.body = JSON.stringify({ testmode: true });
+    }
+    await this.#request(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}/release-authorization`, init);
+  }
+
+  #isAccessToken(): boolean {
+    return ACCESS_TOKEN.test(this.#config.apiKey);
+  }
+
+  #accessTokenTestMode(): boolean {
+    return this.#isAccessToken() && this.environment === "test";
+  }
+
+  #accessTokenModeUrl(url: string): string {
+    if (!this.#accessTokenTestMode()) return url;
+    const parsed = new URL(url);
+    parsed.searchParams.set("testmode", "true");
+    return parsed.toString();
+  }
+
+  async #profileIdForAccessToken(): Promise<string | undefined> {
+    if (!this.#isAccessToken()) return undefined;
+    if (this.#config.profileId) return this.#config.profileId;
+    if (!this.#resolvedProfileId) this.#resolvedProfileId = this.#discoverSingleProfileId();
+    return this.#resolvedProfileId;
+  }
+
+  async #discoverSingleProfileId(): Promise<string> {
+    try {
+      const payload = await this.#jsonRequest(`${this.#config.apiBaseUrl}/profiles?limit=2`, { method: "GET" });
+      const embedded = optionalObject(payload._embedded);
+      const profiles = embedded?.profiles;
+      if (!Array.isArray(profiles)) throw new Error("Mollie profiles response is invalid");
+      const ids = profiles
+        .map((profile) => optionalObject(profile)?.id)
+        .filter((value): value is string => typeof value === "string" && PROFILE_ID.test(value));
+      if (ids.length === 1) return ids[0];
+      if (ids.length === 0) throw new Error("MOLLIE_PROFILE_ID is required because no accessible Mollie payment profile could be resolved");
+      throw new Error("MOLLIE_PROFILE_ID is required because this Mollie access token can access multiple profiles");
+    } catch (error) {
+      if (error instanceof MollieApiError && (error.status === 401 || error.status === 403)) {
+        throw new Error("MOLLIE_PROFILE_ID is required for this Mollie access token unless it grants profiles.read permission");
+      }
+      throw error;
+    }
   }
 
   async #jsonRequest(url: string, init: RequestInit): Promise<Record<string, unknown>> {

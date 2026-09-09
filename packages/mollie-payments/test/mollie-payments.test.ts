@@ -34,15 +34,22 @@ function paymentPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test("configuration is fail-closed and detects test/live environments", () => {
+test("configuration is fail-closed and detects API-key and access-token environments", () => {
   assert.throws(() => mollieConfigFromEnv({}), /MOLLIE_API_KEY is required/);
   assert.throws(() => mollieConfigFromEnv({ MOLLIE_API_KEY: "invalid" }), /invalid format/);
   assert.throws(() => mollieConfigFromEnv({ MOLLIE_API_KEY: "test_abc123", MOLLIE_API_BASE_URL: "http:\/\/api.example.test" }), /must use HTTPS/);
+  assert.throws(() => mollieConfigFromEnv({ MOLLIE_API_KEY: "access_abc123", MOLLIE_PROFILE_ID: "bad" }), /MOLLIE_PROFILE_ID has an invalid format/);
+  assert.throws(() => mollieConfigFromEnv({ MOLLIE_API_KEY: "access_abc123", MOLLIE_ACCESS_TOKEN_ENVIRONMENT: "stage" }), /must be test or live/);
 
   const testConfig = mollieConfigFromEnv({ MOLLIE_API_KEY: "test_abc123" });
   const liveConfig = mollieConfigFromEnv({ MOLLIE_API_KEY: "live_abc123", MOLLIE_REQUEST_TIMEOUT_MS: "2500" });
+  const productionAccess = mollieConfigFromEnv({ MOLLIE_API_KEY: "access_abc123", MOLLIE_PROFILE_ID: "pfl_TestProfile123", VERCEL_ENV: "production" });
+  const previewAccess = mollieConfigFromEnv({ MOLLIE_API_KEY: "access_abc123", VERCEL_ENV: "preview" });
   assert.equal(mollieEnvironment(testConfig), "test");
   assert.equal(mollieEnvironment(liveConfig), "live");
+  assert.equal(mollieEnvironment(productionAccess), "live");
+  assert.equal(mollieEnvironment(previewAccess), "test");
+  assert.equal(productionAccess.profileId, "pfl_TestProfile123");
   assert.equal(liveConfig.requestTimeoutMs, 2500);
 });
 
@@ -76,6 +83,32 @@ test("readiness calls Mollie methods endpoint with bearer authentication", async
   assert.equal(seenAuth, `Bearer ${config.apiKey}`);
 });
 
+test("access-token readiness discovers one profile and scopes the test-mode methods request", async () => {
+  const seen: string[] = [];
+  const accessConfig = {
+    apiKey: "access_abcdefghijklmnopqrstuvwxyz012345",
+    apiBaseUrl: "https://api.mollie.test/v2",
+    requestTimeoutMs: 1_000,
+    environment: "test" as const
+  };
+  const fetchFn: typeof fetch = async (input, init) => {
+    const url = String(input);
+    seen.push(url);
+    assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${accessConfig.apiKey}`);
+    if (url.endsWith("/profiles?limit=2")) {
+      return json(200, { _embedded: { profiles: [{ id: "pfl_TestProfile123" }] } });
+    }
+    assert.equal(url, "https://api.mollie.test/v2/methods?sequenceType=oneoff&profileId=pfl_TestProfile123&testmode=true");
+    return json(200, { count: 1, _embedded: { methods: [] } });
+  };
+  const client = new MolliePaymentsClient(accessConfig, fetchFn);
+  assert.deepEqual(await client.readiness(), { ok: true, environment: "test" });
+  assert.deepEqual(seen, [
+    "https://api.mollie.test/v2/profiles?limit=2",
+    "https://api.mollie.test/v2/methods?sequenceType=oneoff&profileId=pfl_TestProfile123&testmode=true"
+  ]);
+});
+
 test("createPayment sends exact EUR amount, approved card method, order identity, redirect and webhook metadata", async () => {
   let body: Record<string, unknown> | undefined;
   const fetchFn: typeof fetch = async (input, init) => {
@@ -102,6 +135,34 @@ test("createPayment sends exact EUR amount, approved card method, order identity
   assert.equal(body?.method, "creditcard");
   assert.equal(body?.webhookUrl, "https://kontamou.site/api/payments/mollie/webhook");
   assert.deepEqual(body?.metadata, { attempt: "attempt-1", orderId: "order_test_123", orderNumber: "KM-1001" });
+});
+
+test("access-token payment creation includes the required profile and test mode", async () => {
+  let body: Record<string, unknown> | undefined;
+  const accessConfig = {
+    apiKey: "access_abcdefghijklmnopqrstuvwxyz012345",
+    apiBaseUrl: "https://api.mollie.test/v2",
+    requestTimeoutMs: 1_000,
+    profileId: "pfl_TestProfile123",
+    environment: "test" as const
+  };
+  const fetchFn: typeof fetch = async (input, init) => {
+    assert.equal(String(input), "https://api.mollie.test/v2/payments");
+    body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return json(201, paymentPayload());
+  };
+  const client = new MolliePaymentsClient(accessConfig, fetchFn);
+  await client.createPayment({
+    amountMinor: 1234,
+    orderId: "order_test_123",
+    orderNumber: "KM-1001",
+    description: "KONTA MOY order KM-1001",
+    redirectUrl: "https://kontamou.site/account/orders/order_test_123?payment=mollie",
+    webhookUrl: "https://kontamou.site/api/payments/mollie/webhook"
+  });
+  assert.equal(body?.profileId, "pfl_TestProfile123");
+  assert.equal(body?.testmode, true);
+  assert.equal(body?.method, "creditcard");
 });
 
 test("retrievePayment parses paid and refunded provider state with order identity", async () => {
