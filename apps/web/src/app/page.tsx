@@ -38,21 +38,21 @@ const EDITORIAL_COLLECTIONS = [
     eyebrow: "Απόδραση",
     title: "Σαββατοκύριακο στον Ταΰγετο",
     copy: "Μικρές και μεγάλες επιλογές για μία εξόρμηση, από καταστήματα που βρίσκονται κοντά σου.",
-    href: "/shop?q=%CE%BF%CF%81%CE%B5%CE%B9%CE%B2%CE%B1%CF%83%CE%AF%CE%B1",
+    href: "/collections/taygetos-weekend",
     className: styles.collectionMountain
   },
   {
     eyebrow: "Νέα αρχή",
     title: "Το πρώτο σου σπίτι",
     copy: "Χρήσιμα αντικείμενα, εργαλεία και λεπτομέρειες που κάνουν έναν χώρο πραγματικά δικό σου.",
-    href: "/shop?q=%CF%83%CF%80%CE%AF%CF%84%CE%B9",
+    href: "/collections/first-home",
     className: styles.collectionHome
   },
   {
     eyebrow: "Για κάποιον δικό σου",
     title: "Δώρα με προσωπικότητα",
     copy: "Ιδέες από διαφορετικά τοπικά καταστήματα, χωρίς να ψάχνεις σε δεκάδες ξεχωριστά e-shops.",
-    href: "/shop?q=%CE%B4%CF%8E%CF%81%CE%BF",
+    href: "/collections/gifts-with-personality",
     className: styles.collectionGift
   }
 ] as const;
