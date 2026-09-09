@@ -6,6 +6,7 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { adminCatalogueAttributeTrainerWorkspace, createAttributeTrainerTarget } from "../../../../lib/admin-catalogue-attribute-trainer";
 import { mapCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-mapping";
+import { adminCatalogueProductTypeOptions } from "../../../../lib/admin-catalogue-product-type-options";
 import { rejectCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-rejection";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
@@ -131,7 +132,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const params = await searchParams;
-  const workspace = await adminCatalogueAttributeTrainerWorkspace(principal, { limit: 18 });
+  const [workspace, productTypes] = await Promise.all([
+    adminCatalogueAttributeTrainerWorkspace(principal, { limit: 18 }),
+    adminCatalogueProductTypeOptions(principal)
+  ]);
   const canWrite = hasAdminPermission(principal, "catalog.write");
   const first = workspace.cards[0];
   const highConfidence = workspace.cards.filter((card) => (card.suggestions[0]?.score ?? 0) >= 0.8).length;
@@ -181,7 +185,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
       {workspace.cards.length === 0
         ? <WorkspaceEmptyState title="No unmapped attribute contexts are waiting." body="New supplier evidence will automatically appear here if it cannot be resolved by the rules the system has already learned." />
-        : <AttributeTrainerDeck cards={workspace.cards} targets={workspace.targets} canWrite={canWrite} approveAction={approveAction} createAction={createAndApproveAction} rejectAction={rejectAction} />}
+        : <AttributeTrainerDeck cards={workspace.cards} targets={workspace.targets} productTypes={productTypes} canWrite={canWrite} approveAction={approveAction} createAction={createAndApproveAction} rejectAction={rejectAction} />}
 
       {first?.blocker && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>The highest-impact card is currently blocked by catalogue structure. Swipe down to continue with other cards or open Taxonomy blockers.</div>}
     </section>
