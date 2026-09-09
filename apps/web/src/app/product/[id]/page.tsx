@@ -448,6 +448,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>Παραλαβή ή αποστολή</strong><span>Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή.</span></div></div>
               <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
             </div>
+            <nav className="purchase-support-links" aria-label="Πληροφορίες πριν από την αγορά">
+              <a href="/choose-location">Αλλαγή περιοχής</a>
+              <a href="/delivery-pickup">Παράδοση & παραλαβή</a>
+              <a href="/returns-refunds">Επιστροφές & refunds</a>
+            </nav>
           </div>
 
           <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} />
