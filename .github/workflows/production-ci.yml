@@ -37,8 +37,8 @@ jobs:
         run: npm run check
       - name: Typecheck Core
         run: npm run typecheck:core
-      - name: Typecheck Viva payment adapter
-        run: npm run typecheck:viva
+      - name: Typecheck Mollie payment adapter
+        run: npm run typecheck:mollie
       - name: Typecheck AADE myDATA ERP adapter
         run: npm run typecheck:mydata
       - name: Typecheck Meilisearch search adapter
