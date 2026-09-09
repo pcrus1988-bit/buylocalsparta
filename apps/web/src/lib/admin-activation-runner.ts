@@ -111,9 +111,8 @@ async function mollieCheck(): Promise<ProductionActivationCheck> {
     status: result.ready ? "passed" : "failed",
     details: {
       enabled: result.enabled,
-      smartCheckoutScope: result.smartCheckoutScope ?? false,
-      webhookKeyAvailable: result.webhookKeyAvailable ?? false,
-      message: result.message ?? (result.ready ? "Mollie OAuth and webhook-key checks passed" : "Mollie readiness failed")
+      providerApiReady: result.ready,
+      message: result.message ?? (result.ready ? "Mollie API readiness check passed" : "Mollie readiness failed")
     }
   };
 }
