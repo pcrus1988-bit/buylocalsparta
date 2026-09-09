@@ -13,10 +13,7 @@ import styles from "./LocationGatewayV2.module.css";
 export type LocationGatewayRuntimeHubV2 = Readonly<{
   hubId: string;
   lifecycleState: "inactive" | "prospect" | "active";
-  prospectCount: number;
-  researchStatus: "IN_PROGRESS" | "ACTIVE_REFERENCE" | null;
   isLive: boolean;
-  isSpartaLegacy: boolean;
 }>;
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
