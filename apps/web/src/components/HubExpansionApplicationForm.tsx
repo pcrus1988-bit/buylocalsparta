@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { HubExpansionPlanCode } from "../lib/hub-expansion-plans";
+import type { HubBillingCycle, HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 import styles from "./HubExpansionApplicationForm.module.css";
 
 type LookupStage = "afm" | "loading" | "matched";
@@ -38,12 +38,15 @@ type Receipt = Readonly<{
   status: "pending";
   hubName: string;
   planCode: HubExpansionPlanCode;
+  billingCycle: HubBillingCycle;
+  recurringFeeCents: number;
   paymentRequired: false;
   message: string;
 }>;
 
 type Props = Readonly<{
   planCode: HubExpansionPlanCode;
+  billingCycle: HubBillingCycle;
 }>;
 
 const categories = [
@@ -60,7 +63,7 @@ const categories = [
   "Άλλη μη διατροφική λιανική"
 ] as const;
 
-export function HubExpansionApplicationForm({ planCode }: Props) {
+export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
   const [busy, setBusy] = useState(false);
   const [lookupStage, setLookupStage] = useState<LookupStage>("afm");
   const [lookupError, setLookupError] = useState("");
@@ -138,7 +141,14 @@ export function HubExpansionApplicationForm({ planCode }: Props) {
         }
         throw new Error(result.error ?? "Η αίτηση δεν καταχωρίστηκε.");
       }
-      if (!result.reference || result.status !== "pending" || !result.hubName || !result.planCode) {
+      if (
+        !result.reference ||
+        result.status !== "pending" ||
+        !result.hubName ||
+        !result.planCode ||
+        (result.billingCycle !== "annual" && result.billingCycle !== "monthly") ||
+        typeof result.recurringFeeCents !== "number"
+      ) {
         throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε έγκυρη απόδειξη.");
       }
       setReceipt({
@@ -146,6 +156,8 @@ export function HubExpansionApplicationForm({ planCode }: Props) {
         status: "pending",
         hubName: result.hubName,
         planCode: result.planCode,
+        billingCycle: result.billingCycle,
+        recurringFeeCents: result.recurringFeeCents,
         paymentRequired: false,
         message: result.message ?? "Η αίτηση καταχωρίστηκε."
       });
@@ -158,14 +170,18 @@ export function HubExpansionApplicationForm({ planCode }: Props) {
   }
 
   if (receipt) {
+    const billingText = receipt.planCode === "claim"
+      ? "Δωρεάν"
+      : `${receipt.billingCycle === "annual" ? "Ετήσια" : "Μηνιαία"} · ${formatEuro(receipt.recurringFeeCents)}`;
     return <div className={styles.receipt} role="status">
       <span className={styles.receiptMark}>✓</span>
       <div>
         <div className={styles.receiptEyebrow}>Η αίτηση καταχωρίστηκε</div>
         <h2>{receipt.hubName} · {receipt.planCode.toUpperCase()}</h2>
         <p>{receipt.message}</p>
+        <div className={styles.reference}>Επιλογή <strong>{billingText}</strong></div>
         <div className={styles.reference}>Αριθμός αναφοράς <strong>{receipt.reference}</strong></div>
-        <p className={styles.receiptNote}>Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός.</p>
+        <p className={styles.receiptNote}>Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η επιλογή χρέωσης αποθηκεύτηκε με την αίτηση. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός.</p>
         <a className="button button-secondary" href="/hubs/join">Επιστροφή στα προγράμματα</a>
       </div>
     </div>;
@@ -173,6 +189,7 @@ export function HubExpansionApplicationForm({ planCode }: Props) {
 
   return <form className={styles.form} onSubmit={submit}>
     <input type="hidden" name="planCode" value={planCode} />
+    <input type="hidden" name="billingCycle" value={billingCycle} />
     <div className={styles.honeypot} aria-hidden="true"><label>Website<input name="companyWebsiteCheck" tabIndex={-1} autoComplete="off" /></label></div>
 
     <section className={styles.lookupPanel} aria-labelledby="afm-title">
@@ -244,8 +261,12 @@ export function HubExpansionApplicationForm({ planCode }: Props) {
       </div>
 
       {error && <div className={styles.error} role="alert">{error}</div>}
-      <button className={`button ${styles.submit}`} type="submit" disabled={busy}>{busy ? "Καταχώριση…" : planCode === "claim" ? "Υποβολή δωρεάν CLAIM" : `Υποβολή ενδιαφέροντος · ${planCode.toUpperCase()}`}</button>
+      <button className={`button ${styles.submit}`} type="submit" disabled={busy}>{busy ? "Καταχώριση…" : planCode === "claim" ? "Υποβολή δωρεάν CLAIM" : `Υποβολή ενδιαφέροντος · ${planCode.toUpperCase()} · ${billingCycle === "annual" ? "Ετήσια" : "Μηνιαία"}`}</button>
       <p className={styles.noPayment}>Δεν ζητούνται στοιχεία κάρτας. Για εμπορικό πλάνο, οποιαδήποτε χρέωση συμφωνείται μόνο μετά το verification και πριν από την ενεργοποίηση.</p>
     </>}
   </form>;
+}
+
+function formatEuro(cents: number): string {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
