@@ -6,7 +6,7 @@ import { createCustomerNotification } from "../../../../../../../lib/customer-st
 import { checkoutCustomerPrivateOffer } from "../../../../../../../lib/private-offer-checkout-service";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../../../lib/postgres-runtime";
 import { getVisitorKey } from "../../../../../../../lib/visitor";
-import { requireVivaPayments, vivaPaymentsEnabled } from "../../../../../../../lib/viva-runtime";
+import { requireMolliePayments, molliePaymentsEnabled } from "../../../../../../../lib/mollie-runtime";
 
 type Context = Readonly<{ params: Promise<{ id: string }> }>;
 type Body = Readonly<{ checkoutKey?: unknown; billingAddressId?: unknown }>;
@@ -31,8 +31,8 @@ async function publicOrderReference(orderId: string, userId: string): Promise<st
 export async function POST(request: Request, { params }: Context) {
   try {
     if (!productionDatabaseConfigured()) return Response.json({ error: "Private-offer checkout requires PostgreSQL" }, { status: 503 });
-    if (process.env.NODE_ENV === "production" && !vivaPaymentsEnabled()) {
-      return Response.json({ error: "Checkout requires the configured Viva Smart Checkout payment adapter" }, { status: 503 });
+    if (process.env.NODE_ENV === "production" && !molliePaymentsEnabled()) {
+      return Response.json({ error: "Checkout requires the configured Mollie Smart Checkout payment adapter" }, { status: 503 });
     }
 
     const principal = await requireAccountSession(request, true);
@@ -77,9 +77,9 @@ export async function POST(request: Request, { params }: Context) {
       });
     }
 
-    if (vivaPaymentsEnabled()) {
-      const payment = await requireVivaPayments().initiateOrderPayment({ orderId: result.order.id, customerId: principal.userId, visitorKey, now });
-      return Response.json({ id: orderReference, orderId: orderReference, status: result.order.status, payment: { provider: "viva", redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: result.created ? 201 : 200 });
+    if (molliePaymentsEnabled()) {
+      const payment = await requireMolliePayments().initiateOrderPayment({ orderId: result.order.id, customerId: principal.userId, visitorKey, now });
+      return Response.json({ id: orderReference, orderId: orderReference, status: result.order.status, payment: { provider: "mollie", redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: result.created ? 201 : 200 });
     }
     return Response.json({ id: orderReference, orderId: orderReference, status: result.order.status }, { status: result.created ? 201 : 200 });
   } catch (error) {

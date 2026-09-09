@@ -11,12 +11,12 @@ const success = read("apps/web/src/app/checkout/success/page.tsx");
 const failure = read("apps/web/src/app/checkout/failure/page.tsx");
 const layout = read("apps/web/src/app/layout.tsx");
 
-if (!page.includes("vivaPaymentsProviderReadiness()") || !page.includes("viva.enabled && viva.ready")) failures.push("Checkout page must derive production payment availability from Viva provider readiness, not optimistic UI copy");
+if (!page.includes("molliePaymentsProviderReadiness()") || !page.includes("mollie.enabled && mollie.ready")) failures.push("Checkout page must derive production payment availability from Mollie provider readiness, not optimistic UI copy");
 if (!page.includes('paymentMode !== "unavailable"')) failures.push("Checkout page must expose an explicit unavailable payment state");
 if (!page.includes('process.env.BLS_BOXNOW_ENABLED === "true"') || !page.includes('process.env.NEXT_PUBLIC_BOXNOW_WIDGET_ENABLED === "true"')) failures.push("Checkout page must require both BOX NOW backend and widget enablement before offering locker shipping");
 if (!client.includes("checkout-availability-gate") || !client.includes("if (!checkoutEnabled)")) failures.push("Checkout client must fail closed with a clear availability gate");
 if (!client.includes("if (boxNowEnabled) fulfilmentOptions.push")) failures.push("Checkout fulfilment choices must omit BOX NOW when the provider is disabled");
-if (!client.includes('paymentMode === "viva"')) failures.push("Checkout payment copy must reflect the actual payment mode");
+if (!client.includes('paymentMode === "mollie"')) failures.push("Checkout payment copy must reflect the actual payment mode");
 if (!client.includes("if (!checkoutEnabled || !hydrated")) failures.push("Disabled checkout must not create an idempotency key as if a transaction could proceed");
 if (!cart.includes("robots: { index: false, follow: false }")) failures.push("Cart must remain a noindex utility route");
 for (const [name, source] of [["success", success], ["failure", failure]] as const) {

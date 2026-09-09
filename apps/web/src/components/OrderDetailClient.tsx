@@ -210,7 +210,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <h2>Ολοκλήρωσε την πληρωμή</h2>
         <p>Η παραγγελία έχει δημιουργηθεί, αλλά δεν θα προχωρήσει στο κατάστημα μέχρι να ολοκληρωθεί η ασφαλής πληρωμή. Το απόθεμα δεσμεύεται μόνο για περιορισμένο χρονικό διάστημα.</p>
         <button className="button button-primary" type="button" disabled={paymentBusy} onClick={() => void resumePayment()}>{paymentBusy ? "Άνοιγμα ασφαλούς πληρωμής…" : "Συνέχιση ασφαλούς πληρωμής"}</button>
-        <small>Δεν δημιουργείται νέα παραγγελία. Αν υπάρχει ήδη ενεργή Viva πληρωμή, συνεχίζεις την ίδια.</small>
+        <small>Δεν δημιουργείται νέα παραγγελία. Αν υπάρχει ήδη ενεργή Mollie πληρωμή, συνεχίζεις την ίδια.</small>
         {paymentError && <p className="form-error" role="alert">{paymentError}</p>}
       </div>}
 

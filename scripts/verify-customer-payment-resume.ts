@@ -4,20 +4,20 @@ const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const service = read("apps/web/src/lib/customer-payment-resume.ts");
 const route = read("apps/web/src/app/api/account/orders/[id]/payment/route.ts");
 const client = read("apps/web/src/components/OrderDetailClient.tsx");
-const viva = read("packages/postgres-runtime/src/viva-payments.ts");
+const mollie = read("packages/postgres-runtime/src/mollie-payments.ts");
 const worker = read("workers/postgres-worker.ts");
 const failures: string[] = [];
 
 for (const contract of [
   "principal.roles.includes(\"customer\")",
   "productionDatabaseConfigured()",
-  "vivaPaymentsEnabled()",
+  "molliePaymentsEnabled()",
   "WHERE o.public_id=$1 AND u.public_id=$2",
   "String(row.order_status) !== \"pending_payment\"",
   "sr.status='active' AND sr.expires_at>$3",
   "activeReservedLineCount !== lineCount",
   "PAYMENT_WINDOW_EXPIRED",
-  "requireVivaPayments().initiateOrderPayment",
+  "requireMolliePayments().initiateOrderPayment",
   "activePaymentWindow(principal, orderId, startedAt)",
   "activePaymentWindow(principal, orderId, Date.now())"
 ]) if (!service.includes(contract)) failures.push(`Payment-resume service is missing ${contract}`);
@@ -49,10 +49,10 @@ for (const contract of [
 
 for (const contract of [
   "orderStatus !== \"pending_payment\"",
-  "Payment order belongs to another customer",
-  "provider_order_code",
+  "Payment belongs to another customer",
+  "provider_payment_id",
   "if (existing) return { kind:\"existing\""
-]) if (!viva.includes(contract)) failures.push(`Viva payment service no longer guarantees ${contract}`);
+]) if (!mollie.includes(contract)) failures.push(`Mollie payment service no longer guarantees ${contract}`);
 
 if (!worker.includes("expire_pending_payment_orders")) failures.push("Pending-payment reservation expiry worker is not wired");
 
@@ -61,4 +61,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Customer payment-resume checks passed: CSRF/customer ownership, pending-payment gating, double active-reservation checks, Viva order reuse, expiry cleanup and customer recovery CTA verified.");
+console.log("Customer payment-resume checks passed: CSRF/customer ownership, pending-payment gating, double active-reservation checks, Mollie order reuse, expiry cleanup and customer recovery CTA verified.");

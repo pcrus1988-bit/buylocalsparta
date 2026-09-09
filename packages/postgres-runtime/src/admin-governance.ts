@@ -170,7 +170,7 @@ export class PostgresAdminGovernanceService {
   }
 
   async returnAction(principal: SessionPrincipal, input: { returnId: string; action: "approve" | "authorize" | "receive" | "inspect_sellable" | "inspect_blocked" | "approve_refund" | "refund" | "reject"; reason?: string; now?: number }) {
-    if (input.action === "refund") throw new Error("Direct PostgreSQL return-refund execution is disabled; route approved refunds through the configured Viva payments orchestration service");
+    if (input.action === "refund") throw new Error("Direct PostgreSQL return-refund execution is disabled; route approved refunds through the configured Mollie payments orchestration service");
     const now = input.now ?? Date.now();
     const result = await this.#uow.withTransaction(platformScope(principal.userId), async (tx) => {
       const actor = await this.#userUuid(tx, principal.userId);

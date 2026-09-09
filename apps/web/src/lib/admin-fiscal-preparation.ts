@@ -61,14 +61,14 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
     if(d.type!=="pending_customer_sale")throw new Error("Only pending customer-sale fiscal records can be prepared here");
     if(!["not_ready","manual_review"].includes(d.transmission_status))throw new Error(`Tax document is ${d.transmission_status}, not preparable`);
     const actualPaymentProvider=d.payment_provider?.trim().toUpperCase();
-    if(processor==="VIVA"&&actualPaymentProvider!=="VIVA")throw new Error("Viva payment mapping can be used only when the captured payment provider is Viva");
-    if(actualPaymentProvider==="VIVA"&&processor!=="VIVA")throw new Error("A captured Viva payment cannot be prepared with an offline/non-Viva payment mapping");
-    const remoteEcommerce=actualPaymentProvider==="VIVA"&&isRemoteEcommerceVivaPayment(record(d.provider_payload));
+    if(processor==="MOLLIE"&&actualPaymentProvider!=="MOLLIE")throw new Error("Mollie payment mapping can be used only when the captured payment provider is Mollie");
+    if(actualPaymentProvider==="MOLLIE"&&processor!=="MOLLIE")throw new Error("A captured Mollie payment cannot be prepared with an offline/non-Mollie payment mapping");
+    const remoteEcommerce=actualPaymentProvider==="MOLLIE"&&isRemoteEcommerceMolliePayment(record(d.provider_payload));
 
     const policy=await client.query<{id:string;public_id:string;version:string;policy_hash:string|null;seller_tax_number:string;status:string;fiscalisation_route:string}>(
       `SELECT p.id::text,p.public_id,p.version,p.policy_hash,p.seller_tax_number,p.status,p.fiscalisation_route FROM accounting_tax_policies p WHERE p.market_id=$1::uuid AND p.status='approved' ORDER BY p.approved_at DESC LIMIT 1 FOR SHARE`,[d.market_id]);
     if(!policy.rowCount)throw new Error("No approved Accounting Policy exists for this market");const p=policy.rows[0]!;
-    if(p.fiscalisation_route!=="aade_direct_erp")throw new Error("Built-in fiscal preparation currently supports only the approved AADE Direct ERP route; Viva Fiscal provider transmission is not implemented");
+    if(p.fiscalisation_route!=="aade_direct_erp")throw new Error("Built-in fiscal preparation currently supports only the approved AADE Direct ERP route; Mollie Fiscal provider transmission is not implemented");
 
     const mapping=await client.query<{invoice_type:string;income_category:string|null;e3_code:string|null;series_code:string;customer_kind:string;item_kind:string;geography:string;direction:string;production_status:string}>(
       `SELECT d.invoice_type,d.income_category,d.e3_code,d.series_code,d.customer_kind,d.item_kind,d.geography,d.direction,d.production_status
@@ -166,7 +166,7 @@ function buildMyDataXml(input:{sellerTaxNumber:string;series:string;aa:string;is
 }
 function existingPreparedResult(d:{public_id:string;document_number:string|null;mapping_version:string|null;payload_snapshot:Record<string,unknown>}):PreparedResult{const payload=record(d.payload_snapshot);const prep=record(payload.preparation);const invoiceType=stringValue(prep.invoiceType);const series=stringValue(prep.series);const aa=stringValue(prep.aa);const payment=record(prep.payment);const paymentType=integer(payment.mydataPaymentType);const issueDate=stringValue(prep.issueDate)||(typeof payload.preparedAt==="string"?athensDate(new Date(payload.preparedAt).getTime()):"");if(!d.document_number||!d.mapping_version||!invoiceType||!series||!aa||!issueDate)throw new Error("Existing prepared fiscal document is missing preparation metadata");return{ok:true,documentId:d.public_id,documentNumber:d.document_number,invoiceType,series,aa,issueDate,mappingVersion:d.mapping_version,paymentType};}
 function record(value:unknown):Record<string,unknown>{return value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};}function stringValue(value:unknown):string{return typeof value==="string"?value:"";}
-function isRemoteEcommerceVivaPayment(payload:Record<string,unknown>):boolean{if(stringValue(payload.paymentChannel)==="remote_ecommerce")return true;return ["creating","created","manual_review"].includes(stringValue(payload.orderCreationState));}
+function isRemoteEcommerceMolliePayment(payload:Record<string,unknown>):boolean{if(stringValue(payload.paymentChannel)==="remote_ecommerce")return true;return ["creating","created","manual_review"].includes(stringValue(payload.paymentCreationState));}
 function productTitle(snapshot:Record<string,unknown>):string|undefined{for(const key of ["title","name","item_name"]){const value=snapshot?.[key];if(typeof value==="string"&&value.trim())return value.trim();}return undefined;}
 function vatTreatmentKey(vatCategory:number,vatRateBps:number,vatExemptionCategory?:number):string{return `${vatCategory}|${vatRateBps}|${vatExemptionCategory??""}`;}
 function integer(value:unknown):number{const n=Number(value);if(!Number.isSafeInteger(n))throw new Error("Expected safe integer minor-unit value");return n;}function sum(values:readonly number[]):number{return values.reduce((a,b)=>a+b,0);}function money(minor:number):string{return (minor/100).toFixed(2);}function decimalQuantity(quantity:number):string{return quantity.toFixed(3).replace(/\.0+$/,"").replace(/(\.\d*?)0+$/,"$1");}

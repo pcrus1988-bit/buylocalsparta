@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createPostgresRuntimeFromEnv, EXPECTED_SCHEMA_VERSION, type ActivationEvidenceInput, type ActivationProvider, type ActivationStatus } from "@buy-local-sparta/postgres-runtime";
-import { VivaPaymentsClient, vivaConfigFromEnv } from "@buy-local-sparta/viva-payments";
+import { MolliePaymentsClient, mollieConfigFromEnv } from "@buy-local-sparta/mollie-payments";
 import { AadeMyDataClient, myDataConfigFromEnv } from "@buy-local-sparta/aade-mydata";
 import { ResendEmailProvider, resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
 import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
@@ -33,10 +33,10 @@ await run("database",Boolean(process.env.DATABASE_URL?.trim()),deploymentEnviron
   return{ok:state.ok,message:state.message,details:{schemaVersion:state.appliedSchemaVersion??0,expectedSchemaVersion:state.expectedSchemaVersion,serverVersion:state.serverVersion??"unknown",postgisVersion:state.postgisVersion??"missing"}};
 });
 
-await run("viva",process.env.VIVA_PAYMENTS_ENABLED==="true",process.env.VIVA_ENVIRONMENT||"disabled","viva-readonly-connectivity",async()=>{
-  if(deploymentEnvironment==="staging"&&process.env.VIVA_ENVIRONMENT==="live")throw new Error("Staging preflight refuses Viva live credentials");
-  const result=await new VivaPaymentsClient(vivaConfigFromEnv(process.env)).readiness();
-  return{ok:result.ok&&result.webhookKeyAvailable,message:"Viva OAuth Smart Checkout scope and webhook credentials are reachable",details:{environment:result.environment,webhookKeyAvailable:result.webhookKeyAvailable}};
+await run("mollie",process.env.MOLLIE_PAYMENTS_ENABLED==="true","configured","mollie-readonly-connectivity",async()=>{
+  const result=await new MolliePaymentsClient(mollieConfigFromEnv(process.env)).readiness();
+  if(deploymentEnvironment==="staging"&&result.environment==="live")throw new Error("Staging preflight refuses Mollie live credentials");
+  return{ok:result.ok,message:"Mollie payment-method API connectivity is reachable",details:{environment:result.environment}};
 });
 
 const myDataConfigured=Boolean(process.env.AADE_MYDATA_USER_ID?.trim()&&process.env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim());

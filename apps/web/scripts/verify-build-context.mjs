@@ -8,7 +8,7 @@ const required = [
   "package.json",
   "packages/core/package.json",
   "packages/postgres-runtime/package.json",
-  "packages/viva-payments/package.json"
+  "packages/mollie-payments/package.json"
 ];
 
 try {

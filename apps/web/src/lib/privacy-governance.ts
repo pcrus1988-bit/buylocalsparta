@@ -68,7 +68,7 @@ export const PROCESSING_ACTIVITIES: readonly ProcessingActivity[] = [
     dataSubjects: ["customers"],
     dataCategories: ["contact", "order reference", "amount", "provider transaction references", "refund evidence"],
     systems: ["payments", "payment_events", "refunds", "customer_orders"],
-    recipients: ["Viva.com", "authorized finance"],
+    recipients: ["Mollie.com", "authorized finance"],
     access: ["finance", "limited support/operations where required", "platform payment runtime"],
     retentionKey: "financial_records",
     state: "partial"
@@ -293,11 +293,11 @@ export const PROVIDER_GOVERNANCE: readonly ProviderGovernance[] = [
     contractReview: "Verify DPA, retention, subprocessors and transfer location before compliance sign-off."
   },
   {
-    name: "Viva.com",
+    name: "Mollie.com",
     purpose: "Payment initiation, transaction reconciliation and refunds",
     data: "Customer contact/name where present, order reference, amount and payment/provider references.",
     roleStatus: "recipient_role_review",
-    contractReview: "Confirm controller/processor allocation by payment activity and regulatory duty; do not label all Viva processing as processor activity by default."
+    contractReview: "Confirm controller/processor allocation by payment activity and regulatory duty; do not label all Mollie processing as processor activity by default."
   },
   {
     name: "BOX NOW",

@@ -17,7 +17,7 @@ COPY packages/meilisearch-search/package.json packages/meilisearch-search/packag
 COPY packages/object-storage/package.json packages/object-storage/package.json
 COPY packages/postgres-runtime/package.json packages/postgres-runtime/package.json
 COPY packages/resend-notifications/package.json packages/resend-notifications/package.json
-COPY packages/viva-payments/package.json packages/viva-payments/package.json
+COPY packages/mollie-payments/package.json packages/mollie-payments/package.json
 
 RUN npm ci --omit=dev --ignore-scripts
 

@@ -7,7 +7,7 @@ import { SiteHeader } from "../../../../components/SiteHeader";
 import { getAccountSession } from "../../../../lib/account-session";
 import { customerCheckoutProfile } from "../../../../lib/customer-address-runtime";
 import { customerPrivateOfferBrowserPreview } from "../../../../lib/customer-private-offer-browser-view";
-import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
+import { molliePaymentsProviderReadiness } from "../../../../lib/mollie-runtime";
 
 export const metadata: Metadata = { title: "Ιδιωτική προσφορά · Checkout", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -25,8 +25,8 @@ export default async function PrivateOfferCheckoutPage({ params }: Props) {
   if (!offer) notFound();
   if (id !== offer.actionReference) redirect(`/checkout/private-offer/${encodeURIComponent(offer.actionReference)}`);
   const profile = await customerCheckoutProfile(principal);
-  const viva = await vivaPaymentsProviderReadiness();
-  const checkoutEnabled = process.env.NODE_ENV === "production" ? viva.enabled && viva.ready : true;
+  const mollie = await molliePaymentsProviderReadiness();
+  const checkoutEnabled = process.env.NODE_ENV === "production" ? mollie.enabled && mollie.ready : true;
 
   return <main>
     <div className="announcement">Ιδιωτική προσφορά Ask Local · η αποδεκτή τιμή παραμένει δεσμευμένη στη συγκεκριμένη αγορά.</div>

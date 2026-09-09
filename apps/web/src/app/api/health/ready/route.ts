@@ -2,7 +2,7 @@ import { ResendEmailProvider, resendConfigFromEnv, resendDeliveryEnabled } from 
 import { WEB_BUILD_VERSION } from "../../../../lib/build";
 import { gemiRuntimeReadiness } from "../../../../lib/gemi-runtime";
 import { productionDatabaseReadiness } from "../../../../lib/postgres-runtime";
-import { vivaPaymentsProviderReadiness } from "../../../../lib/viva-runtime";
+import { molliePaymentsProviderReadiness } from "../../../../lib/mollie-runtime";
 import { mediaPipelineReadiness } from "../../../../lib/media-upload-service";
 import { myDataReadiness } from "../../../../lib/mydata-runtime";
 import { postgresStorefrontSearchReadiness } from "../../../../lib/postgres-storefront-search";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const database = await productionDatabaseReadiness();
-  const viva = await vivaPaymentsProviderReadiness();
+  const mollie = await molliePaymentsProviderReadiness();
   const media = await mediaPipelineReadiness();
   const myData = await myDataReadiness();
   const gemiReadiness = await gemiRuntimeReadiness();
@@ -111,9 +111,9 @@ export async function GET() {
   // preserves the fail-closed accounting gate without taking the storefront out of service.
   // ΓΕΜΗ remains non-blocking because partner intake is designed to fall back to manual verification.
   const myDataHealthy = !myData.enabled || myData.ready;
-  const ok = database.ok && viva.ready && media.ready && myDataHealthy && search.ready && email.ready && shipping.ready;
+  const ok = database.ok && mollie.ready && media.ready && myDataHealthy && search.ready && email.ready && shipping.ready;
   return Response.json(
-    { ok, service: "buy-local-sparta-web", build: WEB_BUILD_VERSION, dependencies: { database, viva, media, myData, search, email, shipping, gemi } },
+    { ok, service: "buy-local-sparta-web", build: WEB_BUILD_VERSION, dependencies: { database, mollie, media, myData, search, email, shipping, gemi } },
     { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } }
   );
 }

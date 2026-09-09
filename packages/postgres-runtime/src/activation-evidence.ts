@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SqlPool, type SqlRow } from "@buy-local-sparta/core";
 
-export type ActivationProvider = "database" | "viva" | "mydata" | "search" | "email" | "object_storage" | "clamav" | "boxnow" | "web";
+export type ActivationProvider = "database" | "mollie" | "mydata" | "search" | "email" | "object_storage" | "clamav" | "boxnow" | "web";
 export type ActivationStatus = "passed" | "failed" | "blocked" | "skipped";
 export type ActivationCheckKind = "configuration" | "connectivity" | "scenario" | "deployment";
 

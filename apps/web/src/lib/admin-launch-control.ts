@@ -197,7 +197,7 @@ export async function adminLaunchControlWorkspace(
   const activationPassed = currentEvidence.filter((row) => row.status === "passed").length;
   const technologyScore = safeScore(activationPassed, currentEvidence.length);
 
-  const paymentEvidence = currentEvidence.filter((row) => `${row.provider} ${row.checkName}`.toLowerCase().match(/viva|payment/));
+  const paymentEvidence = currentEvidence.filter((row) => `${row.provider} ${row.checkName}`.toLowerCase().match(/mollie|payment/));
   const paymentScore = safeScore(paymentEvidence.filter((row) => row.status === "passed").length, paymentEvidence.length);
 
   const operationChecks = operations?.health.checks ?? [];
