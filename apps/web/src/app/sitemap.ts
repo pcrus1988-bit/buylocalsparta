@@ -9,6 +9,7 @@ import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, t
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { productPublicPath } from "../lib/product-url";
 import { getPublicCmsSitemapEntries } from "../lib/public-cms";
+import { EDITORIAL_COLLECTIONS } from "../lib/editorial-collections";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: safeLastModified(override?.lastReviewedAt)
       }] : [];
     }) : []),
+    ...(settings.sitemap.staticPages ? EDITORIAL_COLLECTIONS.map((collection) => ({
+      url: new URL(`/collections/${collection.slug}`, `${origin}/`).toString(),
+      changeFrequency: "weekly" as const,
+      priority: 0.78
+    })) : []),
     ...(settings.sitemap.categories ? categories.flatMap((category) => {
       const reference: SeoEntityReference = { kind: "category", id: category.slug };
       const { override, control } = governed(reference, true, true);
