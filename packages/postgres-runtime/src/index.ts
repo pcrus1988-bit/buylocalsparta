@@ -6,6 +6,7 @@ import { PostgresAdminOperationsLiveService } from "./admin-operations-live.ts";
 import { PostgresAdminGovernanceService } from "./admin-governance.ts";
 import { MolliePaymentsClient, mollieConfigFromEnv, mollieEnvironment, type MollieConfig } from "@buy-local-sparta/mollie-payments";
 import { PostgresMolliePaymentsService } from "./mollie-payments.ts";
+import { MollieHostedCheckoutGateway } from "./mollie-checkout-gateway.ts";
 import { PostgresMediaPipelineService } from "./media-pipeline.ts";
 import { AadeMyDataClient, myDataConfigFromEnv, myDataIssuanceEnabled, type MyDataConfig } from "@buy-local-sparta/aade-mydata";
 import { PostgresMyDataService } from "./mydata.ts";
@@ -110,7 +111,11 @@ export class ProductionPostgresRuntime {
     this.adminOperations = new PostgresAdminOperationsLiveService(this.sqlPool, this.persistence);
     this.adminGovernance = new PostgresAdminGovernanceService(this.sqlPool, this.persistence, this.adminOperations);
     this.molliePayments = config.mollie && config.molliePublicBaseUrl
-      ? new PostgresMolliePaymentsService(this.sqlPool, new MolliePaymentsClient(config.mollie), { publicBaseUrl: config.molliePublicBaseUrl, emailNotificationsEnabled: Boolean(config.resend) })
+      ? new PostgresMolliePaymentsService(
+          this.sqlPool,
+          new MollieHostedCheckoutGateway(this.sqlPool, new MolliePaymentsClient(config.mollie)),
+          { publicBaseUrl: config.molliePublicBaseUrl, emailNotificationsEnabled: Boolean(config.resend) }
+        )
       : undefined;
     this.mediaPipeline = new PostgresMediaPipelineService(this.sqlPool, { maxBytes: config.mediaMaxBytes });
     this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
@@ -231,6 +236,7 @@ export * from "./admin-auth.ts";
 export * from "./admin-operations.ts";
 export * from "./admin-governance.ts";
 export * from "./mollie-payments.ts";
+export * from "./mollie-checkout-gateway.ts";
 export * from "./media-pipeline.ts";
 export * from "./mydata.ts";
 export * from "./search.ts";
