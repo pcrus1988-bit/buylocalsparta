@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
-import { adminCatalogueAttributeTrainerWorkspace } from "../../../../lib/admin-catalogue-attribute-trainer";
+import { adminCatalogueAttributeTrainerWorkspace, createAttributeTrainerTarget } from "../../../../lib/admin-catalogue-attribute-trainer";
 import { mapCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-mapping";
 import { rejectCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-rejection";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
@@ -51,6 +51,50 @@ async function approveAction(formData: FormData) {
   redirect(trainerHref({
     saved: "1",
     action: "mapped",
+    changed: String(result.mappedObservations + result.reviewRequiredObservations),
+    key: result.sourceAttributeKey,
+    target: `${result.productTypeCode} / ${result.attributeCode}`
+  }));
+}
+
+async function createAndApproveAction(formData: FormData) {
+  "use server";
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+  const sourceProductId = String(formData.get("sourceProductId") ?? "").trim();
+  const sourceAttributeKey = String(formData.get("sourceAttributeKey") ?? "").trim();
+  const productTypeId = String(formData.get("productTypeId") ?? "").trim();
+  const labelEl = String(formData.get("labelEl") ?? "").trim();
+  const dataType = String(formData.get("dataType") ?? "text").trim();
+  const valueLevel = String(formData.get("valueLevel") ?? "variant").trim();
+  let target;
+  let result;
+  try {
+    target = await createAttributeTrainerTarget(principal, {
+      sourceProductId,
+      sourceAttributeKey,
+      productTypeId,
+      labelEl,
+      dataType,
+      valueLevel
+    });
+    result = await mapCatalogueSourceAttribute(principal, {
+      sourceProductId,
+      sourceAttributeKey,
+      productTypeId: target.productTypeId,
+      attributeId: target.attributeId,
+      reason: target.createdAttribute
+        ? "Created canonical attribute and learned mapping from Attribute Matching trainer"
+        : "Reused canonical attribute and learned mapping from Attribute Matching trainer"
+    });
+  } catch (error) {
+    redirect(trainerHref({ error: errorMessage(error) }));
+  }
+  revalidateTrainerPaths();
+  revalidatePath("/admin/catalogue/structure");
+  redirect(trainerHref({
+    saved: "1",
+    action: target.createdAttribute ? "created" : "mapped",
     changed: String(result.mappedObservations + result.reviewRequiredObservations),
     key: result.sourceAttributeKey,
     target: `${result.productTypeCode} / ${result.attributeCode}`
@@ -109,7 +153,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       </div>
       <aside className="dashboard-health-card">
         <span>Trainer controls</span>
-        <strong>← confirm · → not attribute · ↑ remap · ↓ later</strong>
+        <strong>← confirm · → not attribute · ↑ remap/create · ↓ later</strong>
         <p>Raw supplier evidence is never deleted. A “not attribute” decision stores an audited rejection rule and suppresses the same junk context on future ingestion.</p>
       </aside>
     </section>
@@ -131,20 +175,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       {!canWrite && <div className="workspace-inline-note" style={{ marginBottom: "1rem" }}>Read-only mode: your Admin role can inspect trainer evidence but cannot save learning decisions.</div>}
       {params.error && <div className="workspace-queue-card" role="alert" style={{ marginBottom: "1rem" }}><strong>Decision was not saved</strong><p>{params.error}</p></div>}
       {params.saved === "1" && <div className="workspace-queue-card" role="status" style={{ marginBottom: "1rem" }}>
-        <strong>{params.action === "rejected" ? "Reusable rejection learned" : "Canonical mapping learned"}</strong>
+        <strong>{params.action === "rejected" ? "Reusable rejection learned" : params.action === "created" ? "Canonical attribute created and mapping learned" : "Canonical mapping learned"}</strong>
         <p>{params.key}{params.target ? ` → ${params.target}` : ""} · {Number(params.changed ?? 0).toLocaleString("el-GR")} observations updated.</p>
       </div>}
 
       {workspace.cards.length === 0
         ? <WorkspaceEmptyState title="No unmapped attribute contexts are waiting." body="New supplier evidence will automatically appear here if it cannot be resolved by the rules the system has already learned." />
-        : <AttributeTrainerDeck cards={workspace.cards} targets={workspace.targets} canWrite={canWrite} approveAction={approveAction} rejectAction={rejectAction} />}
+        : <AttributeTrainerDeck cards={workspace.cards} targets={workspace.targets} canWrite={canWrite} approveAction={approveAction} createAction={createAndApproveAction} rejectAction={rejectAction} />}
 
       {first?.blocker && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>The highest-impact card is currently blocked by catalogue structure. Swipe down to continue with other cards or open Taxonomy blockers.</div>}
     </section>
 
     <section className="vendor-section section-tint">
       <div className="shell">
-        <WorkspaceSectionHeading eyebrow="Learning boundary" title="What the trainer changes" note="Confirmations create/reuse exact governed mapping rules. Rejections teach the importer to ignore identical non-attribute evidence. Manual remaps still pass the same Product Type/category governance checks as the existing catalogue workflow." />
+        <WorkspaceSectionHeading eyebrow="Learning boundary" title="What the trainer changes" note="Confirmations create/reuse exact governed mapping rules. Rejections teach the importer to ignore identical non-attribute evidence. Manual remaps and inline-created attributes still pass the same Product Type/category governance checks as the existing catalogue workflow." />
         <div className="workspace-queue-primary">
           <span><strong>Preserved</strong> raw supplier evidence</span>
           <span><strong>Audited</strong> Admin decisions</span>
