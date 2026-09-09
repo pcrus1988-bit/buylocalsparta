@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { FakeMollieGateway } from "./fake-mollie-gateway.ts";
 import { hashPassword } from "../packages/core/src/index.ts";
 import {
   createPostgresRuntimeFromEnv,
   PostgresAdminAuthService,
   PostgresCustomerAuthService,
   PostgresVendorAuthService,
-  PostgresVivaPaymentsService,
-  type VivaPaymentsGateway
+  PostgresMolliePaymentsService
 } from "../packages/postgres-runtime/src/index.ts";
 import { customerReturnsSnapshot, requestCustomerReturn } from "../apps/web/src/lib/customer-returns-service.ts";
 import {
@@ -18,40 +18,6 @@ import {
 
 if (process.env.BLS_ACCEPTANCE_SYNTHETIC_DB !== "true") {
   throw new Error("Refusing to run returns acceptance outside an explicitly synthetic disposable database");
-}
-
-class FakeVivaGateway implements VivaPaymentsGateway {
-  readonly environment = "demo" as const;
-  createCount = 0;
-  refundCount = 0;
-  readonly #transactions = new Map<string, Awaited<ReturnType<VivaPaymentsGateway["retrieveTransaction"]>>>();
-
-  checkoutUrl(orderCode: string) { return `https://demo.vivapayments.com/web/checkout?ref=${orderCode}`; }
-  async createPaymentOrder(_input: Parameters<VivaPaymentsGateway["createPaymentOrder"]>[0]) {
-    this.createCount += 1;
-    const orderCode = (9_100_000_000_000_000n + BigInt(this.createCount)).toString();
-    return { orderCode, checkoutUrl: this.checkoutUrl(orderCode) };
-  }
-  confirm(orderCode: string, amountMinor: number) {
-    const transactionId = randomUUID();
-    this.#transactions.set(transactionId, { transactionId, orderCode, statusId: "F", amountMinor, currencyCode: 978 });
-    return transactionId;
-  }
-  async retrieveTransaction(transactionId: string) {
-    const transaction = this.#transactions.get(transactionId);
-    if (!transaction) throw new Error(`Synthetic Viva transaction ${transactionId} not found`);
-    return transaction;
-  }
-  async refund(input: Parameters<VivaPaymentsGateway["refund"]>[0]) {
-    const original = this.#transactions.get(input.transactionId);
-    if (!original) throw new Error("Synthetic Viva original transaction not found");
-    this.refundCount += 1;
-    const transactionId = randomUUID();
-    this.#transactions.set(transactionId, { ...original, transactionId, statusId: "F", amountMinor: input.amountMinor });
-    return { success: true, statusId: "F", transactionId, amountMinor: input.amountMinor };
-  }
-  async cancelPaymentOrder(_orderCode: string) {}
-  async webhookVerificationKey() { return "returns-acceptance-webhook-key"; }
 }
 
 const runtime = createPostgresRuntimeFromEnv({ applicationName: "customer-returns-lifecycle-acceptance" });
@@ -151,15 +117,15 @@ try {
   const admin = await adminAuth.authenticate({ email: adminEmail, password: "AdminStrong!123", now: now + 130 });
   const finance = await adminAuth.authenticate({ email: financeEmail, password: "FinanceStrong!123", now: now + 140 });
 
-  const vivaGateway = new FakeVivaGateway();
-  const viva = new PostgresVivaPaymentsService(runtime.sqlPool, vivaGateway);
+  const mollieGateway = new FakeMollieGateway();
+  const mollie = new PostgresMolliePaymentsService(runtime.sqlPool, mollieGateway, { publicBaseUrl: "https://kontamou.example.test" });
   const checkoutKey = `returns-checkout-${suffix}`;
   const visitorKey = `returns_visitor_${suffix}_secure`;
   const order = await runtime.customerCommerce.checkout({ checkoutKey, visitorKey, customerId: userId, postcode: "23100", fulfilmentMode: "pickup", items: [{ canonicalVariantId: canonicalId, quantity: 1 }], now: now + 200 });
   expect(order.status === "pending_payment", "Returns acceptance order did not start pending payment");
-  const initiated = await viva.initiateOrderPayment({ orderId: order.id, customerId: userId, visitorKey, now: now + 210 });
-  const transactionId = vivaGateway.confirm(initiated.orderCode, order.total.minor);
-  const confirmed = await viva.reconcileTransaction({ transactionId, expectedOrderCode: initiated.orderCode, source: "webhook", now: now + 220 });
+  const initiated = await mollie.initiateOrderPayment({ orderId: order.id, customerId: userId, visitorKey, now: now + 210 });
+  const transactionId = mollieGateway.confirm(initiated.paymentId, order.total.minor);
+  const confirmed = await mollie.reconcilePayment({ paymentId: transactionId, source: "webhook", now: now + 220 });
   expect(confirmed.paymentStatus === "captured" && confirmed.orderStatus === "confirmed", "Returns acceptance payment did not reach captured/confirmed");
 
   const fulfilment = (await runtime.vendorOperations.dashboard(vendor.principal)).fulfilments.find((item) => item.orderId === order.id);
@@ -225,16 +191,16 @@ try {
   await runtime.adminGovernance.returnAction(admin.principal, { returnId: requested.returnId, action: "approve_refund", reason: "Inspection passed", now: now + 370 });
 
   const stockBeforeRefund = await runtime.sqlPool.query<{ on_hand: number } & Record<string, unknown>>(`SELECT on_hand FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)`, [offerId]);
-  const refundsBefore = vivaGateway.refundCount;
-  const refund = await viva.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 380 });
-  expect(refund.status === "completed" && vivaGateway.refundCount === refundsBefore + 1, "Approved return did not execute exactly one Viva refund");
+  const refundsBefore = mollieGateway.refundCount;
+  const refund = await mollie.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 380 });
+  expect(refund.status === "completed" && mollieGateway.refundCount === refundsBefore + 1, "Approved return did not execute exactly one Mollie refund");
   await reconcileRefundedReturnInventory(requested.returnId, now + 390);
   await reconcileRefundedReturnFinance(requested.returnId, finance.principal.userId, now + 391);
   await reconcileRefundedReturnInventory(requested.returnId, now + 400);
   await reconcileRefundedReturnFinance(requested.returnId, finance.principal.userId, now + 401);
 
-  await expectFailure(() => viva.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 410 }), /has not been approved/, "Refund replay did not stop after the return closed");
-  expect(vivaGateway.refundCount === refundsBefore + 1, "Refund replay executed a second provider refund");
+  await expectFailure(() => mollie.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 410 }), /has not been approved/, "Refund replay did not stop after the return closed");
+  expect(mollieGateway.refundCount === refundsBefore + 1, "Refund replay executed a second provider refund");
 
   const finalState = await runtime.sqlPool.query<{
     return_status: string; refunded_quantity: number; line_status: string; order_status: string; payment_status: string;
@@ -279,7 +245,7 @@ try {
     adminTransitionGuards: true,
     vendorTenantIsolation: true,
     vendorReceiptAndInspection: true,
-    vivaRefundLinkage: true,
+    mollieRefundLinkage: true,
     sellableRestockExactlyOnce: true,
     postSettlementVendorRecoveryExactlyOnce: true,
     appendOnlyAuditCoverage: true
