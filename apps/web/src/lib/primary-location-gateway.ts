@@ -1,9 +1,14 @@
+import { EXPANSION_HUBS } from "./expansion-hubs.ts";
 import { isReadOnlyPublicCrawlerUserAgent } from "./public-crawler.ts";
 
 export const HUB_LOCALITY_COOKIE = "km_locality";
 export const PRIMARY_LOCATION_GATEWAY_PATH = "/choose-location";
 
-const LEGACY_SPARTA_SELECTIONS = new Set(["sparti", "sparta"]);
+const LIVE_LOCALITY_SELECTIONS = new Set([
+  ...EXPANSION_HUBS.filter((hub) => hub.isLive).map((hub) => hub.slug),
+  // Compatibility with the pre-HUB English Sparta locality alias.
+  "sparta"
+]);
 
 function normaliseLocality(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -17,9 +22,18 @@ function normaliseLocality(value: string | null | undefined): string | undefined
   return normalized || undefined;
 }
 
-export function isLegacySpartaLocality(value: string | null | undefined): boolean {
+export function primaryLocationGatewayEnforcementEnabled(value: string | null | undefined): boolean {
+  return value?.trim().toLowerCase() === "true";
+}
+
+export function isLiveLocalitySelection(value: string | null | undefined): boolean {
   const normalized = normaliseLocality(value);
-  return Boolean(normalized && LEGACY_SPARTA_SELECTIONS.has(normalized));
+  return Boolean(normalized && LIVE_LOCALITY_SELECTIONS.has(normalized));
+}
+
+/** @deprecated Prefer isLiveLocalitySelection; retained for compatibility with the initial Sparta gateway tests. */
+export function isLegacySpartaLocality(value: string | null | undefined): boolean {
+  return isLiveLocalitySelection(value);
 }
 
 /**
@@ -32,9 +46,11 @@ export function shouldRedirectToPrimaryLocationGateway(input: Readonly<{
   method: string;
   localityCookie?: string | null;
   userAgent?: string | null;
+  prefetch?: boolean;
 }>): boolean {
   if (input.pathname !== "/") return false;
   if (input.method !== "GET" && input.method !== "HEAD") return false;
+  if (input.prefetch) return false;
   if (isReadOnlyPublicCrawlerUserAgent(input.userAgent)) return false;
-  return !isLegacySpartaLocality(input.localityCookie);
+  return !isLiveLocalitySelection(input.localityCookie);
 }
