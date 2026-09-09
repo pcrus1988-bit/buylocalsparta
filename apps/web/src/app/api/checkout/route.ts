@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { formatMoney } from "@buy-local-sparta/core";
+import type { MollieAddress } from "@buy-local-sparta/mollie-payments";
 import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf, createCustomerNotification } from "../../../lib/customer-state-runtime";
 import { checkoutCustomer, postgresCommerceEnabled, syncPersistentCustomerCart } from "../../../lib/customer-commerce-runtime";
@@ -8,8 +9,10 @@ import { GiftCardRemainderBelowMinimumError, redeemGiftCardForOrder } from "../.
 import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
 import { molliePaymentsEnabled, requireMolliePayments } from "../../../lib/mollie-runtime";
 
-type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown }>;
+type CheckoutPaymentMethod = "card" | "klarna";
+type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown; paymentMethod?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
+type CheckoutAddress = Readonly<{ fullName: string; line1: string; line2?: string; locality: string; postcode: string; countryCode: string; phone?: string }>;
 const ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR = 100;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
 function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
@@ -22,6 +25,22 @@ function belowMinimumPaymentResponse(remainingMinor: number) {
   }, { status: 422 });
 }
 
+function mollieAddress(address: CheckoutAddress, accountFullName: string, email: string): MollieAddress {
+  const normalizedName = (address.fullName || accountFullName).trim().replace(/\s+/g, " ");
+  const parts = normalizedName.split(" ").filter(Boolean);
+  if (parts.length < 2) throw new Error("Klarna requires the recipient's full name and surname");
+  return {
+    givenName: parts.slice(0, -1).join(" "),
+    familyName: parts.at(-1)!,
+    streetAndNumber: [address.line1, address.line2].filter(Boolean).join(", "),
+    postalCode: address.postcode,
+    city: address.locality,
+    country: address.countryCode || "GR",
+    email,
+    phone: address.phone
+  };
+}
+
 async function assertCheckoutRequestIntegrity(
   runtime: ReturnType<typeof getProductionPostgresRuntime>,
   input: {
@@ -29,6 +48,7 @@ async function assertCheckoutRequestIntegrity(
     actorUserId: string;
     postcode: string;
     fulfilmentMode: "pickup" | "local_delivery" | "shipping";
+    paymentMethod: CheckoutPaymentMethod;
     billingAddressId: string;
     deliveryAddressId?: string;
     items: readonly Readonly<{ canonicalVariantId: string; quantity: number }>[];
@@ -38,6 +58,7 @@ async function assertCheckoutRequestIntegrity(
   const requestHash = sha256(JSON.stringify({
     postcode: input.postcode,
     fulfilmentMode: input.fulfilmentMode,
+    paymentMethod: input.paymentMethod,
     billingAddressId: input.billingAddressId,
     deliveryAddressId: input.fulfilmentMode === "local_delivery" ? input.deliveryAddressId ?? null : null,
     items: [...input.items].map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })).sort((a, b) => a.canonicalVariantId.localeCompare(b.canonicalVariantId)),
@@ -76,6 +97,7 @@ export async function POST(request: Request) {
     const body = await request.json() as CheckoutBody;
     const checkoutKey = boundedString(body.checkoutKey, "", 128);
     const giftCardId = boundedString(body.giftCardId, "", 128) || undefined;
+    const paymentMethod: CheckoutPaymentMethod = body.paymentMethod == null || body.paymentMethod === "card" ? "card" : body.paymentMethod === "klarna" ? "klarna" : (() => { throw new Error("A valid payment method is required"); })();
     if (!checkoutKey) throw new Error("checkoutKey is required");
     const visitorKey = request.headers.get("x-bls-visitor")?.trim();
     if (!visitorKey || !/^[A-Za-z0-9_-]{16,128}$/.test(visitorKey)) throw new Error("Trusted visitor identity is required");
@@ -140,6 +162,7 @@ export async function POST(request: Request) {
       actorUserId: principal.userId,
       postcode,
       fulfilmentMode,
+      paymentMethod,
       billingAddressId,
       deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined,
       items,
@@ -193,8 +216,12 @@ export async function POST(request: Request) {
     const eventType = order.status === "pending_payment" ? "order.pending_payment" : "order.authorised";
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardAmountMinor: giftCard?.amountMinor ?? 0, remainingPayableMinor: payableMinor }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
     if (postgresCommerceEnabled() && molliePaymentsEnabled()) {
-      const payment = await requireMolliePayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
-      return Response.json({ ...order, giftCard, payment: { provider: "mollie", paymentId: payment.paymentId, orderNumber: payment.orderNumber, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: 201 });
+      const billingForMollie = paymentMethod === "klarna" ? mollieAddress(billingAddress, addressProfile.fullName, principal.email) : undefined;
+      const shippingForMollie = paymentMethod === "klarna" && fulfilmentMode === "local_delivery" && deliveryAddress
+        ? mollieAddress(deliveryAddress, addressProfile.fullName, principal.email)
+        : undefined;
+      const payment = await requireMolliePayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, paymentMethod, billingAddress: billingForMollie, shippingAddress: shippingForMollie, now });
+      return Response.json({ ...order, giftCard, payment: { provider: "mollie", method: paymentMethod, paymentId: payment.paymentId, orderNumber: payment.orderNumber, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: 201 });
     }
     return Response.json({ ...order, giftCard }, { status: 201 });
   } catch (error) {
