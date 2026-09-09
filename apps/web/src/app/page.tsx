@@ -7,7 +7,7 @@ import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
-import { getPublicVendorDirectory } from "../lib/public-vendor-directory";
+import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
@@ -94,6 +94,30 @@ async function homepageSectionOrFallback<T>(label: string, operation: () => Prom
   }
 }
 
+function editorialRank(seed: string, vendorId: string): number {
+  const value = `${seed}:${vendorId}`;
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Editorial shop-window rotation is intentionally separate from transactional
+ * Fair Vendor Assignment. It gives active partners stable exposure for one visitor
+ * during the day without consuming or mutating checkout assignment state.
+ */
+function selectEditorialVendors(vendors: readonly PublicVendorDirectoryEntry[], visitorKey: string): readonly PublicVendorDirectoryEntry[] {
+  const dayBucket = new Date().toISOString().slice(0, 10);
+  const seed = `${dayBucket}:${visitorKey || "public"}`;
+  return vendors
+    .filter((vendor) => vendor.directoryStatus === "partner")
+    .sort((left, right) => editorialRank(seed, left.id) - editorialRank(seed, right.id) || left.id.localeCompare(right.id))
+    .slice(0, 6);
+}
+
 export default async function Home() {
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
@@ -111,9 +135,7 @@ export default async function Home() {
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])
   ]);
 
-  const activeVendors = vendorDirectory
-    .filter((vendor) => vendor.directoryStatus === "partner")
-    .slice(0, 6);
+  const activeVendors = selectEditorialVendors(vendorDirectory, visitorKey);
 
   const homepageStructuredData = {
     "@context": "https://schema.org",
@@ -228,18 +250,30 @@ export default async function Home() {
               {activeVendors.map((vendor, index) => {
                 const imageSrc = vendor.mediaId ? `/api/media/${encodeURIComponent(vendor.mediaId)}` : vendor.story?.mediaUrl;
                 const category = vendor.taxonomies[0]?.categoryLabel ?? "Τοπικό κατάστημα";
+                const intro = vendor.story?.excerpt
+                  ?? vendor.profileShortDescription
+                  ?? (vendor.canonicalCount > 0 ? `${vendor.canonicalCount} ενεργά προϊόντα στην τοπική αγορά.` : "Γνώρισε το κατάστημα και όσα μπορεί να σε βοηθήσει να βρεις.");
+                const vendorHref = `/vendor/${encodeURIComponent(vendor.id)}`;
+                const askHref = `/ask-local?vendor=${encodeURIComponent(vendor.id)}`;
                 return (
-                  <a className={styles.shopWindow} href={`/vendor/${encodeURIComponent(vendor.id)}`} key={vendor.id}>
-                    <div className={`${styles.shopWindowImage} ${imageSrc ? styles.hasPhoto : ""}`} style={imageSrc ? { backgroundImage: `url(${imageSrc})` } : undefined}>
-                      {!imageSrc ? <span className={styles.windowNumber}>{String(index + 1).padStart(2, "0")}</span> : null}
-                      <span className={styles.windowStatus}>Ανοιχτή βιτρίνα</span>
-                    </div>
+                  <article className={styles.shopWindow} key={vendor.id}>
+                    <a href={vendorHref} aria-label={`Μπες στο κατάστημα ${vendor.name}`}>
+                      <div className={`${styles.shopWindowImage} ${imageSrc ? styles.hasPhoto : ""}`} style={imageSrc ? { backgroundImage: `url(${imageSrc})` } : undefined}>
+                        {!imageSrc ? <span className={styles.windowNumber}>{String(index + 1).padStart(2, "0")}</span> : null}
+                        <span className={styles.windowStatus}>Ανοιχτή βιτρίνα</span>
+                      </div>
+                    </a>
                     <div className={styles.shopWindowCopy}>
                       <small>{category}</small>
-                      <strong>{vendor.name}</strong>
-                      <span>{vendor.adviser ? `Ρώτησε ${vendor.adviser}` : "Δες το κατάστημα"} →</span>
+                      <strong><a href={vendorHref}>{vendor.name}</a></strong>
+                      <span>{intro}</span>
+                      {vendor.adviser ? <span>Μπορείς να ρωτήσεις {vendor.adviser} πριν αγοράσεις.</span> : null}
+                      <div className="market-window-actions">
+                        <a href={vendorHref}>Μπες στο κατάστημα</a>
+                        <a href={askHref}>Ρώτησε</a>
+                      </div>
                     </div>
-                  </a>
+                  </article>
                 );
               })}
             </div>
