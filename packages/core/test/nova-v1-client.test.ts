@@ -37,17 +37,20 @@ test("Nova store discovery has no store id parameter", async () => {
   assert.equal(stores[0]?.id, 9);
 });
 
-test("Nova bulk status uses documented body and enforces 100 id maximum", async () => {
+test("Nova bulk status scopes store in query, product ids in body, and enforces 100 id maximum", async () => {
+  let observedUrl = "";
   let body: unknown = null;
   const client = new NovaV1Client({
     apiKey: "example-value",
-    fetchImpl: async (_input, init) => {
+    fetchImpl: async (input, init) => {
+      observedUrl = String(input);
       body = JSON.parse(String(init?.body));
       return response([{ id: 1, status: "publish" }]);
     }
   });
   await client.checkProductStatus("store-1", [1, 2]);
-  assert.deepEqual(body, { store_id: "store-1", product_ids: [1, 2] });
+  assert.equal(new URL(observedUrl).searchParams.get("store_id"), "store-1");
+  assert.deepEqual(body, { product_ids: [1, 2] });
   await assert.rejects(() => client.checkProductStatus("store-1", []), /between 1 and 100/);
   await assert.rejects(() => client.checkProductStatus("store-1", Array.from({ length: 101 }, (_, i) => i + 1)), /between 1 and 100/);
 });
