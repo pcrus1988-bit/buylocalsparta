@@ -23,6 +23,7 @@ type HomepageLocalMarketSceneRow = Readonly<{
   alt_text: string;
   is_visible: boolean;
   has_image: boolean;
+  image_etag: string | null;
 }>;
 
 type HomepageLocalMarketImageRow = Readonly<{
@@ -87,7 +88,7 @@ function sceneFromRow(row: HomepageLocalMarketSceneRow): HomepageLocalMarketScen
     ctaUrl: row.cta_url,
     altText: row.alt_text,
     isVisible: row.is_visible,
-    imageUrl: row.has_image ? "/api/homepage-local-market-image" : null
+    imageUrl: row.has_image ? `/api/homepage-local-market-image?v=${encodeURIComponent(row.image_etag || "1")}` : null
   };
 }
 
@@ -95,7 +96,7 @@ export async function getHomepageLocalMarketScene(): Promise<HomepageLocalMarket
   try {
     const result = await pool().query(`
       SELECT id, eyebrow, headline, body, cta_label, cta_url, alt_text, is_visible,
-             (image_bytes IS NOT NULL) AS has_image
+             (image_bytes IS NOT NULL) AS has_image, image_etag
       FROM bls_private.homepage_local_market_scene
       WHERE id = $1
       LIMIT 1
@@ -147,7 +148,7 @@ export async function updateHomepageLocalMarketScene(input: {
            updated_at = now()
        WHERE id = $1
        RETURNING id, eyebrow, headline, body, cta_label, cta_url, alt_text, is_visible,
-                 (image_bytes IS NOT NULL) AS has_image`,
+                 (image_bytes IS NOT NULL) AS has_image, image_etag`,
       [SCENE_ID, eyebrow, headline, body, ctaLabel, ctaUrl, altText, isVisible, bytes, input.file.type, etag]
     );
   } else {
@@ -163,7 +164,7 @@ export async function updateHomepageLocalMarketScene(input: {
            updated_at = now()
        WHERE id = $1
        RETURNING id, eyebrow, headline, body, cta_label, cta_url, alt_text, is_visible,
-                 (image_bytes IS NOT NULL) AS has_image`,
+                 (image_bytes IS NOT NULL) AS has_image, image_etag`,
       [SCENE_ID, eyebrow, headline, body, ctaLabel, ctaUrl, altText, isVisible]
     );
   }
