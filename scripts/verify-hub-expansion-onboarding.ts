@@ -70,7 +70,8 @@ requireText(migration, "billing_cycle text NOT NULL", "Migration must persist bi
 requireText(migration, "recurring_fee_cents = monthly_fee_cents", "Monthly recurring price must match plan snapshot");
 requireText(migration, "recurring_fee_cents = annual_fee_cents", "Annual recurring price must match plan snapshot");
 requireText(migration, "hub_resolution_method", "Migration must retain HUB resolution evidence");
-requireText(postgresRuntime, "EXPECTED_SCHEMA_VERSION = 218", "PostgreSQL runtime schema head must be 218");
+const runtimeSchemaVersion = Number(postgresRuntime.match(/export const EXPECTED_SCHEMA_VERSION = (\d+);/)?.[1] ?? 0);
+if (runtimeSchemaVersion < 218) errors.push(`PostgreSQL runtime schema head must be at least 218; found ${runtimeSchemaVersion || "none"}`);
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 if (checksum["0218_hub_expansion_prospects.sql"] !== migrationHash) {
