@@ -17,7 +17,8 @@ try {
   const client = new NovaV1Client({
     apiKey: novaApiKeyFromEnvironment(),
     baseUrl: process.env.NOVA_API_BASE_URL,
-    requestsPerMinute: 60
+    requestsPerMinute: 60,
+    requestTimeoutMs: 120_000
   });
 
   const stores = await client.getStores();
@@ -27,11 +28,25 @@ try {
   let csv: Record<string, unknown>;
   try {
     const status = await client.getCsvStatus(store.id);
+    const enabled = booleanish(status.csv_enabled ?? status.enabled);
     csv = {
-      enabled: booleanish(status.csv_enabled),
-      downloadCount: numberish(status.download_count),
+      enabled,
+      downloadCountBefore: numberish(status.download_count),
       downloadLimit: numberish(status.download_limit)
     };
+    if (enabled) {
+      const exportText = await client.downloadCsv(store.id);
+      const firstLine = exportText.split(/\r?\n/, 1)[0] ?? "";
+      const delimiter = inferDelimiter(firstLine);
+      const columns = parseDelimitedLine(firstLine, delimiter).map((value) => value.trim());
+      csv = {
+        ...csv,
+        delimiter: delimiter === "\t" ? "tab" : delimiter,
+        columnCount: columns.length,
+        columns,
+        byteLength: Buffer.byteLength(exportText, "utf8")
+      };
+    }
   } catch (error) {
     if (error instanceof NovaV1ApiError && error.status === 403) {
       csv = { enabled: false, access: "not_enabled" };
@@ -78,6 +93,35 @@ try {
     : { ok: false, error: error instanceof Error ? error.message : "UnknownError", writesPerformed: false };
   console.error(`${prefix} ${JSON.stringify(diagnostic)}`);
   process.exitCode = 1;
+}
+
+function inferDelimiter(line: string): string {
+  const candidates = [",", ";", "\t"] as const;
+  let best: string = ",";
+  let bestCount = -1;
+  for (const delimiter of candidates) {
+    const count = parseDelimitedLine(line, delimiter).length;
+    if (count > bestCount) { best = delimiter; bestCount = count; }
+  }
+  return best;
+}
+
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  const values: string[] = [];
+  let value = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (quoted && line[index + 1] === '"') { value += '"'; index += 1; }
+      else quoted = !quoted;
+      continue;
+    }
+    if (char === delimiter && !quoted) { values.push(value); value = ""; continue; }
+    value += char;
+  }
+  values.push(value);
+  return values;
 }
 
 function productSummary(product: Readonly<Record<string, unknown>>) {
