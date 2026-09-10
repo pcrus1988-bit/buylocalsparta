@@ -20,13 +20,19 @@ test("homepage preserves clean semantic and structured SEO signals", () => {
   const layout = read("apps/web/src/app/layout.tsx");
 
   assert.doesNotMatch(homepage, /\/shops\?status=partner/);
-  assert.match(homepage, /Βρες το στη Σπάρτη\.<\/span>\{\" \"\}/);
-  assert.match(homepage, /Η τοπική αγορά της Σπάρτης online/);
+  assert.match(homepage, /<h1 className=\{styles\.heroTitle\}>Μια ολόκληρη πόλη\.<br \/><em>Κοντά σου\.<\/em><\/h1>/);
+  assert.match(homepage, /Η τοπική αγορά της Σπάρτης — online, αλλά ανθρώπινα\./);
+  assert.match(homepage, /Σπάρτη <span>· Αλλαγή περιοχής<\/span>/);
   assert.match(homepage, /"@type": "FAQPage"/);
   assert.match(homepage, /"@type": "WebPage"/);
+  assert.match(homepage, /inLanguage: "el-GR"/);
+  assert.match(homepage, /isPartOf: \{ "@id": "https:\/\/kontamou\.site\/#website" \}/);
   assert.match(homepage, /unstable_cache/);
-  assert.match(homepage, /facebook\.com\/sharer/);
-  assert.match(homepage, /linkedin\.com\/sharing\/share-offsite/);
+  assert.match(homepage, /visibleCategories\.map\(\(category\) =>/);
+  assert.match(homepage, /href=\{`\/category\/\$\{category\.slug\}`\}/);
+  assert.match(homepage, /<a href="\/shop">Όλα τα προϊόντα/);
+  assert.match(homepage, /<a href="\/shops">Τα καταστήματα/);
+  assert.match(homepage, /<a href="\/ask-local">Ask Local/);
   assert.match(layout, /apple: \[\{ url: "\/brand\/kontamou-sparta-logo\.webp" \}\]/);
 });
 

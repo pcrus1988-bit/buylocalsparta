@@ -1,0 +1,161 @@
+.checkout-hero {
+  max-width: 1180px;
+}
+.checkout-hero > h1 {
+  max-width: 780px;
+  margin-bottom: 14px;
+}
+.checkout-hero-note {
+  max-width: 780px;
+  margin: 0;
+  color: #68736c;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.checkout-progress {
+  max-width: 780px;
+  margin: 28px 0 18px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  list-style: none;
+  border-top: 1px solid rgba(18,55,44,.14);
+}
+.checkout-progress li {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 15px 0 0;
+  color: #5f6d65;
+}
+.checkout-progress li::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #87928b;
+}
+.checkout-progress .is-current { color: #12372c; }
+.checkout-progress .is-current::before { background: #735a30; box-shadow: 0 0 0 5px rgba(115,90,48,.12); }
+.checkout-progress span { font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.checkout-progress strong { font-size: 12px; }
+.checkout-context-links { margin-top: 16px; }
+
+.checkout-layout {
+  align-items: start;
+  gap: clamp(20px, 3vw, 34px);
+}
+.checkout-section {
+  border-radius: 16px;
+  border-color: rgba(18,55,44,.13);
+  box-shadow: none;
+}
+.checkout-section h2 { letter-spacing: -.03em; }
+.checkout-summary {
+  position: sticky;
+  top: 22px;
+  border-radius: 16px;
+  border-color: rgba(18,55,44,.13);
+  box-shadow: none;
+}
+.account-gate {
+  border-radius: 12px;
+  background: #f0eadf;
+  border-color: rgba(18,55,44,.12);
+  color: #405149;
+}
+.account-gate strong,
+.account-gate .text-link { color: #405149; }
+.fulfilment-option {
+  border-radius: 12px;
+  border-color: rgba(18,55,44,.13);
+}
+.fulfilment-option.selected {
+  border-color: #a68550;
+  box-shadow: 0 0 0 3px rgba(166,133,80,.09);
+}
+.checkout-gift-card {
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(18,55,44,.13);
+  border-radius: 12px;
+  background: rgba(251,248,241,.72);
+}
+.checkout-gift-card > summary {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  color: #12372c;
+  cursor: pointer;
+  list-style: none;
+}
+.checkout-gift-card > summary::-webkit-details-marker { display: none; }
+.checkout-gift-card > summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  font-size: 20px;
+  font-weight: 500;
+  color: #7b6a49;
+}
+.checkout-gift-card[open] > summary::after { content: "−"; }
+.checkout-gift-card > summary span { font-size: 13px; font-weight: 900; }
+.checkout-gift-card > summary small { margin-left: auto; color: #5f6d65; font-size: 11px; }
+.checkout-gift-card-content {
+  display: grid;
+  gap: 10px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid rgba(18,55,44,.09);
+}
+.checkout-gift-card-content > label {
+  display: grid;
+  gap: 7px;
+  padding-top: 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.checkout-gift-card-content input {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid rgba(18,55,44,.18);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 12px;
+}
+
+/* Accessibility follow-up for the premium public layer. Keep secondary copy
+   within WCAG AA contrast while preserving the forest/ivory/brass palette. */
+.catalog-sidebar .fairness-note { opacity: 1; }
+.catalog-sidebar .fairness-note,
+.catalog-sidebar .fairness-note .text-link { color: #405149; }
+
+main[class*="LocationGatewayV2-module"] [class*="__eyebrow"] { color: #735a30; }
+main[class*="LocationGatewayV2-module"] [class*="__intro"] p { color: #536159; }
+main[class*="LocationGatewayV2-module"] [class*="__locationButton"] small,
+main[class*="LocationGatewayV2-module"] [class*="__regions"] button,
+main[class*="LocationGatewayV2-module"] [class*="__resultsHead"] > small,
+main[class*="LocationGatewayV2-module"] [class*="__hubRow"] small,
+main[class*="LocationGatewayV2-module"] [class*="__legend"] span,
+main[class*="LocationGatewayV2-module"] [class*="__footer"] { color: #58675f; }
+main[class*="LocationGatewayV2-module"] [class*="__regions"] [class*="__activeRegion"] { color: #fff; }
+main[class*="LocationGatewayV2-module"] [class*="__resultsHead"] strong { color: #735a30; }
+main[class*="LocationGatewayV2-module"] [class*="__hubRow"] b,
+main[class*="LocationGatewayV2-module"] [class*="__selection"] > p:not([class*="__selectionCopy"]),
+main[class*="LocationGatewayV2-module"] [class*="__selectionCopy"],
+main[class*="LocationGatewayV2-module"] [class*="__selectionFacts"] span { color: #5f6d65; }
+main[class*="LocationGatewayV2-module"] [class*="__saved"] { color: #536159; }
+
+@media (max-width: 760px) {
+  .checkout-hero-note { font-size: 12px; }
+  .checkout-progress { margin-top: 22px; }
+  .checkout-progress strong { font-size: 11px; }
+  .checkout-summary { position: static; }
+  .checkout-gift-card > summary { align-items: flex-start; flex-direction: column; gap: 2px; padding-right: 42px; position: relative; }
+  .checkout-gift-card > summary::after { position: absolute; top: 13px; right: 14px; }
+  .checkout-gift-card > summary small { margin-left: 0; }
+}

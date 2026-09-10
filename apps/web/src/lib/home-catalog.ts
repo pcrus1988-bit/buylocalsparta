@@ -47,8 +47,6 @@ function predictFairVendor(rows: readonly HomepageCandidateRow[], postcode: stri
     if (sticky) return sticky.vendor_public_id;
   }
 
-  // Match the fairness engine's "one ticket per vendor" representative rule:
-  // freshest eligible offer wins, with offer public id as the stable tie-break.
   const representatives = new Map<string, HomepageCandidateRow>();
   for (const row of rows) {
     const existing = representatives.get(row.vendor_uuid);
@@ -134,6 +132,7 @@ async function loadHomepageCandidates(visitorKey: string, postcode: string, now:
       AND cv.suppressed=false
       AND cv.recalled=false
       AND vo.status='approved'
+      AND vo.customer_price_minor>0
       AND v.status='active'
       AND l.active=true
       AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
@@ -162,10 +161,10 @@ async function loadHomepageCandidates(visitorKey: string, postcode: string, now:
  * read-only, then uses that prediction only to choose a varied set of product
  * families. It never overrides the vendor selected by Fair Vendor Assignment.
  *
- * Crucially, only cards that are actually selected for the four homepage slots
- * call getCatalogCard(). Unshown candidates therefore receive no sticky assignment
- * and no qualified exposure event. When more than one vendor is fairly due across
- * the available products, unseen vendors are preferred for the next homepage slot.
+ * Only cards actually selected for the homepage call getCatalogCard(). Unshown
+ * candidates therefore receive no sticky assignment and no qualified exposure.
+ * Customer-facing homepage candidates also require a real positive customer price,
+ * active vendor/location, fresh sellable stock and an approved offer.
  */
 export async function getHomepageCatalogCards(
   visitorKey: string,
@@ -190,9 +189,9 @@ export async function getHomepageCatalogCards(
 
     try {
       const card = await getCatalogCard(candidate.id, visitorKey, postcode);
-      if (!card?.available) continue;
+      if (!card?.available || card.priceMinor <= 0 || !card.vendorId) continue;
       cards.push(card);
-      if (card.vendorId) visibleVendorIds.add(card.vendorId);
+      visibleVendorIds.add(card.vendorId);
     } catch (error) {
       console.error(JSON.stringify({
         level: "error",

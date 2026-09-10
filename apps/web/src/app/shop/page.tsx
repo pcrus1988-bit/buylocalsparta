@@ -32,6 +32,10 @@ function valueOf(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+function purchasablePublicProduct(product: ShopCard): boolean {
+  return product.available && product.availableToSell > 0 && product.priceMinor > 0 && Boolean(product.vendorId);
+}
+
 export async function generateMetadata({ searchParams }: ShopProps): Promise<Metadata> {
   const base = await governedStaticSeoMetadata("/shop", {
     title: "Προϊόντα",
@@ -106,9 +110,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     : [...await getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)];
   products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
   if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
-  const fitOptions = [...new Set(products.filter((product) => product.available).map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
+  products = products.filter(purchasablePublicProduct);
+  if (availability === "available") products = products.filter((product) => product.available);
+  const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
-  if (availability === "available" || searchIntent.availability === "in_stock") products = products.filter((product) => product.available);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (searchIntent.minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= searchIntent.minPriceMinor!);
   if (searchIntent.maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= searchIntent.maxPriceMinor!);
@@ -170,7 +175,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       <section className="catalog-hero shell">
         <div className="eyebrow">Marketplace · Sparta 23100</div>
         <h1>{categoryView ? categoryView.label : "Βρες το τοπικά."}</h1>
-        <p className="lead">{categoryView ? categoryView.description : "Ένα καθαρό αποτέλεσμα ανά προϊόν. Χωρίς δημόσιο πόλεμο τιμών ανάμεσα στα τοπικά καταστήματα."}</p>
+        <p className="lead">{categoryView ? categoryView.description : "Ένα καθαρό αποτέλεσμα ανά προϊόν, με πραγματική τιμή και τοπική διαθεσιμότητα."}</p>
         <div className="category-chip-row" aria-label="Κατηγορίες προϊόντων">
           <a className={!category ? "category-chip active" : "category-chip"} href="/shop">Όλα</a>
           {availableCategories.map((item) => <a className={category === item.slug ? "category-chip active" : "category-chip"} href={`/shop?category=${item.slug}`} key={item.slug}>{item.label}</a>)}
@@ -180,6 +185,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       <section className="shell catalog-layout">
         <aside className="catalog-sidebar">
           <form className="filter-form" action="/shop">
+            {availability === "available" ? <input type="hidden" name="availability" value="available" /> : null}
             <label htmlFor="q">Αναζήτηση</label>
             <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Π.χ. Bosch δραπανο μέχρι 100€"} />
 
@@ -239,11 +245,6 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </div>)}
 
-            <label htmlFor="availability">Διαθεσιμότητα</label>
-            <select id="availability" name="availability" defaultValue={availability}>
-              <option value="">Όλα</option>
-              <option value="available">Διαθέσιμο τώρα</option>
-            </select>
             <label htmlFor="sort">Ταξινόμηση</label>
             <select id="sort" name="sort" defaultValue={sort}>
               <option value="">Προτεινόμενα</option>
@@ -253,7 +254,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
             <button className="button" type="submit">Εφαρμογή</button>
             {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός φίλτρων</a> : null}
           </form>
-          <div className="fairness-note"><strong>Fair Vendor Exposure</strong><p>Όταν το ίδιο προϊόν υπάρχει σε περισσότερα καταστήματα, εμφανίζεται μία φορά και το κατάστημα εκπλήρωσης επιλέγεται δίκαια στο παρασκήνιο.</p><a className="text-link" href="/fairness">Δες τους κανόνες →</a></div>
+          <div className="fairness-note"><strong>Τοπική αγορά, χωρίς θόρυβο</strong><p>Κάθε προϊόν εμφανίζεται μία φορά, με πραγματική διαθέσιμη επιλογή από ενεργό τοπικό κατάστημα.</p><a className="text-link" href="/fairness">Πώς λειτουργεί →</a></div>
         </aside>
 
         <div className="catalog-results">

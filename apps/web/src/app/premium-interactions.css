@@ -1,0 +1,287 @@
+/* Purposeful storefront interaction layer. Kept additive so admin/vendor workspaces are unaffected. */
+
+.main-content-scope > main:not(.dashboard):not(.workspace) :is(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(166, 133, 80, .48);
+  outline-offset: 3px;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) .button {
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.main-content-scope > main:not(.dashboard):not(.workspace) .button:not(:disabled):active {
+  transform: translateY(1px) scale(.99);
+}
+
+.product-card:focus-within {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 45px rgba(18, 55, 44, .09);
+}
+.product-card .product-art img {
+  transition: transform .28s cubic-bezier(.2,.7,.2,1);
+}
+.product-card:hover .product-art img,
+.product-card:focus-within .product-art img {
+  transform: scale(1.025);
+}
+
+.add-to-cart-wrap {
+  position: relative;
+  display: inline-grid;
+  min-width: min(100%, 240px);
+}
+.add-to-cart-wrap > .button {
+  width: 100%;
+}
+.cart-add-toast {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: min(290px, 88vw);
+  padding: 9px 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  transform: translate(-50%, 8px);
+  background: #0d2a22;
+  color: #fff;
+  box-shadow: 0 14px 36px rgba(13,42,34,.22);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.cart-add-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.cart-add-toast::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -5px) rotate(45deg);
+  background: #0d2a22;
+}
+
+.purchase-confidence {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(18,55,44,.12);
+}
+.purchase-confidence-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: #68736c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.purchase-confidence-item > span:first-child {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(79,140,97,.12);
+  color: #2f6942;
+  font-size: 11px;
+  font-weight: 900;
+}
+.purchase-confidence-item strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #12372c;
+  font-size: 12px;
+}
+
+.market-window-products {
+  margin-top: 7px;
+  border-top: 1px solid rgba(255,255,255,.14);
+  border-bottom: 1px solid rgba(255,255,255,.14);
+}
+.market-window-products > summary {
+  position: relative;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 8px 25px 8px 0;
+  color: #fff8e9;
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  font-weight: 900;
+}
+.market-window-products > summary::-webkit-details-marker { display: none; }
+.market-window-products > summary::after {
+  content: "+";
+  position: absolute;
+  right: 2px;
+  color: #d8c398;
+  font-size: 18px;
+  font-weight: 500;
+}
+.market-window-products[open] > summary::after { content: "−"; }
+.market-window-product-list {
+  display: grid;
+  gap: 7px;
+  padding: 0 0 10px;
+}
+.market-window-product {
+  min-width: 0;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.07);
+  transition: background .16s ease, transform .16s ease;
+}
+.market-window-product:hover,
+.market-window-product:focus-visible {
+  background: rgba(255,255,255,.12);
+  transform: translateX(2px);
+}
+.market-window-product-image {
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #fff;
+  color: #0d2a22;
+  font-family: Georgia, serif;
+  font-size: 20px;
+}
+.market-window-product-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  padding: 4px;
+}
+.market-window-product-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.market-window-product-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #fff;
+  font-family: var(--font-km-sans), system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.market-window-product-copy b {
+  color: #d8c398;
+  font-size: 11px;
+  font-weight: 900;
+}
+.market-window-product-fallback {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 5px;
+  color: #fff8e9;
+  border-bottom: 1px solid rgba(255,255,255,.24);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.market-window-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.market-window-actions a {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.market-window-actions a:first-child {
+  background: #fbf8f1;
+  color: #0d2a22;
+}
+.market-window-actions a:last-child {
+  border: 1px solid rgba(255,255,255,.28);
+  background: transparent;
+  color: #fff;
+}
+.market-window-actions a:hover,
+.market-window-actions a:focus-visible {
+  transform: translateY(-1px);
+}
+
+/* Keep customer-facing commerce text legible instead of shrinking metadata into UI chrome. */
+.catalog-card-availability { font-size: 12px; }
+.catalog-card-vendor { font-size: 11px; }
+.results-toolbar,
+.categoryMeta { font-size: 13px; }
+
+@media (max-width: 760px) {
+  .main-content-scope > main:not(.dashboard):not(.workspace) :is(input, select, textarea) {
+    font-size: 16px;
+  }
+  .purchase-confidence {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .catalog-results .product-body h3 { font-size: 15px; }
+  .catalog-results .product-bottom .price { font-size: 20px; }
+  .catalog-card-availability { font-size: 11px; }
+  .add-to-cart-wrap { width: 100%; max-width: none; }
+  .market-window-products > summary,
+  .market-window-product-fallback { min-height: 44px; font-size: 12px; }
+  .market-window-product { min-height: 62px; grid-template-columns: 52px minmax(0, 1fr); }
+  .market-window-product-image { width: 52px; height: 52px; }
+  .market-window-product-copy strong,
+  .market-window-product-copy b { font-size: 12px; }
+  .market-window-actions a { flex: 1 1 130px; min-height: 44px; }
+}
+
+@media (max-width: 350px) {
+  .catalog-results .product-body h3 { font-size: 16px; }
+  .catalog-results .product-bottom .price { font-size: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-content-scope > main:not(.dashboard):not(.workspace) .button,
+  .product-card .product-art img,
+  .cart-add-toast,
+  .market-window-product,
+  .market-window-actions a {
+    transition: none;
+  }
+  .product-card:hover .product-art img,
+  .product-card:focus-within .product-art img,
+  .market-window-product:hover,
+  .market-window-product:focus-visible,
+  .market-window-actions a:hover,
+  .market-window-actions a:focus-visible {
+    transform: none;
+  }
+}

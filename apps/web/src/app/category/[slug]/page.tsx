@@ -67,8 +67,9 @@ export default async function CategoryPage({ params }: Props) {
     settingsPromise,
     overridesPromise
   ]);
+  const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
   const siblings = availableCategories.filter((item) => item.slug !== category.slug);
-  const availableProducts = products.filter((product) => product.available);
+  const availableProducts = purchasableProducts;
   const entityEligible = availableProducts.length > 0;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
@@ -164,12 +165,12 @@ export default async function CategoryPage({ params }: Props) {
         <div className="shell">
           <div className="section-heading">
             <div><div className="eyebrow">Διαθέσιμα τώρα</div><h2>{category.label} στη Σπάρτη</h2></div>
-            <p className="section-note">Ξεκίνα από 10 τυχαίες επιλογές και χρησιμοποίησε αναζήτηση ή φίλτρα μόνο μέσα σε αυτή την κατηγορία.</p>
+            <p className="section-note">Δες πραγματικά διαθέσιμες επιλογές και χρησιμοποίησε αναζήτηση ή φίλτρα μόνο μέσα σε αυτή την κατηγορία.</p>
           </div>
-          {products.length ? (
-            <CategoryCatalogBrowser products={products} categoryName={category.label} />
+          {purchasableProducts.length ? (
+            <CategoryCatalogBrowser products={purchasableProducts} categoryName={category.label} />
           ) : (
-            <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Η σελίδα παραμένει διαθέσιμη ακόμη και όταν δεν υπάρχει ενεργό απόθεμα. Το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
+            <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Όταν δεν υπάρχει επιλέξιμη τιμή και διαθέσιμο τοπικό offer, δεν εμφανίζουμε παραπλανητική κάρτα αγοράς. Το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
           )}
         </div>
       </section>

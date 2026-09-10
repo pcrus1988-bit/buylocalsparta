@@ -15,7 +15,7 @@ const layout = read("apps/web/src/app/layout.tsx");
 const metadata = read("apps/web/src/lib/seo-metadata.ts");
 const privacyConsent = read("apps/web/src/components/PrivacyConsentProvider.tsx");
 
-for (const label of ["visitor-key", "featured-products", "hero-slides", "promo-ctas", "visible-categories"]) {
+for (const label of ["visitor-key", "featured-products", "hero-slides", "visible-categories", "vendor-directory"]) {
   requirePattern(homepage, new RegExp(`homepageSectionOrFallback\\(\\s*\\"${label}\\"`), `Homepage must fail soft for ${label}`);
 }
 requireText(homepage, "console.error(`[homepage] ${label} unavailable; rendering fallback`, error)", "Homepage fail-soft paths must remain observable in runtime logs");

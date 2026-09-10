@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
-import { LocationGateway } from "../../components/LocationGateway";
+import { LocationGatewayV2, type LocationGatewayRuntimeHubV2 } from "../../components/LocationGatewayV2";
 import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
 import { getExpansionHubRuntimeSnapshot } from "../../lib/expansion-hub-runtime";
-import "./location-gateway-overrides.css";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Επίλεξε περιοχή | ΚΟΝΤΑ ΜΟΥ",
-  description: "Επίλεξε την πόλη ή περιοχή σου και βρες τον κοντινότερο κόμβο ΚΟΝΤΑ ΜΟΥ από το πλάνο επέκτασης 131 περιοχών.",
+  description: "Επίλεξε την πόλη ή περιοχή σου και δες αν η τοπική αγορά ΚΟΝΤΑ ΜΟΥ είναι διαθέσιμη, ετοιμάζεται ή βρίσκεται στο πλάνο.",
   robots: {
     index: false,
     follow: false,
@@ -20,13 +19,15 @@ export const metadata: Metadata = {
 export default async function ChooseLocationPage() {
   assertExpansionHubMaster();
   const runtime = await getExpansionHubRuntimeSnapshot();
+
+  // Only the three fields required to derive the customer-facing availability state
+  // cross the server/client boundary. Prospect counts, research state and internal
+  // legacy flags stay server-side and are never serialized into the public page.
   const publicRuntimeHubs = runtime.hubs.map((hub) => ({
     hubId: hub.hubId,
     lifecycleState: hub.lifecycleState,
-    prospectCount: hub.prospectCount,
-    researchStatus: hub.researchStatus,
-    isLive: hub.isLive,
-    isSpartaLegacy: hub.isSpartaLegacy
-  }));
-  return <LocationGateway runtimeHubs={publicRuntimeHubs} />;
+    isLive: hub.isLive
+  })) as unknown as readonly LocationGatewayRuntimeHubV2[];
+
+  return <LocationGatewayV2 runtimeHubs={publicRuntimeHubs} />;
 }

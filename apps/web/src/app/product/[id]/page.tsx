@@ -11,6 +11,7 @@ import { ProductAccountActions } from "../../../components/ProductAccountActions
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
+import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -258,6 +259,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? undefined
     : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
+  const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const suitability = await getPublicProductSuitability(product.id, technicalAttributes);
   const storefrontTechnicalAttributes = customerTechnicalAttributes(technicalAttributes);
@@ -400,7 +402,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
             {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
             {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
-            <span className="product-badge">{product.available ? "Διαθέσιμο σήμερα" : "Προσωρινά μη διαθέσιμο"}</span>
+            <span className="product-badge">{product.available ? "Σε τοπικό απόθεμα" : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
           {mediaGallery.length > 1 ? (
             <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
@@ -427,11 +429,33 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <span>{product.available ? "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
             </div>
             <div className="purchase-actions">
-              {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{ id: product.id, title: displayTitle, priceMinor: product.priceMinor, price: product.price, available: product.available }} /><ProductAccountActions productId={product.id} /></>}
+              {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{
+                id: product.id,
+                title: displayTitle,
+                priceMinor: product.priceMinor,
+                price: product.price,
+                available: product.available,
+                imageUrl: cartImageUrl,
+                imageAlt: primaryImage?.altText ?? displayTitle,
+                sku: product.mpn ?? supplierCode,
+                gtin: displayGtin,
+                color: displayColor,
+                size: meaningfulSizes.length === 1 ? meaningfulSizes[0] : undefined
+              }} /><ProductAccountActions productId={product.id} /></>}
             </div>
+            <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
+              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>Πραγματικό τοπικό απόθεμα</strong><span>Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν.</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>Παραλαβή ή αποστολή</strong><span>Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή.</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
+            </div>
+            <nav className="purchase-support-links" aria-label="Πληροφορίες πριν από την αγορά">
+              <a href="/choose-location">Αλλαγή περιοχής</a>
+              <a href="/delivery-pickup">Παράδοση & παραλαβή</a>
+              <a href="/returns-refunds">Επιστροφές & refunds</a>
+            </nav>
           </div>
 
-          {product.vendorId && product.vendorName && product.adviser ? <div className="vendor-card"><div><span className="vendor-avatar">{product.adviser.slice(0,1)}</span></div><div><div className="eyebrow">Διαθέσιμο από τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>{product.adviser} είναι ο άνθρωπός σου για συμβατότητα, χρήση, διαθεσιμότητα ή επιλογή της σωστής παραλλαγής.</p><div className="vendor-actions"><a className="button button-secondary" href={`/ask-local?product=${encodeURIComponent(product.id)}&vendor=${encodeURIComponent(product.vendorId)}`}>Ζήτησε συμβουλή</a></div></div></div> : product.vendorId && product.vendorName ? <div className="vendor-card"><div><span className="vendor-avatar">{product.vendorName.slice(0,1)}</span></div><div><div className="eyebrow">Διαθέσιμο από τοπικό κατάστημα</div><strong><a href={`/vendor/${product.vendorId}`}>{product.vendorName}</a></strong><p>Η εμφανιζόμενη τιμή και διαθεσιμότητα αντιστοιχούν στο επιλεγμένο τοπικό offer.</p></div></div> : <div className="vendor-card"><div><span className="vendor-avatar">?</span></div><div><div className="eyebrow">Προσωρινά χωρίς διαθέσιμο offer</div><strong>Δεν υπάρχει επιλέξιμο τοπικό κατάστημα αυτή τη στιγμή.</strong><p>Μπορείς να χρησιμοποιήσεις το Ask Local για να περιγράψεις τι χρειάζεσαι.</p><div className="vendor-actions"><a className="button button-secondary" href="/ask-local">Ask Local</a></div></div></div>}
+          <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} />
 
           {displayDescription ? (
             <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>

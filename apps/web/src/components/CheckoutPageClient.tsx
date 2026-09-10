@@ -408,12 +408,14 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         <div className="eyebrow">03 · Πληρωμή</div>
         <h2>{paymentMode === "mollie" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2>
         <div className="payment-placeholder"><strong>{paymentMode === "mollie" ? "Mollie Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "mollie" ? "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Mollie μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
-        <div className="shipping-provider-fields">
-          <div className="account-card-head"><div><strong>Έχεις δωροκάρτα ΚΟΝΤΑ ΜΟΥ;</strong><small>Βάλε τον κωδικό που δημιουργήθηκε από το ΚΟΝΤΑ ΜΟΥ.</small></div></div>
-          <label>Κωδικός δωροκάρτας <small>προαιρετικό</small><input aria-label="Κωδικός δωροκάρτας" autoComplete="off" value={giftCardCode} onChange={(event) => { setGiftCardCode(event.target.value); setGiftCardHint(""); }} placeholder="KM-XXXXXX-XXXXXX-XXXXXX-XXXXXX" /></label>
-          <p className="workspace-inline-note">Θα χρησιμοποιηθεί αυτόματα το μεγαλύτερο δυνατό ποσό της δωροκάρτας μόνο για την αξία των προϊόντων. Τα έξοδα παράδοσης, αν υπάρχουν, δεν καλύπτονται από τη δωροκάρτα. Οποιοδήποτε υπόλοιπο μένει στη δωροκάρτα παραμένει διαθέσιμο για επόμενη αγορά.</p>
-          {giftCardHint ? <p className="workspace-inline-note" role="status">{giftCardHint}</p> : null}
-        </div>
+        <details className="checkout-gift-card" open={Boolean(giftCardCode.trim() || giftCardHint)}>
+          <summary><span>Έχεις δωροκάρτα ΚΟΝΤΑ ΜΟΥ;</span><small>Προαιρετικό · πάτησε για εισαγωγή κωδικού</small></summary>
+          <div className="checkout-gift-card-content">
+            <label>Κωδικός δωροκάρτας <small>προαιρετικό</small><input aria-label="Κωδικός δωροκάρτας" autoComplete="off" value={giftCardCode} onChange={(event) => { setGiftCardCode(event.target.value); setGiftCardHint(""); }} placeholder="KM-XXXXXX-XXXXXX-XXXXXX-XXXXXX" /></label>
+            <p className="workspace-inline-note">Θα χρησιμοποιηθεί αυτόματα το μεγαλύτερο δυνατό ποσό της δωροκάρτας μόνο για την αξία των προϊόντων. Τα έξοδα παράδοσης, αν υπάρχουν, δεν καλύπτονται από τη δωροκάρτα. Οποιοδήποτε υπόλοιπο μένει στη δωροκάρτα παραμένει διαθέσιμο για επόμενη αγορά.</p>
+            {giftCardHint ? <p className="workspace-inline-note" role="status">{giftCardHint}</p> : null}
+          </div>
+        </details>
       </div>
       <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εφαρμογή δωροκάρτας & συνέχεια" : paymentMode === "mollie" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
       {result && <div className={`checkout-result ${result.ok ? "success" : "error"}`} role="status"><strong>{result.ok ? "Έτοιμο" : "Δεν ολοκληρώθηκε"}</strong><p>{result.message}</p>{result.totalMinor !== undefined && <p><strong>Σύνολο: {money(result.totalMinor)}</strong></p>}{result.orderId && <code>Order: {result.orderId}</code>}</div>}

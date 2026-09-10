@@ -15,9 +15,27 @@ function trackCartDelta(eventName: "add_to_cart" | "remove_from_cart", item: Car
   });
 }
 
+function CartLoadingState() {
+  return (
+    <div className="cart-loading" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Φόρτωση καλαθιού και στοιχείων προϊόντων…</span>
+      <div className="cart-loading-lines">
+        {[0, 1].map((item) => (
+          <div className="cart-loading-line" key={item} aria-hidden="true">
+            <span className="cart-loading-thumb" />
+            <span className="cart-loading-copy"><i /><i /><i /></span>
+            <span className="cart-loading-price" />
+          </div>
+        ))}
+      </div>
+      <div className="cart-loading-summary" aria-hidden="true"><i /><i /><i /></div>
+    </div>
+  );
+}
+
 export function CartPageClient() {
-  const { items, count, subtotalMinor, hydrated, setQuantity, removeItem } = useCart();
-  if (!hydrated) return <div className="empty-state"><p>Φόρτωση καλαθιού…</p></div>;
+  const { items, count, subtotalMinor, hydrated, detailsReady, setQuantity, removeItem } = useCart();
+  if (!hydrated || !detailsReady) return <CartLoadingState />;
   if (items.length === 0) return <div className="empty-state"><div className="eyebrow">Το καλάθι σου είναι άδειο</div><h2>Βρες κάτι καλό στη Σπάρτη.</h2><p>Ό,τι διαλέξεις από τα τοπικά καταστήματα συγκεντρώνεται εδώ και ολοκληρώνεται με μία αγορά.</p><a className="button" href="/shop">Βρες προϊόντα</a></div>;
 
   return <div className="cart-layout cart-friendly-layout">
@@ -25,7 +43,7 @@ export function CartPageClient() {
       <div className="cart-friendly-intro"><div><div className="eyebrow">{count} {count === 1 ? "προϊόν" : "προϊόντα"}</div><strong>Έλεγξέ τα με μια ματιά.</strong></div><span>Μέγεθος, χρώμα και κωδικοί εμφανίζονται όπου υπάρχουν στο προϊόν.</span></div>
       {items.map((item) => <article className="cart-line cart-friendly-line" key={item.canonicalVariantId}>
         <a className={`cart-thumb cart-product-thumb ${item.imageUrl ? "has-image" : ""}`} href={`/product/${encodeURIComponent(item.canonicalVariantId)}`} aria-label={`Άνοιγμα προϊόντος ${item.title}`}>
-          {item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="lazy" /> : <span>{item.title.slice(0, 2).toUpperCase()}</span>}
+          {item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="eager" /> : <span aria-hidden="true">{item.title.slice(0, 2).toUpperCase()}</span>}
         </a>
         <div className="cart-line-main">
           <h2><a href={`/product/${encodeURIComponent(item.canonicalVariantId)}`}>{item.title}</a></h2>
@@ -63,9 +81,13 @@ export function CartPageClient() {
       <h2>{money(subtotalMinor)}</h2>
       <div className="summary-row"><span>{count === 1 ? "1 προϊόν" : `${count} προϊόντα`}</span><strong>{money(subtotalMinor)}</strong></div>
       <div className="summary-row"><span>Παράδοση</span><strong>Στο επόμενο βήμα</strong></div>
-      <p>Στο checkout διαλέγεις εύκολα παραλαβή ή παράδοση και επιβεβαιώνεις τη διεύθυνσή σου. Μία αγορά, χωρίς περιττά βήματα.</p>
+      <p>Στο checkout διαλέγεις παραλαβή ή παράδοση και επιβεβαιώνεις τη διεύθυνσή σου. Το τελικό κόστος παράδοσης εμφανίζεται πριν από την πληρωμή.</p>
+      <div className="cart-checkout-expectation" role="note">
+        <strong>Πριν συνεχίσεις</strong>
+        <span>Η online ολοκλήρωση απαιτεί λογαριασμό, ώστε η παραγγελία, η διεύθυνση και το παραστατικό να μείνουν μαζί. Το καλάθι σου διατηρείται.</span>
+      </div>
       <a className="button summary-cta" href="/checkout">Παράδοση & πληρωμή →</a>
-      <div className="cart-trust-note">Ασφαλής πληρωμή · Το καλάθι σου παραμένει αποθηκευμένο.</div>
+      <div className="cart-trust-note">Ασφαλής πληρωμή · <a href="/returns-refunds">Επιστροφές & επιστροφές χρημάτων</a></div>
       <a className="text-link" href="/shop">← Συνέχεια αγορών</a>
     </aside>
   </div>;

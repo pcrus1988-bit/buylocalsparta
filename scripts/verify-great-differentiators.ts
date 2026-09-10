@@ -22,7 +22,7 @@ for (const contract of requiredProofContracts) {
 if (proof.includes("opening_hours") || proof.includes("sameDay: true")) {
   throw new Error("Differentiator proof must not invent same-day opening-hours truth");
 }
-if (!card.includes("Τοπικό απόθεμα · σήμερα") || !card.includes("LocalCommerceProof")) {
+if (!card.includes("Σε τοπικό απόθεμα · επιβεβαιωμένο σήμερα") || !card.includes("LocalCommerceProof")) {
   throw new Error("Catalogue cards must show evidence-backed local proof");
 }
 if (card.includes('product.available ? "Διαθέσιμο σήμερα"')) {

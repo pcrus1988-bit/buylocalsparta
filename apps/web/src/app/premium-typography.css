@@ -1,0 +1,31 @@
+/* Customer-facing typography layer.
+   Noto Sans provides a calm, highly legible Greek UI while editorial moments
+   opt into their display face locally. Workspace/admin typography is untouched. */
+.main-content-scope > main:not(.dashboard):not(.workspace) {
+  font-family: var(--font-km-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) :is(input, select, textarea, button) {
+  font-family: inherit;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) :is(.nav, .header-actions, .eyebrow, .price, .detail-price, .filter-form, .checkout-form, .checkout-summary) {
+  font-family: var(--font-km-sans), system-ui, sans-serif;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) :is(.page-hero h1, .catalog-hero h1, .product-detail-copy > h1) {
+  font-family: var(--font-km-sans), system-ui, sans-serif;
+  font-weight: 560;
+  letter-spacing: -.045em;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) .product-body h3 {
+  font-family: var(--font-km-sans), system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.main-content-scope > main:not(.dashboard):not(.workspace) .price,
+.main-content-scope > main:not(.dashboard):not(.workspace) .detail-price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+}

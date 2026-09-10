@@ -62,8 +62,17 @@
   border-bottom-color: color-mix(in srgb, var(--ink) 26%, var(--line));
 }
 
+.unavailable {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--paper) 76%, #fff);
+}
+
 .unavailable:not(.selected) {
-  opacity: .62;
+  opacity: .78;
+}
+
+.unavailable:hover {
+  transform: none;
 }
 
 .withImage {
@@ -72,6 +81,7 @@
 }
 
 .imageFrame {
+  position: relative;
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -85,6 +95,28 @@
   display: block;
   object-fit: contain;
   padding: 7px;
+}
+
+.unavailable .imageFrame img {
+  filter: grayscale(.8);
+  opacity: .5;
+}
+
+.unavailableImageLabel {
+  position: absolute;
+  left: 8px;
+  bottom: 7px;
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(24, 48, 39, .2);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, .96);
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .optionBody {
@@ -113,6 +145,10 @@
   border-radius: 4px;
 }
 
+.unavailable .swatch {
+  opacity: .45;
+}
+
 .label {
   min-width: 0;
   overflow: hidden;
@@ -121,6 +157,19 @@
   line-height: 1.25;
   font-weight: 800;
   color: var(--ink);
+}
+
+.unavailable .label {
+  color: var(--ink-soft);
+}
+
+.unavailableText {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .check {

@@ -17,18 +17,7 @@ function navigationActive(pathname: string, href: string): boolean {
 
 function AccountIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ flex: "0 0 auto" }}
-    >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "0 0 auto" }}>
       <circle cx="12" cy="7" r="4" />
       <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
     </svg>
@@ -37,21 +26,19 @@ function AccountIcon() {
 
 function CartIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ flex: "0 0 auto" }}
-    >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "0 0 auto" }}>
       <path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 7H6" />
       <circle cx="9.5" cy="20" r="1" />
       <circle cx="18" cy="20" r="1" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 5 5" />
     </svg>
   );
 }
@@ -65,23 +52,10 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   return (
     <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
       <Link className="brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη · αρχική" onClick={() => setMenuOpen(false)}>
-        <img
-          src="/brand/kontamou-sparta-logo.webp"
-          alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη"
-          width={96}
-          height={64}
-          style={{ display: "block", width: "96px", height: "64px", objectFit: "contain" }}
-        />
+        <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={96} height={64} style={{ display: "block", width: "96px", height: "64px", objectFit: "contain" }} />
       </Link>
 
-      <button
-        className="public-menu-toggle"
-        type="button"
-        aria-label={menuOpen ? "Κλείσιμο μενού" : "Άνοιγμα μενού"}
-        aria-expanded={menuOpen}
-        aria-controls="public-site-navigation"
-        onClick={() => setMenuOpen((current) => !current)}
-      >
+      <button className="public-menu-toggle" type="button" aria-label={menuOpen ? "Κλείσιμο μενού" : "Άνοιγμα μενού"} aria-expanded={menuOpen} aria-controls="public-site-navigation" onClick={() => setMenuOpen((current) => !current)}>
         <span>{menuOpen ? "Κλείσιμο" : "Μενού"}</span>
         <i aria-hidden="true" />
       </button>
@@ -90,13 +64,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
         {PRIMARY_NAVIGATION.map((link) => {
           const active = navigationActive(pathname, link.href);
           return (
-            <Link
-              href={link.href}
-              key={link.href}
-              className={active ? "is-active" : undefined}
-              aria-current={active ? "page" : undefined}
-              onClick={() => setMenuOpen(false)}
-            >
+            <Link href={link.href} key={link.href} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} onClick={() => setMenuOpen(false)}>
               {link.label}
             </Link>
           );
@@ -104,21 +72,22 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
       </nav>
 
       <div className={`header-actions${relocateMobileCommerceActions ? " customer-mobile-relocatable-actions" : ""}`}>
-        <Link
-          className={`cart-button account-button${pathname.startsWith("/account") ? " is-active" : ""}`}
-          href="/account"
-          aria-label="Λογαριασμός"
-        >
-          <AccountIcon />
-          Λογαριασμός
+        <Link className="header-location" href="/choose-location" aria-label="Τρέχουσα περιοχή: Σπάρτη. Αλλαγή περιοχής">
+          <span className="header-location-dot" aria-hidden="true" />
+          <span>Σπάρτη</span>
         </Link>
-        <Link
-          className={`cart-button${pathname === "/cart" ? " is-active" : ""}`}
-          href="/cart"
-          aria-label={`Καλάθι, ${count} προϊόντα`}
-        >
+        <form className="header-search" action="/shop" role="search">
+          <label className="header-search-label" htmlFor="site-header-search">Αναζήτηση προϊόντων</label>
+          <SearchIcon />
+          <input id="site-header-search" name="q" type="search" placeholder="Αναζήτηση" maxLength={120} autoComplete="off" />
+        </form>
+        <Link className={`cart-button account-button${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός">
+          <AccountIcon />
+          <span className="header-action-text">Λογαριασμός</span>
+        </Link>
+        <Link className={`cart-button${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
           <CartIcon />
-          Καλάθι <span aria-hidden="true">{count}</span>
+          <span className="header-action-text">Καλάθι</span> <span aria-hidden="true">{count}</span>
         </Link>
       </div>
     </header>
