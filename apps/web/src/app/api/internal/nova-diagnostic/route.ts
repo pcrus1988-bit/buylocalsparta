@@ -42,7 +42,17 @@ export async function GET() {
     }
 
     const storeId = selectedStore.id;
-    const csvStatus = await client.getCsvStatus(storeId);
+    let csv: ReturnType<typeof summarizeCsvStatus> | { enabled: false; access: "not_enabled" };
+    try {
+      csv = summarizeCsvStatus(await client.getCsvStatus(storeId));
+    } catch (error) {
+      if (error instanceof NovaV1ApiError && error.status === 403) {
+        csv = { enabled: false, access: "not_enabled" };
+      } else {
+        throw error;
+      }
+    }
+
     const productPage = await client.listProducts(storeId, { page: 1, per_page: 1, lang: "en" });
     const listedProduct = productPage.items[0];
     const product = listedProduct ? await client.getProduct(storeId, listedProduct.id, "en") : null;
@@ -59,7 +69,7 @@ export async function GET() {
       rateLimitPerMinute: client.requestsPerMinute,
       stores: stores.map((store) => ({ id: store.id, name: text(store.name) })),
       selectedStoreId: storeId,
-      csv: summarizeCsvStatus(csvStatus),
+      csv,
       catalogue: {
         total: productPage.total,
         totalPages: productPage.totalPages,
@@ -92,7 +102,7 @@ export async function GET() {
 
 function summarizeCsvStatus(value: Readonly<Record<string, unknown>>) {
   return {
-    enabled: booleanish(value.enabled),
+    enabled: booleanish(value.csv_enabled),
     downloadCount: numberish(value.download_count),
     downloadLimit: numberish(value.download_limit),
     keys: Object.keys(value).sort()
