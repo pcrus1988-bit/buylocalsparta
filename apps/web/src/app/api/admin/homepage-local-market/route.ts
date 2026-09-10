@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { updateHomepageLocalMarketScene } from "../../../../lib/homepage-local-market-runtime";
 import { requireAdminSession } from "../../../../lib/admin-session";
 
@@ -17,6 +18,8 @@ export async function PATCH(request: Request) {
       isVisible: String(data.get("isVisible") ?? "false") === "true",
       file
     });
+    revalidatePath("/");
+    revalidatePath("/admin/hero");
     return Response.json({ scene });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "homepage_local_market_update_failed" }, { status: 400 });
