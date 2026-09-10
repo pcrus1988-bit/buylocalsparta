@@ -9,9 +9,10 @@ import type {
   NovaProduct,
   NovaProductsQuery,
   NovaProductStatus,
+  NovaScalarId,
 } from "./types.ts";
 
-const DEFAULT_NOVA_BASE_URL = "https://nova.shopwoo.com/api/v1";
+export const DEFAULT_NOVA_BASE_URL = "https://nova.shopwoo.com/api/v1";
 
 type QueryValue = string | number | boolean | undefined;
 type Query = Readonly<Record<string, QueryValue>>;
@@ -58,6 +59,10 @@ export function novaItemsFromResponse<T>(payload: unknown): readonly T[] {
   throw new Error("Unexpected Nova list response: no data/items/results array found");
 }
 
+function withStoreId<T extends Query>(storeId: NovaScalarId, query?: T): Query {
+  return { ...(query ?? {}), store_id: storeId };
+}
+
 export class NovaClient {
   readonly baseUrl: string;
   readonly rateLimiter: SupplierRateLimiter;
@@ -99,48 +104,67 @@ export class NovaClient {
     return this.#requestJson("GET", "/vendors");
   }
 
-  async getCsvStatus(): Promise<unknown> {
-    return this.#requestJson("GET", "/csv/status");
+  async getCsvStatus(storeId: NovaScalarId): Promise<unknown> {
+    return this.#requestJson("GET", "/csv/status", { query: withStoreId(storeId) });
   }
 
-  async downloadCsv(): Promise<string> {
-    return this.#requestText("GET", "/csv/download");
+  async downloadCsv(storeId: NovaScalarId): Promise<string> {
+    return this.#requestText("GET", "/csv/download", { query: withStoreId(storeId) });
   }
 
-  async listProducts(query: NovaProductsQuery = {}): Promise<unknown> {
-    return this.#requestJson("GET", "/products", { query });
+  async listProducts(storeId: NovaScalarId, query: NovaProductsQuery = {}): Promise<unknown> {
+    return this.#requestJson("GET", "/products", { query: withStoreId(storeId, query) });
   }
 
-  async listDeletedProducts(query: NovaDeletedProductsQuery = {}): Promise<unknown> {
-    return this.#requestJson("GET", "/products/deleted", { query });
+  async listDeletedProducts(
+    storeId: NovaScalarId,
+    query: NovaDeletedProductsQuery = {},
+  ): Promise<unknown> {
+    return this.#requestJson("GET", "/products/deleted", { query: withStoreId(storeId, query) });
   }
 
   async checkProductStatus(
-    payload: Readonly<Record<string, unknown>>,
+    storeId: NovaScalarId,
+    productIds: readonly NovaScalarId[],
   ): Promise<unknown> {
-    return this.#requestJson("POST", "/products/check-status", { body: payload });
+    if (productIds.length < 1 || productIds.length > 100) {
+      throw new RangeError("Nova product status checks require between 1 and 100 product IDs");
+    }
+    return this.#requestJson("POST", "/products/check-status", {
+      body: { store_id: storeId, product_ids: [...productIds] },
+    });
   }
 
-  async getProduct(productId: string | number, lang?: "en" | "de"): Promise<NovaProduct> {
+  async getProduct(
+    storeId: NovaScalarId,
+    productId: NovaScalarId,
+    lang?: "en" | "de",
+  ): Promise<NovaProduct> {
     return this.#requestJson<NovaProduct>(
       "GET",
       `/products/${encodeURIComponent(String(productId))}`,
-      { query: lang ? { lang } : undefined },
+      { query: withStoreId(storeId, lang ? { lang } : undefined) },
     );
   }
 
-  async createOrder(payload: Readonly<Record<string, unknown>>): Promise<NovaOrder> {
-    return this.#requestJson<NovaOrder>("POST", "/orders", { body: payload });
+  async createOrder(
+    storeId: NovaScalarId,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<NovaOrder> {
+    return this.#requestJson<NovaOrder>("POST", "/orders", {
+      body: { ...payload, store_id: storeId },
+    });
   }
 
-  async listOrders(query: NovaOrdersQuery = {}): Promise<unknown> {
-    return this.#requestJson("GET", "/orders", { query });
+  async listOrders(storeId: NovaScalarId, query: NovaOrdersQuery = {}): Promise<unknown> {
+    return this.#requestJson("GET", "/orders", { query: withStoreId(storeId, query) });
   }
 
-  async getOrder(orderId: string | number): Promise<NovaOrder> {
+  async getOrder(storeId: NovaScalarId, orderId: NovaScalarId): Promise<NovaOrder> {
     return this.#requestJson<NovaOrder>(
       "GET",
       `/orders/${encodeURIComponent(String(orderId))}`,
+      { query: withStoreId(storeId) },
     );
   }
 
@@ -148,23 +172,32 @@ export class NovaClient {
     return this.#requestJson("GET", "/orders/country-codes");
   }
 
-  async getProducts(query: NovaProductsQuery = {}): Promise<readonly NovaProduct[]> {
-    return novaItemsFromResponse<NovaProduct>(await this.listProducts(query));
+  async getProducts(
+    storeId: NovaScalarId,
+    query: NovaProductsQuery = {},
+  ): Promise<readonly NovaProduct[]> {
+    return novaItemsFromResponse<NovaProduct>(await this.listProducts(storeId, query));
   }
 
   async getDeletedProducts(
+    storeId: NovaScalarId,
     query: NovaDeletedProductsQuery = {},
   ): Promise<readonly NovaDeletedProduct[]> {
-    return novaItemsFromResponse<NovaDeletedProduct>(await this.listDeletedProducts(query));
+    return novaItemsFromResponse<NovaDeletedProduct>(await this.listDeletedProducts(storeId, query));
   }
 
   async getProductStatuses(
-    payload: Readonly<Record<string, unknown>>,
+    storeId: NovaScalarId,
+    productIds: readonly NovaScalarId[],
   ): Promise<readonly NovaProductStatus[]> {
-    return novaItemsFromResponse<NovaProductStatus>(await this.checkProductStatus(payload));
+    return novaItemsFromResponse<NovaProductStatus>(
+      await this.checkProductStatus(storeId, productIds),
+    );
   }
 
-  async getNamedReferences(path: "/brands" | "/groups" | "/conditions" | "/genders" | "/vendors"): Promise<readonly NovaNamedReference[]> {
+  async getNamedReferences(
+    path: "/brands" | "/groups" | "/conditions" | "/genders" | "/vendors",
+  ): Promise<readonly NovaNamedReference[]> {
     return novaItemsFromResponse<NovaNamedReference>(await this.#requestJson("GET", path));
   }
 
