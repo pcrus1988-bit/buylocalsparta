@@ -1,5 +1,6 @@
 const DEFAULT_NOVA_V1_BASE_URL = "https://nova.shopwoo.com/api/v1";
 const DEFAULT_REQUESTS_PER_MINUTE = 60;
+const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 
 export type NovaScalarId = string | number;
 
@@ -84,6 +85,7 @@ export class NovaV1ApiError extends Error {
 export class NovaV1Client {
   readonly baseUrl: string;
   readonly requestsPerMinute: number;
+  readonly requestTimeoutMs: number;
 
   readonly #authorization: string;
   readonly #fetch: typeof fetch;
@@ -94,6 +96,7 @@ export class NovaV1Client {
     apiKey: string;
     baseUrl?: string;
     requestsPerMinute?: number;
+    requestTimeoutMs?: number;
     fetchImpl?: typeof fetch;
   }) {
     const apiKey = input.apiKey.trim();
@@ -102,10 +105,15 @@ export class NovaV1Client {
     if (!Number.isSafeInteger(requestsPerMinute) || requestsPerMinute <= 0 || requestsPerMinute > 60) {
       throw new Error("Nova requestsPerMinute must be an integer between 1 and 60");
     }
+    const requestTimeoutMs = input.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1_000 || requestTimeoutMs > 180_000) {
+      throw new Error("Nova requestTimeoutMs must be an integer between 1000 and 180000");
+    }
 
     this.#authorization = apiKey.toLowerCase().startsWith("bearer ") ? apiKey : `Bearer ${apiKey}`;
     this.baseUrl = (input.baseUrl?.trim() || DEFAULT_NOVA_V1_BASE_URL).replace(/\/+$/, "");
     this.requestsPerMinute = requestsPerMinute;
+    this.requestTimeoutMs = requestTimeoutMs;
     this.#fetch = input.fetchImpl ?? fetch;
   }
 
@@ -215,7 +223,7 @@ export class NovaV1Client {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
+    const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
     let response: Response;
     try {
       response = await this.#fetch(url, {
