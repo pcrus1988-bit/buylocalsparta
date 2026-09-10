@@ -291,16 +291,11 @@ export async function adminCatalogueAttributeTrainerWorkspace(
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const cardResult = await tx.query<SqlRow>(`
       WITH base AS (
-        SELECT a.id,
-               a.source_product_id,
+        SELECT a.source_product_id,
                a.source_attribute_key,
                NULLIF(btrim(a.source_unit),'') AS source_unit,
-               a.raw_value,
-               a.created_at,
                sp.source_id,
                sp.source_taxonomy_node_id,
-               sp.source_product_key,
-               sp.title,
                s.name AS source_name,
                COALESCE(
                  NULLIF(btrim(sp.source_identity->>'categoryId'),''),
@@ -354,6 +349,11 @@ export async function adminCatalogueAttributeTrainerWorkspace(
                sum(g.observation_count) OVER ()::integer AS total_unmapped,
                count(*) OVER ()::integer AS unresolved_groups
         FROM grouped g
+      ), top_groups AS (
+        SELECT *
+        FROM ranked
+        ORDER BY observation_count DESC,product_count DESC,source_name,source_attribute_key
+        LIMIT $2::integer
       )
       SELECT g.source_id::text AS source_id,
              g.source_name,g.source_attribute_key,g.scope_kind,g.scope_key,g.context_label,
@@ -368,25 +368,46 @@ export async function adminCatalogueAttributeTrainerWorkspace(
                SELECT jsonb_agg(sample.payload ORDER BY sample.created_at,sample.id)
                FROM (
                  SELECT jsonb_build_object(
-                          'productId',s2.source_product_id::text,
-                          'productKey',s2.source_product_key,
-                          'title',s2.title,
-                          'rawValue',s2.raw_value,
-                          'sourceUnit',s2.source_unit
+                          'productId',a2.source_product_id::text,
+                          'productKey',sp2.source_product_key,
+                          'title',sp2.title,
+                          'rawValue',a2.raw_value,
+                          'sourceUnit',NULLIF(btrim(a2.source_unit),'')
                         ) AS payload,
-                        s2.created_at,s2.id
-                 FROM scoped s2
-                 WHERE s2.source_id=g.source_id
-                   AND s2.source_attribute_key=g.source_attribute_key
-                   AND s2.scope_kind=g.scope_kind
-                   AND s2.scope_key IS NOT DISTINCT FROM g.scope_key
-                 ORDER BY s2.created_at,s2.id
+                        a2.created_at,a2.id
+                 FROM public.catalog_source_attribute_observations a2
+                 JOIN public.catalog_source_products sp2 ON sp2.id=a2.source_product_id
+                 WHERE a2.mapping_status='unmapped'
+                   AND a2.attribute_id IS NULL
+                   AND ($1::uuid IS NULL OR sp2.snapshot_id=$1::uuid)
+                   AND sp2.source_id=g.source_id
+                   AND a2.source_attribute_key=g.source_attribute_key
+                   AND (
+                     (g.scope_kind='taxonomy_node'
+                       AND sp2.source_taxonomy_node_id::text IS NOT DISTINCT FROM g.scope_key)
+                     OR
+                     (g.scope_kind='source_category'
+                       AND sp2.source_taxonomy_node_id IS NULL
+                       AND COALESCE(
+                         NULLIF(btrim(sp2.source_identity->>'categoryId'),''),
+                         NULLIF(btrim(sp2.source_identity->>'category_id'),''),
+                         NULLIF(btrim(sp2.normalized_payload->>'sourceCategoryId'),'')
+                       ) IS NOT DISTINCT FROM g.scope_key)
+                     OR
+                     (g.scope_kind='unscoped'
+                       AND sp2.source_taxonomy_node_id IS NULL
+                       AND COALESCE(
+                         NULLIF(btrim(sp2.source_identity->>'categoryId'),''),
+                         NULLIF(btrim(sp2.source_identity->>'category_id'),''),
+                         NULLIF(btrim(sp2.normalized_payload->>'sourceCategoryId'),'')
+                       ) IS NULL)
+                   )
+                 ORDER BY a2.created_at,a2.id
                  LIMIT 4
                ) sample
              ),'[]'::jsonb) AS samples
-      FROM ranked g
+      FROM top_groups g
       ORDER BY g.observation_count DESC,g.product_count DESC,g.source_name,g.source_attribute_key
-      LIMIT $2::integer
     `, [snapshotId ?? null, limit]);
 
     if (cardResult.rows.length === 0) {
