@@ -13,10 +13,13 @@ const LEASE_MS = 55_000;
 const SLICE_MS = 47_000;
 const DELTA_OVERLAP_MS = 5 * 60_000;
 
+type FilterPrecision = "timestamp" | "date";
+type NovaSyncPhase = "bootstrap" | "delta" | "deleted";
+
 type NovaSyncState = {
   version: 1;
   storeId: number;
-  phase: "bootstrap" | "delta";
+  phase: NovaSyncPhase;
   nextPage: number;
   perPage: number;
   bootstrapStartedAt: string;
@@ -25,7 +28,10 @@ type NovaSyncState = {
   bootstrapComplete: boolean;
   deltaWatermark?: string;
   deltaWindowEnd?: string;
-  deltaFilterPrecision?: "timestamp" | "date";
+  deltaFilterPrecision?: FilterPrecision;
+  deletedWatermark?: string;
+  deletedWindowEnd?: string;
+  deletedFilterPrecision?: FilterPrecision;
   lastSuccessfulAt?: string;
   lastSuccessfulPage?: number;
   lastError?: string | null;
@@ -34,9 +40,10 @@ type NovaSyncState = {
 
 export type NovaSyncSliceResult = Readonly<{
   claimed: boolean;
-  phase?: NovaSyncState["phase"];
+  phase?: NovaSyncPhase;
   pages?: number;
   products?: number;
+  deleted?: number;
   nextPage?: number;
   bootstrapComplete?: boolean;
   total?: number | null;
@@ -52,7 +59,7 @@ export async function runNovaCatalogueSyncSlice(): Promise<NovaSyncSliceResult> 
           COALESCE(cs.metadata,'{}'::jsonb),
           '{novaSync}',
           COALESCE(cs.metadata->'novaSync','{}'::jsonb)
-            || jsonb_build_object('leaseUntil', to_char(now() + interval '55 seconds','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'lastAttemptAt', now()),
+            || jsonb_build_object('leaseUntil', now() + interval '55 seconds', 'lastAttemptAt', now()),
           true
         ),
         updated_at=now()
@@ -91,6 +98,7 @@ export async function runNovaCatalogueSyncSlice(): Promise<NovaSyncSliceResult> 
   const deadline = Date.now() + SLICE_MS;
   let pages = 0;
   let products = 0;
+  let deleted = 0;
 
   try {
     while (Date.now() < deadline && pages < maxPagesPerSlice()) {
@@ -100,7 +108,7 @@ export async function runNovaCatalogueSyncSlice(): Promise<NovaSyncSliceResult> 
         await persistProductPage({ sourceId, state, pageNumber, mode: "bootstrap", products: page.items, total: page.total, totalPages: page.totalPages });
         pages += 1;
         products += page.items.length;
-        const complete = page.items.length === 0 || page.items.length < state.perPage || (page.totalPages !== null && pageNumber >= page.totalPages);
+        const complete = pageComplete(page.items.length, state.perPage, pageNumber, page.totalPages);
         const completedAt = new Date().toISOString();
         state.lastSuccessfulAt = completedAt;
         state.lastSuccessfulPage = pageNumber;
@@ -111,20 +119,33 @@ export async function runNovaCatalogueSyncSlice(): Promise<NovaSyncSliceResult> 
           state.bootstrapCompletedAt = completedAt;
           state.phase = "delta";
           state.nextPage = 1;
-          state.deltaWatermark = new Date(new Date(state.bootstrapStartedAt).getTime() - DELTA_OVERLAP_MS).toISOString();
+          const initialWatermark = new Date(new Date(state.bootstrapStartedAt).getTime() - DELTA_OVERLAP_MS).toISOString();
+          state.deltaWatermark = initialWatermark;
+          state.deletedWatermark = initialWatermark;
           state.deltaWindowEnd = undefined;
+          state.deletedWindowEnd = undefined;
         }
         await saveState(sourceId, state);
         if (complete) break;
         continue;
       }
 
-      const deltaResult = await runDeltaPage({ client, sourceId, state });
-      state = deltaResult.state;
-      pages += deltaResult.pageProcessed ? 1 : 0;
-      products += deltaResult.products;
+      if (state.phase === "delta") {
+        const result = await runDeltaPage({ client, sourceId, state });
+        state = result.state;
+        pages += 1;
+        products += result.products;
+        await saveState(sourceId, state);
+        if (result.windowComplete) break;
+        continue;
+      }
+
+      const result = await runDeletedPage({ client, sourceId, state });
+      state = result.state;
+      pages += 1;
+      deleted += result.deleted;
       await saveState(sourceId, state);
-      if (deltaResult.windowComplete) break;
+      if (result.windowComplete) break;
     }
 
     state.leaseUntil = null;
@@ -134,6 +155,7 @@ export async function runNovaCatalogueSyncSlice(): Promise<NovaSyncSliceResult> 
       phase: state.phase,
       pages,
       products,
+      deleted,
       nextPage: state.nextPage,
       bootstrapComplete: state.bootstrapComplete,
       total: state.bootstrapTotal ?? null
@@ -146,7 +168,7 @@ export async function runNovaCatalogueSyncSlice(): Promise<NovaSyncSliceResult> 
   }
 }
 
-async function runDeltaPage(input: { client: NovaV1Client; sourceId: string; state: NovaSyncState }): Promise<{ state: NovaSyncState; products: number; pageProcessed: boolean; windowComplete: boolean }> {
+async function runDeltaPage(input: { client: NovaV1Client; sourceId: string; state: NovaSyncState }): Promise<{ state: NovaSyncState; products: number; windowComplete: boolean }> {
   const state = input.state;
   const now = new Date();
   if (!state.deltaWindowEnd) {
@@ -156,8 +178,8 @@ async function runDeltaPage(input: { client: NovaV1Client; sourceId: string; sta
   const startIso = state.deltaWatermark ?? new Date(now.getTime() - DELTA_OVERLAP_MS).toISOString();
   const endIso = state.deltaWindowEnd;
   const precision = state.deltaFilterPrecision ?? "timestamp";
-  const updatedAtMin = precision === "date" ? startIso.slice(0, 10) : startIso;
-  const updatedAtMax = precision === "date" ? endIso.slice(0, 10) : endIso;
+  const updatedAtMin = filterDate(startIso, precision);
+  const updatedAtMax = filterDate(endIso, precision);
 
   let page;
   try {
@@ -178,7 +200,7 @@ async function runDeltaPage(input: { client: NovaV1Client; sourceId: string; sta
 
   const pageNumber = state.nextPage;
   await persistProductPage({ sourceId: input.sourceId, state, pageNumber, mode: "delta", products: page.items, total: page.total, totalPages: page.totalPages, windowStart: updatedAtMin, windowEnd: updatedAtMax });
-  const complete = page.items.length === 0 || page.items.length < state.perPage || (page.totalPages !== null && pageNumber >= page.totalPages);
+  const complete = pageComplete(page.items.length, state.perPage, pageNumber, page.totalPages);
   const completedAt = new Date().toISOString();
   state.lastSuccessfulAt = completedAt;
   state.lastSuccessfulPage = pageNumber;
@@ -186,9 +208,64 @@ async function runDeltaPage(input: { client: NovaV1Client; sourceId: string; sta
   if (complete) {
     state.deltaWatermark = new Date(new Date(endIso).getTime() - DELTA_OVERLAP_MS).toISOString();
     state.deltaWindowEnd = undefined;
+    state.phase = "deleted";
     state.nextPage = 1;
   }
-  return { state, products: page.items.length, pageProcessed: true, windowComplete: complete };
+  return { state, products: page.items.length, windowComplete: complete };
+}
+
+async function runDeletedPage(input: { client: NovaV1Client; sourceId: string; state: NovaSyncState }): Promise<{ state: NovaSyncState; deleted: number; windowComplete: boolean }> {
+  const state = input.state;
+  const now = new Date();
+  if (!state.deletedWindowEnd) {
+    state.deletedWindowEnd = now.toISOString();
+    state.nextPage = 1;
+  }
+  const startIso = state.deletedWatermark ?? new Date(now.getTime() - DELTA_OVERLAP_MS).toISOString();
+  const endIso = state.deletedWindowEnd;
+  const precision = state.deletedFilterPrecision ?? "timestamp";
+  const deletedAtMin = filterDate(startIso, precision);
+  const deletedAtMax = filterDate(endIso, precision);
+
+  let page;
+  try {
+    page = await input.client.listDeletedProducts(state.storeId, {
+      page: state.nextPage,
+      per_page: state.perPage,
+      deleted_at_min: deletedAtMin,
+      deleted_at_max: deletedAtMax
+    });
+  } catch (error) {
+    if (precision === "timestamp" && error instanceof NovaV1ApiError && error.status === 422) {
+      state.deletedFilterPrecision = "date";
+      return runDeletedPage(input);
+    }
+    throw error;
+  }
+
+  const pageNumber = state.nextPage;
+  await persistDeletedPage({
+    sourceId: input.sourceId,
+    state,
+    pageNumber,
+    items: page.items,
+    total: page.total,
+    totalPages: page.totalPages,
+    windowStart: deletedAtMin,
+    windowEnd: deletedAtMax
+  });
+  const complete = pageComplete(page.items.length, state.perPage, pageNumber, page.totalPages);
+  const completedAt = new Date().toISOString();
+  state.lastSuccessfulAt = completedAt;
+  state.lastSuccessfulPage = pageNumber;
+  state.nextPage = pageNumber + 1;
+  if (complete) {
+    state.deletedWatermark = new Date(new Date(endIso).getTime() - DELTA_OVERLAP_MS).toISOString();
+    state.deletedWindowEnd = undefined;
+    state.phase = "delta";
+    state.nextPage = 1;
+  }
+  return { state, deleted: page.items.length, windowComplete: complete };
 }
 
 async function persistProductPage(input: {
@@ -203,24 +280,14 @@ async function persistProductPage(input: {
   windowEnd?: string;
 }): Promise<void> {
   if (!input.products.length) return;
-  const runtime = getProductionPostgresRuntime();
   const payloadText = JSON.stringify(input.products);
-  const sourceHash = createHash("sha256").update(payloadText).digest("hex");
-  const observedAt = new Date().toISOString();
-  const snapshotResult = await runtime.sqlPool.query<SqlRow>(`
-    INSERT INTO public.catalog_source_snapshots(
-      source_id,source_filename,source_hash,source_version,observed_at,row_count,metadata
-    ) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
-    ON CONFLICT (source_id,source_hash) DO NOTHING
-    RETURNING id
-  `, [
-    input.sourceId,
-    `nova-products-${input.mode}-page-${input.pageNumber}.json`,
-    sourceHash,
-    `nova-shopwoo-v1:${input.mode}`,
-    observedAt,
-    input.products.length,
-    JSON.stringify({
+  const snapshotId = await persistSnapshot({
+    sourceId: input.sourceId,
+    sourceHash: createHash("sha256").update(payloadText).digest("hex"),
+    filename: `nova-products-${input.mode}-page-${input.pageNumber}.json`,
+    version: `nova-shopwoo-v1:${input.mode}`,
+    rowCount: input.products.length,
+    metadata: {
       provider: "nova_shopwoo_v1",
       storeId: input.state.storeId,
       mode: input.mode,
@@ -231,18 +298,96 @@ async function persistProductPage(input: {
       windowStart: input.windowStart ?? null,
       windowEnd: input.windowEnd ?? null,
       language: "en"
-    })
-  ]);
+    }
+  });
+  const evidence = input.products.map((product) => normalizeNovaProduct(product, input.state.storeId));
+  await insertEvidenceBatch(snapshotId, input.sourceId, evidence);
+  await refreshExistingOfferAvailability(evidence);
+}
 
-  let snapshotId = snapshotResult.rows[0]?.id ? String(snapshotResult.rows[0].id) : "";
+async function persistDeletedPage(input: {
+  sourceId: string;
+  state: NovaSyncState;
+  pageNumber: number;
+  items: readonly Readonly<Record<string, unknown>>[];
+  total: number | null;
+  totalPages: number | null;
+  windowStart: string;
+  windowEnd: string;
+}): Promise<void> {
+  if (!input.items.length) return;
+  const payloadText = JSON.stringify(input.items);
+  await persistSnapshot({
+    sourceId: input.sourceId,
+    sourceHash: createHash("sha256").update(payloadText).digest("hex"),
+    filename: `nova-products-deleted-page-${input.pageNumber}.json`,
+    version: "nova-shopwoo-v1:deleted",
+    rowCount: input.items.length,
+    metadata: {
+      provider: "nova_shopwoo_v1",
+      storeId: input.state.storeId,
+      mode: "deleted",
+      page: input.pageNumber,
+      perPage: input.state.perPage,
+      total: input.total,
+      totalPages: input.totalPages,
+      windowStart: input.windowStart,
+      windowEnd: input.windowEnd,
+      deletedProducts: input.items
+    }
+  });
+
+  const deletedProducts = input.items
+    .map((item) => ({ external_product_id: scalarText(item.id), deleted_at: scalarText(item.deleted_at) }))
+    .filter((item): item is { external_product_id: string; deleted_at: string | null } => Boolean(item.external_product_id));
+  if (!deletedProducts.length) return;
+  const runtime = getProductionPostgresRuntime();
+  await runtime.sqlPool.query(`
+    UPDATE public.dropship_supplier_offers dso
+    SET active=false,
+        cached_available=false,
+        cached_quantity=0,
+        availability_checked_at=now(),
+        availability_expires_at=NULL,
+        last_catalogue_sync_at=now(),
+        availability_payload=(COALESCE(dso.availability_payload,'{}'::jsonb) - 'reappearedAt')
+          || jsonb_build_object(
+            'withdrawnByDeletedFeed',true,
+            'activeBeforeWithdrawal',dso.active,
+            'deletedAt',x.deleted_at,
+            'source','nova_deleted_feed'
+          ),
+        updated_at=now()
+    FROM jsonb_to_recordset($1::jsonb) AS x(external_product_id text,deleted_at text)
+    JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id AND ds.code=$2
+    WHERE dso.external_product_id=x.external_product_id
+  `, [JSON.stringify(deletedProducts), SUPPLIER_CODE]);
+}
+
+async function persistSnapshot(input: {
+  sourceId: string;
+  sourceHash: string;
+  filename: string;
+  version: string;
+  rowCount: number;
+  metadata: Readonly<Record<string, unknown>>;
+}): Promise<string> {
+  const runtime = getProductionPostgresRuntime();
+  const observedAt = new Date().toISOString();
+  const inserted = await runtime.sqlPool.query<SqlRow>(`
+    INSERT INTO public.catalog_source_snapshots(
+      source_id,source_filename,source_hash,source_version,observed_at,row_count,metadata
+    ) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
+    ON CONFLICT (source_id,source_hash) DO NOTHING
+    RETURNING id
+  `, [input.sourceId,input.filename,input.sourceHash,input.version,observedAt,input.rowCount,JSON.stringify(input.metadata)]);
+  let snapshotId = inserted.rows[0]?.id ? String(inserted.rows[0].id) : "";
   if (!snapshotId) {
-    const existing = await runtime.sqlPool.query<SqlRow>(`SELECT id FROM public.catalog_source_snapshots WHERE source_id=$1 AND source_hash=$2`, [input.sourceId, sourceHash]);
+    const existing = await runtime.sqlPool.query<SqlRow>(`SELECT id FROM public.catalog_source_snapshots WHERE source_id=$1 AND source_hash=$2`, [input.sourceId,input.sourceHash]);
     snapshotId = existing.rows[0]?.id ? String(existing.rows[0].id) : "";
   }
   if (!snapshotId) throw new Error("Nova source snapshot could not be resolved");
-
-  const evidence = input.products.map((product) => normalizeNovaProduct(product, input.state.storeId));
-  await insertEvidenceBatch(snapshotId, input.sourceId, evidence);
+  return snapshotId;
 }
 
 async function insertEvidenceBatch(snapshotId: string, sourceId: string, evidence: readonly NovaSourceEvidence[]): Promise<void> {
@@ -281,7 +426,72 @@ async function insertEvidenceBatch(snapshotId: string, sourceId: string, evidenc
       classification_status text
     )
     ON CONFLICT (snapshot_id,source_product_key) DO NOTHING
-  `, [snapshotId, sourceId, JSON.stringify(rows)]);
+  `, [snapshotId,sourceId,JSON.stringify(rows)]);
+}
+
+async function refreshExistingOfferAvailability(evidence: readonly NovaSourceEvidence[]): Promise<void> {
+  const variants = evidence.flatMap((item) => {
+    const payload = item.normalizedPayload as Record<string, unknown>;
+    const normalizedVariants = Array.isArray(payload.variants) ? payload.variants : [];
+    return normalizedVariants.flatMap((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+      const variant = value as Record<string, unknown>;
+      const externalVariantId = scalarText(variant.externalVariantId);
+      if (!externalVariantId) return [];
+      return [{
+        external_product_id: item.sourceProductKey,
+        external_variant_id: externalVariantId,
+        external_sku: scalarText(variant.sku),
+        ean: scalarText(variant.barcode),
+        mpn: scalarText(variant.mpn),
+        cached_available: variant.available === true,
+        cached_quantity: nullableInteger(variant.stockQuantity),
+        availability_payload: {
+          source: "nova_catalogue_sync",
+          stockStatus: scalarText(variant.stockStatus),
+          manageStock: variant.manageStock ?? null,
+          inStock: variant.inStock ?? null,
+          backordersAllowed: false
+        }
+      }];
+    });
+  });
+  if (!variants.length) return;
+  const runtime = getProductionPostgresRuntime();
+  await runtime.sqlPool.query(`
+    UPDATE public.dropship_supplier_offers dso
+    SET external_sku=COALESCE(x.external_sku,dso.external_sku),
+        ean=COALESCE(x.ean,dso.ean),
+        mpn=COALESCE(x.mpn,dso.mpn),
+        cached_available=x.cached_available,
+        cached_quantity=x.cached_quantity,
+        availability_checked_at=now(),
+        availability_expires_at=now() + interval '10 minutes',
+        last_catalogue_sync_at=now(),
+        active=CASE
+          WHEN dso.availability_payload->>'withdrawnByDeletedFeed'='true'
+            AND dso.availability_payload->>'activeBeforeWithdrawal'='true'
+          THEN true
+          ELSE dso.active
+        END,
+        availability_payload=(COALESCE(dso.availability_payload,'{}'::jsonb) - 'withdrawnByDeletedFeed' - 'activeBeforeWithdrawal' - 'deletedAt')
+          || x.availability_payload
+          || CASE WHEN dso.availability_payload->>'withdrawnByDeletedFeed'='true' THEN jsonb_build_object('reappearedAt',now()) ELSE '{}'::jsonb END,
+        updated_at=now()
+    FROM jsonb_to_recordset($1::jsonb) AS x(
+      external_product_id text,
+      external_variant_id text,
+      external_sku text,
+      ean text,
+      mpn text,
+      cached_available boolean,
+      cached_quantity integer,
+      availability_payload jsonb
+    )
+    JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id AND ds.code=$2
+    WHERE dso.external_product_id=x.external_product_id
+      AND dso.external_variant_id=x.external_variant_id
+  `, [JSON.stringify(variants),SUPPLIER_CODE]);
 }
 
 async function saveState(sourceId: string, state: NovaSyncState): Promise<void> {
@@ -290,17 +500,19 @@ async function saveState(sourceId: string, state: NovaSyncState): Promise<void> 
     UPDATE public.catalog_sources
     SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{novaSync}',$2::jsonb,true),updated_at=now()
     WHERE id=$1
-  `, [sourceId, JSON.stringify(state)]);
+  `, [sourceId,JSON.stringify(state)]);
 }
 
 function parseState(value: unknown, now: Date): NovaSyncState {
   const input = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const bootstrapStartedAt = validIso(input.bootstrapStartedAt) ?? now.toISOString();
   const bootstrapComplete = input.bootstrapComplete === true;
+  const requestedPhase = input.phase === "deleted" ? "deleted" : input.phase === "delta" ? "delta" : "bootstrap";
+  const phase: NovaSyncPhase = bootstrapComplete ? (requestedPhase === "bootstrap" ? "delta" : requestedPhase) : "bootstrap";
   return {
     version: 1,
     storeId: positiveInteger(input.storeId, DEFAULT_STORE_ID),
-    phase: bootstrapComplete ? "delta" : "bootstrap",
+    phase,
     nextPage: positiveInteger(input.nextPage, 1),
     perPage: Math.min(100, positiveInteger(input.perPage, DEFAULT_PER_PAGE)),
     bootstrapStartedAt,
@@ -309,12 +521,27 @@ function parseState(value: unknown, now: Date): NovaSyncState {
     bootstrapComplete,
     deltaWatermark: validIso(input.deltaWatermark) ?? undefined,
     deltaWindowEnd: validIso(input.deltaWindowEnd) ?? undefined,
-    deltaFilterPrecision: input.deltaFilterPrecision === "date" ? "date" : input.deltaFilterPrecision === "timestamp" ? "timestamp" : undefined,
+    deltaFilterPrecision: filterPrecision(input.deltaFilterPrecision),
+    deletedWatermark: validIso(input.deletedWatermark) ?? undefined,
+    deletedWindowEnd: validIso(input.deletedWindowEnd) ?? undefined,
+    deletedFilterPrecision: filterPrecision(input.deletedFilterPrecision),
     lastSuccessfulAt: validIso(input.lastSuccessfulAt) ?? undefined,
     lastSuccessfulPage: nullableInteger(input.lastSuccessfulPage) ?? undefined,
     lastError: typeof input.lastError === "string" ? input.lastError.slice(0, 500) : null,
     leaseUntil: validIso(input.leaseUntil)
   };
+}
+
+function pageComplete(itemCount: number, perPage: number, pageNumber: number, totalPages: number | null): boolean {
+  return itemCount === 0 || itemCount < perPage || (totalPages !== null && pageNumber >= totalPages);
+}
+
+function filterDate(iso: string, precision: FilterPrecision): string {
+  return precision === "date" ? iso.slice(0,10) : iso;
+}
+
+function filterPrecision(value: unknown): FilterPrecision | undefined {
+  return value === "date" ? "date" : value === "timestamp" ? "timestamp" : undefined;
 }
 
 function positiveInteger(value: unknown, fallback: number): number {
@@ -328,6 +555,12 @@ function nullableInteger(value: unknown): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+function scalarText(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
 function validIso(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const time = Date.parse(value);
@@ -336,10 +569,10 @@ function validIso(value: unknown): string | null {
 
 function maxPagesPerSlice(): number {
   const value = Number(process.env.NOVA_SYNC_MAX_PAGES_PER_SLICE ?? DEFAULT_MAX_PAGES_PER_SLICE);
-  return Number.isSafeInteger(value) && value > 0 ? Math.min(50, value) : DEFAULT_MAX_PAGES_PER_SLICE;
+  return Number.isSafeInteger(value) && value > 0 ? Math.min(50,value) : DEFAULT_MAX_PAGES_PER_SLICE;
 }
 
 function safeError(error: unknown): string {
-  if (error instanceof NovaV1ApiError) return `${error.name}:${error.status}:${error.method}:${error.path}`.slice(0, 500);
-  return (error instanceof Error ? `${error.name}:${error.message}` : String(error)).slice(0, 500);
+  if (error instanceof NovaV1ApiError) return `${error.name}:${error.status}:${error.method}:${error.path}`.slice(0,500);
+  return (error instanceof Error ? `${error.name}:${error.message}` : String(error)).slice(0,500);
 }
