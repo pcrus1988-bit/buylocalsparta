@@ -23,6 +23,16 @@ const STATIC_ROUTE_MATRIX = [
   "/admin/privacy", "/admin/accessibility", "/admin/trust", "/admin/ask-local"
 ];
 
+async function dismissPrivacyBanner(page) {
+  const banner = page.locator("aside.privacy-consent-banner");
+  if (!(await banner.isVisible().catch(() => false))) return;
+  const reject = banner.getByRole("button", { name: "Απόρριψη προαιρετικών" });
+  if (await reject.isVisible().catch(() => false)) {
+    await reject.click();
+    await expect(banner).toBeHidden();
+  }
+}
+
 async function visibleHomepageLink(page, href) {
   let link = page.locator(`a[href="${href}"]:visible`).first();
   if (await link.count()) return link;
@@ -54,6 +64,7 @@ async function openSpartaHomepage(page) {
   });
   await page.goto("/");
   await expect(page).toHaveURL(/\/$/);
+  await dismissPrivacyBanner(page);
 }
 
 test("all fixed public/private route entry points avoid server errors", async ({ request }, testInfo) => {
@@ -159,7 +170,7 @@ test("public utility pages render and expose a real heading", async ({ page }) =
   }
 });
 
-test("location gateway renders DB lifecycle state without activating prospect hubs", async ({ page, request }) => {
+test("location gateway exposes customer-facing lifecycle states without activating unavailable areas", async ({ page, request }) => {
   const crossOriginConsent = await request.post("/api/privacy/consent", {
     failOnStatusCode: false,
     headers: { origin: "https://attacker.invalid" },
@@ -168,7 +179,7 @@ test("location gateway renders DB lifecycle state without activating prospect hu
   expect(crossOriginConsent.status()).toBe(403);
 
   await page.goto("/choose-location");
-  await expect(page.getByRole("heading", { name: "Καλωσόρισες!" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Πού είσαι σήμερα;" })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 
   const consentBanner = page.locator("aside.privacy-consent-banner");
@@ -176,17 +187,18 @@ test("location gateway renders DB lifecycle state without activating prospect hu
   await consentBanner.getByRole("button", { name: "Απόρριψη προαιρετικών" }).click();
   await expect(consentBanner).toBeHidden();
 
-  const search = page.getByPlaceholder("Αναζήτησε πόλη ή περιοχή…");
+  const search = page.getByPlaceholder("Αναζήτησε πόλη ή περιοχή");
   await search.fill("Καλαμάτα");
-  const kalamata = page.getByRole("button", { name: /Καλαμάτα.*17 prospect vendors/i }).first();
+  const kalamata = page.getByRole("button", { name: /Καλαμάτα.*Ετοιμάζεται/i }).first();
   await expect(kalamata).toBeVisible();
   await kalamata.click();
-  await expect(page.getByRole("button", { name: /Αποθήκευση · Έρχεται σύντομα/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Θυμήσου την περιοχή μου/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
 
   await search.fill("Σπάρτη");
-  const sparta = page.getByRole("button", { name: /Σπάρτη.*Ενεργή τοπική αγορά/i }).first();
+  const sparta = page.getByRole("button", { name: /Σπάρτη.*Αγορά διαθέσιμη/i }).first();
   await expect(sparta).toBeVisible();
   await sparta.click();
-  await expect(page.getByRole("button", { name: /Μπες στην περιοχή σου/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Μπες στην τοπική αγορά/ })).toBeVisible();
   await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
 });
