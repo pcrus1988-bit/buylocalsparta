@@ -170,7 +170,7 @@ test("public utility pages render and expose a real heading", async ({ page }) =
   }
 });
 
-test("location gateway exposes customer-facing lifecycle states without activating unavailable areas", async ({ page, request }) => {
+test("location gateway exposes customer-facing lifecycle states and active hubs enter directly", async ({ page, request }) => {
   const crossOriginConsent = await request.post("/api/privacy/consent", {
     failOnStatusCode: false,
     headers: { origin: "https://attacker.invalid" },
@@ -199,11 +199,12 @@ test("location gateway exposes customer-facing lifecycle states without activati
   const sparta = page.getByRole("button", { name: /Σπάρτη.*Αγορά διαθέσιμη/i }).first();
   await expect(sparta).toBeVisible();
   await sparta.click();
-  await expect(page.getByRole("button", { name: /Μπες στην τοπική αγορά/ })).toBeVisible();
-  await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("main")).toBeVisible();
 });
 
 test("location gateway resolves arbitrary Greek places to nearest hubs without storefront nav obstruction", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/location-search?*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -224,5 +225,8 @@ test("location gateway resolves arbitrary Greek places to nearest hubs without s
 
   await expect(page.getByText(/Βρέθηκε: Μυστράς, Σπάρτη, Λακωνία/)).toBeVisible();
   await expect(page.getByText(/Εμφανίζονται τα 5 κοντινότερα σημεία/)).toBeVisible();
-  await expect(page.getByRole("button", { name: /Σπάρτη.*Αγορά διαθέσιμη/i }).first()).toBeVisible();
+  const sparta = page.getByRole("button", { name: /Σπάρτη.*Αγορά διαθέσιμη/i }).first();
+  await expect(sparta).toBeVisible();
+  await sparta.click();
+  await expect(page).toHaveURL(/\/$/);
 });

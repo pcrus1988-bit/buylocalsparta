@@ -9,6 +9,7 @@ import {
   type ExpansionRegionCode
 } from "../lib/expansion-hubs";
 import styles from "./LocationGatewayV2.module.css";
+import mobileStyles from "./LocationGatewayV2Mobile.module.css";
 
 export type LocationGatewayRuntimeHubV2 = Readonly<{
   hubId: string;
@@ -232,6 +233,16 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     };
   }, []);
 
+  function chooseHub(hub: ExpansionHub) {
+    const state = runtimeState(runtimeByHub.get(hub.id));
+    if (state === "active") {
+      saveLocality(hub);
+      window.location.assign("/");
+      return;
+    }
+    setSelected(hub);
+  }
+
   useEffect(() => {
     const api = leaflet.current;
     const instance = map.current;
@@ -243,7 +254,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
       weight: selected?.id === hub.id ? 3 : 2,
       fillColor: STATE_COLOR[state],
       fillOpacity: 1
-    }).bindTooltip(`${hub.nameEl} · ${stateLabel(state)}`, { direction: "top" }).on("click", () => setSelected(hub)).addTo(instance) as LeafletMarker);
+    }).bindTooltip(`${hub.nameEl} · ${stateLabel(state)}`, { direction: "top" }).on("click", () => chooseHub(hub)).addTo(instance) as LeafletMarker);
   }, [hubs, mapStatus, selected]);
 
   useEffect(() => {
@@ -400,7 +411,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
           : locationError;
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${mobileStyles.mobilePolish} km-location-gateway`}>
       <header className={styles.header}>
         <a href="/" className={styles.brand} aria-label="ΚΟΝΤΑ ΜΟΥ · αρχική"><img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ" /></a>
         <a href="/" className={styles.backLink}>Πίσω στην αγορά →</a>
@@ -451,7 +462,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
         </div>
       </section>
 
-      <nav className={styles.regions} aria-label="Περιφέρεια">
+      <nav className={styles.regions} aria-label="Περιφέρεια" data-km-region-list>
         <button type="button" aria-pressed={region === "ALL" && !searchLocation} className={region === "ALL" && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion("ALL")}>Όλη η Ελλάδα</button>
         {EXPANSION_REGION_CODES.map((code) => <button type="button" key={code} aria-pressed={region === code && !searchLocation} className={region === code && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion(code)}>{regionLabel(code)}</button>)}
       </nav>
@@ -459,17 +470,17 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
       {feedback ? <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p> : null}
 
       <section className={styles.experience}>
-        <div className={`${styles.resultsPanel} ${mobileView === "map" ? styles.mobileHidden : ""}`}>
-          <div className={styles.resultsHead}>
+        <div className={`${styles.resultsPanel} ${mobileView === "map" ? styles.mobileHidden : ""}`} data-km-results-panel>
+          <div className={styles.resultsHead} data-km-results-head>
             <div><span>{searchLocation ? "Κοντινότερα σημεία" : "Περιοχές"}</span><strong>{hubs.length}</strong></div>
             <small>{searchLocation ? `Από: ${shortLocationLabel(searchLocation.label)}` : "Πράσινο: διαθέσιμη · Κίτρινο: ετοιμάζεται · Γκρι: στο πλάνο"}</small>
           </div>
-          <div className={styles.resultsList}>
+          <div className={styles.resultsList} data-km-results-list>
             {hubs.length ? hubs.map(({ hub, state, distance }) => (
-              <button type="button" className={`${styles.hubRow} ${selected?.id === hub.id ? styles.selectedRow : ""}`} key={hub.id} onClick={() => setSelected(hub)}>
+              <button type="button" className={`${styles.hubRow} ${selected?.id === hub.id ? styles.selectedRow : ""}`} key={hub.id} onClick={() => chooseHub(hub)} data-km-hub-row data-km-state={state} aria-label={`${hub.nameEl}, ${hub.regionEl}, ${stateLabel(state)}${state === "active" ? ", άμεση είσοδος" : ""}${distance !== undefined ? `, ${distance < 10 ? distance.toFixed(1) : Math.round(distance)} χιλιόμετρα` : ""}`}>
                 <i style={{ background: STATE_COLOR[state] }} aria-hidden="true" />
-                <span><strong>{hub.nameEl}</strong><small>{hub.regionEl} · {stateLabel(state)}</small></span>
-                <b>{distance !== undefined ? `${distance < 10 ? distance.toFixed(1) : Math.round(distance)} km` : "›"}</b>
+                <span><strong>{hub.nameEl}</strong><small>{hub.regionEl} · {stateLabel(state)}{state === "active" ? " · Πάτησε για είσοδο" : ""}</small></span>
+                <b>{distance !== undefined ? `${distance < 10 ? distance.toFixed(1) : Math.round(distance)} km` : state === "active" ? "Μπες →" : "›"}</b>
               </button>
             )) : (
               <div className={styles.empty}>
@@ -487,7 +498,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
           <div className={styles.legend}><span><i style={{ background: STATE_COLOR.active }} />Αγορά διαθέσιμη</span><span><i style={{ background: STATE_COLOR.preparing }} />Ετοιμάζεται</span><span><i style={{ background: STATE_COLOR.planned }} />Στο πλάνο</span></div>
         </div>
 
-        <aside className={styles.selection} aria-live="polite">
+        <aside className={styles.selection} aria-live="polite" data-km-selection>
           {selected && selectedState ? <>
             <span className={styles.selectionState} style={{ color: STATE_COLOR[selectedState] }}>{stateLabel(selectedState)}</span>
             <h2>{selected.nameEl}</h2>
