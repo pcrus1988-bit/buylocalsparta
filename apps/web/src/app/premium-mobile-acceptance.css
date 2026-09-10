@@ -39,6 +39,92 @@
   border-radius: 12px !important;
 }
 
+/* Keep the desktop navigation deliberate and compact even though public content
+   is allowed to use a wider editorial shell at large breakpoints. */
+@media (min-width: 1280px) {
+  .site-header.shell {
+    width: min(1180px, calc(100% - 56px)) !important;
+    justify-content: flex-start;
+    gap: 14px;
+    padding-inline: 8px;
+  }
+  .site-header .nav {
+    flex: 0 1 auto;
+    gap: 7px !important;
+    margin-left: 4px;
+  }
+  .site-header .nav a {
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+  .site-header .header-actions {
+    margin-left: auto;
+    gap: 6px;
+  }
+  .header-search {
+    width: clamp(145px, 10.5vw, 165px);
+  }
+  .header-location {
+    padding-inline: 9px;
+  }
+}
+
+/* /how-it-works: the audience cards are the real decision CTAs. The hero should
+   explain the proposition, not repeat the same choice or collide with the cards. */
+.content-hero-process .hero-actions {
+  display: none !important;
+}
+.content-hero-process .content-hero-grid {
+  min-height: 470px;
+  grid-template-columns: minmax(0, 1.14fr) minmax(300px, .86fr);
+  gap: clamp(42px, 4vw, 64px);
+  padding-block: 48px;
+}
+.content-hero-process h1 {
+  max-width: 760px;
+  margin-top: 14px;
+  margin-bottom: 20px;
+  font-size: clamp(50px, 4.35vw, 68px);
+  line-height: .97;
+}
+.content-hero-process p {
+  max-width: 680px;
+  margin-bottom: 0;
+  font-size: 17px;
+  line-height: 1.62;
+}
+.content-hero-process .content-hero-grid > :last-child {
+  min-height: 320px;
+}
+.content-hero-process .content-hero-grid > :last-child > :first-child {
+  width: min(100%, 340px);
+}
+.content-hero-process + section.shell {
+  margin-top: 32px !important;
+}
+
+@media (max-width: 980px) {
+  .content-hero-process .content-hero-grid {
+    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+    padding-top: 52px;
+    padding-bottom: 46px;
+  }
+  .content-hero-process h1 {
+    max-width: 760px;
+    font-size: clamp(46px, 7vw, 62px);
+  }
+  .content-hero-process .content-hero-grid > :last-child {
+    width: min(100%, 360px);
+    min-height: 300px;
+    justify-self: center;
+  }
+  .content-hero-process + section.shell {
+    margin-top: 24px !important;
+  }
+}
+
 @media (max-width: 1080px) {
   /* Avoid the cramped pseudo-desktop header seen on narrow tablets / mobile desktop-view. */
   .site-header {
@@ -222,6 +308,21 @@
   .catalog-results .product-grid,
   .categoryProductGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .content-hero-process .content-hero-grid > :last-child {
+    display: none !important;
+  }
+  .content-hero-process h1 {
+    font-size: clamp(38px, 10vw, 48px);
+  }
+  .content-hero-process p {
+    font-size: 16px;
+  }
+  .content-hero-process + section.shell {
+    margin-top: 18px !important;
   }
 }
 
