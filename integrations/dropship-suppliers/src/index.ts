@@ -123,7 +123,7 @@ export class DropshipApiError extends Error {
     this.name = "DropshipApiError";
     this.status = status;
     this.code = options.code;
-    this.retryable = options.retryable ?? status === 408 || status === 429 || status >= 500;
+    this.retryable = options.retryable ?? (status === 408 || status === 429 || status >= 500);
   }
 }
 
