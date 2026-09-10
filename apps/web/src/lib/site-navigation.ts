@@ -33,6 +33,7 @@ export const SITE_LINKS = {
   help: { label: "Κέντρο βοήθειας", href: "/help", description: "Καθοδήγηση για αγορές, αιτήματα και υποστήριξη." },
   join: { label: "Γίνε συνεργάτης", href: "/join", description: "Η πρόταση συνεργασίας για τοπικές επιχειρήσεις." },
   joinRequirements: { label: "Προϋποθέσεις συνεργασίας", href: "/join/requirements", description: "Readiness checklist πριν από την αίτηση εμπόρου." },
+  hubExpansionJoin: { label: "Συνεργασία στα νέα HUB", href: "/hubs/join", description: "AFM-first ένταξη επιχειρήσεων στα 130 HUB επέκτασης του ΚΟΝΤΑ ΜΟΥ." },
   sitemap: { label: "Χάρτης ιστοτόπου", href: "/sitemap", description: "Όλες οι πραγματικές δημόσιες διαδρομές σε ένα σημείο." },
   login: { label: "Σύνδεση πελάτη", href: "/login", description: "Σύνδεση σε υπάρχον λογαριασμό πελάτη." },
   register: { label: "Δημιουργία λογαριασμού", href: "/register", description: "Δημιουργία νέου λογαριασμού πελάτη." },
@@ -60,6 +61,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.help, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.join, changeFrequency: "monthly", priority: 0.6 },
   { ...SITE_LINKS.joinRequirements, changeFrequency: "monthly", priority: 0.55 },
+  { ...SITE_LINKS.hubExpansionJoin, changeFrequency: "monthly", priority: 0.6 },
   { ...SITE_LINKS.sitemap, changeFrequency: "monthly", priority: 0.4 }
 ];
 
@@ -84,7 +86,7 @@ export const HUMAN_SITEMAP_SECTIONS = [
   { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
   { title: "Κανόνες & υποστήριξη", links: [SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.about] },
-  { title: "Για επιχειρήσεις", links: [SITE_LINKS.join, SITE_LINKS.joinRequirements, SITE_LINKS.vendorApply] }
+  { title: "Για επιχειρήσεις", links: [SITE_LINKS.join, SITE_LINKS.joinRequirements, SITE_LINKS.hubExpansionJoin, SITE_LINKS.vendorApply] }
 ] as const;
 
 export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.login, SITE_LINKS.register];
@@ -103,6 +105,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/reset-password",
   "/terms",
   "/join/apply",
+  "/hubs/join/apply",
   "/choose-location",
   "/account",
   "/account/ask-local",
@@ -216,6 +219,7 @@ export const ROBOTS_DISALLOW_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/join/apply",
+  "/hubs/join/apply",
   "/vendor/login",
   "/vendor/advice",
   "/vendor/analytics",
