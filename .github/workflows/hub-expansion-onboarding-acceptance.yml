@@ -1,0 +1,44 @@
+name: HUB Expansion Onboarding Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/hubs/join/**"
+      - "apps/web/src/app/api/hubs/resolve-company-by-afm/**"
+      - "apps/web/src/app/api/hub-prospect-application/**"
+      - "apps/web/src/components/HubExpansionApplicationForm*"
+      - "apps/web/src/lib/hub-expansion-plans.ts"
+      - "apps/web/src/lib/hub-location-resolution.ts"
+      - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "db/migrations/0217_hub_expansion_prospects.sql"
+      - "db/migrations/checksums.0217.json"
+      - "packages/postgres-runtime/src/index.ts"
+      - "scripts/verify-hub-expansion-onboarding.ts"
+      - "docs/hub-expansion-onboarding.md"
+      - ".github/workflows/hub-expansion-onboarding-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/hubs/join/**"
+      - "apps/web/src/app/api/hubs/resolve-company-by-afm/**"
+      - "apps/web/src/app/api/hub-prospect-application/**"
+      - "apps/web/src/components/HubExpansionApplicationForm*"
+      - "apps/web/src/lib/hub-expansion-plans.ts"
+      - "apps/web/src/lib/hub-location-resolution.ts"
+      - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "db/migrations/0217_hub_expansion_prospects.sql"
+      - "db/migrations/checksums.0217.json"
+      - "packages/postgres-runtime/src/index.ts"
+      - "scripts/verify-hub-expansion-onboarding.ts"
+      - "docs/hub-expansion-onboarding.md"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify AFM-first HUB expansion onboarding contracts
+        run: node --experimental-strip-types scripts/verify-hub-expansion-onboarding.ts
