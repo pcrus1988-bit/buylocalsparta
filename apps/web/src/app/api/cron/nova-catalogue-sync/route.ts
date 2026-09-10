@@ -4,10 +4,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
 
-const CRON_SCHEDULE = "* * * * *";
-
 export async function GET(request: Request) {
-  if (!authorizedSchedulerRequest(request)) {
+  const authorization = schedulerAuthorization(request);
+  if (authorization === "misconfigured") {
+    console.error(JSON.stringify({ level: "error", event: "nova.catalogue_sync_cron_misconfigured" }));
+    return Response.json({ error: "scheduler_misconfigured" }, { status: 503, headers: noStore() });
+  }
+  if (authorization === "unauthorized") {
     return Response.json({ error: "unauthorized" }, { status: 401, headers: noStore() });
   }
 
@@ -22,12 +25,10 @@ export async function GET(request: Request) {
   }
 }
 
-function authorizedSchedulerRequest(request: Request): boolean {
+function schedulerAuthorization(request: Request): "authorized" | "unauthorized" | "misconfigured" {
   const configuredSecret = process.env.CRON_SECRET?.trim();
-  if (configuredSecret) return request.headers.get("authorization") === `Bearer ${configuredSecret}`;
-  const userAgent = request.headers.get("user-agent")?.trim().toLowerCase();
-  const schedule = request.headers.get("x-vercel-cron-schedule")?.trim();
-  return userAgent === "vercel-cron/1.0" && schedule === CRON_SCHEDULE;
+  if (!configuredSecret) return "misconfigured";
+  return request.headers.get("authorization") === `Bearer ${configuredSecret}` ? "authorized" : "unauthorized";
 }
 
 function noStore(): HeadersInit {
