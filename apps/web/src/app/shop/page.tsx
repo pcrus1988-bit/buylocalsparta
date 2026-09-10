@@ -111,6 +111,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
   if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
   products = products.filter(purchasablePublicProduct);
+  if (availability === "available") products = products.filter((product) => product.available);
   const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
@@ -184,6 +185,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       <section className="shell catalog-layout">
         <aside className="catalog-sidebar">
           <form className="filter-form" action="/shop">
+            {availability === "available" ? <input type="hidden" name="availability" value="available" /> : null}
             <label htmlFor="q">Αναζήτηση</label>
             <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Π.χ. Bosch δραπανο μέχρι 100€"} />
 
