@@ -27,9 +27,23 @@ function formatBlockingViolations(violations) {
     .join("\n");
 }
 
+async function dismissPrivacyBanner(page) {
+  const banner = page.locator("aside.privacy-consent-banner");
+  if (!(await banner.isVisible().catch(() => false))) return;
+  const reject = banner.getByRole("button", { name: "Απόρριψη προαιρετικών" });
+  if (await reject.isVisible().catch(() => false)) {
+    await reject.click();
+    await expect(banner).toBeHidden();
+  }
+}
+
 for (const route of PUBLIC_A11Y_ROUTES) {
   test(`WCAG automated baseline has no serious/critical violations on ${route}`, async ({ page }, testInfo) => {
     await page.goto(route);
+    // The consent banner is tested through its own interaction contract. Dismiss it
+    // before page-level axe analysis so the fixed overlay does not partially obscure
+    // unrelated content and create false color-contrast positives.
+    await dismissPrivacyBanner(page);
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
