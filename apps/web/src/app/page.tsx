@@ -204,7 +204,7 @@ export default async function Home() {
             <a href="/shop">Όλες οι κατηγορίες →</a>
           </div>
           <div className={styles.categoryRail}>
-            {visibleCategories.slice(0, 8).map((category) => (
+            {visibleCategories.map((category) => (
               <a className={styles.categoryCard} href={`/category/${category.slug}`} key={category.slug}>
                 <span className={styles.categoryMark}>{category.symbol}</span>
                 <span><strong>{category.label}</strong><small>{category.name}</small></span>
