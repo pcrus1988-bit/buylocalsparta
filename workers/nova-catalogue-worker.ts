@@ -28,7 +28,6 @@ process.once("SIGINT", () => requestStop("SIGINT"));
 
 log("info", "nova.worker_started", {
   workerId,
-  schema: readiness.appliedSchemaVersion,
   pollMs,
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false
