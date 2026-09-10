@@ -4,10 +4,19 @@ import test from "node:test";
 import {
   KONTA_MOU_DROPSHIP_VENDOR_ID,
   NOVA_CAPABILITIES,
+  NovaClient,
   isNovaStockAvailable,
   normalizeNovaProduct,
   novaItemsFromResponse,
 } from "../src/index.ts";
+
+function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+    ...init,
+  });
+}
 
 test("Nova keeps supplier identity separate from KONTA MOU commercial vendor", () => {
   const product = normalizeNovaProduct({
@@ -108,4 +117,61 @@ test("Nova list payload normalizer accepts common v1 envelope forms", () => {
   assert.deepEqual(novaItemsFromResponse<number>({ items: [4] }), [4]);
   assert.deepEqual(novaItemsFromResponse<number>({ results: [5] }), [5]);
   assert.throws(() => novaItemsFromResponse({ total: 5 }), /Unexpected Nova list response/);
+});
+
+test("Nova store-scoped GETs always include store_id", async () => {
+  let observedUrl = "";
+  const client = new NovaClient({
+    apiKey: "test-token",
+    fetchImpl: async (input) => {
+      observedUrl = String(input);
+      return jsonResponse([]);
+    },
+  });
+
+  await client.listProducts(77, { page: 2, per_page: 5, lang: "en" });
+  const url = new URL(observedUrl);
+  assert.equal(url.pathname, "/api/v1/products");
+  assert.equal(url.searchParams.get("store_id"), "77");
+  assert.equal(url.searchParams.get("page"), "2");
+  assert.equal(url.searchParams.get("per_page"), "5");
+  assert.equal(url.searchParams.get("lang"), "en");
+});
+
+test("Nova bulk status check enforces 1..100 IDs and exact store payload", async () => {
+  let observedBody = "";
+  const client = new NovaClient({
+    apiKey: "test-token",
+    fetchImpl: async (_input, init) => {
+      observedBody = String(init?.body ?? "");
+      return jsonResponse([]);
+    },
+  });
+
+  await client.checkProductStatus("store-1", [10, 11]);
+  assert.deepEqual(JSON.parse(observedBody), {
+    store_id: "store-1",
+    product_ids: [10, 11],
+  });
+
+  await assert.rejects(() => client.checkProductStatus("store-1", []), /between 1 and 100/);
+  await assert.rejects(
+    () => client.checkProductStatus("store-1", Array.from({ length: 101 }, (_, i) => i + 1)),
+    /between 1 and 100/,
+  );
+});
+
+test("Nova createOrder pins store_id and cannot be overridden by caller payload", async () => {
+  let observedBody = "";
+  const client = new NovaClient({
+    apiKey: "test-token",
+    fetchImpl: async (_input, init) => {
+      observedBody = String(init?.body ?? "");
+      return jsonResponse({ id: 1, status: "pending" });
+    },
+  });
+
+  await client.createOrder(77, { store_id: 999, billing: { country: "GR" } });
+  const body = JSON.parse(observedBody) as Record<string, unknown>;
+  assert.equal(body.store_id, 77);
 });
