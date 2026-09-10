@@ -14,6 +14,7 @@ import type {
   NovaDeletedProductsQuery,
   NovaProduct,
   NovaProductsQuery,
+  NovaScalarId,
   NovaVariation,
 } from "./types.ts";
 
@@ -172,11 +173,14 @@ export class NovaSupplierAdapter implements SupplierAdapter {
   readonly commercialVendorId = KONTA_MOU_DROPSHIP_VENDOR_ID;
   readonly shippingStrategy = "MANUAL" as const;
 
-  constructor(readonly client: NovaClient) {}
+  constructor(
+    readonly client: NovaClient,
+    readonly storeId: NovaScalarId,
+  ) {}
 
   async testConnection(): Promise<SupplierConnectionResult> {
     try {
-      await this.client.getStores();
+      await this.client.listProducts(this.storeId, { page: 1, per_page: 1 });
       return { ok: true, supplierCode: this.code };
     } catch (error) {
       return {
@@ -188,19 +192,19 @@ export class NovaSupplierAdapter implements SupplierAdapter {
   }
 
   async fetchProducts(query: NovaProductsQuery = {}): Promise<SupplierProductPage> {
-    const raw = await this.client.listProducts(query);
+    const raw = await this.client.listProducts(this.storeId, query);
     const products = novaItemsFromResponse<NovaProduct>(raw);
     return { items: products.map(normalizeNovaProduct), raw };
   }
 
-  async fetchProduct(productId: string | number, lang?: "en" | "de"): Promise<SupplierProductSnapshot> {
+  async fetchProduct(productId: NovaScalarId, lang?: "en" | "de"): Promise<SupplierProductSnapshot> {
     assertSupplierCapability(this, "productLookup");
-    return normalizeNovaProduct(await this.client.getProduct(productId, lang));
+    return normalizeNovaProduct(await this.client.getProduct(this.storeId, productId, lang));
   }
 
   async fetchDeletedProducts(query: NovaDeletedProductsQuery = {}): Promise<readonly SupplierDeletedProduct[]> {
     assertSupplierCapability(this, "deletedFeed");
-    const rows = await this.client.getDeletedProducts(query);
+    const rows = await this.client.getDeletedProducts(this.storeId, query);
     return rows.map((row) => {
       const externalProductId = scalar(row.product_id ?? row.id);
       if (!externalProductId) throw new Error("Nova deleted-product row is missing product id");
@@ -213,12 +217,15 @@ export class NovaSupplierAdapter implements SupplierAdapter {
   }
 
   async revalidateVariant(
-    externalProductId: string | number,
-    externalVariationId: string | number,
+    externalProductId: NovaScalarId,
+    externalVariationId: NovaScalarId,
     quantity = 1,
   ): Promise<boolean> {
     assertSupplierCapability(this, "productLookup");
-    const product = await this.client.getProduct(externalProductId);
+    const [status] = await this.client.getProductStatuses(this.storeId, [externalProductId]);
+    if (status && scalar(status.status)?.toLowerCase() === "deleted") return false;
+
+    const product = await this.client.getProduct(this.storeId, externalProductId);
     const variationId = String(externalVariationId);
     const variations = Array.isArray(product.variations) ? product.variations : [];
 
@@ -238,11 +245,11 @@ export class NovaSupplierAdapter implements SupplierAdapter {
 
   async createOrder(payload: Readonly<Record<string, unknown>>) {
     assertSupplierCapability(this, "createOrder");
-    return this.client.createOrder(payload);
+    return this.client.createOrder(this.storeId, payload);
   }
 
-  async getOrder(externalOrderId: string | number) {
+  async getOrder(externalOrderId: NovaScalarId) {
     assertSupplierCapability(this, "readOrders");
-    return this.client.getOrder(externalOrderId);
+    return this.client.getOrder(this.storeId, externalOrderId);
   }
 }
