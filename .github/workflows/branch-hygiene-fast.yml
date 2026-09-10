@@ -1,0 +1,64 @@
+name: Branch hygiene fast cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/branch-hygiene-fast.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove stale refs in parallel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          keep="$RUNNER_TEMP/keep.txt"
+          all="$RUNNER_TEMP/all.txt"
+          delete="$RUNNER_TEMP/delete.txt"
+
+          gh api --paginate "/repos/$REPO/pulls?state=open&per_page=100" \
+            --jq '.[] | .head.ref, .base.ref' | sort -u > "$keep"
+          printf '%s\n' \
+            main \
+            feature/dropship-supplier-engine-v1 \
+            recovery/resend-inbound-20260909 >> "$keep"
+          sort -u -o "$keep" "$keep"
+
+          gh api --paginate "/repos/$REPO/branches?per_page=100" --jq '.[].name' | sort -u > "$all"
+          comm -23 "$all" "$keep" > "$delete"
+
+          total=$(wc -l < "$all" | tr -d ' ')
+          keep_count=$(comm -12 "$all" "$keep" | wc -l | tr -d ' ')
+          delete_count=$(wc -l < "$delete" | tr -d ' ')
+
+          export GH_TOKEN REPO
+          xargs -r -P 24 -I{} bash -c '
+            branch="$1"
+            gh api --method DELETE "/repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1 || true
+          ' _ {} < "$delete"
+
+          remaining=$(gh api --paginate "/repos/$REPO/branches?per_page=100" --jq '.[].name' | wc -l | tr -d ' ')
+          unexpected=$(comm -23 \
+            <(gh api --paginate "/repos/$REPO/branches?per_page=100" --jq '.[].name' | sort -u) \
+            "$keep" | wc -l | tr -d ' ')
+
+          {
+            echo "## Fast branch cleanup"
+            echo
+            echo "- Branches observed before pass: $total"
+            echo "- Protected/retained refs present: $keep_count"
+            echo "- Stale refs targeted: $delete_count"
+            echo "- Branches remaining after pass: $remaining"
+            echo "- Unexpected remaining refs: $unexpected"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          test "$unexpected" -eq 0
