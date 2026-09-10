@@ -187,7 +187,7 @@ test("location gateway exposes customer-facing lifecycle states without activati
   await consentBanner.getByRole("button", { name: "Απόρριψη προαιρετικών" }).click();
   await expect(consentBanner).toBeHidden();
 
-  const search = page.getByPlaceholder("Αναζήτησε πόλη ή περιοχή");
+  const search = page.getByRole("searchbox", { name: /Αναζήτηση πόλης, χωριού, περιοχής ή ταχυδρομικού κώδικα/ });
   await search.fill("Καλαμάτα");
   const kalamata = page.getByRole("button", { name: /Καλαμάτα.*Ετοιμάζεται/i }).first();
   await expect(kalamata).toBeVisible();
@@ -201,4 +201,28 @@ test("location gateway exposes customer-facing lifecycle states without activati
   await sparta.click();
   await expect(page.getByRole("button", { name: /Μπες στην τοπική αγορά/ })).toBeVisible();
   await expect(page).toHaveURL(/\/choose-location(?:[?#].*)?$/);
+});
+
+test("location gateway resolves arbitrary Greek places to nearest hubs without storefront nav obstruction", async ({ page }) => {
+  await page.route("**/api/location-search?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        location: { latitude: 37.0738, longitude: 22.4297, label: "Μυστράς, Σπάρτη, Λακωνία" }
+      })
+    });
+  });
+
+  await page.goto("/choose-location");
+  await dismissPrivacyBanner(page);
+  await expect(page.locator(".customer-mobile-commerce-nav")).toHaveCount(0);
+
+  const search = page.getByRole("searchbox", { name: /Αναζήτηση πόλης, χωριού, περιοχής ή ταχυδρομικού κώδικα/ });
+  await search.fill("Μυστράς 23100");
+  await page.getByRole("button", { name: "Βρες κοντινότερα" }).click();
+
+  await expect(page.getByText(/Βρέθηκε: Μυστράς, Σπάρτη, Λακωνία/)).toBeVisible();
+  await expect(page.getByText(/Εμφανίζονται τα 5 κοντινότερα σημεία/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Σπάρτη.*Αγορά διαθέσιμη/i }).first()).toBeVisible();
 });
