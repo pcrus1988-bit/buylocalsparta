@@ -117,6 +117,19 @@ export class NovaV1Client {
     return expectObject(await this.#json("GET", "/csv/status", { query: { store_id: storeId } }), "CSV status");
   }
 
+  async downloadCsv(storeId: NovaScalarId): Promise<string> {
+    const { response, text } = await this.#request("GET", "/csv/download", {
+      query: { store_id: storeId },
+      accept: "text/csv"
+    });
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (contentType && !contentType.includes("text/csv") && !contentType.includes("application/csv") && !contentType.includes("application/octet-stream")) {
+      throw new Error(`Unexpected Nova CSV content type: ${contentType}`);
+    }
+    if (!text.trim()) throw new Error("Nova CSV download returned an empty file");
+    return text;
+  }
+
   async listProducts(storeId: NovaScalarId, query: NovaProductsQuery = {}): Promise<NovaPage<NovaProduct>> {
     return this.#page<NovaProduct>("/products", { ...query, store_id: storeId });
   }
@@ -180,6 +193,7 @@ export class NovaV1Client {
     options: {
       query?: Readonly<Record<string, string | number | boolean | undefined>>;
       body?: Readonly<Record<string, unknown>>;
+      accept?: string;
     } = {}
   ): Promise<unknown> {
     return (await this.#request(method, path, options)).payload;
@@ -191,8 +205,9 @@ export class NovaV1Client {
     options: {
       query?: Readonly<Record<string, string | number | boolean | undefined>>;
       body?: Readonly<Record<string, unknown>>;
+      accept?: string;
     }
-  ): Promise<{ response: Response; payload: unknown }> {
+  ): Promise<{ response: Response; payload: unknown; text: string }> {
     await this.#acquire();
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
@@ -207,7 +222,7 @@ export class NovaV1Client {
         method,
         headers: {
           authorization: this.#authorization,
-          accept: "application/json",
+          accept: options.accept ?? "application/json",
           ...(options.body ? { "content-type": "application/json" } : {})
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
@@ -234,7 +249,7 @@ export class NovaV1Client {
         code: typeof error.code === "string" ? error.code : undefined
       });
     }
-    return { response, payload };
+    return { response, payload, text };
   }
 
   async #acquire(): Promise<void> {
