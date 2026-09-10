@@ -36,11 +36,17 @@ export type NovaProductsQuery = Readonly<{
   per_page?: number;
   offset?: number;
   search?: string;
+  sku?: string;
+  brand?: number;
+  vendor?: number;
+  condition?: number;
+  category?: number;
+  stock_status?: "instock" | "outofstock";
   lang?: "en" | "de";
-  date_min?: string;
-  date_max?: string;
   updated_at_min?: string;
   updated_at_max?: string;
+  price_min?: number;
+  price_max?: number;
 }>;
 
 export type NovaDeletedProductsQuery = Readonly<{
@@ -125,7 +131,8 @@ export class NovaV1Client {
     }
     return expectArray<Readonly<Record<string, unknown>>>(
       await this.#json("POST", "/products/check-status", {
-        body: { store_id: storeId, product_ids: [...productIds] }
+        query: { store_id: storeId },
+        body: { product_ids: [...productIds] }
       }),
       "product status"
     );
