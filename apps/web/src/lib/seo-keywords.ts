@@ -140,6 +140,13 @@ const STATIC_SEARCH_INTENTS: Readonly<Record<string, readonly string[]>> = {
     "ψηφιακή ετοιμότητα καταστήματος",
     "merchant onboarding Greece"
   ],
+  "/hubs/join": [
+    "ένταξη επιχείρησης σε HUB ΚΟΝΤΑ ΜΟΥ",
+    "HUB επέκτασης ΚΟΝΤΑ ΜΟΥ",
+    "ΓΕΜΗ onboarding επιχείρησης",
+    "marketplace για επιχειρήσεις εκτός Σπάρτης",
+    "merchant onboarding Greece"
+  ],
   "/sitemap": [
     "χάρτης ιστοτόπου ΚΟΝΤΑ ΜΟΥ",
     "σελίδες ΚΟΝΤΑ ΜΟΥ",
