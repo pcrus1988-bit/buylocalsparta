@@ -17,8 +17,11 @@ export type LocationGatewayRuntimeHubV2 = Readonly<{
 }>;
 
 type Coordinates = Readonly<{ latitude: number; longitude: number }>;
+type SearchLocation = Coordinates & Readonly<{ label: string }>;
+type SearchState = "idle" | "searching" | "ready" | "not-found" | "error";
 type LeafletMap = {
   setView(center: readonly [number, number], zoom: number, options?: Record<string, unknown>): LeafletMap;
+  fitBounds(bounds: readonly (readonly [number, number])[], options?: Record<string, unknown>): LeafletMap;
   invalidateSize(): void;
   remove(): void;
 };
@@ -45,6 +48,7 @@ const COOKIE_KEY = "km_locality";
 const LEAFLET_SCRIPT = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const MAP_CENTER = [38.35, 23.65] as const;
+const NEAREST_SEARCH_RESULT_COUNT = 5;
 const STATE_ORDER: Record<PublicState, number> = { active: 0, preparing: 1, planned: 2 };
 const STATE_COLOR: Record<PublicState, string> = { active: "#39884b", preparing: "#c8a33b", planned: "#929b96" };
 
@@ -83,6 +87,10 @@ function distanceKm(from: Coordinates, hub: ExpansionHub): number {
   const dLon = rad(hub.longitude - from.longitude);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(from.latitude)) * Math.cos(rad(hub.latitude)) * Math.sin(dLon / 2) ** 2;
   return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function shortLocationLabel(value: string): string {
+  return value.split(",").slice(0, 3).join(",").trim() || value;
 }
 
 function saveLocality(hub: ExpansionHub): void {
@@ -149,6 +157,8 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
   const [region, setRegion] = useState<ExpansionRegionCode | "ALL">("ALL");
   const [selected, setSelected] = useState<ExpansionHub>();
   const [coordinates, setCoordinates] = useState<Coordinates>();
+  const [searchLocation, setSearchLocation] = useState<SearchLocation>();
+  const [searchState, setSearchState] = useState<SearchState>("idle");
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
@@ -158,7 +168,10 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
   const map = useRef<LeafletMap | null>(null);
   const leaflet = useRef<LeafletNamespace | null>(null);
   const markers = useRef<LeafletMarker[]>([]);
+  const originMarker = useRef<LeafletMarker | null>(null);
   const coverage = useRef<LeafletLayer | null>(null);
+  const searchAbort = useRef<AbortController | null>(null);
+  const geolocationRequest = useRef(0);
 
   useEffect(() => {
     const saved = readLocality();
@@ -168,22 +181,31 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     }
   }, []);
 
+  useEffect(() => () => {
+    searchAbort.current?.abort();
+    geolocationRequest.current += 1;
+  }, []);
+
+  const distanceOrigin = searchLocation ?? coordinates;
+
   const hubs = useMemo(() => {
     const needle = normalize(query);
-    return EXPANSION_HUBS
-      .filter((hub) => region === "ALL" || hub.regionCode === region)
-      .filter((hub) => !needle || normalize(`${hub.nameEl} ${hub.regionEl} ${hub.regionalUnit}`).includes(needle))
+    const ranked = EXPANSION_HUBS
+      .filter((hub) => searchLocation || region === "ALL" || hub.regionCode === region)
+      .filter((hub) => searchLocation || !needle || normalize(`${hub.nameEl} ${hub.slug} ${hub.regionEl} ${hub.regionalUnit}`).includes(needle))
       .map((hub) => ({
         hub,
         state: runtimeState(runtimeByHub.get(hub.id)),
-        distance: coordinates ? distanceKm(coordinates, hub) : undefined
+        distance: distanceOrigin ? distanceKm(distanceOrigin, hub) : undefined
       }))
       .sort((left, right) => {
-        if (coordinates && left.distance !== undefined && right.distance !== undefined) return left.distance - right.distance;
+        if (distanceOrigin && left.distance !== undefined && right.distance !== undefined) return left.distance - right.distance;
         const byState = STATE_ORDER[left.state] - STATE_ORDER[right.state];
         return byState || left.hub.nameEl.localeCompare(right.hub.nameEl, "el");
       });
-  }, [coordinates, query, region, runtimeByHub]);
+
+    return searchLocation ? ranked.slice(0, NEAREST_SEARCH_RESULT_COUNT) : ranked;
+  }, [distanceOrigin, query, region, runtimeByHub, searchLocation]);
 
   useEffect(() => {
     if (!mapNode.current) return undefined;
@@ -202,6 +224,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     return () => {
       cancelled = true;
       markers.current.forEach((marker) => marker.remove());
+      originMarker.current?.remove();
       coverage.current?.remove();
       map.current?.remove();
       map.current = null;
@@ -226,9 +249,38 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
   useEffect(() => {
     const api = leaflet.current;
     const instance = map.current;
+    if (!api || !instance || mapStatus !== "ready") return;
+
+    originMarker.current?.remove();
+    originMarker.current = null;
+    if (!distanceOrigin) return;
+
+    const marker = api.circleMarker([distanceOrigin.latitude, distanceOrigin.longitude], {
+      radius: 7,
+      color: "#fff",
+      weight: 3,
+      fillColor: "#176fca",
+      fillOpacity: 1
+    }).bindTooltip(searchLocation ? "Το σημείο που αναζήτησες" : "Η τοποθεσία σου", { direction: "top" }).addTo(instance) as LeafletMarker;
+    originMarker.current = marker;
+    instance.setView([distanceOrigin.latitude, distanceOrigin.longitude], searchLocation ? 8 : 9, { animate: true });
+  }, [distanceOrigin, mapStatus, searchLocation]);
+
+  useEffect(() => {
+    const api = leaflet.current;
+    const instance = map.current;
     if (!api || !instance || mapStatus !== "ready" || !selected) return;
     coverage.current?.remove();
-    instance.setView([selected.latitude, selected.longitude], 9, { animate: true });
+
+    if (distanceOrigin) {
+      instance.fitBounds([
+        [distanceOrigin.latitude, distanceOrigin.longitude],
+        [selected.latitude, selected.longitude]
+      ], { padding: [36, 36], maxZoom: 9, animate: true });
+    } else {
+      instance.setView([selected.latitude, selected.longitude], 9, { animate: true });
+    }
+
     if (selected.coverageMode !== "WHOLE_ISLAND") {
       coverage.current = api.circle([selected.latitude, selected.longitude], {
         radius: selected.radiusKm * 1000,
@@ -237,28 +289,90 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
         fillOpacity: .08
       }).addTo(instance);
     }
-  }, [mapStatus, runtimeByHub, selected]);
+  }, [distanceOrigin, mapStatus, runtimeByHub, selected]);
+
+  async function resolveTypedLocation() {
+    const trimmed = query.trim();
+    if (trimmed.length < 2 || searchState === "searching") return;
+
+    geolocationRequest.current += 1;
+    setLocating(false);
+    searchAbort.current?.abort();
+    const controller = new AbortController();
+    searchAbort.current = controller;
+    setSearchState("searching");
+    setLocationError("");
+    setSavedMessage("");
+
+    try {
+      const response = await fetch(`/api/location-search?q=${encodeURIComponent(trimmed)}`, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) throw new Error("location-search-failed");
+
+      const payload = await response.json() as { location?: SearchLocation | null };
+      if (!payload.location) {
+        setSearchLocation(undefined);
+        setSearchState("not-found");
+        setSelected(undefined);
+        return;
+      }
+
+      const location = payload.location;
+      const nearest = [...EXPANSION_HUBS].sort((a, b) => distanceKm(location, a) - distanceKm(location, b))[0];
+      setSearchLocation(location);
+      setCoordinates(undefined);
+      setLocating(false);
+      setRegion("ALL");
+      setSearchState("ready");
+      setMobileView("list");
+      setSelected(nearest);
+    } catch {
+      if (controller.signal.aborted) return;
+      setSearchLocation(undefined);
+      setSearchState("error");
+      setSelected(undefined);
+    }
+  }
 
   function useMyLocation() {
+    searchAbort.current?.abort();
+    const requestId = ++geolocationRequest.current;
+    setQuery("");
+    setSearchLocation(undefined);
+    setSearchState("idle");
+    setRegion("ALL");
     setLocationError("");
+    setSavedMessage("");
     if (!("geolocation" in navigator)) {
       setLocationError("Η συσκευή δεν υποστηρίζει εντοπισμό τοποθεσίας. Αναζήτησε την πόλη σου.");
       return;
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition((position) => {
+      if (requestId !== geolocationRequest.current) return;
       const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setCoordinates(next);
       const nearest = [...EXPANSION_HUBS].sort((a, b) => distanceKm(next, a) - distanceKm(next, b))[0];
-      if (nearest) {
-        setSelected(nearest);
-        setRegion(nearest.regionCode);
-      }
+      if (nearest) setSelected(nearest);
       setLocating(false);
     }, () => {
+      if (requestId !== geolocationRequest.current) return;
       setLocationError("Δεν μπορέσαμε να χρησιμοποιήσουμε την τοποθεσία σου. Αναζήτησε την πόλη σου χειροκίνητα.");
       setLocating(false);
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 120000 });
+  }
+
+  function chooseRegion(nextRegion: ExpansionRegionCode | "ALL") {
+    searchAbort.current?.abort();
+    geolocationRequest.current += 1;
+    setLocating(false);
+    setSearchLocation(undefined);
+    setSearchState("idle");
+    setCoordinates(undefined);
+    setSelected(undefined);
+    setRegion(nextRegion);
   }
 
   function confirmSelection() {
@@ -273,7 +387,17 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
   }
 
   const selectedState = selected ? runtimeState(runtimeByHub.get(selected.id)) : undefined;
-  const selectedDistance = selected && coordinates ? distanceKm(coordinates, selected) : undefined;
+  const selectedDistance = selected && distanceOrigin ? distanceKm(distanceOrigin, selected) : undefined;
+  const hasTypedQuery = query.trim().length >= 2;
+  const feedback = searchState === "searching"
+    ? "Βρίσκουμε την τοποθεσία και τα κοντινότερα σημεία ΚΟΝΤΑ ΜΟΥ…"
+    : searchState === "ready" && searchLocation
+      ? `Βρέθηκε: ${shortLocationLabel(searchLocation.label)}. Εμφανίζονται τα ${hubs.length} κοντινότερα σημεία.`
+      : searchState === "not-found"
+        ? "Δεν βρήκαμε αυτή την τοποθεσία. Δοκίμασε πόλη, χωριό, περιοχή ή Τ.Κ. στην Ελλάδα."
+        : searchState === "error"
+          ? "Η αναζήτηση τοποθεσίας δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκίμασε ξανά."
+          : locationError;
 
   return (
     <main className={styles.page}>
@@ -286,7 +410,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
         <div>
           <span className={styles.eyebrow}>Μια ολόκληρη πόλη. Κοντά σου.</span>
           <h1>Πού είσαι σήμερα;</h1>
-          <p>Επίλεξε την περιοχή σου για να βλέπεις πρώτα ό,τι είναι πραγματικά διαθέσιμο κοντά σου.</p>
+          <p>Γράψε οποιαδήποτε πόλη, χωριό, περιοχή ή Τ.Κ. στην Ελλάδα και θα σου δείξουμε τα κοντινότερα σημεία ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
         <button type="button" className={styles.locationButton} onClick={useMyLocation} disabled={locating}>
           <span aria-hidden="true">◎</span><span><strong>{locating ? "Σε εντοπίζουμε…" : "Χρήση τοποθεσίας μου"}</strong><small>Βρες την κοντινότερη περιοχή</small></span>
@@ -294,23 +418,52 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
       </section>
 
       <section className={styles.controls} aria-label="Αναζήτηση περιοχής">
-        <label className={styles.search}><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Αναζήτησε πόλη ή περιοχή" aria-label="Αναζήτηση πόλης ή περιοχής" /></label>
+        <form className={styles.searchForm} role="search" onSubmit={(event) => { event.preventDefault(); void resolveTypedLocation(); }}>
+          <label className={styles.search}>
+            <span aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => {
+                searchAbort.current?.abort();
+                geolocationRequest.current += 1;
+                setLocating(false);
+                setQuery(event.target.value);
+                setSearchLocation(undefined);
+                setSearchState("idle");
+                setCoordinates(undefined);
+                setSelected(undefined);
+                setRegion("ALL");
+                setLocationError("");
+                setSavedMessage("");
+              }}
+              placeholder="Πόλη, χωριό, περιοχή ή Τ.Κ."
+              aria-label="Αναζήτηση πόλης, χωριού, περιοχής ή ταχυδρομικού κώδικα"
+              autoComplete="off"
+              maxLength={160}
+            />
+          </label>
+          <button type="submit" className={styles.searchSubmit} disabled={!hasTypedQuery || searchState === "searching"}>{searchState === "searching" ? "Αναζήτηση…" : "Βρες κοντινότερα"}</button>
+        </form>
         <div className={styles.viewToggle} aria-label="Τρόπος προβολής">
-          <button type="button" className={mobileView === "list" ? styles.activeView : ""} onClick={() => setMobileView("list")}>Λίστα</button>
-          <button type="button" className={mobileView === "map" ? styles.activeView : ""} onClick={() => setMobileView("map")}>Χάρτης</button>
+          <button type="button" aria-pressed={mobileView === "list"} className={mobileView === "list" ? styles.activeView : ""} onClick={() => setMobileView("list")}>Λίστα</button>
+          <button type="button" aria-pressed={mobileView === "map"} className={mobileView === "map" ? styles.activeView : ""} onClick={() => setMobileView("map")}>Χάρτης</button>
         </div>
       </section>
 
       <nav className={styles.regions} aria-label="Περιφέρεια">
-        <button type="button" className={region === "ALL" ? styles.activeRegion : ""} onClick={() => setRegion("ALL")}>Όλη η Ελλάδα</button>
-        {EXPANSION_REGION_CODES.map((code) => <button type="button" key={code} className={region === code ? styles.activeRegion : ""} onClick={() => setRegion(code)}>{regionLabel(code)}</button>)}
+        <button type="button" aria-pressed={region === "ALL" && !searchLocation} className={region === "ALL" && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion("ALL")}>Όλη η Ελλάδα</button>
+        {EXPANSION_REGION_CODES.map((code) => <button type="button" key={code} aria-pressed={region === code && !searchLocation} className={region === code && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion(code)}>{regionLabel(code)}</button>)}
       </nav>
 
-      {locationError ? <p className={styles.feedback} role="status">{locationError}</p> : null}
+      {feedback ? <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p> : null}
 
       <section className={styles.experience}>
         <div className={`${styles.resultsPanel} ${mobileView === "map" ? styles.mobileHidden : ""}`}>
-          <div className={styles.resultsHead}><div><span>Περιοχές</span><strong>{hubs.length}</strong></div><small>Πράσινο: διαθέσιμη · Κίτρινο: ετοιμάζεται · Γκρι: στο πλάνο</small></div>
+          <div className={styles.resultsHead}>
+            <div><span>{searchLocation ? "Κοντινότερα σημεία" : "Περιοχές"}</span><strong>{hubs.length}</strong></div>
+            <small>{searchLocation ? `Από: ${shortLocationLabel(searchLocation.label)}` : "Πράσινο: διαθέσιμη · Κίτρινο: ετοιμάζεται · Γκρι: στο πλάνο"}</small>
+          </div>
           <div className={styles.resultsList}>
             {hubs.length ? hubs.map(({ hub, state, distance }) => (
               <button type="button" className={`${styles.hubRow} ${selected?.id === hub.id ? styles.selectedRow : ""}`} key={hub.id} onClick={() => setSelected(hub)}>
@@ -318,7 +471,12 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
                 <span><strong>{hub.nameEl}</strong><small>{hub.regionEl} · {stateLabel(state)}</small></span>
                 <b>{distance !== undefined ? `${distance < 10 ? distance.toFixed(1) : Math.round(distance)} km` : "›"}</b>
               </button>
-            )) : <div className={styles.empty}><strong>Δεν βρήκαμε αυτή την περιοχή.</strong><span>Δοκίμασε άλλη ονομασία ή καθάρισε το φίλτρο περιφέρειας.</span></div>}
+            )) : (
+              <div className={styles.empty}>
+                <strong>{searchState === "searching" ? "Αναζητούμε την τοποθεσία…" : "Δεν βρήκαμε άμεση αντιστοίχιση."}</strong>
+                <span>{hasTypedQuery && searchState === "idle" ? "Πάτησε «Βρες κοντινότερα» για να εντοπίσουμε το σημείο και να σου προτείνουμε τις 5 κοντινότερες περιοχές." : "Δοκίμασε άλλη ονομασία ή καθάρισε το φίλτρο περιφέρειας."}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -334,7 +492,10 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
             <span className={styles.selectionState} style={{ color: STATE_COLOR[selectedState] }}>{stateLabel(selectedState)}</span>
             <h2>{selected.nameEl}</h2>
             <p>{selected.regionEl}</p>
-            <div className={styles.selectionFacts}><span>{coverageLabel(selected)}</span>{selectedDistance !== undefined ? <span>Περίπου {selectedDistance < 10 ? selectedDistance.toFixed(1) : Math.round(selectedDistance)} km από εσένα</span> : null}</div>
+            <div className={styles.selectionFacts}>
+              <span>{coverageLabel(selected)}</span>
+              {selectedDistance !== undefined ? <span>Περίπου {selectedDistance < 10 ? selectedDistance.toFixed(1) : Math.round(selectedDistance)} km {searchLocation ? "από το σημείο που αναζήτησες" : "από εσένα"}</span> : null}
+            </div>
             <p className={styles.selectionCopy}>{stateDescription(selectedState)}</p>
             <button type="button" className={styles.primary} onClick={confirmSelection}>{selectedState === "active" ? "Μπες στην τοπική αγορά" : "Θυμήσου την περιοχή μου"}<span aria-hidden="true">→</span></button>
             {selectedState !== "active" ? <a className={styles.vendorLink} href="/join">Έχεις κατάστημα εδώ; Δες πώς συμμετέχεις →</a> : null}
