@@ -8,6 +8,7 @@ import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
 import { HomeLocalMarketScene } from "../components/HomeLocalMarketScene";
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
+import { getHomepageLocalMarketScene } from "../lib/homepage-local-market-runtime";
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
@@ -61,6 +62,12 @@ const EDITORIAL_COLLECTIONS = [
 const getCachedHomepageHeroSlides = unstable_cache(
   () => listHomepageHeroSlides({ visibleOnly: true }),
   ["homepage-visible-hero-slides-v2"],
+  { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
+);
+
+const getCachedHomepageLocalMarketScene = unstable_cache(
+  () => getHomepageLocalMarketScene(),
+  ["homepage-local-market-scene-v1"],
   { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
 );
 
@@ -123,7 +130,7 @@ export default async function Home() {
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
 
-  const [featuredProducts, heroSlides, visibleCategories, vendorDirectory] = await Promise.all([
+  const [featuredProducts, heroSlides, localMarketScene, visibleCategories, vendorDirectory] = await Promise.all([
     homepageSectionOrFallback(
       "featured-products",
       () => readOnlyCrawler
@@ -132,6 +139,7 @@ export default async function Home() {
       []
     ),
     homepageSectionOrFallback("hero-slides", getCachedHomepageHeroSlides, []),
+    homepageSectionOrFallback("local-market-scene", getCachedHomepageLocalMarketScene, null),
     homepageSectionOrFallback("visible-categories", getCachedHomepageCategories, []),
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])
   ]);
@@ -173,7 +181,11 @@ export default async function Home() {
       <SiteHeader />
 
       <HomeHeroCarousel slides={heroSlides}>
-        <section className={`${styles.hero} shell`} id="top">
+        <section
+          className={`${styles.hero} shell`}
+          id="top"
+          style={localMarketScene?.isVisible ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}
+        >
           <div className={styles.heroCopy}>
             <a className={styles.locationPill} href="/choose-location" aria-label="Αλλαγή περιοχής">
               <span className={styles.locationDot} aria-hidden="true" />
@@ -193,7 +205,7 @@ export default async function Home() {
               <a href="/ask-local">Ask Local <span aria-hidden="true">↗</span></a>
             </div>
           </div>
-          <HomeLocalMarketScene vendors={activeVendors} />
+          {localMarketScene?.isVisible ? <HomeLocalMarketScene scene={localMarketScene} /> : null}
         </section>
       </HomeHeroCarousel>
 

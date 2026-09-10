@@ -1,128 +1,80 @@
 .scene {
-  position: relative;
-  min-height: 560px;
-  display: grid;
-  place-items: center;
-}
-.frame {
-  position: relative;
-  width: min(100%, 470px);
-  aspect-ratio: .82;
-  overflow: hidden;
-  border-radius: 230px 230px 18px 18px;
-  background: linear-gradient(145deg, #b49e7d 0%, #6f7c62 48%, #183b30 100%);
-  box-shadow: 0 34px 100px rgba(15,45,36,.18);
-}
-.frame::before {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  inset: 9% 9% 7%;
-  border: 1px solid rgba(255,255,255,.45);
-  border-radius: inherit;
-  pointer-events: none;
-}
-.photo {
-  position: absolute;
-  inset: 0;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transform: scale(1.01);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.photoShade {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  background: linear-gradient(to top, rgba(8,34,27,.68) 0%, rgba(8,34,27,.12) 52%, rgba(8,34,27,.04) 100%);
+
+.card {
+  width: min(100%, 540px);
+  overflow: hidden;
+  border: 1px solid rgba(23, 56, 45, .12);
+  border-radius: 24px;
+  background: #fbf8f1;
+  box-shadow: 0 30px 80px rgba(15, 45, 36, .14);
 }
-.caption {
-  position: absolute;
-  z-index: 3;
-  left: 11%;
-  right: 11%;
-  bottom: 9%;
+
+.photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #eee9df;
+}
+
+.content {
   display: grid;
-  gap: 5px;
-  color: #fff8e9;
+  gap: 10px;
+  padding: 20px 22px 22px;
 }
-.caption small {
-  font-size: 9px;
-  font-weight: 900;
+
+.eyebrow {
+  color: #6d766f;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: .16em;
   text-transform: uppercase;
 }
-.caption strong {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(23px, 2.4vw, 34px);
-  font-weight: 500;
-  line-height: 1.05;
-}
-.caption span {
-  max-width: 330px;
-  color: rgba(255,248,233,.78);
-  font-size: 11px;
-  line-height: 1.45;
-}
-.note {
-  position: absolute;
-  z-index: 4;
-  right: -10px;
-  bottom: 54px;
-  max-width: 240px;
-  padding: 16px 18px;
-  border: 1px solid rgba(23,56,45,.14);
-  border-radius: 14px;
-  background: rgba(251,248,241,.95);
-  box-shadow: 0 18px 48px rgba(15,45,36,.14);
+
+.headline {
   color: #17382d;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.45;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(25px, 2.5vw, 36px);
+  font-weight: 500;
+  line-height: 1.04;
 }
-.fallbackLight {
-  position: absolute;
-  width: 190px;
-  height: 190px;
-  border-radius: 50%;
-  background: rgba(255,235,183,.5);
-  filter: blur(28px);
-  right: 11%;
-  top: 13%;
+
+.body {
+  max-width: 440px;
+  margin: 0;
+  color: #66726a;
+  font-size: 14px;
+  line-height: 1.55;
 }
-.fallbackShelfOne,
-.fallbackShelfTwo {
-  position: absolute;
-  left: 16%;
-  right: 13%;
-  height: 2px;
-  background: rgba(255,255,255,.52);
+
+.cta {
+  width: fit-content;
+  margin-top: 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(23, 56, 45, .28);
+  color: #17382d;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
 }
-.fallbackShelfOne { top: 48%; }
-.fallbackShelfTwo { top: 67%; }
-.fallbackPerson {
-  position: absolute;
-  left: 47%;
-  bottom: 9%;
-  width: 23%;
-  height: 43%;
-  border-radius: 48% 48% 12% 12%;
-  background: linear-gradient(#293f35 0 28%, #d0b89a 28% 47%, #263d34 47%);
-  box-shadow: 0 0 0 10px rgba(255,255,255,.05);
+
+.cta:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 2px;
 }
 
 @media (max-width: 900px) {
-  .scene { min-height: 450px; }
-  .frame { width: min(88vw, 430px); }
-  .note { right: 4%; bottom: 28px; }
+  .card { width: min(100%, 620px); }
 }
+
 @media (max-width: 640px) {
-  .scene { min-height: 400px; }
-  .frame { width: min(88vw, 360px); }
-  .note { right: 0; bottom: 18px; max-width: 210px; padding: 13px 14px; font-size: 11px; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .photo { transition: transform .7s cubic-bezier(.2,.7,.2,1); }
-  .scene:hover .photo { transform: scale(1.035); }
+  .card { border-radius: 20px; }
+  .content { padding: 17px 18px 19px; }
+  .headline { font-size: clamp(24px, 8vw, 31px); }
 }
