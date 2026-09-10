@@ -5,6 +5,7 @@ import {
 } from "../../../integrations/dropship-suppliers/src/nova-v1.ts";
 
 const EXPECTED_BRANCH = "feature/nova-live-integration-20260910";
+// Keep this probe preview-only: it exists solely to validate the server-side Nova credential and documented read endpoints.
 
 if (process.env.VERCEL_ENV !== "preview" || process.env.VERCEL_GIT_COMMIT_REF !== EXPECTED_BRANCH) {
   process.exit(0);
