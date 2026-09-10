@@ -1,0 +1,49 @@
+name: One-shot premium saved-search availability fix
+
+on:
+  push:
+    branches: [feat/premium-marketplace-experience]
+    paths:
+      - ".github/workflows/one-shot-premium-saved-search-availability.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/premium-marketplace-experience
+          fetch-depth: 1
+      - name: Restore saved-search availability query contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("apps/web/src/app/shop/page.tsx")
+          source = path.read_text()
+
+          old_filter = "  products = products.filter(purchasablePublicProduct);\n  const fitOptions ="
+          new_filter = "  products = products.filter(purchasablePublicProduct);\n  if (availability === \"available\") products = products.filter((product) => product.available);\n  const fitOptions ="
+          if source.count(old_filter) != 1:
+              raise SystemExit(f"Expected one purchasable filter insertion point, found {source.count(old_filter)}")
+          source = source.replace(old_filter, new_filter, 1)
+
+          old_form = '          <form className="filter-form" action="/shop">\n            <label htmlFor="q">Αναζήτηση</label>'
+          new_form = '          <form className="filter-form" action="/shop">\n            {availability === "available" ? <input type="hidden" name="availability" value="available" /> : null}\n            <label htmlFor="q">Αναζήτηση</label>'
+          if source.count(old_form) != 1:
+              raise SystemExit(f"Expected one filter form insertion point, found {source.count(old_form)}")
+          source = source.replace(old_form, new_form, 1)
+          path.write_text(source)
+          PY
+      - name: Verify saved-search contract locally
+        run: node --experimental-strip-types scripts/verify-customer-saved-search-editing.ts
+      - name: Remove one-shot workflow and commit surgical fix
+        run: |
+          git config user.name "KONTA MOY Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/one-shot-premium-saved-search-availability.yml
+          git add apps/web/src/app/shop/page.tsx
+          git commit -m "fix(shop): preserve saved-search availability filter"
+          git push origin HEAD:feat/premium-marketplace-experience
