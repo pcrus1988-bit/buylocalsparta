@@ -20,6 +20,10 @@ export type NovaNormalizedVariant = Readonly<{
   mpn: string | null;
   regularPriceRaw: string | number | null;
   salePriceRaw: string | number | null;
+  msrpRaw: string | number | null;
+  buyingCostRaw: string | number | null;
+  msrpMinor: number | null;
+  buyingCostMinor: number | null;
   manageStock: boolean | null;
   inStock: boolean | null;
   stockStatus: string | null;
@@ -33,6 +37,14 @@ export type NovaNormalizedVariant = Readonly<{
   image: unknown;
 }>;
 
+/**
+ * Nova/BrandsGateway commercial price contract confirmed by the account owner:
+ *   regular_price -> MSRP/RRP (reference price)
+ *   sale_price    -> KONTA MOY supplier buying cost
+ *
+ * Neither value is the final KONTA MOY customer selling price. Public retail price is
+ * calculated/governed separately through the structured vendor pricing layer.
+ */
 export function normalizeNovaProduct(product: NovaProduct, storeId: NovaScalarId): NovaSourceEvidence {
   const externalProductId = requiredId(product.id, "Nova product id");
   const sku = text(product.sku);
@@ -49,6 +61,8 @@ export function normalizeNovaProduct(product: NovaProduct, storeId: NovaScalarId
   const title = text(product.name) ?? sku ?? `Nova product ${externalProductId}`;
   const regularPriceRaw = scalar(product.regular_price);
   const salePriceRaw = scalar(product.sale_price);
+  const msrpMinor = novaMoneyMinor(regularPriceRaw);
+  const buyingCostMinor = novaMoneyMinor(salePriceRaw);
   const missing: string[] = [];
   if (!text(product.name)) missing.push("name");
   if (!sku) missing.push("sku");
@@ -106,7 +120,14 @@ export function normalizeNovaProduct(product: NovaProduct, storeId: NovaScalarId
         currency: "EUR",
         regularPriceRaw,
         salePriceRaw,
-        semanticsVerified: false
+        msrpRaw: regularPriceRaw,
+        buyingCostRaw: salePriceRaw,
+        msrpMinor,
+        buyingCostMinor,
+        semanticsVerified: true,
+        regularPriceMeaning: "msrp",
+        salePriceMeaning: "buying_cost",
+        customerSellingPriceSource: "konta_mou_structured_pricing"
       },
       shipping: {
         required: booleanish(product.shipping_required),
@@ -121,14 +142,18 @@ export function normalizeNovaProduct(product: NovaProduct, storeId: NovaScalarId
     qualityPayload: {
       publicationState: "STAGED",
       publicEligible: false,
-      priceReviewRequired: regularPriceRaw !== null || salePriceRaw !== null,
-      pricingSemanticsVerified: false,
+      priceReviewRequired: false,
+      retailPriceRequired: true,
+      pricingSemanticsVerified: true,
+      pricingSource: "nova_account_contract",
       availabilitySource: "nova_api_authoritative",
       backordersAllowed: false,
       variationCount: allVariants.length,
       syntheticProductLevelVariant: variations.length === 0,
-      missingIdentityFields: missing
+      missingIdentityFields: missing,
+      pricingIntegrityIssue: pricingIntegrityIssue(msrpMinor, buyingCostMinor)
     },
+    // Source semantics are known, but final customer retail remains a separate governed step.
     priceState: regularPriceRaw !== null || salePriceRaw !== null ? "review_required" : "unpriced",
     classificationStatus: "raw"
   };
@@ -146,14 +171,28 @@ export function novaAvailability(value: Readonly<Record<string, unknown>>, requi
   return inStock === true && stockStatus === "instock" && (quantity === null || quantity >= requiredQuantity);
 }
 
+/** Convert a Nova EUR major-unit amount to KONTA MOY minor units without accepting invalid money. */
+export function novaMoneyMinor(value: unknown): number | null {
+  const amount = numberish(value);
+  if (amount === null || amount < 0) return null;
+  const minor = Math.round((amount + Number.EPSILON) * 100);
+  return Number.isSafeInteger(minor) ? minor : null;
+}
+
 function normalizeProductLevelVariant(product: NovaProduct): NovaNormalizedVariant {
+  const regularPriceRaw = scalar(product.regular_price);
+  const salePriceRaw = scalar(product.sale_price);
   return {
     externalVariantId: requiredId(product.id, "Nova product id"),
     sku: text(product.sku),
     barcode: text(product.barcode),
     mpn: text(product.mpn),
-    regularPriceRaw: scalar(product.regular_price),
-    salePriceRaw: scalar(product.sale_price),
+    regularPriceRaw,
+    salePriceRaw,
+    msrpRaw: regularPriceRaw,
+    buyingCostRaw: salePriceRaw,
+    msrpMinor: novaMoneyMinor(regularPriceRaw),
+    buyingCostMinor: novaMoneyMinor(salePriceRaw),
     manageStock: booleanish(product.manage_stock),
     inStock: booleanish(product.in_stock),
     stockStatus: text(product.stock_status),
@@ -169,13 +208,19 @@ function normalizeProductLevelVariant(product: NovaProduct): NovaNormalizedVaria
 }
 
 function normalizeVariation(variation: Readonly<Record<string, unknown>>): NovaNormalizedVariant {
+  const regularPriceRaw = scalar(variation.regular_price);
+  const salePriceRaw = scalar(variation.sale_price);
   return {
     externalVariantId: requiredId(variation.id, "Nova variation id"),
     sku: text(variation.sku),
     barcode: text(variation.barcode),
     mpn: text(variation.mpn),
-    regularPriceRaw: scalar(variation.regular_price),
-    salePriceRaw: scalar(variation.sale_price),
+    regularPriceRaw,
+    salePriceRaw,
+    msrpRaw: regularPriceRaw,
+    buyingCostRaw: salePriceRaw,
+    msrpMinor: novaMoneyMinor(regularPriceRaw),
+    buyingCostMinor: novaMoneyMinor(salePriceRaw),
     manageStock: booleanish(variation.manage_stock),
     inStock: booleanish(variation.in_stock),
     stockStatus: text(variation.stock_status),
@@ -188,6 +233,11 @@ function normalizeVariation(variation: Readonly<Record<string, unknown>>): NovaN
     attributes: variation.attributes ?? [],
     image: variation.image ?? null
   };
+}
+
+function pricingIntegrityIssue(msrpMinor: number | null, buyingCostMinor: number | null): string | null {
+  if (msrpMinor === null || buyingCostMinor === null) return null;
+  return msrpMinor < buyingCostMinor ? "msrp_below_buying_cost" : null;
 }
 
 function namedReference(value: unknown): { id: string | number | null; name: string | null } {
