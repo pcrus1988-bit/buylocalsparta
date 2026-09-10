@@ -9,7 +9,7 @@ import {
   type SupplierProductSnapshot,
   type SupplierVariantSnapshot,
 } from "../types.ts";
-import { NovaClient } from "./client.ts";
+import { NovaClient, novaItemsFromResponse } from "./client.ts";
 import type {
   NovaDeletedProductsQuery,
   NovaProduct,
@@ -127,7 +127,7 @@ export function normalizeNovaProduct(product: NovaProduct): SupplierProductSnaps
   ];
   const categoryIds = [...new Set(categories.map((entry) => scalar(entry.id)).filter((id): id is string => Boolean(id)))];
 
-  const rawVariations = Array.isArray(product.variations) && product.variations.length > 0
+  const rawVariations: NovaVariation[] = Array.isArray(product.variations) && product.variations.length > 0
     ? product.variations
     : [{
         id: product.id,
@@ -140,7 +140,7 @@ export function normalizeNovaProduct(product: NovaProduct): SupplierProductSnaps
         stock_status: product.stock_status,
         in_stock: product.in_stock,
         manage_stock: product.manage_stock,
-      } satisfies NovaVariation];
+      }];
 
   return {
     supplierCode: NOVA_SUPPLIER_CODE,
@@ -189,7 +189,7 @@ export class NovaSupplierAdapter implements SupplierAdapter {
 
   async fetchProducts(query: NovaProductsQuery = {}): Promise<SupplierProductPage> {
     const raw = await this.client.listProducts(query);
-    const products = await this.client.getProductsFromPayload(raw);
+    const products = novaItemsFromResponse<NovaProduct>(raw);
     return { items: products.map(normalizeNovaProduct), raw };
   }
 
