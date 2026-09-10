@@ -1,6 +1,12 @@
 const DEFAULT_NOVA_V1_BASE_URL = "https://nova.shopwoo.com/api/v1";
 const DEFAULT_REQUESTS_PER_MINUTE = 60;
 const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
+const NOVA_DATETIME_QUERY_KEYS = new Set([
+  "updated_at_min",
+  "updated_at_max",
+  "deleted_at_min",
+  "deleted_at_max"
+]);
 
 export type NovaScalarId = string | number;
 
@@ -219,7 +225,7 @@ export class NovaV1Client {
     await this.#acquire();
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
-      if (value !== undefined) url.searchParams.set(key, String(value));
+      if (value !== undefined) url.searchParams.set(key, novaQueryValue(key, value));
     }
 
     const controller = new AbortController();
@@ -280,6 +286,14 @@ export function novaApiKeyFromEnvironment(env: NodeJS.ProcessEnv = process.env):
   const value = env.NOVA_API_KEY?.trim();
   if (!value) throw new Error("NOVA_API_KEY is not configured");
   return value;
+}
+
+function novaQueryValue(key: string, value: string | number | boolean): string {
+  if (typeof value === "string" && NOVA_DATETIME_QUERY_KEYS.has(key)) {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return new Date(parsed).toISOString().slice(0, 19);
+  }
+  return String(value);
 }
 
 function expectArray<T>(payload: unknown, label: string): readonly T[] {
