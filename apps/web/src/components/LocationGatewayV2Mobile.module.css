@@ -1,0 +1,174 @@
+.mobilePolish {
+  --km-mobile-surface: #fbf8f1;
+}
+
+/* Defensive route-level guard: even if a stale client bundle renders the global
+   commerce bar, the location gateway itself remains unobstructed. */
+:global(.main-content-scope):has(.mobilePolish) :global(.customer-mobile-commerce-nav),
+:global(.main-content-scope):has(.mobilePolish) :global(.customer-mobile-commerce-spacer),
+:global(.main-content-scope):has(.mobilePolish) :global(.customer-mobile-commerce-confirmation) {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .mobilePolish {
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .mobilePolish [data-km-region-list] {
+    gap: 8px;
+    margin-top: 10px;
+    padding-bottom: 8px;
+    scroll-padding-inline: 6px;
+  }
+
+  .mobilePolish [data-km-region-list] button {
+    min-height: 44px;
+    padding-inline: 16px;
+    font-size: 13px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  .mobilePolish [data-km-results-panel] {
+    min-height: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(21, 55, 44, .05);
+  }
+
+  .mobilePolish [data-km-results-head] {
+    min-height: 62px;
+    padding: 13px 14px;
+    align-items: center;
+    background: rgba(255, 253, 248, .72);
+  }
+
+  .mobilePolish [data-km-results-head] > div {
+    gap: 10px;
+  }
+
+  .mobilePolish [data-km-results-head] span {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .mobilePolish [data-km-results-head] strong {
+    font-size: 30px;
+    line-height: 1;
+  }
+
+  .mobilePolish [data-km-results-list] {
+    max-height: min(52vh, 390px);
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  .mobilePolish [data-km-hub-row] {
+    min-height: 66px;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 10px 13px;
+    background: rgba(255, 253, 248, .46);
+  }
+
+  .mobilePolish [data-km-hub-row] > i {
+    width: 10px;
+    height: 10px;
+    box-shadow: 0 0 0 5px rgba(21, 55, 44, .055);
+  }
+
+  .mobilePolish [data-km-hub-row] strong {
+    font-size: 15px;
+    line-height: 1.2;
+    letter-spacing: -.01em;
+  }
+
+  .mobilePolish [data-km-hub-row] small {
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.35;
+  }
+
+  .mobilePolish [data-km-hub-row] b {
+    font-size: 11.5px;
+    line-height: 1.15;
+  }
+
+  .mobilePolish [data-km-hub-row][data-km-state="active"] {
+    background: rgba(57, 136, 75, .055);
+  }
+
+  .mobilePolish [data-km-hub-row][data-km-state="active"] strong,
+  .mobilePolish [data-km-hub-row][data-km-state="active"] b {
+    color: #174b32;
+  }
+
+  .mobilePolish [data-km-selection] {
+    margin-top: 2px;
+    padding: 18px 16px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(21, 55, 44, .04);
+  }
+
+  .mobilePolish [data-km-selection] h2 {
+    font-size: clamp(32px, 10vw, 42px);
+    line-height: 1;
+  }
+
+  .mobilePolish [data-km-selection] p,
+  .mobilePolish [data-km-selection] span,
+  .mobilePolish [data-km-selection] a,
+  .mobilePolish [data-km-selection] button {
+    font-size: 12px;
+  }
+
+  .mobilePolish [data-km-selection] button {
+    min-height: 50px;
+  }
+}
+
+@media (max-width: 430px) {
+  .mobilePolish [data-km-region-list] button {
+    min-height: 42px;
+    padding-inline: 14px;
+    font-size: 12.5px;
+  }
+
+  .mobilePolish [data-km-results-list] {
+    max-height: min(50vh, 360px);
+  }
+
+  .mobilePolish [data-km-hub-row] {
+    min-height: 64px;
+    padding: 9px 12px;
+  }
+
+  .mobilePolish [data-km-hub-row] strong {
+    font-size: 14.5px;
+  }
+
+  .mobilePolish [data-km-hub-row] small,
+  .mobilePolish [data-km-hub-row] b {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  .mobilePolish {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .mobilePolish [data-km-hub-row] {
+    grid-template-columns: 10px minmax(0, 1fr) auto;
+    gap: 9px;
+    padding-inline: 10px;
+  }
+
+  .mobilePolish [data-km-hub-row] small {
+    font-size: 10.5px;
+  }
+}
