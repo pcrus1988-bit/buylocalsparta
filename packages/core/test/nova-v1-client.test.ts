@@ -23,6 +23,42 @@ test("Nova product reads include retailer store id", async () => {
   assert.equal(page.totalPages, 3);
 });
 
+test("Nova date filters are emitted in the provider's YYYY-MM-DDTHH:mm:ss format", async () => {
+  let observedUrl = "";
+  const client = new NovaV1Client({
+    apiKey: "example-value",
+    fetchImpl: async (input) => {
+      observedUrl = String(input);
+      return response([]);
+    }
+  });
+  await client.listProducts(2, {
+    updated_at_min: "2026-09-10T16:01:50.318Z",
+    updated_at_max: "2026-09-10T16:06:50.999Z"
+  });
+  const url = new URL(observedUrl);
+  assert.equal(url.searchParams.get("updated_at_min"), "2026-09-10T16:01:50");
+  assert.equal(url.searchParams.get("updated_at_max"), "2026-09-10T16:06:50");
+});
+
+test("Nova deleted-product date filters use the same provider timestamp format", async () => {
+  let observedUrl = "";
+  const client = new NovaV1Client({
+    apiKey: "example-value",
+    fetchImpl: async (input) => {
+      observedUrl = String(input);
+      return response([]);
+    }
+  });
+  await client.listDeletedProducts(2, {
+    deleted_at_min: "2026-09-10T16:01:50.318Z",
+    deleted_at_max: "2026-09-10T16:06:50.999Z"
+  });
+  const url = new URL(observedUrl);
+  assert.equal(url.searchParams.get("deleted_at_min"), "2026-09-10T16:01:50");
+  assert.equal(url.searchParams.get("deleted_at_max"), "2026-09-10T16:06:50");
+});
+
 test("Nova store discovery has no store id parameter", async () => {
   let observedUrl = "";
   const client = new NovaV1Client({
