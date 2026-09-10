@@ -22,6 +22,7 @@ COPY packages/mollie-payments/package.json packages/mollie-payments/package.json
 RUN npm ci --omit=dev --ignore-scripts
 
 COPY --chown=node:node packages ./packages
+COPY --chown=node:node integrations ./integrations
 COPY --chown=node:node apps/web/src/lib ./apps/web/src/lib
 COPY --chown=node:node workers ./workers
 COPY --chown=node:node scripts/resolve-typescript-extension.mjs ./scripts/resolve-typescript-extension.mjs
