@@ -7,7 +7,7 @@ import {
   mapBrandsGatewayStatus,
   type DropshipCreateOrderRequest,
   type DropshipProviderOrder
-} from "../../dropship-suppliers/src/index.ts";
+} from "../../../integrations/dropship-suppliers/src/index.ts";
 
 test("BrandsGateway operational statuses map to governed KONTA MOY fulfilment states", () => {
   const cases: ReadonlyArray<readonly [string, string]> = [
