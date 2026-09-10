@@ -21,6 +21,7 @@ type SearchLocation = Coordinates & Readonly<{ label: string }>;
 type SearchState = "idle" | "searching" | "ready" | "not-found" | "error";
 type LeafletMap = {
   setView(center: readonly [number, number], zoom: number, options?: Record<string, unknown>): LeafletMap;
+  fitBounds(bounds: readonly (readonly [number, number])[], options?: Record<string, unknown>): LeafletMap;
   invalidateSize(): void;
   remove(): void;
 };
@@ -170,6 +171,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
   const originMarker = useRef<LeafletMarker | null>(null);
   const coverage = useRef<LeafletLayer | null>(null);
   const searchAbort = useRef<AbortController | null>(null);
+  const geolocationRequest = useRef(0);
 
   useEffect(() => {
     const saved = readLocality();
@@ -179,7 +181,10 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     }
   }, []);
 
-  useEffect(() => () => searchAbort.current?.abort(), []);
+  useEffect(() => () => {
+    searchAbort.current?.abort();
+    geolocationRequest.current += 1;
+  }, []);
 
   const distanceOrigin = searchLocation ?? coordinates;
 
@@ -266,7 +271,16 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     const instance = map.current;
     if (!api || !instance || mapStatus !== "ready" || !selected) return;
     coverage.current?.remove();
-    instance.setView([selected.latitude, selected.longitude], 9, { animate: true });
+
+    if (distanceOrigin) {
+      instance.fitBounds([
+        [distanceOrigin.latitude, distanceOrigin.longitude],
+        [selected.latitude, selected.longitude]
+      ], { padding: [36, 36], maxZoom: 9, animate: true });
+    } else {
+      instance.setView([selected.latitude, selected.longitude], 9, { animate: true });
+    }
+
     if (selected.coverageMode !== "WHOLE_ISLAND") {
       coverage.current = api.circle([selected.latitude, selected.longitude], {
         radius: selected.radiusKm * 1000,
@@ -275,12 +289,14 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
         fillOpacity: .08
       }).addTo(instance);
     }
-  }, [mapStatus, runtimeByHub, selected]);
+  }, [distanceOrigin, mapStatus, runtimeByHub, selected]);
 
   async function resolveTypedLocation() {
     const trimmed = query.trim();
     if (trimmed.length < 2 || searchState === "searching") return;
 
+    geolocationRequest.current += 1;
+    setLocating(false);
     searchAbort.current?.abort();
     const controller = new AbortController();
     searchAbort.current = controller;
@@ -322,6 +338,7 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
 
   function useMyLocation() {
     searchAbort.current?.abort();
+    const requestId = ++geolocationRequest.current;
     setQuery("");
     setSearchLocation(undefined);
     setSearchState("idle");
@@ -334,12 +351,14 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition((position) => {
+      if (requestId !== geolocationRequest.current) return;
       const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setCoordinates(next);
       const nearest = [...EXPANSION_HUBS].sort((a, b) => distanceKm(next, a) - distanceKm(next, b))[0];
       if (nearest) setSelected(nearest);
       setLocating(false);
     }, () => {
+      if (requestId !== geolocationRequest.current) return;
       setLocationError("Δεν μπορέσαμε να χρησιμοποιήσουμε την τοποθεσία σου. Αναζήτησε την πόλη σου χειροκίνητα.");
       setLocating(false);
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 120000 });
@@ -347,6 +366,8 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
 
   function chooseRegion(nextRegion: ExpansionRegionCode | "ALL") {
     searchAbort.current?.abort();
+    geolocationRequest.current += 1;
+    setLocating(false);
     setSearchLocation(undefined);
     setSearchState("idle");
     setCoordinates(undefined);
@@ -405,6 +426,8 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
               value={query}
               onChange={(event) => {
                 searchAbort.current?.abort();
+                geolocationRequest.current += 1;
+                setLocating(false);
                 setQuery(event.target.value);
                 setSearchLocation(undefined);
                 setSearchState("idle");
@@ -423,14 +446,14 @@ export function LocationGatewayV2({ runtimeHubs }: Readonly<{ runtimeHubs: reado
           <button type="submit" className={styles.searchSubmit} disabled={!hasTypedQuery || searchState === "searching"}>{searchState === "searching" ? "Αναζήτηση…" : "Βρες κοντινότερα"}</button>
         </form>
         <div className={styles.viewToggle} aria-label="Τρόπος προβολής">
-          <button type="button" className={mobileView === "list" ? styles.activeView : ""} onClick={() => setMobileView("list")}>Λίστα</button>
-          <button type="button" className={mobileView === "map" ? styles.activeView : ""} onClick={() => setMobileView("map")}>Χάρτης</button>
+          <button type="button" aria-pressed={mobileView === "list"} className={mobileView === "list" ? styles.activeView : ""} onClick={() => setMobileView("list")}>Λίστα</button>
+          <button type="button" aria-pressed={mobileView === "map"} className={mobileView === "map" ? styles.activeView : ""} onClick={() => setMobileView("map")}>Χάρτης</button>
         </div>
       </section>
 
       <nav className={styles.regions} aria-label="Περιφέρεια">
-        <button type="button" className={region === "ALL" && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion("ALL")}>Όλη η Ελλάδα</button>
-        {EXPANSION_REGION_CODES.map((code) => <button type="button" key={code} className={region === code && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion(code)}>{regionLabel(code)}</button>)}
+        <button type="button" aria-pressed={region === "ALL" && !searchLocation} className={region === "ALL" && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion("ALL")}>Όλη η Ελλάδα</button>
+        {EXPANSION_REGION_CODES.map((code) => <button type="button" key={code} aria-pressed={region === code && !searchLocation} className={region === code && !searchLocation ? styles.activeRegion : ""} onClick={() => chooseRegion(code)}>{regionLabel(code)}</button>)}
       </nav>
 
       {feedback ? <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p> : null}
