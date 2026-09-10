@@ -1,0 +1,39 @@
+name: One-shot premium route registry fix
+
+on:
+  push:
+    branches: [feat/premium-marketplace-experience]
+    paths:
+      - ".github/workflows/one-shot-premium-route-registry.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/premium-marketplace-experience
+          fetch-depth: 1
+      - name: Register editorial collection route as governed public dynamic content
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("apps/web/src/lib/site-navigation.ts")
+          source = path.read_text()
+          old = 'export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]", "/vendor/[id]"] as const;'
+          new = 'export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]"] as const;'
+          if source.count(old) != 1:
+              raise SystemExit(f"Expected one dynamic-route registry declaration, found {source.count(old)}")
+          path.write_text(source.replace(old, new, 1))
+          PY
+      - name: Remove one-shot workflow and commit surgical fix
+        run: |
+          git config user.name "KONTA MOY Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/one-shot-premium-route-registry.yml
+          git add apps/web/src/lib/site-navigation.ts
+          git commit -m "fix(navigation): classify editorial collection route"
+          git push origin HEAD:feat/premium-marketplace-experience
