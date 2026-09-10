@@ -142,6 +142,7 @@ main[class*="LocationGatewayV2-module"] [class*="__resultsHead"] > small,
 main[class*="LocationGatewayV2-module"] [class*="__hubRow"] small,
 main[class*="LocationGatewayV2-module"] [class*="__legend"] span,
 main[class*="LocationGatewayV2-module"] [class*="__footer"] { color: #58675f; }
+main[class*="LocationGatewayV2-module"] [class*="__regions"] [class*="__activeRegion"] { color: #fff; }
 main[class*="LocationGatewayV2-module"] [class*="__resultsHead"] strong { color: #735a30; }
 main[class*="LocationGatewayV2-module"] [class*="__hubRow"] b,
 main[class*="LocationGatewayV2-module"] [class*="__selection"] > p:not([class*="__selectionCopy"]),
