@@ -7,6 +7,8 @@ import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
+export type CatalogueExceptionReason = "canonical_identity_ambiguous" | "material_variant_conflict";
+
 export type CatalogueIdentityException = Readonly<{
   id: string;
   sourceProductId: string;
@@ -14,7 +16,7 @@ export type CatalogueIdentityException = Readonly<{
   title: string;
   sourceCode: string;
   sourceName: string;
-  reasonCode: "canonical_identity_ambiguous" | "material_variant_conflict";
+  reasonCode: CatalogueExceptionReason;
   candidateCategoryId?: string;
   candidateCategoryCode?: string;
   candidateVariantId?: string;
@@ -23,11 +25,17 @@ export type CatalogueIdentityException = Readonly<{
   createdAt: string;
 }>;
 
+export type CatalogueExceptionFilters = Readonly<{
+  query?: string;
+  reasonCode?: CatalogueExceptionReason;
+}>;
+
 export type CatalogueExceptionsWorkspace = Readonly<{
   csrfToken: string;
   totalOpen: number;
   ambiguousIdentity: number;
   materialConflicts: number;
+  filteredTotal: number;
   truncated: boolean;
   exceptions: readonly CatalogueIdentityException[];
 }>;
@@ -56,7 +64,8 @@ function details(value: unknown): Record<string, unknown> {
 }
 
 export async function adminCatalogueExceptionsWorkspace(
-  principal: SessionPrincipal
+  principal: SessionPrincipal,
+  filters: CatalogueExceptionFilters = {}
 ): Promise<CatalogueExceptionsWorkspace> {
   assertAdminPermission(principal, "catalog.read");
 
@@ -66,6 +75,7 @@ export async function adminCatalogueExceptionsWorkspace(
       totalOpen: 0,
       ambiguousIdentity: 0,
       materialConflicts: 0,
+      filteredTotal: 0,
       truncated: false,
       exceptions: []
     };
@@ -73,6 +83,8 @@ export async function adminCatalogueExceptionsWorkspace(
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  const query = filters.query?.trim() || null;
+  const reasonCode = filters.reasonCode ?? null;
 
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const countsResult = await tx.query<SqlRow>(
@@ -101,7 +113,8 @@ export async function adminCatalogueExceptionsWorkspace(
          r.candidate_variant_id,
          cv.slug AS candidate_variant_slug,
          r.details,
-         r.created_at
+         r.created_at,
+         COUNT(*) OVER()::int AS filtered_total
        FROM catalog_canonicalization_reviews r
        JOIN markets m ON m.id = r.market_id
        JOIN catalog_source_products csp ON csp.id = r.source_product_id
@@ -111,19 +124,37 @@ export async function adminCatalogueExceptionsWorkspace(
        WHERE m.code = 'sparta'
          AND r.status = 'open'
          AND r.reason_code IN ('canonical_identity_ambiguous', 'material_variant_conflict')
+         AND ($1::text IS NULL OR r.reason_code = $1::text)
+         AND (
+           $2::text IS NULL
+           OR csp.title ILIKE '%' || $2::text || '%'
+           OR csp.source_product_key ILIKE '%' || $2::text || '%'
+           OR cs.code ILIKE '%' || $2::text || '%'
+           OR cs.name ILIKE '%' || $2::text || '%'
+           OR r.id::text ILIKE '%' || $2::text || '%'
+           OR r.source_product_id::text ILIKE '%' || $2::text || '%'
+           OR COALESCE(c.code, '') ILIKE '%' || $2::text || '%'
+           OR COALESCE(r.candidate_variant_id::text, '') ILIKE '%' || $2::text || '%'
+           OR COALESCE(cv.slug, '') ILIKE '%' || $2::text || '%'
+         )
        ORDER BY r.created_at ASC, r.id ASC
-       LIMIT 250`
+       LIMIT 250`,
+      [reasonCode, query]
     );
 
     const counts = countsResult.rows[0] ?? {};
     const totalOpen = integer(counts.total_open, "total_open");
+    const filteredTotal = listResult.rows.length > 0
+      ? integer(listResult.rows[0]?.filtered_total, "filtered_total")
+      : 0;
 
     return {
       csrfToken: principal.csrfToken,
       totalOpen,
       ambiguousIdentity: integer(counts.ambiguous_identity, "ambiguous_identity"),
       materialConflicts: integer(counts.material_conflicts, "material_conflicts"),
-      truncated: totalOpen > listResult.rows.length,
+      filteredTotal,
+      truncated: filteredTotal > listResult.rows.length,
       exceptions: listResult.rows.map((row) => ({
         id: text(row.id),
         sourceProductId: text(row.source_product_id),
