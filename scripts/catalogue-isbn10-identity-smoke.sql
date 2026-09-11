@@ -172,7 +172,10 @@ DO $$
 DECLARE c isbn10_context%ROWTYPE; v_count integer; linked_count integer; v uuid; result jsonb;
 BEGIN
   SELECT * INTO c FROM isbn10_context LIMIT 1;
-  SELECT count(DISTINCT l.canonical_variant_id),count(*),min(l.canonical_variant_id)
+  SELECT
+    count(DISTINCT l.canonical_variant_id),
+    count(*),
+    (array_agg(l.canonical_variant_id ORDER BY l.canonical_variant_id::text))[1]
   INTO v_count,linked_count,v
   FROM public.catalog_source_product_links l
   JOIN public.catalog_source_products p ON p.id=l.source_product_id
@@ -227,7 +230,7 @@ VALUES
   jsonb_build_object('fixture',true)
 ),
 (
-  :'conflict_snapshot_id',:'source_id',:'source_taxonomy_id','ISBN-CONFLICT-B','Conflicting ISBN size 43',
+  :'conflict_snapshot_id',:'source_id',:'source_taxonomy_node_id','ISBN-CONFLICT-B','Conflicting ISBN size 43',
   'https://example.com/isbn-conflict-b',
   jsonb_build_object('brand','ISBN Fixture Brand','model','BOOK-C','isbn10','0136091814'),
   jsonb_build_object('fixture','isbn10-conflict-b'),
