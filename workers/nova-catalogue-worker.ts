@@ -4,6 +4,7 @@ import {
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
+import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
 
 const workerId = process.env.BLS_NOVA_WORKER_ID?.trim() || `nova-catalogue-worker:${hostname()}:${process.pid}`;
@@ -30,7 +31,8 @@ log("info", "nova.worker_started", {
   workerId,
   pollMs,
   supplier: "nova_brandsgateway",
-  writesSupplierOrders: false
+  writesSupplierOrders: false,
+  materializesStagedOffers: true
 });
 
 try {
@@ -38,6 +40,19 @@ try {
     try {
       const result = await runNovaCatalogueSyncSlice();
       log("info", "nova.catalogue_sync_slice", { workerId, ...result });
+
+      // Materialisation is deliberately isolated from ingestion. A catalogue-linking
+      // problem must not stop source evidence, deleted-feed processing, or watermarks.
+      try {
+        const materialization = await runNovaCatalogueMaterializationSlice();
+        log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
+      } catch (error) {
+        log("error", "nova.catalogue_materialization_failed", {
+          workerId,
+          error: safeError(error)
+        });
+      }
+
       if (stopping) break;
       await delay(result.claimed ? pollMs : Math.max(pollMs, 15_000));
     } catch (error) {
