@@ -8,7 +8,7 @@ import { GiftCardRemainderBelowMinimumError, redeemGiftCardForOrder } from "../.
 import { getProductionPostgresRuntime } from "../../../lib/postgres-runtime";
 import { molliePaymentsEnabled, prepareMolliePaymentRetry, requireMolliePayments } from "../../../lib/mollie-runtime";
 
-type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown }>;
+type CheckoutBody = Readonly<{ checkoutKey?: unknown; postcode?: unknown; fulfilmentMode?: unknown; items?: unknown; shipping?: unknown; billingAddressId?: unknown; deliveryAddressId?: unknown; giftCardId?: unknown; paymentMethod?: unknown }>;
 type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
 const ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR = 100;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
@@ -31,6 +31,7 @@ async function assertCheckoutRequestIntegrity(
     fulfilmentMode: "pickup" | "local_delivery" | "shipping";
     billingAddressId: string;
     deliveryAddressId?: string;
+    paymentMethod?: "klarna";
     items: readonly Readonly<{ canonicalVariantId: string; quantity: number }>[];
     shipping?: Readonly<{ provider?: "boxnow"; providerDestinationId?: string; recipientName?: string; recipientEmail?: string; recipientPhone?: string }>;
   }
@@ -40,6 +41,7 @@ async function assertCheckoutRequestIntegrity(
     fulfilmentMode: input.fulfilmentMode,
     billingAddressId: input.billingAddressId,
     deliveryAddressId: input.fulfilmentMode === "local_delivery" ? input.deliveryAddressId ?? null : null,
+    paymentMethod: input.paymentMethod ?? "hosted",
     items: [...input.items].map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })).sort((a, b) => a.canonicalVariantId.localeCompare(b.canonicalVariantId)),
     shipping: input.fulfilmentMode === "shipping" ? {
       provider: input.shipping?.provider ?? null,
@@ -76,6 +78,11 @@ export async function POST(request: Request) {
     const body = await request.json() as CheckoutBody;
     const checkoutKey = boundedString(body.checkoutKey, "", 128);
     const giftCardId = boundedString(body.giftCardId, "", 128) || undefined;
+    let paymentMethod: "klarna" | undefined;
+    if (body.paymentMethod != null && body.paymentMethod !== "") {
+      if (body.paymentMethod !== "klarna") throw new Error("Unsupported checkout payment method");
+      paymentMethod = "klarna";
+    }
     if (!checkoutKey) throw new Error("checkoutKey is required");
     const visitorKey = request.headers.get("x-bls-visitor")?.trim();
     if (!visitorKey || !/^[A-Za-z0-9_-]{16,128}$/.test(visitorKey)) throw new Error("Trusted visitor identity is required");
@@ -142,6 +149,7 @@ export async function POST(request: Request) {
       fulfilmentMode,
       billingAddressId,
       deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined,
+      paymentMethod,
       items,
       shipping
     });
@@ -167,7 +175,7 @@ export async function POST(request: Request) {
         giftCard = {
           id: redemption.card.id,
           suffix: redemption.card.suffix,
-          balanceMinor: redemption.card.balanceMinor,
+          balanceMinor: redemption.amountMinor,
           amountMinor: redemption.amountMinor,
           deliveryMinor: redemption.deliveryMinor,
           remainingPayableMinor: redemption.remainingPayableMinor
@@ -194,8 +202,8 @@ export async function POST(request: Request) {
     await createCustomerNotification({ userId: principal.userId, eventType, title: order.status === "pending_payment" ? "Η παραγγελία σου καταχωρήθηκε" : "Η παραγγελία σου δημιουργήθηκε", body: `Παραγγελία ${order.id} · ${formatMoney(order.total)}`, payload: { orderId: order.id, giftCardAmountMinor: giftCard?.amountMinor ?? 0, remainingPayableMinor: payableMinor }, dedupeKey: `web-order:${order.id}:${order.status}`, now });
     if (postgresCommerceEnabled() && molliePaymentsEnabled()) {
       await prepareMolliePaymentRetry({ orderId: order.id, customerId: principal.userId, now });
-      const payment = await requireMolliePayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, now });
-      return Response.json({ ...order, giftCard, payment: { provider: "mollie", paymentId: payment.paymentId, orderNumber: payment.orderNumber, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor } }, { status: 201 });
+      const payment = await requireMolliePayments().initiateOrderPayment({ orderId: order.id, customerId: principal.userId, visitorKey, paymentMethod, now });
+      return Response.json({ ...order, giftCard, payment: { provider: "mollie", paymentId: payment.paymentId, orderNumber: payment.orderNumber, redirectUrl: payment.checkoutUrl, amountMinor: payment.amountMinor, method: paymentMethod ?? "hosted" } }, { status: 201 });
     }
     return Response.json({ ...order, giftCard }, { status: 201 });
   } catch (error) {
