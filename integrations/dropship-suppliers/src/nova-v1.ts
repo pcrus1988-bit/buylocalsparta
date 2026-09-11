@@ -32,6 +32,17 @@ export type NovaProduct = Readonly<{
   [key: string]: unknown;
 }>;
 
+export type NovaOrder = Readonly<Record<string, unknown>>;
+
+/**
+ * Nova's public v1 documentation exposes POST /orders, while the exact order
+ * payload contract is provider-controlled. The integration therefore accepts
+ * only an already-validated JSON object and forwards it without inventing or
+ * remapping provider fields here. Domain mapping belongs in the fulfilment
+ * layer once the provider schema is known/validated.
+ */
+export type NovaCreateOrderPayload = Readonly<Record<string, unknown>>;
+
 export type NovaPage<T> = Readonly<{
   items: readonly T[];
   total: number | null;
@@ -85,6 +96,21 @@ export class NovaV1ApiError extends Error {
     this.method = input.method;
     this.path = input.path;
     this.code = input.code;
+  }
+}
+
+/**
+ * Raised when POST /orders may have reached Nova but no definitive rejection
+ * was received. Callers must reconcile before retrying; blindly repeating the
+ * mutation could create a duplicate supplier order.
+ */
+export class NovaV1OrderSubmissionUncertainError extends Error {
+  readonly originalError: unknown;
+
+  constructor(originalError: unknown) {
+    super("Nova order submission outcome is uncertain; reconcile supplier orders before retrying");
+    this.name = "NovaV1OrderSubmissionUncertainError";
+    this.originalError = originalError;
   }
 }
 
@@ -174,15 +200,38 @@ export class NovaV1Client {
     ) as NovaProduct;
   }
 
-  async listOrders(storeId: NovaScalarId, query: NovaOrdersQuery = {}): Promise<NovaPage<Readonly<Record<string, unknown>>>> {
-    return this.#page<Readonly<Record<string, unknown>>>("/orders", { ...query, store_id: storeId });
+  async listOrders(storeId: NovaScalarId, query: NovaOrdersQuery = {}): Promise<NovaPage<NovaOrder>> {
+    return this.#page<NovaOrder>("/orders", { ...query, store_id: storeId });
   }
 
-  async getOrder(storeId: NovaScalarId, orderId: NovaScalarId): Promise<Readonly<Record<string, unknown>>> {
+  async getOrder(storeId: NovaScalarId, orderId: NovaScalarId): Promise<NovaOrder> {
     return expectObject(
       await this.#json("GET", `/orders/${encodeURIComponent(String(orderId))}`, { query: { store_id: storeId } }),
       "order"
     );
+  }
+
+  async createOrder(storeId: NovaScalarId, payload: NovaCreateOrderPayload): Promise<NovaOrder> {
+    requiredStoreId(storeId);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length === 0) {
+      throw new Error("Nova order payload must be a non-empty JSON object");
+    }
+
+    try {
+      return expectObject(
+        await this.#json("POST", "/orders", {
+          query: { store_id: storeId },
+          body: payload
+        }),
+        "created order"
+      );
+    } catch (error) {
+      // A concrete 4xx response is a definitive provider rejection. Any other
+      // failure (network/timeout/5xx) can be ambiguous after a mutating request:
+      // force reconciliation before a caller considers another POST.
+      if (error instanceof NovaV1ApiError && error.status >= 400 && error.status < 500) throw error;
+      throw new NovaV1OrderSubmissionUncertainError(error);
+    }
   }
 
   async getCountryCodes(countryCode?: string): Promise<readonly Readonly<Record<string, unknown>>[]> {
@@ -294,6 +343,12 @@ function novaQueryValue(key: string, value: string | number | boolean): string {
     if (Number.isFinite(parsed)) return new Date(parsed).toISOString().slice(0, 19);
   }
   return String(value);
+}
+
+function requiredStoreId(value: NovaScalarId): void {
+  if ((typeof value !== "string" && typeof value !== "number") || !String(value).trim()) {
+    throw new Error("Nova store id is required");
+  }
 }
 
 function expectArray<T>(payload: unknown, label: string): readonly T[] {
