@@ -62,7 +62,7 @@ export default async function Page() {
           label: "Exceptions",
           value: metrics.openExceptions,
           tone: metrics.openExceptions > 0 ? "attention" : "positive",
-          hint: "Only identity/confidence conflicts should land here"
+          hint: "Only conflicting strong identity evidence lands here"
         }
       ]}
     />
@@ -100,7 +100,7 @@ export default async function Page() {
         <Link className="catalogue-workflow-card" href="/admin/matching">
           <span>4 · Automate</span>
           <strong>Auto-organise</strong>
-          <p>Resolve product identity, reuse an exact canonical when possible and isolate only ambiguous cases for review.</p>
+          <p>Resolve vendor submissions, reuse an exact canonical when possible and keep commercial matching separate from source identity exceptions.</p>
           <i>Open organisation queue →</i>
         </Link>
 
@@ -111,12 +111,12 @@ export default async function Page() {
           <i>Open supplier PIM →</i>
         </Link>
 
-        <Link className={`catalogue-workflow-card${metrics.openExceptions > 0 ? " needs-attention" : ""}`} href="/admin/matching?status=needs_review">
+        <Link className={`catalogue-workflow-card${metrics.openExceptions > 0 ? " needs-attention" : ""}`} href="/admin/catalogue/exceptions">
           <span>6 · Human fallback</span>
           <strong>Exceptions</strong>
-          <p>Only identifier conflicts, low-confidence identity decisions and cases automation cannot safely resolve.</p>
+          <p>Only ambiguous canonical identity or materially contradictory strong-identifier evidence that automation cannot safely resolve.</p>
           {metrics.openExceptions > 0 && <b>{metrics.openExceptions}</b>}
-          <i>Open exceptions →</i>
+          <i>Open identity exceptions →</i>
         </Link>
       </div>
     </section>
@@ -155,7 +155,7 @@ export default async function Page() {
             <div className="workspace-queue-head">
               <div>
                 <strong>Automation boundary</strong>
-                <small>Routine canonicalisation should be automatic; Admin handles exceptions.</small>
+                <small>Routine canonicalisation should be automatic; Admin handles only strong identity conflicts.</small>
               </div>
               <WorkspaceStatusBadge
                 status={catalogueNeedsAttention ? "attention" : "active"}
@@ -168,8 +168,8 @@ export default async function Page() {
               <span><strong>{metrics.openExceptions}</strong> identity exceptions</span>
             </div>
             <div className="workspace-action-bar">
-              <span>Exact global identifiers should reuse the existing canonical; genuinely new products should become canonical automatically.</span>
-              <Link className="button button-primary" href="/admin/matching?status=needs_review">Review exceptions</Link>
+              <span>Exact global identifiers reuse the existing canonical; genuinely new or incomplete products become inactive drafts automatically.</span>
+              <Link className="button button-primary" href="/admin/catalogue/exceptions">Review identity exceptions</Link>
             </div>
           </article>
         </div>
