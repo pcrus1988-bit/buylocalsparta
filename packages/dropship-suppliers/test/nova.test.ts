@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   KONTA_MOU_DROPSHIP_VENDOR_ID,
   NOVA_CAPABILITIES,
+  NovaApiError,
   NovaClient,
+  NovaOrderSubmissionUncertainError,
   isNovaStockAvailable,
   normalizeNovaProduct,
   novaItemsFromResponse,
@@ -174,6 +176,93 @@ test("Nova createOrder pins store_id and cannot be overridden by caller payload"
   await client.createOrder(77, { store_id: 999, billing: { country: "GR" } });
   const body = JSON.parse(observedBody) as Record<string, unknown>;
   assert.equal(body.store_id, 77);
+});
+
+test("Nova createOrder never retries an ambiguous network failure", async () => {
+  let attempts = 0;
+  const client = new NovaClient({
+    apiKey: "test-token",
+    maxRetries: 3,
+    sleepImpl: async () => undefined,
+    fetchImpl: async () => {
+      attempts += 1;
+      throw new Error("socket reset after request write");
+    },
+  });
+
+  await assert.rejects(
+    () => client.createOrder(77, { order_number: "KM-1" }),
+    (error: unknown) =>
+      error instanceof NovaOrderSubmissionUncertainError &&
+      error.originalError instanceof Error &&
+      error.originalError.message.includes("socket reset"),
+  );
+  assert.equal(attempts, 1);
+});
+
+test("Nova createOrder never retries an ambiguous 5xx supplier response", async () => {
+  let attempts = 0;
+  const client = new NovaClient({
+    apiKey: "test-token",
+    maxRetries: 3,
+    sleepImpl: async () => undefined,
+    fetchImpl: async () => {
+      attempts += 1;
+      return new Response("upstream timeout", { status: 503 });
+    },
+  });
+
+  await assert.rejects(
+    () => client.createOrder(77, { order_number: "KM-2" }),
+    (error: unknown) =>
+      error instanceof NovaOrderSubmissionUncertainError &&
+      error.originalError instanceof NovaApiError &&
+      error.originalError.status === 503,
+  );
+  assert.equal(attempts, 1);
+});
+
+test("Nova createOrder treats a definite 4xx as rejection, not uncertain submission", async () => {
+  let attempts = 0;
+  const client = new NovaClient({
+    apiKey: "test-token",
+    maxRetries: 3,
+    sleepImpl: async () => undefined,
+    fetchImpl: async () => {
+      attempts += 1;
+      return new Response("invalid address", { status: 400 });
+    },
+  });
+
+  await assert.rejects(
+    () => client.createOrder(77, { order_number: "KM-3" }),
+    (error: unknown) => error instanceof NovaApiError && error.status === 400,
+  );
+  assert.equal(attempts, 1);
+});
+
+test("Nova createOrder timeout is one attempt and requires reconciliation", async () => {
+  let attempts = 0;
+  const client = new NovaClient({
+    apiKey: "test-token",
+    maxRetries: 3,
+    requestTimeoutMs: 5,
+    sleepImpl: async () => undefined,
+    fetchImpl: async (_input, init) => {
+      attempts += 1;
+      return await new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        assert.ok(signal, "Nova requests must have an abort signal");
+        signal.addEventListener("abort", () => reject(new Error("request aborted")), { once: true });
+      });
+    },
+  });
+
+  await assert.rejects(
+    () => client.createOrder(77, { order_number: "KM-4" }),
+    (error: unknown) => error instanceof NovaOrderSubmissionUncertainError,
+  );
+  assert.equal(attempts, 1);
 });
 
 test("Nova retries 429 responses and honors Retry-After", async () => {
