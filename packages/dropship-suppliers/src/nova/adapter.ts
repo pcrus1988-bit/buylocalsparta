@@ -172,11 +172,13 @@ export class NovaSupplierAdapter implements SupplierAdapter {
   readonly capabilities = NOVA_CAPABILITIES;
   readonly commercialVendorId = KONTA_MOU_DROPSHIP_VENDOR_ID;
   readonly shippingStrategy = "MANUAL" as const;
+  readonly client: NovaClient;
+  readonly storeId: NovaScalarId;
 
-  constructor(
-    readonly client: NovaClient,
-    readonly storeId: NovaScalarId,
-  ) {}
+  constructor(client: NovaClient, storeId: NovaScalarId) {
+    this.client = client;
+    this.storeId = storeId;
+  }
 
   async testConnection(): Promise<SupplierConnectionResult> {
     try {
