@@ -4,7 +4,9 @@ import type { MolliePaymentsGateway } from "../packages/postgres-runtime/src/ind
 export class FakeMollieGateway implements MolliePaymentsGateway {
   readonly environment = "test" as const;
   createCount = 0;
+  captureCount = 0;
   refundCount = 0;
+  lastCaptureId?: string;
   lastRefundId?: string;
   readonly #payments = new Map<string, Awaited<ReturnType<MolliePaymentsGateway["retrievePayment"]>>>();
   readonly #refunds = new Map<string, Awaited<ReturnType<MolliePaymentsGateway["retrieveRefund"]>>>();
@@ -22,7 +24,7 @@ export class FakeMollieGateway implements MolliePaymentsGateway {
       description: input.description,
       orderId: input.orderId,
       orderNumber: input.orderNumber,
-      method: "creditcard",
+      method: input.method ?? "creditcard",
       checkoutUrl,
       redirectUrl: input.redirectUrl,
       webhookUrl: input.webhookUrl,
@@ -38,10 +40,28 @@ export class FakeMollieGateway implements MolliePaymentsGateway {
     return paymentId;
   }
 
+  authorize(paymentId: string) {
+    const payment = this.#payments.get(paymentId);
+    if (!payment) throw new Error(`Fake Mollie payment ${paymentId} not found`);
+    this.#payments.set(paymentId, { ...payment, status: "authorized", method: "klarna" });
+    return paymentId;
+  }
+
   async retrievePayment(paymentId: string) {
     const payment = this.#payments.get(paymentId);
     if (!payment) throw new Error(`Fake Mollie payment ${paymentId} not found`);
     return payment;
+  }
+
+  async createCapture(input: Parameters<MolliePaymentsGateway["createCapture"]>[0]) {
+    const payment = this.#payments.get(input.paymentId);
+    if (!payment) throw new Error("Fake Mollie original payment not found");
+    this.captureCount += 1;
+    const captureId = `cpt_DB${String(this.captureCount).padStart(8, "0")}${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+    this.lastCaptureId = captureId;
+    const amountMinor = input.amountMinor ?? payment.amountMinor;
+    this.#payments.set(input.paymentId, { ...payment, status: "paid" });
+    return { captureId, paymentId: input.paymentId, status: "succeeded", amountMinor, amountCurrency: "EUR" };
   }
 
   async refund(input: Parameters<MolliePaymentsGateway["refund"]>[0]) {
@@ -71,5 +91,11 @@ export class FakeMollieGateway implements MolliePaymentsGateway {
     const cancelled = { ...payment, status: "canceled" as const };
     this.#payments.set(paymentId, cancelled);
     return cancelled;
+  }
+
+  async releaseAuthorization(paymentId: string) {
+    const payment = this.#payments.get(paymentId);
+    if (!payment) throw new Error(`Fake Mollie payment ${paymentId} not found`);
+    this.#payments.set(paymentId, { ...payment, status: "canceled" });
   }
 }
