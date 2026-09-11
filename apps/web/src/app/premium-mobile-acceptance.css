@@ -379,3 +379,12 @@
     animation: none !important;
   }
 }
+
+/* The desktop public header is fixed above the document flow. Keep the
+   /how-it-works main box at least one spacing token below its 56px edge so
+   the page satisfies the same non-overlap contract as the rest of storefront. */
+@media (min-width: 1280px) {
+  main:has(> .content-hero-process) {
+    margin-top: 16px !important;
+  }
+}
