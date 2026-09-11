@@ -3,6 +3,7 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const SOURCE_CODE = "nova-brandsgateway";
 const SUPPLIER_CODE = "nova_brandsgateway";
+const EXPECTED_OWNER_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
 const DEFAULT_BATCH_SIZE = 25;
 const MAX_BATCH_SIZE = 100;
 const DEFAULT_TAX_RATE_BPS = 2400;
@@ -60,18 +61,9 @@ export type NovaMaterializationSliceResult = Readonly<{
 }>;
 
 /**
- * Materialise staged Nova source evidence into the generic KONTA MOY catalogue.
- *
- * Safety invariants:
- * - Nova remains a supplier/source, never the commercial vendor.
- * - Newly materialised vendor/dropship offers are DRAFT + inactive. This function
- *   never promotes a product to the public storefront.
- * - Supplier SKUs remain source-scoped. Only checksum-valid GTINs are used as
- *   global identifiers.
- * - Supplier content is written only to the source evidence and a creation-only
- *   English translation. Existing curated translations/SEO are never overwritten.
- * - Missing/unsafe taxonomy is routed to the existing canonicalisation review
- *   queue rather than inventing a catch-all category.
+ * Turn staged Nova evidence into canonical/source links and staged supplier offers.
+ * This function never promotes an offer: new vendor offers remain draft and new
+ * dropship offers remain inactive until the existing explicit promotion gate runs.
  */
 export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMaterializationSliceResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -100,26 +92,21 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
     LIMIT 1
   `,[SUPPLIER_CODE]);
 
-  const row = contextResult.rows[0];
-  if (!row) {
-    return emptyResult(false,"supplier_disabled_or_missing_location");
-  }
+  const contextRow = contextResult.rows[0];
+  if (!contextRow) return emptyResult(false,"supplier_disabled_or_missing_location");
 
   const context: SupplierContext = {
-    supplierId: requiredText(row.supplier_id,"supplier id"),
-    sourceId: requiredText(row.source_id,"catalog source id"),
-    vendorId: requiredText(row.vendor_id,"owner vendor id"),
-    vendorPublicId: requiredText(row.vendor_public_id,"owner vendor public id"),
-    locationId: requiredText(row.location_id,"owner vendor location id"),
-    marketId: requiredText(row.market_id,"market id")
+    supplierId: requiredText(contextRow.supplier_id,"supplier id"),
+    sourceId: requiredText(contextRow.source_id,"catalog source id"),
+    vendorId: requiredText(contextRow.vendor_id,"owner vendor id"),
+    vendorPublicId: requiredText(contextRow.vendor_public_id,"owner vendor public id"),
+    locationId: requiredText(contextRow.location_id,"owner vendor location id"),
+    marketId: requiredText(contextRow.market_id,"market id")
   };
-
-  // Hard guard against accidentally materialising Nova as its own public vendor.
-  if (context.vendorPublicId !== "vendor_e8cb57b3c67b469d9a9d") {
+  if (context.vendorPublicId !== EXPECTED_OWNER_VENDOR) {
     throw new Error(`Nova supplier owner mismatch: ${context.vendorPublicId}`);
   }
 
-  const limit = batchSize();
   const candidates = await pool.query<SqlRow>(`
     WITH latest AS (
       SELECT DISTINCT ON (p.source_product_key)
@@ -148,8 +135,7 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
         NOT EXISTS (
           SELECT 1
           FROM public.catalog_canonicalization_reviews r
-          WHERE r.source_product_id=l.id
-            AND r.status='open'
+          WHERE r.source_product_id=l.id AND r.status='open'
         )
         OR EXISTS (
           SELECT 1
@@ -160,9 +146,9 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
       )
     ORDER BY l.created_at ASC,l.source_product_key ASC
     LIMIT $3
-  `,[context.sourceId,context.supplierId,limit]);
+  `,[context.sourceId,context.supplierId,batchSize()]);
 
-  const aggregate = {
+  const aggregate: NovaMaterializationSliceResult = {
     enabled: true,
     scanned: candidates.rowCount ?? candidates.rows.length,
     variants: 0,
@@ -172,6 +158,7 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
     mappingsCreated: 0,
     reviewsCreated: 0
   };
+  const mutable = { ...aggregate };
 
   for (const candidate of candidates.rows) {
     const sourceProduct: SourceProductRow = {
@@ -183,15 +170,15 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
       sourceTaxonomyNodeId: optionalText(candidate.source_taxonomy_node_id)
     };
     const outcome = await materializeSourceProduct(context,sourceProduct);
-    aggregate.variants += outcome.variants;
-    aggregate.canonicalCreated += outcome.canonicalCreated;
-    aggregate.offersCreated += outcome.offersCreated;
-    aggregate.taxonomyNodesCreated += outcome.taxonomyNodesCreated;
-    aggregate.mappingsCreated += outcome.mappingsCreated;
-    aggregate.reviewsCreated += outcome.reviewsCreated;
+    mutable.variants += outcome.variants;
+    mutable.canonicalCreated += outcome.canonicalCreated;
+    mutable.offersCreated += outcome.offersCreated;
+    mutable.taxonomyNodesCreated += outcome.taxonomyNodesCreated;
+    mutable.mappingsCreated += outcome.mappingsCreated;
+    mutable.reviewsCreated += outcome.reviewsCreated;
   }
 
-  return aggregate;
+  return mutable;
 }
 
 async function materializeSourceProduct(
@@ -212,20 +199,42 @@ async function materializeSourceProduct(
   let reviewsCreated = 0;
 
   for (const variant of variants) {
-    const alreadyMaterialized = await pool.query<SqlRow>(`
+    const existingOffer = await pool.query<SqlRow>(`
       SELECT id
       FROM public.dropship_supplier_offers
-      WHERE supplier_id=$1::uuid
-        AND external_variant_id=$2
+      WHERE supplier_id=$1::uuid AND external_variant_id=$2
       LIMIT 1
     `,[context.supplierId,variant.externalVariantId]);
-    if (alreadyMaterialized.rows[0]) continue;
+    if (existingOffer.rows[0]) continue;
 
     const globalIdentifier = normalizeGlobalIdentifier(variant.barcode);
     let canonicalVariantId: string | null = null;
     let matchMethod: "exact_gtin" | "enrichment" = "enrichment";
 
-    if (globalIdentifier) {
+    // Restart safety: if a previous run created the canonical variant but stopped
+    // before the supplier offer insert, reuse that source-scoped canonical variant.
+    const sourceScoped = await pool.query<SqlRow>(`
+      SELECT id,family_id,category_id
+      FROM public.canonical_variants
+      WHERE market_id=$1::uuid
+        AND variant_attributes->>'source'='nova_shopwoo_v1'
+        AND variant_attributes->>'externalVariantId'=$2
+      LIMIT 2
+    `,[context.marketId,variant.externalVariantId]);
+    if (sourceScoped.rows.length > 1) {
+      reviewsCreated += await upsertReview(context,sourceProduct,"canonical_identity_ambiguous",{
+        externalVariantId: variant.externalVariantId,
+        sourceScopedCollision: true
+      });
+      continue;
+    }
+    if (sourceScoped.rows[0]) {
+      canonicalVariantId = requiredText(sourceScoped.rows[0].id,"source-scoped canonical variant id");
+      familyId ??= requiredText(sourceScoped.rows[0].family_id,"source-scoped canonical family id");
+      categoryId ??= requiredText(sourceScoped.rows[0].category_id,"source-scoped canonical category id");
+    }
+
+    if (!canonicalVariantId && globalIdentifier) {
       const match = await pool.query<SqlRow>(`
         SELECT pi.canonical_variant_id,cv.family_id,cv.category_id
         FROM public.product_identifiers pi
@@ -262,15 +271,15 @@ async function materializeSourceProduct(
       }
 
       if (!familyId) {
-        const createdFamily = await pool.query<SqlRow>(`
+        const family = await pool.query<SqlRow>(`
           INSERT INTO public.product_families(market_id,brand_id,category_id,model,active)
           VALUES($1::uuid,$2::uuid,$3::uuid,$4,true)
           RETURNING id
         `,[context.marketId,brandId,categoryId,productModel(payload)]);
-        familyId = requiredText(createdFamily.rows[0]?.id,"created family id");
+        familyId = requiredText(family.rows[0]?.id,"created family id");
       }
 
-      const createdVariant = await pool.query<SqlRow>(`
+      const created = await pool.query<SqlRow>(`
         INSERT INTO public.canonical_variants(
           market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,
           variant_attributes,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled
@@ -296,9 +305,10 @@ async function materializeSourceProduct(
         }),
         DEFAULT_TAX_RATE_BPS
       ]);
-      canonicalVariantId = requiredText(createdVariant.rows[0]?.id,"created canonical variant id");
+      canonicalVariantId = requiredText(created.rows[0]?.id,"created canonical variant id");
       canonicalCreated += 1;
 
+      // Creation-only source-language content. Curated EL/SEO content is never replaced.
       await pool.query(`
         INSERT INTO public.product_translations(
           canonical_variant_id,locale,title,description,specifications,seo_title,seo_description
@@ -308,7 +318,7 @@ async function materializeSourceProduct(
         canonicalVariantId,
         sourceProduct.title,
         optionalText(payload.description),
-        JSON.stringify({ source: "nova_shopwoo_v1", supplierContent: true })
+        JSON.stringify({ source: "nova_shopwoo_v1",supplierContent: true })
       ]);
 
       if (globalIdentifier) {
@@ -320,7 +330,8 @@ async function materializeSourceProduct(
             $1::uuid,$2,NULL,$3,$4,true,true,'format_valid','import',$5,1,'trade_item'
           )
           ON CONFLICT (identifier_type,normalized_value)
-            WHERE active=true AND identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn10','isbn13')
+            WHERE active=true
+              AND identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn10','isbn13')
           DO NOTHING
         `,[
           canonicalVariantId,
@@ -347,18 +358,15 @@ async function materializeSourceProduct(
       sourceProduct.id,
       canonicalVariantId,
       matchMethod,
-      JSON.stringify([
-        {
-          source: "nova_shopwoo_v1",
-          externalProductId: sourceProduct.sourceProductKey,
-          externalVariantId: variant.externalVariantId,
-          globalIdentifier: globalIdentifier?.value ?? null,
-          rule: matchMethod === "exact_gtin" ? "global_identifier" : "automatic_new_canonical"
-        }
-      ])
+      JSON.stringify([{
+        source: "nova_shopwoo_v1",
+        externalProductId: sourceProduct.sourceProductKey,
+        externalVariantId: variant.externalVariantId,
+        globalIdentifier: globalIdentifier?.value ?? null,
+        rule: matchMethod === "exact_gtin" ? "global_identifier" : "automatic_new_canonical"
+      }])
     ]);
 
-    const stagedCustomerPrice = stagedPrice(variant);
     const vendorSku = `nova:${variant.externalVariantId}`;
     const vendorOffer = await pool.query<SqlRow>(`
       INSERT INTO public.vendor_offers(
@@ -398,7 +406,7 @@ async function materializeSourceProduct(
         pricingPending: true,
         supplierContentSource: "catalog_source_products"
       }),
-      stagedCustomerPrice,
+      stagedPrice(variant),
       positiveMinor(variant.msrpMinor) ? variant.msrpMinor : null
     ]);
     const vendorOfferId = requiredText(vendorOffer.rows[0]?.id,"vendor offer id");
@@ -409,12 +417,10 @@ async function materializeSourceProduct(
         discount_type,discount_value
       ) VALUES($1::uuid,$2::uuid,$3,'manual',NULL,NULL,NULL,NULL)
       ON CONFLICT (offer_id)
-      DO UPDATE SET
-        buying_price_minor=EXCLUDED.buying_price_minor,
-        updated_at=now()
+      DO UPDATE SET buying_price_minor=EXCLUDED.buying_price_minor,updated_at=now()
     `,[vendorOfferId,context.vendorId,variant.buyingCostMinor]);
 
-    const insertedOffer = await pool.query<SqlRow>(`
+    const supplierOffer = await pool.query<SqlRow>(`
       INSERT INTO public.dropship_supplier_offers(
         supplier_id,vendor_offer_id,source_product_id,external_product_id,external_variant_id,
         external_sku,ean,mpn,supplier_cost_minor,supplier_currency,cached_available,cached_quantity,
@@ -458,7 +464,7 @@ async function materializeSourceProduct(
         staged: true
       })
     ]);
-    if (insertedOffer.rows[0]?.inserted === true) offersCreated += 1;
+    if (supplierOffer.rows[0]?.inserted === true) offersCreated += 1;
   }
 
   return {
@@ -493,11 +499,12 @@ async function ensureTaxonomy(
   let nodesCreated = 0;
   const pathLabels: string[] = [];
   const pathKeys: string[] = [];
+
   for (let index=0; index<details.length; index += 1) {
     const item = details[index];
     pathLabels.push(item.name);
     pathKeys.push(item.id);
-    const inserted = await pool.query<SqlRow>(`
+    const node = await pool.query<SqlRow>(`
       INSERT INTO public.catalog_source_taxonomy_nodes(
         source_id,parent_id,source_key,source_label,depth,path_labels,path_keys,active,metadata
       ) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6::text[],$7::text[],true,$8::jsonb)
@@ -514,25 +521,24 @@ async function ensureTaxonomy(
       RETURNING id,(xmax=0) AS inserted
     `,[
       context.sourceId,parentId,item.id,item.name,index,pathLabels,pathKeys,
-      JSON.stringify({ provider: "nova_shopwoo_v1", source: "product_category_details" })
+      JSON.stringify({ provider: "nova_shopwoo_v1",source: "product_category_details" })
     ]);
-    nodeId = requiredText(inserted.rows[0]?.id,"source taxonomy node id");
-    if (inserted.rows[0]?.inserted === true) nodesCreated += 1;
+    nodeId = requiredText(node.rows[0]?.id,"source taxonomy node id");
+    if (node.rows[0]?.inserted === true) nodesCreated += 1;
     parentId = nodeId;
   }
 
   await pool.query(`
     UPDATE public.catalog_source_products
     SET source_taxonomy_node_id=$2::uuid,
-        classification_status=CASE WHEN classification_status='raw' THEN 'classified' ELSE classification_status END
+        classification_status=CASE WHEN classification_status='raw' THEN 'mapped' ELSE classification_status END
     WHERE id=$1::uuid
   `,[sourceProduct.id,nodeId]);
 
   const approved = await pool.query<SqlRow>(`
     SELECT category_id
     FROM public.catalog_source_category_mappings
-    WHERE source_taxonomy_node_id=$1::uuid
-      AND mapping_status='approved'
+    WHERE source_taxonomy_node_id=$1::uuid AND mapping_status='approved'
     LIMIT 1
   `,[nodeId]);
   if (approved.rows[0]) {
@@ -547,10 +553,10 @@ async function ensureTaxonomy(
 
   const genderName = nestedName(payload.gender);
   const ruleCode = classifyNovaCategoryCode(pathLabels,genderName);
-  const exactCategoryId = ruleCode
+  const canonicalCategoryId = ruleCode
     ? await categoryIdByCode(context.marketId,ruleCode)
     : await exactCategoryIdByLabel(context.marketId,details[details.length-1].name);
-  if (!exactCategoryId) {
+  if (!canonicalCategoryId) {
     return { nodeId,categoryId: null,pathLabels,nodesCreated,mappingCreated: 0 };
   }
 
@@ -569,15 +575,15 @@ async function ensureTaxonomy(
     RETURNING (xmax=0) AS inserted
   `,[
     nodeId,
-    exactCategoryId,
+    canonicalCategoryId,
     ruleCode ? 0.98 : 1,
     ruleCode ? `nova broad taxonomy rule: ${ruleCode}` : "exact canonical category label",
-    JSON.stringify({ provider: "nova_shopwoo_v1", pathLabels,gender: genderName,ruleVersion: 1 })
+    JSON.stringify({ provider: "nova_shopwoo_v1",pathLabels,gender: genderName,ruleVersion: 1 })
   ]);
 
   return {
     nodeId,
-    categoryId: exactCategoryId,
+    categoryId: canonicalCategoryId,
     pathLabels,
     nodesCreated,
     mappingCreated: mapping.rows[0]?.inserted === true ? 1 : 0
@@ -588,9 +594,7 @@ async function categoryIdByCode(marketId: string, code: string): Promise<string 
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT id
     FROM public.categories
-    WHERE code=$1
-      AND active=true
-      AND (market_id=$2::uuid OR market_id IS NULL)
+    WHERE code=$1 AND active=true AND (market_id=$2::uuid OR market_id IS NULL)
     ORDER BY (market_id=$2::uuid) DESC
     LIMIT 1
   `,[code,marketId]);
@@ -627,8 +631,7 @@ async function resolveOrCreateBrand(payload: Readonly<Record<string, unknown>>):
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     INSERT INTO public.brands(name,normalized_name,status)
     VALUES($1,$2,'active')
-    ON CONFLICT (normalized_name)
-    DO UPDATE SET updated_at=now()
+    ON CONFLICT (normalized_name) DO UPDATE SET updated_at=now()
     RETURNING id
   `,[brandName,normalizedName]);
   return optionalText(result.rows[0]?.id);
@@ -657,6 +660,7 @@ async function upsertReview(
   return result.rows[0]?.inserted === true ? 1 : 0;
 }
 
+/** Map only deterministic, broad Nova paths onto the deliberately broad KONTA MOY taxonomy. */
 export function classifyNovaCategoryCode(pathLabels: readonly string[], genderName: string | null): string | null {
   const path = pathLabels.join(" ").toLowerCase();
   const gender = (genderName ?? "").toLowerCase();
@@ -679,6 +683,7 @@ export function classifyNovaCategoryCode(pathLabels: readonly string[], genderNa
   return null;
 }
 
+/** Return a global identifier only when Nova supplied a checksum-valid GTIN. */
 export function normalizeGlobalIdentifier(value: string | null): { type: string; value: string } | null {
   if (!value) return null;
   const normalized = value.replace(/[^0-9]/g,"");
@@ -747,11 +752,13 @@ function positiveMinor(value: number | null): value is number {
 }
 
 function nullableMinor(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function nullableQuantity(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
@@ -768,7 +775,8 @@ function canonicalSlug(title: string, externalVariantId: string): string {
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"")
     .slice(0,80) || "nova-product";
-  return `${base}-${externalVariantId.toLowerCase().replace(/[^a-z0-9]+/g,"-").slice(0,32)}`;
+  const suffix = externalVariantId.toLowerCase().replace(/[^a-z0-9]+/g,"-").slice(0,32);
+  return `${base}-${suffix}`;
 }
 
 function normalizeBrandName(value: string): string {
