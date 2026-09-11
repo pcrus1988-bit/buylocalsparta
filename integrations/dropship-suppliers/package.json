@@ -1,9 +1,13 @@
 {
-  "name": "@buy-local-sparta/dropship-suppliers",
+  "name": "@buy-local-sparta/dropship-runtime",
   "version": "0.45.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
   }
 }
