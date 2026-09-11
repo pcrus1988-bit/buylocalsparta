@@ -48,24 +48,38 @@ export async function adminCatalogueExceptionCandidates(
                THEN csp.normalized_payload->'variantAttributes'
              ELSE '{}'::jsonb
            END AS variant_attributes,
-           NULLIF(btrim(COALESCE(
-             csp.source_identity->>'gtin',
-             csp.source_identity->>'ean',
-             csp.source_identity->>'upc',
-             csp.source_identity->>'isbn13',
-             csp.source_identity->>'isbn',
-             csp.normalized_payload->>'gtin',
-             csp.normalized_payload->>'ean',
-             csp.normalized_payload->>'upc',
-             csp.normalized_payload->>'isbn13',
-             csp.normalized_payload->>'isbn'
-           )), '') AS raw_gtin,
-           NULLIF(btrim(COALESCE(
-             csp.source_identity->>'isbn10',
-             csp.source_identity->>'isbn',
-             csp.normalized_payload->>'isbn10',
-             csp.normalized_payload->>'isbn'
-           )), '') AS raw_isbn10
+           ARRAY(
+             SELECT DISTINCT bls_private.catalog_normalize_gtin(ids.raw_value)
+             FROM (VALUES
+               (csp.source_identity->>'gtin'),
+               (csp.source_identity->>'ean'),
+               (csp.source_identity->>'upc'),
+               (csp.source_identity->>'isbn13'),
+               (csp.source_identity->>'isbn'),
+               (csp.normalized_payload->>'gtin'),
+               (csp.normalized_payload->>'ean'),
+               (csp.normalized_payload->>'upc'),
+               (csp.normalized_payload->>'isbn13'),
+               (csp.normalized_payload->>'isbn')
+             ) AS ids(raw_value)
+             WHERE NULLIF(btrim(ids.raw_value), '') IS NOT NULL
+               AND bls_private.catalog_gtin_is_valid(ids.raw_value)
+             ORDER BY 1
+           ) AS valid_gtin_values,
+           ARRAY(
+             SELECT DISTINCT bls_private.catalog_normalize_isbn10(ids.raw_value)
+             FROM (VALUES
+               (csp.source_identity->>'isbn10'),
+               (csp.source_identity->>'isbn'),
+               (csp.normalized_payload->>'isbn10'),
+               (csp.normalized_payload->>'isbn')
+             ) AS ids(raw_value)
+             WHERE NULLIF(btrim(ids.raw_value), '') IS NOT NULL
+               AND bls_private.is_valid_isbn10(
+                 bls_private.catalog_normalize_isbn10(ids.raw_value)
+               )
+             ORDER BY 1
+           ) AS valid_isbn10_values
          FROM catalog_canonicalization_reviews r
          JOIN catalog_source_products csp ON csp.id = r.source_product_id
          WHERE r.id = $1::uuid
@@ -88,38 +102,34 @@ export async function adminCatalogueExceptionCandidates(
           AND cv.recalled = false
          LEFT JOIN categories c ON c.id = cv.category_id
          WHERE (
-           (
-             se.raw_gtin IS NOT NULL
-             AND bls_private.catalog_gtin_is_valid(se.raw_gtin)
-             AND (
-               (
-                 cv.gtin IS NOT NULL
-                 AND bls_private.catalog_gtin_is_valid(cv.gtin)
-                 AND bls_private.catalog_normalize_gtin(cv.gtin) = bls_private.catalog_normalize_gtin(se.raw_gtin)
-               )
-               OR EXISTS (
-                 SELECT 1
-                 FROM product_identifiers pi
-                 WHERE pi.canonical_variant_id = cv.id
-                   AND pi.active = true
-                   AND pi.identifier_scope = 'trade_item'
-                   AND pi.identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn13')
-                   AND bls_private.catalog_normalize_gtin(pi.normalized_value) = bls_private.catalog_normalize_gtin(se.raw_gtin)
-               )
+           cardinality(se.valid_gtin_values) = 1
+           AND (
+             (
+               cv.gtin IS NOT NULL
+               AND bls_private.catalog_gtin_is_valid(cv.gtin)
+               AND bls_private.catalog_normalize_gtin(cv.gtin) = se.valid_gtin_values[1]
              )
-           )
-           OR (
-             se.raw_isbn10 IS NOT NULL
-             AND bls_private.is_valid_isbn10(bls_private.catalog_normalize_isbn10(se.raw_isbn10))
-             AND EXISTS (
+             OR EXISTS (
                SELECT 1
                FROM product_identifiers pi
                WHERE pi.canonical_variant_id = cv.id
                  AND pi.active = true
                  AND pi.identifier_scope = 'trade_item'
-                 AND pi.identifier_type = 'isbn10'
-                 AND pi.normalized_value = bls_private.catalog_normalize_isbn10(se.raw_isbn10)
+                 AND pi.identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn13')
+                 AND bls_private.catalog_normalize_gtin(pi.normalized_value) = se.valid_gtin_values[1]
              )
+           )
+         ) OR (
+           cardinality(se.valid_gtin_values) = 0
+           AND cardinality(se.valid_isbn10_values) = 1
+           AND EXISTS (
+             SELECT 1
+             FROM product_identifiers pi
+             WHERE pi.canonical_variant_id = cv.id
+               AND pi.active = true
+               AND pi.identifier_scope = 'trade_item'
+               AND pi.identifier_type = 'isbn10'
+               AND pi.normalized_value = se.valid_isbn10_values[1]
            )
          )
        )
