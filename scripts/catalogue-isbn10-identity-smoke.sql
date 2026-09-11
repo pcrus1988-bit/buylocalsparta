@@ -230,7 +230,7 @@ VALUES
   jsonb_build_object('fixture',true)
 ),
 (
-  :'conflict_snapshot_id',:'source_id',:'source_taxonomy_node_id','ISBN-CONFLICT-B','Conflicting ISBN size 43',
+  :'conflict_snapshot_id',:'source_id',:'source_taxonomy_id','ISBN-CONFLICT-B','Conflicting ISBN size 43',
   'https://example.com/isbn-conflict-b',
   jsonb_build_object('brand','ISBN Fixture Brand','model','BOOK-C','isbn10','0136091814'),
   jsonb_build_object('fixture','isbn10-conflict-b'),
