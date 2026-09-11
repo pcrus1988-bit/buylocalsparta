@@ -63,7 +63,10 @@ function rawPrice(value: unknown): string | null {
 }
 
 export function isNovaStockAvailable(
-  item: Pick<NovaVariation, "manage_stock" | "in_stock" | "stock_status" | "stock_quantity">,
+  item: Pick<
+    NovaVariation,
+    "manage_stock" | "in_stock" | "stock_status" | "stock_quantity" | "backorders_allowed"
+  >,
   requiredQuantity = 1,
 ): boolean {
   const manageStock = truthy(item.manage_stock) === true;
@@ -71,6 +74,8 @@ export function isNovaStockAvailable(
   const stockStatus = scalar(item.stock_status)?.toLowerCase() ?? null;
   const quantity = integer(item.stock_quantity);
 
+  // Nova can advertise supplier backorders, but KONTA MOY deliberately ignores
+  // them for customer availability. Only stock that is currently fulfilable counts.
   if (stockStatus === "outofstock" || inStock === false) return false;
   if (manageStock) return quantity !== null && quantity >= requiredQuantity;
   return inStock === true || stockStatus === "instock";
@@ -90,6 +95,7 @@ function normalizedVariant(
     in_stock: variation.in_stock ?? fallback.in_stock,
     stock_status: variation.stock_status ?? fallback.stock_status,
     stock_quantity: variation.stock_quantity ?? fallback.stock_quantity,
+    backorders_allowed: variation.backorders_allowed ?? fallback.backorders_allowed,
   };
 
   return {
@@ -141,6 +147,7 @@ export function normalizeNovaProduct(product: NovaProduct): SupplierProductSnaps
         stock_status: product.stock_status,
         in_stock: product.in_stock,
         manage_stock: product.manage_stock,
+        backorders_allowed: product.backorders_allowed,
       }];
 
   return {
@@ -242,6 +249,7 @@ export class NovaSupplierAdapter implements SupplierAdapter {
       in_stock: variation.in_stock ?? product.in_stock,
       stock_status: variation.stock_status ?? product.stock_status,
       stock_quantity: variation.stock_quantity ?? product.stock_quantity,
+      backorders_allowed: variation.backorders_allowed ?? product.backorders_allowed,
     }, quantity);
   }
 
