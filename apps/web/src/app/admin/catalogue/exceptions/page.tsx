@@ -9,7 +9,10 @@ import {
   WorkspaceSectionHeading,
   WorkspaceStatusBadge
 } from "../../../../components/WorkspacePagePrimitives";
-import { adminCatalogueExceptionsWorkspace } from "../../../../lib/admin-catalogue-exceptions-runtime";
+import {
+  adminCatalogueExceptionsWorkspace,
+  type CatalogueExceptionReason
+} from "../../../../lib/admin-catalogue-exceptions-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 
 export const metadata: Metadata = {
@@ -30,6 +33,12 @@ function createdLabel(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("el-GR");
 }
 
+function exceptionReason(value: string | undefined): CatalogueExceptionReason | undefined {
+  return value === "canonical_identity_ambiguous" || value === "material_variant_conflict"
+    ? value
+    : undefined;
+}
+
 export default async function Page({
   searchParams
 }: {
@@ -38,36 +47,25 @@ export default async function Page({
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
 
+  const params = await searchParams;
+  const query = params.q?.trim() || undefined;
+  const reason = exceptionReason(params.reason?.trim());
+
   let data;
   try {
-    data = await adminCatalogueExceptionsWorkspace(principal);
+    data = await adminCatalogueExceptionsWorkspace(principal, {
+      query,
+      reasonCode: reason
+    });
   } catch {
     redirect("/admin/catalogue");
   }
 
-  const params = await searchParams;
-  const query = params.q?.trim().toLocaleLowerCase("el-GR");
-  const reason = params.reason?.trim();
-  const filtered = data.exceptions.filter((item) => {
-    const matchesReason = !reason || item.reasonCode === reason;
-    const searchable = [
-      item.id,
-      item.sourceProductId,
-      item.sourceProductKey,
-      item.title,
-      item.sourceCode,
-      item.sourceName,
-      item.candidateCategoryCode,
-      item.candidateVariantId,
-      item.candidateVariantSlug
-    ].some((value) => String(value ?? "").toLocaleLowerCase("el-GR").includes(query ?? ""));
-    return matchesReason && (!query || searchable);
-  });
-  const selected = filtered.find((item) => item.id === params.exception) ?? filtered[0];
+  const selected = data.exceptions.find((item) => item.id === params.exception) ?? data.exceptions[0];
 
   const hrefFor = (exceptionId: string) => {
     const search = new URLSearchParams();
-    if (params.q) search.set("q", params.q);
+    if (query) search.set("q", query);
     if (reason) search.set("reason", reason);
     search.set("exception", exceptionId);
     return `/admin/catalogue/exceptions?${search.toString()}`;
@@ -99,16 +97,16 @@ export default async function Page({
       />
 
       <form method="get" className="admin-directory-filters">
-        <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Product, source, canonical ID…" /></label>
+        <label><span>Search</span><input name="q" defaultValue={query ?? ""} placeholder="Product, source, canonical ID…" /></label>
         <label><span>Reason</span><select name="reason" defaultValue={reason ?? ""}><option value="">All strong-ID conflicts</option><option value="canonical_identity_ambiguous">Ambiguous canonical identity</option><option value="material_variant_conflict">Material variant conflict</option></select></label>
         <div><button className="button button-secondary" type="submit">Filter</button>{(query || reason) && <Link className="text-link" href="/admin/catalogue/exceptions">Clear</Link>}</div>
       </form>
 
-      {data.truncated && <div className="workspace-inline-note">Showing the oldest 250 open identity exceptions. Resolve or narrow the queue before loading more.</div>}
+      {data.truncated && <div className="workspace-inline-note">Showing the oldest 250 of {data.filteredTotal} matching identity exceptions.</div>}
 
-      {filtered.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν open catalogue identity exceptions με αυτά τα φίλτρα." /> : <div className="admin-split-workspace">
+      {data.exceptions.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν open catalogue identity exceptions με αυτά τα φίλτρα." /> : <div className="admin-split-workspace">
         <div className="admin-triage-list" aria-label="Catalogue identity exceptions">
-          {filtered.map((item) => <Link href={hrefFor(item.id)} key={item.id} className={`admin-triage-row${selected?.id === item.id ? " is-selected" : ""}`}>
+          {data.exceptions.map((item) => <Link href={hrefFor(item.id)} key={item.id} className={`admin-triage-row${selected?.id === item.id ? " is-selected" : ""}`}>
             <span><strong>{item.title || item.sourceProductKey}</strong><small>{item.sourceName || item.sourceCode} · {item.sourceProductKey}</small></span>
             <span className="admin-triage-meta"><b>{reasonLabel(item.reasonCode)}</b><small>{createdLabel(item.createdAt)}</small></span>
             <i aria-hidden="true">›</i>
@@ -134,7 +132,7 @@ export default async function Page({
             </div>
           </WorkspaceRecordDetails>
           <WorkspaceRecordDetails label="Raw review details">
-            <pre className="workspace-code-block">{JSON.stringify(selected.details, null, 2)}</pre>
+            <pre>{JSON.stringify(selected.details, null, 2)}</pre>
           </WorkspaceRecordDetails>
           <div className="workspace-action-bar">
             <span>This workspace is intentionally read-only until a governed source-identity resolution action is added.</span>
