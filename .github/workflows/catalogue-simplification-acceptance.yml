@@ -3,15 +3,16 @@ name: Catalogue Simplification Acceptance
 on:
   pull_request:
     paths:
-      - "db/migrations/0224_catalogue_simplified_canonicalization.sql"
-      - "db/migrations/checksums.0224.json"
-      - "db/migrations/0225_uncategorized_draft_canonical_safety.sql"
+      - "db/migrations/0225_catalogue_simplified_canonicalization.sql"
       - "db/migrations/checksums.0225.json"
-      - "db/migrations/0226_catalogue_isbn10_identity.sql"
+      - "db/migrations/0226_uncategorized_draft_canonical_safety.sql"
       - "db/migrations/checksums.0226.json"
+      - "db/migrations/0227_catalogue_isbn10_identity.sql"
+      - "db/migrations/checksums.0227.json"
       - "scripts/catalogue-simplification-policy-smoke.sql"
       - "scripts/catalogue-isbn10-identity-smoke.sql"
       - "apps/web/src/lib/admin-catalogue-dashboard-runtime.ts"
+      - "packages/postgres-runtime/src/index.ts"
       - ".github/workflows/catalogue-simplification-acceptance.yml"
   workflow_dispatch:
 
@@ -43,9 +44,9 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify immutable migration ledger
         run: |
-          sha256sum db/migrations/0224_catalogue_simplified_canonicalization.sql
-          sha256sum db/migrations/0225_uncategorized_draft_canonical_safety.sql
-          sha256sum db/migrations/0226_catalogue_isbn10_identity.sql
+          sha256sum db/migrations/0225_catalogue_simplified_canonicalization.sql
+          sha256sum db/migrations/0226_uncategorized_draft_canonical_safety.sql
+          sha256sum db/migrations/0227_catalogue_isbn10_identity.sql
           npm run db:verify
       - name: Bootstrap Supabase-compatible database contracts
         run: |
