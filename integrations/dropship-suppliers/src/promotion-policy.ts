@@ -58,25 +58,30 @@ export function evaluateDropshipPromotion(
   candidate: DropshipPromotionCandidate
 ): DropshipPromotionEvaluation {
   const blockReasons: DropshipPromotionBlockReason[] = [];
-  const validSupplierCost = isNonNegativeMinor(candidate.supplierCostMinor);
-  const validRetailPrice = isPositiveMinor(candidate.retailPriceMinor);
+  const supplierCostMinor = isNonNegativeMinor(candidate.supplierCostMinor)
+    ? candidate.supplierCostMinor
+    : null;
+  const retailPriceMinor = isPositiveMinor(candidate.retailPriceMinor)
+    ? candidate.retailPriceMinor
+    : null;
   const requestedShowMsrp = candidate.showMsrp === true;
   const hasMsrp = candidate.msrpMinor !== null && candidate.msrpMinor !== undefined;
-  const validMsrp = !hasMsrp || isPositiveMinor(candidate.msrpMinor);
+  const msrpMinor = isPositiveMinor(candidate.msrpMinor) ? candidate.msrpMinor : null;
+  const validMsrp = !hasMsrp || msrpMinor !== null;
 
   if (!candidate.supplierAvailable) {
     blockReasons.push("supplier-unavailable");
   }
-  if (!validSupplierCost) {
+  if (supplierCostMinor === null) {
     blockReasons.push("supplier-cost-missing-or-invalid");
   }
-  if (!validRetailPrice) {
+  if (retailPriceMinor === null) {
     blockReasons.push("retail-price-missing-or-invalid");
   }
   if (
-    validSupplierCost &&
-    validRetailPrice &&
-    candidate.retailPriceMinor < candidate.supplierCostMinor
+    supplierCostMinor !== null &&
+    retailPriceMinor !== null &&
+    retailPriceMinor < supplierCostMinor
   ) {
     blockReasons.push("retail-price-below-supplier-cost");
   }
@@ -88,12 +93,12 @@ export function evaluateDropshipPromotion(
   }
 
   const grossMarginMinor =
-    validSupplierCost && validRetailPrice
-      ? candidate.retailPriceMinor - candidate.supplierCostMinor
+    supplierCostMinor !== null && retailPriceMinor !== null
+      ? retailPriceMinor - supplierCostMinor
       : null;
   const grossMarginBps =
-    grossMarginMinor !== null && validRetailPrice
-      ? Math.round((grossMarginMinor * 10_000) / candidate.retailPriceMinor)
+    grossMarginMinor !== null && retailPriceMinor !== null
+      ? Math.round((grossMarginMinor * 10_000) / retailPriceMinor)
       : null;
   const eligible = blockReasons.length === 0;
 
@@ -102,16 +107,17 @@ export function evaluateDropshipPromotion(
     blockReasons,
     grossMarginMinor,
     grossMarginBps,
-    structuredPricing: eligible
-      ? {
-          customerPriceMinor: candidate.retailPriceMinor,
-          msrpMinor: hasMsrp ? candidate.msrpMinor! : null,
-          showMsrp: requestedShowMsrp,
-          privatePricing: {
-            buyingPriceMinor: candidate.supplierCostMinor,
-            pricingMode: "manual"
+    structuredPricing:
+      eligible && supplierCostMinor !== null && retailPriceMinor !== null
+        ? {
+            customerPriceMinor: retailPriceMinor,
+            msrpMinor,
+            showMsrp: requestedShowMsrp,
+            privatePricing: {
+              buyingPriceMinor: supplierCostMinor,
+              pricingMode: "manual"
+            }
           }
-        }
-      : null
+        : null
   };
 }
