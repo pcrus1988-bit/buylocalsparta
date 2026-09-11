@@ -175,7 +175,7 @@ export async function POST(request: Request) {
         giftCard = {
           id: redemption.card.id,
           suffix: redemption.card.suffix,
-          balanceMinor: redemption.amountMinor,
+          balanceMinor: redemption.card.balanceMinor,
           amountMinor: redemption.amountMinor,
           deliveryMinor: redemption.deliveryMinor,
           remainingPayableMinor: redemption.remainingPayableMinor
