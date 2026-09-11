@@ -14,6 +14,10 @@ import type {
 
 export const DEFAULT_NOVA_BASE_URL = "https://nova.shopwoo.com/api/v1";
 
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 30_000;
+
 type QueryValue = string | number | boolean | undefined;
 type Query = Readonly<Record<string, QueryValue>>;
 
@@ -22,6 +26,9 @@ export interface NovaClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   rateLimiter?: SupplierRateLimiter;
+  maxRetries?: number;
+  retryBaseDelayMs?: number;
+  sleepImpl?: (delayMs: number) => Promise<void>;
 }
 
 export class NovaApiError extends Error {
@@ -63,12 +70,34 @@ function withStoreId<T extends Query>(storeId: NovaScalarId, query?: T): Query {
   return { ...(query ?? {}), store_id: storeId };
 }
 
+function defaultSleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, timestamp - Date.now());
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
 export class NovaClient {
   readonly baseUrl: string;
   readonly rateLimiter: SupplierRateLimiter;
 
   #apiKey: string;
   #fetch: typeof fetch;
+  #maxRetries: number;
+  #retryBaseDelayMs: number;
+  #sleep: (delayMs: number) => Promise<void>;
 
   constructor(options: NovaClientOptions) {
     const apiKey = options.apiKey.trim();
@@ -78,6 +107,9 @@ export class NovaClient {
     this.baseUrl = (options.baseUrl ?? DEFAULT_NOVA_BASE_URL).replace(/\/$/, "");
     this.#fetch = options.fetchImpl ?? fetch;
     this.rateLimiter = options.rateLimiter ?? new SupplierRateLimiter(60);
+    this.#maxRetries = Math.max(0, Math.floor(options.maxRetries ?? DEFAULT_MAX_RETRIES));
+    this.#retryBaseDelayMs = Math.max(0, options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS);
+    this.#sleep = options.sleepImpl ?? defaultSleep;
   }
 
   async getStores(): Promise<unknown> {
@@ -225,24 +257,43 @@ export class NovaClient {
     path: string,
     options: { query?: Query; body?: Readonly<Record<string, unknown>> },
   ): Promise<Response> {
-    await this.rateLimiter.acquire();
-
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
 
-    const response = await this.#fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.#apiKey}`,
-        Accept: "application/json, text/csv;q=0.9, */*;q=0.8",
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+    let lastNetworkError: unknown = null;
 
-    if (!response.ok) {
+    for (let attempt = 0; attempt <= this.#maxRetries; attempt += 1) {
+      await this.rateLimiter.acquire();
+
+      let response: Response;
+      try {
+        response = await this.#fetch(url, {
+          method,
+          headers: {
+            Authorization: `Bearer ${this.#apiKey}`,
+            Accept: "application/json, text/csv;q=0.9, */*;q=0.8",
+            ...(options.body ? { "Content-Type": "application/json" } : {}),
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+      } catch (error) {
+        lastNetworkError = error;
+        if (attempt >= this.#maxRetries) throw error;
+        await this.#sleep(this.#retryDelayMs(attempt, null));
+        continue;
+      }
+
+      if (response.ok) return response;
+
+      if (isRetryableStatus(response.status) && attempt < this.#maxRetries) {
+        const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+        await response.body?.cancel().catch(() => undefined);
+        await this.#sleep(this.#retryDelayMs(attempt, retryAfterMs));
+        continue;
+      }
+
       let responseBody: string | null = null;
       try {
         responseBody = (await response.text()).slice(0, 1_000) || null;
@@ -252,6 +303,15 @@ export class NovaClient {
       throw new NovaApiError({ status: response.status, method, path, responseBody });
     }
 
-    return response;
+    throw lastNetworkError instanceof Error
+      ? lastNetworkError
+      : new Error(`Nova API ${method} ${path} failed after retries`);
+  }
+
+  #retryDelayMs(attempt: number, retryAfterMs: number | null): number {
+    if (retryAfterMs !== null) return Math.min(retryAfterMs, MAX_RETRY_DELAY_MS);
+    const exponential = this.#retryBaseDelayMs * 2 ** attempt;
+    const jitter = exponential * (0.75 + Math.random() * 0.5);
+    return Math.min(Math.round(jitter), MAX_RETRY_DELAY_MS);
   }
 }
