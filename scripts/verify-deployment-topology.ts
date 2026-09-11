@@ -25,11 +25,24 @@ assert(vercel.installCommand === "npm ci --ignore-scripts", "source-controlled V
 assert(vercel.buildCommand === "npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build", "Vercel build must reassert the locked graph before building the web workspace");
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
 const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
+const allowedVercelCrons = new Map([
+  ["/api/cron/delivery-dispatch", "* * * * *"],
+  ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
+]);
 assert(
-  vercelCrons.every((cron: Record<string, unknown>) => cron.path === "/api/cron/delivery-dispatch" && cron.schedule === "* * * * *"),
-  "Vercel cron jobs are limited to the bounded delivery dispatch endpoint; long-running BLS workers must remain isolated",
+  vercelCrons.every((cron: Record<string, unknown>) =>
+    typeof cron.path === "string"
+    && typeof cron.schedule === "string"
+    && allowedVercelCrons.get(cron.path) === cron.schedule
+  ),
+  "Vercel cron jobs are limited to bounded delivery dispatch and dropship order reconciliation; long-running BLS workers must remain isolated",
 );
-assert(vercelCrons.filter((cron: Record<string, unknown>) => cron.path === "/api/cron/delivery-dispatch").length <= 1, "delivery dispatch cron must not be duplicated");
+for (const [path, schedule] of allowedVercelCrons) {
+  assert(
+    vercelCrons.filter((cron: Record<string, unknown>) => cron.path === path && cron.schedule === schedule).length === 1,
+    `${path} cron must exist exactly once with schedule ${schedule}`,
+  );
+}
 assert(
   web.scripts?.prebuild?.includes("verify-production-schema-head.ts --vercel-production-only"),
   "production Vercel prebuild must enforce the repository/production migration head gate",
@@ -94,6 +107,6 @@ for (const path of [
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery cron, web build and eight isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery and dropship reconciliation crons, web build and eight isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
