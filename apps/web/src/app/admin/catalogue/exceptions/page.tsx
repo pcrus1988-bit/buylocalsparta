@@ -10,6 +10,7 @@ import {
   WorkspaceSectionHeading,
   WorkspaceStatusBadge
 } from "../../../../components/WorkspacePagePrimitives";
+import { adminCatalogueExceptionCandidates } from "../../../../lib/admin-catalogue-exception-candidates-runtime";
 import {
   adminCatalogueExceptionsWorkspace,
   type CatalogueExceptionReason
@@ -63,6 +64,9 @@ export default async function Page({
   }
 
   const selected = data.exceptions.find((item) => item.id === params.exception) ?? data.exceptions[0];
+  const candidates = selected
+    ? await adminCatalogueExceptionCandidates(principal, selected.id).catch(() => [])
+    : [];
 
   const hrefFor = (exceptionId: string) => {
     const search = new URLSearchParams();
@@ -121,7 +125,7 @@ export default async function Page({
           </div>
           <div className="admin-decision-summary">
             <div><span>Source product</span><strong>{selected.sourceProductId}</strong></div>
-            <div><span>Candidate canonical</span><strong>{selected.candidateVariantId ?? "No unique candidate"}</strong></div>
+            <div><span>Strong-ID candidates</span><strong>{candidates.length}</strong></div>
             <div><span>Created</span><strong>{createdLabel(selected.createdAt)}</strong></div>
           </div>
           <WorkspaceRecordDetails label="Identity evidence" open>
@@ -129,37 +133,40 @@ export default async function Page({
               <div className="workspace-compact-row"><strong>Reason</strong><span>{selected.reasonCode}</span></div>
               <div className="workspace-compact-row"><strong>Source</strong><span>{selected.sourceCode}</span></div>
               <div className="workspace-compact-row"><strong>Candidate category</strong><span>{selected.candidateCategoryCode ?? selected.candidateCategoryId ?? "—"}</span></div>
-              <div className="workspace-compact-row"><strong>Candidate canonical</strong><span>{selected.candidateVariantSlug ?? selected.candidateVariantId ?? "—"}</span></div>
+              <div className="workspace-compact-row"><strong>Original candidate</strong><span>{selected.candidateVariantSlug ?? selected.candidateVariantId ?? "—"}</span></div>
             </div>
+          </WorkspaceRecordDetails>
+          <WorkspaceRecordDetails label="Strong-ID candidate canonicals" open>
+            {candidates.length === 0
+              ? <div className="workspace-inline-note">No canonical currently shares a checksum-valid strong identifier with this source row. The exception can be ignored, but it cannot be force-linked.</div>
+              : <div className="admin-candidate-stack">{candidates.map((candidate) => <section className={`admin-candidate-card${candidate.safeToResolve ? " is-actionable" : ""}`} key={candidate.canonicalVariantId}>
+                <div>
+                  <span>{candidate.categoryCode ?? "Uncategorized"} · {candidate.active ? "active" : "draft"}</span>
+                  <strong>{candidate.title}</strong>
+                  <small>{candidate.slug}{candidate.gtin ? ` · ${candidate.gtin}` : ""}</small>
+                  {candidate.materialConflict && <small>Blocked: {candidate.materialConflict}</small>}
+                </div>
+                {candidate.safeToResolve
+                  ? <AdminActionButton
+                      label="Resolve to this canonical"
+                      endpoint="/api/admin/catalogue/exceptions/action"
+                      csrfToken={data.csrfToken}
+                      body={{
+                        kind: "resolve_to_canonical",
+                        exceptionId: selected.id,
+                        canonicalVariantId: candidate.canonicalVariantId
+                      }}
+                      reasonPrompt="Why is this canonical the correct identity?"
+                    />
+                  : <WorkspaceStatusBadge status="blocked" label="Material conflict" tone="danger" />}
+              </section>)}</div>}
           </WorkspaceRecordDetails>
           <WorkspaceRecordDetails label="Raw review details">
             <pre>{JSON.stringify(selected.details, null, 2)}</pre>
           </WorkspaceRecordDetails>
           <div className="workspace-action-bar">
-            <span>Manual resolution still re-checks market, strong identifier and material-variant safety before approving a canonical link.</span>
+            <span>Only discovered candidates that pass the same strong-identifier and material-variant safety rules can be selected.</span>
             <div className="workspace-action-buttons">
-              {selected.candidateVariantId && <AdminActionButton
-                label="Resolve to candidate"
-                endpoint="/api/admin/catalogue/exceptions/action"
-                csrfToken={data.csrfToken}
-                body={{
-                  kind: "resolve_to_canonical",
-                  exceptionId: selected.id,
-                  canonicalVariantId: selected.candidateVariantId
-                }}
-                reasonPrompt="Why is this canonical the correct identity?"
-              />}
-              <AdminActionButton
-                label="Resolve to canonical ID"
-                endpoint="/api/admin/catalogue/exceptions/action"
-                csrfToken={data.csrfToken}
-                body={{ kind: "resolve_to_canonical", exceptionId: selected.id }}
-                reasonPrompt="Why is this canonical the correct identity?"
-                extraPrompt={{
-                  field: "canonicalVariantId",
-                  message: "Canonical variant UUID"
-                }}
-              />
               <AdminActionButton
                 label="Ignore exception"
                 endpoint="/api/admin/catalogue/exceptions/action"
