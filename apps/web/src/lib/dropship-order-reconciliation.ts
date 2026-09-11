@@ -1,4 +1,5 @@
 import {
+  preventStatusRegression,
   reconcileNovaDropshipOrders,
   type DropshipOrderReconciliationRepository,
   type DropshipReconciliationResult,
@@ -26,16 +27,18 @@ type CandidateRow = Readonly<{
   rate_limit_per_minute: unknown;
 }>;
 
+type LockedFulfilmentRow = Readonly<{
+  status: ReconciledDropshipStatus;
+  provider_status: string | null;
+  reconciliation_required: boolean;
+  last_error: string | null;
+  response_payload_changed: boolean;
+}>;
+
 type ClientConfig = Readonly<{
   storeId: string;
   apiBaseUrl?: string;
   rateLimitPerMinute?: number;
-}>;
-
-type PreviousState = Readonly<{
-  status: ReconciledDropshipStatus;
-  providerStatus: string | null;
-  reconciliationRequired: boolean;
 }>;
 
 export type DropshipOrderReconciliationSweep = DropshipReconciliationResult & Readonly<{
@@ -92,7 +95,6 @@ export async function runDropshipOrderReconciliationSweep(
 
 class PostgresDropshipOrderReconciliationRepository implements DropshipOrderReconciliationRepository {
   readonly #clientConfig = new Map<string, ClientConfig>();
-  readonly #previous = new Map<string, PreviousState>();
   #preview: readonly DropshipReconciliationTarget[] | null = null;
 
   async previewTargets(now: number, limit: number): Promise<readonly DropshipReconciliationTarget[]> {
@@ -125,7 +127,6 @@ class PostgresDropshipOrderReconciliationRepository implements DropshipOrderReco
     `, [staleBefore, limit]);
 
     this.#clientConfig.clear();
-    this.#previous.clear();
 
     return result.rows.map((row) => {
       const storeId = row.store_id?.trim() ?? "";
@@ -135,11 +136,6 @@ class PostgresDropshipOrderReconciliationRepository implements DropshipOrderReco
         storeId,
         ...(apiBaseUrl ? { apiBaseUrl } : {}),
         ...(rateLimitPerMinute ? { rateLimitPerMinute } : {})
-      });
-      this.#previous.set(row.fulfilment_id, {
-        status: row.current_status,
-        providerStatus: row.provider_status,
-        reconciliationRequired: row.reconciliation_required
       });
       return {
         fulfilmentId: row.fulfilment_id,
@@ -178,42 +174,71 @@ class PostgresDropshipOrderReconciliationRepository implements DropshipOrderReco
     raw: Readonly<Record<string, unknown>>;
     now: number;
   }): Promise<"updated" | "unchanged"> {
-    const previous = this.#previous.get(input.fulfilmentId);
-    const changed = !previous
-      || previous.status !== input.status
-      || previous.providerStatus !== input.providerStatus
-      || previous.reconciliationRequired;
-
     const runtime = getProductionPostgresRuntime();
     const syncedAt = new Date(input.now);
-    const result = await runtime.nativePool.query(`
-      UPDATE dropship_fulfilments
-         SET status=$3,
-             provider_status=$4,
-             response_payload=$5::jsonb,
-             last_synced_at=$6,
-             reconciliation_required=false,
-             last_error=NULL,
-             updated_at=$6
-       WHERE public_id=$1
-         AND external_order_id=$2
-       RETURNING public_id
-    `, [
-      input.fulfilmentId,
-      input.externalOrderId,
-      input.status,
-      input.providerStatus.slice(0, 200),
-      JSON.stringify(input.raw),
-      syncedAt
-    ]);
-    if (!result.rowCount) throw new Error(`Dropship fulfilment ${input.fulfilmentId} could not be reconciled`);
+    const providerStatus = input.providerStatus.slice(0, 200);
+    const rawPayload = JSON.stringify(input.raw);
+    const client = await runtime.nativePool.connect();
 
-    this.#previous.set(input.fulfilmentId, {
-      status: input.status,
-      providerStatus: input.providerStatus,
-      reconciliationRequired: false
-    });
-    return changed ? "updated" : "unchanged";
+    try {
+      await client.query("BEGIN");
+      const locked = await client.query<LockedFulfilmentRow>(`
+        SELECT status::text AS status,
+               provider_status,
+               reconciliation_required,
+               last_error,
+               response_payload IS DISTINCT FROM $3::jsonb AS response_payload_changed
+          FROM dropship_fulfilments
+         WHERE public_id=$1
+           AND external_order_id=$2
+         FOR UPDATE
+      `, [input.fulfilmentId, input.externalOrderId, rawPayload]);
+      const current = locked.rows[0];
+      if (!current) {
+        throw new Error(`Dropship fulfilment ${input.fulfilmentId} could not be reconciled`);
+      }
+
+      // The supplier request happens before this transaction. Another process may therefore
+      // advance the local fulfilment between preview and persistence. Re-evaluate regression
+      // protection against the row we have just locked instead of trusting the stale preview.
+      const safeStatus = preventStatusRegression(current.status, input.status);
+      const changed = current.status !== safeStatus
+        || current.provider_status !== providerStatus
+        || current.reconciliation_required
+        || current.last_error !== null
+        || current.response_payload_changed;
+
+      await client.query(`
+        UPDATE dropship_fulfilments
+           SET status=$3,
+               provider_status=$4,
+               response_payload=$5::jsonb,
+               last_synced_at=$6,
+               reconciliation_required=false,
+               last_error=NULL,
+               updated_at=$6
+         WHERE public_id=$1
+           AND external_order_id=$2
+      `, [
+        input.fulfilmentId,
+        input.externalOrderId,
+        safeStatus,
+        providerStatus,
+        rawPayload,
+        syncedAt
+      ]);
+      await client.query("COMMIT");
+      return changed ? "updated" : "unchanged";
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original reconciliation error.
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async markSyncError(fulfilmentId: string, message: string, now: number): Promise<void> {
