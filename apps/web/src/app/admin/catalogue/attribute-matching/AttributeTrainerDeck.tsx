@@ -62,7 +62,7 @@ export function AttributeTrainerDeck({ cards, targets, productTypes, canWrite, a
 
   const canApprove = canWrite && card.actionable && Boolean(primary);
   const canReject = canWrite && card.scopeKind !== "unscoped";
-  const canManual = canWrite && card.actionable;
+  const canManual = canWrite;
 
   const submitApprove = () => {
     if (!canApprove) return;
@@ -283,13 +283,21 @@ export function AttributeTrainerDeck({ cards, targets, productTypes, canWrite, a
           <div><small>Edit / remap canonical attribute</small><strong>{card.sourceAttributeKey}</strong></div>
           <button className="button button-secondary" type="button" onClick={() => setManualOpen(false)}>Close</button>
         </div>
+        {card.blocker && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>
+          <strong>Context blocker:</strong> {card.blocker} You can inspect and edit the matching context here, but learning actions remain locked until this blocker is resolved.
+        </div>}
         <label style={{ display: "block", marginTop: "1rem" }}>
           <span>Search Product Type, canonical attribute or type a new attribute name</span>
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. χρώμα, battery capacity, dimensions…" style={{ width: "100%" }} />
         </label>
 
         <div className="workspace-queue-list" style={{ marginTop: "1rem" }}>
-          {filteredTargets.map((target) => <form action={approveAction} className="workspace-queue-card" key={`${target.productTypeId}:${target.attributeId}`}>
+          {filteredTargets.map((target) => <form
+            action={approveAction}
+            className="workspace-queue-card"
+            key={`${target.productTypeId}:${target.attributeId}`}
+            onSubmit={(event) => { if (!canWrite || !card.actionable) event.preventDefault(); }}
+          >
             <input type="hidden" name="sourceProductId" value={card.representativeProductId} />
             <input type="hidden" name="sourceAttributeKey" value={card.sourceAttributeKey} />
             <input type="hidden" name="productTypeId" value={target.productTypeId} />
@@ -297,7 +305,7 @@ export function AttributeTrainerDeck({ cards, targets, productTypes, canWrite, a
             <input type="hidden" name="reason" value="Manually remapped from Attribute Matching trainer" />
             <div className="workspace-queue-head">
               <div><strong>{target.productTypeName} · {target.attributeCode}</strong><small>{target.groupCode ?? "Ungrouped"} · {target.dataType}{target.unit ? ` · ${target.unit}` : ""}</small></div>
-              <button className="button button-primary" type="submit">Use this</button>
+              <button className="button button-primary" type="submit" disabled={!canWrite || !card.actionable}>Use this</button>
             </div>
           </form>)}
         </div>
