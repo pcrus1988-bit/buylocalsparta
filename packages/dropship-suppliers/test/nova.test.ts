@@ -175,3 +175,46 @@ test("Nova createOrder pins store_id and cannot be overridden by caller payload"
   const body = JSON.parse(observedBody) as Record<string, unknown>;
   assert.equal(body.store_id, 77);
 });
+
+test("Nova retries 429 responses and honors Retry-After", async () => {
+  let attempts = 0;
+  const sleeps: number[] = [];
+  const client = new NovaClient({
+    apiKey: "test-token",
+    maxRetries: 2,
+    retryBaseDelayMs: 1,
+    sleepImpl: async (delayMs) => {
+      sleeps.push(delayMs);
+    },
+    fetchImpl: async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        return new Response("rate limited", {
+          status: 429,
+          headers: { "retry-after": "2" },
+        });
+      }
+      return jsonResponse([]);
+    },
+  });
+
+  await client.listProducts(77);
+  assert.equal(attempts, 2);
+  assert.deepEqual(sleeps, [2_000]);
+});
+
+test("Nova does not retry non-transient 4xx responses", async () => {
+  let attempts = 0;
+  const client = new NovaClient({
+    apiKey: "test-token",
+    maxRetries: 3,
+    sleepImpl: async () => undefined,
+    fetchImpl: async () => {
+      attempts += 1;
+      return new Response("bad request", { status: 400 });
+    },
+  });
+
+  await assert.rejects(() => client.listProducts(77), /failed with HTTP 400/);
+  assert.equal(attempts, 1);
+});
