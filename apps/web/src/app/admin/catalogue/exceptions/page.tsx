@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { AdminActionButton } from "../../../../components/AdminActionButton";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import {
   WorkspaceEmptyState,
@@ -135,8 +136,40 @@ export default async function Page({
             <pre>{JSON.stringify(selected.details, null, 2)}</pre>
           </WorkspaceRecordDetails>
           <div className="workspace-action-bar">
-            <span>This workspace is intentionally read-only until a governed source-identity resolution action is added.</span>
-            <Link className="button button-secondary" href="/admin/catalogue">Back to Catalogue</Link>
+            <span>Manual resolution still re-checks market, strong identifier and material-variant safety before approving a canonical link.</span>
+            <div className="workspace-action-buttons">
+              {selected.candidateVariantId && <AdminActionButton
+                label="Resolve to candidate"
+                endpoint="/api/admin/catalogue/exceptions/action"
+                csrfToken={data.csrfToken}
+                body={{
+                  kind: "resolve_to_canonical",
+                  exceptionId: selected.id,
+                  canonicalVariantId: selected.candidateVariantId
+                }}
+                reasonPrompt="Why is this canonical the correct identity?"
+              />}
+              <AdminActionButton
+                label="Resolve to canonical ID"
+                endpoint="/api/admin/catalogue/exceptions/action"
+                csrfToken={data.csrfToken}
+                body={{ kind: "resolve_to_canonical", exceptionId: selected.id }}
+                reasonPrompt="Why is this canonical the correct identity?"
+                extraPrompt={{
+                  field: "canonicalVariantId",
+                  message: "Canonical variant UUID"
+                }}
+              />
+              <AdminActionButton
+                label="Ignore exception"
+                endpoint="/api/admin/catalogue/exceptions/action"
+                csrfToken={data.csrfToken}
+                body={{ kind: "ignore", exceptionId: selected.id }}
+                reasonPrompt="Why should this strong-identity exception be ignored?"
+                danger
+              />
+              <Link className="button button-secondary" href="/admin/catalogue">Back to Catalogue</Link>
+            </div>
           </div>
         </article>}
       </div>}
