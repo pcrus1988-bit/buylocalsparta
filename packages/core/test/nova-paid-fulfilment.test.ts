@@ -33,8 +33,12 @@ type Recorded = { name: string; args: readonly unknown[] };
 
 class FakeRepository implements PaidDropshipRepository {
   readonly calls: Recorded[] = [];
+  readonly claims: readonly PaidDropshipClaim[];
   #claimsAvailable = true;
-  constructor(private readonly claims: readonly PaidDropshipClaim[] = [CLAIM]) {}
+
+  constructor(claims: readonly PaidDropshipClaim[] = [CLAIM]) {
+    this.claims = claims;
+  }
 
   async claimQueued(orderId: string, now: number) {
     this.calls.push({ name: "claimQueued", args: [orderId, now] });
