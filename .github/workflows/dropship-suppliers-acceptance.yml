@@ -1,0 +1,43 @@
+name: Dropship Supplier Safety Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/dropship-suppliers/**'
+      - 'integrations/dropship-suppliers/**'
+      - 'db/migrations/0221_dropship_supplier_engine.sql'
+      - 'db/migrations/0222_dropship_paid_fulfilment_safety.sql'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/dropship-suppliers-acceptance.yml'
+  pull_request:
+    paths:
+      - 'packages/dropship-suppliers/**'
+      - 'integrations/dropship-suppliers/**'
+      - 'db/migrations/0221_dropship_supplier_engine.sql'
+      - 'db/migrations/0222_dropship_paid_fulfilment_safety.sql'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/dropship-suppliers-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  supplier-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked workspace dependencies
+        run: npm ci --ignore-scripts
+      - name: Test Nova and generic supplier behavior
+        run: npm run test:dropship-suppliers
+      - name: Typecheck reusable supplier package
+        run: npm run typecheck:dropship-suppliers
+      - name: Verify dropship migrations remain in the governed chain
+        run: npm run db:verify
