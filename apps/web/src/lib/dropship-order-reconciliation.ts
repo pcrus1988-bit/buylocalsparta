@@ -5,6 +5,7 @@ import {
   type DropshipReconciliationTarget,
   type ReconciledDropshipStatus
 } from "../../../../integrations/dropship-suppliers/src/order-reconciliation.ts";
+import { createNovaReadRetryFetch } from "../../../../integrations/dropship-suppliers/src/nova-read-retry-fetch.ts";
 import {
   NovaV1Client,
   novaApiKeyFromEnvironment
@@ -65,6 +66,7 @@ export async function runDropshipOrderReconciliationSweep(
 
   const apiKey = novaApiKeyFromEnvironment();
   const clients = new Map<string, NovaV1Client>();
+  const retryingReadFetch = createNovaReadRetryFetch();
   const result = await reconcileNovaDropshipOrders(
     repository,
     (target) => {
@@ -74,6 +76,7 @@ export async function runDropshipOrderReconciliationSweep(
       if (!client) {
         client = new NovaV1Client({
           apiKey,
+          fetchImpl: retryingReadFetch,
           ...(config.apiBaseUrl ? { baseUrl: config.apiBaseUrl } : {}),
           ...(config.rateLimitPerMinute ? { requestsPerMinute: config.rateLimitPerMinute } : {})
         });
