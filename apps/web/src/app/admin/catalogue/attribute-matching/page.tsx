@@ -5,12 +5,13 @@ import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { adminCatalogueAttributeTrainerWorkspace, createAttributeTrainerTarget } from "../../../../lib/admin-catalogue-attribute-trainer";
+import { adminCatalogueAttributeTrainerCategoryOptions, resolveAttributeTrainerTaxonomyContext } from "../../../../lib/admin-catalogue-attribute-trainer-context";
 import { mapCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-mapping";
 import { adminCatalogueProductTypeOptions } from "../../../../lib/admin-catalogue-product-type-options";
 import { rejectCatalogueSourceAttribute } from "../../../../lib/admin-catalogue-attribute-rejection";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
-import { AttributeTrainerDeck } from "./AttributeTrainerDeck";
+import { AttributeTrainerDeckV2 } from "./AttributeTrainerDeckV2";
 
 export const metadata: Metadata = {
   title: "Admin · Attribute Matching",
@@ -33,11 +34,19 @@ async function approveAction(formData: FormData) {
   if (!principal) redirect("/admin/login");
   const sourceProductId = String(formData.get("sourceProductId") ?? "").trim();
   const sourceAttributeKey = String(formData.get("sourceAttributeKey") ?? "").trim();
+  const categoryId = String(formData.get("categoryId") ?? "").trim();
   const productTypeId = String(formData.get("productTypeId") ?? "").trim();
   const attributeId = String(formData.get("attributeId") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   let result;
   try {
+    if (categoryId) {
+      await resolveAttributeTrainerTaxonomyContext(principal, {
+        sourceProductId,
+        categoryId,
+        productTypeId
+      });
+    }
     result = await mapCatalogueSourceAttribute(principal, {
       sourceProductId,
       sourceAttributeKey,
@@ -49,6 +58,7 @@ async function approveAction(formData: FormData) {
     redirect(trainerHref({ error: errorMessage(error) }));
   }
   revalidateTrainerPaths();
+  revalidatePath("/admin/catalogue/structure");
   redirect(trainerHref({
     saved: "1",
     action: "mapped",
@@ -64,6 +74,7 @@ async function createAndApproveAction(formData: FormData) {
   if (!principal) redirect("/admin/login");
   const sourceProductId = String(formData.get("sourceProductId") ?? "").trim();
   const sourceAttributeKey = String(formData.get("sourceAttributeKey") ?? "").trim();
+  const categoryId = String(formData.get("categoryId") ?? "").trim();
   const productTypeId = String(formData.get("productTypeId") ?? "").trim();
   const labelEl = String(formData.get("labelEl") ?? "").trim();
   const dataType = String(formData.get("dataType") ?? "text").trim();
@@ -71,6 +82,13 @@ async function createAndApproveAction(formData: FormData) {
   let target;
   let result;
   try {
+    if (categoryId) {
+      await resolveAttributeTrainerTaxonomyContext(principal, {
+        sourceProductId,
+        categoryId,
+        productTypeId
+      });
+    }
     target = await createAttributeTrainerTarget(principal, {
       sourceProductId,
       sourceAttributeKey,
@@ -132,9 +150,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const params = await searchParams;
-  const [workspace, productTypes] = await Promise.all([
+  const [workspace, productTypes, categories] = await Promise.all([
     adminCatalogueAttributeTrainerWorkspace(principal, { limit: 18 }),
-    adminCatalogueProductTypeOptions(principal)
+    adminCatalogueProductTypeOptions(principal),
+    adminCatalogueAttributeTrainerCategoryOptions(principal)
   ]);
   const canWrite = hasAdminPermission(principal, "catalog.write");
   const first = workspace.cards[0];
@@ -157,8 +176,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       </div>
       <aside className="dashboard-health-card">
         <span>Trainer controls</span>
-        <strong>← confirm · → not attribute · ↑ remap/create · ↓ later</strong>
-        <p>Raw supplier evidence is never deleted. A “not attribute” decision stores an audited rejection rule and suppresses the same junk context on future ingestion.</p>
+        <strong>← confirm/resolve · → not attribute · ↑ remap/create · ↓ later</strong>
+        <p>Gestures commit as soon as the swipe threshold is crossed. Blocked cards can resolve their category/Product Type contract without leaving the trainer.</p>
       </aside>
     </section>
 
@@ -166,7 +185,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       { label: "Unmapped observations", value: workspace.totalUnmapped, tone: workspace.totalUnmapped > 0 ? "attention" : "positive" },
       { label: "Unresolved contexts", value: workspace.unresolvedGroups, tone: workspace.unresolvedGroups > 0 ? "attention" : "positive" },
       { label: "High-confidence in batch", value: highConfidence, hint: `${workspace.cards.length} highest-impact contexts loaded` },
-      { label: "Blocked in batch", value: blocked, tone: blocked > 0 ? "attention" : "default", hint: "Resolve taxonomy first" }
+      { label: "Blocked in batch", value: blocked, tone: blocked > 0 ? "attention" : "default", hint: "Resolve inline or review taxonomy" }
     ]} />
 
     <section className="shell vendor-section">
@@ -185,14 +204,23 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
       {workspace.cards.length === 0
         ? <WorkspaceEmptyState title="No unmapped attribute contexts are waiting." body="New supplier evidence will automatically appear here if it cannot be resolved by the rules the system has already learned." />
-        : <AttributeTrainerDeck cards={workspace.cards} targets={workspace.targets} productTypes={productTypes} canWrite={canWrite} approveAction={approveAction} createAction={createAndApproveAction} rejectAction={rejectAction} />}
+        : <AttributeTrainerDeckV2
+            cards={workspace.cards}
+            targets={workspace.targets}
+            productTypes={productTypes}
+            categories={categories}
+            canWrite={canWrite}
+            approveAction={approveAction}
+            createAction={createAndApproveAction}
+            rejectAction={rejectAction}
+          />}
 
-      {first?.blocker && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>The highest-impact card is currently blocked by catalogue structure. Swipe down to continue with other cards or open Taxonomy blockers.</div>}
+      {first?.blocker && <div className="workspace-inline-note" style={{ marginTop: "1rem" }}>The highest-impact card needs catalogue context. Swipe left or up to resolve the category/Product Type contract inline, or swipe down to continue with other cards.</div>}
     </section>
 
     <section className="vendor-section section-tint">
       <div className="shell">
-        <WorkspaceSectionHeading eyebrow="Learning boundary" title="What the trainer changes" note="Confirmations create/reuse exact governed mapping rules. Rejections teach the importer to ignore identical non-attribute evidence. Manual remaps and inline-created attributes still pass the same Product Type/category governance checks as the existing catalogue workflow." />
+        <WorkspaceSectionHeading eyebrow="Learning boundary" title="What the trainer changes" note="Confirmations create/reuse exact governed mapping rules. Rejections teach the importer to ignore identical non-attribute evidence. Inline taxonomy resolution is explicit, audited, and still uses the canonical category/Product Type contracts." />
         <div className="workspace-queue-primary">
           <span><strong>Preserved</strong> raw supplier evidence</span>
           <span><strong>Audited</strong> Admin decisions</span>
