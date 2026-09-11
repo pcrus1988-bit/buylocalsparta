@@ -126,15 +126,24 @@ export async function fulfilPaidDropshipOrder(
     try {
       created = await client.createOrder(claim.storeId, claim.providerPayload);
     } catch (error) {
-      if (error instanceof NovaV1OrderSubmissionUncertainError) {
-        const message = error.message;
-        await repository.markSubmissionUncertain(claim.fulfilmentId, claim.claimToken, message, safeErrorPayload(error.originalError), validNow(now()));
+      const uncertain = novaSubmissionUncertain(error);
+      if (uncertain) {
+        const message = errorMessage(error);
+        await repository.markSubmissionUncertain(
+          claim.fulfilmentId,
+          claim.claimToken,
+          message,
+          safeErrorPayload(uncertain.cause),
+          validNow(now())
+        );
         outcomes.push({ fulfilmentId: claim.fulfilmentId, status: "submission_uncertain", message });
         continue;
       }
-      if (error instanceof NovaV1ApiError && error.status >= 400 && error.status < 500) {
-        await repository.markSupplierRejected(claim.fulfilmentId, claim.claimToken, error, validNow(now()));
-        outcomes.push({ fulfilmentId: claim.fulfilmentId, status: "supplier_rejected", message: error.message });
+
+      const rejection = novaDefiniteRejection(error);
+      if (rejection) {
+        await repository.markSupplierRejected(claim.fulfilmentId, claim.claimToken, rejection, validNow(now()));
+        outcomes.push({ fulfilmentId: claim.fulfilmentId, status: "supplier_rejected", message: rejection.message });
         continue;
       }
 
@@ -167,6 +176,50 @@ export async function fulfilPaidDropshipOrder(
   }
 
   return outcomes;
+}
+
+function novaSubmissionUncertain(error: unknown): { cause: unknown } | null {
+  if (error instanceof NovaV1OrderSubmissionUncertainError) {
+    return { cause: error.originalError };
+  }
+
+  // The reusable packages/dropship-suppliers client deliberately uses a separate
+  // error class so this legacy production coordinator remains decoupled from it.
+  // Recognise only that exact public error contract; do not classify arbitrary
+  // application errors as supplier ambiguity.
+  if (
+    error instanceof Error &&
+    error.name === "NovaOrderSubmissionUncertainError" &&
+    "originalError" in error
+  ) {
+    return { cause: (error as Error & { originalError: unknown }).originalError };
+  }
+
+  return null;
+}
+
+function novaDefiniteRejection(error: unknown): NovaV1ApiError | null {
+  if (error instanceof NovaV1ApiError) {
+    return error.status >= 400 && error.status < 500 ? error : null;
+  }
+
+  // Compatibility boundary for the reusable packages/dropship-suppliers NovaApiError.
+  // Only its documented name + numeric 4xx status is accepted as a definite rejection.
+  // Transient/5xx responses remain ambiguous after submission_started_at is persisted.
+  if (!(error instanceof Error) || error.name !== "NovaApiError") return null;
+  const candidate = error as Error & {
+    status?: unknown;
+    method?: unknown;
+    path?: unknown;
+  };
+  if (typeof candidate.status !== "number" || candidate.status < 400 || candidate.status >= 500) return null;
+
+  return new NovaV1ApiError({
+    status: candidate.status,
+    method: typeof candidate.method === "string" && candidate.method.trim() ? candidate.method : "POST",
+    path: typeof candidate.path === "string" && candidate.path.trim() ? candidate.path : "/orders",
+    message: candidate.message
+  });
 }
 
 function validateClaim(claim: PaidDropshipClaim): void {
@@ -211,6 +264,15 @@ function safeErrorPayload(error: unknown): Readonly<Record<string, unknown>> {
   if (error instanceof NovaV1ApiError) {
     return { name: error.name, message: error.message, status: error.status, method: error.method, path: error.path, code: error.code };
   }
-  if (error instanceof Error) return { name: error.name, message: error.message };
+  if (error instanceof Error) {
+    const candidate = error as Error & { status?: unknown; method?: unknown; path?: unknown };
+    return {
+      name: error.name,
+      message: error.message,
+      ...(typeof candidate.status === "number" ? { status: candidate.status } : {}),
+      ...(typeof candidate.method === "string" ? { method: candidate.method } : {}),
+      ...(typeof candidate.path === "string" ? { path: candidate.path } : {})
+    };
+  }
   return { message: String(error) };
 }
