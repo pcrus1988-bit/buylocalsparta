@@ -66,11 +66,18 @@ INSERT INTO public.catalog_source_category_mappings(
 )
 VALUES(:'source_taxonomy_id',:'category_id','approved','import',1.00000,'ISBN-10 acceptance fixture',now());
 
-CREATE TEMP TABLE isbn10_context AS
-SELECT
-  :'existing_variant_id'::uuid AS existing_variant_id,
-  (SELECT count(*) FROM public.canonical_variants) AS baseline_canonical_count,
-  (SELECT count(*) FROM public.vendor_offers) AS baseline_offer_count;
+CREATE TEMP TABLE isbn10_context(
+  existing_variant_id uuid NOT NULL,
+  baseline_canonical_count bigint NOT NULL,
+  baseline_offer_count bigint NOT NULL,
+  exact_snapshot_id uuid,
+  exact_product_id uuid,
+  duplicate_snapshot_id uuid,
+  conflict_snapshot_id uuid
+);
+
+INSERT INTO isbn10_context(existing_variant_id,baseline_canonical_count,baseline_offer_count)
+SELECT :'existing_variant_id',(SELECT count(*) FROM public.canonical_variants),(SELECT count(*) FROM public.vendor_offers);
 
 -- A. Hyphenated ISBN-10 must normalize and exact-link globally even when weaker
 -- brand/model text does not match the existing canonical.
@@ -92,13 +99,17 @@ VALUES(
 )
 RETURNING id AS exact_product_id \gset
 
+UPDATE isbn10_context
+SET exact_snapshot_id=:'exact_snapshot_id',exact_product_id=:'exact_product_id';
+
 DO $$
-DECLARE d text; r text; v uuid;
+DECLARE c isbn10_context%ROWTYPE; d text; r text; v uuid;
 BEGIN
+  SELECT * INTO c FROM isbn10_context LIMIT 1;
   SELECT disposition,reason_code,existing_variant_id INTO d,r,v
-  FROM bls_private.catalog_source_canonicalization_preview('catalog-isbn10-ci',:'exact_snapshot_id',0.95)
-  WHERE source_product_id=:'exact_product_id';
-  IF d<>'link_existing' OR r IS NOT NULL OR v<>:'existing_variant_id'::uuid THEN
+  FROM bls_private.catalog_source_canonicalization_preview('catalog-isbn10-ci',c.exact_snapshot_id,0.95)
+  WHERE source_product_id=c.exact_product_id;
+  IF d<>'link_existing' OR r IS NOT NULL OR v<>c.existing_variant_id THEN
     RAISE EXCEPTION 'ISBN-10 exact match failed: %, %, %',d,r,v;
   END IF;
 END $$;
@@ -108,14 +119,16 @@ SELECT bls_private.apply_catalog_source_canonicalization(
 );
 
 DO $$
+DECLARE c isbn10_context%ROWTYPE;
 BEGIN
-  IF (SELECT canonical_variant_id FROM public.catalog_source_product_links WHERE source_product_id=:'exact_product_id' AND link_status='approved')<>:'existing_variant_id'::uuid THEN
+  SELECT * INTO c FROM isbn10_context LIMIT 1;
+  IF (SELECT canonical_variant_id FROM public.catalog_source_product_links WHERE source_product_id=c.exact_product_id AND link_status='approved')<>c.existing_variant_id THEN
     RAISE EXCEPTION 'ISBN-10 exact source did not link existing canonical';
   END IF;
-  IF (SELECT match_method FROM public.catalog_source_product_links WHERE source_product_id=:'exact_product_id' AND link_status='approved')<>'exact_gtin' THEN
+  IF (SELECT match_method FROM public.catalog_source_product_links WHERE source_product_id=c.exact_product_id AND link_status='approved')<>'exact_gtin' THEN
     RAISE EXCEPTION 'ISBN-10 exact link did not receive strong match method';
   END IF;
-  IF (SELECT count(*) FROM public.canonical_variants)<>(SELECT baseline_canonical_count FROM isbn10_context) THEN
+  IF (SELECT count(*) FROM public.canonical_variants)<>c.baseline_canonical_count THEN
     RAISE EXCEPTION 'ISBN-10 exact match created a duplicate canonical';
   END IF;
 END $$;
@@ -148,26 +161,29 @@ VALUES
   jsonb_build_object('fixture',true)
 );
 
-CREATE TEMP TABLE duplicate_result AS
+UPDATE isbn10_context SET duplicate_snapshot_id=:'duplicate_snapshot_id';
+
+CREATE TEMP TABLE isbn10_duplicate_result AS
 SELECT bls_private.apply_catalog_source_canonicalization(
   'catalog-isbn10-ci',:'vendor_id',:'location_id',:'duplicate_snapshot_id',0.95,2400
 ) AS result;
 
 DO $$
-DECLARE v_count integer; linked_count integer; v uuid; result jsonb;
+DECLARE c isbn10_context%ROWTYPE; v_count integer; linked_count integer; v uuid; result jsonb;
 BEGIN
+  SELECT * INTO c FROM isbn10_context LIMIT 1;
   SELECT count(DISTINCT l.canonical_variant_id),count(*),min(l.canonical_variant_id)
   INTO v_count,linked_count,v
   FROM public.catalog_source_product_links l
   JOIN public.catalog_source_products p ON p.id=l.source_product_id
-  WHERE p.snapshot_id=:'duplicate_snapshot_id' AND l.link_status='approved';
+  WHERE p.snapshot_id=c.duplicate_snapshot_id AND l.link_status='approved';
 
-  SELECT d.result INTO result FROM duplicate_result d LIMIT 1;
+  SELECT d.result INTO result FROM isbn10_duplicate_result d LIMIT 1;
 
   IF v_count<>1 OR linked_count<>2 OR v IS NULL THEN
     RAISE EXCEPTION 'ISBN-10 duplicate aliases did not converge: variants %, links %',v_count,linked_count;
   END IF;
-  IF v=:'existing_variant_id'::uuid THEN
+  IF v=c.existing_variant_id THEN
     RAISE EXCEPTION 'new ISBN-10 incorrectly reused unrelated existing canonical';
   END IF;
   IF NOT EXISTS(
@@ -181,9 +197,9 @@ BEGIN
   IF EXISTS(
     SELECT 1 FROM public.catalog_canonicalization_reviews r
     JOIN public.catalog_source_products p ON p.id=r.source_product_id
-    WHERE p.snapshot_id=:'duplicate_snapshot_id' AND r.status='open'
+    WHERE p.snapshot_id=c.duplicate_snapshot_id AND r.status='open'
   ) THEN RAISE EXCEPTION 'routine ISBN-10 aliases remained in Admin exceptions'; END IF;
-  IF (SELECT count(*) FROM public.canonical_variants)<>(SELECT baseline_canonical_count+1 FROM isbn10_context) THEN
+  IF (SELECT count(*) FROM public.canonical_variants)<>c.baseline_canonical_count+1 THEN
     RAISE EXCEPTION 'ISBN-10 alias convergence created the wrong canonical count';
   END IF;
   IF COALESCE((result->>'sourceDuplicatesDeduplicated')::integer,0)<1 THEN
@@ -219,17 +235,21 @@ VALUES
   jsonb_build_object('fixture',true)
 );
 
+UPDATE isbn10_context SET conflict_snapshot_id=:'conflict_snapshot_id';
+
 SELECT bls_private.apply_catalog_source_canonicalization(
   'catalog-isbn10-ci',:'vendor_id',:'location_id',:'conflict_snapshot_id',0.95,2400
 );
 
 DO $$
+DECLARE c isbn10_context%ROWTYPE;
 BEGIN
+  SELECT * INTO c FROM isbn10_context LIMIT 1;
   IF (
     SELECT count(*)
     FROM public.catalog_canonicalization_reviews r
     JOIN public.catalog_source_products p ON p.id=r.source_product_id
-    WHERE p.snapshot_id=:'conflict_snapshot_id'
+    WHERE p.snapshot_id=c.conflict_snapshot_id
       AND r.status='open'
       AND r.reason_code='material_variant_conflict'
   )<>2 THEN RAISE EXCEPTION 'ISBN-10 material conflict did not fail closed'; END IF;
@@ -237,13 +257,13 @@ BEGIN
   IF EXISTS(
     SELECT 1 FROM public.catalog_source_product_links l
     JOIN public.catalog_source_products p ON p.id=l.source_product_id
-    WHERE p.snapshot_id=:'conflict_snapshot_id' AND l.link_status='approved'
+    WHERE p.snapshot_id=c.conflict_snapshot_id AND l.link_status='approved'
   ) THEN RAISE EXCEPTION 'ISBN-10 conflict created an approved canonical link'; END IF;
 
-  IF (SELECT count(*) FROM public.canonical_variants)<>(SELECT baseline_canonical_count+1 FROM isbn10_context) THEN
+  IF (SELECT count(*) FROM public.canonical_variants)<>c.baseline_canonical_count+1 THEN
     RAISE EXCEPTION 'ISBN-10 conflict created an unexpected canonical';
   END IF;
-  IF (SELECT count(*) FROM public.vendor_offers)<>(SELECT baseline_offer_count FROM isbn10_context) THEN
+  IF (SELECT count(*) FROM public.vendor_offers)<>c.baseline_offer_count THEN
     RAISE EXCEPTION 'ISBN-10 canonicalisation fabricated vendor offers';
   END IF;
 END $$;
