@@ -35,9 +35,13 @@ jobs:
           cache: npm
       - name: Install locked workspace dependencies
         run: npm ci --ignore-scripts
-      - name: Test Nova and generic supplier behavior
+      - name: Test reusable Nova and generic supplier behavior
         run: npm run test:dropship-suppliers
       - name: Typecheck reusable supplier package
         run: npm run typecheck:dropship-suppliers
+      - name: Test production paid-fulfilment compatibility boundary
+        run: node --experimental-strip-types --test integrations/dropship-suppliers/test/*.test.ts
+      - name: Typecheck production dropship runtime
+        run: ./node_modules/.bin/tsc -p integrations/dropship-suppliers/tsconfig.json
       - name: Verify dropship migrations remain in the governed chain
         run: npm run db:verify
