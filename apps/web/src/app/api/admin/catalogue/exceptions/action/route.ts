@@ -1,4 +1,5 @@
 import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { adminCatalogueExceptionCandidates } from "../../../../../../lib/admin-catalogue-exception-candidates-runtime";
 import {
   adminResolveCatalogueException,
   type CatalogueExceptionResolutionInput
@@ -26,6 +27,18 @@ export async function POST(request: Request) {
         ? body.canonicalVariantId.trim()
         : "";
       if (!canonicalVariantId) throw new Error("Canonical variant ID is required");
+
+      const candidates = await adminCatalogueExceptionCandidates(principal, exceptionId);
+      const selected = candidates.find(
+        (candidate) => candidate.canonicalVariantId === canonicalVariantId
+      );
+      if (!selected) {
+        throw new Error("Selected canonical is not an eligible strong-identity candidate");
+      }
+      if (!selected.safeToResolve) {
+        throw new Error("Selected canonical is blocked by a material variant conflict");
+      }
+
       input = { kind, exceptionId, canonicalVariantId, reason };
     } else {
       input = { kind, exceptionId, reason };
