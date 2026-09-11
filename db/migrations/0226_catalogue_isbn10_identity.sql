@@ -75,24 +75,29 @@ WITH base AS (
       WHERE NULLIF(btrim(ids.raw_value),'') IS NOT NULL
         AND bls_private.catalog_gtin_is_valid(ids.raw_value)
     ) AS has_valid_gtin_like,
-    bls_private.catalog_normalize_isbn10(COALESCE(
-      NULLIF(btrim(csp.source_identity->>'isbn10'),''),
+    COALESCE(
+      CASE
+        WHEN bls_private.is_valid_isbn10(
+          bls_private.catalog_normalize_isbn10(csp.source_identity->>'isbn10')
+        ) THEN bls_private.catalog_normalize_isbn10(csp.source_identity->>'isbn10')
+      END,
       CASE
         WHEN bls_private.is_valid_isbn10(
           bls_private.catalog_normalize_isbn10(csp.source_identity->>'isbn')
-        )
-          THEN csp.source_identity->>'isbn'
-        ELSE NULL
+        ) THEN bls_private.catalog_normalize_isbn10(csp.source_identity->>'isbn')
       END,
-      NULLIF(btrim(csp.normalized_payload->>'isbn10'),''),
+      CASE
+        WHEN bls_private.is_valid_isbn10(
+          bls_private.catalog_normalize_isbn10(csp.normalized_payload->>'isbn10')
+        ) THEN bls_private.catalog_normalize_isbn10(csp.normalized_payload->>'isbn10')
+      END,
       CASE
         WHEN bls_private.is_valid_isbn10(
           bls_private.catalog_normalize_isbn10(csp.normalized_payload->>'isbn')
-        )
-          THEN csp.normalized_payload->>'isbn'
-        ELSE NULL
-      END
-    )) AS normalized_isbn10
+        ) THEN bls_private.catalog_normalize_isbn10(csp.normalized_payload->>'isbn')
+      END,
+      ''
+    ) AS normalized_isbn10
   FROM base b
   JOIN public.catalog_source_products csp ON csp.id=b.source_product_id
   JOIN public.catalog_sources cs ON cs.id=csp.source_id
@@ -244,24 +249,29 @@ BEGIN
      AND l.link_status='approved'
     WHERE csp.snapshot_id=v_snapshot_id
   LOOP
-    v_isbn10:=bls_private.catalog_normalize_isbn10(COALESCE(
-      NULLIF(btrim(v_row.source_identity->>'isbn10'),''),
+    v_isbn10:=COALESCE(
+      CASE
+        WHEN bls_private.is_valid_isbn10(
+          bls_private.catalog_normalize_isbn10(v_row.source_identity->>'isbn10')
+        ) THEN bls_private.catalog_normalize_isbn10(v_row.source_identity->>'isbn10')
+      END,
       CASE
         WHEN bls_private.is_valid_isbn10(
           bls_private.catalog_normalize_isbn10(v_row.source_identity->>'isbn')
-        )
-          THEN v_row.source_identity->>'isbn'
-        ELSE NULL
+        ) THEN bls_private.catalog_normalize_isbn10(v_row.source_identity->>'isbn')
       END,
-      NULLIF(btrim(v_row.normalized_payload->>'isbn10'),''),
+      CASE
+        WHEN bls_private.is_valid_isbn10(
+          bls_private.catalog_normalize_isbn10(v_row.normalized_payload->>'isbn10')
+        ) THEN bls_private.catalog_normalize_isbn10(v_row.normalized_payload->>'isbn10')
+      END,
       CASE
         WHEN bls_private.is_valid_isbn10(
           bls_private.catalog_normalize_isbn10(v_row.normalized_payload->>'isbn')
-        )
-          THEN v_row.normalized_payload->>'isbn'
-        ELSE NULL
-      END
-    ));
+        ) THEN bls_private.catalog_normalize_isbn10(v_row.normalized_payload->>'isbn')
+      END,
+      ''
+    );
 
     IF v_isbn10=''
        OR NOT bls_private.is_valid_isbn10(v_isbn10) THEN
