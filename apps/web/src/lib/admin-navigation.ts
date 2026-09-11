@@ -8,12 +8,20 @@ const PARTNER_PRIMARY_ROUTES = new Set([
   "/admin/partners/pipeline",
   "/admin/applications",
   "/admin/research-vendors",
-  "/admin/prospects"
+  "/admin/prospects",
+  "/admin/partner-network"
 ]);
 const PARTNER_DRILLDOWN_ROUTES = new Set([
   "/admin/finance/agreements",
   "/admin/finance/agreements/sla"
 ]);
+
+const PARTNER_NETWORK_NAV_LINK: WorkspaceNavLink = {
+  label: "Partner Network",
+  href: "/admin/partner-network",
+  icon: "◎",
+  permission: "vendor.manage"
+};
 
 const ICECAT_NAV_LINK: WorkspaceNavLink = {
   label: "Icecat",
@@ -78,7 +86,10 @@ export function canAccessAdminNavLink(principal: SessionPrincipal, link: Workspa
 
 function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<WorkspaceNavLink>): ReadonlyArray<WorkspaceNavLink> {
   if (group.href === "/admin/partners") {
-    return links.map((link) => {
+    const partnerLinks = links.some((link) => link.href === PARTNER_NETWORK_NAV_LINK.href)
+      ? [...links]
+      : [...links, PARTNER_NETWORK_NAV_LINK];
+    return partnerLinks.map((link) => {
       if (PARTNER_PRIMARY_ROUTES.has(link.href)) return { ...link, contextHidden: false };
       if (PARTNER_DRILLDOWN_ROUTES.has(link.href)) return { ...link, contextHidden: true };
       return link;
@@ -156,6 +167,7 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal, attenti
 }
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
+  if (href === PARTNER_NETWORK_NAV_LINK.href) return canAccessAdminNavLink(principal, PARTNER_NETWORK_NAV_LINK);
   if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
   if (href === STRUCTURE_NAV_LINK.href) return canAccessAdminNavLink(principal, STRUCTURE_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);
