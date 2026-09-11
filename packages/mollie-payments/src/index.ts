@@ -9,6 +9,30 @@ export type MollieConfig = Readonly<{
 }>;
 
 export type MolliePaymentStatus = "open" | "pending" | "authorized" | "paid" | "failed" | "expired" | "canceled";
+export type MolliePaymentMethod = "creditcard" | "klarna";
+export type MollieCaptureMode = "automatic" | "manual";
+
+export type MollieAddress = Readonly<{
+  givenName: string;
+  familyName: string;
+  streetAndNumber: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  email?: string;
+  phone?: string;
+}>;
+
+export type MolliePaymentLine = Readonly<{
+  type: "physical" | "digital" | "shipping_fee" | "discount" | "surcharge";
+  description: string;
+  quantity: number;
+  unitPriceMinor: number;
+  totalAmountMinor: number;
+  vatRate: string;
+  vatAmountMinor: number;
+  sku?: string;
+}>;
 
 export type MolliePayment = Readonly<{
   paymentId: string;
@@ -32,6 +56,14 @@ export type MollieCreatedPayment = Readonly<{
   checkoutUrl: string;
 }>;
 
+export type MollieCapture = Readonly<{
+  captureId: string;
+  paymentId: string;
+  status: string;
+  amountMinor: number;
+  amountCurrency: string;
+}>;
+
 export type MollieRefund = Readonly<{
   refundId: string;
   paymentId: string;
@@ -44,6 +76,7 @@ export type MollieFetch = typeof fetch;
 
 const DEFAULT_API_BASE_URL = "https://api.mollie.com/v2";
 const PAYMENT_ID = /^tr_[A-Za-z0-9]+$/;
+const CAPTURE_ID = /^cpt_[A-Za-z0-9]+$/;
 const REFUND_ID = /^re_[A-Za-z0-9]+$/;
 const PROFILE_ID = /^pfl_[A-Za-z0-9]+$/;
 const API_KEY = /^(test|live)_[A-Za-z0-9]+$/;
@@ -140,6 +173,11 @@ export class MolliePaymentsClient {
     webhookUrl: string;
     cancelUrl?: string;
     locale?: string;
+    method?: MolliePaymentMethod;
+    captureMode?: MollieCaptureMode;
+    lines?: readonly MolliePaymentLine[];
+    billingAddress?: MollieAddress;
+    shippingAddress?: MollieAddress;
     metadata?: Record<string, unknown>;
   }): Promise<MollieCreatedPayment> {
     assertPositiveMinor(input.amountMinor, "Payment amount");
@@ -152,6 +190,8 @@ export class MolliePaymentsClient {
     assertHttpUrl(input.redirectUrl, "redirectUrl");
     assertHttpUrl(input.webhookUrl, "webhookUrl");
     if (input.cancelUrl) assertHttpUrl(input.cancelUrl, "cancelUrl");
+    if (input.method === "klarna" && (!input.lines || input.lines.length === 0)) throw new Error("Klarna payments require order lines");
+    if (input.method === "klarna" && !input.billingAddress) throw new Error("Klarna payments require a billing address");
 
     const body: Record<string, unknown> = {
       amount: { currency: "EUR", value: minorToMollieValue(input.amountMinor) },
@@ -165,6 +205,11 @@ export class MolliePaymentsClient {
     if (this.#accessTokenTestMode()) body.testmode = true;
     if (input.cancelUrl) body.cancelUrl = input.cancelUrl;
     if (input.locale) body.locale = bounded(input.locale, 16);
+    if (input.method) body.method = input.method;
+    if (input.captureMode) body.captureMode = input.captureMode;
+    if (input.billingAddress) body.billingAddress = serializeAddress(input.billingAddress, "billingAddress");
+    if (input.shippingAddress) body.shippingAddress = serializeAddress(input.shippingAddress, "shippingAddress");
+    if (input.lines) body.lines = input.lines.map(serializeLine);
 
     const payload = await this.#jsonRequest(`${this.#config.apiBaseUrl}/payments`, {
       method: "POST",
@@ -180,6 +225,21 @@ export class MolliePaymentsClient {
     assertPaymentId(paymentId);
     const payload = await this.#jsonRequest(this.#accessTokenModeUrl(`${this.#config.apiBaseUrl}/payments/${encodeURIComponent(paymentId)}`), { method: "GET" });
     return parsePayment(payload);
+  }
+
+  async createCapture(input: { paymentId: string; amountMinor?: number; description?: string; metadata?: Record<string, unknown> }): Promise<MollieCapture> {
+    assertPaymentId(input.paymentId);
+    if (input.amountMinor !== undefined) assertPositiveMinor(input.amountMinor, "Capture amount");
+    const body: Record<string, unknown> = {};
+    if (input.amountMinor !== undefined) body.amount = { currency: "EUR", value: minorToMollieValue(input.amountMinor) };
+    if (input.description) body.description = bounded(input.description, 255);
+    if (input.metadata) body.metadata = input.metadata;
+    if (this.#accessTokenTestMode()) body.testmode = true;
+    const payload = await this.#jsonRequest(
+      `${this.#config.apiBaseUrl}/payments/${encodeURIComponent(input.paymentId)}/captures`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
+    );
+    return parseCapture(payload, input.paymentId);
   }
 
   async refund(input: { paymentId: string; amountMinor: number; description?: string; metadata?: Record<string, unknown> }): Promise<MollieRefund> {
@@ -309,7 +369,7 @@ export function parseMollieWebhookBody(raw: string): string {
 
 export function minorToMollieValue(amountMinor: number): string {
   assertPositiveMinor(amountMinor, "Amount");
-  return `${Math.floor(amountMinor / 100)}.${String(amountMinor % 100).padStart(2, "0")}`;
+  return minorToSignedMollieValue(amountMinor);
 }
 
 export function mollieValueToMinor(value: unknown, label = "Mollie amount"): number {
@@ -318,6 +378,50 @@ export function mollieValueToMinor(value: unknown, label = "Mollie amount"): num
   const parsed = Number(major) * 100 + Number(minor);
   if (!Number.isSafeInteger(parsed)) throw new Error(`${label} is too large`);
   return parsed;
+}
+
+function minorToSignedMollieValue(amountMinor: number): string {
+  if (!Number.isSafeInteger(amountMinor)) throw new Error("Amount must be an integer in minor units");
+  const sign = amountMinor < 0 ? "-" : "";
+  const absolute = Math.abs(amountMinor);
+  return `${sign}${Math.floor(absolute / 100)}.${String(absolute % 100).padStart(2, "0")}`;
+}
+
+function serializeAddress(address: MollieAddress, label: string): Record<string, string> {
+  const required = {
+    givenName: bounded(address.givenName, 100),
+    familyName: bounded(address.familyName, 100),
+    streetAndNumber: bounded(address.streetAndNumber, 255),
+    postalCode: bounded(address.postalCode, 32),
+    city: bounded(address.city, 128),
+    country: bounded(address.country.toUpperCase(), 2)
+  };
+  for (const [key, value] of Object.entries(required)) if (!value) throw new Error(`${label}.${key} is required`);
+  const result: Record<string, string> = required;
+  if (address.email?.trim()) result.email = bounded(address.email, 254);
+  if (address.phone?.trim()) result.phone = bounded(address.phone, 32);
+  return result;
+}
+
+function serializeLine(line: MolliePaymentLine): Record<string, unknown> {
+  if (!Number.isSafeInteger(line.quantity) || line.quantity <= 0) throw new Error("Mollie line quantity must be a positive integer");
+  if (!Number.isSafeInteger(line.unitPriceMinor)) throw new Error("Mollie line unit price must be an integer in minor units");
+  if (!Number.isSafeInteger(line.totalAmountMinor)) throw new Error("Mollie line total must be an integer in minor units");
+  if (!Number.isSafeInteger(line.vatAmountMinor)) throw new Error("Mollie line VAT amount must be an integer in minor units");
+  if (!/^\d+(\.\d{1,2})?$/.test(line.vatRate)) throw new Error("Mollie line VAT rate is invalid");
+  const description = bounded(line.description, 255);
+  if (!description) throw new Error("Mollie line description is required");
+  const result: Record<string, unknown> = {
+    type: line.type,
+    description,
+    quantity: line.quantity,
+    unitPrice: { currency: "EUR", value: minorToSignedMollieValue(line.unitPriceMinor) },
+    totalAmount: { currency: "EUR", value: minorToSignedMollieValue(line.totalAmountMinor) },
+    vatRate: line.vatRate,
+    vatAmount: { currency: "EUR", value: minorToSignedMollieValue(line.vatAmountMinor) }
+  };
+  if (line.sku?.trim()) result.sku = bounded(line.sku, 100);
+  return result;
 }
 
 function parsePayment(payload: Record<string, unknown>): MolliePayment {
@@ -345,6 +449,21 @@ function parsePayment(payload: Record<string, unknown>): MolliePayment {
     redirectUrl: linkHref(links.redirectUrl) ?? optionalText(payload.redirectUrl),
     webhookUrl: linkHref(links.webhookUrl) ?? optionalText(payload.webhookUrl),
     metadata
+  };
+}
+
+function parseCapture(payload: Record<string, unknown>, expectedPaymentId: string): MollieCapture {
+  const captureId = text(payload.id, "Mollie capture id");
+  assertCaptureId(captureId);
+  const paymentId = optionalText(payload.paymentId) ?? expectedPaymentId;
+  if (paymentId !== expectedPaymentId) throw new Error("Mollie capture payment id did not match the requested payment");
+  const amount = object(payload.amount, "Mollie capture amount");
+  return {
+    captureId,
+    paymentId,
+    status: optionalText(payload.status) ?? "pending",
+    amountMinor: mollieValueToMinor(amount.value, "Mollie capture amount value"),
+    amountCurrency: text(amount.currency, "Mollie capture amount currency")
   };
 }
 
@@ -380,6 +499,7 @@ function parsePaymentStatus(value: unknown): MolliePaymentStatus {
   throw new Error("Mollie payment status is unsupported");
 }
 function assertPaymentId(value: string): void { if (!PAYMENT_ID.test(value)) throw new Error("Invalid Mollie payment id"); }
+function assertCaptureId(value: string): void { if (!CAPTURE_ID.test(value)) throw new Error("Invalid Mollie capture id"); }
 function assertRefundId(value: string): void { if (!REFUND_ID.test(value)) throw new Error("Invalid Mollie refund id"); }
 function assertPositiveMinor(value: number, label: string): void { if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer in minor units`); }
 function assertHttpUrl(value: string, label: string): void { const parsed = new URL(value); if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error(`${label} must use HTTP or HTTPS`); }
