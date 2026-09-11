@@ -78,7 +78,8 @@ async function postgresCatalogueDashboard(
             FROM catalog_canonicalization_reviews r
             JOIN markets m ON m.id = r.market_id
            WHERE m.code = 'sparta'
-             AND r.status NOT IN ('resolved', 'rejected', 'dismissed', 'closed')) AS open_exceptions,
+             AND r.status = 'open'
+             AND r.reason_code IN ('canonical_identity_ambiguous', 'material_variant_conflict')) AS open_exceptions,
          (SELECT COUNT(*)::int
             FROM catalog_sources s
             JOIN markets m ON m.id = s.market_id
