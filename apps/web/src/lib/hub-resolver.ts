@@ -40,6 +40,7 @@ export const RESERVED_HUB_ROUTE_SEGMENTS = new Set([
   "manifest.webmanifest",
   "order",
   "orders",
+  "partner",
   "privacy",
   "product",
   "products",
