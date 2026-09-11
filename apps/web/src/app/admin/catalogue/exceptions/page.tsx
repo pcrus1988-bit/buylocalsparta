@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import {
   WorkspaceEmptyState,
   WorkspaceMetricStrip,
@@ -73,7 +74,7 @@ export default async function Page({
   };
 
   return <main className="vendor-app admin-app admin-catalogue-exceptions">
-    <AdminHeader csrfToken={data.csrfToken} />
+    <AdminWorkspaceHeader csrfToken={data.csrfToken} />
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
@@ -143,9 +144,4 @@ export default async function Page({
       </div>}
     </section>
   </main>;
-}
-
-function AdminHeader({ csrfToken }: { csrfToken: string }) {
-  const Header = require("../../../../components/AdminWorkspaceHeader").AdminWorkspaceHeader as typeof import("../../../../components/AdminWorkspaceHeader").AdminWorkspaceHeader;
-  return <Header csrfToken={csrfToken} />;
 }
