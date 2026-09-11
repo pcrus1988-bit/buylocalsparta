@@ -277,10 +277,12 @@ export async function adminResolveCatalogueException(
              csp.source_identity->>'ean',
              csp.source_identity->>'upc',
              csp.source_identity->>'isbn13',
+             csp.source_identity->>'isbn',
              csp.normalized_payload->>'gtin',
              csp.normalized_payload->>'ean',
              csp.normalized_payload->>'upc',
-             csp.normalized_payload->>'isbn13'
+             csp.normalized_payload->>'isbn13',
+             csp.normalized_payload->>'isbn'
            )), '') AS raw_gtin,
            NULLIF(btrim(COALESCE(
              csp.source_identity->>'isbn10',
