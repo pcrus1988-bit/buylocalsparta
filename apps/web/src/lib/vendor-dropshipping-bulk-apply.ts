@@ -44,9 +44,10 @@ async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
  * database trigger also updates merchant_visibility_updated_at for automated
  * changes, the timestamp alone is intentionally not used as provenance.
  *
- * When a manual override exists, the last audited vendor_dashboard product event
- * is used as its intended value. Hard safety still wins: unapproved/inactive or
- * suppressed/recalled canonicals remain hidden regardless of an override.
+ * Safe supplier-linked draft offers can be self-approved by the dedicated
+ * dropshipping vendor when the supplier default is public. Marketplace
+ * moderation states and archived submissions stay authoritative, and inactive,
+ * suppressed or recalled supplier products remain hidden regardless of defaults.
  */
 export async function applyDropshippingSupplierDefaultsSequential(
   vendorIdentity: string,
@@ -105,17 +106,44 @@ export async function applyDropshippingSupplierDefaultsSequential(
 
     const changed = await client.query(`
       UPDATE vendor_offers vo
-         SET customer_price_minor=GREATEST(
+         SET status=CASE
+               WHEN vo.status='draft'
+                 AND $6::boolean
+                 AND dso.active
+                 AND cv.active
+                 AND NOT cv.suppressed
+                 AND NOT cv.recalled
+                 AND NOT EXISTS (
+                   SELECT 1
+                     FROM vendor_product_submissions s
+                    WHERE s.vendor_id=vo.vendor_id
+                      AND s.canonical_variant_id=vo.canonical_variant_id
+                      AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                      AND s.status='archived'
+                 )
+               THEN 'approved'::public.offer_status
+               ELSE vo.status
+             END,
+             customer_price_minor=GREATEST(
                dso.supplier_cost_minor,
                calc.after_markup_minor - ROUND(calc.after_markup_minor * $4::numeric / 100)::bigint
              ),
              show_msrp=$5,
              merchant_visible=CASE
-               WHEN vo.status <> 'approved'
+               WHEN vo.status NOT IN ('draft','approved')
                  OR NOT dso.active
                  OR NOT cv.active
                  OR cv.suppressed
-                 OR cv.recalled THEN false
+                 OR cv.recalled
+                 OR EXISTS (
+                   SELECT 1
+                     FROM vendor_product_submissions s
+                    WHERE s.vendor_id=vo.vendor_id
+                      AND s.canonical_variant_id=vo.canonical_variant_id
+                      AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                      AND s.status='archived'
+                 ) THEN false
+               WHEN vo.status='draft' AND NOT $6::boolean THEN false
                WHEN vo.merchant_visibility_updated_by IS NOT NULL THEN COALESCE((
                  SELECT e.visible
                    FROM vendor_catalog_visibility_events e
@@ -129,6 +157,17 @@ export async function applyDropshippingSupplierDefaultsSequential(
                ),vo.merchant_visible)
                ELSE $6
              END,
+             merchant_pause_active=CASE
+               WHEN $6::boolean
+                 AND vo.status IN ('draft','approved')
+                 AND dso.active
+                 AND cv.active
+                 AND NOT cv.suppressed
+                 AND NOT cv.recalled
+               THEN false
+               ELSE vo.merchant_pause_active
+             END,
+             merchant_visibility_updated_at=now(),
              updated_at=now()
         FROM dropship_supplier_offers dso
         CROSS JOIN LATERAL (
@@ -141,7 +180,7 @@ export async function applyDropshippingSupplierDefaultsSequential(
          AND dso.supplier_id=$1::uuid
          AND vo.vendor_id=$2::uuid
          AND dso.supplier_cost_minor IS NOT NULL
-      RETURNING vo.id,vo.merchant_visible,(vo.merchant_visibility_updated_by IS NOT NULL) visibility_overridden
+      RETURNING vo.id,vo.status::text status,vo.merchant_visible,(vo.merchant_visibility_updated_by IS NOT NULL) visibility_overridden
     `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent, defaults.showMsrp, defaults.visible]);
 
     await client.query("COMMIT");
