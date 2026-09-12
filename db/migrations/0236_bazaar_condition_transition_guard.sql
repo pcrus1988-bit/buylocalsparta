@@ -157,5 +157,68 @@ ON public.catalog_source_products
 FOR EACH ROW
 EXECUTE FUNCTION bls_private.catalog_nova_retire_channel_transition();
 
+-- A deployment can briefly have the new database migration active while an older
+-- materializer process is still draining work. Prevent that older process from
+-- recreating a live supplier identity against a canonical in the wrong channel.
+-- The rejected vendor offer remains an unpublished draft; the channel-aware
+-- materializer can subsequently create the correct supplier offer safely.
+CREATE OR REPLACE FUNCTION bls_private.catalog_nova_supplier_offer_channel_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, bls_private
+AS $$
+DECLARE
+  supplier_code text;
+  target_channel text;
+  offer_channel text;
+BEGIN
+  SELECT ds.code
+  INTO supplier_code
+  FROM public.dropship_suppliers ds
+  WHERE ds.id = NEW.supplier_id;
+
+  IF supplier_code IS DISTINCT FROM 'nova_brandsgateway' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT bls_private.catalog_nova_commerce_channel(csp.normalized_payload)
+  INTO target_channel
+  FROM public.catalog_source_products csp
+  WHERE csp.id = NEW.source_product_id;
+
+  IF target_channel IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(cv.commerce_channel, 'normal')
+  INTO offer_channel
+  FROM public.vendor_offers vo
+  JOIN public.canonical_variants cv ON cv.id = vo.canonical_variant_id
+  WHERE vo.id = NEW.vendor_offer_id;
+
+  IF offer_channel IS NULL OR offer_channel <> target_channel THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '23514',
+      MESSAGE = 'NOVA supplier offer commerce channel does not match supplier evidence',
+      DETAIL = format('supplier=%s source_product=%s target_channel=%s offer_channel=%s', NEW.supplier_id, NEW.source_product_id, target_channel, COALESCE(offer_channel, '<missing>'));
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS catalog_nova_supplier_offer_channel_guard
+  ON public.dropship_supplier_offers;
+
+CREATE TRIGGER catalog_nova_supplier_offer_channel_guard
+BEFORE INSERT OR UPDATE OF supplier_id, vendor_offer_id, source_product_id
+ON public.dropship_supplier_offers
+FOR EACH ROW
+EXECUTE FUNCTION bls_private.catalog_nova_supplier_offer_channel_guard();
+
 COMMENT ON FUNCTION bls_private.catalog_nova_retire_channel_transition() IS
   'Fail-closed NOVA condition transition guard. On newly appended immutable supplier evidence, retires the old supplier identity and hides its vendor offer when a SKU crosses normal/BAZAAR channel boundaries, preserving fulfilment history and allowing the materializer to recreate the live identity in the target channel.';
+
+COMMENT ON FUNCTION bls_private.catalog_nova_supplier_offer_channel_guard() IS
+  'Database invariant preventing NOVA supplier offers from linking supplier evidence to a canonical in the wrong commerce channel, including during rolling deployments.';
