@@ -83,6 +83,18 @@ function roundPercent(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Monetary calculations use floating-point rates, so a mathematically exact minor-unit
+ * result can arrive as e.g. 2560.0000000000005. Snap values that are effectively an
+ * integer before applying the conservative ceiling; otherwise exact-cent targets gain
+ * a phantom cent and diagnostics become non-deterministic across runtimes.
+ */
+function ceilMinor(value: number): number {
+  const nearest = Math.round(value);
+  const tolerance = Number.EPSILON * Math.max(1, Math.abs(value)) * 16;
+  return Math.abs(value - nearest) <= tolerance ? nearest : Math.ceil(value);
+}
+
 function normalizeText(value: string | null | undefined): string {
   return String(value ?? "")
     .normalize("NFD")
@@ -144,7 +156,7 @@ export function novaBrandsGatewayCategoryShippingMinor(
  */
 export function roundNovaBrandsGatewaySellingPriceMinor(value: number): number {
   if (!Number.isFinite(value) || value <= 0) return 0;
-  const minor = Math.ceil(value);
+  const minor = ceilMinor(value);
   const block = Math.floor(minor / 1_000) * 1_000;
   const remainder = minor - block;
   return remainder <= 490 ? block + 490 : block + 990;
@@ -243,7 +255,7 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
     (landedCostMinor + config.minimumProfitMinor) / (1 - config.transactionRate),
     landedCostMinor / (1 - config.transactionRate - config.targetMarginRate)
   );
-  const unroundedSellingPriceMinor = Math.ceil(protectedPriceNetMinor * (1 + config.vatRate));
+  const unroundedSellingPriceMinor = ceilMinor(protectedPriceNetMinor * (1 + config.vatRate));
   const recommendedSellingPriceMinor = roundNovaBrandsGatewaySellingPriceMinor(unroundedSellingPriceMinor);
   const recommendedMarkupPercent = roundPercent(((recommendedSellingPriceMinor / supplierCostMinor) - 1) * 100);
   const profit = calculateNovaBrandsGatewayProfit({
