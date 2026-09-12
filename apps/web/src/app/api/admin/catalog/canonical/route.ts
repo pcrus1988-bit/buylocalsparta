@@ -5,7 +5,7 @@ import { adminCreateCanonicalIdentity } from "../../../../../lib/admin-canonical
 export async function POST(request: Request) {
   try {
     const principal = await requireAdminSession(request, {
-      csrf: true,
+      csrf:true,
       permission: "catalog.write"
     });
     const body = await request.json() as Record<string, unknown>;
