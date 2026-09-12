@@ -35,6 +35,71 @@ function textValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function decodeHtmlEntity(entity: string): string {
+  const normalized = entity.toLowerCase();
+  if (normalized.startsWith("#x")) {
+    const codePoint = Number.parseInt(normalized.slice(2), 16);
+    return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+      ? String.fromCodePoint(codePoint)
+      : `&${entity};`;
+  }
+  if (normalized.startsWith("#")) {
+    const codePoint = Number.parseInt(normalized.slice(1), 10);
+    return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+      ? String.fromCodePoint(codePoint)
+      : `&${entity};`;
+  }
+  const named: Readonly<Record<string, string>> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    hellip: "…",
+    laquo: "«",
+    ldquo: "“",
+    lsquo: "‘",
+    lt: "<",
+    mdash: "—",
+    nbsp: " ",
+    ndash: "–",
+    quot: "\"",
+    raquo: "»",
+    rdquo: "”",
+    rsquo: "’"
+  };
+  return named[normalized] ?? `&${entity};`;
+}
+
+/**
+ * Supplier catalogues such as NOVA / BrandsGateway can provide descriptions as
+ * HTML. The storefront intentionally renders descriptions as React text instead
+ * of raw HTML, so normalize the small amount of presentation markup into safe
+ * plain text while preserving paragraphs, line breaks and list items.
+ *
+ * This keeps the immutable supplier payload untouched and prevents supplier HTML
+ * from becoming executable storefront markup.
+ */
+function publicDescriptionText(value: unknown): string | undefined {
+  const raw = textValue(value);
+  if (!raw) return undefined;
+
+  const normalized = raw
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<\s*(script|style)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, " ")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*li\b[^>]*>/gi, "• ")
+    .replace(/<\s*\/\s*(?:p|div|li|ul|ol|blockquote|h[1-6])\s*>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);/gi, (_match, entity: string) => decodeHtmlEntity(entity))
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return normalized || undefined;
+}
+
 function stringArray(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.map(textValue).filter((entry): entry is string => Boolean(entry)) : [];
 }
@@ -100,7 +165,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       id: row.id,
       gtin: textValue(row.gtin),
       mpn: textValue(row.mpn),
-      description: textValue(row.description),
+      description: publicDescriptionText(row.description),
       brand: textValue(row.brand) ?? textValue(specifications.brand),
       color: textValue(specifications.color) ?? textValue(attributes.color),
       sizes,
