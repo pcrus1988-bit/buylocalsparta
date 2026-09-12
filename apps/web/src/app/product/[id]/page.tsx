@@ -29,6 +29,7 @@ import { getPublicProductVariantOptions } from "../../../lib/public-product-vari
 import { approvedCatalogImageGallery } from "../../../lib/public-product-media-gallery";
 import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "../../../lib/product-presentation-guards";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
+import { getPublicDropshipPresentation } from "../../../lib/public-dropship-presentation";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -194,13 +195,25 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     getSeoEntityOverridesSnapshot()
   ]);
   if (!product) return { title: "Προϊόν" };
-  const detail = await getPublicProductDetail(product.id);
+  const [detail, dropshipPresentation] = await Promise.all([
+    getPublicProductDetail(product.id),
+    getPublicDropshipPresentation(product.id, null)
+  ]);
   const displayTitle = publicCatalogueTitleLabel(product.title);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
+  const metadataTechnicalAttributes = dropshipPresentation?.fields.technicalAttributes === false
+    ? []
+    : customerTechnicalAttributes(technicalAttributes).filter((attribute) => {
+        const key = normalizedTechnicalKey(attribute.key);
+        if (dropshipPresentation?.fields.model === false && key === "model") return false;
+        if (dropshipPresentation?.fields.mpn === false && (key === "mpn" || key === "manufacturer_code")) return false;
+        if (dropshipPresentation?.fields.gtin === false && (key === "gtin" || key === "ean" || key === "barcode")) return false;
+        return true;
+      });
   const displayDescription = productDisplayDescription({
     canonicalDescription: product.description,
     sourceDescription: detail?.description,
-    technicalAttributes: customerTechnicalAttributes(technicalAttributes)
+    technicalAttributes: metadataTechnicalAttributes
   });
   const quality = productIndexEligibility(product);
   const description = productSeoDescription({ title: displayTitle, description: displayDescription });
@@ -245,11 +258,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
 
   const displayTitle = publicCatalogueTitleLabel(product.title);
-  const [detail, approvedGallery, variantOptions] = await Promise.all([
+  const [detail, approvedGallery, variantOptions, dropshipPresentation] = await Promise.all([
     getPublicProductDetail(product.id),
     approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId }),
-    getPublicProductVariantOptions(product.id)
+    getPublicProductVariantOptions(product.id),
+    getPublicDropshipPresentation(product.id, product.vendorId)
   ]);
+  const publicFields = dropshipPresentation?.fields;
   const mediaGallery = approvedGallery.length
     ? approvedGallery
     : product.mediaId
@@ -263,17 +278,31 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const suitability = await getPublicProductSuitability(product.id, technicalAttributes);
-  const storefrontTechnicalAttributes = customerTechnicalAttributes(technicalAttributes);
+  const storefrontTechnicalAttributes = publicFields?.technicalAttributes === false
+    ? []
+    : customerTechnicalAttributes(technicalAttributes).filter((attribute) => {
+        const key = normalizedTechnicalKey(attribute.key);
+        if (publicFields?.model === false && key === "model") return false;
+        if (publicFields?.mpn === false && (key === "mpn" || key === "manufacturer_code")) return false;
+        if (publicFields?.gtin === false && (key === "gtin" || key === "ean" || key === "barcode")) return false;
+        return true;
+      });
   const packagingAttributes = storefrontTechnicalAttributes.filter(isPackagingAttribute);
   const displayBrand = product.brand ?? detail?.brand;
-  const displayGtin = product.gtin ?? detail?.sourceGtin;
+  const displayModel = publicFields?.model === false ? undefined : detail?.model;
+  const displayMpn = publicFields?.mpn === false ? undefined : product.mpn;
+  const displayGtin = publicFields?.gtin === false ? undefined : product.gtin ?? detail?.sourceGtin;
+  const legacySupplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
+  const displaySupplierSku = dropshipPresentation
+    ? publicFields?.supplierSku === true ? (dropshipPresentation.supplierSku ?? legacySupplierCode) : undefined
+    : legacySupplierCode;
   const displayPrice = publicCatalogPriceLabel(product);
   const displayColor = product.color ? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
   const meaningfulSizes = product.sizes.filter((size) => !isMeaninglessSize(size));
   const explicitTechnicalKeys = new Set([
     displayBrand ? "brand" : "",
-    detail?.model ? "model" : "",
-    product.mpn ? "mpn" : "",
+    displayModel ? "model" : "",
+    displayMpn ? "mpn" : "",
     displayGtin ? "gtin" : "",
     displayGtin ? "ean" : "",
     displayGtin ? "barcode" : "",
@@ -293,13 +322,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
     sourceDescription: detail?.description,
     technicalAttributes: storefrontTechnicalAttributes
   });
-  const supplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
   const manualUrl = plausibleProductManualUrl(detail?.manualUrl);
   const technicalRows = [
     displayBrand ? { key: "brand", label: "Μάρκα", value: displayBrand } : undefined,
-    detail?.model ? { key: "model", label: "Μοντέλο", value: detail.model } : undefined,
-    product.mpn ? { key: "mpn", label: "Κωδικός κατασκευαστή", value: product.mpn } : undefined,
+    displayModel ? { key: "model", label: "Μοντέλο", value: displayModel } : undefined,
+    displayMpn ? { key: "mpn", label: "Κωδικός κατασκευαστή", value: displayMpn } : undefined,
     displayGtin ? { key: "gtin", label: "GTIN / EAN", value: displayGtin } : undefined,
+    dropshipPresentation && displaySupplierSku ? { key: "supplier-sku", label: "Supplier SKU", value: displaySupplierSku } : undefined,
     product.categoryLabel ? { key: "category", label: "Κατηγορία", value: product.categoryLabel } : undefined,
     displayColor ? { key: "color", label: "Χρώμα", value: displayColor } : undefined,
     meaningfulSizes.length ? { key: "size", label: "Μέγεθος", value: meaningfulSizes.join(" · ") } : undefined,
@@ -366,10 +395,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
         mainEntityOfPage: productUrl,
         name: displayTitle,
         description: productSeoDescription({ title: displayTitle, description: displayDescription }),
-        sku: product.mpn ?? supplierCode,
-        mpn: product.mpn,
-        ...gtinSchema(product.gtin),
-        ...(!product.gtin ? gtinSchema(detail?.sourceGtin) : {}),
+        sku: displayMpn ?? displaySupplierSku,
+        mpn: displayMpn,
+        ...gtinSchema(displayGtin),
         brand: displayBrand ? { "@type": "Brand", name: displayBrand } : undefined,
         image: structuredImages,
         category: product.categoryLabel ?? category.label,
@@ -438,7 +466,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 available: product.available,
                 imageUrl: cartImageUrl,
                 imageAlt: primaryImage?.altText ?? displayTitle,
-                sku: product.mpn ?? supplierCode,
+                sku: displayMpn ?? displaySupplierSku,
                 gtin: displayGtin,
                 color: displayColor,
                 size: meaningfulSizes.length === 1 ? meaningfulSizes[0] : undefined
