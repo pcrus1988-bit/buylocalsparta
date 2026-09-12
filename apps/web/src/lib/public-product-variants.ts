@@ -89,6 +89,23 @@ const VARIANT_DIMENSIONS: readonly VariantDimension[] = [
   { key: "σχεδιο", label: "Σχέδιο", kind: "style" }
 ] as const;
 
+const NOVA_SIZE_KEYS = new Set([
+  "italian size men",
+  "italian size women",
+  "shoe size men",
+  "shoe size women",
+  "shoe size",
+  "waist size",
+  "belt size",
+  "waist length size",
+  "hat size",
+  "swimwear sleepwear size",
+  "earrings size",
+  "bracelets size",
+  "gloves size women",
+  "ring size"
+]);
+
 const FALLBACK_LABEL_KEYS = new Set(["variant label", "variantlabel", "option label", "option", "option name"]);
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -126,7 +143,10 @@ function displayValue(value: unknown): string | undefined {
 
 function dimensionForKey(key: string): VariantDimension | undefined {
   const normalized = normalizeKey(key);
-  return VARIANT_DIMENSIONS.find((dimension) => dimension.key === normalized);
+  const direct = VARIANT_DIMENSIONS.find((dimension) => dimension.key === normalized);
+  if (direct) return direct;
+  if (NOVA_SIZE_KEYS.has(normalized)) return { key: normalized, label: "Μέγεθος", kind: "size" };
+  return undefined;
 }
 
 function colorAttribute(key: string, label: string, rawValue: string): PublicProductVariantAttribute {
@@ -227,6 +247,10 @@ function variantImage(row: VariantOptionRow): Pick<PublicProductVariantOption, "
  * product page, where the normal sticky assigned offer and exact purchase state are
  * resolved. Variant images likewise come only from already approved governed media
  * or the existing same-source image proxy.
+ *
+ * Local offers use governed inventory balances. Dropship offers use only fresh,
+ * API-authoritative supplier availability as a browsing hint; checkout still
+ * revalidates the exact supplier variant before authorisation.
  */
 export const getPublicProductVariantOptions = cache(async (
   canonicalVariantId: string
@@ -262,20 +286,51 @@ export const getPublicProductVariantOptions = cache(async (
         ON current.family_id IS NOT NULL
        AND sibling.family_id=current.family_id
       LEFT JOIN LATERAL (
-        SELECT MIN(vo.customer_price_minor)::bigint AS from_price_minor
-        FROM vendor_offers vo
-        JOIN vendor_businesses v ON v.id=vo.vendor_id
-        JOIN vendor_locations l ON l.id=vo.location_id
-        JOIN inventory_balances ib ON ib.offer_id=vo.id
-        WHERE vo.canonical_variant_id=sibling.id
-          AND vo.status='approved'
-          AND vo.customer_price_minor>0
-          AND v.status='active'
-          AND l.active=true
-          AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
-          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-          AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
-          AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>now()
+        SELECT MIN(eligible_offer.customer_price_minor)::bigint AS from_price_minor
+        FROM (
+          SELECT vo.customer_price_minor
+          FROM vendor_offers vo
+          JOIN vendor_businesses v ON v.id=vo.vendor_id
+          JOIN vendor_locations l ON l.id=vo.location_id
+          JOIN inventory_balances ib ON ib.offer_id=vo.id
+          WHERE vo.canonical_variant_id=sibling.id
+            AND vo.status='approved'
+            AND vo.merchant_visible=true
+            AND vo.merchant_pause_active=false
+            AND vo.customer_price_minor>0
+            AND v.status='active'
+            AND l.active=true
+            AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+            AND bls_private.vendor_category_effectively_visible(vo.vendor_id,sibling.category_id)
+            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+            AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+            AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>now()
+
+          UNION ALL
+
+          SELECT vo.customer_price_minor
+          FROM vendor_offers vo
+          JOIN vendor_businesses v ON v.id=vo.vendor_id
+          JOIN vendor_locations l ON l.id=vo.location_id
+          JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+          JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+          WHERE vo.canonical_variant_id=sibling.id
+            AND vo.status='approved'
+            AND vo.merchant_visible=true
+            AND vo.merchant_pause_active=false
+            AND vo.customer_price_minor>0
+            AND v.status='active'
+            AND l.active=true
+            AND dso.active=true
+            AND ds.active=true
+            AND ds.api_authoritative_availability=true
+            AND dso.cached_available=true
+            AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+            AND dso.availability_expires_at IS NOT NULL
+            AND dso.availability_expires_at>now()
+            AND bls_private.vendor_category_effectively_visible(vo.vendor_id,sibling.category_id)
+            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        ) eligible_offer
       ) eligible ON true
       LEFT JOIN LATERAL (
         SELECT pm.public_id AS media_public_id,
