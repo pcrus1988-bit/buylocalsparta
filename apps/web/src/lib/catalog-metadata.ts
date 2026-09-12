@@ -29,6 +29,15 @@ type MetadataRow = Readonly<{
   specifications: unknown;
 }>;
 
+const PRIVATE_CATALOG_ATTRIBUTE_KEYS = new Set([
+  "externalproductid",
+  "external_product_id",
+  "externalvariantid",
+  "external_variant_id",
+  "suppliercontent",
+  "supplier_content"
+]);
+
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -123,7 +132,7 @@ function scalarAttributes(value: unknown, prefix = "", depth = 0): Readonly<Reco
   const output: Record<string, string> = {};
   for (const [rawKey, rawValue] of Object.entries(record)) {
     const key = normalizeCatalogAttributeKey(rawKey);
-    if (!key) continue;
+    if (!key || PRIVATE_CATALOG_ATTRIBUTE_KEYS.has(key)) continue;
     const joinedKey = prefix ? `${prefix}_${key}` : key;
     const scalar = scalarAttributeValue(rawValue);
     if (scalar !== undefined) {
