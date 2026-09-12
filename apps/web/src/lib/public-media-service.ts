@@ -23,11 +23,18 @@ export type ApprovedVendorProfileMedia = Readonly<{
   altText?: string;
 }>;
 
-export type ApprovedPublicMediaRead = StoredObjectRead & Readonly<{
-  mediaId: string;
-  contentType: "image/jpeg" | "image/png" | "image/webp";
-  byteSize: number;
-}>;
+export type ApprovedPublicMediaRead =
+  | (StoredObjectRead & Readonly<{
+      delivery: "stored";
+      mediaId: string;
+      contentType: "image/jpeg" | "image/png" | "image/webp";
+      byteSize: number;
+    }>)
+  | Readonly<{
+      delivery: "redirect";
+      mediaId: string;
+      sourceUrl: string;
+    }>;
 
 type CatalogImageRow = SqlRow & {
   canonical_public_id: string;
@@ -37,9 +44,11 @@ type CatalogImageRow = SqlRow & {
 
 type PublicMediaRow = SqlRow & {
   media_public_id: string;
-  object_key: string;
-  content_type: string;
-  byte_size: number | string;
+  object_key?: string | null;
+  content_type?: string | null;
+  byte_size?: number | string | null;
+  source_url?: string | null;
+  source_website?: string | null;
 };
 
 type VendorImageRow = SqlRow & { vendor_public_id: string; media_public_id: string; alt_text?: string | null };
@@ -54,6 +63,10 @@ function storage(): S3ObjectStorage {
   return storageSingleton ??= new S3ObjectStorage(objectStorageConfigFromEnv(process.env));
 }
 
+function catalogMediaProjectionEnabled(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
 export function governedPublicMediaEnabled(): boolean {
   return Boolean(
     process.env.DATABASE_URL?.trim()
@@ -64,7 +77,7 @@ export function governedPublicMediaEnabled(): boolean {
 }
 
 export async function approvedCatalogImages(requests: readonly CatalogMediaRequest[]): Promise<readonly ApprovedCatalogImage[]> {
-  if (!governedPublicMediaEnabled() || requests.length === 0) return [];
+  if (!catalogMediaProjectionEnabled() || requests.length === 0) return [];
 
   const unique = new Map<string, CatalogMediaRequest>();
   for (const request of requests) {
@@ -73,10 +86,6 @@ export async function approvedCatalogImages(requests: readonly CatalogMediaReque
   }
   if (unique.size === 0) return [];
 
-  // Storefront/category pages can project far more than 250 canonical products at
-  // once. Keep each SQL projection deliberately bounded, but batch the internal
-  // server-side request instead of dropping every image when the catalogue is large.
-  // This preserves the same rights/moderation/scan gates used by product detail pages.
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
   const requested = [...unique.values()];
@@ -108,10 +117,13 @@ export async function approvedCatalogImages(requests: readonly CatalogMediaReque
         AND pm.scan_status='clean'
         AND pm.rights_status='approved'
         AND pm.moderation_status='approved'
-        AND pm.object_key IS NOT NULL
-        AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+        AND (
+          (pm.source_url IS NOT NULL AND pm.source_id IS NOT NULL)
+          OR (pm.object_key IS NOT NULL AND pm.content_type IN ('image/jpeg','image/png','image/webp'))
+        )
       ORDER BY r.canonical_variant_id,
                CASE WHEN r.preferred_vendor_id IS NOT NULL AND v.public_id=r.preferred_vendor_id THEN 0 ELSE 1 END,
+               pm.sort_order ASC,
                pm.reviewed_at DESC NULLS LAST,
                pm.created_at DESC,
                pm.public_id
@@ -206,18 +218,20 @@ export async function approvedVendorProfileMedia(vendorIds: readonly string[]): 
 }
 
 export async function readApprovedPublicMedia(mediaId: string): Promise<ApprovedPublicMediaRead | undefined> {
-  if (!governedPublicMediaEnabled()) return undefined;
+  if (!catalogMediaProjectionEnabled()) return undefined;
   if (!/^media_[A-Za-z0-9_-]{8,128}$/.test(mediaId)) return undefined;
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
   const result = await uow.withTransaction({ actorUserId: "public-media", marketId: "sparta", platformAccess: true }, (tx) => tx.query<PublicMediaRow>(`
-    SELECT eligible.media_public_id,eligible.object_key,eligible.content_type,eligible.byte_size
+    SELECT eligible.media_public_id,eligible.object_key,eligible.content_type,eligible.byte_size,eligible.source_url,eligible.source_website
     FROM (
-      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,0 AS eligibility_rank
+      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,
+             pm.source_url,cs.website AS source_website,0 AS eligibility_rank
       FROM product_media pm
       JOIN canonical_variants cv ON cv.id=pm.canonical_variant_id
       JOIN markets m ON m.id=cv.market_id
+      LEFT JOIN catalog_sources cs ON cs.id=pm.source_id
       WHERE pm.public_id=$1
         AND m.code='sparta'
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
@@ -225,10 +239,13 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
         AND pm.scan_status='clean'
         AND pm.rights_status='approved'
         AND pm.moderation_status='approved'
-        AND pm.object_key IS NOT NULL
-        AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+        AND (
+          (pm.source_url IS NOT NULL AND pm.source_id IS NOT NULL)
+          OR (pm.object_key IS NOT NULL AND pm.content_type IN ('image/jpeg','image/png','image/webp'))
+        )
       UNION ALL
-      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,1 AS eligibility_rank
+      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,
+             NULL::text AS source_url,NULL::text AS source_website,1 AS eligibility_rank
       FROM product_media pm
       JOIN vendor_profile_media vpm ON vpm.media_id=pm.id
       JOIN vendor_businesses v ON v.id=vpm.vendor_id
@@ -249,7 +266,8 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
         AND pm.object_key IS NOT NULL
         AND pm.content_type IN ('image/jpeg','image/png','image/webp')
       UNION ALL
-      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,2 AS eligibility_rank
+      SELECT pm.public_id AS media_public_id,pm.object_key,pm.content_type,pm.byte_size,
+             NULL::text AS source_url,NULL::text AS source_website,2 AS eligibility_rank
       FROM product_media pm
       JOIN vendor_businesses v ON v.id=pm.vendor_id
       JOIN markets m ON m.id=v.market_id
@@ -275,6 +293,15 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
 
   const row = result.rows[0];
   if (!row) return undefined;
+  const projectedMediaId = requiredText(row.media_public_id, "media_public_id");
+  const sourceUrl = optionalText(row.source_url);
+  if (sourceUrl) {
+    const safeUrl = sameSourceHttpsUrl(row.source_website, sourceUrl);
+    if (!safeUrl) return undefined;
+    return { delivery: "redirect", mediaId: projectedMediaId, sourceUrl: safeUrl };
+  }
+
+  if (!governedPublicMediaEnabled()) return undefined;
   const contentType = requiredText(row.content_type, "content_type");
   if (!PUBLIC_IMAGE_TYPES.has(contentType)) return undefined;
   const byteSize = safeInteger(row.byte_size, "byte_size");
@@ -286,10 +313,27 @@ export async function readApprovedPublicMedia(mediaId: string): Promise<Approved
 
   return {
     ...object,
-    mediaId: requiredText(row.media_public_id, "media_public_id"),
-    contentType: contentType as ApprovedPublicMediaRead["contentType"],
+    delivery: "stored",
+    mediaId: projectedMediaId,
+    contentType: contentType as "image/jpeg" | "image/png" | "image/webp",
     byteSize
   };
+}
+
+function sameSourceHttpsUrl(sourceWebsite: unknown, candidate: unknown): string | undefined {
+  const website = optionalText(sourceWebsite);
+  const value = optionalText(candidate);
+  if (!website || !value) return undefined;
+  try {
+    const source = new URL(website);
+    const asset = new URL(value, source);
+    if (asset.protocol !== "https:") return undefined;
+    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
+    if (normalizeHost(source.hostname) !== normalizeHost(asset.hostname)) return undefined;
+    return asset.toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function requiredText(value: unknown, label: string): string {
