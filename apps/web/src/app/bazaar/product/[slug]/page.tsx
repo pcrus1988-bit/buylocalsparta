@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
-import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { bazaarConditionLabel, bazaarSourceLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -66,6 +66,11 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
             {product.condition === "used" ? "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
           </p>
         </div>
+
+        {product.bazaarSource ? <div style={{ padding: 18, borderRadius: 18, border: "1px solid rgba(0,0,0,.16)" }}>
+          <strong>Προέλευση BAZAAR: {bazaarSourceLabel(product.bazaarSource)}</strong>
+          <p style={{ marginBottom: 0 }}>Η προέλευση καταγράφεται ξεχωριστά από τον κανονικό κατάλογο, ώστε επιστροφές, open-box, εκθεσιακά και άλλα second-life τεμάχια να παραμένουν αποκλειστικά στο BAZAAR.</p>
+        </div> : null}
 
         {product.description ? <div><h2 style={{ fontSize: "1.15rem" }}>Περιγραφή</h2><p style={{ whiteSpace: "pre-wrap" }}>{product.description}</p></div> : null}
 
