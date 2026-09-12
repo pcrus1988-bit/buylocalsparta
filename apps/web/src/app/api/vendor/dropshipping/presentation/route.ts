@@ -2,8 +2,31 @@ import { requireVendorSession } from "../../../../../lib/vendor-session";
 import {
   resetDropshippingProductPublicFields,
   saveDropshippingProductPublicFields,
-  saveDropshippingSupplierPublicFields
+  saveDropshippingSupplierPublicFields,
+  vendorDropshippingProductPublicFields,
+  vendorDropshippingSupplierPublicFields
 } from "../../../../../lib/vendor-dropshipping-presentation";
+
+export async function GET(request: Request) {
+  try {
+    const principal = await requireVendorSession(request);
+    if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+    const url = new URL(request.url);
+    const offerId = url.searchParams.get("offerId")?.trim() ?? "";
+    const supplierCode = url.searchParams.get("supplierCode")?.trim() ?? "";
+    if (offerId) {
+      const result = await vendorDropshippingProductPublicFields(principal.vendorId, offerId);
+      return Response.json({ ok: true, ...result });
+    }
+    if (supplierCode) {
+      const fields = await vendorDropshippingSupplierPublicFields(principal.vendorId, supplierCode);
+      return Response.json({ ok: true, fields });
+    }
+    throw new Error("Απαιτείται supplierCode ή offerId.");
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "dropshipping_presentation_failed" }, { status: 400 });
+  }
+}
 
 export async function PUT(request: Request) {
   try {
