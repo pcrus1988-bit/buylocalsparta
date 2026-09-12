@@ -3,6 +3,14 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { approvedCatalogImages } from "./public-media-service";
 
 export type BazaarCondition = "preloved" | "preowned_defect" | "open_box" | "new" | "refurbished" | "used";
+export type BazaarSource =
+  | "supplier_preloved"
+  | "supplier_preowned_defect"
+  | "customer_return"
+  | "open_box"
+  | "display_stock"
+  | "damaged_packaging"
+  | "admin_curated";
 
 export type BazaarCard = Readonly<{
   id: string;
@@ -12,7 +20,7 @@ export type BazaarCard = Readonly<{
   categoryCode: string;
   brand?: string;
   condition: BazaarCondition;
-  bazaarSource?: string;
+  bazaarSource?: BazaarSource;
   priceMinor: number;
   msrpMinor?: number;
   savingsPercent?: number;
@@ -42,11 +50,22 @@ type BazaarRow = Readonly<{
 export type BazaarFilters = Readonly<{
   query?: string;
   condition?: string;
+  source?: string;
   brand?: string;
   category?: string;
   limit?: number;
   slugOrId?: string;
 }>;
+
+const BAZAAR_SOURCES: readonly BazaarSource[] = [
+  "supplier_preloved",
+  "supplier_preowned_defect",
+  "customer_return",
+  "open_box",
+  "display_stock",
+  "damaged_packaging",
+  "admin_curated"
+] as const;
 
 function positiveInt(value: unknown): number | undefined {
   const parsed = Number(value);
@@ -68,6 +87,10 @@ function normalizeCondition(value: string): BazaarCondition {
     return value as BazaarCondition;
   }
   return "used";
+}
+
+function normalizeBazaarSource(value: string | null): BazaarSource | undefined {
+  return value && BAZAAR_SOURCES.includes(value as BazaarSource) ? value as BazaarSource : undefined;
 }
 
 /**
@@ -144,6 +167,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
 
   const query = normalizeSearchText(filters.query ?? "");
   const requestedCondition = normalizeSearchText(filters.condition ?? "");
+  const requestedSource = normalizeSearchText(filters.source ?? "");
   const requestedBrand = normalizeSearchText(filters.brand ?? "");
   const requestedCategory = normalizeSearchText(filters.category ?? "");
 
@@ -159,7 +183,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       categoryCode: row.category_code,
       brand: row.brand_name ?? undefined,
       condition: normalizeCondition(row.condition),
-      bazaarSource: row.bazaar_source ?? undefined,
+      bazaarSource: normalizeBazaarSource(row.bazaar_source),
       priceMinor,
       msrpMinor,
       savingsPercent: savingsPercent(msrpMinor,priceMinor),
@@ -176,10 +200,12 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       card.description ?? "",
       card.brand ?? "",
       card.categoryCode,
-      card.condition
+      card.condition,
+      card.bazaarSource ?? ""
     ].join(" ")).includes(query));
   }
   if (requestedCondition) cards = cards.filter((card) => normalizeSearchText(card.condition) === requestedCondition);
+  if (requestedSource) cards = cards.filter((card) => normalizeSearchText(card.bazaarSource ?? "") === requestedSource);
   if (requestedBrand) cards = cards.filter((card) => normalizeSearchText(card.brand ?? "") === requestedBrand);
   if (requestedCategory) cards = cards.filter((card) => normalizeSearchText(card.categoryCode) === requestedCategory);
 
@@ -218,5 +244,17 @@ export function bazaarConditionLabel(condition: BazaarCondition): string {
     case "new": return "NEW / RETURN";
     case "refurbished": return "REFURBISHED";
     case "used": return "PREOWNED";
+  }
+}
+
+export function bazaarSourceLabel(source: BazaarSource): string {
+  switch (source) {
+    case "supplier_preloved": return "Supplier Preloved";
+    case "supplier_preowned_defect": return "Supplier Preowned / Defect";
+    case "customer_return": return "Επιστροφή πελάτη";
+    case "open_box": return "Open box";
+    case "display_stock": return "Εκθεσιακό τεμάχιο";
+    case "damaged_packaging": return "Φθαρμένη συσκευασία";
+    case "admin_curated": return "Επιλεγμένο BAZAAR";
   }
 }
