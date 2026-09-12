@@ -42,6 +42,8 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- Serialize all work for one supplier parent inside the transaction. The partial
+  -- unique index above is the hard persistence guarantee.
   PERFORM pg_advisory_xact_lock(
     hashtextextended(p_supplier_id::text || ':' || p_external_product_id,0)
   );
@@ -77,6 +79,8 @@ BEGIN
       p_external_product_id,v_family_id,v_assigned_family_id;
   END IF;
 
+  -- 0233 may already have created/assigned a family. Bind that exact family to the
+  -- supplier parent rather than creating or selecting a family by model text again.
   IF v_family_id IS NULL AND v_assigned_family_id IS NOT NULL THEN
     v_family_id := v_assigned_family_id;
 
@@ -208,6 +212,8 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Fail closed on any governed detach, split parent, shared family identity, or
+-- persisted source identity disagreement.
 DO $$
 DECLARE
   unresolved_count bigint;
