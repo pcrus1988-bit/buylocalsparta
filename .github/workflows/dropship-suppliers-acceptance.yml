@@ -7,7 +7,18 @@ on:
       - 'packages/dropship-suppliers/**'
       - 'integrations/dropship-suppliers/**'
       - 'workers/nova-order-reconciliation-worker.ts'
+      - 'workers/nova-catalogue-worker.ts'
       - 'apps/web/src/lib/dropship-order-reconciliation.ts'
+      - 'apps/web/src/lib/nova-auto-pricing-runtime.ts'
+      - 'apps/web/src/lib/nova-brandsgateway-pricing.ts'
+      - 'apps/web/src/lib/nova-brandsgateway-source-category.ts'
+      - 'apps/web/src/lib/nova-catalogue-sync-runtime.ts'
+      - 'apps/web/src/lib/nova-catalogue-materializer.ts'
+      - 'apps/web/src/lib/published-dropship-storefront.ts'
+      - 'apps/web/src/lib/public-dropship-presentation.ts'
+      - 'apps/web/src/lib/dropship-presentation-policy.ts'
+      - 'apps/web/src/app/shop/page.tsx'
+      - 'apps/web/test/nova-*.test.ts'
       - 'db/migrations/0221_dropship_supplier_engine.sql'
       - 'db/migrations/0222_dropship_paid_fulfilment_safety.sql'
       - 'package.json'
@@ -18,7 +29,18 @@ on:
       - 'packages/dropship-suppliers/**'
       - 'integrations/dropship-suppliers/**'
       - 'workers/nova-order-reconciliation-worker.ts'
+      - 'workers/nova-catalogue-worker.ts'
       - 'apps/web/src/lib/dropship-order-reconciliation.ts'
+      - 'apps/web/src/lib/nova-auto-pricing-runtime.ts'
+      - 'apps/web/src/lib/nova-brandsgateway-pricing.ts'
+      - 'apps/web/src/lib/nova-brandsgateway-source-category.ts'
+      - 'apps/web/src/lib/nova-catalogue-sync-runtime.ts'
+      - 'apps/web/src/lib/nova-catalogue-materializer.ts'
+      - 'apps/web/src/lib/published-dropship-storefront.ts'
+      - 'apps/web/src/lib/public-dropship-presentation.ts'
+      - 'apps/web/src/lib/dropship-presentation-policy.ts'
+      - 'apps/web/src/app/shop/page.tsx'
+      - 'apps/web/test/nova-*.test.ts'
       - 'db/migrations/0221_dropship_supplier_engine.sql'
       - 'db/migrations/0222_dropship_paid_fulfilment_safety.sql'
       - 'package.json'
@@ -45,6 +67,8 @@ jobs:
         run: npm run typecheck:dropship-suppliers
       - name: Test production paid-fulfilment compatibility boundary
         run: node --experimental-strip-types --test integrations/dropship-suppliers/test/*.test.ts
+      - name: Test Nova web runtime safety contracts
+        run: node --experimental-strip-types --test apps/web/test/nova-*.test.ts
       - name: Typecheck production dropship runtime
         run: ./node_modules/.bin/tsc -p integrations/dropship-suppliers/tsconfig.json
       - name: Verify dropship migrations remain in the governed chain
