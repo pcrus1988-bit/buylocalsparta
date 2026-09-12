@@ -1,3 +1,4 @@
+import { assertVendorCapability, buildVendorOperatingContextFromSession } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { VendorFinanceClient } from "../../../components/VendorFinanceClient";
@@ -14,6 +15,8 @@ export const metadata: Metadata = { title: "Οικονομικά & πληρωμ�
 export default async function VendorFinancePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
+  const operatingContext = buildVendorOperatingContextFromSession(principal);
+  assertVendorCapability(operatingContext, "finance.read");
   const [finance, platformInvoices] = await Promise.all([vendorFinanceWorkspace(principal), vendorPlatformInvoices(principal)]);
   const needsInvoice = finance.procurements.some((item) => ["accrued", "matched", "disputed"].includes(item.status) && !item.invoiceNumber);
   const inReview = finance.procurements.some((item) => ["matched", "disputed"].includes(item.status));
