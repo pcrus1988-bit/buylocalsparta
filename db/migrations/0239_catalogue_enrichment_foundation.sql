@@ -32,6 +32,15 @@ CREATE TABLE public.catalogue_enrichments (
   enrichment_version integer NOT NULL DEFAULT 1 CHECK (enrichment_version > 0),
   prompt_version text,
   rules_version text NOT NULL DEFAULT 'catalogue-enrichment-v1',
+
+  generation_provider text,
+  generation_model text,
+  generation_request_id text,
+  generation_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  generation_attempt_count integer NOT NULL DEFAULT 0 CHECK (generation_attempt_count >= 0),
+  last_attempt_at timestamptz,
+  processing_lease_until timestamptz,
+
   last_error text,
   generated_at timestamptz,
   validated_at timestamptz,
@@ -46,7 +55,8 @@ CREATE TABLE public.catalogue_enrichments (
   CONSTRAINT catalogue_enrichments_fact_provenance_object CHECK (jsonb_typeof(fact_provenance)='object'),
   CONSTRAINT catalogue_enrichments_fallback_object CHECK (jsonb_typeof(deterministic_fallback)='object'),
   CONSTRAINT catalogue_enrichments_bazaar_overlay_object CHECK (jsonb_typeof(bazaar_overlay)='object'),
-  CONSTRAINT catalogue_enrichments_validation_errors_array CHECK (jsonb_typeof(validation_errors)='array')
+  CONSTRAINT catalogue_enrichments_validation_errors_array CHECK (jsonb_typeof(validation_errors)='array'),
+  CONSTRAINT catalogue_enrichments_generation_metadata_object CHECK (jsonb_typeof(generation_metadata)='object')
 );
 
 CREATE UNIQUE INDEX catalogue_enrichments_family_uidx
@@ -55,6 +65,10 @@ CREATE UNIQUE INDEX catalogue_enrichments_family_uidx
 
 CREATE INDEX catalogue_enrichments_status_idx
   ON public.catalogue_enrichments(status,updated_at);
+
+CREATE INDEX catalogue_enrichments_pending_lease_idx
+  ON public.catalogue_enrichments(status,processing_lease_until,updated_at)
+  WHERE status='pending';
 
 CREATE INDEX catalogue_enrichments_source_hash_idx
   ON public.catalogue_enrichments(source_hash);
@@ -71,6 +85,10 @@ COMMENT ON COLUMN public.catalogue_enrichments.deterministic_fallback IS
   'Safe non-AI presentation available when enrichment is pending, disabled or invalid.';
 COMMENT ON COLUMN public.catalogue_enrichments.bazaar_overlay IS
   'Condition/channel facts layered on the canonical presentation for BAZAAR; it does not replace the canonical merchandising copy.';
+COMMENT ON COLUMN public.catalogue_enrichments.processing_lease_until IS
+  'Short worker lease for generation. Expired leases are retryable; the supplier ingest pipeline never waits on this lease.';
+COMMENT ON COLUMN public.catalogue_enrichments.generation_metadata IS
+  'Non-secret generation telemetry such as token counts and validation outcome. Prompts, API keys and raw supplier payloads are not stored here.';
 
 ALTER TABLE public.catalogue_enrichments ENABLE ROW LEVEL SECURITY;
 
