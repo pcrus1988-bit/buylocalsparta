@@ -5,3 +5,4 @@ export * from "./settlement.ts";
 export * from "./fees.ts";
 
 export * from "./disputes.ts";
+export * from "./profitability.ts";
