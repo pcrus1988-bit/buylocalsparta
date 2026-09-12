@@ -3,6 +3,9 @@ import { getStorefrontSearchSuggestions } from "../../../../lib/storefront-searc
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const SEARCH_BROWSER_CACHE = "public, max-age=15";
+const SEARCH_CDN_CACHE = "max-age=60, stale-while-revalidate=300";
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const query = (url.searchParams.get("q")?.trim() || "").slice(0, 120);
@@ -17,7 +20,11 @@ export async function GET(request: Request) {
         hasResults: result.hasResults,
         provider: "postgres"
       },
-      { headers: { "Cache-Control": "public, max-age=15, s-maxage=60, stale-while-revalidate=300" } }
+      { headers: {
+        "Cache-Control": SEARCH_BROWSER_CACHE,
+        "CDN-Cache-Control": SEARCH_CDN_CACHE,
+        "Vercel-CDN-Cache-Control": SEARCH_CDN_CACHE
+      } }
     );
   } catch (error) {
     return Response.json(
