@@ -38,15 +38,15 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
       <Link href="/bazaar">← Πίσω στο BAZAAR</Link>
     </section>
 
-    <section className="shell" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.05fr) minmax(320px,.95fr)", gap: "clamp(28px,5vw,72px)", alignItems: "start", paddingBottom: 72 }}>
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#fff", borderRadius: 28, overflow: "hidden" }}>
+    <section className="shell" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: "clamp(28px,5vw,72px)", alignItems: "start", paddingBottom: 72 }}>
+      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#fff", borderRadius: 28, overflow: "hidden", minWidth: 0 }}>
         {product.savingsPercent ? <div style={{ position: "absolute", zIndex: 2, top: 18, right: 18, background: "#111", color: "#fff", borderRadius: 999, padding: "9px 13px", fontWeight: 900 }}>−{product.savingsPercent}%</div> : null}
         <img src={imageSrc} alt={product.mediaAlt ?? product.title} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 24 }} />
       </div>
 
-      <div style={{ display: "grid", gap: 18, position: "sticky", top: 24 }}>
+      <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
         <div className="eyebrow">{bazaarConditionLabel(product.condition)} · BAZAAR</div>
-        <h1 style={{ margin: 0, fontSize: "clamp(2rem,4vw,4.5rem)", lineHeight: .95, letterSpacing: "-.045em" }}>{product.title}</h1>
+        <h1 style={{ margin: 0, fontSize: "clamp(2rem,4vw,4.5rem)", lineHeight: .95, letterSpacing: "-.045em", overflowWrap: "anywhere" }}>{product.title}</h1>
         {product.brand ? <p style={{ margin: 0, fontWeight: 800, fontSize: "1.1rem" }}>{product.brand}</p> : null}
 
         <div style={{ display: "grid", gap: 4, padding: "20px 0", borderTop: "1px solid rgba(0,0,0,.16)", borderBottom: "1px solid rgba(0,0,0,.16)" }}>
