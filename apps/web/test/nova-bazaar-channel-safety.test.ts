@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { bazaarSourceLabel } from "../src/lib/bazaar-catalog.ts";
 import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 
 const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
@@ -25,6 +26,16 @@ test("canonical identity is structurally isolated by commerce channel", async ()
   assert.match(source, /ON public\.canonical_variants \(market_id, commerce_channel, slug\)/);
   assert.match(source, /commerce_channel = 'normal'/);
   assert.match(source, /condition NOT IN \('preloved', 'preowned_defect', 'open_box'\)/);
+});
+
+test("BAZAAR provenance taxonomy reserves future return, open-box and display-stock sources", async () => {
+  const source = await readFile(channelMigrationUrl, "utf8");
+  assert.match(source, /'customer_return'/);
+  assert.match(source, /'open_box'/);
+  assert.match(source, /'display_stock'/);
+  assert.match(source, /'damaged_packaging'/);
+  assert.equal(bazaarSourceLabel("customer_return"), "Επιστροφή πελάτη");
+  assert.equal(bazaarSourceLabel("display_stock"), "Εκθεσιακό τεμάχιο");
 });
 
 test("NOVA transitions preserve history and fail closed during rolling deployments", async () => {
@@ -54,4 +65,6 @@ test("BAZAAR dropship discovery uses the same fail-closed supplier and cost gate
   assert.match(source, /ds\.api_authoritative_availability=true/);
   assert.match(source, /vo\.cost_ceiling_minor IS NULL OR vo\.supplier_unit_price_minor<=vo\.cost_ceiling_minor/);
   assert.match(source, /dso\.availability_expires_at>now\(\)/);
+  assert.match(source, /requestedSource/);
+  assert.match(source, /card\.bazaarSource/);
 });
