@@ -31,7 +31,7 @@ export function VendorProductIcecatVisibilityPanel({ records }: Readonly<{ recor
         body="Μόλις δημιουργηθεί ή ανατεθεί προϊόν, η κατάσταση προέλευσης δεδομένων θα εμφανιστεί εδώ."
       /> : <WorkspaceRecordDetails label={`Προβολή κατάστασης Icecat · ${records.length.toLocaleString("el-GR")} προϊόντα`}>
         <div className="workspace-inline-note">
-          Το Icecat είναι βοηθητικό enrichment. Ένα προϊόν χωρίς σύνδεση Icecat μπορεί να συνεχίσει κανονικά στο δικό σου catalogue όταν τα εμπορικά του στοιχεία είναι έγκυρα.
+          Το Icecat είναι βοηθητικό enrichment. Ένα προϊόν χωρίς σύνδεση Icecat μπορεί να συνεχίσει κανονικά στο δικό σου catalogue όταν τα εμπορικά του στοιχεία είναι έγκυρα. Δεν αλλάζει το δικό σου SKU, την τιμή προμηθευτή/πώλησης, το φυσικό stock, την ορατότητα ή την έγκριση του offer.
         </div>
         <div className="workspace-compact-list">{records.map((record) => {
           const presentation = statusPresentation(record.status);
