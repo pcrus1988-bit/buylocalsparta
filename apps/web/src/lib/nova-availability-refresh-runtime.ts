@@ -101,7 +101,6 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
                 'refreshedAt', $6::timestamptz,
                 'refreshPolicy', 'hourly_full_sweep_2h_ttl_rate_limited'
               ),
-              last_seen_at=$6,
               updated_at=$6
           FROM public.dropship_suppliers ds
           WHERE ds.id=dso.supplier_id
