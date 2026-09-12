@@ -21,6 +21,15 @@ test("dedicated dropshipping vendor can activate and self-approve safe supplier 
   assert.doesNotMatch(source, /supplier_offer_active !== true/);
 });
 
+test("publishing a safe materialized NOVA product activates its inactive canonical", async () => {
+  const source = await readFile(actionsUrl, "utf8");
+
+  assert.match(source, /const canonicalSafetyEligible = row\.canonical_suppressed !== true\s*&& row\.canonical_recalled !== true/);
+  assert.match(source, /UPDATE canonical_variants\s+SET active=true\s+WHERE id=\$1::uuid\s+AND suppressed=false\s+AND recalled=false/);
+  assert.match(source, /'canonical_activated',\(\$3::boolean AND NOT \$8::boolean\)/);
+  assert.doesNotMatch(source, /const canonicalEligible = row\.canonical_active === true/);
+});
+
 test("product visibility route uses the dropshipping self-publish path only for the dropshipping vendor", async () => {
   const source = await readFile(visibilityRouteUrl, "utf8");
 
@@ -29,15 +38,18 @@ test("product visibility route uses the dropshipping self-publish path only for 
   assert.match(source, /setVendorProductVisibility\(principal, \{ offerId, visible: body\.visible \}\)/);
 });
 
-test("public supplier defaults activate safe supplier rows and promote drafts while moderation gates remain enforced", async () => {
+test("public supplier defaults activate safe canonicals, supplier rows and drafts while safety gates remain enforced", async () => {
   const source = await readFile(bulkApplyUrl, "utf8");
 
+  assert.match(source, /UPDATE canonical_variants cv\s+SET active=true/);
   assert.match(source, /UPDATE dropship_supplier_offers dso/);
   assert.match(source, /SET active=true/);
   assert.match(source, /vo\.status='draft'/);
   assert.match(source, /THEN 'approved'::public\.offer_status/);
   assert.match(source, /vo\.status NOT IN \('draft','approved'\)/);
   assert.match(source, /s\.status='archived'/);
+  assert.match(source, /cv\.suppressed=false/);
+  assert.match(source, /cv\.recalled=false/);
   assert.match(source, /cv\.suppressed/);
   assert.match(source, /cv\.recalled/);
 });
