@@ -4,6 +4,7 @@ import { matchesCatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { CatalogCard, CatalogFilters } from "./catalog-view";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { loadCatalogDepartmentCodes } from "./catalog-category-department";
+import { projectDropshipFamilies } from "./dropship-family-projection";
 import { parseDropshipPresentationConfig, resolveDropshipPublicFields } from "./dropship-presentation-policy";
 import { approvedCatalogImages } from "./public-media-service";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
@@ -12,6 +13,9 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 type PublishedDropshipRow = Readonly<{
   canonical_public_id: string;
+  family_id: string | null;
+  supplier_id: string;
+  external_product_id: string;
   offer_public_id: string;
   slug: string;
   title: string;
@@ -41,19 +45,20 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
 /**
  * Public browsing projection for explicitly published dropshipping offers.
  *
- * A canonical family is one customer-facing product. Supplier variants such as
- * size or colour remain separate canonical variants/offers for price, stock and
- * checkout, but browsing selects only one currently sellable representative per
- * family. Family-less staged/legacy rows fall back to their own canonical id.
+ * Supplier variants remain independent canonical variants/offers for stock, price
+ * and checkout. Browsing first evaluates category/search/facet policy per child,
+ * then collapses qualified children to one customer-facing family. Family-less
+ * staged rows use the authoritative supplier + external-product parent identity,
+ * so an incomplete backfill cannot recreate one-card-per-size duplication.
  *
  * `dropship_supplier_offers.cached_*` is deliberately used only as catalogue
  * browsing evidence. It is not a checkout/reservation authority and it must never
  * be copied into `inventory_balances`. Checkout still has to revalidate the exact
  * supplier variant against the supplier API before an order can be authorised.
  *
- * Supplier/product public-field policy is resolved inside this projection before
- * metadata is searched or returned. This prevents the browsing/search path from
- * re-exposing GTIN/MPN/technical metadata hidden through the vendor controls.
+ * Supplier/product public-field policy is resolved for each child before metadata
+ * is searched. This prevents a sibling with stricter presentation controls from
+ * leaking GTIN/MPN/technical metadata through family-level search.
  */
 export async function getPublishedDropshipCatalogCards(
   query = "",
@@ -66,8 +71,11 @@ export async function getPublishedDropshipCatalogCards(
   if (!productionDatabaseConfigured()) return [];
 
   const result = await getProductionPostgresRuntime().nativePool.query<PublishedDropshipRow>(`
-    SELECT DISTINCT ON (COALESCE(cv.family_id,cv.id))
+    SELECT DISTINCT ON (cv.id)
       cv.public_id AS canonical_public_id,
+      cv.family_id::text AS family_id,
+      dso.supplier_id::text AS supplier_id,
+      dso.external_product_id,
       vo.public_id AS offer_public_id,
       cv.slug,
       COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
@@ -108,7 +116,7 @@ export async function getPublishedDropshipCatalogCards(
       AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       AND ($1::text IS NULL OR v.public_id=$1)
       AND ($2::text IS NULL OR cv.public_id=$2)
-    ORDER BY COALESCE(cv.family_id,cv.id),vo.customer_price_minor ASC,cv.created_at ASC,cv.id,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
+    ORDER BY cv.id,vo.customer_price_minor ASC,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
   `, [vendorId ?? null, canonicalVariantId ?? null]);
 
   const base = result.rows.flatMap((row) => {
@@ -120,6 +128,9 @@ export async function getPublishedDropshipCatalogCards(
     );
     return [{
       id: row.canonical_public_id,
+      familyId: row.family_id,
+      supplierId: row.supplier_id,
+      externalProductId: row.external_product_id,
       slug: row.slug,
       title: row.title,
       categoryCode: row.category_code,
@@ -133,19 +144,25 @@ export async function getPublishedDropshipCatalogCards(
   });
   if (!base.length) return [];
 
-  const departmentCodes = await loadCatalogDepartmentCodes(base.map((record) => record.id));
-  const metadata = await loadCatalogMetadata(base.map((record) => record.id));
+  const ids = base.map((record) => record.id);
+  const departmentCodes = await loadCatalogDepartmentCodes(ids);
+  const metadata = await loadCatalogMetadata(ids);
   const normalizedQuery = normalizeSearchText(query);
 
-  const visible = base
-    .map((record) => ({ ...record, departmentCode: departmentCodes.get(record.id) }))
+  const enriched = base.map((record) => ({
+    ...record,
+    departmentCode: departmentCodes.get(record.id),
+    sizes: metadata.get(record.id)?.sizes ?? []
+  }));
+
+  const matching = enriched
     .filter((record) => categoryCodeMatches(record.categoryCode, category, record.departmentCode))
     .filter((record) => {
       const details = metadata.get(record.id);
       if (filters.subcategory && record.categoryCode !== filters.subcategory) return false;
       if (!sameFilterValue(details?.brand, filters.brand)) return false;
       if (!sameFilterValue(details?.color, filters.color)) return false;
-      if (filters.size && !(details?.sizes ?? []).some((size) => sameFilterValue(size, filters.size))) return false;
+      if (filters.size && !record.sizes.some((size) => sameFilterValue(size, filters.size))) return false;
       if (Object.keys(attributeFilters).length > 0) {
         if (record.publicFields.technicalAttributes === false) return false;
         if (!matchesCatalogAttributeFilters(details?.attributes, attributeFilters)) return false;
@@ -159,16 +176,20 @@ export async function getPublishedDropshipCatalogCards(
         record.publicFields.mpn === false ? undefined : details?.mpn,
         record.publicFields.gtin === false ? undefined : details?.gtin,
         details?.categoryLabel,
-        ...(details?.sizes ?? []),
+        ...record.sizes,
         record.publicFields.technicalAttributes === false ? undefined : details?.fit,
         record.publicFields.technicalAttributes === false ? undefined : details?.composition,
         record.publicFields.technicalAttributes === false ? undefined : details?.madeIn
       ]) > 0;
     });
+  if (!matching.length) return [];
+
+  const projections = projectDropshipFamilies(enriched, new Set(matching.map((record) => record.id)));
+  const representatives = projections.map((projection) => projection.representative);
 
   let imageByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
   try {
-    const images = await approvedCatalogImages(visible.map((record) => ({
+    const images = await approvedCatalogImages(representatives.map((record) => ({
       canonicalVariantId: record.id,
       preferredVendorId: record.vendorId
     })));
@@ -181,13 +202,22 @@ export async function getPublishedDropshipCatalogCards(
     }));
   }
 
-  return visible.map((record) => {
+  return projections.map((projection) => {
+    const record = projection.representative;
     const details = metadata.get(record.id);
     const image = imageByCanonical.get(record.id);
-    const { publicFields, ...catalogRecord } = record;
+    const {
+      publicFields,
+      familyId: _familyId,
+      supplierId: _supplierId,
+      externalProductId: _externalProductId,
+      sizes: _childSizes,
+      ...catalogRecord
+    } = record;
     const technicalAttributesVisible = publicFields.technicalAttributes !== false;
     return {
       ...catalogRecord,
+      availableToSell: projection.availableToSell,
       price: formatMoney(money(record.priceMinor)),
       categoryLabel: details?.categoryLabel,
       gtin: publicFields.gtin === false ? undefined : details?.gtin,
@@ -195,7 +225,7 @@ export async function getPublishedDropshipCatalogCards(
       description: details?.description,
       brand: details?.brand,
       color: details?.color,
-      sizes: details?.sizes ?? [],
+      sizes: projection.sizes,
       fit: technicalAttributesVisible ? details?.fit : undefined,
       composition: technicalAttributesVisible ? details?.composition : undefined,
       madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
