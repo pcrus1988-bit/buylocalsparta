@@ -13,6 +13,10 @@ type Props = Readonly<{
   showMsrp: boolean;
 }>;
 
+const euro = (minor: number | null) => minor == null
+  ? "—"
+  : new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+
 async function csrfToken(): Promise<string> {
   const response = await fetch("/api/vendor/auth-context", { cache: "no-store" });
   if (!response.ok) throw new Error("Η συνεδρία συνεργάτη έληξε.");
@@ -60,7 +64,6 @@ export function DropshippingProductControls(props: Props) {
           markupValue: Math.max(0, markup),
           discountType: discount > 0 ? "percent" : null,
           discountValue: discount > 0 ? Math.min(100, Math.max(0, discount)) : null,
-          msrpMinor: props.msrpMinor,
           showMsrp: props.showMsrp
         })
       });
@@ -119,6 +122,13 @@ export function DropshippingProductControls(props: Props) {
   }
 
   return <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+    <div className="workspace-compact-list">
+      <div className="workspace-compact-row">
+        <strong>MSRP / Προτεινόμενη λιανική</strong>
+        <span>{euro(props.msrpMinor)}</span>
+        <small>Supplier τιμή αναφοράς · διατηρείται ανεξάρτητα από markup και έκπτωση</small>
+      </div>
+    </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(110px,1fr))", gap: 8 }}>
       <label><small>Markup %</small><input type="number" min="0" max="1000" step="0.1" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
       <label><small>Έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} style={{ width: "100%" }} /></label>
