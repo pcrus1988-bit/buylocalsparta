@@ -1,10 +1,17 @@
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
 import { normalizeNovaProduct } from "../../../../integrations/dropship-suppliers/src/nova-normalize.ts";
-import { NovaV1Client, novaApiKeyFromEnvironment } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
+import {
+  NovaV1ApiError,
+  NovaV1Client,
+  novaApiKeyFromEnvironment,
+  type NovaProduct
+} from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
 const AVAILABILITY_TTL_HOURS = 2;
+const DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE = 20;
+const RATE_LIMIT_BACKOFF_MS = [5_000, 10_000, 20_000, 30_000] as const;
 
 type AvailabilityVariant = Readonly<{
   externalVariantId: string;
@@ -26,6 +33,10 @@ export type NovaAvailabilityRefreshResult = Readonly<{
  * This sweep is intentionally independent from the incremental catalogue cursor: a product
  * does not need to have changed upstream for its stock assertion to remain fresh. A successful
  * supplier fetch receives a two-hour validity window; failed fetches never extend stale stock.
+ *
+ * Production has demonstrated provider throttling below the generic client maximum, so this
+ * path deliberately uses a conservative request rate and bounded 429 backoff. A throttled
+ * product remains stale rather than being treated as available without fresh provider evidence.
  */
 export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
   const db = getProductionPostgresRuntime().sqlPool;
@@ -48,6 +59,7 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
     JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
     WHERE ds.code=$1
       AND ds.active=true
+      AND ds.api_authoritative_availability=true
       AND dso.active=true
       AND vo.status='approved'
       AND vo.merchant_visible=true
@@ -59,14 +71,17 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
     .map((row) => text(row.external_product_id))
     .filter((value): value is string => Boolean(value));
 
-  const client = new NovaV1Client({ apiKey: novaApiKeyFromEnvironment() });
+  const client = new NovaV1Client({
+    apiKey: novaApiKeyFromEnvironment(),
+    requestsPerMinute: novaAvailabilityRequestsPerMinute()
+  });
   let refreshedProducts = 0;
   let failedProducts = 0;
   let updatedOffers = 0;
 
   for (const externalProductId of productIds) {
     try {
-      const supplierProduct = await client.getProduct(storeId, externalProductId, "en");
+      const supplierProduct = await getProductWithRateLimitBackoff(client, storeId, externalProductId);
       const normalized = normalizeNovaProduct(supplierProduct, storeId);
       const variants = availabilityVariants(normalized.normalizedPayload.variants);
       if (variants.length === 0) throw new Error("Nova product returned no normalized variants");
@@ -84,12 +99,13 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
                 'productId', $2,
                 'variantId', $3,
                 'refreshedAt', $6::timestamptz,
-                'refreshPolicy', 'hourly_full_sweep_2h_ttl'
+                'refreshPolicy', 'hourly_full_sweep_2h_ttl_rate_limited'
               ),
               updated_at=$6
           FROM public.dropship_suppliers ds
           WHERE ds.id=dso.supplier_id
             AND ds.code=$1
+            AND ds.api_authoritative_availability=true
             AND dso.active=true
             AND dso.external_product_id=$2
             AND (
@@ -128,6 +144,30 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
   };
 }
 
+export function novaAvailabilityRequestsPerMinute(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number(env.BLS_NOVA_AVAILABILITY_REQUESTS_PER_MINUTE ?? DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE);
+  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 60
+    ? parsed
+    : DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE;
+}
+
+async function getProductWithRateLimitBackoff(
+  client: NovaV1Client,
+  storeId: string,
+  externalProductId: string
+): Promise<NovaProduct> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await client.getProduct(storeId, externalProductId, "en");
+    } catch (error) {
+      if (!(error instanceof NovaV1ApiError) || error.status !== 429 || attempt >= RATE_LIMIT_BACKOFF_MS.length) {
+        throw error;
+      }
+      await delay(RATE_LIMIT_BACKOFF_MS[attempt]);
+    }
+  }
+}
+
 function availabilityVariants(value: unknown): readonly AvailabilityVariant[] {
   if (!Array.isArray(value)) return [];
   const variants: AvailabilityVariant[] = [];
@@ -153,5 +193,12 @@ function text(value: unknown): string | null {
 }
 
 function safeError(error: unknown): string {
+  if (error instanceof NovaV1ApiError) {
+    return `${error.name}:${error.status}:${error.message}`.slice(0, 500);
+  }
   return (error instanceof Error ? `${error.name}:${error.message}` : String(error)).slice(0, 500);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
