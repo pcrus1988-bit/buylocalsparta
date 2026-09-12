@@ -21,7 +21,11 @@ const catalogImageStyle = {
   zIndex: 1
 } as const;
 
-type CatalogCardWithPreview = CatalogCard & Readonly<{ previewImageSrc?: string; localProof?: LocalCommerceProofValue }>;
+type CatalogCardWithPreview = CatalogCard & Readonly<{
+  previewImageSrc?: string;
+  localProof?: LocalCommerceProofValue;
+  supplierFulfilled?: boolean;
+}>;
 
 function demoBookCover(product: CatalogCard): string | undefined {
   if (product.mediaId || !product.id.startsWith("product_demo_book_") || !/^\d{13}$/.test(product.mpn ?? "")) return undefined;
@@ -30,6 +34,7 @@ function demoBookCover(product: CatalogCard): string | undefined {
 
 function availabilityLabel(product: CatalogCardWithPreview, demoMode: boolean): string {
   if (demoMode) return "Προεπισκόπηση · η αγορά είναι απενεργοποιημένη";
+  if (product.supplierFulfilled) return product.available ? "Διαθέσιμο για αποστολή" : "Προσωρινά μη διαθέσιμο";
   if (product.localProof?.stockConfirmedToday) return "Σε τοπικό απόθεμα · επιβεβαιωμένο σήμερα";
   if (product.localProof?.freshLocalStock) return "Σε τοπικό απόθεμα";
   if (product.available) return "Διαθέσιμο από τοπικό κατάστημα";
@@ -108,7 +113,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
 
   const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
   const displayTitle = publicCatalogueTitleLabel(product.title);
-  const vendorName = vendorContext?.name ?? product.vendorName;
+  const supplierFulfilled = product.supplierFulfilled === true;
+  const vendorName = supplierFulfilled ? undefined : vendorContext?.name ?? product.vendorName;
   const externalDemoCover = demoBookCover(product);
   const directImageSrc = product.mediaId
     ? `/api/media/${encodeURIComponent(product.mediaId)}`
@@ -149,8 +155,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           <Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link>
         </div>
         <p className={`catalog-card-availability${product.available ? " is-available" : ""}`}>{availabilityLabel(product, demoMode)}</p>
-        {vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
-        {!demoMode ? <LocalCommerceProof proof={product.localProof} compact /> : null}
+        {supplierFulfilled ? <p className="catalog-card-vendor">Αποστολή μέσω συνεργαζόμενου προμηθευτή</p> : vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
+        {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
     </article>
   );

@@ -5,6 +5,7 @@ import { AddToCartButton } from "../../../../components/AddToCartButton";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -72,6 +73,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
   const description = plainSupplierDescription(product.description);
   const available = product.availableToSell > 0;
   const price = euro(product.priceMinor);
+  const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
 
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
     <div className="announcement">BAZAAR · Greece-wide, condition-first.</div>
@@ -89,8 +91,11 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
       <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
         <div className="eyebrow">{bazaarConditionLabel(product.condition)} · BAZAAR</div>
+        {product.brand ? <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 30, fontWeight: 900 }}>
+          {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="eager" decoding="async" style={{ display: "block", maxHeight: 28, maxWidth: 130, width: "auto", height: "auto", objectFit: "contain" }} /> : null}
+          <span>{product.brand}</span>
+        </div> : null}
         <h1 style={{ margin: 0, fontSize: "clamp(2rem,4vw,4.5rem)", lineHeight: .95, letterSpacing: "-.045em", overflowWrap: "anywhere" }}>{product.title}</h1>
-        {product.brand ? <p style={{ margin: 0, fontWeight: 800, fontSize: "1.1rem" }}>{product.brand}</p> : null}
 
         <div style={{ display: "grid", gap: 4, padding: "20px 0", borderTop: "1px solid rgba(0,0,0,.16)", borderBottom: "1px solid rgba(0,0,0,.16)" }}>
           {product.msrpMinor && product.msrpMinor > product.priceMinor ? <s style={{ opacity: .55 }}>ΠΛΤ {euro(product.msrpMinor)}</s> : null}
@@ -129,8 +134,13 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
         <div style={{ display: "grid", gap: 6 }}>
           <strong>{product.availableToSell} διαθέσιμο</strong>
-          <span>Πωλητής / fulfilment partner: {product.vendorName}</span>
-          <span>BAZAAR διαθεσιμότητα πανελλαδικά · οι διαθέσιμοι τρόποι fulfilment καθορίζονται ανά τεμάχιο.</span>
+          {product.supplierFulfilled ? <>
+            <span><strong>Αποστολή μέσω συνεργαζόμενου προμηθευτή.</strong></span>
+            <span>Η διαθεσιμότητα αφορά το συγκεκριμένο BAZAAR προϊόν και επανελέγχεται πριν από την παραγγελία.</span>
+          </> : <>
+            <span>Πωλητής / fulfilment partner: {product.vendorName}</span>
+            <span>BAZAAR διαθεσιμότητα πανελλαδικά · οι διαθέσιμοι τρόποι fulfilment καθορίζονται ανά τεμάχιο.</span>
+          </>}
         </div>
       </div>
     </section>

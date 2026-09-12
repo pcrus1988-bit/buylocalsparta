@@ -233,7 +233,8 @@ export async function getPublishedDropshipCatalogCards(
       composition: technicalAttributesVisible ? details?.composition : undefined,
       madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
       mediaId: image?.mediaId,
-      mediaAlt: image?.altText
-    } satisfies CatalogCard;
+      mediaAlt: image?.altText,
+      supplierFulfilled: true
+    } satisfies CatalogCard & Readonly<{ supplierFulfilled: true }>;
   });
 }
