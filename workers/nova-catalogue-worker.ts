@@ -6,6 +6,7 @@ import {
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
+import { runNovaSellabilitySafetySweep } from "../apps/web/src/lib/nova-sellability-safety.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
 
 const workerId = process.env.BLS_NOVA_WORKER_ID?.trim() || `nova-catalogue-worker:${hostname()}:${process.pid}`;
@@ -43,6 +44,9 @@ try {
       log("info", "nova.catalogue_sync_slice", { workerId, ...result });
 
       if (result.claimed) {
+        const sellabilitySafety = await runNovaSellabilitySafetySweep();
+        log("info", "nova.sellability_safety_sweep", { workerId, ...sellabilitySafety });
+
         await recordNovaSupplierHealthy();
         try {
           const materialization = await runNovaCatalogueMaterializationSlice();
