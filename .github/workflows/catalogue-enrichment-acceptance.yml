@@ -9,6 +9,8 @@ on:
       - "apps/web/src/lib/catalogue-enrichment-policy.ts"
       - "apps/web/src/lib/catalogue-enrichment-generation-runtime.ts"
       - "apps/web/src/lib/catalogue-enrichment*.test.ts"
+      - "apps/web/src/lib/admin-catalogue-enrichment.ts"
+      - "apps/web/src/app/admin/catalogue/enrichment/**"
       - "workers/nova-catalogue-worker.ts"
       - "scripts/verify-catalogue-enrichment.ts"
       - "db/migrations/0239_catalogue_enrichment_foundation.sql"
@@ -26,7 +28,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,6 +52,9 @@ jobs:
           --test
           apps/web/src/lib/catalogue-enrichment.test.ts
           apps/web/src/lib/catalogue-enrichment-generation.test.ts
+
+      - name: Typecheck web enrichment and Admin QA integration
+        run: npx tsc -p apps/web/tsconfig.json --noEmit --incremental false
 
       - name: Verify immutable migration manifest
         run: npm run db:verify
