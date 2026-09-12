@@ -27,6 +27,7 @@ assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at
 const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
 const allowedVercelCrons = new Map([
   ["/api/cron/delivery-dispatch", "* * * * *"],
+  ["/api/cron/nova-canonical-media", "* * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
 ]);
 assert(
@@ -35,7 +36,7 @@ assert(
     && typeof cron.schedule === "string"
     && allowedVercelCrons.get(cron.path) === cron.schedule
   ),
-  "Vercel cron jobs are limited to bounded delivery dispatch and dropship order reconciliation; long-running BLS workers must remain isolated",
+  "Vercel cron jobs are limited to bounded delivery dispatch, NOVA canonical-media slices and dropship order reconciliation; long-running BLS workers must remain isolated",
 );
 for (const [path, schedule] of allowedVercelCrons) {
   assert(
@@ -107,6 +108,6 @@ for (const path of [
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery and dropship reconciliation crons, web build and eight isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery/NOVA-media/dropship-reconciliation crons, web build and eight isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
