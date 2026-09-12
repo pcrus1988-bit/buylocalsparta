@@ -1,5 +1,6 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
-import { actOnVendorFulfilment, vendorDashboard } from "../../../../../lib/vendor-runtime";
+import { vendorDashboard } from "../../../../../lib/vendor-runtime";
+import { actOnVendorFulfilment } from "../../../../../lib/vendor-fulfilment-service";
 import { syncVendorFulfilmentLifecycle } from "../../../../../lib/order-lifecycle";
 import { sendVendorRejectionOutcomeEmails } from "../../../../../lib/vendor-rejection-email";
 
