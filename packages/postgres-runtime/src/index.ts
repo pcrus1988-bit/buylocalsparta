@@ -9,6 +9,7 @@ import { PostgresMolliePaymentsService } from "./mollie-payments.ts";
 import { MollieHostedCheckoutGateway } from "./mollie-checkout-gateway.ts";
 import { PostgresMediaPipelineService } from "./media-pipeline.ts";
 import { AadeMyDataClient, myDataConfigFromEnv, myDataIssuanceEnabled, type MyDataConfig } from "@buy-local-sparta/aade-mydata";
+import { PostgresMyDataService } from "./mydata.ts";
 import { meilisearchConfigFromEnv, type MeilisearchConfig } from "@buy-local-sparta/meilisearch-search";
 import { resendConfigFromEnv, type ResendConfig } from "@buy-local-sparta/resend-notifications";
 import { PostgresProductionSearchService } from "./search.ts";
@@ -194,6 +195,10 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
     notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
     boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
   };
+}
+
+export function createPostgresRuntimeFromEnv(input: { env?: NodeJS.ProcessEnv; applicationName?: string } = {}): ProductionPostgresRuntime {
+  return new ProductionPostgresRuntime(postgresConfigFromEnv(input.env, input.applicationName));
 }
 
 function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
