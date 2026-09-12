@@ -1,0 +1,5 @@
+{
+  "0235_bazaar_commerce_channel.sql": "121e7aa96521aa163c4245a0302f2803ac0046c4a7bc253232dc79ad9da47cbc",
+  "0236_bazaar_condition_transition_guard.sql": "a1e3c4b4335967bad151d475c4ea3b7c0b6f0324e52257f9dab6b88e7db49ffb",
+  "0237_bazaar_existing_nova_classification.sql": "b16580152f3fe2a113ba99aa095ca078485df9c629e905b237762e4fbc0186d2"
+}
