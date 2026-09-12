@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { recordProductAnalyticsEvent } from "../lib/product-analytics-client";
 import { googleAnalyticsItem, trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
+import { ProductMediaGalleryEnhancer } from "./ProductMediaGalleryEnhancer";
 
 const HEARTBEAT_SECONDS = 15;
 const ACTIVE_WINDOW_MS = 60_000;
@@ -35,5 +36,6 @@ export function ProductAnalyticsTracker({ canonicalVariantId }: { canonicalVaria
       for (const event of events) window.removeEventListener(event, markActivity);
     };
   }, [canonicalVariantId]);
-  return null;
+
+  return <ProductMediaGalleryEnhancer canonicalVariantId={canonicalVariantId} />;
 }
