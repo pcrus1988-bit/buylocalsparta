@@ -4,6 +4,10 @@ import {
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
 import { runNovaEnrichmentPreparationSlice } from "../apps/web/src/lib/catalogue-enrichment-runtime.ts";
+import {
+  catalogueEnrichmentGenerationScope,
+  runCatalogueEnrichmentGenerationSlice
+} from "../apps/web/src/lib/catalogue-enrichment-generation-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
@@ -20,6 +24,9 @@ const availabilityRefreshMs = positiveInteger(
   60 * 60 * 1_000,
   "BLS_NOVA_AVAILABILITY_REFRESH_MS"
 );
+const enrichmentGenerationScope = catalogueEnrichmentGenerationScope();
+const enrichmentGenerationConfigured = enrichmentGenerationScope.enabled
+  && (enrichmentGenerationScope.allowAll || enrichmentGenerationScope.productIds.length > 0);
 
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
@@ -47,6 +54,14 @@ log("info", "nova.worker_started", {
   writesSupplierOrders: false,
   materializesPublicOffers: false,
   automaticPricing: novaAutoPricingEnabled(),
+  catalogueEnrichment: {
+    enabled: enrichmentGenerationScope.enabled,
+    configured: enrichmentGenerationConfigured,
+    scope: enrichmentGenerationScope.allowAll ? "all" : "pilot",
+    pilotProductCount: enrichmentGenerationScope.productIds.length,
+    batchSize: enrichmentGenerationScope.batchSize,
+    maxAttempts: enrichmentGenerationScope.maxAttempts
+  },
   runtimeInvariantsVerified: true
 });
 
@@ -99,6 +114,21 @@ try {
           workerId,
           error: safeError(error)
         });
+      }
+
+      if (enrichmentGenerationConfigured) {
+        try {
+          const enrichmentGeneration = await runCatalogueEnrichmentGenerationSlice();
+          log("info", "nova.catalogue_enrichment_generation_slice", { workerId, ...enrichmentGeneration });
+        } catch (error) {
+          // Language generation is a derived presentation layer. A provider outage,
+          // invalid candidate or quota error must never interrupt supplier ingestion,
+          // availability, pricing or fulfilment behavior.
+          log("error", "nova.catalogue_enrichment_generation_failed", {
+            workerId,
+            error: safeError(error)
+          });
+        }
       }
 
       try {
