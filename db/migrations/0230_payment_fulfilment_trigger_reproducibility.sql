@@ -1,8 +1,13 @@
 -- KONTA MOY — make production payment/fulfilment gates reproducible.
--- This migration captures the exact trigger behavior already running in production.
+-- This migration captures the exact payment-gating schema already running in production,
+-- including the pending_payment fulfilment state that had previously existed only as live drift.
 -- It does not enable Nova supplier writes, automatic supplier payments, or public catalogue activation.
 
 BEGIN;
+
+-- Production already contains this value. Clean databases built only from repository
+-- migrations did not, which made the payment gate impossible to reproduce.
+ALTER TYPE public.fulfilment_status ADD VALUE IF NOT EXISTS 'pending_payment';
 
 CREATE OR REPLACE FUNCTION public.gate_fulfilment_until_payment()
 RETURNS trigger
