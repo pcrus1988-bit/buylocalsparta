@@ -1,4 +1,5 @@
 import { formatMoney, money, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
+import { cache } from "react";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import { matchesCatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { CatalogCard, CatalogFilters } from "./catalog-view";
@@ -61,7 +62,7 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
  * is searched. This prevents a sibling with stricter presentation controls from
  * leaking GTIN/MPN/technical metadata through family-level search.
  */
-export async function getPublishedDropshipCatalogCards(
+async function readPublishedDropshipCatalogCards(
   query = "",
   category = "",
   filters: CatalogFilters = {},
@@ -147,8 +148,10 @@ export async function getPublishedDropshipCatalogCards(
   if (!base.length) return [];
 
   const ids = base.map((record) => record.id);
-  const departmentCodes = await loadCatalogDepartmentCodes(ids);
-  const metadata = await loadCatalogMetadata(ids);
+  const [departmentCodes, metadata] = await Promise.all([
+    loadCatalogDepartmentCodes(ids),
+    loadCatalogMetadata(ids)
+  ]);
   const normalizedQuery = normalizeSearchText(query);
 
   const enriched = base.map((record) => ({
@@ -238,3 +241,8 @@ export async function getPublishedDropshipCatalogCards(
     } satisfies CatalogCard & Readonly<{ supplierFulfilled: true }>;
   });
 }
+
+// One shop render asks for the same dropshipping projection through the catalogue
+// merger and through the page-level compatibility merge. Request-local React cache
+// ensures that duplicate call reuses the same SQL/metadata/media work.
+export const getPublishedDropshipCatalogCards = cache(readPublishedDropshipCatalogCards);
