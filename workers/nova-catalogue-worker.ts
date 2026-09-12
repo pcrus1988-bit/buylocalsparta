@@ -4,6 +4,7 @@ import {
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
+import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
 import { runNovaSellabilitySafetySweep } from "../apps/web/src/lib/nova-sellability-safety.ts";
@@ -12,6 +13,11 @@ import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/sr
 const workerId = process.env.BLS_NOVA_WORKER_ID?.trim() || `nova-catalogue-worker:${hostname()}:${process.pid}`;
 const pollMs = positiveInteger(process.env.BLS_NOVA_POLL_MS, 5_000, "BLS_NOVA_POLL_MS");
 const retryMs = positiveInteger(process.env.BLS_NOVA_RETRY_MS, 30_000, "BLS_NOVA_RETRY_MS");
+const availabilityRefreshMs = positiveInteger(
+  process.env.BLS_NOVA_AVAILABILITY_REFRESH_MS,
+  60 * 60 * 1_000,
+  "BLS_NOVA_AVAILABILITY_REFRESH_MS"
+);
 
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
@@ -20,6 +26,7 @@ if (!readiness.ok) {
 }
 
 let stopping = false;
+let nextAvailabilityRefreshAt = 0;
 const requestStop = (signal: string) => {
   if (stopping) return;
   stopping = true;
@@ -31,6 +38,8 @@ process.once("SIGINT", () => requestStop("SIGINT"));
 log("info", "nova.worker_started", {
   workerId,
   pollMs,
+  availabilityRefreshMs,
+  availabilityTtlHours: 2,
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
   materializesPublicOffers: false,
@@ -40,6 +49,23 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
+      if (Date.now() >= nextAvailabilityRefreshAt) {
+        const sweepStartedAt = Date.now();
+        try {
+          const availability = await runNovaAvailabilityRefreshSweep();
+          log("info", "nova.availability_full_sweep", { workerId, ...availability });
+        } catch (error) {
+          log("error", "nova.availability_full_sweep_failed", {
+            workerId,
+            error: safeError(error)
+          });
+        } finally {
+          // Anchor the next run to the start time. A normal 2-3 minute API sweep therefore
+          // still starts approximately once per hour instead of drifting by its own duration.
+          nextAvailabilityRefreshAt = sweepStartedAt + availabilityRefreshMs;
+        }
+      }
+
       const result = await runNovaCatalogueSyncSlice();
       log("info", "nova.catalogue_sync_slice", { workerId, ...result });
 
