@@ -14,6 +14,18 @@ export type VendorProductDeliverySetting = Readonly<{
   explicitVendorChoice: boolean;
 }>;
 
+export type VendorProductDeliveryFilter = "all" | "delivery" | "pickup" | "custom";
+
+export type VendorProductDeliveryPage = Readonly<{
+  products: readonly VendorProductDeliverySetting[];
+  summary: Readonly<{ total: number; delivery: number; pickup: number; custom: number }>;
+  filteredTotal: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  hasPrevious: boolean;
+}>;
+
 type FulfilmentPreference = Readonly<{
   deliveryEligible: boolean;
   pickupEligible: boolean;
@@ -34,6 +46,15 @@ function modesFromRow(value: unknown): string[] {
   return [];
 }
 
+function safeInt(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
+}
+
+function normalizedFilter(value: unknown): VendorProductDeliveryFilter {
+  return value === "delivery" || value === "pickup" || value === "custom" ? value : "all";
+}
+
 function validatePreference(input: FulfilmentPreference) {
   if (typeof input.deliveryEligible !== "boolean" || typeof input.pickupEligible !== "boolean") {
     throw new Error("Οι επιλογές παράδοσης και παραλαβής δεν είναι έγκυρες.");
@@ -49,44 +70,161 @@ function preferenceLabel(input: FulfilmentPreference): string {
   return "pickup_only";
 }
 
-export async function vendorProductDeliverySettings(principal: SessionPrincipal): Promise<readonly VendorProductDeliverySetting[]> {
+function countForFilter(summary: VendorProductDeliveryPage["summary"], filter: VendorProductDeliveryFilter): number {
+  if (filter === "delivery") return summary.delivery;
+  if (filter === "pickup") return summary.pickup;
+  if (filter === "custom") return summary.custom;
+  return summary.total;
+}
+
+function mapSetting(row: SqlRow): VendorProductDeliverySetting {
+  const fulfilmentModes = modesFromRow(row.fulfilment_modes);
+  const deliveryEligible = fulfilmentModes.includes("local_delivery");
+  const pickupEligible = fulfilmentModes.includes("pickup");
+  return {
+    offerId: String(row.offer_id ?? ""),
+    canonicalVariantId: String(row.canonical_variant_id ?? ""),
+    title: String(row.title ?? "Προϊόν"),
+    vendorSku: typeof row.vendor_sku === "string" && row.vendor_sku ? row.vendor_sku : undefined,
+    deliveryEligible,
+    pickupEligible,
+    pickupOnly: pickupEligible && !deliveryEligible,
+    fulfilmentModes,
+    explicitVendorChoice: Boolean(row.explicit_vendor_choice)
+  };
+}
+
+export async function vendorProductDeliverySettings(
+  principal: SessionPrincipal,
+  options: Readonly<{ query?: string; filter?: VendorProductDeliveryFilter; limit?: number; offset?: number }> = {}
+): Promise<VendorProductDeliveryPage> {
   if (!postgresVendorRuntimeEnabled()) throw new Error("Οι ρυθμίσεις παράδοσης απαιτούν ενεργή βάση δεδομένων.");
   const id = vendorId(principal);
+  const query = (options.query ?? "").trim().slice(0, 120);
+  const filter = normalizedFilter(options.filter);
+  const limit = Math.min(100, Math.max(1, safeInt(options.limit, 40)));
+  const offset = Math.max(0, safeInt(options.offset, 0));
+
   return unitOfWork().withTransaction(
     { actorUserId: principal.userId, vendorId: id, marketId: "sparta" },
     async (tx) => {
-      const result = await tx.query<SqlRow>(`
-        SELECT vo.public_id AS offer_id,
-               cv.public_id AS canonical_variant_id,
-               COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-               vo.vendor_sku,
-               ARRAY(SELECT mode::text FROM unnest(vo.fulfilment_modes) AS mode) AS fulfilment_modes,
-               COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor' AS explicit_vendor_choice
+      const summaryResult = await tx.query<SqlRow>(`
+        SELECT count(*)::int AS total,
+               count(*) FILTER (WHERE 'local_delivery'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))::int AS delivery,
+               count(*) FILTER (WHERE 'pickup'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))::int AS pickup,
+               count(*) FILTER (WHERE COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor')::int AS custom
         FROM public.vendor_offers vo
         JOIN public.vendor_businesses vb ON vb.id=vo.vendor_id
-        JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-        LEFT JOIN public.product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-        LEFT JOIN public.product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         WHERE (vb.public_id=$1 OR vb.id::text=$1)
           AND vo.status <> 'rejected'
-        ORDER BY lower(COALESCE(el.title,en.title,cv.model,cv.slug)),vo.public_id
       `, [id]);
-      return result.rows.map((row) => {
-        const fulfilmentModes = modesFromRow(row.fulfilment_modes);
-        const deliveryEligible = fulfilmentModes.includes("local_delivery");
-        const pickupEligible = fulfilmentModes.includes("pickup");
-        return {
-          offerId: String(row.offer_id ?? ""),
-          canonicalVariantId: String(row.canonical_variant_id ?? ""),
-          title: String(row.title ?? "Προϊόν"),
-          vendorSku: typeof row.vendor_sku === "string" && row.vendor_sku ? row.vendor_sku : undefined,
-          deliveryEligible,
-          pickupEligible,
-          pickupOnly: pickupEligible && !deliveryEligible,
-          fulfilmentModes,
-          explicitVendorChoice: Boolean(row.explicit_vendor_choice)
-        };
-      });
+      const summaryRow = summaryResult.rows[0] ?? {};
+      const summary = {
+        total: safeInt(summaryRow.total, 0),
+        delivery: safeInt(summaryRow.delivery, 0),
+        pickup: safeInt(summaryRow.pickup, 0),
+        custom: safeInt(summaryRow.custom, 0)
+      };
+
+      let filteredTotal = countForFilter(summary, filter);
+      if (query) {
+        const filteredCount = await tx.query<SqlRow>(`
+          SELECT count(*)::int AS filtered_total
+          FROM public.vendor_offers vo
+          JOIN public.vendor_businesses vb ON vb.id=vo.vendor_id
+          JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+          LEFT JOIN public.product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+          LEFT JOIN public.product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+          WHERE (vb.public_id=$1 OR vb.id::text=$1)
+            AND vo.status <> 'rejected'
+            AND (
+              COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%' || $2 || '%'
+              OR COALESCE(vo.vendor_sku,'') ILIKE '%' || $2 || '%'
+              OR cv.public_id ILIKE '%' || $2 || '%'
+            )
+            AND (
+              $3::text='all'
+              OR ($3::text='delivery' AND 'local_delivery'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))
+              OR ($3::text='pickup' AND 'pickup'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))
+              OR ($3::text='custom' AND COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor')
+            )
+        `, [id, query, filter]);
+        filteredTotal = safeInt(filteredCount.rows[0]?.filtered_total, 0);
+      }
+
+      const result = query
+        ? await tx.query<SqlRow>(`
+            SELECT vo.public_id AS offer_id,
+                   cv.public_id AS canonical_variant_id,
+                   COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+                   vo.vendor_sku,
+                   ARRAY(SELECT mode::text FROM unnest(vo.fulfilment_modes) AS mode) AS fulfilment_modes,
+                   COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor' AS explicit_vendor_choice
+            FROM public.vendor_offers vo
+            JOIN public.vendor_businesses vb ON vb.id=vo.vendor_id
+            JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+            LEFT JOIN public.product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+            LEFT JOIN public.product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+            WHERE (vb.public_id=$1 OR vb.id::text=$1)
+              AND vo.status <> 'rejected'
+              AND (
+                COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%' || $2 || '%'
+                OR COALESCE(vo.vendor_sku,'') ILIKE '%' || $2 || '%'
+                OR cv.public_id ILIKE '%' || $2 || '%'
+              )
+              AND (
+                $3::text='all'
+                OR ($3::text='delivery' AND 'local_delivery'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))
+                OR ($3::text='pickup' AND 'pickup'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))
+                OR ($3::text='custom' AND COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor')
+              )
+            ORDER BY vo.updated_at DESC,vo.public_id DESC
+            LIMIT $4 OFFSET $5
+          `, [id, query, filter, limit, offset])
+        : await tx.query<SqlRow>(`
+            WITH selected_offers AS (
+              SELECT vo.public_id AS offer_id,
+                     vo.canonical_variant_id,
+                     vo.vendor_sku,
+                     vo.fulfilment_modes,
+                     vo.updated_at,
+                     COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor' AS explicit_vendor_choice
+              FROM public.vendor_offers vo
+              JOIN public.vendor_businesses vb ON vb.id=vo.vendor_id
+              WHERE (vb.public_id=$1 OR vb.id::text=$1)
+                AND vo.status <> 'rejected'
+                AND (
+                  $2::text='all'
+                  OR ($2::text='delivery' AND 'local_delivery'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))
+                  OR ($2::text='pickup' AND 'pickup'::public.fulfilment_mode = ANY(COALESCE(vo.fulfilment_modes, ARRAY[]::public.fulfilment_mode[])))
+                  OR ($2::text='custom' AND COALESCE(vo.source_payload->>'fulfilmentPreferenceSource',vo.source_payload->>'deliveryEligibilitySource','')='vendor')
+                )
+              ORDER BY vo.updated_at DESC,vo.public_id DESC
+              LIMIT $3 OFFSET $4
+            )
+            SELECT so.offer_id,
+                   cv.public_id AS canonical_variant_id,
+                   COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+                   so.vendor_sku,
+                   ARRAY(SELECT mode::text FROM unnest(so.fulfilment_modes) AS mode) AS fulfilment_modes,
+                   so.explicit_vendor_choice
+            FROM selected_offers so
+            JOIN public.canonical_variants cv ON cv.id=so.canonical_variant_id
+            LEFT JOIN public.product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+            LEFT JOIN public.product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+            ORDER BY so.updated_at DESC,so.offer_id DESC
+          `, [id, filter, limit, offset]);
+
+      const products = result.rows.map(mapSetting);
+      return {
+        products,
+        summary,
+        filteredTotal,
+        limit,
+        offset,
+        hasMore: offset + products.length < filteredTotal,
+        hasPrevious: offset > 0
+      };
     },
     { readOnly: true }
   );
