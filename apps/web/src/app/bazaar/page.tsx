@@ -3,12 +3,14 @@ import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
-export const metadata: Metadata = {
-  title: "BAZAAR | KONTA MOY",
-  description: "Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα από όλη την Ελλάδα, σε ξεχωριστό BAZAAR του KONTA MOY.",
-  alternates: { canonical: "/bazaar" }
-};
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/bazaar", {
+    title: "BAZAAR | KONTA MOY",
+    description: "Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα από όλη την Ελλάδα, σε ξεχωριστό BAZAAR του KONTA MOY."
+  });
+}
 
 type BazaarPageProps = Readonly<{ searchParams: Promise<Record<string,string | string[] | undefined>> }>;
 
