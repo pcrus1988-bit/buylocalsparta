@@ -1,6 +1,8 @@
+import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
+import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { readVendorStructuredPricing, updateVendorRetailPrice, updateVendorStructuredPricing } from "../../../../../lib/vendor-price-service";
-import type { VendorPricingAdjustmentType, VendorPricingMode } from "../../../../../lib/vendor-pricing-calculation";
+import { calculateRetailPriceMinor, type VendorPricingAdjustmentType, type VendorPricingMode } from "../../../../../lib/vendor-pricing-calculation";
 
 function optionalNumber(body: Record<string, unknown>, key: string): number | undefined {
   if (!(key in body) || body[key] === "" || body[key] == null) return undefined;
@@ -22,6 +24,27 @@ function adjustmentType(body: Record<string, unknown>, key: string): VendorPrici
   throw new Error("Μη έγκυρος τύπος προσαύξησης τιμής.");
 }
 
+async function authoritativeDropshipCost(vendorId: string | null | undefined, offerId: string): Promise<number> {
+  if (!vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+  const result = await getProductionPostgresRuntime().sqlPool.query(`
+    SELECT dso.supplier_cost_minor
+    FROM vendor_offers vo
+    JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+    JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+    WHERE vo.public_id=$1
+      AND vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2 OR id::text=$2 LIMIT 1)
+      AND ds.owner_vendor_id=vo.vendor_id
+      AND ds.active=true
+      AND dso.supplier_cost_minor IS NOT NULL
+    LIMIT 1
+  `, [offerId, vendorId]);
+  const cost = Number(result.rows[0]?.supplier_cost_minor);
+  if (result.rowCount !== 1 || !Number.isSafeInteger(cost) || cost < 0) {
+    throw new Error("Δεν υπάρχει έγκυρη supplier buying price για αυτό το Dropshipping προϊόν.");
+  }
+  return cost;
+}
+
 export async function GET(request: Request) {
   try {
     const principal = await requireVendorSession(request);
@@ -37,26 +60,51 @@ export async function PUT(request: Request) {
     const principal = await requireVendorSession(request, true);
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId : "";
+    const dropshippingOnly = await isDropshippingOnlyVendor(principal.vendorId);
 
     const structured = "pricingMode" in body || "buyingPriceMinor" in body || "markupType" in body
       || "discountType" in body || "msrpMinor" in body || "showMsrp" in body;
     if (!structured) {
+      if (dropshippingOnly) throw new Error("Τα Dropshipping προϊόντα τιμολογούνται μόνο από την supplier buying price και κανόνες markup/discount.");
       const priceMinor = Number(body.priceMinor);
       const result = await updateVendorRetailPrice(principal, { offerId, priceMinor });
       return Response.json(result);
     }
 
-    const pricingMode: VendorPricingMode = body.pricingMode === "calculated" ? "calculated" : "manual";
+    const markupType = adjustmentType(body, "markupType");
+    const markupValue = optionalNumber(body, "markupValue");
+    const discountType = adjustmentType(body, "discountType");
+    const discountValue = optionalNumber(body, "discountValue");
+    let pricingMode: VendorPricingMode = body.pricingMode === "calculated" ? "calculated" : "manual";
+    let buyingPriceMinor = optionalMinor(body, "buyingPriceMinor");
+
+    if (dropshippingOnly) {
+      if (body.pricingMode !== "calculated") throw new Error("Τα Dropshipping προϊόντα απαιτούν calculated pricing.");
+      if (markupType !== "percent" && markupType !== "fixed") throw new Error("Απαιτείται markup για το Dropshipping προϊόν.");
+      if (markupValue === undefined) throw new Error("Απαιτείται τιμή markup για το Dropshipping προϊόν.");
+      const supplierCostMinor = await authoritativeDropshipCost(principal.vendorId, offerId);
+      const calculated = calculateRetailPriceMinor({
+        buyingPriceMinor: supplierCostMinor,
+        markupType,
+        markupValue,
+        discountType: discountType ?? undefined,
+        discountValue: discountType ? discountValue : undefined
+      });
+      if (calculated < supplierCostMinor) throw new Error("Η τελική Dropshipping τιμή δεν μπορεί να είναι χαμηλότερη από την supplier buying price.");
+      pricingMode = "calculated";
+      buyingPriceMinor = supplierCostMinor;
+    }
+
     const result = await updateVendorStructuredPricing(principal, {
       offerId,
       pricingMode,
-      priceMinor: optionalNumber(body, "priceMinor"),
-      buyingPriceMinor: optionalMinor(body, "buyingPriceMinor"),
-      markupType: adjustmentType(body, "markupType"),
-      markupValue: optionalNumber(body, "markupValue"),
-      discountType: adjustmentType(body, "discountType"),
-      discountValue: optionalNumber(body, "discountValue"),
-      msrpMinor: optionalMinor(body, "msrpMinor"),
+      priceMinor: dropshippingOnly ? undefined : optionalNumber(body, "priceMinor"),
+      buyingPriceMinor,
+      markupType,
+      markupValue,
+      discountType,
+      discountValue,
+      msrpMinor: dropshippingOnly ? undefined : optionalMinor(body, "msrpMinor"),
       showMsrp: typeof body.showMsrp === "boolean" ? body.showMsrp : undefined
     });
     return Response.json(result);

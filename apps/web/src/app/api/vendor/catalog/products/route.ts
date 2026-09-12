@@ -1,4 +1,5 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../../lib/vendor-backoffice-service";
 import { createVendorProductFromCanonicalPrefill } from "../../../../../lib/vendor-canonical-prefill-service";
 import {
@@ -11,6 +12,7 @@ import { postgresVendorRuntimeEnabled } from "../../../../../lib/vendor-runtime"
 export async function POST(request: Request) {
   try {
     const principal = await requireVendorSession(request,true);
+    if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("This vendor can only sell products supplied by approved dropshipping integrations");
     const body = await request.json() as Record<string, unknown>;
     const text = (key: string) => typeof body[key] === "string" ? String(body[key]).trim() : "";
     const rawCustomerPrice = body.customerPriceMinor ?? body.supplierUnitPriceMinor;
@@ -30,8 +32,6 @@ export async function POST(request: Request) {
       gtin: text("gtin") || undefined,
       variantAttributes,
       variantNote: text("variantNote") || undefined,
-      // Compatibility name inside the runtime. This value is the vendor-defined FINAL customer price;
-      // migration 0041 mirrors it into vendor_offers.customer_price_minor.
       supplierUnitPriceMinor: Number(rawCustomerPrice),
       stockOnHand: Number(body.stockOnHand),
       safetyStock: Number(body.safetyStock ?? 0),
