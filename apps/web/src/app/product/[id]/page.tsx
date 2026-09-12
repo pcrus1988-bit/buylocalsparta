@@ -9,6 +9,7 @@ import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTra
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
+import { ProductPurchaseInfoDialogs } from "../../../components/ProductPurchaseInfoDialogs";
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
@@ -443,7 +444,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
             {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
             {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
-            <span className="product-badge">{product.available ? (isDropship ? "Αποστολή μέσω συνεργαζόμενου προμηθευτή" : "Σε τοπικό απόθεμα") : "Προσωρινά μη διαθέσιμο"}</span>
+            <span className="product-badge">{product.available ? (isDropship ? "Διαθέσιμο για αποστολή" : "Σε τοπικό απόθεμα") : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
           {mediaGallery.length > 1 ? (
             <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
@@ -471,7 +472,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
               <PublicPriceComparison productId={product.id} vendorId={product.vendorId} retailPriceMinor={product.priceMinor} retailLabel={displayPrice} comparisonEnabled={!readOnlyCrawler} />
               <strong>{product.available ? `${product.availableToSell} τεμ. διαθέσιμα` : "Προσωρινά μη διαθέσιμο"}</strong>
-              <span>{product.available ? (isDropship ? "Η διαθεσιμότητα προέρχεται από συνεργαζόμενο προμηθευτή και επανελέγχεται πριν από την παραγγελία." : "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι.") : isDropship ? "Η αγορά ενεργοποιείται ξανά μόλις επιβεβαιωθεί διαθεσιμότητα από τον προμηθευτή." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
+              <span>{product.available ? (isDropship ? "Αποστολή από συνεργαζόμενο προμηθευτή." : "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι.") : isDropship ? "Προσωρινά μη διαθέσιμο για αποστολή." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
             </div>
             <div className="purchase-actions">
               {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{
@@ -488,19 +489,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 size: meaningfulSizes.length === 1 ? meaningfulSizes[0] : undefined
               }} /><ProductAccountActions productId={product.id} /></>}
             </div>
-            <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
-              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>{isDropship ? "Επιβεβαιωμένη διαθεσιμότητα συνεργαζόμενου προμηθευτή" : "Πραγματικό τοπικό απόθεμα"}</strong><span>{isDropship ? "Η διαθεσιμότητα ενημερώνεται από τον προμηθευτή και επανελέγχεται πριν από την παραγγελία." : "Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν."}</span></div></div>
-              <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>{isDropship ? "Αποστολή" : "Παραλαβή ή αποστολή"}</strong><span>{isDropship ? "Οι χρόνοι και το κόστος αποστολής επιβεβαιώνονται πριν από την πληρωμή." : "Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή."}</span></div></div>
-              <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{isDropship ? "Αγορά μέσω ΚΟΝΤΑ ΜΟΥ" : product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{isDropship ? "Η παραγγελία, η πληρωμή και η υποστήριξη παραμένουν μέσα στην εμπειρία του ΚΟΝΤΑ ΜΟΥ." : product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
-            </div>
-            <nav className="purchase-support-links" aria-label="Πληροφορίες πριν από την αγορά">
-              {!isDropship ? <a href="/choose-location">Αλλαγή περιοχής</a> : null}
-              <a href="/delivery-pickup">Παράδοση & παραλαβή</a>
-              <a href="/returns-refunds">Επιστροφές & refunds</a>
-            </nav>
+            {!isDropship ? <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
+              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>Πραγματικό τοπικό απόθεμα</strong><span>Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν.</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>Παραλαβή ή αποστολή</strong><span>Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή.</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
+            </div> : null}
+            <ProductPurchaseInfoDialogs supplierFulfilled={isDropship} showLocationLink={!isDropship} />
           </div>
 
-          <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} supplierFulfilled={isDropship} />
+          {!isDropship ? <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} /> : null}
 
           {displayDescription ? (
             <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
@@ -515,20 +512,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
-          <details style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
-            <summary style={{ cursor: "pointer", fontWeight: 800 }}>{isDropship ? "Πώς λειτουργούν η τιμή και η αποστολή" : "Πώς λειτουργούν η τιμή και η επιλογή καταστήματος"}</summary>
+          {!isDropship ? <details style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Πώς λειτουργούν η τιμή και η επιλογή καταστήματος</summary>
             <div className="detail-assurances" style={{ marginTop: 12 }}>
-              {isDropship ? <>
-                <div><strong>Μία καθαρή τελική τιμή</strong><span>Η τιμή που βλέπεις είναι η τιμή αγοράς του προϊόντος στο ΚΟΝΤΑ ΜΟΥ.</span></div>
-                <div><strong>Διαθεσιμότητα συνεργαζόμενου προμηθευτή</strong><span>Το απόθεμα ενημερώνεται από τον προμηθευτή και επανελέγχεται πριν προχωρήσει η παραγγελία.</span></div>
-                <div><strong>Αποστολή αντί για τοπική παραλαβή</strong><span>Το προϊόν δεν παρουσιάζεται ως απόθεμα φυσικού καταστήματος. Οι διαθέσιμες επιλογές και το κόστος αποστολής επιβεβαιώνονται πριν από την πληρωμή.</span></div>
-              </> : <>
-                <div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div>
-                <div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div>
-                <div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div>
-              </>}
+              <div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div>
+              <div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div>
+              <div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div>
             </div>
-          </details>
+          </details> : null}
         </div>
       </section>
       <SiteFooter />
