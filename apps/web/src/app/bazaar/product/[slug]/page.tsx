@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "../../../../components/AddToCartButton";
+import { ProductPurchaseInfoDialogs } from "../../../../components/ProductPurchaseInfoDialogs";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
@@ -112,11 +113,19 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
           imageUrl: imageSrc,
           imageAlt: product.mediaAlt ?? product.title
         }} />
-        <p style={{ margin: "-6px 0 0", fontSize: ".95rem", opacity: .78 }}>
-          {available
-            ? "Η τελική διαθεσιμότητα του συγκεκριμένου BAZAAR τεμαχίου επαληθεύεται ξανά από τον προμηθευτή κατά το checkout."
-            : "Το συγκεκριμένο BAZAAR τεμάχιο δεν είναι πλέον διαθέσιμο για αγορά."}
-        </p>
+        {!available ? <p style={{ margin: "-6px 0 0", fontSize: ".95rem", opacity: .78 }}>Το συγκεκριμένο BAZAAR τεμάχιο δεν είναι πλέον διαθέσιμο για αγορά.</p> : null}
+
+        <div style={{ display: "grid", gap: 6 }}>
+          <strong>{product.availableToSell} διαθέσιμο</strong>
+          {product.supplierFulfilled
+            ? <span>Αποστολή από συνεργαζόμενο προμηθευτή.</span>
+            : <>
+                <span>Πωλητής / fulfilment partner: {product.vendorName}</span>
+                <span>BAZAAR διαθεσιμότητα πανελλαδικά · οι διαθέσιμοι τρόποι fulfilment καθορίζονται ανά τεμάχιο.</span>
+              </>}
+        </div>
+
+        <ProductPurchaseInfoDialogs supplierFulfilled={product.supplierFulfilled} />
 
         <div style={{ padding: 18, borderRadius: 18, background: defectLike ? "#fff1d9" : "rgba(255,255,255,.65)" }}>
           <strong>Κατάσταση: {bazaarConditionLabel(product.condition)}</strong>
@@ -131,17 +140,6 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
         </div>
 
         {description ? <div><h2 style={{ fontSize: "1.15rem" }}>Περιγραφή</h2><p style={{ whiteSpace: "pre-wrap" }}>{description}</p></div> : null}
-
-        <div style={{ display: "grid", gap: 6 }}>
-          <strong>{product.availableToSell} διαθέσιμο</strong>
-          {product.supplierFulfilled ? <>
-            <span><strong>Αποστολή μέσω συνεργαζόμενου προμηθευτή.</strong></span>
-            <span>Η διαθεσιμότητα αφορά το συγκεκριμένο BAZAAR προϊόν και επανελέγχεται πριν από την παραγγελία.</span>
-          </> : <>
-            <span>Πωλητής / fulfilment partner: {product.vendorName}</span>
-            <span>BAZAAR διαθεσιμότητα πανελλαδικά · οι διαθέσιμοι τρόποι fulfilment καθορίζονται ανά τεμάχιο.</span>
-          </>}
-        </div>
       </div>
     </section>
 
