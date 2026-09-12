@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ProductMediaGallery, type ProductMediaGalleryImage } from "../../../../components/ProductMediaGallery";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { getPublicCatalogSourceGallery } from "../../../../lib/public-catalog-source-gallery";
+import { approvedCatalogImageGallery } from "../../../../lib/public-product-media-gallery";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -27,7 +30,22 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
   const product = await getBazaarProductBySlug(decodeURIComponent(slug));
   if (!product) notFound();
 
-  const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  const canonicalGallery = await approvedCatalogImageGallery({ canonicalVariantId: product.id }, 12);
+  const sourceGallery = canonicalGallery.length === 0 ? await getPublicCatalogSourceGallery(product.id) : [];
+  const fallbackImageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  const galleryImages: readonly ProductMediaGalleryImage[] = canonicalGallery.length > 0
+    ? canonicalGallery.map((image, index) => ({
+        id: image.mediaId,
+        src: `/api/media/${encodeURIComponent(image.mediaId)}`,
+        alt: image.altText ?? `${product.title} — φωτογραφία ${index + 1}`
+      }))
+    : sourceGallery.length > 0
+      ? sourceGallery.map((image) => ({
+          id: `source-${image.index}`,
+          src: `/api/catalog-source-image/${encodeURIComponent(product.id)}?index=${image.index}`,
+          alt: image.altText ?? `${product.title} — φωτογραφία ${image.index + 1}`
+        }))
+      : [{ id: "primary", src: fallbackImageSrc, alt: product.mediaAlt ?? product.title }];
   const defectLike = product.condition === "preowned_defect" || product.condition === "open_box";
 
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
@@ -39,10 +57,14 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
     </section>
 
     <section className="shell" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: "clamp(28px,5vw,72px)", alignItems: "start", paddingBottom: 72 }}>
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#fff", borderRadius: 28, overflow: "hidden", minWidth: 0 }}>
-        {product.savingsPercent ? <div style={{ position: "absolute", zIndex: 2, top: 18, right: 18, background: "#111", color: "#fff", borderRadius: 999, padding: "9px 13px", fontWeight: 900 }}>−{product.savingsPercent}%</div> : null}
-        <img src={imageSrc} alt={product.mediaAlt ?? product.title} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 24 }} />
-      </div>
+      <ProductMediaGallery
+        images={galleryImages}
+        badge={product.savingsPercent ? `−${product.savingsPercent}%` : ""}
+        placeholderLabel="BAZAAR"
+        placeholderSymbol="•"
+        surface="bazaar"
+        showInfoMarker
+      />
 
       <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
         <div className="eyebrow">{bazaarConditionLabel(product.condition)} · BAZAAR</div>
