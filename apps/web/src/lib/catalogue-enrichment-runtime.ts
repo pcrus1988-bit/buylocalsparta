@@ -30,7 +30,8 @@ export type NovaEnrichmentPreparationSliceResult = Readonly<{
  *
  * This operation is deliberately idempotent. A merchandising-relevant source
  * change moves the record back to pending while preserving the previous good
- * display copy until a future enrichment run validates a replacement.
+ * display copy until a future enrichment run validates a replacement. Any
+ * in-flight generation state belongs to the old hash and is therefore reset.
  */
 export async function prepareNovaCatalogueEnrichment(input: PrepareCatalogueEnrichmentInput): Promise<void> {
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -74,6 +75,22 @@ export async function prepareNovaCatalogueEnrichment(input: PrepareCatalogueEnri
       validation_errors=CASE
         WHEN public.catalogue_enrichments.source_hash IS DISTINCT FROM EXCLUDED.source_hash THEN '[]'::jsonb
         ELSE public.catalogue_enrichments.validation_errors
+      END,
+      generation_candidate=CASE
+        WHEN public.catalogue_enrichments.source_hash IS DISTINCT FROM EXCLUDED.source_hash THEN '{}'::jsonb
+        ELSE public.catalogue_enrichments.generation_candidate
+      END,
+      generation_attempt_count=CASE
+        WHEN public.catalogue_enrichments.source_hash IS DISTINCT FROM EXCLUDED.source_hash THEN 0
+        ELSE public.catalogue_enrichments.generation_attempt_count
+      END,
+      last_attempt_at=CASE
+        WHEN public.catalogue_enrichments.source_hash IS DISTINCT FROM EXCLUDED.source_hash THEN NULL
+        ELSE public.catalogue_enrichments.last_attempt_at
+      END,
+      processing_lease_until=CASE
+        WHEN public.catalogue_enrichments.source_hash IS DISTINCT FROM EXCLUDED.source_hash THEN NULL
+        ELSE public.catalogue_enrichments.processing_lease_until
       END,
       last_error=CASE
         WHEN public.catalogue_enrichments.source_hash IS DISTINCT FROM EXCLUDED.source_hash THEN NULL
