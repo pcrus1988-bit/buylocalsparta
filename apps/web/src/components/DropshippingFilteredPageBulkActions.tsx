@@ -27,7 +27,7 @@ async function runBounded<T>(items: readonly T[], worker: (item: T) => Promise<v
     while (cursor < items.length) {
       const index = cursor++;
       try {
-        await worker(items[index]);
+        await worker(items[index]!);
       } catch (error) {
         errors.push(error);
       }
