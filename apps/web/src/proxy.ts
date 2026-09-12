@@ -31,6 +31,19 @@ function isConsentOrAnalytics(pathname: string): boolean {
   return pathname === "/api/privacy/consent" || pathname.startsWith("/api/analytics/");
 }
 
+/**
+ * These endpoints are immutable/public projections and never use visitor identity.
+ * Keeping them out of marketplace-session propagation is important: a Set-Cookie
+ * header turns otherwise cacheable media/search responses into per-user traffic and
+ * forces every product image back through middleware + database work.
+ */
+function isCacheablePublicApi(pathname: string): boolean {
+  return pathname.startsWith("/api/media/")
+    || pathname.startsWith("/api/catalog-source-image/")
+    || pathname === "/api/catalog/msrp"
+    || pathname === "/api/search/suggest";
+}
+
 function needsOperationalPersistence(pathname: string): boolean {
   const routeRoots = [
     "/cart", "/checkout", "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
@@ -104,6 +117,11 @@ export async function proxy(request: NextRequest) {
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
+  const pathname = request.nextUrl.pathname;
+  if (isCacheablePublicApi(pathname)) {
+    return NextResponse.next();
+  }
+
   const current = validVisitor(request.cookies.get(MARKETPLACE_COOKIE)?.value);
   const legacy = validVisitor(request.cookies.get(LEGACY_VISITOR_COOKIE)?.value);
   const visitorKey = current ?? legacy ?? crypto.randomUUID();
@@ -111,7 +129,6 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set(VISITOR_HEADER, visitorKey);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  const pathname = request.nextUrl.pathname;
   const identityNeutral = isConsentOrAnalytics(pathname);
   const persistOperationally = !identityNeutral && needsOperationalPersistence(pathname);
   const persistForSession = !identityNeutral && !persistOperationally && (Boolean(current || legacy) || needsSessionContinuity(pathname));
