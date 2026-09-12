@@ -11,6 +11,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/nova-canonical-media",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/dropship-order-reconciliation",
       "schedule": "*/5 * * * *"
     }

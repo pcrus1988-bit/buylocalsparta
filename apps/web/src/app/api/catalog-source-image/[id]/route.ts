@@ -1,26 +1,34 @@
+import { getPublicCatalogSourceImageAtIndex } from "../../../../lib/public-catalog-source-gallery";
 import { getPublicProductDetail } from "../../../../lib/public-product-detail";
 
 type Context = { params: Promise<{ id: string }> };
 
 const EMPTY_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"></svg>`;
 
-export async function GET(_request: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   const { id } = await context.params;
   const canonicalVariantId = id.trim();
   if (!/^[A-Za-z0-9_-]{8,160}$/.test(canonicalVariantId)) return emptyImage();
 
   try {
-    const detail = await getPublicProductDetail(canonicalVariantId);
-    if (!detail?.sourceImageUrl) return emptyImage();
+    const url = new URL(request.url);
+    const requestedIndex = url.searchParams.get("index");
+    let sourceImageUrl: string | undefined;
 
-    // getPublicProductDetail only exposes HTTPS catalogue assets whose hostname
-    // exactly matches the approved catalogue source website. Redirecting here lets
-    // every product-card surface reuse that same source/rights boundary without
-    // teaching each card about supplier hosts or fetching arbitrary URLs server-side.
+    if (requestedIndex !== null) {
+      const index = Number(requestedIndex);
+      if (!Number.isSafeInteger(index) || index < 0 || index > 11) return emptyImage();
+      sourceImageUrl = (await getPublicCatalogSourceImageAtIndex(canonicalVariantId, index))?.src;
+    } else {
+      sourceImageUrl = (await getPublicProductDetail(canonicalVariantId))?.sourceImageUrl;
+    }
+
+    if (!sourceImageUrl) return emptyImage();
+
     return new Response(null, {
       status: 307,
       headers: {
-        "Location": detail.sourceImageUrl,
+        "Location": sourceImageUrl,
         "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
         "Referrer-Policy": "no-referrer",
         "X-Content-Type-Options": "nosniff"
