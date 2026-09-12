@@ -12,6 +12,18 @@ const integer = (value: unknown, field: string) => {
   if (!Number.isSafeInteger(result)) throw new Error(`Invalid integer ${field}`);
   return result;
 };
+const optionalInteger = (value: unknown): number | undefined => {
+  if (value == null) return undefined;
+  const result = Number(value);
+  return Number.isSafeInteger(result) ? result : undefined;
+};
+const optionalNumber = (value: unknown): number | undefined => {
+  if (value == null) return undefined;
+  const result = Number(value);
+  return Number.isFinite(result) ? result : undefined;
+};
+const pricingMode = (value: unknown): "manual" | "calculated" => value === "calculated" ? "calculated" : "manual";
+const adjustmentType = (value: unknown): "percent" | "fixed" | undefined => value === "percent" || value === "fixed" ? value : undefined;
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.map(String) : [];
 const epoch = (value: unknown, field: string) => {
   const result = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
@@ -36,6 +48,10 @@ export type VendorManagedCatalogProduct = Readonly<{
   categoryId: string; categoryCode: string; categoryName: string; categoryPathIds: readonly string[];
   categoryPathCodes: readonly string[]; categoryPathNames: readonly string[]; categoryPath: string;
   retailPrice: string; retailPriceMinor: number; supplierPrice: string;
+  buyingPriceMinor?: number; pricingMode: "manual" | "calculated";
+  markupType?: "percent" | "fixed"; markupValue?: number;
+  discountType?: "percent" | "fixed"; discountValue?: number;
+  msrpMinor?: number; showMsrp: boolean;
   onHand: number; reserved: number; blocked: number; safetyStock: number; availableToSell: number;
   offerStatus: string; productVisible: boolean; categoryVisible: boolean; effectiveVisible: boolean;
   merchantPauseActive: boolean; canToggleVisibility: boolean; updatedAt: number;
@@ -68,7 +84,10 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
       ...p, vendorSku: undefined, gtin: undefined, brand: undefined,
       categoryId: "uncategorized", categoryCode: "uncategorized", categoryName: "Χωρίς κατηγορία",
       categoryPathIds: ["uncategorized"], categoryPathCodes: ["uncategorized"], categoryPathNames: ["Χωρίς κατηγορία"], categoryPath: "Χωρίς κατηγορία",
-      retailPriceMinor: 0, offerStatus: "approved", productVisible: true, categoryVisible: true,
+      retailPriceMinor: 0, buyingPriceMinor: undefined, pricingMode: "manual" as const,
+      markupType: undefined, markupValue: undefined, discountType: undefined, discountValue: undefined,
+      msrpMinor: undefined, showMsrp: false,
+      offerStatus: "approved", productVisible: true, categoryVisible: true,
       effectiveVisible: true, merchantPauseActive: false, canToggleVisibility: false
     }));
     return { catalogProducts: products, categories: [] as VendorCatalogCategoryControl[], categoryOptions: [] as VendorCatalogCategoryOption[], catalogMetrics: summarize(products) };
@@ -95,15 +114,18 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
       SELECT vo.public_id offer_id,cv.public_id canonical_id,COALESCE(ptel.title,pten.title,cv.model,cv.slug) title,
              vo.vendor_sku,COALESCE(vo.source_gtin,cv.gtin) gtin,b.name brand,cv.category_id::text category_id,t.code category_code,
              t.path_ids,t.path_codes,t.path_names,vo.customer_price_minor,vo.supplier_unit_price_minor,
+             p.buying_price_minor,COALESCE(p.pricing_mode,'manual') pricing_mode,p.markup_type,p.markup_value,
+             p.discount_type,p.discount_value,vo.msrp_minor,vo.show_msrp,
              vo.status::text offer_status,vo.merchant_visible,vo.merchant_pause_active,
              bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id) category_visible,
              ib.on_hand,ib.active_reservations,ib.blocked,ib.safety_stock,
              GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) available_to_sell,
-             GREATEST(vo.updated_at,ib.updated_at) updated_at
+             GREATEST(vo.updated_at,ib.updated_at,COALESCE(p.updated_at,vo.updated_at)) updated_at
       FROM vendor_offers vo
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN tree t ON t.id=cv.category_id
       JOIN inventory_balances ib ON ib.offer_id=vo.id
+      LEFT JOIN vendor_offer_pricing_private p ON p.offer_id=vo.id
       LEFT JOIN brands b ON b.id=cv.brand_id
       LEFT JOIN product_translations ptel ON ptel.canonical_variant_id=cv.id AND ptel.locale='el'
       LEFT JOIN product_translations pten ON pten.canonical_variant_id=cv.id AND pten.locale='en'
@@ -122,6 +144,10 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
         categoryId:text(row.category_id,"category_id"), categoryCode:text(row.category_code,"category_code"),
         categoryName:pathNames.at(-1) ?? text(row.category_code,"category_code"), categoryPathIds:pathIds, categoryPathCodes:pathCodes, categoryPathNames:pathNames, categoryPath:pathNames.join(" › "),
         retailPrice:euro(retailPriceMinor), retailPriceMinor, supplierPrice:euro(integer(row.supplier_unit_price_minor,"supplier_unit_price_minor")),
+        buyingPriceMinor:optionalInteger(row.buying_price_minor), pricingMode:pricingMode(row.pricing_mode),
+        markupType:adjustmentType(row.markup_type), markupValue:optionalNumber(row.markup_value),
+        discountType:adjustmentType(row.discount_type), discountValue:optionalNumber(row.discount_value),
+        msrpMinor:optionalInteger(row.msrp_minor), showMsrp:Boolean(row.show_msrp),
         onHand:integer(row.on_hand,"on_hand"), reserved:integer(row.active_reservations,"active_reservations"), blocked:integer(row.blocked,"blocked"), safetyStock:integer(row.safety_stock,"safety_stock"), availableToSell:integer(row.available_to_sell,"available_to_sell"),
         offerStatus, productVisible, categoryVisible, effectiveVisible:offerStatus === "approved" && productVisible && categoryVisible,
         merchantPauseActive:Boolean(row.merchant_pause_active), canToggleVisibility:offerStatus === "approved" || Boolean(row.merchant_pause_active), updatedAt:epoch(row.updated_at,"updated_at")
