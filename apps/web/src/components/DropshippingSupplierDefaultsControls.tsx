@@ -25,6 +25,10 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
   const [markupPercent, setMarkupPercent] = useState(defaults.markupPercent);
   const [discountPercent, setDiscountPercent] = useState(defaults.discountPercent);
   const [showMsrp, setShowMsrp] = useState(defaults.showMsrp);
+  const dirty = visible !== defaults.visible
+    || markupPercent !== defaults.markupPercent
+    || discountPercent !== defaults.discountPercent
+    || showMsrp !== defaults.showMsrp;
 
   async function saveDefaults() {
     setBusy(true); setMessage("");
@@ -77,10 +81,10 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Show supplier MSRP</span></label>
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-      <button className="button button-secondary" type="button" disabled={busy} onClick={saveDefaults}>Αποθήκευση defaults</button>
-      <button className="button" type="button" disabled={busy || !defaults.configured} onClick={applyDefaults}>Εφαρμογή σε τρέχον catalogue</button>
+      <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση defaults</button>
+      <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Εφαρμογή σε τρέχον catalogue</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Μετά μπορείς να κάνεις per-product override από τις κάρτες προϊόντων.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Μετά μπορείς να κάνεις per-product override από τις κάρτες προϊόντων. Αν αλλάξεις κάποια τιμή εδώ, αποθήκευσέ την πρώτα πριν την εφαρμογή.</small>
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
 }
