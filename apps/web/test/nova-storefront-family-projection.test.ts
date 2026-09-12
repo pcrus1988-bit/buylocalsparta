@@ -17,7 +17,7 @@ type Row = Readonly<{
 
 const row = (overrides: Partial<Row> & Pick<Row, "id">): Row => ({
   id: overrides.id,
-  familyId: overrides.familyId ?? "family-a",
+  familyId: overrides.familyId === undefined ? "family-a" : overrides.familyId,
   supplierId: overrides.supplierId ?? "nova",
   externalProductId: overrides.externalProductId ?? "10314594",
   priceMinor: overrides.priceMinor ?? 20000,
