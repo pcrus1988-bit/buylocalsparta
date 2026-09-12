@@ -45,6 +45,7 @@ export type BazaarFilters = Readonly<{
   brand?: string;
   category?: string;
   limit?: number;
+  slugOrId?: string;
 }>;
 
 function positiveInt(value: unknown): number | undefined {
@@ -79,6 +80,7 @@ function normalizeCondition(value: string): BazaarCondition {
 export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<readonly BazaarCard[]> {
   if (!productionDatabaseConfigured()) return [];
   const limit = Math.max(1, Math.min(500, Number.isSafeInteger(filters.limit) ? Number(filters.limit) : 240));
+  const slugOrId = filters.slugOrId?.trim() || null;
   const result = await getProductionPostgresRuntime().nativePool.query<BazaarRow>(`
     SELECT DISTINCT ON (cv.id)
       cv.public_id AS canonical_public_id,
@@ -109,6 +111,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
     LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
     LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
     WHERE cv.commerce_channel='bazaar'
+      AND ($2::text IS NULL OR cv.slug=$2 OR cv.public_id=$2)
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
@@ -135,7 +138,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       )
     ORDER BY cv.id,vo.customer_price_minor ASC,vo.updated_at DESC,vo.public_id
     LIMIT $1
-  `,[limit]);
+  `,[limit,slugOrId]);
 
   const query = normalizeSearchText(filters.query ?? "");
   const requestedCondition = normalizeSearchText(filters.condition ?? "");
@@ -201,8 +204,8 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
 export async function getBazaarProductBySlug(slug: string): Promise<BazaarCard | undefined> {
   const normalized = slug.trim();
   if (!normalized) return undefined;
-  const cards = await getBazaarCatalog({ limit: 500 });
-  return cards.find((card) => card.slug === normalized || card.id === normalized);
+  const cards = await getBazaarCatalog({ limit: 1, slugOrId: normalized });
+  return cards[0];
 }
 
 export function bazaarConditionLabel(condition: BazaarCondition): string {
