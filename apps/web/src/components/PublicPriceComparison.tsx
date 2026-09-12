@@ -19,6 +19,7 @@ export async function PublicPriceComparison({
   retailLabel: string;
   comparisonEnabled?: boolean;
 }) {
+  // This is an MSRP/RRP comparison, never a claim about a previous KONTA MOU selling price.
   const msrpMinor = comparisonEnabled
     ? await getVisibleOfferMsrpMinor(productId, vendorId, retailPriceMinor)
     : undefined;
