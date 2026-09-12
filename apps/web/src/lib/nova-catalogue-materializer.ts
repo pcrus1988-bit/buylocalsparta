@@ -310,7 +310,7 @@ async function materializeSourceProduct(
         externalVariantId: variant.externalVariantId
       };
       const slug = canonicalNovaSlug(sourceProduct.title,sourceProduct.sourceProductKey,variant.externalVariantId);
-      let created: { rows: SqlRow[] };
+      let created: Readonly<{ rows: readonly SqlRow[]; rowCount: number }>;
       try {
         created = await pool.query<SqlRow>(`
           INSERT INTO public.canonical_variants(
