@@ -112,6 +112,7 @@ export default async function VendorBackofficePage() {
       title="Διαχείριση καταστήματος"
       links={[
         { kicker: "Καθημερινά", label: "Παραγγελίες", description: "Αποδοχή, προετοιμασία, αποστολές, παραλαβές και επιστροφές.", href: "/vendor/orders", value: dashboard.metrics.ordersRequiringAction },
+        { kicker: "Ενημερώσεις", label: "Ειδοποιήσεις", description: "Προθεσμίες και ενημερώσεις παραγγελιών που χρειάζεται να γνωρίζεις.", href: "/vendor/notifications", value: orderNotifications.metrics.unread },
         { kicker: "Κατάλογος", label: "Προϊόντα", description: "Κατάλογος, απόθεμα, εμφάνιση και έγγραφα προϊόντων.", href: "/vendor/catalog", value: dashboard.metrics.activeProducts },
         { kicker: "Εξυπηρέτηση", label: "Πελάτες", description: "Μηνύματα, ραντεβού, Ask Local και ιδιωτικές προσφορές.", href: "/vendor/advice" },
         { kicker: "Προφίλ", label: "Κατάστημα", description: "Η δημόσια εικόνα και οι φωτογραφίες του καταστήματός σου.", href: "/vendor/storefront" },
