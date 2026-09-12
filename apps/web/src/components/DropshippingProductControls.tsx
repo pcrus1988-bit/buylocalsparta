@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { DropshippingProductFieldControls } from "./DropshippingProductFieldControls";
 
 type Props = Readonly<{
   offerId: string;
@@ -139,6 +140,7 @@ export function DropshippingProductControls(props: Props) {
       <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
       <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Reset στα supplier defaults</button>
     </div>
+    <DropshippingProductFieldControls offerId={props.offerId} />
     {message ? <small role="status">{message}</small> : null}
   </div>;
 }

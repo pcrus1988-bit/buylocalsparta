@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { DropshippingSupplierDefaults } from "../lib/vendor-dropshipping-service";
+import { DropshippingSupplierFieldControls } from "./DropshippingSupplierFieldControls";
 
 type Props = Readonly<{
   supplierCode: string;
@@ -111,6 +112,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
     </div>
     <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Bulk publish/hide: είναι force global ενέργεια και καθαρίζει όλα τα per-product visibility overrides του supplier. Draft, inactive, suppressed ή recalled προϊόντα παραμένουν hidden.</small>
+    <DropshippingSupplierFieldControls supplierCode={supplierCode} />
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
 }
