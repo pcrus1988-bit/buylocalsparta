@@ -23,6 +23,7 @@ export type BazaarCard = Readonly<{
   supplierFulfilled: boolean;
   mediaId?: string;
   mediaAlt?: string;
+  previewImageSrc?: string;
 }>;
 
 type BazaarRow = Readonly<{
@@ -41,6 +42,8 @@ type BazaarRow = Readonly<{
   vendor_public_id: string;
   vendor_name: string;
   supplier_fulfilled: boolean;
+  source_website: string | null;
+  normalized_payload: unknown;
 }>;
 
 export type BazaarFilters = Readonly<{
@@ -72,6 +75,47 @@ function normalizeCondition(value: string): BazaarCondition {
     return value as BazaarCondition;
   }
   return "used";
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function sameSourceHttpsUrl(sourceWebsite: unknown, candidate: unknown): string | undefined {
+  const website = optionalText(sourceWebsite);
+  const value = optionalText(candidate);
+  if (!website || !value) return undefined;
+  try {
+    const source = new URL(website);
+    const asset = new URL(value, source);
+    if (asset.protocol !== "https:") return undefined;
+    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
+    if (normalizeHost(source.hostname) !== normalizeHost(asset.hostname)) return undefined;
+    return asset.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function firstSourceImage(sourceWebsite: unknown, normalizedPayload: unknown): string | undefined {
+  const payload = objectValue(normalizedPayload);
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  const candidates = images
+    .map((entry, sourceIndex) => {
+      const image = objectValue(entry);
+      const src = sameSourceHttpsUrl(sourceWebsite, image.src ?? image.url ?? image.image);
+      if (!src) return undefined;
+      const numeric = Number(image.position);
+      const position = Number.isFinite(numeric) && numeric >= 0 ? numeric : sourceIndex;
+      return { src, position, sourceIndex };
+    })
+    .filter((entry): entry is { src: string; position: number; sourceIndex: number } => Boolean(entry))
+    .sort((left, right) => left.position - right.position || left.sourceIndex - right.sourceIndex);
+  return candidates[0]?.src;
 }
 
 /**
@@ -131,7 +175,9 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       END AS available_to_sell,
       v.public_id AS vendor_public_id,
       v.trading_name AS vendor_name,
-      (dso.id IS NOT NULL) AS supplier_fulfilled
+      (dso.id IS NOT NULL) AS supplier_fulfilled,
+      cs.website AS source_website,
+      csp.normalized_payload
     FROM canonical_variants cv
     JOIN categories c ON c.id=cv.category_id
     JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
@@ -142,6 +188,8 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
     LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+    LEFT JOIN catalog_source_products csp ON csp.id=dso.source_product_id
+    LEFT JOIN catalog_sources cs ON cs.id=csp.source_id
     LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
     WHERE cv.commerce_channel='bazaar'
       AND ($2::text IS NULL OR cv.slug=$2 OR cv.public_id=$2)
@@ -195,7 +243,8 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       availableToSell: nonNegativeInt(row.available_to_sell),
       vendorId: row.vendor_public_id,
       vendorName: row.vendor_name,
-      supplierFulfilled: row.supplier_fulfilled === true
+      supplierFulfilled: row.supplier_fulfilled === true,
+      previewImageSrc: row.supplier_fulfilled === true ? firstSourceImage(row.source_website, row.normalized_payload) : undefined
     };
     return card.availableToSell > 0 ? [card] : [];
   });
@@ -208,7 +257,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
     const byCanonical = new Map(images.map((image) => [image.canonicalVariantId,image]));
     cards = cards.map((card) => {
       const image = byCanonical.get(card.id);
-      return image ? { ...card, mediaId: image.mediaId, mediaAlt: image.altText } : card;
+      return image ? { ...card, mediaId: image.mediaId, mediaAlt: image.altText, previewImageSrc: undefined } : card;
     });
   } catch (error) {
     console.error(JSON.stringify({
