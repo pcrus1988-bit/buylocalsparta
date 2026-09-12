@@ -6,6 +6,7 @@ import {
   assertVendorCapability,
   assertVendorResourceScope,
   buildVendorOperatingContext,
+  buildVendorOperatingContextFromSession,
   hasVendorCapability
 } from "../src/index.ts";
 
@@ -50,6 +51,51 @@ test("SELF_GOVERNED expansion vendor gains own-shop operations but never platfor
   assert.equal(PLATFORM_GOVERNANCE_BOUNDARIES.includes("fair_exposure.manage"), true);
   assert.equal(PLATFORM_GOVERNANCE_BOUNDARIES.includes("seo.indexing.manage"), true);
   assert.equal(PLATFORM_GOVERNANCE_BOUNDARIES.includes("platform_finance.ledger.manage"), true);
+});
+
+test("SELF_GOVERNED can never inherit the managed Sparta fallback", () => {
+  assert.throws(
+    () => buildVendorOperatingContext({ vendorId: "vendor_expansion_1", operatingModel: "SELF_GOVERNED" }),
+    /marketId is required/
+  );
+});
+
+test("authenticated vendor session resolves the legacy managed Sparta context", () => {
+  const context = buildVendorOperatingContextFromSession({
+    vendorId: "vendor_sparta_1",
+    roles: ["vendor_owner"]
+  });
+  assert.equal(context.marketId, DEFAULT_MANAGED_MARKET_ID);
+  assert.equal(context.operatingModel, "MANAGED");
+  assert.deepEqual(context.roles, ["vendor_owner"]);
+});
+
+test("authenticated expansion session requires explicit self-governed assignment", () => {
+  const context = buildVendorOperatingContextFromSession(
+    { vendorId: "vendor_tripoli_1", roles: ["vendor_manager"] },
+    {
+      marketId: "tripoli",
+      hubId: "KM-HUB-TRIPOLI",
+      locationId: "location_tripoli_center",
+      operatingModel: "SELF_GOVERNED"
+    }
+  );
+  assert.equal(context.marketId, "tripoli");
+  assert.equal(context.hubId, "KM-HUB-TRIPOLI");
+  assert.equal(context.locationId, "location_tripoli_center");
+  assert.equal(context.operatingModel, "SELF_GOVERNED");
+  assert.equal(hasVendorCapability(context, "pricing.manage"), true);
+});
+
+test("session context rejects missing vendor identity or non-vendor roles", () => {
+  assert.throws(
+    () => buildVendorOperatingContextFromSession({ roles: ["vendor_owner"] }),
+    /principal.vendorId is required/
+  );
+  assert.throws(
+    () => buildVendorOperatingContextFromSession({ vendorId: "vendor_1", roles: ["admin"] }),
+    /Vendor staff role is required/
+  );
 });
 
 test("capability assertion fails closed for a managed-only restriction", () => {
