@@ -2,7 +2,8 @@ import { PostgresUnitOfWork, type ContentRedirect, type SqlRow } from "@buy-loca
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const MARKET_ID = "sparta";
-const REDIRECT_CACHE_MS = 30_000;
+const REDIRECT_CACHE_MS = 5 * 60_000;
+const REDIRECT_ERROR_BACKOFF_MS = 30_000;
 
 type RedirectRow = SqlRow & {
   public_id: string;
@@ -15,6 +16,7 @@ type RedirectRow = SqlRow & {
 
 const redirectCache = globalThis as typeof globalThis & {
   __blsPublicCmsRedirectCache?: { expiresAt: number; items: Map<string, ContentRedirect> };
+  __blsPublicCmsRedirectInflight?: Promise<Map<string, ContentRedirect>>;
 };
 
 function normalizeLookupPath(value: string): string {
@@ -44,10 +46,7 @@ function statusCode(value: unknown): 301 | 302 | 307 | 308 {
   return parsed === 302 || parsed === 307 || parsed === 308 ? parsed : 301;
 }
 
-async function loadActiveRedirects(now = Date.now()): Promise<Map<string, ContentRedirect>> {
-  const cached = redirectCache.__blsPublicCmsRedirectCache;
-  if (cached && cached.expiresAt > now) return cached.items;
-  if (!productionDatabaseConfigured()) return new Map();
+async function fetchActiveRedirects(): Promise<Map<string, ContentRedirect>> {
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 5_000, lockTimeoutMs: 1_000 });
   const rows = await uow.withTransaction({ marketId: MARKET_ID }, (tx) => tx.query<RedirectRow>(`
@@ -75,8 +74,47 @@ async function loadActiveRedirects(now = Date.now()): Promise<Map<string, Conten
       createdBy: typeof row.created_by_public === "string" && row.created_by_public ? row.created_by_public : "system"
     });
   }
-  redirectCache.__blsPublicCmsRedirectCache = { expiresAt: now + REDIRECT_CACHE_MS, items };
   return items;
+}
+
+async function loadActiveRedirects(now = Date.now()): Promise<Map<string, ContentRedirect>> {
+  const cached = redirectCache.__blsPublicCmsRedirectCache;
+  if (cached && cached.expiresAt > now) return cached.items;
+  if (!productionDatabaseConfigured()) return cached?.items ?? new Map();
+
+  // A cold server instance can receive many storefront requests at once. Without
+  // an in-flight guard each request starts its own cms_redirects transaction before
+  // the first one can populate the cache, unnecessarily consuming PostgreSQL
+  // connections while the product/vendor page is trying to render.
+  if (redirectCache.__blsPublicCmsRedirectInflight) return redirectCache.__blsPublicCmsRedirectInflight;
+
+  const staleItems = cached?.items ?? new Map<string, ContentRedirect>();
+  const refresh = (async () => {
+    try {
+      const items = await fetchActiveRedirects();
+      redirectCache.__blsPublicCmsRedirectCache = { expiresAt: Date.now() + REDIRECT_CACHE_MS, items };
+      return items;
+    } catch (error) {
+      // Redirects are optional routing convenience. During database pressure, fail
+      // open with the last known snapshot (or no redirects) and briefly back off
+      // instead of allowing every request to retry the same failing connection.
+      redirectCache.__blsPublicCmsRedirectCache = {
+        expiresAt: Date.now() + REDIRECT_ERROR_BACKOFF_MS,
+        items: staleItems
+      };
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "cms.redirect_refresh_degraded",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      return staleItems;
+    } finally {
+      redirectCache.__blsPublicCmsRedirectInflight = undefined;
+    }
+  })();
+
+  redirectCache.__blsPublicCmsRedirectInflight = refresh;
+  return refresh;
 }
 
 export async function getActivePublicCmsRedirect(pathname: string): Promise<ContentRedirect | undefined> {
