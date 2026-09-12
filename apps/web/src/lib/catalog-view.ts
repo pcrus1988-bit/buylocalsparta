@@ -9,6 +9,7 @@ import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 import { getPublicProductDetail, getPublicProductDetails } from "./public-product-detail";
 import { loadCatalogDepartmentCodes } from "./catalog-category-department";
+import { getPublishedDropshipCatalogCards } from "./published-dropship-storefront";
 
 export type CatalogCard = Readonly<{
   id: string;
@@ -102,9 +103,10 @@ type PublicOfferAvailabilityRow = Readonly<{ canonical_public_id: string }>;
 
 /**
  * Stable search-admission signal: a public canonical must have at least one
- * approved, priced local offer with fresh sellable stock. Capacity throttles are
- * intentionally excluded because a temporarily busy shop must not make a useful
- * product URL flap in and out of Google's index.
+ * approved, priced sellable offer. Local offers use fresh inventory balances;
+ * API-authoritative dropshipping offers use their fresh supplier availability
+ * cache. Capacity throttles are intentionally excluded because a temporarily busy
+ * shop must not make a useful product URL flap in and out of Google's index.
  */
 async function loadPublicOfferAvailability(
   canonicalVariantIds: readonly string[],
@@ -114,24 +116,59 @@ async function loadPublicOfferAvailability(
   if (ids.length === 0 || !productionDatabaseConfigured()) return new Set();
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<PublicOfferAvailabilityRow>(`
-      SELECT DISTINCT cv.public_id AS canonical_public_id
-      FROM canonical_variants cv
-      JOIN markets m ON m.id=cv.market_id
-      JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-      JOIN vendor_businesses v ON v.id=vo.vendor_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      JOIN inventory_balances ib ON ib.offer_id=vo.id
-      WHERE cv.public_id=ANY($1::text[])
-        AND m.code='sparta'
-        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-        AND vo.status='approved'
-        AND vo.customer_price_minor>0
-        AND v.status='active'
-        AND l.active=true
-        AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
-        AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>$2
+      SELECT DISTINCT eligible.canonical_public_id
+      FROM (
+        SELECT cv.public_id AS canonical_public_id
+        FROM canonical_variants cv
+        JOIN markets m ON m.id=cv.market_id
+        JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+        JOIN vendor_businesses v ON v.id=vo.vendor_id
+        JOIN vendor_locations l ON l.id=vo.location_id
+        JOIN inventory_balances ib ON ib.offer_id=vo.id
+        WHERE cv.public_id=ANY($1::text[])
+          AND m.code='sparta'
+          AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND v.status='active'
+          AND l.active=true
+          AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+          AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>$2
+
+        UNION
+
+        SELECT cv.public_id AS canonical_public_id
+        FROM canonical_variants cv
+        JOIN markets m ON m.id=cv.market_id
+        JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+        JOIN vendor_businesses v ON v.id=vo.vendor_id
+        JOIN vendor_locations l ON l.id=vo.location_id
+        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        WHERE cv.public_id=ANY($1::text[])
+          AND m.code='sparta'
+          AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND v.status='active'
+          AND l.active=true
+          AND dso.active=true
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+          AND dso.cached_available=true
+          AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>$2
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+      ) eligible
     `, [ids, new Date(now)]);
     return new Set(result.rows.map((row) => String(row.canonical_public_id)));
   } catch (error) {
@@ -220,6 +257,23 @@ function facetOptions(values: Iterable<string>): readonly CatalogFacetOption[] {
 
 function customerVisibleCanonicals<T extends Readonly<{ title: string }>>(products: readonly T[]): readonly T[] {
   return products.filter((product) => isPublicCatalogueTitle(product.title));
+}
+
+function purchasablePublicCard(product: CatalogCard): boolean {
+  return product.available && product.availableToSell > 0 && product.priceMinor > 0 && Boolean(product.vendorId);
+}
+
+function mergePublishedDropshipCards(
+  localProducts: readonly CatalogCard[],
+  dropshipProducts: readonly CatalogCard[]
+): readonly CatalogCard[] {
+  if (dropshipProducts.length === 0) return localProducts;
+  const byCanonical = new Map(localProducts.map((product) => [product.id, product] as const));
+  for (const dropshipProduct of dropshipProducts) {
+    const existing = byCanonical.get(dropshipProduct.id);
+    if (!existing || !purchasablePublicCard(existing)) byCanonical.set(dropshipProduct.id, dropshipProduct);
+  }
+  return [...byCanonical.values()];
 }
 
 /**
@@ -449,7 +503,9 @@ export async function getCatalogCards(
       priced.push({ ...record, available: false, availableToSell: 0, vendorId: undefined, vendorName: undefined, adviser: undefined });
     }
   }
-  return enrichDatabaseRecords(priced, metadata);
+  const localProducts = await enrichDatabaseRecords(priced, metadata);
+  const dropshipProducts = await getPublishedDropshipCatalogCards(query, category, filters, attributeFilters);
+  return mergePublishedDropshipCards(localProducts, dropshipProducts);
 }
 
 export async function getCatalogCard(id: string, visitorKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
@@ -463,7 +519,10 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
     loadCatalogMetadata([id]),
     loadCatalogDepartmentCodes([id])
   ]);
-  return (await enrichDatabaseRecords([{ ...priced, departmentCode: departmentCodes.get(id) }], metadata))[0];
+  const localProduct = (await enrichDatabaseRecords([{ ...priced, departmentCode: departmentCodes.get(id) }], metadata))[0];
+  if (localProduct && purchasablePublicCard(localProduct)) return localProduct;
+  const dropshipProduct = (await getPublishedDropshipCatalogCards("", "", {}, {}, undefined, id))[0];
+  return dropshipProduct ?? localProduct;
 }
 
 export async function getPublicVendor(vendorId: string): Promise<PublicVendorView | undefined> {
@@ -476,17 +535,24 @@ export async function getVendorCatalogCards(vendorId: string): Promise<readonly 
   const records = customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId));
   const priced = await Promise.all(records.map((record) => withVendorOfferPrice(record, vendorId)));
   const availableRecords = priced.flatMap((record) => record ? [record] : []);
-  const [metadata, departmentCodes] = await Promise.all([
+  const [metadata, departmentCodes, dropshipProducts] = await Promise.all([
     loadCatalogMetadata(availableRecords.map((record) => record.id)),
-    loadCatalogDepartmentCodes(availableRecords.map((record) => record.id))
+    loadCatalogDepartmentCodes(availableRecords.map((record) => record.id)),
+    getPublishedDropshipCatalogCards("", "", {}, {}, vendorId)
   ]);
-  return enrichDatabaseRecords(availableRecords.map((record) => ({ ...record, departmentCode: departmentCodes.get(record.id) })), metadata);
+  const localProducts = await enrichDatabaseRecords(availableRecords.map((record) => ({ ...record, departmentCode: departmentCodes.get(record.id) })), metadata);
+  return mergePublishedDropshipCards(localProducts, dropshipProducts);
 }
 
 export async function getCanonicalAvailability(id: string, postcode = "23100"): Promise<Readonly<{ available: boolean; availableToSell: number }> | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
   const result = await getProductionPostgresRuntime().customerCommerce.publicCanonicalAvailability(id, { postcode });
-  return result && isPublicCatalogueTitle(result.product.title) ? { available: result.available, availableToSell: result.availableToSell } : undefined;
+  if (result && isPublicCatalogueTitle(result.product.title) && result.available) {
+    return { available: true, availableToSell: result.availableToSell };
+  }
+  const dropshipProduct = (await getPublishedDropshipCatalogCards("", "", {}, {}, undefined, id))[0];
+  if (dropshipProduct) return { available: true, availableToSell: dropshipProduct.availableToSell };
+  return result && isPublicCatalogueTitle(result.product.title) ? { available: false, availableToSell: 0 } : undefined;
 }
 
 /**

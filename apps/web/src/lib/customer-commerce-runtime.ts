@@ -4,6 +4,7 @@ import type { PersistentCartSnapshot } from "@buy-local-sparta/postgres-runtime"
 import { runtime as developmentRuntime } from "./demo-runtime";
 import { canonicalIsPubliclyAllowed } from "./vendor-operations-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { checkoutApiAuthoritativeDropship, freshDropshipCartOffer } from "./dropship-checkout-runtime";
 
 export function postgresCommerceEnabled(): boolean { return Boolean(process.env.DATABASE_URL?.trim()); }
 
@@ -18,6 +19,8 @@ export async function checkoutCustomer(input: {
   now: number;
 }): Promise<CustomerOrder> {
   if (postgresCommerceEnabled()) {
+    const dropshipOrder = await checkoutApiAuthoritativeDropship(input);
+    if (dropshipOrder) return dropshipOrder;
     return getProductionPostgresRuntime().customerCommerce.checkout({
       ...input,
       developmentAuthorisePayment: process.env.NODE_ENV !== "production" && process.env.BLS_ALLOW_DEVELOPMENT_PAYMENT_ADAPTER === "true"
@@ -73,8 +76,10 @@ export async function persistentCustomerCart(principal: SessionPrincipal, visito
   if (!visitorKey || cart.items.length === 0) return cart;
 
   const items = await Promise.all(cart.items.map(async (item) => {
-    // Cart is a continuation of the customer's product view. The fairness service reuses
-    // an existing sticky assignment before considering any new allocation.
+    // Cart is a continuation of the customer's product view. Local products reuse
+    // their sticky fairness assignment. API-authoritative dropship products fall back
+    // to their fresh supplier cache for display only; checkout still performs a live
+    // exact-variant NOVA revalidation before creating an order.
     await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: item.canonicalVariantId, visitorKey, postcode, reason: "product_view" });
     const result = await runtime.nativePool.query(`
       SELECT vo.customer_price_minor,
@@ -92,7 +97,10 @@ export async function persistentCustomerCart(principal: SessionPrincipal, visito
       ORDER BY sa.locked_at DESC
       LIMIT 1
     `, [item.canonicalVariantId, visitorHash(visitorKey), postcode]);
-    if (!result.rowCount) return { ...item, available: false };
+    if (!result.rowCount) {
+      const dropship = await freshDropshipCartOffer(item.canonicalVariantId, item.quantity);
+      return dropship ? { ...item, priceMinor: dropship.priceMinor, available: dropship.available } : { ...item, available: false };
+    }
     const priceMinor = Number(result.rows[0]?.customer_price_minor);
     const availableToSell = Number(result.rows[0]?.available_to_sell ?? 0);
     if (!Number.isSafeInteger(priceMinor) || priceMinor < 0) throw new Error("Invalid assigned customer price");
