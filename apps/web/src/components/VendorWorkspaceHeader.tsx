@@ -44,6 +44,7 @@ export function VendorWorkspaceHeader() {
       icon: "⇄",
       links: [
         { label: "Dropshipping Control Centre", href: "/vendor/dropshipping", icon: "⇄" },
+        { label: "Needs attention", href: "/vendor/dropshipping/attention", icon: "!" },
         { label: "Feed health", href: "/vendor/dropshipping/health", icon: "↻" },
         { label: "Activity", href: "/vendor/dropshipping/activity", icon: "◷" },
         ...group.links.filter((link) => link.href !== "/vendor/catalog")
