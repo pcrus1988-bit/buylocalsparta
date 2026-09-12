@@ -55,7 +55,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       { label: "Πωλήσεις 30ημ.", value: euro(t.revenueMinor), tone: t.revenueMinor ? "positive" : "default" },
       { label: "Product views 30ημ.", value: t.pageViews },
       { label: "Conversion", value: pct(t.purchases, t.pageViews) },
-      { label: "Χωρίς buying price", value: totalMissingCost, tone: totalMissingCost ? "warning" : "positive" }
+      { label: "Χωρίς buying price", value: totalMissingCost, tone: totalMissingCost ? "attention" : "positive" }
     ]} />
 
     <section className="shell vendor-section">
