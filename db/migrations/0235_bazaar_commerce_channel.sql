@@ -73,6 +73,18 @@ ALTER TABLE public.canonical_variants
     OR commerce_channel = 'bazaar'
   );
 
+-- Canonical slug identity is channel-scoped. This permits the same supplier item to
+-- have an independent normal/new and BAZAAR canonical over its lifecycle without
+-- merging either identity. Reuse the historical constraint/index name so existing
+-- duplicate-key handling remains compatible.
+ALTER TABLE public.canonical_variants
+  DROP CONSTRAINT IF EXISTS canonical_variants_market_id_slug_key;
+
+DROP INDEX IF EXISTS public.canonical_variants_market_id_slug_key;
+
+CREATE UNIQUE INDEX canonical_variants_market_id_slug_key
+  ON public.canonical_variants (market_id, commerce_channel, slug);
+
 -- The previous unique index on (market_id, gtin) forced a BAZAAR item to collide
 -- with the normal/new canonical variant carrying the same manufacturer barcode.
 -- Preserve strict GTIN uniqueness for the normal catalogue only. Bazaar inventory
