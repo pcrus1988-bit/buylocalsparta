@@ -7,6 +7,7 @@ const EXPECTED_OWNER_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
 const DEFAULT_BATCH_SIZE = 25;
 const MAX_BATCH_SIZE = 100;
 const DEFAULT_TAX_RATE_BPS = 2400;
+const MATERIALIZATION_CURSOR_KEY = "novaMaterializationCursor";
 
 type SupplierContext = Readonly<{
   supplierId: string;
@@ -15,6 +16,7 @@ type SupplierContext = Readonly<{
   vendorPublicId: string;
   locationId: string;
   marketId: string;
+  materializationCursor: string | null;
 }>;
 
 type SourceProductRow = Readonly<{
@@ -64,6 +66,12 @@ export type NovaMaterializationSliceResult = Readonly<{
  * - only checksum-valid global identifiers may reuse an existing canonical;
  * - ambiguous or materially conflicting strong identity fails closed;
  * - vendor offers stay draft + hidden and dropship offers stay inactive.
+ *
+ * The source scan is deliberately cursor-bounded. Searching the entire immutable
+ * supplier history for the next missing variant made each slice increasingly
+ * expensive as the catalogue grew. The cursor is persisted in catalog_sources
+ * metadata only after a complete batch succeeds, so crashes replay at most one
+ * bounded idempotent batch and never skip supplier evidence.
  */
 export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMaterializationSliceResult> {
   if (process.env.BLS_NOVA_MATERIALIZATION_ENABLED === "false") {
@@ -78,8 +86,10 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
       ds.owner_vendor_id AS vendor_id,
       vb.public_id AS vendor_public_id,
       vl.id AS location_id,
-      vl.market_id AS market_id
+      vl.market_id AS market_id,
+      cs.metadata->>$2 AS materialization_cursor
     FROM public.dropship_suppliers ds
+    JOIN public.catalog_sources cs ON cs.id=ds.catalog_source_id
     JOIN public.vendor_businesses vb ON vb.id=ds.owner_vendor_id
     JOIN LATERAL (
       SELECT l.id,l.market_id
@@ -94,7 +104,7 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
       AND ds.catalogue_sync_enabled=true
       AND ds.catalog_source_id IS NOT NULL
     LIMIT 1
-  `,[SUPPLIER_CODE]);
+  `,[SUPPLIER_CODE,MATERIALIZATION_CURSOR_KEY]);
 
   const row = contextResult.rows[0];
   if (!row) return emptyResult(false, "supplier_disabled_or_missing_location");
@@ -105,45 +115,30 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
     vendorId: requiredText(row.vendor_id, "owner vendor id"),
     vendorPublicId: requiredText(row.vendor_public_id, "owner vendor public id"),
     locationId: requiredText(row.location_id, "owner vendor location id"),
-    marketId: requiredText(row.market_id, "market id")
+    marketId: requiredText(row.market_id, "market id"),
+    materializationCursor: optionalText(row.materialization_cursor)
   };
   if (context.vendorPublicId !== EXPECTED_OWNER_VENDOR) {
     throw new Error(`Nova supplier owner mismatch: ${context.vendorPublicId}`);
   }
 
   const candidates = await pool.query<SqlRow>(`
-    WITH latest AS (
-      SELECT DISTINCT ON (p.source_product_key)
-        p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload,p.created_at
-      FROM public.catalog_source_products p
-      WHERE p.source_id=$1::uuid
-      ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
-    )
-    SELECT l.*
-    FROM latest l
-    WHERE jsonb_typeof(l.normalized_payload->'variants')='array'
-      AND jsonb_array_length(l.normalized_payload->'variants')>0
-      AND NOT EXISTS (
-        SELECT 1
-        FROM public.catalog_canonicalization_reviews r
-        WHERE r.source_product_id=l.id
-          AND r.status='open'
-          AND r.reason_code IN ('canonical_identity_ambiguous','material_variant_conflict')
-      )
-      AND EXISTS (
-        SELECT 1
-        FROM jsonb_array_elements(l.normalized_payload->'variants') v
-        WHERE NULLIF(v->>'externalVariantId','') IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1
-            FROM public.dropship_supplier_offers dso
-            WHERE dso.supplier_id=$2::uuid
-              AND dso.external_variant_id=v->>'externalVariantId'
-          )
-      )
-    ORDER BY l.created_at ASC,l.source_product_key ASC
+    SELECT DISTINCT ON (p.source_product_key)
+      p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload,p.created_at
+    FROM public.catalog_source_products p
+    WHERE p.source_id=$1::uuid
+      AND ($2::text IS NULL OR p.source_product_key>$2)
+    ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
     LIMIT $3
-  `,[context.sourceId,context.supplierId,batchSize()]);
+  `,[context.sourceId,context.materializationCursor,batchSize()]);
+
+  if (candidates.rows.length === 0) {
+    if (context.materializationCursor) {
+      await persistMaterializationCursor(context.sourceId,null);
+      return emptyResult(true,"materialization_cursor_wrapped");
+    }
+    return emptyResult(true,"materialization_source_empty");
+  }
 
   const result: NovaMaterializationSliceResult = {
     enabled: true,
@@ -155,6 +150,7 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
   };
   const mutable = { ...result };
 
+  let lastSourceProductKey: string | null = null;
   for (const candidate of candidates.rows) {
     const sourceProduct: SourceProductRow = {
       id: requiredText(candidate.id, "source product id"),
@@ -163,6 +159,7 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
       title: requiredText(candidate.title, "source product title"),
       normalizedPayload: record(candidate.normalized_payload)
     };
+    lastSourceProductKey = sourceProduct.sourceProductKey;
     const outcome = await materializeSourceProduct(context, sourceProduct);
     mutable.variants += outcome.variants;
     mutable.canonicalCreated += outcome.canonicalCreated;
@@ -170,7 +167,34 @@ export async function runNovaCatalogueMaterializationSlice(): Promise<NovaMateri
     mutable.reviewsCreated += outcome.reviewsCreated;
   }
 
+  if (lastSourceProductKey) {
+    await persistMaterializationCursor(context.sourceId,lastSourceProductKey);
+  }
   return mutable;
+}
+
+async function persistMaterializationCursor(sourceId: string, cursor: string | null): Promise<void> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  if (cursor === null) {
+    await pool.query(`
+      UPDATE public.catalog_sources
+      SET metadata=COALESCE(metadata,'{}'::jsonb)-$2,
+          updated_at=now()
+      WHERE id=$1::uuid
+    `,[sourceId,MATERIALIZATION_CURSOR_KEY]);
+    return;
+  }
+  await pool.query(`
+    UPDATE public.catalog_sources
+    SET metadata=jsonb_set(
+          COALESCE(metadata,'{}'::jsonb),
+          ARRAY[$2]::text[],
+          to_jsonb($3::text),
+          true
+        ),
+        updated_at=now()
+    WHERE id=$1::uuid
+  `,[sourceId,MATERIALIZATION_CURSOR_KEY,cursor]);
 }
 
 async function materializeSourceProduct(
