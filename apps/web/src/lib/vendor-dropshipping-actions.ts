@@ -53,11 +53,11 @@ async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
  * Dropshipping supplier products are trusted catalogue imports owned by the
  * dedicated dropshipping vendor. A vendor publish action may therefore promote
  * an otherwise safe supplier-linked offer from draft -> approved without an
- * Admin review round-trip. The dropship_supplier_offers.active flag represents
- * vendor activation/publication intent, not live supplier stock: publishing an
- * eligible product activates that row. Live availability remains API-authoritative
- * and is enforced separately by storefront/checkout availability guards.
- * Marketplace moderation states remain authoritative.
+ * Admin review round-trip. Newly materialized supplier canonicals intentionally
+ * start inactive; explicit vendor publication activates the canonical as part of
+ * the same transaction. Suppression/recall and marketplace moderation remain
+ * authoritative. Live supplier stock remains API-authoritative at storefront and
+ * checkout and is deliberately not copied into local inventory.
  */
 export async function setDropshippingProductVisibility(
   vendorIdentity: string,
@@ -84,6 +84,7 @@ export async function setDropshippingProductVisibility(
              dso.id::text supplier_offer_uuid,
              dso.active supplier_offer_active,
              dso.supplier_cost_minor,
+             cv.id::text canonical_variant_uuid,
              cv.active canonical_active,
              cv.suppressed canonical_suppressed,
              cv.recalled canonical_recalled,
@@ -114,8 +115,7 @@ export async function setDropshippingProductVisibility(
     const selfPublishableStatus = status === "draft" || status === "approved";
     const supplierCostMinor = Number(row.supplier_cost_minor);
     const customerPriceMinor = Number(row.customer_price_minor);
-    const canonicalEligible = row.canonical_active === true
-      && row.canonical_suppressed !== true
+    const canonicalSafetyEligible = row.canonical_suppressed !== true
       && row.canonical_recalled !== true;
 
     if (visible) {
@@ -123,7 +123,15 @@ export async function setDropshippingProductVisibility(
       if (row.latest_submission_status === "archived") throw new Error("Το προϊόν έχει αρχειοθετηθεί από marketplace moderation και δεν μπορεί να δημοσιευτεί από τον vendor.");
       if (!Number.isSafeInteger(supplierCostMinor) || supplierCostMinor < 0) throw new Error("Δεν υπάρχει έγκυρη supplier buying price για αυτό το προϊόν.");
       if (!Number.isSafeInteger(customerPriceMinor) || customerPriceMinor < supplierCostMinor) throw new Error("Η τελική τιμή πρέπει να είναι τουλάχιστον ίση με τη supplier buying price.");
-      if (!canonicalEligible) throw new Error("Το προϊόν είναι suppressed ή recalled και δεν μπορεί να δημοσιευτεί.");
+      if (!canonicalSafetyEligible) throw new Error("Το προϊόν είναι suppressed ή recalled και δεν μπορεί να δημοσιευτεί.");
+
+      await client.query(`
+        UPDATE canonical_variants
+           SET active=true
+         WHERE id=$1::uuid
+           AND suppressed=false
+           AND recalled=false
+      `, [String(row.canonical_variant_uuid)]);
 
       await client.query(`
         UPDATE dropship_supplier_offers
@@ -164,10 +172,11 @@ export async function setDropshippingProductVisibility(
           'channel','dropshipping',
           'offer_public_id',$5::text,
           'self_approved_from_draft',($3::boolean AND $6::text='draft'),
-          'supplier_offer_activated',($3::boolean AND NOT $7::boolean)
+          'supplier_offer_activated',($3::boolean AND NOT $7::boolean),
+          'canonical_activated',($3::boolean AND NOT $8::boolean)
         )
       )
-    `, [vendorId, String(row.offer_uuid), visible, actorId, publicOfferId, status, row.supplier_offer_active === true]);
+    `, [vendorId, String(row.offer_uuid), visible, actorId, publicOfferId, status, row.supplier_offer_active === true, row.canonical_active === true]);
 
     await client.query("COMMIT");
     const changedRow = changed.rows[0];
@@ -203,6 +212,7 @@ export async function resetDropshippingProductToSupplierDefaults(
              dso.id::text supplier_offer_uuid,
              dso.active supplier_offer_active,
              dso.supplier_cost_minor, ds.configuration->'vendorMerchandising' vendor_merchandising,
+             cv.id::text canonical_variant_uuid,
              cv.active canonical_active, cv.suppressed canonical_suppressed, cv.recalled canonical_recalled,
              COALESCE((
                SELECT s.status::text
@@ -239,14 +249,13 @@ export async function resetDropshippingProductToSupplierDefaults(
       afterMarkupMinor - Math.round(afterMarkupMinor * defaults.discountPercent / 100)
     );
     const offerUuid = String(row.offer_uuid);
-    const canonicalEligible = row.canonical_active === true
-      && row.canonical_suppressed !== true
+    const canonicalSafetyEligible = row.canonical_suppressed !== true
       && row.canonical_recalled !== true;
     const selfPublishableStatus = row.status === "draft" || row.status === "approved";
     const visible = defaults.visible
       && selfPublishableStatus
       && row.latest_submission_status !== "archived"
-      && canonicalEligible;
+      && canonicalSafetyEligible;
 
     await client.query(`
       INSERT INTO vendor_offer_pricing_private(
@@ -269,6 +278,14 @@ export async function resetDropshippingProductToSupplierDefaults(
     `, [offerUuid, vendorId, supplierCostMinor, defaults.markupPercent, defaults.discountPercent]);
 
     if (visible) {
+      await client.query(`
+        UPDATE canonical_variants
+           SET active=true
+         WHERE id=$1::uuid
+           AND suppressed=false
+           AND recalled=false
+      `, [String(row.canonical_variant_uuid)]);
+
       await client.query(`
         UPDATE dropship_supplier_offers
            SET active=true,
@@ -327,6 +344,33 @@ export async function setDropshippingSupplierVisibility(
     await client.query("BEGIN");
 
     if (visible) {
+      await client.query(`
+        UPDATE canonical_variants cv
+           SET active=true
+          FROM vendor_offers vo
+          JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+          JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+         WHERE cv.id=vo.canonical_variant_id
+           AND vo.vendor_id=$1::uuid
+           AND ds.owner_vendor_id=$1::uuid
+           AND ds.code=$2
+           AND ds.active=true
+           AND vo.status IN ('draft','approved')
+           AND dso.supplier_cost_minor IS NOT NULL
+           AND dso.supplier_cost_minor >= 0
+           AND vo.customer_price_minor >= dso.supplier_cost_minor
+           AND cv.suppressed=false
+           AND cv.recalled=false
+           AND NOT EXISTS (
+             SELECT 1
+               FROM vendor_product_submissions s
+              WHERE s.vendor_id=vo.vendor_id
+                AND s.canonical_variant_id=vo.canonical_variant_id
+                AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                AND s.status='archived'
+           )
+      `, [vendorId, code]);
+
       await client.query(`
         UPDATE dropship_supplier_offers dso
            SET active=true,
