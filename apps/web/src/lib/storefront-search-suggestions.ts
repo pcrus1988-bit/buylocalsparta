@@ -1,5 +1,6 @@
 import { searchTextRelevance } from "@buy-local-sparta/core";
-import { getPublicProductSeoInventory } from "./catalog-view";
+import { getCanonicalAvailability, getPublicCatalogProducts } from "./catalog-view";
+import { loadCatalogMetadata } from "./catalog-metadata";
 import {
   categoryCodeMatches,
   STOREFRONT_CATEGORIES,
@@ -43,12 +44,30 @@ const QUERY_SEEDS: readonly QuerySeed[] = [
   { label: "Τηλεοράσεις", aliases: ["televisions", "tvs", "tileoraseis"], category: "technology" }
 ];
 
+/**
+ * Search discovery intentionally uses the lightweight catalogue projection.
+ * The old path built the complete SEO inventory for every keystroke, including
+ * public-detail, offer-availability and approved-media projections for the whole
+ * catalogue. That made typeahead compete with storefront images and normal page
+ * rendering. Here metadata is loaded once in bulk, then live availability is only
+ * resolved for the handful of product suggestions that can actually be shown.
+ */
 export async function getStorefrontSearchSuggestions(query: string, limit = 12): Promise<StorefrontSearchSuggestionResult> {
   const clean = query.trim().slice(0, 120);
   if (clean.length < 2) return { items: [], hasResults: false };
 
-  const inventory = await getPublicProductSeoInventory();
-  const products = inventory.products;
+  const catalog = await getPublicCatalogProducts();
+  const metadata = await loadCatalogMetadata(catalog.map((product) => product.id));
+  const products = catalog.map((product) => {
+    const details = metadata.get(product.id);
+    return {
+      ...product,
+      brand: details?.brand,
+      categoryLabel: details?.categoryLabel,
+      gtin: details?.gtin,
+      mpn: details?.mpn
+    };
+  });
   const max = Math.max(4, Math.min(20, limit));
 
   const queryItems = QUERY_SEEDS
@@ -106,21 +125,30 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
       href: shopHref({ brand })
     }));
 
-  const productItems = products
+  const rankedProducts = products
     .map((product) => ({
       product,
       score: searchTextRelevance(clean, [product.title, product.brand, product.categoryLabel, product.gtin, product.mpn])
     }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || Number(b.product.offerAvailable) - Number(a.product.offerAvailable) || a.product.title.localeCompare(b.product.title, "el"))
-    .slice(0, 4)
-    .map(({ product }) => ({
-      kind: "product" as const,
-      label: product.title,
-      subtitle: [product.brand, product.categoryLabel].filter(Boolean).join(" · ") || "Προϊόν",
-      available: product.offerAvailable,
-      href: `/product/${encodeURIComponent(product.slug)}`
-    }));
+    .sort((a, b) => b.score - a.score || a.product.title.localeCompare(b.product.title, "el"))
+    .slice(0, 4);
+
+  const availability = await Promise.all(rankedProducts.map(async ({ product }) => {
+    try {
+      return Boolean((await getCanonicalAvailability(product.id))?.available);
+    } catch {
+      return false;
+    }
+  }));
+
+  const productItems = rankedProducts.map(({ product }, index) => ({
+    kind: "product" as const,
+    label: product.title,
+    subtitle: [product.brand, product.categoryLabel].filter(Boolean).join(" · ") || "Προϊόν",
+    available: availability[index],
+    href: `/product/${encodeURIComponent(product.slug)}`
+  }));
 
   const items = dedupe([...queryItems, ...categoryItems, ...leafItems, ...brandItems, ...productItems]).slice(0, max);
   return { items, hasResults: productItems.length > 0 };
