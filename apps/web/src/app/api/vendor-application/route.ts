@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     };
     const receipt = await submitVendorApplication({ application, principal, now });
 
-    await Promise.allSettled([
+    const [, operationsEmail] = await Promise.all([
       sendVendorApplicationReceiptEmail({
         to: application.contactEmail,
         tradingName: application.tradingName,
@@ -79,6 +79,14 @@ export async function POST(request: Request) {
         requestedPlanCode: application.requestedPlanCode
       })
     ]);
+    if (!operationsEmail.sent) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "vendor_application.admin_notification_failed",
+        applicationId: receipt.applicationId,
+        destination: "info@kontamou.site"
+      }));
+    }
 
     return Response.json(
       {
