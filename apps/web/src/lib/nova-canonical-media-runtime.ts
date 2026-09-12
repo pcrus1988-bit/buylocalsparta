@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createHash, randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
@@ -212,7 +213,7 @@ async function persistImage(candidate: Candidate, image: SupplierImage, original
   const extension = downloaded.contentType === "image/png" ? "png" : downloaded.contentType === "image/webp" ? "webp" : "jpg";
   const objectKey = `private/nova-catalogue/${candidate.canonicalPublicId}/${candidate.sourceProductId}/${image.sortOrder}-${mediaPublicId}.${extension}`;
   const signed = await storage().createUploadUrl({ objectKey, contentType: downloaded.contentType, expiresInSeconds: 600 });
-  const upload = await fetch(signed.url, { method: "PUT", headers: signed.headers, body: downloaded.bytes });
+  const upload = await fetch(signed.url, { method: "PUT", headers: signed.headers, body: Buffer.from(downloaded.bytes) });
   if (!upload.ok) throw new Error(`object_storage_upload_${upload.status}`);
   const stored = await storage().head(objectKey);
   if (!stored || stored.byteSize !== downloaded.bytes.byteLength) {
