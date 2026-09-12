@@ -224,8 +224,6 @@ async function materializeSourceProduct(
     let canonicalVariantId: string | null = null;
     let matchMethod: "exact_gtin" | "enrichment" = "enrichment";
 
-    // Restart safety: a previous materialization may have created the inactive
-    // canonical before the staged supplier offer was persisted.
     const sourceScoped = await pool.query<SqlRow>(`
       SELECT id
       FROM public.canonical_variants
@@ -332,11 +330,14 @@ async function materializeSourceProduct(
           DEFAULT_TAX_RATE_BPS
         ]);
       } catch (error) {
-        if (!isCanonicalSlugUniqueViolation(error)) throw error;
+        const conflict = canonicalInsertUniqueConflict(error);
+        if (!conflict) throw error;
         reviewsCreated += await upsertReview(context,sourceProduct,"canonical_identity_ambiguous",null,{
           externalVariantId: variant.externalVariantId,
-          slugCollision: true,
-          canonicalSlug: slug
+          uniqueConflict: conflict,
+          canonicalSlug: slug,
+          identifierType: globalIdentifier?.type ?? null,
+          identifierValue: globalIdentifier?.value ?? null
         });
         continue;
       }
@@ -348,12 +349,7 @@ async function materializeSourceProduct(
           canonical_variant_id,locale,title,description,specifications,seo_title,seo_description
         ) VALUES($1::uuid,'en',$2,$3,$4::jsonb,NULL,NULL)
         ON CONFLICT (canonical_variant_id,locale) DO NOTHING
-      `,[
-        canonicalVariantId,
-        sourceProduct.title,
-        optionalText(payload.description),
-        JSON.stringify({ source: "nova_shopwoo_v1",supplierContent: true })
-      ]);
+      `,[canonicalVariantId,sourceProduct.title,optionalText(payload.description),JSON.stringify({ source: "nova_shopwoo_v1",supplierContent: true })]);
 
       if (globalIdentifier) {
         await pool.query(`
@@ -367,13 +363,7 @@ async function materializeSourceProduct(
             WHERE active=true
               AND identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn10','isbn13')
           DO NOTHING
-        `,[
-          canonicalVariantId,
-          globalIdentifier.type,
-          globalIdentifier.value,
-          globalIdentifier.value,
-          `nova:${sourceProduct.sourceProductKey}:${variant.externalVariantId}`
-        ]);
+        `,[canonicalVariantId,globalIdentifier.type,globalIdentifier.value,globalIdentifier.value,`nova:${sourceProduct.sourceProductKey}:${variant.externalVariantId}`]);
       }
     }
 
@@ -382,24 +372,8 @@ async function materializeSourceProduct(
         source_product_id,canonical_variant_id,link_status,match_method,confidence,reasons,reviewed_at
       ) VALUES($1::uuid,$2::uuid,'approved',$3,1,$4::jsonb,now())
       ON CONFLICT (source_product_id,canonical_variant_id)
-      DO UPDATE SET
-        link_status='approved',
-        match_method=EXCLUDED.match_method,
-        confidence=EXCLUDED.confidence,
-        reasons=EXCLUDED.reasons,
-        updated_at=now()
-    `,[
-      sourceProduct.id,
-      canonicalVariantId,
-      matchMethod,
-      JSON.stringify([{
-        source: "nova_shopwoo_v1",
-        externalProductId: sourceProduct.sourceProductKey,
-        externalVariantId: variant.externalVariantId,
-        globalIdentifier: globalIdentifier?.value ?? null,
-        rule: matchMethod === "exact_gtin" ? "global_identifier" : "automatic_inactive_draft"
-      }])
-    ]);
+      DO UPDATE SET link_status='approved',match_method=EXCLUDED.match_method,confidence=EXCLUDED.confidence,reasons=EXCLUDED.reasons,updated_at=now()
+    `,[sourceProduct.id,canonicalVariantId,matchMethod,JSON.stringify([{ source: "nova_shopwoo_v1",externalProductId: sourceProduct.sourceProductKey,externalVariantId: variant.externalVariantId,globalIdentifier: globalIdentifier?.value ?? null,rule: matchMethod === "exact_gtin" ? "global_identifier" : "automatic_inactive_draft" }])]);
 
     const vendorSku = `nova:${variant.externalVariantId}`;
     const vendorOffer = await pool.query<SqlRow>(`
@@ -414,36 +388,9 @@ async function materializeSourceProduct(
         '{}'::jsonb,$9::jsonb,$10,false,false,$11,false
       )
       ON CONFLICT (vendor_id,location_id,canonical_variant_id,vendor_sku)
-      DO UPDATE SET
-        source_gtin=COALESCE(EXCLUDED.source_gtin,public.vendor_offers.source_gtin),
-        supplier_unit_price_minor=EXCLUDED.supplier_unit_price_minor,
-        source_payload=public.vendor_offers.source_payload || EXCLUDED.source_payload,
-        msrp_minor=EXCLUDED.msrp_minor,
-        updated_at=now()
+      DO UPDATE SET source_gtin=COALESCE(EXCLUDED.source_gtin,public.vendor_offers.source_gtin),supplier_unit_price_minor=EXCLUDED.supplier_unit_price_minor,source_payload=public.vendor_offers.source_payload || EXCLUDED.source_payload,msrp_minor=EXCLUDED.msrp_minor,updated_at=now()
       RETURNING id
-    `,[
-      context.marketId,
-      context.vendorId,
-      context.locationId,
-      canonicalVariantId,
-      vendorSku,
-      globalIdentifier?.value ?? variant.barcode,
-      variant.buyingCostMinor ?? 0,
-      DEFAULT_TAX_RATE_BPS,
-      JSON.stringify({
-        dropship: true,
-        supplierCode: SUPPLIER_CODE,
-        externalProductId: sourceProduct.sourceProductKey,
-        externalVariantId: variant.externalVariantId,
-        externalSku: variant.sku,
-        publicationState: "STAGED",
-        pricingPending: true,
-        supplierContentSource: "catalog_source_products",
-        schemaPolicy: "catalog_identity_v3_simplified"
-      }),
-      stagedPrice(variant),
-      positiveMinor(variant.msrpMinor) ? variant.msrpMinor : null
-    ]);
+    `,[context.marketId,context.vendorId,context.locationId,canonicalVariantId,vendorSku,globalIdentifier?.value ?? variant.barcode,variant.buyingCostMinor ?? 0,DEFAULT_TAX_RATE_BPS,JSON.stringify({ dropship: true,supplierCode: SUPPLIER_CODE,externalProductId: sourceProduct.sourceProductKey,externalVariantId: variant.externalVariantId,externalSku: variant.sku,publicationState: "STAGED",pricingPending: true,supplierContentSource: "catalog_source_products",schemaPolicy: "catalog_identity_v3_simplified" }),stagedPrice(variant),positiveMinor(variant.msrpMinor) ? variant.msrpMinor : null]);
     const vendorOfferId = requiredText(vendorOffer.rows[0]?.id,"vendor offer id");
 
     await pool.query(`
@@ -465,40 +412,9 @@ async function materializeSourceProduct(
         now(),now()+interval '10 minutes',$12::jsonb,now(),false
       )
       ON CONFLICT (supplier_id,external_variant_id)
-      DO UPDATE SET
-        source_product_id=EXCLUDED.source_product_id,
-        external_product_id=EXCLUDED.external_product_id,
-        external_sku=COALESCE(EXCLUDED.external_sku,public.dropship_supplier_offers.external_sku),
-        ean=COALESCE(EXCLUDED.ean,public.dropship_supplier_offers.ean),
-        mpn=COALESCE(EXCLUDED.mpn,public.dropship_supplier_offers.mpn),
-        supplier_cost_minor=EXCLUDED.supplier_cost_minor,
-        cached_available=EXCLUDED.cached_available,
-        cached_quantity=EXCLUDED.cached_quantity,
-        availability_checked_at=EXCLUDED.availability_checked_at,
-        availability_expires_at=EXCLUDED.availability_expires_at,
-        availability_payload=public.dropship_supplier_offers.availability_payload || EXCLUDED.availability_payload,
-        last_catalogue_sync_at=now(),
-        updated_at=now()
+      DO UPDATE SET source_product_id=EXCLUDED.source_product_id,external_product_id=EXCLUDED.external_product_id,external_sku=COALESCE(EXCLUDED.external_sku,public.dropship_supplier_offers.external_sku),ean=COALESCE(EXCLUDED.ean,public.dropship_supplier_offers.ean),mpn=COALESCE(EXCLUDED.mpn,public.dropship_supplier_offers.mpn),supplier_cost_minor=EXCLUDED.supplier_cost_minor,cached_available=EXCLUDED.cached_available,cached_quantity=EXCLUDED.cached_quantity,availability_checked_at=EXCLUDED.availability_checked_at,availability_expires_at=EXCLUDED.availability_expires_at,availability_payload=public.dropship_supplier_offers.availability_payload || EXCLUDED.availability_payload,last_catalogue_sync_at=now(),updated_at=now()
       RETURNING (xmax=0) AS inserted
-    `,[
-      context.supplierId,
-      vendorOfferId,
-      sourceProduct.id,
-      sourceProduct.sourceProductKey,
-      variant.externalVariantId,
-      variant.sku,
-      variant.barcode,
-      variant.mpn,
-      variant.buyingCostMinor,
-      variant.available,
-      variant.quantity,
-      JSON.stringify({
-        source: "nova_catalogue_materializer",
-        stockStatus: variant.stockStatus,
-        backordersAllowed: false,
-        staged: true
-      })
-    ]);
+    `,[context.supplierId,vendorOfferId,sourceProduct.id,sourceProduct.sourceProductKey,variant.externalVariantId,variant.sku,variant.barcode,variant.mpn,variant.buyingCostMinor,variant.available,variant.quantity,JSON.stringify({ source: "nova_catalogue_materializer",stockStatus: variant.stockStatus,backordersAllowed: false,staged: true })]);
     if (supplierOffer.rows[0]?.inserted === true) offersCreated += 1;
   }
 
@@ -532,23 +448,9 @@ async function upsertReview(
       reason_code,status,details
     ) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,$5::uuid,$6,'open',$7::jsonb)
     ON CONFLICT (source_product_id)
-    DO UPDATE SET
-      candidate_variant_id=EXCLUDED.candidate_variant_id,
-      reason_code=EXCLUDED.reason_code,
-      status='open',
-      details=public.catalog_canonicalization_reviews.details || EXCLUDED.details,
-      resolved_at=NULL,
-      updated_at=now()
+    DO UPDATE SET candidate_variant_id=EXCLUDED.candidate_variant_id,reason_code=EXCLUDED.reason_code,status='open',details=public.catalog_canonicalization_reviews.details || EXCLUDED.details,resolved_at=NULL,updated_at=now()
     RETURNING (xmax=0) AS inserted
-  `,[
-    sourceProduct.id,
-    context.sourceId,
-    context.marketId,
-    sourceProduct.snapshotId,
-    candidateVariantId,
-    reasonCode,
-    JSON.stringify(details)
-  ]);
+  `,[sourceProduct.id,context.sourceId,context.marketId,sourceProduct.snapshotId,candidateVariantId,reasonCode,JSON.stringify(details)]);
   return result.rows[0]?.inserted === true ? 1 : 0;
 }
 
@@ -580,45 +482,26 @@ function normalizedVariants(payload: Readonly<Record<string, unknown>>): Materia
     const variant = value as Record<string, unknown>;
     const externalVariantId = optionalText(variant.externalVariantId);
     if (!externalVariantId) continue;
-    output.push({
-      externalVariantId,
-      sku: optionalText(variant.sku),
-      barcode: optionalText(variant.barcode),
-      mpn: optionalText(variant.mpn),
-      buyingCostMinor: nullableMinor(variant.buyingCostMinor),
-      msrpMinor: nullableMinor(variant.msrpMinor),
-      available: variant.available === true,
-      quantity: nullableQuantity(variant.stockQuantity),
-      stockStatus: optionalText(variant.stockStatus),
-      attributes: variant.attributes ?? []
-    });
+    output.push({ externalVariantId,sku: optionalText(variant.sku),barcode: optionalText(variant.barcode),mpn: optionalText(variant.mpn),buyingCostMinor: nullableMinor(variant.buyingCostMinor),msrpMinor: nullableMinor(variant.msrpMinor),available: variant.available === true,quantity: nullableQuantity(variant.stockQuantity),stockStatus: optionalText(variant.stockStatus),attributes: variant.attributes ?? [] });
   }
   return output;
 }
 
 function normalizeMaterialAttributes(value: unknown): Record<string, string> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .flatMap(([key,item]) => {
-          const text = scalarAttributeValue(item);
-          const normalizedKey = normalizeAttributeKey(key);
-          return normalizedKey && text ? [[normalizedKey,text] as const] : [];
-        })
-    );
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).flatMap(([key,item]) => {
+      const text = scalarAttributeValue(item);
+      const normalizedKey = normalizeAttributeKey(key);
+      return normalizedKey && text ? [[normalizedKey,text] as const] : [];
+    }));
   }
   if (!Array.isArray(value)) return {};
   const output: Record<string,string> = {};
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const row = item as Record<string,unknown>;
-    const key = normalizeAttributeKey(
-      optionalText(row.name) ?? optionalText(row.slug) ?? optionalText(row.id) ?? ""
-    );
-    const attributeValue =
-      scalarAttributeValue(row.option) ??
-      scalarAttributeValue(row.value) ??
-      scalarAttributeValue(row.options);
+    const key = normalizeAttributeKey(optionalText(row.name) ?? optionalText(row.slug) ?? optionalText(row.id) ?? "");
+    const attributeValue = scalarAttributeValue(row.option) ?? scalarAttributeValue(row.value) ?? scalarAttributeValue(row.options);
     if (key && attributeValue) output[key] = attributeValue;
   }
   return output;
@@ -666,13 +549,15 @@ function productModel(payload: Readonly<Record<string, unknown>>): string | null
   return optionalText(payload.mpn) ?? optionalText(payload.sku);
 }
 
-function isCanonicalSlugUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
+function canonicalInsertUniqueConflict(error: unknown): "slug" | "gtin" | null {
+  if (!error || typeof error !== "object") return null;
   const row = error as { code?: unknown; constraint?: unknown; message?: unknown };
-  return row.code === "23505" && (
-    row.constraint === "canonical_variants_market_id_slug_key" ||
-    (typeof row.message === "string" && row.message.includes("canonical_variants_market_id_slug_key"))
-  );
+  if (row.code !== "23505") return null;
+  const constraint = typeof row.constraint === "string" ? row.constraint : "";
+  const message = typeof row.message === "string" ? row.message : "";
+  if (constraint === "canonical_variants_market_id_slug_key" || message.includes("canonical_variants_market_id_slug_key")) return "slug";
+  if (constraint === "canonical_variants_gtin_unique" || message.includes("canonical_variants_gtin_unique")) return "gtin";
+  return null;
 }
 
 function normalizeBrandName(value: string): string {
@@ -680,15 +565,11 @@ function normalizeBrandName(value: string): string {
 }
 
 function nestedName(value: unknown): string | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? optionalText((value as Record<string, unknown>).name)
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? optionalText((value as Record<string, unknown>).name) : null;
 }
 
 function record(value: unknown): Readonly<Record<string, unknown>> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Readonly<Record<string, unknown>>
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Readonly<Record<string, unknown>> : {};
 }
 
 function requiredText(value: unknown, label: string): string {
