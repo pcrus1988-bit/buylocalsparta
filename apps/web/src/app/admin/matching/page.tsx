@@ -8,7 +8,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 import { adminMatchingWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
-export const metadata: Metadata = { title: "Admin · Product Matching", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Admin · Vendor Matching", robots: { index: false, follow: false } };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; submission?: string }> }) {
   const principal = await getAdminSession();
@@ -40,7 +40,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Catalog · triage</div><h1>Product Matching</h1><p className="lead">Queue αριστερά, evidence και απόφαση δεξιά. Ο Admin συγκρίνει ένα submission κάθε φορά χωρίς να χάνει τη θέση του στην ουρά.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Catalogue · commercial matching</div><h1>Vendor Matching</h1><p className="lead">Queue αριστερά, evidence και απόφαση δεξιά. Ταυτότητα canonical και εμπορική έγκριση offer παραμένουν δύο ξεχωριστές αποφάσεις.</p></div></section>
     <WorkspaceMetricStrip items={[
       { label: "Submissions", value: data.submissions.length },
       { label: "Needs review", value: review, tone: review ? "attention" : "default" },
@@ -48,7 +48,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       { label: "Linked", value: linked, tone: linked ? "positive" : "default", hint: `${offerReady} ready for offer review` }
     ]} />
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Triage workspace" title="Matching queue & decision panel" note="Search σε source title, vendor, category, canonical ID ή submission ID. Actionable submissions εμφανίζονται πρώτα από το runtime ordering." />
+      <WorkspaceSectionHeading eyebrow="Triage workspace" title="Matching queue & decision panel" note="Search σε source title, vendor, category, canonical ID ή submission ID. Δημιουργία canonical εδώ αφορά μόνο product identity· δεν δημιουργεί ή τιμολογεί vendor offer." />
       <form method="get" className="admin-directory-filters"><label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Product, vendor, canonical ID…" /></label><label><span>Status</span><select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{statuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select></label><div><button className="button button-secondary" type="submit">Filter</button>{(query || status) && <Link className="text-link" href="/admin/matching">Clear</Link>}</div></form>
       {filteredSubmissions.length === 0 ? <WorkspaceEmptyState title="Δεν βρέθηκαν matching submissions με αυτά τα φίλτρα." /> : <div className="admin-split-workspace">
         <div className="admin-triage-list" aria-label="Matching submissions">{filteredSubmissions.map((submission) => {
@@ -60,12 +60,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
           <div className="admin-decision-summary"><div><span>Canonical</span><strong>{selected.canonicalVariantId ?? "Unlinked"}</strong></div><div><span>Candidates</span><strong>{selected.candidates.length}</strong></div><div><span>Submission ID</span><strong>{selected.id}</strong></div></div>
           <WorkspaceRecordDetails label="Source & identifiers" open><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Source vendor</strong><span>{selected.vendorId}</span></div><div className="workspace-compact-row"><strong>Submission</strong><span>{selected.id}</span></div>{selected.canonicalVariantId && <div className="workspace-compact-row"><strong>Linked canonical</strong><span>{selected.canonicalVariantId}</span></div>}</div></WorkspaceRecordDetails>
           <div className="admin-candidate-stack">
-            {selected.candidates.length === 0 ? <div className="workspace-inline-note">Δεν υπάρχει candidate. Αν το προϊόν είναι πραγματικά νέο, δημιούργησε canonical variant.</div> : selected.candidates.map((candidate) => {
+            {selected.candidates.length === 0 ? <div className="workspace-inline-note">Δεν υπάρχει candidate. Αν το προϊόν είναι πραγματικά νέο, δημιούργησε μόνο την canonical ταυτότητα. Η τιμή και η πωλησιμότητα παραμένουν στο vendor offer.</div> : selected.candidates.map((candidate) => {
               const actionable = ["pending", "auto_linked"].includes(candidate.status);
               return <section className={`admin-candidate-card${actionable ? " is-actionable" : ""}`} key={candidate.id}><div><span>{candidate.level}</span><strong>{candidate.canonicalVariantId}</strong><small>{Math.round(candidate.confidence * 100)}% confidence · {candidate.status}</small></div>{actionable && <div className="workspace-action-buttons"><AdminActionButton label="Approve match" endpoint="/api/admin/catalog/action" csrfToken={data.csrfToken} body={{ kind: "approve_match", id: candidate.id }} reasonPrompt="Match approval reason" /><AdminActionButton label="Reject" endpoint="/api/admin/catalog/action" csrfToken={data.csrfToken} body={{ kind: "reject_match", id: candidate.id }} reasonPrompt="Match rejection reason" danger /></div>}</section>;
             })}
           </div>
-          <div className="workspace-action-bar"><span>{selected.status === "archived" ? "Archived products remain visible to Admin and vendor but are not available for sale." : selected.canonicalVariantId ? `Linked to ${selected.canonicalVariantId}` : "No canonical variant selected yet."}</span><div className="workspace-action-buttons">{selected.canonicalVariantId && ["linked", "approved"].includes(selected.status) && <AdminActionButton label="Approve offer" endpoint="/api/admin/catalog/action" csrfToken={data.csrfToken} body={{ kind: "approve_offer", id: selected.id }} reasonPrompt="Offer approval reason" />}{!selected.canonicalVariantId && ["submitted", "needs_review", "linked"].includes(selected.status) && <AdminActionButton label="Create canonical" endpoint="/api/admin/catalog/canonical" csrfToken={data.csrfToken} body={{ submissionId: selected.id }} reasonPrompt="Canonical creation reason" extraPrompt={{ field: "platformPriceMinor", message: "Platform retail price in euro cents" }} />}<AdminProductLifecycleActions submissionId={selected.id} submissionStatus={selected.status} csrfToken={data.csrfToken} /></div></div>
+          <div className="workspace-action-bar"><span>{selected.status === "archived" ? "Archived products remain visible to Admin and vendor but are not available for sale." : selected.canonicalVariantId ? `Linked to ${selected.canonicalVariantId}` : "No canonical identity selected yet. Creating one does not set a platform retail price."}</span><div className="workspace-action-buttons">{selected.canonicalVariantId && ["linked", "approved"].includes(selected.status) && <AdminActionButton label="Approve offer" endpoint="/api/admin/catalog/action" csrfToken={data.csrfToken} body={{ kind: "approve_offer", id: selected.id }} reasonPrompt="Offer approval reason" />}{!selected.canonicalVariantId && ["submitted", "needs_review", "linked"].includes(selected.status) && <AdminActionButton label="Create canonical identity" endpoint="/api/admin/catalog/canonical" csrfToken={data.csrfToken} body={{ submissionId: selected.id }} reasonPrompt="Why is this a genuinely new canonical product?" />}<AdminProductLifecycleActions submissionId={selected.id} submissionStatus={selected.status} csrfToken={data.csrfToken} /></div></div>
         </article>}
       </div>}
     </section>
