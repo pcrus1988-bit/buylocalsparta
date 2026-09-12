@@ -7,6 +7,7 @@ import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local
 import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
+import { publicBrandLogoUrl } from "../lib/brand-logo";
 import { LocalCommerceProof } from "./LocalCommerceProof";
 
 const catalogImageStyle = {
@@ -119,6 +120,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
   const priceLabel = publicCatalogPriceLabel(product);
+  const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
 
   return (
     <article className="product-card">
@@ -137,6 +139,10 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
+        {product.brand ? <div className="catalog-card-brand">
+          {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+          <span>{product.brand}</span>
+        </div> : null}
         <h3><Link href={productHref}>{displayTitle}</Link></h3>
         <div className="product-bottom">
           <PublicCatalogPrice product={product} demoMode={demoMode} priceLabel={priceLabel} />

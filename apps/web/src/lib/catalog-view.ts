@@ -24,6 +24,7 @@ export type CatalogCard = Readonly<{
   mpn?: string;
   description?: string;
   brand?: string;
+  brandLogoObjectKey?: string;
   color?: string;
   sizes: readonly string[];
   fit?: string;
@@ -194,6 +195,7 @@ function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage, met
     mpn: metadata?.mpn,
     description: metadata?.description,
     brand: metadata?.brand,
+    brandLogoObjectKey: metadata?.brandLogoObjectKey,
     color: metadata?.color,
     sizes: metadata?.sizes ?? [],
     fit: metadata?.fit,
