@@ -41,7 +41,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση των global ρυθμίσεων απέτυχε.");
-      setMessage("Οι global ρυθμίσεις αποθηκεύτηκαν. Δεν άλλαξαν προϊόντα ακόμη.");
+      setMessage("Οι global ρυθμίσεις αποθηκεύτηκαν. Πάτησε εφαρμογή για το τρέχον catalogue.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η αποθήκευση απέτυχε.");
@@ -49,7 +49,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
   }
 
   async function applyDefaults() {
-    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων σε όλα τα προϊόντα αυτού του supplier με διαθέσιμη buying price; Οι υπάρχουσες per-product τιμές/ρυθμίσεις θα αντικατασταθούν και μετά θα μπορούν να ξαναγίνουν override ανά προϊόν.");
+    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων σε όλα τα προϊόντα αυτού του supplier με διαθέσιμη buying price; Τα manual visibility overrides ανά προϊόν θα διατηρηθούν. Οι global ρυθμίσεις τιμής και MSRP θα εφαρμοστούν ξανά στα επιλέξιμα προϊόντα.");
     if (!confirmed) return;
     setBusy(true); setMessage("");
     try {
@@ -59,9 +59,9 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
         headers: { "content-type": "application/json", "x-csrf-token": token },
         body: JSON.stringify({ supplierCode })
       });
-      const payload = await response.json() as { error?: string; pricedProducts?: number; visibleProducts?: number };
+      const payload = await response.json() as { error?: string; pricedProducts?: number; visibleProducts?: number; overriddenProducts?: number };
       if (!response.ok) throw new Error(payload.error ?? "Η εφαρμογή των global ρυθμίσεων απέτυχε.");
-      setMessage(`Εφαρμόστηκαν σε ${payload.pricedProducts ?? 0} προϊόντα · public τώρα ${payload.visibleProducts ?? 0}.`);
+      setMessage(`Εφαρμόστηκαν σε ${payload.pricedProducts ?? 0} προϊόντα · public τώρα ${payload.visibleProducts ?? 0} · manual visibility overrides διατηρήθηκαν ${payload.overriddenProducts ?? 0}.`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η εφαρμογή απέτυχε.");
@@ -73,7 +73,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <div><strong>Global supplier settings</strong><small>{defaults.configured ? "Αποθηκευμένα defaults" : "Δεν έχουν οριστεί ακόμη"}</small></div>
       <span className="vendor-merchant-status">{visible ? "Public eligible" : "Hidden eligible"}</span>
     </div>
-    <p style={{ marginTop: 10 }}>Οι ρυθμίσεις αποθηκεύονται χωριστά από το supplier integration. Δεν ενεργοποιούν draft προϊόντα, δεν αλλάζουν supplier stock και δεν ενεργοποιούν order forwarding.</p>
+    <p style={{ marginTop: 10 }}>Ορίζεις εδώ την προεπιλεγμένη ορατότητα για ολόκληρο τον supplier. Μετά μπορείς να δημοσιεύσεις ή να κρύψεις οποιοδήποτε προϊόν ξεχωριστά από την κάρτα του· αυτό γίνεται manual override και δεν αντικαθίσταται από επόμενη global εφαρμογή.</p>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
       <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
       <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
@@ -84,7 +84,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση defaults</button>
       <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Εφαρμογή σε τρέχον catalogue</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Μετά μπορείς να κάνεις per-product override από τις κάρτες προϊόντων. Αν αλλάξεις κάποια τιμή εδώ, αποθήκευσέ την πρώτα πριν την εφαρμογή.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved ή ανενεργά supplier προϊόντα παραμένουν hidden. Οι χειροκίνητες επιλογές Public/Hidden ανά προϊόν έχουν προτεραιότητα έναντι του supplier visibility default.</small>
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
 }
