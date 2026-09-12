@@ -37,6 +37,14 @@ const STRUCTURE_NAV_LINK: WorkspaceNavLink = {
   permission: "catalog.read"
 };
 
+const CATALOGUE_EXCEPTIONS_NAV_LINK: WorkspaceNavLink = {
+  label: "Identity Exceptions",
+  href: "/admin/catalogue/exceptions",
+  icon: "!",
+  permission: "catalog.read",
+  contextHidden: true
+};
+
 const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string; contextHidden?: boolean }>([
   ["/admin/catalogue", { order: 0, label: "Overview" }],
   ["/admin/quickadd", { order: 1, label: "Quick Add" }],
@@ -47,7 +55,8 @@ const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string
   ["/admin/catalogue-intake/attributes", { order: 6, label: "Attributes" }],
   ["/admin/matching", { order: 7, label: "Matching" }],
   ["/admin/catalogue/structure", { order: 8, label: "STRUCTURE" }],
-  ["/admin/categories", { order: 9, label: "Categories & Policies" }]
+  ["/admin/categories", { order: 9, label: "Categories & Policies" }],
+  ["/admin/catalogue/exceptions", { order: 10, label: "Identity Exceptions", contextHidden: true }]
 ]);
 
 const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
@@ -101,6 +110,7 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
       ? [...links]
       : [...links, ICECAT_NAV_LINK];
     if (!catalogueLinks.some((link) => link.href === STRUCTURE_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, STRUCTURE_NAV_LINK];
+    if (!catalogueLinks.some((link) => link.href === CATALOGUE_EXCEPTIONS_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, CATALOGUE_EXCEPTIONS_NAV_LINK];
     return catalogueLinks
       .map((link) => {
         const presentation = CATALOGUE_OPERATOR_LINKS.get(link.href);
@@ -170,6 +180,7 @@ export function canAccessAdminRoute(principal: SessionPrincipal, href: string): 
   if (href === PARTNER_NETWORK_NAV_LINK.href) return canAccessAdminNavLink(principal, PARTNER_NETWORK_NAV_LINK);
   if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
   if (href === STRUCTURE_NAV_LINK.href) return canAccessAdminNavLink(principal, STRUCTURE_NAV_LINK);
+  if (href === CATALOGUE_EXCEPTIONS_NAV_LINK.href) return canAccessAdminNavLink(principal, CATALOGUE_EXCEPTIONS_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);
   return link ? canAccessAdminNavLink(principal, link) : false;
 }
