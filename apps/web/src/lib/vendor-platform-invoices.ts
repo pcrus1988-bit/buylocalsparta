@@ -1,11 +1,17 @@
-import type { SessionPrincipal } from "@buy-local-sparta/core";
+import { assertVendorCapability, buildVendorOperatingContextFromSession, type SessionPrincipal } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { vendorPlatformInvoicePdf } from "./admin-vendor-billing";
 
 export type VendorPlatformInvoiceRow=Readonly<{id:string;documentNumber:string;issueDate:string;periodStart:string;periodEnd:string;netMinor:number;taxMinor:number;grossMinor:number;offsetMinor:number;mark:string;uid?:string;emailStatus:string}>;
 
+function assertFinanceRead(principal:SessionPrincipal){
+  assertVendorCapability(buildVendorOperatingContextFromSession(principal),"finance.read");
+}
+
 export async function vendorPlatformInvoices(principal:SessionPrincipal):Promise<readonly VendorPlatformInvoiceRow[]>{
-  if(!principal.vendorId||!productionDatabaseConfigured())return[];
+  if(!principal.vendorId)return[];
+  assertFinanceRead(principal);
+  if(!productionDatabaseConfigured())return[];
   const result=await getProductionPostgresRuntime().nativePool.query(`SELECT i.public_id,td.document_number,td.issue_date,i.billing_period_start,i.billing_period_end,i.net_minor,i.tax_minor,i.gross_minor,i.settlement_offset_minor,td.aade_mark,td.aade_uid,i.vendor_email_status
     FROM platform_vendor_invoices i JOIN vendor_businesses v ON v.id=i.vendor_id JOIN tax_documents td ON td.id=i.tax_document_id
     WHERE v.public_id=$1 AND i.status='issued' AND td.transmission_status='accepted' AND td.aade_mark IS NOT NULL
@@ -15,6 +21,7 @@ export async function vendorPlatformInvoices(principal:SessionPrincipal):Promise
 
 export async function vendorPlatformInvoicePdfForPrincipal(principal:SessionPrincipal,invoiceId:string){
   if(!principal.vendorId)throw new Error("Vendor session is required");
+  assertFinanceRead(principal);
   const ownership=await getProductionPostgresRuntime().nativePool.query(`SELECT 1 FROM platform_vendor_invoices i JOIN vendor_businesses v ON v.id=i.vendor_id WHERE i.public_id=$1 AND v.public_id=$2 AND i.status='issued'`,[invoiceId,principal.vendorId]);
   if(!ownership.rowCount)throw new Error("Vendor invoice was not found");
   return vendorPlatformInvoicePdf(invoiceId);
