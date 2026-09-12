@@ -42,6 +42,7 @@ try {
       log("info", "nova.catalogue_sync_slice", { workerId, ...result });
 
       if (result.claimed) {
+        await recordNovaSupplierHealthy();
         try {
           const materialization = await runNovaCatalogueMaterializationSlice();
           log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
@@ -69,6 +70,17 @@ try {
 } finally {
   await getProductionPostgresRuntime().close();
   log("info", "nova.worker_stopped", { workerId });
+}
+
+async function recordNovaSupplierHealthy(): Promise<void> {
+  await getProductionPostgresRuntime().sqlPool.query(`
+    UPDATE public.dropship_suppliers
+    SET last_healthcheck_at=now(),
+        last_healthcheck_ok=true,
+        updated_at=now()
+    WHERE code='nova_brandsgateway'
+      AND active=true
+  `);
 }
 
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
