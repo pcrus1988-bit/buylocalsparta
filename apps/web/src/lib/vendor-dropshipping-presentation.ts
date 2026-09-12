@@ -3,9 +3,15 @@ import { assertDropshippingOnlyVendor } from "./vendor-dropshipping-access";
 import {
   assertDropshipPublicFields,
   parseDropshipPresentationConfig,
+  resolveDropshipPublicFields,
   type DropshipPresentationConfig,
   type DropshipPublicFields
 } from "./dropship-presentation-policy";
+
+export type VendorDropshipPresentationSnapshot = Readonly<{
+  supplierFields: DropshipPublicFields;
+  products: Readonly<Record<string, Readonly<{ fields: DropshipPublicFields; overridden: boolean }>>>;
+}>;
 
 async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
   const result = await getProductionPostgresRuntime().nativePool.query(
@@ -23,6 +29,33 @@ function payload(config: DropshipPresentationConfig) {
     productOverrides: config.productOverrides,
     updatedAt: new Date().toISOString()
   };
+}
+
+export async function vendorDropshippingPresentationSnapshot(
+  vendorIdentity: string,
+  supplierCode: string,
+  offerIds: readonly string[]
+): Promise<VendorDropshipPresentationSnapshot> {
+  await assertDropshippingOnlyVendor(vendorIdentity);
+  const fallback = parseDropshipPresentationConfig(null);
+  if (!productionDatabaseConfigured() || !supplierCode.trim()) {
+    return { supplierFields: fallback.fields, products: {} };
+  }
+  const vendorId = await resolveVendorUuid(vendorIdentity);
+  const supplier = await getProductionPostgresRuntime().nativePool.query(`
+    SELECT configuration->'vendorPresentation' vendor_presentation
+      FROM dropship_suppliers
+     WHERE owner_vendor_id=$1::uuid AND code=$2 AND active=true
+     LIMIT 1
+  `, [vendorId, supplierCode.trim()]);
+  const config = parseDropshipPresentationConfig(supplier.rows[0]?.vendor_presentation);
+  const products: Record<string, Readonly<{ fields: DropshipPublicFields; overridden: boolean }>> = {};
+  for (const offerId of offerIds) {
+    const key = offerId.trim();
+    if (!key) continue;
+    products[key] = resolveDropshipPublicFields(config, key);
+  }
+  return { supplierFields: config.fields, products };
 }
 
 export async function saveDropshippingSupplierPublicFields(
