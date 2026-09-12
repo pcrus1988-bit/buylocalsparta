@@ -113,17 +113,19 @@ test("manual match approval is auditable and vendor ownership is enforced", () =
   assert.equal(event.actorId, "admin");
 });
 
-test("admin can create a new canonical product from unmatched source", () => {
+test("admin creates canonical identity without fabricating a retail price", () => {
   const service = new CatalogManagementService();
   const created = draft(service, { categoryCode: "books-stationery-office", title: "Sparta Demo A5 Notebook", brand: "Demo Paper", model: "A5", gtin: undefined, mpn: undefined, attributes: { size: "A5" } });
   const submitted = service.submit({ submissionId: created.id, vendorId: "vendor-a", now: 1_700_000_000_200 });
   assert.equal(submitted.status, "needs_review");
-  const product = service.createCanonicalFromSubmission({ submissionId: created.id, actorId: "admin", platformPriceMinor: 1_490, reason: "Distinct product; no canonical match", now: 1_700_000_000_300 });
-  assert.equal(product.platformPrice.minor, 1_490);
+  const product = service.createCanonicalFromSubmission({ submissionId: created.id, actorId: "admin", reason: "Distinct product; no canonical match", now: 1_700_000_000_300 });
+  assert.equal(product.platformPrice, undefined);
+  assert.equal(service.canonical(product.id)?.platformPrice, undefined);
   assert.equal(product.categoryCode, "books-stationery-office");
   const linked = service.submission(created.id)!;
   assert.equal(linked.canonicalVariantId, product.id);
   assert.equal(linked.status, "linked");
+  assert.equal(linked.supplierUnitPrice.minor, 9_500);
 });
 
 test("CSV import preview validates rows without mutating catalog", () => {
