@@ -4,17 +4,22 @@ import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
 import { publicBrandLogoUrl } from "../../lib/brand-logo";
-
-export const metadata: Metadata = {
-  title: "BAZAAR | KONTA MOY",
-  description: "Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα από όλη την Ελλάδα, σε ξεχωριστό BAZAAR του KONTA MOY.",
-  alternates: { canonical: "/bazaar" }
-};
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
 type BazaarPageProps = Readonly<{ searchParams: Promise<Record<string,string | string[] | undefined>> }>;
 
 function valueOf(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export async function generateMetadata({ searchParams }: BazaarPageProps): Promise<Metadata> {
+  const base = await governedStaticSeoMetadata("/bazaar", {
+    title: "BAZAAR",
+    description: "Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα από όλη την Ελλάδα, σε ξεχωριστό BAZAAR του KONTA MOY."
+  });
+  const params = await searchParams;
+  const hasQueryState = Object.values(params).some((value) => valueOf(value).trim().length > 0);
+  return hasQueryState ? { ...base, alternates: { canonical: "/bazaar" }, robots: { index: false, follow: true } } : base;
 }
 
 function euro(minor: number): string {
