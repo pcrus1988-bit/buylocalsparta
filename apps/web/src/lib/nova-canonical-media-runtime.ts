@@ -1,12 +1,11 @@
-import { Buffer } from "node:buffer";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
-import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 type CandidateRow = SqlRow & {
   source_product_id: string;
   source_product_key: string;
+  source_id: string;
   source_title: string | null;
   normalized_payload: unknown;
   source_website: string;
@@ -18,6 +17,7 @@ type CandidateRow = SqlRow & {
 type Candidate = Readonly<{
   sourceProductId: string;
   sourceProductKey: string;
+  sourceId: string;
   title: string;
   normalizedPayload: Record<string, unknown>;
   sourceWebsite: string;
@@ -29,6 +29,7 @@ type Candidate = Readonly<{
 type SupplierImage = Readonly<{
   src: string;
   sortOrder: number;
+  contentType?: string;
 }>;
 
 export type NovaCanonicalMediaSliceResult = Readonly<{
@@ -38,13 +39,7 @@ export type NovaCanonicalMediaSliceResult = Readonly<{
   failed: number;
 }>;
 
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_IMAGES_PER_PRODUCT = 12;
-let storageSingleton: S3ObjectStorage | undefined;
-
-function storage(): S3ObjectStorage {
-  return storageSingleton ??= new S3ObjectStorage(objectStorageConfigFromEnv(process.env));
-}
+const MAX_IMAGES_PER_PRODUCT = 50;
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -66,6 +61,18 @@ function basenameFromUrl(value: string): string {
   } catch {
     return "image.jpg";
   }
+}
+
+function contentTypeFromUrl(value: string): string | undefined {
+  try {
+    const path = new URL(value).pathname.toLowerCase();
+    if (path.endsWith(".png")) return "image/png";
+    if (path.endsWith(".webp")) return "image/webp";
+    if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function sameSourceHttpsUrl(sourceWebsite: string, candidate: unknown): string | undefined {
@@ -102,15 +109,10 @@ function supplierImages(candidate: Candidate): readonly SupplierImage[] {
   for (const image of parsed) {
     if (seen.has(image.src)) continue;
     seen.add(image.src);
-    images.push({ src: image.src, sortOrder: images.length });
+    images.push({ src: image.src, sortOrder: images.length, contentType: contentTypeFromUrl(image.src) });
     if (images.length >= MAX_IMAGES_PER_PRODUCT) break;
   }
   return images;
-}
-
-function maxMediaBytes(): number {
-  const parsed = Number(process.env.BLS_MEDIA_UPLOAD_MAX_BYTES || process.env.BLS_MEDIA_MAX_BYTES || 25 * 1024 * 1024);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 25 * 1024 * 1024;
 }
 
 async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
@@ -119,9 +121,10 @@ async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
   const result = await uow.withTransaction(
     { actorUserId: "nova-canonical-media", marketId: "sparta", platformAccess: true },
     (tx) => tx.query<CandidateRow>(`
-      SELECT DISTINCT ON (cv.id, vo.vendor_id)
+      SELECT DISTINCT ON (cv.id, vo.vendor_id, csp.id)
              csp.id::text AS source_product_id,
              csp.source_product_key,
+             cs.id::text AS source_id,
              csp.title AS source_title,
              csp.normalized_payload,
              cs.website AS source_website,
@@ -141,22 +144,45 @@ async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
         AND jsonb_typeof(csp.normalized_payload->'images')='array'
         AND jsonb_array_length(csp.normalized_payload->'images') > 0
         AND (
-          SELECT COUNT(*)
-          FROM product_media pm
-          WHERE pm.canonical_variant_id=cv.id
-            AND pm.vendor_id=vo.vendor_id
-            AND pm.kind='image'
-            AND pm.original_filename LIKE ('nova:' || csp.id::text || ':%')
-        ) < LEAST(jsonb_array_length(csp.normalized_payload->'images'), $1::integer)
-      ORDER BY cv.id, vo.vendor_id, csp.created_at DESC
-      LIMIT $2
-    `, [MAX_IMAGES_PER_PRODUCT, limit]),
+          (
+            SELECT COUNT(DISTINCT COALESCE(NULLIF(img.value->>'src',''),NULLIF(img.value->>'url',''),NULLIF(img.value->>'image','')))
+            FROM jsonb_array_elements(csp.normalized_payload->'images') AS img(value)
+            WHERE COALESCE(NULLIF(img.value->>'src',''),NULLIF(img.value->>'url',''),NULLIF(img.value->>'image','')) LIKE 'https://%'
+          ) <> (
+            SELECT COUNT(*)
+            FROM product_media pm
+            WHERE pm.canonical_variant_id=cv.id
+              AND pm.vendor_id=vo.vendor_id
+              AND pm.source_id=cs.id
+              AND pm.kind='image'
+              AND pm.source_url IS NOT NULL
+              AND pm.original_filename LIKE ('nova:' || csp.id::text || ':%')
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(csp.normalized_payload->'images') AS img(value)
+            WHERE COALESCE(NULLIF(img.value->>'src',''),NULLIF(img.value->>'url',''),NULLIF(img.value->>'image','')) LIKE 'https://%'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM product_media pm
+                WHERE pm.canonical_variant_id=cv.id
+                  AND pm.vendor_id=vo.vendor_id
+                  AND pm.source_id=cs.id
+                  AND pm.kind='image'
+                  AND pm.source_url=COALESCE(NULLIF(img.value->>'src',''),NULLIF(img.value->>'url',''),NULLIF(img.value->>'image',''))
+              )
+          )
+        )
+      ORDER BY cv.id, vo.vendor_id, csp.id, csp.created_at DESC
+      LIMIT $1
+    `, [limit]),
     { readOnly: true }
   );
 
   return result.rows.map((row) => ({
     sourceProductId: String(row.source_product_id),
     sourceProductKey: String(row.source_product_key),
+    sourceId: String(row.source_id),
     title: optionalText(row.source_title) ?? "Προϊόν",
     normalizedPayload: objectValue(row.normalized_payload),
     sourceWebsite: String(row.source_website),
@@ -166,147 +192,105 @@ async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
   }));
 }
 
-async function existingOriginalFilenames(candidate: Candidate): Promise<Set<string>> {
-  const runtime = getProductionPostgresRuntime();
-  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
-  const result = await uow.withTransaction(
-    { actorUserId: "nova-canonical-media", marketId: "sparta", platformAccess: true },
-    (tx) => tx.query<SqlRow>(`
-      SELECT original_filename
-      FROM product_media
-      WHERE canonical_variant_id=$1::uuid
-        AND vendor_id=$2::uuid
-        AND kind='image'
-        AND original_filename LIKE $3
-    `, [candidate.canonicalVariantUuid, candidate.vendorUuid, `nova:${candidate.sourceProductId}:%`]),
-    { readOnly: true }
-  );
-  return new Set(result.rows.map((row) => String(row.original_filename ?? "")).filter(Boolean));
-}
-
 function importedFilename(candidate: Candidate, image: SupplierImage): string {
-  const urlHash = createHash("sha256").update(image.src).digest("hex").slice(0, 12);
-  return `nova:${candidate.sourceProductId}:${image.sortOrder}:${urlHash}:${basenameFromUrl(image.src)}`.slice(0, 240);
+  return `nova:${candidate.sourceProductId}:${image.sortOrder}:${basenameFromUrl(image.src)}`.slice(0, 255);
 }
 
-async function downloadImage(src: string): Promise<{ bytes: Uint8Array; contentType: string; sha256: string }> {
-  const response = await fetch(src, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(20_000),
-    headers: { "user-agent": "KONTA-MOY-NOVA-Media/1.0" }
-  });
-  if (!response.ok) throw new Error(`supplier_image_http_${response.status}`);
-  const contentType = (response.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
-  if (!ALLOWED_IMAGE_TYPES.has(contentType)) throw new Error(`unsupported_supplier_image_type:${contentType || "unknown"}`);
-  const declaredLength = Number(response.headers.get("content-length"));
-  const maxBytes = maxMediaBytes();
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new Error("supplier_image_too_large");
-  const buffer = new Uint8Array(await response.arrayBuffer());
-  if (!buffer.byteLength || buffer.byteLength > maxBytes) throw new Error("supplier_image_size_invalid");
-  return { bytes: buffer, contentType, sha256: createHash("sha256").update(buffer).digest("hex") };
-}
-
-async function persistImage(candidate: Candidate, image: SupplierImage, originalFilename: string): Promise<"imported" | "skipped"> {
-  const downloaded = await downloadImage(image.src);
-  const mediaUuid = randomUUID();
-  const mediaPublicId = `media_${randomUUID().replaceAll("-", "")}`;
-  const extension = downloaded.contentType === "image/png" ? "png" : downloaded.contentType === "image/webp" ? "webp" : "jpg";
-  const objectKey = `private/nova-catalogue/${candidate.canonicalPublicId}/${candidate.sourceProductId}/${image.sortOrder}-${mediaPublicId}.${extension}`;
-  const signed = await storage().createUploadUrl({ objectKey, contentType: downloaded.contentType, expiresInSeconds: 600 });
-  const upload = await fetch(signed.url, { method: "PUT", headers: signed.headers, body: Buffer.from(downloaded.bytes) });
-  if (!upload.ok) throw new Error(`object_storage_upload_${upload.status}`);
-  const stored = await storage().head(objectKey);
-  if (!stored || stored.byteSize !== downloaded.bytes.byteLength) {
-    await storage().delete(objectKey).catch(() => undefined);
-    throw new Error("object_storage_verification_failed");
-  }
-
+async function syncCandidate(candidate: Candidate): Promise<number> {
+  const images = supplierImages(candidate);
   const runtime = getProductionPostgresRuntime();
-  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 3_000 });
-  const inserted = await uow.withTransaction(
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 20_000, lockTimeoutMs: 3_000 });
+
+  return uow.withTransaction(
     { actorUserId: "nova-canonical-media", marketId: "sparta", platformAccess: true },
     async (tx) => {
-      await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`nova-media:${candidate.canonicalVariantUuid}:${candidate.vendorUuid}:${originalFilename}`]);
-      const existing = await tx.query<SqlRow>(`
-        SELECT id::text AS id
-        FROM product_media
+      await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`nova-source-media:${candidate.canonicalVariantUuid}:${candidate.vendorUuid}:${candidate.sourceProductId}`]);
+      let synced = 0;
+      for (const image of images) {
+        await tx.query(`
+          INSERT INTO product_media(
+            id,public_id,canonical_variant_id,vendor_id,kind,object_key,alt_text,
+            rights_owner,rights_status,moderation_status,sort_order,created_at,
+            original_filename,content_type,byte_size,sha256,scan_status,
+            storage_verified_at,scan_attempts,next_scan_at,last_scan_error,
+            quarantined_at,reviewed_at,source_id,source_url
+          ) VALUES(
+            $1::uuid,$2,$3::uuid,$4::uuid,'image',NULL,$5,
+            'BrandsGateway / Nova','approved','approved',$6,now(),
+            $7,$8,NULL,NULL,'clean',
+            NULL,0,now(),NULL,NULL,now(),$9::uuid,$10
+          )
+          ON CONFLICT (canonical_variant_id,vendor_id,source_id,source_url)
+            WHERE kind='image' AND source_url IS NOT NULL
+          DO UPDATE SET
+            sort_order=EXCLUDED.sort_order,
+            alt_text=EXCLUDED.alt_text,
+            original_filename=EXCLUDED.original_filename,
+            content_type=EXCLUDED.content_type,
+            rights_owner='BrandsGateway / Nova',
+            rights_status='approved',
+            moderation_status='approved',
+            scan_status='clean',
+            reviewed_at=now()
+        `, [
+          randomUUID(),
+          `media_${randomUUID().replaceAll("-", "")}`,
+          candidate.canonicalVariantUuid,
+          candidate.vendorUuid,
+          `${candidate.title} — φωτογραφία ${image.sortOrder + 1}`,
+          image.sortOrder,
+          importedFilename(candidate, image),
+          image.contentType ?? null,
+          candidate.sourceId,
+          image.src
+        ]);
+        synced += 1;
+      }
+
+      await tx.query(`
+        DELETE FROM product_media
         WHERE canonical_variant_id=$1::uuid
           AND vendor_id=$2::uuid
+          AND source_id=$3::uuid
           AND kind='image'
-          AND original_filename=$3
-        LIMIT 1
-      `, [candidate.canonicalVariantUuid, candidate.vendorUuid, originalFilename]);
-      if (existing.rowCount) return false;
-      const now = new Date();
-      await tx.query(`
-        INSERT INTO product_media(
-          id,public_id,canonical_variant_id,vendor_id,kind,object_key,alt_text,
-          rights_owner,rights_status,moderation_status,sort_order,original_filename,
-          content_type,byte_size,sha256,scan_status,storage_verified_at,next_scan_at,
-          reviewed_at,created_at
-        ) VALUES(
-          $1::uuid,$2,$3::uuid,$4::uuid,'image',$5,$6,
-          'BrandsGateway / Nova','approved','approved',$7,$8,
-          $9,$10,$11,'pending',$12,$12,
-          $12,$12
-        )
+          AND source_url IS NOT NULL
+          AND original_filename LIKE $4
+          AND NOT (source_url = ANY($5::text[]))
       `, [
-        mediaUuid,
-        mediaPublicId,
         candidate.canonicalVariantUuid,
         candidate.vendorUuid,
-        objectKey,
-        `${candidate.title} — φωτογραφία ${image.sortOrder + 1}`,
-        image.sortOrder,
-        originalFilename,
-        downloaded.contentType,
-        downloaded.bytes.byteLength,
-        downloaded.sha256,
-        now
+        candidate.sourceId,
+        `nova:${candidate.sourceProductId}:%`,
+        images.map((image) => image.src)
       ]);
-      return true;
+
+      return synced;
     },
     { isolation: "serializable" }
   );
-
-  if (!inserted) {
-    await storage().delete(objectKey).catch(() => undefined);
-    return "skipped";
-  }
-  return "imported";
 }
 
 export async function runNovaCanonicalMediaSlice(maxProducts = 4): Promise<NovaCanonicalMediaSliceResult> {
-  const safeLimit = Math.min(12, Math.max(1, Math.trunc(maxProducts)));
-  if (process.env.BLS_MEDIA_PIPELINE_ENABLED !== "true") throw new Error("media_pipeline_disabled");
+  const safeLimit = Math.min(25, Math.max(1, Math.trunc(maxProducts)));
   const candidates = await loadCandidates(safeLimit);
   let imported = 0;
   let skipped = 0;
   let failed = 0;
 
   for (const candidate of candidates) {
-    const existing = await existingOriginalFilenames(candidate);
-    for (const image of supplierImages(candidate)) {
-      const filename = importedFilename(candidate, image);
-      if (existing.has(filename)) {
-        skipped += 1;
-        continue;
-      }
-      try {
-        const result = await persistImage(candidate, image, filename);
-        if (result === "imported") imported += 1;
-        else skipped += 1;
-      } catch (error) {
-        failed += 1;
-        console.error(JSON.stringify({
-          level: "error",
-          event: "nova.canonical_media_import_failed",
-          canonicalVariantId: candidate.canonicalPublicId,
-          sourceProductKey: candidate.sourceProductKey,
-          sortOrder: image.sortOrder,
-          message: error instanceof Error ? error.message : String(error)
-        }));
-      }
+    try {
+      const synced = await syncCandidate(candidate);
+      if (synced > 0) imported += synced;
+      else skipped += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(JSON.stringify({
+        level: "error",
+        event: "nova.canonical_media_sync_failed",
+        canonicalVariantId: candidate.canonicalPublicId,
+        sourceProductKey: candidate.sourceProductKey,
+        message: error instanceof Error ? error.message : String(error)
+      }));
     }
   }
 
