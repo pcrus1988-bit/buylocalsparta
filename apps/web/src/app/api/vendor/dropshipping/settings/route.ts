@@ -1,8 +1,6 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
-import {
-  applyDropshippingSupplierDefaults,
-  saveDropshippingSupplierDefaults
-} from "../../../../../lib/vendor-dropshipping-service";
+import { applyDropshippingSupplierDefaultsSequential } from "../../../../../lib/vendor-dropshipping-bulk-apply";
+import { saveDropshippingSupplierDefaults } from "../../../../../lib/vendor-dropshipping-service";
 
 function numberValue(body: Record<string, unknown>, key: string): number {
   const value = Number(body[key]);
@@ -37,7 +35,7 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const supplierCode = typeof body.supplierCode === "string" ? body.supplierCode.trim() : "";
     if (!supplierCode) throw new Error("Απαιτείται supplier.");
-    const result = await applyDropshippingSupplierDefaults(principal.vendorId, supplierCode);
+    const result = await applyDropshippingSupplierDefaultsSequential(principal.vendorId, supplierCode);
     return Response.json({ ok: true, ...result });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "dropshipping_supplier_apply_failed" }, { status: 400 });
