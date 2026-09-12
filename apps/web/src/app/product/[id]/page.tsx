@@ -30,6 +30,7 @@ import { approvedCatalogImageGallery } from "../../../lib/public-product-media-g
 import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "../../../lib/product-presentation-guards";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 import { getPublicDropshipPresentation } from "../../../lib/public-dropship-presentation";
+import { publicBrandLogoUrl } from "../../../lib/brand-logo";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -68,6 +69,13 @@ const PRIVATE_TECHNICAL_ATTRIBUTE_KEYS = new Set([
   "supplier_code",
   "supplier_sku",
   "supplier_product_code",
+  "supplier_content",
+  "suppliercontent",
+  "supplier_id",
+  "external_product_id",
+  "externalproductid",
+  "external_variant_id",
+  "externalvariantid",
   "feature_keys",
   "dimensions_source_text",
   "technical_details_text",
@@ -172,9 +180,11 @@ function productDisplayDescription(input: Readonly<{
   return intro || input.sourceDescription?.trim() || undefined;
 }
 
-function productSeoDescription(product: { title: string; description?: string }): string {
-  const description = product.description?.replace(/\s+/g, " ").trim()
-    || `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και ασφαλής ενιαία εμπειρία αγοράς.`;
+function productSeoDescription(product: { title: string; description?: string; supplierFulfilled?: boolean }): string {
+  const fallback = product.supplierFulfilled
+    ? `${product.title} στο ΚΟΝΤΑ ΜΟΥ — διαθεσιμότητα συνεργαζόμενου προμηθευτή και ασφαλής ενιαία εμπειρία αγοράς.`
+    : `${product.title} στο ΚΟΝΤΑ ΜΟΥ Sparta — τοπική διαθεσιμότητα, πραγματική συμβουλή και ασφαλής ενιαία εμπειρία αγοράς.`;
+  const description = product.description?.replace(/\s+/g, " ").trim() || fallback;
   return description.length <= 160 ? description : `${description.slice(0, 157).trimEnd()}…`;
 }
 
@@ -199,6 +209,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     getPublicProductDetail(product.id),
     getPublicDropshipPresentation(product.id, null)
   ]);
+  const isDropship = Boolean(dropshipPresentation);
   const displayTitle = publicCatalogueTitleLabel(product.title);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const metadataTechnicalAttributes = dropshipPresentation?.fields.technicalAttributes === false
@@ -216,7 +227,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     technicalAttributes: metadataTechnicalAttributes
   });
   const quality = productIndexEligibility(product);
-  const description = productSeoDescription({ title: displayTitle, description: displayDescription });
+  const description = productSeoDescription({ title: displayTitle, description: displayDescription, supplierFulfilled: isDropship });
   const reference: SeoEntityReference = { kind: "product", id: product.id };
   return buildGovernedSeoMetadata({
     reference,
@@ -228,10 +239,10 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       canonicalPath: productPublicPath(product),
       keywords: [
         displayTitle,
-        `${displayTitle} Σπάρτη`,
+        isDropship ? undefined : `${displayTitle} Σπάρτη`,
         product.brand,
         product.categoryLabel,
-        product.categoryLabel ? `${product.categoryLabel} Σπάρτη` : undefined
+        product.categoryLabel && !isDropship ? `${product.categoryLabel} Σπάρτη` : undefined
       ],
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
@@ -290,12 +301,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
       });
   const packagingAttributes = storefrontTechnicalAttributes.filter(isPackagingAttribute);
   const displayBrand = product.brand ?? detail?.brand;
+  const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
   const displayModel = publicFields?.model === false ? undefined : detail?.model;
   const displayMpn = publicFields?.mpn === false ? undefined : product.mpn;
   const displayGtin = publicFields?.gtin === false ? undefined : product.gtin ?? detail?.sourceGtin;
   const legacySupplierCode = detail?.supplierCode && detail.supplierCode !== product.mpn ? detail.supplierCode : undefined;
   const displaySupplierSku = dropshipPresentation
-    ? publicFields?.supplierSku === true ? (dropshipPresentation.supplierSku ?? legacySupplierCode) : undefined
+    ? undefined
     : legacySupplierCode;
   const displayPrice = publicCatalogPriceLabel(product);
   const displayColor = product.color ? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
@@ -329,7 +341,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     displayModel ? { key: "model", label: "Μοντέλο", value: displayModel } : undefined,
     displayMpn ? { key: "mpn", label: "Κωδικός κατασκευαστή", value: displayMpn } : undefined,
     displayGtin ? { key: "gtin", label: "GTIN / EAN", value: displayGtin } : undefined,
-    dropshipPresentation && displaySupplierSku ? { key: "supplier-sku", label: "Supplier SKU", value: displaySupplierSku } : undefined,
     product.categoryLabel ? { key: "category", label: "Κατηγορία", value: product.categoryLabel } : undefined,
     displayColor ? { key: "color", label: "Χρώμα", value: displayColor } : undefined,
     meaningfulSizes.length ? { key: "size", label: "Μέγεθος", value: meaningfulSizes.join(" · ") } : undefined,
@@ -379,7 +390,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     price: (product.priceMinor / 100).toFixed(2),
     availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
     seller: { "@id": `${origin}/#organization` },
-    availableAtOrFrom: product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
+    availableAtOrFrom: !isDropship && product.vendorId && product.vendorName ? { "@type": "LocalBusiness", "@id": `${origin}/vendor/${encodeURIComponent(product.vendorId)}#business`, name: product.vendorName, url: `${origin}/vendor/${encodeURIComponent(product.vendorId)}` } : undefined
   };
   const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredImages = mediaGallery.length
@@ -395,7 +406,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         url: productUrl,
         mainEntityOfPage: productUrl,
         name: displayTitle,
-        description: productSeoDescription({ title: displayTitle, description: displayDescription }),
+        description: productSeoDescription({ title: displayTitle, description: displayDescription, supplierFulfilled: isDropship }),
         sku: displayMpn ?? displaySupplierSku,
         mpn: displayMpn,
         ...gtinSchema(displayGtin),
@@ -432,7 +443,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
             {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
             {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
-            <span className="product-badge">{product.available ? (isDropship ? "Διαθέσιμο για αποστολή" : "Σε τοπικό απόθεμα") : "Προσωρινά μη διαθέσιμο"}</span>
+            <span className="product-badge">{product.available ? (isDropship ? "Αποστολή μέσω συνεργαζόμενου προμηθευτή" : "Σε τοπικό απόθεμα") : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
           {mediaGallery.length > 1 ? (
             <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
@@ -446,7 +457,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
 
         <div className="product-detail-copy">
-          <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null} · Sparta 23100</div>
+          <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null}{isDropship ? " · Αποστολή πανελλαδικά" : " · Sparta 23100"}</div>
+          {displayBrand ? <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 30, marginTop: 8, marginBottom: 10, fontWeight: 900 }}>
+            {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="eager" decoding="async" style={{ display: "block", maxHeight: 28, maxWidth: 130, width: "auto", height: "auto", objectFit: "contain" }} /> : null}
+            <span>{displayBrand}</span>
+          </div> : null}
           <h1>{displayTitle}</h1>
 
           <ProductVariantSelector currentVariantId={product.id} title={variantSelectorTitle} options={variantOptions} varyingKeys={varyingVariantKeys} />
@@ -456,7 +471,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
               <PublicPriceComparison productId={product.id} vendorId={product.vendorId} retailPriceMinor={product.priceMinor} retailLabel={displayPrice} comparisonEnabled={!readOnlyCrawler} />
               <strong>{product.available ? `${product.availableToSell} τεμ. διαθέσιμα` : "Προσωρινά μη διαθέσιμο"}</strong>
-              <span>{product.available ? "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι." : isDropship ? "Η αγορά ενεργοποιείται ξανά μόλις επιβεβαιωθεί διαθεσιμότητα από τον προμηθευτή." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
+              <span>{product.available ? (isDropship ? "Η διαθεσιμότητα προέρχεται από συνεργαζόμενο προμηθευτή και επανελέγχεται πριν από την παραγγελία." : "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι.") : isDropship ? "Η αγορά ενεργοποιείται ξανά μόλις επιβεβαιωθεί διαθεσιμότητα από τον προμηθευτή." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
             </div>
             <div className="purchase-actions">
               {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{
@@ -474,18 +489,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
               }} /><ProductAccountActions productId={product.id} /></>}
             </div>
             <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
-              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>{isDropship ? "Επιβεβαιωμένη διαθεσιμότητα προμηθευτή" : "Πραγματικό τοπικό απόθεμα"}</strong><span>{isDropship ? "Η διαθεσιμότητα ενημερώνεται από τον προμηθευτή και επανελέγχεται πριν από την παραγγελία." : "Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν."}</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>{isDropship ? "Επιβεβαιωμένη διαθεσιμότητα συνεργαζόμενου προμηθευτή" : "Πραγματικό τοπικό απόθεμα"}</strong><span>{isDropship ? "Η διαθεσιμότητα ενημερώνεται από τον προμηθευτή και επανελέγχεται πριν από την παραγγελία." : "Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν."}</span></div></div>
               <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>{isDropship ? "Αποστολή" : "Παραλαβή ή αποστολή"}</strong><span>{isDropship ? "Οι χρόνοι και το κόστος αποστολής επιβεβαιώνονται πριν από την πληρωμή." : "Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή."}</span></div></div>
-              <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{isDropship ? "Αγορά μέσω ΚΟΝΤΑ ΜΟΥ" : product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{isDropship ? "Η παραγγελία, η πληρωμή και η υποστήριξη παραμένουν μέσα στην εμπειρία του ΚΟΝΤΑ ΜΟΥ." : product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
             </div>
             <nav className="purchase-support-links" aria-label="Πληροφορίες πριν από την αγορά">
-              <a href="/choose-location">Αλλαγή περιοχής</a>
+              {!isDropship ? <a href="/choose-location">Αλλαγή περιοχής</a> : null}
               <a href="/delivery-pickup">Παράδοση & παραλαβή</a>
               <a href="/returns-refunds">Επιστροφές & refunds</a>
             </nav>
           </div>
 
-          <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} />
+          <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} supplierFulfilled={isDropship} />
 
           {displayDescription ? (
             <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
@@ -501,11 +516,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
           {manualUrl ? <div className="vendor-card"><div><span className="vendor-avatar">PDF</span></div><div><div className="eyebrow">Εγχειρίδιο / οδηγίες</div><strong>Επίσημο εγχειρίδιο προϊόντος</strong><p>Άνοιξε το εγχειρίδιο του προϊόντος σε νέα καρτέλα.</p><div className="vendor-actions"><a className="button button-secondary" href={manualUrl} target="_blank" rel="noopener noreferrer">Άνοιγμα εγχειριδίου (PDF)</a></div></div></div> : null}
 
           <details style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
-            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Πώς λειτουργούν η τιμή και η επιλογή καταστήματος</summary>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>{isDropship ? "Πώς λειτουργούν η τιμή και η αποστολή" : "Πώς λειτουργούν η τιμή και η επιλογή καταστήματος"}</summary>
             <div className="detail-assurances" style={{ marginTop: 12 }}>
-              <div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div>
-              <div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div>
-              <div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div>
+              {isDropship ? <>
+                <div><strong>Μία καθαρή τελική τιμή</strong><span>Η τιμή που βλέπεις είναι η τιμή αγοράς του προϊόντος στο ΚΟΝΤΑ ΜΟΥ.</span></div>
+                <div><strong>Διαθεσιμότητα συνεργαζόμενου προμηθευτή</strong><span>Το απόθεμα ενημερώνεται από τον προμηθευτή και επανελέγχεται πριν προχωρήσει η παραγγελία.</span></div>
+                <div><strong>Αποστολή αντί για τοπική παραλαβή</strong><span>Το προϊόν δεν παρουσιάζεται ως απόθεμα φυσικού καταστήματος. Οι διαθέσιμες επιλογές και το κόστος αποστολής επιβεβαιώνονται πριν από την πληρωμή.</span></div>
+              </> : <>
+                <div><strong>Ένα προϊόν, μία επιλογή κάθε φορά</strong><span>Το ίδιο προϊόν δεν εμφανίζεται ως λίστα ανταγωνιστικών καταστημάτων. Η πλατφόρμα κατανέμει ισότιμα την έκθεση μεταξύ επιλέξιμων τοπικών vendors.</span></div>
+                <div><strong>Η τιμή είναι του καταστήματος</strong><span>Για διαθέσιμα προϊόντα η τιμή που βλέπει ο πελάτης είναι η τελική τιμή του συγκεκριμένου offer, χωρίς product markup από το ΚΟΝΤΑ ΜΟΥ.</span></div>
+                <div><strong>Σταθερή ανάθεση</strong><span>Για πραγματικό πελάτη, όσο το offer παραμένει επιλέξιμο, κρατάμε το ίδιο κατάστημα και την ίδια τιμή σε αναζήτηση, προϊόν και καλάθι.</span></div>
+              </>}
             </div>
           </details>
         </div>

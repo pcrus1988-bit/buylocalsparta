@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { publicBrandLogoUrl } from "../../lib/brand-logo";
 
 export const metadata: Metadata = {
   title: "BAZAAR | KONTA MOY",
@@ -76,6 +77,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
       </div> : <div className="product-grid">
         {products.map((product,index) => {
           const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+          const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
           return <article className="product-card" key={product.id} style={{ overflow: "hidden", position: "relative" }}>
             {product.savingsPercent ? <div style={{ position: "absolute", zIndex: 3, top: 12, right: 12, background: "#111", color: "#fff", borderRadius: 999, padding: "7px 10px", fontWeight: 900 }}>−{product.savingsPercent}%</div> : null}
             <Link href={`/bazaar/product/${encodeURIComponent(product.slug)}`} className="product-art" aria-label={`Δες ${product.title}`}>
@@ -83,13 +85,17 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
             </Link>
             <div className="product-body">
               <div className="eyebrow">{bazaarConditionLabel(product.condition)}</div>
+              {product.brand ? <div className="catalog-card-brand">
+                {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="lazy" decoding="async" /> : null}
+                <span>{product.brand}</span>
+              </div> : null}
               <h3><Link href={`/bazaar/product/${encodeURIComponent(product.slug)}`}>{product.title}</Link></h3>
-              {product.brand ? <p style={{ margin: "4px 0 10px", opacity: .7 }}>{product.brand}</p> : null}
               <div className="price">
                 {product.msrpMinor && product.msrpMinor > product.priceMinor ? <s style={{ opacity: .55, fontSize: ".7em" }}>ΠΛΤ {euro(product.msrpMinor)}</s> : null}
                 <span>{euro(product.priceMinor)}</span>
               </div>
               <p style={{ margin: "10px 0 0", fontWeight: 700 }}>BAZAAR · {product.availableToSell} διαθέσιμο</p>
+              {product.supplierFulfilled ? <p className="catalog-card-vendor">Αποστολή μέσω συνεργαζόμενου προμηθευτή</p> : null}
             </div>
           </article>;
         })}

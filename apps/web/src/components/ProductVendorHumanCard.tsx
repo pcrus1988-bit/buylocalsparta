@@ -21,13 +21,32 @@ export async function ProductVendorHumanCard({
   productId,
   vendorId,
   vendorName,
-  adviser
+  adviser,
+  supplierFulfilled = false
 }: {
   productId: string;
   vendorId?: string;
   vendorName?: string;
   adviser?: string;
+  supplierFulfilled?: boolean;
 }) {
+  if (supplierFulfilled) {
+    return <div className="vendor-card product-vendor-human">
+      <div className="product-vendor-human-media" style={mediaFrameStyle}>
+        <span className="vendor-avatar" aria-hidden="true">↗</span>
+      </div>
+      <div>
+        <div className="eyebrow">Αποστολή μέσω συνεργαζόμενου προμηθευτή</div>
+        <strong>Η αγορά ολοκληρώνεται στο ΚΟΝΤΑ ΜΟΥ.</strong>
+        <p>Το προϊόν δεν παρουσιάζεται ως τοπικό απόθεμα ή ως διαθέσιμο για παραλαβή από φυσικό κατάστημα. Η διαθεσιμότητα επανελέγχεται πριν από την παραγγελία.</p>
+        <div className="vendor-actions">
+          <a className="button button-secondary" href="/delivery-pickup">Πληροφορίες αποστολής</a>
+          <a className="text-link" href="/help">Υποστήριξη →</a>
+        </div>
+      </div>
+    </div>;
+  }
+
   if (!vendorId || !vendorName) {
     return <div className="vendor-card product-vendor-human">
       <div><span className="vendor-avatar">?</span></div>

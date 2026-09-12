@@ -11,6 +11,7 @@ export type BazaarCard = Readonly<{
   description?: string;
   categoryCode: string;
   brand?: string;
+  brandLogoObjectKey?: string;
   condition: BazaarCondition;
   bazaarSource?: string;
   priceMinor: number;
@@ -19,6 +20,7 @@ export type BazaarCard = Readonly<{
   availableToSell: number;
   vendorId: string;
   vendorName: string;
+  supplierFulfilled: boolean;
   mediaId?: string;
   mediaAlt?: string;
 }>;
@@ -30,6 +32,7 @@ type BazaarRow = Readonly<{
   description: string | null;
   category_code: string;
   brand_name: string | null;
+  brand_logo_object_key: string | null;
   condition: string;
   bazaar_source: string | null;
   customer_price_minor: number | string;
@@ -37,6 +40,7 @@ type BazaarRow = Readonly<{
   available_to_sell: number | string;
   vendor_public_id: string;
   vendor_name: string;
+  supplier_fulfilled: boolean;
 }>;
 
 export type BazaarFilters = Readonly<{
@@ -89,6 +93,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       COALESCE(el.description,en.description) AS description,
       c.code AS category_code,
       b.name AS brand_name,
+      b.logo_object_key AS brand_logo_object_key,
       cv.condition,
       cv.bazaar_source,
       vo.customer_price_minor,
@@ -98,7 +103,8 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
         ELSE GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0))
       END AS available_to_sell,
       v.public_id AS vendor_public_id,
-      v.trading_name AS vendor_name
+      v.trading_name AS vendor_name,
+      (dso.id IS NOT NULL) AS supplier_fulfilled
     FROM canonical_variants cv
     JOIN categories c ON c.id=cv.category_id
     JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
@@ -158,6 +164,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       description: row.description ?? undefined,
       categoryCode: row.category_code,
       brand: row.brand_name ?? undefined,
+      brandLogoObjectKey: row.brand_logo_object_key ?? undefined,
       condition: normalizeCondition(row.condition),
       bazaarSource: row.bazaar_source ?? undefined,
       priceMinor,
@@ -165,7 +172,8 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       savingsPercent: savingsPercent(msrpMinor,priceMinor),
       availableToSell: nonNegativeInt(row.available_to_sell),
       vendorId: row.vendor_public_id,
-      vendorName: row.vendor_name
+      vendorName: row.vendor_name,
+      supplierFulfilled: row.supplier_fulfilled === true
     };
     return card.availableToSell > 0 ? [card] : [];
   });
