@@ -25,7 +25,7 @@ export type CanonicalCatalogProduct = Readonly<{
   titleEl: string;
   titleEn?: string;
   descriptionEl?: string;
-  platformPrice: Money;
+  platformPrice?: Money;
   taxRateBps: number;
   synonyms?: readonly string[];
   adviceAvailable?: boolean;
@@ -339,7 +339,6 @@ export class CatalogManagementService {
   createCanonicalFromSubmission(input: {
     submissionId: string;
     actorId: string;
-    platformPriceMinor: number;
     taxRateBps?: number;
     titleEl?: string;
     titleEn?: string;
@@ -355,7 +354,6 @@ export class CatalogManagementService {
       throw new Error(`Cannot create canonical from ${submission.status} product`);
     }
     this.#assertTaxRate(input.taxRateBps ?? submission.supplierTaxRateBps);
-    this.#assertNonNegativeMoney(input.platformPriceMinor, "Platform retail price");
     const canonicalId = id("cv");
     const canonical: CanonicalCatalogProduct = {
       id: canonicalId,
@@ -365,7 +363,6 @@ export class CatalogManagementService {
       titleEl: input.titleEl?.trim() || submission.identity.title,
       titleEn: input.titleEn?.trim() || undefined,
       descriptionEl: input.descriptionEl?.trim() || undefined,
-      platformPrice: money(input.platformPriceMinor),
       taxRateBps: input.taxRateBps ?? submission.supplierTaxRateBps,
       synonyms: input.synonyms ? [...input.synonyms] : undefined,
       adviceAvailable: submission.adviceAvailable,
@@ -482,7 +479,7 @@ export class CatalogManagementService {
       if (!value.trim()) throw new Error("Canonical product is missing required information");
     }
     this.#assertTaxRate(product.taxRateBps);
-    this.#assertNonNegativeMoney(product.platformPrice.minor, "Platform retail price");
+    if (product.platformPrice !== undefined) this.#assertNonNegativeMoney(product.platformPrice.minor, "Platform retail price");
     this.#assertCondition(product.identity.condition ?? "new");
   }
 
