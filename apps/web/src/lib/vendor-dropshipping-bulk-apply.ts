@@ -103,10 +103,10 @@ export async function applyDropshippingSupplierDefaultsSequential(
              show_msrp=$5,
              merchant_visible=CASE
                WHEN vo.status <> 'approved'
-                 OR NOT dso.active
-                 OR NOT cv.active
-                 OR cv.suppressed
-                 OR cv.recalled
+                 OR dso.active IS NOT TRUE
+                 OR cv.active IS NOT TRUE
+                 OR cv.suppressed IS TRUE
+                 OR cv.recalled IS TRUE
                  THEN false
                WHEN vo.merchant_visibility_updated_at IS NOT NULL THEN vo.merchant_visible
                ELSE $6
