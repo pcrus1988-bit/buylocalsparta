@@ -11,5 +11,8 @@ export async function AdminWorkspaceHeader({ csrfToken, entityLabel }: { csrfTok
   const principal = await getAdminSession();
   if (!principal) return null;
   const attentionBadges = await adminDomainAttentionBadges(principal).catch(() => ({}));
-  return <AdminWorkspaceHeaderClient csrfToken={csrfToken} groups={adminNavigationForPrincipal(principal, attentionBadges)} entityLabel={entityLabel} />;
+  const navigation = adminNavigationForPrincipal(principal, attentionBadges).map((group) => group.href === "/admin/finance"
+    ? { ...group, links: [...group.links, { label: "Profitability & margins", href: "/admin/profitability", icon: "%", permission: "finance.read" as const }] }
+    : group);
+  return <AdminWorkspaceHeaderClient csrfToken={csrfToken} groups={navigation} entityLabel={entityLabel} />;
 }
