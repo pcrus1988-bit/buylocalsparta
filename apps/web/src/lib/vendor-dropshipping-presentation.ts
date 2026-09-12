@@ -58,6 +58,40 @@ export async function vendorDropshippingPresentationSnapshot(
   return { supplierFields: config.fields, products };
 }
 
+export async function vendorDropshippingSupplierPublicFields(
+  vendorIdentity: string,
+  supplierCode: string
+): Promise<DropshipPublicFields> {
+  const snapshot = await vendorDropshippingPresentationSnapshot(vendorIdentity, supplierCode, []);
+  return snapshot.supplierFields;
+}
+
+export async function vendorDropshippingProductPublicFields(
+  vendorIdentity: string,
+  offerId: string
+): Promise<Readonly<{ fields: DropshipPublicFields; overridden: boolean }>> {
+  await assertDropshippingOnlyVendor(vendorIdentity);
+  const fallback = parseDropshipPresentationConfig(null);
+  if (!productionDatabaseConfigured()) return { fields: fallback.fields, overridden: false };
+  const publicOfferId = offerId.trim();
+  if (!publicOfferId) throw new Error("Απαιτείται προϊόν.");
+  const vendorId = await resolveVendorUuid(vendorIdentity);
+  const result = await getProductionPostgresRuntime().nativePool.query(`
+    SELECT ds.configuration->'vendorPresentation' vendor_presentation
+      FROM vendor_offers vo
+      JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+     WHERE vo.public_id=$1
+       AND vo.vendor_id=$2::uuid
+       AND ds.owner_vendor_id=$2::uuid
+       AND ds.active=true
+     LIMIT 1
+  `, [publicOfferId, vendorId]);
+  if (result.rowCount !== 1) throw new Error("Το Dropshipping προϊόν δεν βρέθηκε.");
+  const config = parseDropshipPresentationConfig(result.rows[0].vendor_presentation);
+  return resolveDropshipPublicFields(config, publicOfferId);
+}
+
 export async function saveDropshippingSupplierPublicFields(
   vendorIdentity: string,
   supplierCode: string,
