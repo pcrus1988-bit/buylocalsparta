@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { extractNovaVerifiedFacts,buildBazaarPresentationOverlay,buildDeterministicGreekPresentation } from "./catalogue-enrichment.ts";
-import { OpenAiCatalogueEnricher } from "./catalogue-enrichment-openai.ts";
+import { CATALOGUE_ENRICHMENT_PROMPT_VERSION,OpenAiCatalogueEnricher } from "./catalogue-enrichment-openai.ts";
 import { sanitizeSupplierEvidenceText,validateLuxuryCatalogueDraft } from "./catalogue-enrichment-policy.ts";
 import { catalogueEnrichmentGenerationScope } from "./catalogue-enrichment-generation-runtime.ts";
 
@@ -33,7 +33,7 @@ function evidence() {
   };
 }
 
-test("OpenAI provider uses Responses structured outputs and returns only parsed customer copy", async () => {
+test("OpenAI provider uses Responses structured outputs and v3 source-detail instructions", async () => {
   let requestBody: Record<string,unknown> | null = null;
   const fetchMock = (async (_url: string | URL | Request, init?: RequestInit) => {
     requestBody = JSON.parse(String(init?.body)) as Record<string,unknown>;
@@ -48,8 +48,8 @@ test("OpenAI provider uses Responses structured outputs and returns only parsed 
           type: "output_text",
           text: JSON.stringify({
             title_el: "Versace La Medusa – Τσάντα Tote σε Μπεζ",
-            short_description_el: "Η La Medusa της Versace σε μπεζ απόχρωση, με βαμβακερή κατασκευή και κομψή tote γραμμή.",
-            description_el: "Η Versace La Medusa αποδίδεται σε μια εκλεπτυσμένη tote εκδοχή με μπεζ απόχρωση και βαμβακερή κατασκευή. Η δομημένη σιλουέτα και οι επάνω λαβές ολοκληρώνουν έναν καθαρό, πολυτελή χαρακτήρα χωρίς περιττές υπερβολές."
+            short_description_el: "Η La Medusa της Versace σε μπεζ απόχρωση, με βαμβακερή κατασκευή και δομημένη tote γραμμή.",
+            description_el: "Η Versace La Medusa αποδίδεται σε tote εκδοχή με μπεζ απόχρωση και βαμβακερή κατασκευή. Η δομημένη σιλουέτα και οι επάνω λαβές είναι τα βασικά σχεδιαστικά στοιχεία του συγκεκριμένου μοντέλου."
           })
         }]
       }],
@@ -68,7 +68,11 @@ test("OpenAI provider uses Responses structured outputs and returns only parsed 
   assert.equal(result.draft.titleEl,"Versace La Medusa – Τσάντα Tote σε Μπεζ");
   assert.equal(result.telemetry.requestId,"resp_test_1");
   assert.equal(result.telemetry.usage.totalTokens,180);
+  assert.equal(result.telemetry.promptVersion,"luxury-greek-merchandising-v3");
+  assert.equal(CATALOGUE_ENRICHMENT_PROMPT_VERSION,"luxury-greek-merchandising-v3");
   assert.equal(requestBody?.store,false);
+  assert.match(String(requestBody?.instructions),/SUPPLIER_EVIDENCE is sanitized supplier product evidence/);
+  assert.match(String(requestBody?.instructions),/Preserve distinctive explicit details/);
   const textConfig = requestBody?.text as { format?: { type?: string; strict?: boolean } } | undefined;
   assert.equal(textConfig?.format?.type,"json_schema");
   assert.equal(textConfig?.format?.strict,true);
@@ -79,7 +83,7 @@ test("luxury validator accepts grounded Greek copy and rejects operational/inter
   const validDraft = {
     titleEl: "Versace La Medusa – Τσάντα Tote σε Μπεζ",
     shortDescriptionEl: "Η La Medusa της Versace σε μπεζ απόχρωση και βαμβακερή κατασκευή.",
-    descriptionEl: "Η Versace La Medusa παρουσιάζεται ως κομψή tote τσάντα σε μπεζ απόχρωση και βαμβακερή κατασκευή. Η δομημένη σιλουέτα και οι επάνω λαβές αναδεικνύουν τον καθαρό σχεδιασμό της σειράς."
+    descriptionEl: "Η Versace La Medusa παρουσιάζεται ως tote τσάντα σε μπεζ απόχρωση και βαμβακερή κατασκευή. Η δομημένη σιλουέτα και οι επάνω λαβές είναι τα ιδιαίτερα σχεδιαστικά στοιχεία του μοντέλου."
   };
   assert.deepEqual(validateLuxuryCatalogueDraft({
     facts: item.facts,draft: validDraft,sourceTitle: item.sourceTitle,sourceDescription: item.sourceDescription,bazaar: item.bazaar
@@ -97,6 +101,56 @@ test("luxury validator accepts grounded Greek copy and rejects operational/inter
   assert.ok(errors.includes("price_symbol_not_allowed"));
 });
 
+test("sanitized supplier evidence can authorize explicit material, percentage and season details missed by structured extraction", () => {
+  const item = evidence();
+  const facts = { ...item.facts,materials: [],season: null };
+  const sourceDescription = "Monkey Business T-Shirt. Loose oversize fit with crewneck and front graphic. Season: SS26. Composition: 100% Cotton.";
+  const errors = validateLuxuryCatalogueDraft({
+    facts,
+    sourceTitle: "Black Cotton T-Shirt",
+    sourceDescription,
+    bazaar: item.bazaar,
+    draft: {
+      titleEl: "Versace – Monkey Business T-Shirt σε Μαύρο",
+      shortDescriptionEl: "Monkey Business T-Shirt με oversized γραμμή, crewneck και front graphic.",
+      descriptionEl: "Το Monkey Business T-Shirt έχει χαλαρή oversized γραμμή, crewneck λαιμόκοψη και graphic print στο μπροστινό μέρος. Ανήκει στη συλλογή SS26 και η σύνθεσή του είναι 100% βαμβάκι."
+    }
+  });
+  assert.deepEqual(errors,[]);
+});
+
+test("supplier authenticity wording never authorizes an authenticity claim", () => {
+  const item = evidence();
+  const errors = validateLuxuryCatalogueDraft({
+    facts: { ...item.facts,claims: [] },
+    sourceTitle: item.sourceTitle,
+    sourceDescription: "100% Authentic. Composition: 100% Cotton.",
+    bazaar: item.bazaar,
+    draft: {
+      titleEl: "Versace La Medusa – Τσάντα Tote σε Μπεζ",
+      shortDescriptionEl: "Versace La Medusa με βαμβακερή κατασκευή.",
+      descriptionEl: "Αυθεντική Versace La Medusa με σύνθεση από 100% βαμβάκι και tote κατασκευή."
+    }
+  });
+  assert.ok(errors.some((error) => error.startsWith("unsupported_claim:αυθεντικ")));
+});
+
+test("rich supplier evidence rejects the old generic bulk-copy template", () => {
+  const item = evidence();
+  const errors = validateLuxuryCatalogueDraft({
+    facts: item.facts,
+    sourceTitle: "Black Cotton Monkey Business T-Shirt",
+    sourceDescription: "Soft cotton jersey. Loose oversize fit. Crewneck. Front graphic with a small monkey illustration. Season SS26.",
+    bazaar: item.bazaar,
+    draft: {
+      titleEl: "Versace La Medusa – Τσάντα Tote σε Μπεζ",
+      shortDescriptionEl: "Σύγχρονη πρόταση της Versace σε μπεζ απόχρωση, με καθαρή σχεδιαστική γραμμή.",
+      descriptionEl: "Η Versace παρουσιάζει μια σύγχρονη εκδοχή του συγκεκριμένου κομματιού σε μπεζ απόχρωση. Η καθαρή σχεδιαστική γραμμή του επιτρέπει να λειτουργεί φυσικά τόσο σε καθημερινά όσο και σε πιο προσεγμένα σύνολα."
+    }
+  });
+  assert.ok(errors.some((error) => error.startsWith("generic_source_copy:")));
+});
+
 test("BAZAAR generation must disclose second-life condition", () => {
   const bazaarPayload = { ...payload,condition: { name: "Preloved" } };
   const extracted = extractNovaVerifiedFacts(bazaarPayload);
@@ -109,7 +163,7 @@ test("BAZAAR generation must disclose second-life condition", () => {
     draft: {
       titleEl: "Versace La Medusa – Τσάντα Tote σε Μπεζ",
       shortDescriptionEl: "Η La Medusa της Versace σε μπεζ απόχρωση.",
-      descriptionEl: "Η Versace La Medusa είναι μια κομψή tote τσάντα σε μπεζ απόχρωση και βαμβακερή κατασκευή, με δομημένη σιλουέτα και επάνω λαβές."
+      descriptionEl: "Η Versace La Medusa είναι tote τσάντα σε μπεζ απόχρωση και βαμβακερή κατασκευή, με δομημένη σιλουέτα και επάνω λαβές."
     }
   });
   assert.ok(errors.includes("bazaar_condition_not_disclosed"));
