@@ -68,7 +68,7 @@ jobs:
       - name: Test production paid-fulfilment compatibility boundary
         run: node --experimental-strip-types --test integrations/dropship-suppliers/test/*.test.ts
       - name: Test Nova web runtime safety contracts
-        run: node --experimental-strip-types --test apps/web/test/nova-*.test.ts
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs --test apps/web/test/nova-*.test.ts
       - name: Typecheck production dropship runtime
         run: ./node_modules/.bin/tsc -p integrations/dropship-suppliers/tsconfig.json
       - name: Verify dropship migrations remain in the governed chain
