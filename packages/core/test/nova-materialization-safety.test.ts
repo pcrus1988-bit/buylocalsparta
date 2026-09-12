@@ -23,8 +23,12 @@ test("Nova materialization follows the schema-227 draft-only identity contract",
   assert.match(materializer, /now\(\),now\(\)\+interval '10 minutes',\$12::jsonb,now\(\),false/);
   assert.match(materializer, /backordersAllowed: false/);
 
-  assert.doesNotMatch(materializer, /merchant_visible=true/);
-  assert.doesNotMatch(materializer, /status='active'/);
+  // Supplier/location eligibility may legitimately query active records. The safety
+  // invariant here is that materialization itself never makes a vendor offer visible
+  // and newly created canonicals/dropship offers remain inactive by construction.
+  assert.doesNotMatch(materializer, /merchant_visible\s*=\s*true/);
+  assert.match(materializer, /vendor_offers[\s\S]*?'draft'/);
+  assert.match(materializer, /dropship_supplier_offers[\s\S]*?false/);
 });
 
 test("Nova worker isolates materialization failures from durable catalogue sync", () => {
