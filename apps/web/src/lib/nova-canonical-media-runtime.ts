@@ -211,14 +211,11 @@ async function syncCandidate(candidate: Candidate): Promise<number> {
           INSERT INTO product_media(
             id,public_id,canonical_variant_id,vendor_id,kind,object_key,alt_text,
             rights_owner,rights_status,moderation_status,sort_order,created_at,
-            original_filename,content_type,byte_size,sha256,scan_status,
-            storage_verified_at,scan_attempts,next_scan_at,last_scan_error,
-            quarantined_at,reviewed_at,source_id,source_url
+            original_filename,content_type,scan_status,reviewed_at,source_id,source_url
           ) VALUES(
             $1::uuid,$2,$3::uuid,$4::uuid,'image',NULL,$5,
             'BrandsGateway / Nova','approved','approved',$6,now(),
-            $7,$8,NULL,NULL,'clean',
-            NULL,0,now(),NULL,NULL,now(),$9::uuid,$10
+            $7,$8,'clean',now(),$9::uuid,$10
           )
           ON CONFLICT (canonical_variant_id,vendor_id,source_id,source_url)
             WHERE kind='image' AND source_url IS NOT NULL
