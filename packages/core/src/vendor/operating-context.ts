@@ -1,4 +1,5 @@
 export const DEFAULT_MANAGED_MARKET_ID = "sparta" as const;
+export const DEFAULT_MANAGED_HUB_ID = "KM-HUB-015" as const;
 
 export type VendorOperatingModel = "MANAGED" | "SELF_GOVERNED";
 
@@ -109,6 +110,42 @@ export function capabilitiesForVendorOperatingModel(model: VendorOperatingModel)
   return model === "SELF_GOVERNED"
     ? [...MANAGED_CAPABILITIES, ...SELF_GOVERNED_EXTRA_CAPABILITIES]
     : [...MANAGED_CAPABILITIES];
+}
+
+/**
+ * Converts the persisted market/hub/location relationship into the vendor operating assignment.
+ * Sparta remains the backwards-compatible managed market even if it predates a hub mapping.
+ * Every non-Sparta market must have an explicit hub mapping and becomes self-governed. A corrupt
+ * mapping that points a non-Sparta market at Sparta's legacy hub fails closed rather than granting
+ * either operating model under an ambiguous boundary.
+ */
+export function vendorOperatingAssignmentFromPersistedScope(input: {
+  marketId: string;
+  hubId?: string;
+  locationId?: string;
+}): VendorOperatingAssignment {
+  const marketId = requiredScopeValue(input.marketId, "marketId");
+  const hubId = optionalScopeValue(input.hubId);
+  const locationId = optionalScopeValue(input.locationId);
+
+  if (marketId === DEFAULT_MANAGED_MARKET_ID) {
+    return {
+      marketId,
+      ...(hubId ? { hubId } : {}),
+      ...(locationId ? { locationId } : {}),
+      operatingModel: "MANAGED"
+    };
+  }
+
+  if (!hubId) throw new Error("hubId is required for expansion vendor operating context");
+  if (hubId === DEFAULT_MANAGED_HUB_ID) throw new Error("Sparta legacy hub cannot be assigned to an expansion market");
+
+  return {
+    marketId,
+    hubId,
+    ...(locationId ? { locationId } : {}),
+    operatingModel: "SELF_GOVERNED"
+  };
 }
 
 export function buildVendorOperatingContext(input: {
