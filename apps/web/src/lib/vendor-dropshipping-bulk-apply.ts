@@ -113,14 +113,9 @@ export async function applyDropshippingSupplierDefaultsSequential(
              merchant_visible=CASE
                WHEN vo.status <> 'approved'
                  OR NOT dso.active
-                 OR NOT EXISTS (
-                   SELECT 1
-                     FROM canonical_variants cv
-                    WHERE cv.id=vo.canonical_variant_id
-                      AND cv.active=true
-                      AND cv.suppressed=false
-                      AND cv.recalled=false
-                 ) THEN false
+                 OR NOT cv.active
+                 OR cv.suppressed
+                 OR cv.recalled THEN false
                WHEN vo.merchant_visibility_updated_by IS NOT NULL THEN COALESCE((
                  SELECT e.visible
                    FROM vendor_catalog_visibility_events e
@@ -139,8 +134,10 @@ export async function applyDropshippingSupplierDefaultsSequential(
         CROSS JOIN LATERAL (
           SELECT dso.supplier_cost_minor
                  + ROUND(dso.supplier_cost_minor * $3::numeric / 100)::bigint AS after_markup_minor
-        ) calc
+        ) calc,
+        canonical_variants cv
        WHERE dso.vendor_offer_id=vo.id
+         AND cv.id=vo.canonical_variant_id
          AND dso.supplier_id=$1::uuid
          AND vo.vendor_id=$2::uuid
          AND dso.supplier_cost_minor IS NOT NULL
