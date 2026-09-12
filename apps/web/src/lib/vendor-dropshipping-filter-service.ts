@@ -277,10 +277,9 @@ export async function vendorDropshippingFilteredWorkspace(
   const suppliers = await loadSupplierSummaries(vendorId);
   const selectedSupplier = suppliers.find((supplier) => supplier.code === options.supplierCode) ?? suppliers[0] ?? null;
 
-  const base: DropshippingWorkspace = {
+  const base: Omit<DropshippingWorkspace, "products"> = {
     suppliers,
     selectedSupplier,
-    products: [],
     totalProducts: 0,
     page,
     pageSize,
@@ -290,6 +289,7 @@ export async function vendorDropshippingFilteredWorkspace(
   if (!selectedSupplier) {
     return {
       ...base,
+      products: [],
       filters,
       filterOptions: EMPTY_OPTIONS
     };
