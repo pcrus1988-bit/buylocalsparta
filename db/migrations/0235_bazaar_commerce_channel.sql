@@ -61,6 +61,18 @@ ALTER TABLE public.canonical_variants
   ADD CONSTRAINT canonical_variants_bazaar_source_channel_check
   CHECK (commerce_channel = 'bazaar' OR bazaar_source IS NULL);
 
+-- Preloved, defect/open-box inventory is structurally forbidden from entering the
+-- normal catalogue. Bazaar may still contain condition='new' for unopened returns.
+ALTER TABLE public.canonical_variants
+  DROP CONSTRAINT IF EXISTS canonical_variants_condition_channel_check;
+
+ALTER TABLE public.canonical_variants
+  ADD CONSTRAINT canonical_variants_condition_channel_check
+  CHECK (
+    condition NOT IN ('preloved', 'preowned_defect', 'open_box')
+    OR commerce_channel = 'bazaar'
+  );
+
 -- The previous unique index on (market_id, gtin) forced a BAZAAR item to collide
 -- with the normal/new canonical variant carrying the same manufacturer barcode.
 -- Preserve strict GTIN uniqueness for the normal catalogue only. Bazaar inventory
