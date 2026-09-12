@@ -22,6 +22,7 @@ test("cursor optimization preserves staged-only Nova safety", () => {
   assert.match(materializer, /'draft'/);
   assert.match(materializer, /merchant_visible/);
   assert.match(materializer, /last_catalogue_sync_at,active/);
-  assert.match(materializer, /now\(\),false/);
+  assert.match(materializer, /publicationState: "STAGED"/);
+  assert.match(materializer, /last_catalogue_sync_at=now\(\),[\s\S]*updated_at=now\(\)/);
   assert.doesNotMatch(materializer, /order_forwarding_enabled\s*=\s*true/i);
 });
