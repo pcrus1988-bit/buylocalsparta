@@ -79,123 +79,167 @@ export class ProductionPostgresRuntime {
   readonly nativePool: Pool;
   readonly sqlPool: SqlPool;
   readonly persistence: PostgresPersistenceBundle;
+  readonly customerCommerce: PostgresCustomerCommerceService;
+  readonly vendorOperations: PostgresVendorOperationsService;
+  readonly adminOperations: PostgresAdminOperationsLiveService;
+  readonly adminGovernance: PostgresAdminGovernanceService;
   readonly molliePayments?: PostgresMolliePaymentsService;
-  readonly mollieCheckoutGateway?: MollieHostedCheckoutGateway;
   readonly mediaPipeline: PostgresMediaPipelineService;
   readonly myData?: PostgresMyDataService;
   readonly search?: PostgresProductionSearchService;
   readonly notifications?: PostgresResendNotificationService;
-  readonly boxNow?: PostgresBoxNowShippingService;
+  readonly boxNowShipping?: PostgresBoxNowShippingService;
   readonly activationEvidence: PostgresActivationEvidenceService;
   readonly cartRecovery: PostgresCartRecoveryService;
 
-  constructor(readonly config: PostgresRuntimeConfig) {
+  constructor(config: PostgresRuntimeConfig) {
     const poolConfig: PoolConfig = {
       connectionString: config.connectionString,
       application_name: config.applicationName,
       max: config.maxConnections,
       connectionTimeoutMillis: config.connectionTimeoutMs,
-      idleTimeoutMillis: config.idleTimeoutMs,
-      keepAlive: true
+      idleTimeoutMillis: config.idleTimeoutMs
     };
     this.nativePool = new Pool(poolConfig);
-    this.nativePool.on("error",(error) => {
-      console.error(JSON.stringify({ level:"error",event:"postgres.pool_idle_client_error",error:`${error.name}:${error.message}`,at:new Date().toISOString() }));
+    this.nativePool.on("error", (error) => {
+      console.error(JSON.stringify({ level: "error", event: "postgres.pool_idle_client_error", application: config.applicationName, message: error.message }));
     });
     this.sqlPool = new PgPoolAdapter(this.nativePool);
     this.persistence = new PostgresPersistenceBundle(this.sqlPool);
-    const customerCommerce = new PostgresCustomerCommerceService(this.sqlPool);
-    const vendorOperations = new PostgresVendorOperationsService(this.sqlPool);
-    const adminOperations = new PostgresAdminOperationsLiveService(this.sqlPool);
-    const adminGovernance = new PostgresAdminGovernanceService(this.sqlPool);
-    Object.assign(this.persistence,{ customerCommerce,vendorOperations,adminOperations,adminGovernance });
-    if (config.mollie) {
-      const client = new MolliePaymentsClient(config.mollie);
-      this.molliePayments = new PostgresMolliePaymentsService(this.sqlPool,client,config.molliePublicBaseUrl);
-      this.mollieCheckoutGateway = new MollieHostedCheckoutGateway(this.sqlPool,client,config.molliePublicBaseUrl);
-    }
-    this.mediaPipeline = new PostgresMediaPipelineService(this.sqlPool,{ maxBytes:config.mediaMaxBytes });
-    if (config.myData) this.myData = new PostgresMyDataService(this.sqlPool,new AadeMyDataClient(config.myData),config.myDataMappingVersion);
-    if (config.search) this.search = new PostgresProductionSearchService(this.sqlPool,config.search);
-    if (config.resend) this.notifications = new PostgresResendNotificationService(this.sqlPool,config.resend,config.notificationSuppressionSecret,config.notificationWorkerId);
-    if (config.boxNow) this.boxNow = new PostgresBoxNowShippingService(this.sqlPool,new BoxNowClient(config.boxNow));
+    this.customerCommerce = new PostgresCustomerCommerceService(this.sqlPool);
+    this.vendorOperations = new PostgresVendorOperationsService(this.sqlPool);
+    this.adminOperations = new PostgresAdminOperationsLiveService(this.sqlPool, this.persistence);
+    this.adminGovernance = new PostgresAdminGovernanceService(this.sqlPool, this.persistence, this.adminOperations);
+    this.molliePayments = config.mollie && config.molliePublicBaseUrl
+      ? new PostgresMolliePaymentsService(
+          this.sqlPool,
+          new MollieHostedCheckoutGateway(this.sqlPool, new MolliePaymentsClient(config.mollie)),
+          { publicBaseUrl: config.molliePublicBaseUrl, emailNotificationsEnabled: Boolean(config.resend) }
+        )
+      : undefined;
+    this.mediaPipeline = new PostgresMediaPipelineService(this.sqlPool, { maxBytes: config.mediaMaxBytes });
+    this.myData = config.myData ? new PostgresMyDataService(this.sqlPool, { client: new AadeMyDataClient(config.myData), issuanceEnabled: config.myDataIssuanceEnabled, approvedMappingVersion: config.myDataMappingVersion }) : undefined;
+    this.search = config.search ? new PostgresProductionSearchService(this.sqlPool, config.search) : undefined;
+    this.notifications = config.resend && config.notificationSuppressionSecret ? new PostgresResendNotificationService({ db: this.sqlPool, store: this.persistence.notificationOperations, attemptSink: this.persistence.notificationOperations, config: config.resend, suppressionSecret: config.notificationSuppressionSecret, workerId: config.notificationWorkerId ?? `${config.applicationName}:notifications` }) : undefined;
+    this.boxNowShipping = config.boxNow ? new PostgresBoxNowShippingService(this.sqlPool, new BoxNowClient(config.boxNow)) : undefined;
     this.activationEvidence = new PostgresActivationEvidenceService(this.sqlPool);
     this.cartRecovery = new PostgresCartRecoveryService(this.sqlPool);
+  }
+
+  async readiness(expectedSchemaVersion = EXPECTED_SCHEMA_VERSION): Promise<DatabaseReadiness> {
+    const checkedAt = Date.now();
+    try {
+      const result = await this.nativePool.query(`
+        SELECT current_setting('server_version') AS server_version,
+               current_setting('server_version_num') AS server_version_num,
+               COALESCE((SELECT extversion FROM pg_extension WHERE extname='postgis'), '') AS postgis_version,
+               EXISTS(SELECT 1 FROM pg_extension WHERE extname='pgcrypto') AS has_pgcrypto,
+               EXISTS(SELECT 1 FROM pg_extension WHERE extname='citext') AS has_citext,
+               COALESCE((SELECT MAX(version) FROM public.schema_migrations), 0) AS schema_version
+      `);
+      const row = result.rows[0] ?? {};
+      const serverVersion = String(row.server_version ?? "");
+      const serverVersionNumber = Number(row.server_version_num ?? 0);
+      const postgisVersion = String(row.postgis_version ?? "");
+      const appliedSchemaVersion = Number(row.schema_version ?? 0);
+      const pendingMigrations = Math.max(0, expectedSchemaVersion - appliedSchemaVersion);
+      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
+      const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
+      const extensionsReady = requiredExtensions.length === 3;
+      const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
+      return {
+        ok: schemaCurrent && extensionsReady && serverMajorReady,
+        checkedAt,
+        serverVersion,
+        serverVersionNumber,
+        postgisVersion: postgisVersion || undefined,
+        requiredExtensions,
+        appliedSchemaVersion,
+        expectedSchemaVersion,
+        pendingMigrations,
+        message: !serverMajorReady
+          ? `PostgreSQL 17.x or 18.x is required; server reports ${serverVersion || serverVersionNumber}`
+          : !extensionsReady
+            ? `Required extensions are incomplete; found ${requiredExtensions.join(", ") || "none"}`
+            : !schemaCurrent
+              ? `Database schema ${appliedSchemaVersion} does not match expected ${expectedSchemaVersion}`
+              : "PostgreSQL 17/18 with PostGIS schema is ready"
+      };
+    } catch (error) {
+      return { ok: false, checkedAt, expectedSchemaVersion, message: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   async close(): Promise<void> { await this.nativePool.end(); }
 }
 
-export function postgresRuntimeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): PostgresRuntimeConfig {
+export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, applicationName = "buy-local-sparta"): PostgresRuntimeConfig {
   const connectionString = env.DATABASE_URL?.trim();
-  if (!connectionString) throw new Error("DATABASE_URL is required for the production PostgreSQL runtime");
-  const config: PostgresRuntimeConfig = {
+  if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL runtime");
+  const mollie = env.MOLLIE_PAYMENTS_ENABLED === "true" ? mollieConfigForRuntime(env) : undefined;
+  return {
     connectionString,
-    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || "buy-local-sparta",
-    maxConnections: positiveInteger(env.BLS_DB_POOL_MAX,10,"BLS_DB_POOL_MAX"),
-    connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS,5_000,"BLS_DB_CONNECT_TIMEOUT_MS"),
-    idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS,30_000,"BLS_DB_IDLE_TIMEOUT_MS"),
-    mediaMaxBytes: positiveInteger(env.BLS_MEDIA_MAX_BYTES,15_000_000,"BLS_MEDIA_MAX_BYTES"),
+    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
+    maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
+    connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
+    idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
+    mollie,
+    molliePublicBaseUrl: mollie ? molliePublicBaseUrlFromEnv(env) : undefined,
+    mediaMaxBytes: positiveInteger(env.BLS_MEDIA_MAX_BYTES, 25 * 1024 * 1024, "BLS_MEDIA_MAX_BYTES"),
+    myData: env.AADE_MYDATA_USER_ID?.trim() && env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim() ? myDataConfigFromEnv(env) : undefined,
     myDataIssuanceEnabled: myDataIssuanceEnabled(env),
-    myDataMappingVersion: env.BLS_MYDATA_MAPPING_VERSION?.trim()
+    myDataMappingVersion: env.BLS_MYDATA_MAPPING_VERSION?.trim() || undefined,
+    search: env.BLS_SEARCH_ENABLED === "true" ? meilisearchConfigFromEnv(env) : undefined,
+    resend: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? resendConfigFromEnv(env) : undefined,
+    notificationSuppressionSecret: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? requiredSecret(env.BLS_NOTIFICATION_SUPPRESSION_SECRET, "BLS_NOTIFICATION_SUPPRESSION_SECRET") : undefined,
+    notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
+    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
   };
-  if (env.MOLLIE_PAYMENTS_ENABLED === "true") {
-    config.mollie = mollieConfigFromEnv(env);
-    config.molliePublicBaseUrl = env.MOLLIE_PUBLIC_BASE_URL?.trim();
-  }
-  if (config.myDataIssuanceEnabled) config.myData = myDataConfigFromEnv(env);
-  if (env.BLS_SEARCH_ENABLED === "true") config.search = meilisearchConfigFromEnv(env);
-  if (env.BLS_EMAIL_DELIVERY_ENABLED === "true") {
-    config.resend = resendConfigFromEnv(env);
-    config.notificationSuppressionSecret = env.BLS_NOTIFICATION_SUPPRESSION_SECRET?.trim();
-    config.notificationWorkerId = env.BLS_NOTIFICATION_WORKER_ID?.trim();
-  }
-  if (env.BLS_BOXNOW_SHIPPING_ENABLED === "true") config.boxNow = {
-    clientId: requiredEnv(env.BOXNOW_CLIENT_ID,"BOXNOW_CLIENT_ID"),
-    clientSecret: requiredEnv(env.BOXNOW_CLIENT_SECRET,"BOXNOW_CLIENT_SECRET"),
-    warehouseNumber: requiredEnv(env.BOXNOW_WAREHOUSE_NUMBER,"BOXNOW_WAREHOUSE_NUMBER"),
-    baseUrl: env.BOXNOW_API_BASE_URL?.trim() || "https://api-stage.boxnow.gr",
-    requestTimeoutMs: positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS,10_000,"BOXNOW_REQUEST_TIMEOUT_MS")
-  };
+}
+
+export function createPostgresRuntimeFromEnv(input: { env?: NodeJS.ProcessEnv; applicationName?: string } = {}): ProductionPostgresRuntime {
+  return new ProductionPostgresRuntime(postgresConfigFromEnv(input.env, input.applicationName));
+}
+
+function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
+  const environment = env.BOXNOW_ENVIRONMENT === "production" ? "production" : "stage";
+  if (env.NODE_ENV === "production" && environment !== "production" && env.BLS_ALLOW_BOXNOW_STAGE_PREVIEW !== "true") throw new Error("Production BOX NOW shipping requires BOXNOW_ENVIRONMENT=production");
+  const baseUrl = env.BOXNOW_API_URL?.trim(); const clientId = env.BOXNOW_CLIENT_ID?.trim(); const clientSecret = env.BOXNOW_CLIENT_SECRET?.trim();
+  if (!baseUrl || !clientId || !clientSecret) throw new Error("BOXNOW_API_URL, BOXNOW_CLIENT_ID and BOXNOW_CLIENT_SECRET are required when BLS_BOXNOW_ENABLED=true");
+  const webhookSecret = env.BOXNOW_WEBHOOK_SECRET?.trim(); if (!webhookSecret || webhookSecret.length < 16) throw new Error("BOXNOW_WEBHOOK_SECRET must be configured when BLS_BOXNOW_ENABLED=true");
+  return { environment, baseUrl, clientId, clientSecret, partnerId: env.BOXNOW_PARTNER_ID?.trim() || undefined, requestTimeoutMs: positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS, 10_000, "BOXNOW_REQUEST_TIMEOUT_MS") };
+}
+
+function mollieConfigForRuntime(env: NodeJS.ProcessEnv): MollieConfig {
+  const config = mollieConfigFromEnv(env);
+  if (env.NODE_ENV === "production" && mollieEnvironment(config) !== "live" && env.BLS_ALLOW_MOLLIE_TEST_PREVIEW !== "true") throw new Error("Production Mollie payments require a live API key");
   return config;
 }
 
-export function productionDatabaseReadiness(runtime: ProductionPostgresRuntime): Promise<DatabaseReadiness> {
-  return runtimeDatabaseReadiness(runtime.sqlPool);
+function molliePublicBaseUrlFromEnv(env: NodeJS.ProcessEnv): string {
+  const configured = env.MOLLIE_PUBLIC_BASE_URL?.trim();
+  if (configured) return configured;
+  const vercelHost = env.VERCEL_URL?.trim() || env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelHost) return /^https?:\/\//i.test(vercelHost) ? vercelHost : `https://${vercelHost}`;
+  if (env.NODE_ENV !== "production") return "http://localhost:3000";
+  throw new Error("MOLLIE_PUBLIC_BASE_URL or a Vercel public URL is required when Mollie payments are enabled");
 }
 
-async function runtimeDatabaseReadiness(pool: SqlPool): Promise<DatabaseReadiness> {
-  const checkedAt = Date.now();
-  try {
-    const server = await pool.query<SqlRow>("SELECT current_setting('server_version') AS server_version,current_setting('server_version_num')::integer AS server_version_num");
-    const extension = await pool.query<SqlRow>("SELECT extname,extversion FROM pg_extension WHERE extname IN ('postgis','pgcrypto') ORDER BY extname");
-    const migrations = await pool.query<SqlRow>("SELECT COALESCE(MAX(version),0)::integer AS applied_schema_version FROM public.schema_migrations");
-    const serverVersion = text(server.rows[0]?.server_version);
-    const serverVersionNumber = Number(server.rows[0]?.server_version_num ?? 0);
-    const extensionRows = extension.rows.map((row) => ({ name:text(row.extname),version:text(row.extversion) })).filter((row) => row.name);
-    const postgisVersion = extensionRows.find((row) => row.name === "postgis")?.version;
-    const requiredExtensions = ["pgcrypto","postgis"];
-    const missingExtensions = requiredExtensions.filter((name) => !extensionRows.some((row) => row.name === name));
-    const appliedSchemaVersion = Number(migrations.rows[0]?.applied_schema_version ?? 0);
-    const pendingMigrations = Math.max(0,EXPECTED_SCHEMA_VERSION-appliedSchemaVersion);
-    const ok = serverVersionNumber >= 180000 && missingExtensions.length === 0 && appliedSchemaVersion >= EXPECTED_SCHEMA_VERSION;
-    const message = ok ? "PostgreSQL runtime ready" : `PostgreSQL runtime not ready: ${[
-      serverVersionNumber < 180000 ? `server ${serverVersion ?? "unknown"} is older than PostgreSQL 18` : null,
-      missingExtensions.length ? `missing extensions ${missingExtensions.join(",")}` : null,
-      appliedSchemaVersion < EXPECTED_SCHEMA_VERSION ? `schema ${appliedSchemaVersion} is behind ${EXPECTED_SCHEMA_VERSION}` : null
-    ].filter(Boolean).join("; ")}`;
-    return { ok,checkedAt,serverVersion,serverVersionNumber,postgisVersion,requiredExtensions,appliedSchemaVersion,expectedSchemaVersion:EXPECTED_SCHEMA_VERSION,pendingMigrations,message };
-  } catch (error) {
-    return { ok:false,checkedAt,expectedSchemaVersion:EXPECTED_SCHEMA_VERSION,message:`PostgreSQL readiness failed: ${safeError(error)}` };
-  }
-}
+function requiredSecret(raw: string | undefined, name: string): string { const value = raw?.trim(); if (!value || value.length < 32) throw new Error(`${name} must be at least 32 characters`); return value; }
+function positiveInteger(raw: string | undefined, fallback: number, name: string): number { if (raw == null || raw.trim() === "") return fallback; const value = Number(raw); if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`); return value; }
 
-function positiveInteger(raw:string|undefined,fallback:number,name:string):number {
-  if (!raw?.trim()) return fallback;
-  const value=Number(raw);
-  if (!Number.isSafeInteger(value)||value<=0) throw new Error(`${name} must be a positive integer`);
-  return value;
-}
-function requiredEnv(value:string|undefined,name:string):string { if (!value?.trim()) throw new Error(`${name} is required`); return value.trim(); }
-function text(value:unknown):string|undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
-function safeError(error:unknown):string { return error instanceof Error ? `${error.name}:${error.message}` : String(error); }
+export * from "./customer-auth.ts";
+export * from "./customer-commerce.ts";
+export * from "./vendor-auth.ts";
+export * from "./vendor-operations.ts";
+export * from "./admin-auth.ts";
+export * from "./admin-operations.ts";
+export * from "./admin-governance.ts";
+export * from "./mollie-payments.ts";
+export * from "./media-pipeline.ts";
+export * from "./mydata.ts";
+export * from "./search.ts";
+export * from "./notifications.ts";
+export * from "./boxnow-shipping.ts";
+export * from "./activation-evidence.ts";
+export * from "./cart-recovery.ts";
