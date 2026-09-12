@@ -4,6 +4,10 @@ import test from "node:test";
 
 const migration = readFileSync("db/migrations/0230_payment_fulfilment_trigger_reproducibility.sql", "utf8");
 
+test("schema 230 captures the production pending-payment fulfilment state", () => {
+  assert.match(migration, /ALTER TYPE public\.fulfilment_status ADD VALUE IF NOT EXISTS 'pending_payment'/);
+});
+
 test("schema 230 captures the production payment gate semantics", () => {
   assert.match(migration, /CREATE OR REPLACE FUNCTION public\.gate_fulfilment_until_payment\(\)/);
   assert.match(migration, /NEW\.status = 'awaiting_acceptance' AND NOT payment_captured/);
