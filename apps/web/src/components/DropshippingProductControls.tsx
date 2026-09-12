@@ -1,7 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  calculateNovaBrandsGatewayProfit,
+  type NovaBrandsGatewayPricingRecommendation
+} from "../lib/nova-brandsgateway-pricing";
 import { DropshippingProductFieldControls } from "./DropshippingProductFieldControls";
 
 type Props = Readonly<{
@@ -12,11 +16,32 @@ type Props = Readonly<{
   discountValue: number | null;
   msrpMinor: number | null;
   showMsrp: boolean;
+  recommendation?: NovaBrandsGatewayPricingRecommendation | null;
+  useRecommendedPricingDefault?: boolean;
 }>;
 
 const euro = (minor: number | null) => minor == null
   ? "—"
   : new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+
+const percent = (value: number | null) => value == null
+  ? "—"
+  : `${new Intl.NumberFormat("el-GR", { maximumFractionDigits: 2 }).format(value)}%`;
+
+const shippingStatusLabel = (status: NovaBrandsGatewayPricingRecommendation["shippingStatus"]) => ({
+  standalone_safe: "Καλύπτει αυτόνομα μεταφορικά",
+  basket_safe: "Καλύπτει το μερίδιο καλαθιού",
+  basket_dependent: "Χρειάζεται υποστήριξη καλαθιού",
+  unviable: "Μη ασφαλές στο επιθυμητό περιθώριο"
+}[status]);
+
+function previewPriceMinor(costMinor: number | null, markup: number, discount: number): number | null {
+  if (costMinor == null) return null;
+  const safeMarkup = Math.max(0, markup);
+  const safeDiscount = Math.min(100, Math.max(0, discount));
+  const afterMarkupMinor = costMinor + Math.round(costMinor * safeMarkup / 100);
+  return Math.max(costMinor, afterMarkupMinor - Math.round(afterMarkupMinor * safeDiscount / 100));
+}
 
 async function csrfToken(): Promise<string> {
   const response = await fetch("/api/vendor/auth-context", { cache: "no-store" });
@@ -28,23 +53,63 @@ async function csrfToken(): Promise<string> {
 
 export function DropshippingProductControls(props: Props) {
   const router = useRouter();
+  const recommendedDefault = Boolean(
+    props.useRecommendedPricingDefault
+    && props.recommendation?.recommendedMarkupPercent != null
+    && props.recommendation.recommendedSellingPriceMinor != null
+  );
+  const initialMarkup = recommendedDefault ? props.recommendation?.recommendedMarkupPercent ?? 0 : props.markupValue ?? 0;
+  const initialDiscount = recommendedDefault ? 0 : props.discountValue ?? 0;
+  const initialPreviewMinor = previewPriceMinor(props.supplierCostMinor, initialMarkup, initialDiscount);
+
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [markup, setMarkup] = useState(props.markupValue ?? 0);
-  const [discount, setDiscount] = useState(props.discountValue ?? 0);
+  const [markup, setMarkup] = useState(initialMarkup);
+  const [discount, setDiscount] = useState(initialDiscount);
   const [visible, setVisible] = useState(props.visible);
+  const [sellingPriceDraft, setSellingPriceDraft] = useState(initialPreviewMinor == null ? "" : (initialPreviewMinor / 100).toFixed(2));
+  const [editingSellingPrice, setEditingSellingPrice] = useState(false);
 
-  const previewMinor = useMemo(() => {
-    if (props.supplierCostMinor == null) return null;
-    const safeMarkup = Math.max(0, markup);
+  const previewMinor = useMemo(
+    () => previewPriceMinor(props.supplierCostMinor, markup, discount),
+    [props.supplierCostMinor, markup, discount]
+  );
+
+  useEffect(() => {
+    if (!editingSellingPrice) {
+      setSellingPriceDraft(previewMinor == null ? "" : (previewMinor / 100).toFixed(2));
+    }
+  }, [previewMinor, editingSellingPrice]);
+
+  const liveProfit = useMemo(() => {
+    if (!props.recommendation || props.recommendation.landedCostMinor == null) {
+      return { profitMinor: null, profitPercent: null };
+    }
+    return calculateNovaBrandsGatewayProfit({
+      sellingPriceMinor: previewMinor,
+      landedCostMinor: props.recommendation.landedCostMinor,
+      vatRate: props.recommendation.vatRate,
+      transactionRate: props.recommendation.transactionRate
+    });
+  }, [previewMinor, props.recommendation]);
+
+  function commitSellingPrice() {
+    setEditingSellingPrice(false);
+    if (props.supplierCostMinor == null || props.supplierCostMinor <= 0) return;
+    const parsed = Number(sellingPriceDraft.replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setSellingPriceDraft(previewMinor == null ? "" : (previewMinor / 100).toFixed(2));
+      return;
+    }
+
+    const targetMinor = Math.max(props.supplierCostMinor, Math.round(parsed * 100));
     const safeDiscount = Math.min(100, Math.max(0, discount));
-    const afterMarkupMinor = props.supplierCostMinor
-      + Math.round(props.supplierCostMinor * safeMarkup / 100);
-    return Math.max(
-      props.supplierCostMinor,
-      afterMarkupMinor - Math.round(afterMarkupMinor * safeDiscount / 100)
-    );
-  }, [props.supplierCostMinor, markup, discount]);
+    const effectiveDiscount = safeDiscount >= 100 ? 0 : safeDiscount;
+    if (safeDiscount >= 100) setDiscount(0);
+    const priceBeforeDiscountMinor = targetMinor / (1 - effectiveDiscount / 100);
+    const nextMarkup = Math.max(0, ((priceBeforeDiscountMinor / props.supplierCostMinor) - 1) * 100);
+    setMarkup(Math.round((nextMarkup + Number.EPSILON) * 100) / 100);
+  }
 
   async function savePricing() {
     if (props.supplierCostMinor == null) {
@@ -129,12 +194,47 @@ export function DropshippingProductControls(props: Props) {
         <span>{euro(props.msrpMinor)}</span>
         <small>Supplier τιμή αναφοράς · διατηρείται ανεξάρτητα από markup και έκπτωση</small>
       </div>
+      {props.recommendation ? <>
+        <div className="workspace-compact-row">
+          <strong>Προτεινόμενη τιμή πώλησης</strong>
+          <span>{euro(props.recommendation.recommendedSellingPriceMinor)}</span>
+          <small>Shipping-aware · Greece Economy · όριο MSRP</small>
+        </div>
+        <div className="workspace-compact-row">
+          <strong>Κέρδος €</strong>
+          <span>{euro(liveProfit.profitMinor)}</span>
+          <small>Στην τρέχουσα τιμή πώλησης</small>
+        </div>
+        <div className="workspace-compact-row">
+          <strong>Κέρδος %</strong>
+          <span>{percent(liveProfit.profitPercent)}</span>
+          <small>Μετά VAT, transaction cost και ενσωματωμένο shipping reserve</small>
+        </div>
+        <div className="workspace-compact-row">
+          <strong>Shipping reserve</strong>
+          <span>{euro(props.recommendation.embeddedShippingMinor)}</span>
+          <small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small>
+        </div>
+      </> : null}
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(110px,1fr))", gap: 8 }}>
-      <label><small>Markup %</small><input type="number" min="0" max="1000" step="0.1" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
+      <label>
+        <small>Τιμή πώλησης €</small>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={sellingPriceDraft}
+          onFocus={() => setEditingSellingPrice(true)}
+          onChange={(event) => setSellingPriceDraft(event.target.value)}
+          onBlur={commitSellingPrice}
+          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+          style={{ width: "100%" }}
+        />
+      </label>
+      <label><small>Markup %</small><input type="number" min="0" max="1000" step="0.01" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
       <label><small>Έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} style={{ width: "100%" }} /></label>
     </div>
-    {previewMinor != null ? <small>Προεπισκόπηση τελικής τιμής: <strong>{new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(previewMinor / 100)}</strong></small> : null}
+    {previewMinor != null ? <small>Υπολογισμένη τελική τιμή: <strong>{euro(previewMinor)}</strong>{recommendedDefault ? " · προ-συμπληρωμένη από το pricing engine" : ""}</small> : null}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση τιμής</button>
       <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
