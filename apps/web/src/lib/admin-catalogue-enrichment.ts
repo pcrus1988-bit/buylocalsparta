@@ -325,8 +325,15 @@ function parseProvenance(value: unknown): FactProvenance {
 
 function parseBazaar(value: unknown): BazaarPresentationOverlay {
   const row=record(value);
-  const channel=row.commerceChannel === "bazaar" ? "bazaar" : "normal";
-  return { commerceChannel:channel,condition:optionalText(row.condition) ?? "new",bazaarSource:optionalText(row.bazaarSource),supplierCondition:optionalText(row.supplierCondition) };
+  const channel:BazaarPresentationOverlay["commerceChannel"] = row.commerceChannel === "bazaar" ? "bazaar" : "normal";
+  const rawCondition=optionalText(row.condition);
+  const condition:BazaarPresentationOverlay["condition"] = rawCondition === "preloved" || rawCondition === "preowned_defect" || rawCondition === "open_box" ? rawCondition : "new";
+  return {
+    commerceChannel:channel,
+    condition,
+    bazaarSource:optionalText(row.bazaarSource) ?? null,
+    supplierCondition:optionalText(row.supplierCondition) ?? null
+  };
 }
 
 function emptyCounts(): Record<CatalogueEnrichmentStatus,number> { return {pending:0,enriched:0,needs_review:0,failed:0}; }
