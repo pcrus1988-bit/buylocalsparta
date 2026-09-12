@@ -164,6 +164,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   // fallback on a normal <img> rather than passing it through Next's optimizer.
   const optimizedFirstPartyImage = Boolean(product.mediaId) && imageSrc.startsWith("/api/media/");
   const externalImage = governedSourceFallback || Boolean(imageSrc.startsWith("https://"));
+  const eagerImage = index < 4;
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
@@ -182,14 +183,16 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
             alt={product.mediaAlt ?? displayTitle}
             fill
             sizes="(max-width: 620px) 50vw, (max-width: 1180px) 33vw, 280px"
-            loading="lazy"
+            loading={eagerImage ? "eager" : "lazy"}
+            fetchPriority={index === 0 ? "high" : "auto"}
             style={catalogImageStyle}
           />
         ) : (
           <img
             src={imageSrc}
             alt={product.mediaAlt ?? displayTitle}
-            loading="lazy"
+            loading={eagerImage ? "eager" : "lazy"}
+            fetchPriority={index === 0 ? "high" : "auto"}
             decoding="async"
             referrerPolicy={externalImage ? "no-referrer" : undefined}
             style={catalogImageStyle}
