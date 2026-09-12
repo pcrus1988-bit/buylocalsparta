@@ -174,10 +174,10 @@ export function adminCatalogAction(principal: SessionPrincipal, input: { kind: "
   return result;
 }
 
-export function adminCreateCanonical(principal: SessionPrincipal, input: { submissionId: string; platformPriceMinor: number; titleEl?: string; reason: string }) {
+export function adminCreateCanonical(principal: SessionPrincipal, input: { submissionId: string; titleEl?: string; reason: string }) {
   assertAdminPermission(principal, "catalog.write");
   const now = Date.now();
-  const result = getVendorOperationsRuntime().catalog.createCanonicalFromSubmission({ submissionId: input.submissionId, actorId: principal.userId, platformPriceMinor: input.platformPriceMinor, titleEl: input.titleEl, reason: input.reason, now });
+  const result = getVendorOperationsRuntime().catalog.createCanonicalFromSubmission({ submissionId: input.submissionId, actorId: principal.userId, titleEl: input.titleEl, reason: input.reason, now });
   getAdminRuntime().audit.record({ actorId: principal.userId, actorRole: principal.roles[0], action: "catalog.canonical_created", entityType: "canonical_product", entityId: result.id, reason: input.reason, after: result, createdAt: now });
   return result;
 }
