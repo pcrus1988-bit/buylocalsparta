@@ -186,6 +186,7 @@ export default async function Page() {
         <Link className="button button-secondary" href="/admin/quickadd">Quick Add</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake/import">Files &amp; Providers</Link>
         <Link className="button button-secondary" href="/admin/categories">Categories</Link>
+        <Link className="button button-secondary" href="/admin/catalogue/brands">Brands &amp; Logos</Link>
         <Link className="button button-secondary" href="/admin/catalogue/attribute-review">Attribute Review</Link>
       </div>
     </section>
