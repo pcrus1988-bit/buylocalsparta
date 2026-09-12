@@ -15,12 +15,6 @@ type PriceProduct = Readonly<{
   brand?: string;
   retailPrice: string;
   retailPriceMinor: number;
-  updatedAt: number;
-}>;
-
-type PricingRecord = Readonly<{
-  offerId: string;
-  retailPriceMinor: number;
   buyingPriceMinor?: number;
   pricingMode: PricingMode;
   markupType?: "percent" | "fixed";
@@ -29,6 +23,7 @@ type PricingRecord = Readonly<{
   discountValue?: number;
   msrpMinor?: number;
   showMsrp: boolean;
+  updatedAt: number;
 }>;
 
 type Draft = {
@@ -55,30 +50,15 @@ const euro = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currenc
 
 function initialDraft(item: PriceProduct): Draft {
   return {
-    pricingMode: "manual",
-    buyingPrice: "",
+    pricingMode: item.pricingMode,
+    buyingPrice: toOptionalDraft(item.buyingPriceMinor),
     retailPrice: toDraft(item.retailPriceMinor),
-    markupType: "",
-    markupValue: "",
-    discountType: "",
-    discountValue: "",
-    msrp: "",
-    showMsrp: false
-  };
-}
-
-function recordDraft(item: PriceProduct, record?: PricingRecord): Draft {
-  if (!record) return initialDraft(item);
-  return {
-    pricingMode: record.pricingMode,
-    buyingPrice: toOptionalDraft(record.buyingPriceMinor),
-    retailPrice: toDraft(record.retailPriceMinor),
-    markupType: record.markupType ?? "",
-    markupValue: record.markupValue === undefined ? "" : String(record.markupValue),
-    discountType: record.discountType ?? "",
-    discountValue: record.discountValue === undefined ? "" : String(record.discountValue),
-    msrp: toOptionalDraft(record.msrpMinor),
-    showMsrp: record.showMsrp
+    markupType: item.markupType ?? "",
+    markupValue: item.markupValue === undefined ? "" : String(item.markupValue),
+    discountType: item.discountType ?? "",
+    discountValue: item.discountValue === undefined ? "" : String(item.discountValue),
+    msrp: toOptionalDraft(item.msrpMinor),
+    showMsrp: item.showMsrp
   };
 }
 
@@ -117,20 +97,7 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() => Object.fromEntries(products.map((item) => [item.offerId, initialDraft(item)])));
 
   useEffect(() => {
-    let cancelled = false;
     setDrafts(Object.fromEntries(products.map((item) => [item.offerId, initialDraft(item)])));
-    void fetch("/api/vendor/catalog/price", { method: "GET", headers: { accept: "application/json" }, cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as { pricing?: PricingRecord[]; error?: string };
-        if (!response.ok) throw new Error(payload.error ?? "Δεν φορτώθηκαν τα στοιχεία τιμολόγησης.");
-        if (cancelled) return;
-        const byOffer = new Map((payload.pricing ?? []).map((record) => [record.offerId, record]));
-        setDrafts(Object.fromEntries(products.map((item) => [item.offerId, recordDraft(item, byOffer.get(item.offerId))])));
-      })
-      .catch((cause) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Δεν φορτώθηκαν τα στοιχεία τιμολόγησης.");
-      });
-    return () => { cancelled = true; };
   }, [products]);
 
   const matches = useMemo(() => {
