@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 
-const channelMigrationUrl = new URL("../../../db/migrations/0235_bazaar_commerce_channel.sql", import.meta.url);
-const transitionMigrationUrl = new URL("../../../db/migrations/0236_bazaar_condition_transition_guard.sql", import.meta.url);
+const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
+const transitionMigrationUrl = new URL("../../../db/migrations/0237_bazaar_condition_transition_guard.sql", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
   assert.deepEqual(classifyNovaSupplierCondition({ condition: "New" }), {
