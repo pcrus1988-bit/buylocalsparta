@@ -3,9 +3,16 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 /**
  * Customer-safe MSRP projection. This deliberately reads only vendor_offers and
- * never joins the private pricing-input table (buying cost / markup / discount).
- * It fails closed during staged rollouts where application code reaches a database
- * before migration 0216 has been applied.
+ * supplier-offer identity and never joins the private pricing-input table
+ * (buying cost / markup / discount).
+ *
+ * Local offers continue to respect the vendor `show_msrp` control. Active
+ * dropshipping offers are intentionally allowed to expose a genuine MSRP even
+ * when that legacy local-offer flag is false, so supplier catalogue products can
+ * present the same reference-price/saving treatment as BAZAAR.
+ *
+ * It fails closed during staged rollouts where application code reaches a
+ * database before the relevant pricing schema has been applied.
  */
 export const getVisibleOfferMsrpMinor = cache(async (
   canonicalVariantId: string,
@@ -23,9 +30,19 @@ export const getVisibleOfferMsrpMinor = cache(async (
         AND vb.public_id=$2
         AND vo.status='approved'
         AND vo.customer_price_minor=$3
-        AND vo.show_msrp=true
         AND vo.msrp_minor IS NOT NULL
         AND vo.msrp_minor>vo.customer_price_minor
+        AND (
+          vo.show_msrp=true
+          OR EXISTS (
+            SELECT 1
+            FROM dropship_supplier_offers dso
+            JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+            WHERE dso.vendor_offer_id=vo.id
+              AND dso.active=true
+              AND ds.active=true
+          )
+        )
       ORDER BY vo.updated_at DESC,vo.public_id
       LIMIT 1
     `, [canonicalVariantId, vendorId, retailPriceMinor]);
