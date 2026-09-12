@@ -4,6 +4,15 @@ import { loadManifest, loadMigrations, migrationDirectoryFrom, verifyMigrationMa
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
+function usesLocalDatabase(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
 let pgModule: any;
 try {
   pgModule = await import("pg");
@@ -22,6 +31,23 @@ const pool = new Pool({ connectionString, max: 2, application_name: "buy-local-s
 try {
   const client = await pool.connect();
   try {
+    // CI and local development use plain PostgreSQL/PostGIS rather than a full
+    // Supabase stack. Keep the production migration immutable while providing
+    // only the minimal Storage topology it references. This is intentionally
+    // restricted to loopback hosts and can never bootstrap a remote database.
+    if (usesLocalDatabase(connectionString)) {
+      await client.query(`
+        CREATE SCHEMA IF NOT EXISTS storage;
+        CREATE TABLE IF NOT EXISTS storage.buckets (
+          id text PRIMARY KEY,
+          name text NOT NULL UNIQUE,
+          public boolean NOT NULL DEFAULT false,
+          file_size_limit bigint,
+          allowed_mime_types text[]
+        )
+      `);
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version integer PRIMARY KEY,
