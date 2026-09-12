@@ -1,10 +1,7 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { DROPSHIPPING_ONLY_VENDOR_PUBLIC_ID, isDropshippingOnlyVendorPublicId } from "./vendor-dropshipping-constants";
 
-export const DROPSHIPPING_ONLY_VENDOR_PUBLIC_ID = "vendor_e8cb57b3c67b469d9a9d";
-
-export function isDropshippingOnlyVendorPublicId(vendorId: string | null | undefined): boolean {
-  return vendorId === DROPSHIPPING_ONLY_VENDOR_PUBLIC_ID;
-}
+export { DROPSHIPPING_ONLY_VENDOR_PUBLIC_ID, isDropshippingOnlyVendorPublicId } from "./vendor-dropshipping-constants";
 
 /** Resolve the signed session vendor identity to the one vendor that is allowed to operate dropshipping. */
 export async function isDropshippingOnlyVendor(vendorIdentity: string | null | undefined): Promise<boolean> {
