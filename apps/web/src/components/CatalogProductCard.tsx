@@ -159,7 +159,10 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
     : product.previewImageSrc ?? externalDemoCover;
   const governedSourceFallback = !directImageSrc;
   const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
-  const firstPartyImage = imageSrc.startsWith("/");
+  // Only governed /api/media objects are guaranteed JPEG/PNG/WebP. The source-image
+  // route can redirect to supplier assets or return an SVG placeholder, so keep that
+  // fallback on a normal <img> rather than passing it through Next's optimizer.
+  const optimizedFirstPartyImage = Boolean(product.mediaId) && imageSrc.startsWith("/api/media/");
   const externalImage = governedSourceFallback || Boolean(imageSrc.startsWith("https://"));
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
@@ -173,7 +176,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
-        {firstPartyImage ? (
+        {optimizedFirstPartyImage ? (
           <Image
             src={imageSrc}
             alt={product.mediaAlt ?? displayTitle}
