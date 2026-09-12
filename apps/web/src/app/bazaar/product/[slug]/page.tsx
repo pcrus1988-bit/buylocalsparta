@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AddToCartButton } from "../../../../components/AddToCartButton";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
@@ -11,13 +12,52 @@ function euro(minor: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 }
 
+function decodeHtmlEntity(entity: string): string {
+  if (/^#x[0-9a-f]+$/i.test(entity)) {
+    const code = Number.parseInt(entity.slice(2), 16);
+    return Number.isFinite(code) ? String.fromCodePoint(code) : `&${entity};`;
+  }
+  if (/^#\d+$/.test(entity)) {
+    const code = Number.parseInt(entity.slice(1), 10);
+    return Number.isFinite(code) ? String.fromCodePoint(code) : `&${entity};`;
+  }
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    quot: "\"",
+    lt: "<",
+    gt: ">",
+    nbsp: " ",
+    ndash: "–",
+    mdash: "—",
+    hellip: "…"
+  };
+  return named[entity.toLowerCase()] ?? `&${entity};`;
+}
+
+function plainSupplierDescription(value: string | undefined): string | undefined {
+  if (!value?.trim()) return undefined;
+  const text = value
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/\s*(?:p|div|li|ul|ol|h[1-6])\s*>/gi, "\n")
+    .replace(/<\s*li(?:\s[^>]*)?>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&([#a-z0-9]+);/gi, (_match, entity: string) => decodeHtmlEntity(entity))
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text || undefined;
+}
+
 export async function generateMetadata({ params }: BazaarProductPageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = await getBazaarProductBySlug(decodeURIComponent(slug));
   if (!product) return { title: "BAZAAR | KONTA MOY", robots: { index: false, follow: true } };
+  const description = plainSupplierDescription(product.description);
   return {
     title: `${product.title} · BAZAAR | KONTA MOY`,
-    description: product.description ?? `${bazaarConditionLabel(product.condition)} στο Greece-wide BAZAAR του KONTA MOY.`,
+    description: description ?? `${bazaarConditionLabel(product.condition)} στο Greece-wide BAZAAR του KONTA MOY.`,
     alternates: { canonical: `/bazaar/product/${product.slug}` }
   };
 }
@@ -29,6 +69,9 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const defectLike = product.condition === "preowned_defect" || product.condition === "open_box";
+  const description = plainSupplierDescription(product.description);
+  const available = product.availableToSell > 0;
+  const price = euro(product.priceMinor);
 
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
     <div className="announcement">BAZAAR · Greece-wide, condition-first.</div>
@@ -51,9 +94,24 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
         <div style={{ display: "grid", gap: 4, padding: "20px 0", borderTop: "1px solid rgba(0,0,0,.16)", borderBottom: "1px solid rgba(0,0,0,.16)" }}>
           {product.msrpMinor && product.msrpMinor > product.priceMinor ? <s style={{ opacity: .55 }}>ΠΛΤ {euro(product.msrpMinor)}</s> : null}
-          <strong style={{ fontSize: "clamp(2rem,5vw,3.8rem)", letterSpacing: "-.04em" }}>{euro(product.priceMinor)}</strong>
+          <strong style={{ fontSize: "clamp(2rem,5vw,3.8rem)", letterSpacing: "-.04em" }}>{price}</strong>
           {product.savingsPercent ? <span style={{ fontWeight: 900 }}>Κερδίζεις {product.savingsPercent}% έναντι ΠΛΤ</span> : null}
         </div>
+
+        <AddToCartButton product={{
+          id: product.id,
+          title: product.title,
+          priceMinor: product.priceMinor,
+          price,
+          available,
+          imageUrl: imageSrc,
+          imageAlt: product.mediaAlt ?? product.title
+        }} />
+        <p style={{ margin: "-6px 0 0", fontSize: ".95rem", opacity: .78 }}>
+          {available
+            ? "Η τελική διαθεσιμότητα του συγκεκριμένου BAZAAR τεμαχίου επαληθεύεται ξανά από τον προμηθευτή κατά το checkout."
+            : "Το συγκεκριμένο BAZAAR τεμάχιο δεν είναι πλέον διαθέσιμο για αγορά."}
+        </p>
 
         <div style={{ padding: 18, borderRadius: 18, background: defectLike ? "#fff1d9" : "rgba(255,255,255,.65)" }}>
           <strong>Κατάσταση: {bazaarConditionLabel(product.condition)}</strong>
@@ -67,7 +125,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
           </p>
         </div>
 
-        {product.description ? <div><h2 style={{ fontSize: "1.15rem" }}>Περιγραφή</h2><p style={{ whiteSpace: "pre-wrap" }}>{product.description}</p></div> : null}
+        {description ? <div><h2 style={{ fontSize: "1.15rem" }}>Περιγραφή</h2><p style={{ whiteSpace: "pre-wrap" }}>{description}</p></div> : null}
 
         <div style={{ display: "grid", gap: 6 }}>
           <strong>{product.availableToSell} διαθέσιμο</strong>
