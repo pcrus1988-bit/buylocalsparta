@@ -52,7 +52,7 @@ test("OpenAI provider uses V4 product-specific SEO/Merchant instructions",async(
 
 test("validator accepts grounded copy and rejects operational/internal leakage",()=>{
   const item=evidence();
-  const valid={ titleEl:"Versace La Medusa – Τσάντα Tote σε Μπεζ",shortDescriptionEl:"Η La Medusa της Versace σε μπεζ απόχρωση και βαμβακερή κατασκευή.",descriptionEl:"Η Versace La Medusa παρουσιάζεται ως tote τσάντα σε μπεζ απόχρωση και βαμβακερή κατασκευή. Η δομημένη σιλουέτα και οι επάνω λαβές είναι τα ιδιαίτερα σχεδιαστικά στοιχεία του μοντέλου." };
+  const valid={ titleEl:"Versace La Medusa – Τσάντα Tote σε Μπεζ",shortDescriptionEl:"Η La Medusa της Versace σε μπεζ απόχρωση, με βαμβακερή κατασκευή και επάνω λαβές.",descriptionEl:"Η Versace La Medusa παρουσιάζεται ως tote τσάντα σε μπεζ απόχρωση και βαμβακερή κατασκευή. Η δομημένη σιλουέτα και οι επάνω λαβές είναι τα ιδιαίτερα σχεδιαστικά στοιχεία του μοντέλου." };
   assert.deepEqual(validateLuxuryCatalogueDraft({ facts:item.facts,draft:valid,sourceTitle:item.sourceTitle,sourceDescription:item.sourceDescription,bazaar:item.bazaar }),[]);
   const errors=validateLuxuryCatalogueDraft({ facts:item.facts,draft:{ ...valid,descriptionEl:"NOVA dropshipping προϊόν. Άμεσα διαθέσιμο με δωρεάν αποστολή και έκπτωση €50." },sourceTitle:item.sourceTitle,sourceDescription:item.sourceDescription,bazaar:item.bazaar });
   assert.ok(errors.some((error)=>error.startsWith("internal_term:"))); assert.ok(errors.some((error)=>error.startsWith("operational_claim:"))); assert.ok(errors.includes("price_symbol_not_allowed"));
