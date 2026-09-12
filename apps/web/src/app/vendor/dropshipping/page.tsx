@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DropshippingProductControls } from "../../../components/DropshippingProductControls";
+import { DropshippingSupplierDefaultsControls } from "../../../components/DropshippingSupplierDefaultsControls";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { isDropshippingOnlyVendor } from "../../../lib/vendor-dropshipping-access";
@@ -79,6 +80,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
     {workspace.selectedSupplier ? <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow={workspace.selectedSupplier.displayName} title="Προϊόντα supplier" note={`${workspace.totalProducts} αποτελέσματα · σελίδα ${workspace.page}/${pages}`} />
+      <DropshippingSupplierDefaultsControls supplierCode={selectedCode} defaults={workspace.selectedSupplier.defaults} />
       <form method="get" className="workspace-queue-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end", marginBottom: 14 }}>
         <input type="hidden" name="supplier" value={selectedCode} />
         <label><small>Αναζήτηση τίτλου, brand, SKU, EAN</small><input name="q" defaultValue={workspace.query} placeholder="π.χ. Michael Kors, SKU, EAN" style={{ width: "100%" }} /></label>
