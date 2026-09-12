@@ -43,14 +43,17 @@ function activeSection(pathname: string): CatalogueSuiteSection | undefined {
   return undefined;
 }
 
-export function AdminCatalogueSuiteNavigation() {
+export function AdminCatalogueSuiteNavigation({ availableRoutes }: { availableRoutes: ReadonlySet<string> }) {
   const pathname = usePathname();
   const active = activeSection(pathname);
   if (!active) return null;
 
+  const visibleSections = SECTIONS.filter((section) => availableRoutes.has(section.href));
+  if (visibleSections.length === 0) return null;
+
   return <div className="shell admin-local-tabs-shell admin-catalogue-suite-shell">
     <nav className="admin-local-tabs admin-catalogue-suite-nav" aria-label="Catalogue Suite">
-      {SECTIONS.map((section) => <Link
+      {visibleSections.map((section) => <Link
         href={section.href}
         key={section.id}
         aria-current={section.id === active ? "page" : undefined}
