@@ -15,6 +15,8 @@ import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { productPublicPath } from "../../../lib/product-url";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
+export const dynamic = "force-dynamic";
+
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export function generateStaticParams() {
