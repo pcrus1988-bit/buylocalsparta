@@ -44,8 +44,12 @@ type PricingUpdate = Readonly<{
   overpricedByPercent: number | null;
 }>;
 
+export function novaAutoPricingEnabled(): boolean {
+  return process.env.BLS_NOVA_AUTO_PRICING_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceResult> {
-  if (process.env.BLS_NOVA_AUTO_PRICING_ENABLED === "false") {
+  if (!novaAutoPricingEnabled()) {
     return emptyResult(false, "auto_pricing_disabled");
   }
 
