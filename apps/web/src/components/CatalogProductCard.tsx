@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
 import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local-commerce-proof";
 import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
@@ -49,12 +50,12 @@ function availabilityLabel(product: CatalogCardWithPreview, demoMode: boolean): 
 
 const formatEuroMinor = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 
-function usePublicCatalogMsrp(product: CatalogCardWithPreview, demoMode: boolean): number | undefined {
+function usePublicCatalogMsrp(product: CatalogCardWithPreview, demoMode: boolean, active: boolean): number | undefined {
   const [msrpMinor, setMsrpMinor] = useState<number | undefined>();
 
   useEffect(() => {
     setMsrpMinor(undefined);
-    if (demoMode || !product.available || !product.vendorId || !Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) return;
+    if (!active || demoMode || !product.available || !product.vendorId || !Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) return;
 
     const controller = new AbortController();
     const params = new URLSearchParams({
@@ -83,7 +84,7 @@ function usePublicCatalogMsrp(product: CatalogCardWithPreview, demoMode: boolean
       });
 
     return () => controller.abort();
-  }, [demoMode, product.available, product.id, product.priceMinor, product.vendorId]);
+  }, [active, demoMode, product.available, product.id, product.priceMinor, product.vendorId]);
 
   return msrpMinor;
 }
@@ -116,8 +117,27 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   vendorContext?: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
 }) {
+  const cardRef = useRef<HTMLElement>(null);
+  const [nearViewport, setNearViewport] = useState(false);
   const demoMode = Boolean(demoVendorId);
-  const msrpMinor = usePublicCatalogMsrp(product, demoMode);
+
+  useEffect(() => {
+    if (nearViewport) return;
+    const node = cardRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setNearViewport(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      setNearViewport(true);
+      observer.disconnect();
+    }, { rootMargin: "320px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nearViewport]);
+
+  const msrpMinor = usePublicCatalogMsrp(product, demoMode, nearViewport);
   const savingLabel = msrpMinor === undefined ? undefined : publicSavingsLabel(msrpMinor, product.priceMinor);
   const supplierFulfilled = product.supplierFulfilled === true;
   const highlightKind = product.priceHighlightKind ?? "msrp-savings";
@@ -139,6 +159,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
     : product.previewImageSrc ?? externalDemoCover;
   const governedSourceFallback = !directImageSrc;
   const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  const firstPartyImage = imageSrc.startsWith("/");
   const externalImage = governedSourceFallback || Boolean(imageSrc.startsWith("https://"));
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
@@ -147,19 +168,30 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
 
   return (
-    <article className="product-card">
+    <article className="product-card" ref={cardRef}>
       <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${displayTitle}`}>
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
-        <img
-          src={imageSrc}
-          alt={product.mediaAlt ?? displayTitle}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy={externalImage ? "no-referrer" : undefined}
-          style={catalogImageStyle}
-        />
+        {firstPartyImage ? (
+          <Image
+            src={imageSrc}
+            alt={product.mediaAlt ?? displayTitle}
+            fill
+            sizes="(max-width: 620px) 50vw, (max-width: 1180px) 33vw, 280px"
+            loading="lazy"
+            style={catalogImageStyle}
+          />
+        ) : (
+          <img
+            src={imageSrc}
+            alt={product.mediaAlt ?? displayTitle}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy={externalImage ? "no-referrer" : undefined}
+            style={catalogImageStyle}
+          />
+        )}
         {prominentSavings && savingLabel ? (
           <span
             aria-label={highlightKind === "sale" ? `SALE, όφελος ${savingLabel}% έναντι ΠΛΤ` : `Όφελος ${savingLabel}% έναντι ΠΛΤ`}
