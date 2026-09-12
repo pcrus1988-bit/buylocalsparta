@@ -1,0 +1,90 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import type { DropshippingSupplierDefaults } from "../lib/vendor-dropshipping-service";
+
+type Props = Readonly<{
+  supplierCode: string;
+  defaults: DropshippingSupplierDefaults;
+}>;
+
+async function csrfToken(): Promise<string> {
+  const response = await fetch("/api/vendor/auth-context", { cache: "no-store" });
+  if (!response.ok) throw new Error("Η συνεδρία συνεργάτη έληξε.");
+  const payload = await response.json() as { csrfToken?: string };
+  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλές token συνεδρίας.");
+  return payload.csrfToken;
+}
+
+export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }: Props) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [visible, setVisible] = useState(defaults.visible);
+  const [markupPercent, setMarkupPercent] = useState(defaults.markupPercent);
+  const [discountPercent, setDiscountPercent] = useState(defaults.discountPercent);
+  const [showMsrp, setShowMsrp] = useState(defaults.showMsrp);
+  const dirty = visible !== defaults.visible
+    || markupPercent !== defaults.markupPercent
+    || discountPercent !== defaults.discountPercent
+    || showMsrp !== defaults.showMsrp;
+
+  async function saveDefaults() {
+    setBusy(true); setMessage("");
+    try {
+      const token = await csrfToken();
+      const response = await fetch("/api/vendor/dropshipping/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-csrf-token": token },
+        body: JSON.stringify({ supplierCode, visible, markupPercent, discountPercent, showMsrp })
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση των global ρυθμίσεων απέτυχε.");
+      setMessage("Οι global ρυθμίσεις αποθηκεύτηκαν. Δεν άλλαξαν προϊόντα ακόμη.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η αποθήκευση απέτυχε.");
+    } finally { setBusy(false); }
+  }
+
+  async function applyDefaults() {
+    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων σε όλα τα προϊόντα αυτού του supplier με διαθέσιμη buying price; Οι υπάρχουσες per-product τιμές/ρυθμίσεις θα αντικατασταθούν και μετά θα μπορούν να ξαναγίνουν override ανά προϊόν.");
+    if (!confirmed) return;
+    setBusy(true); setMessage("");
+    try {
+      const token = await csrfToken();
+      const response = await fetch("/api/vendor/dropshipping/settings", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": token },
+        body: JSON.stringify({ supplierCode })
+      });
+      const payload = await response.json() as { error?: string; pricedProducts?: number; visibleProducts?: number };
+      if (!response.ok) throw new Error(payload.error ?? "Η εφαρμογή των global ρυθμίσεων απέτυχε.");
+      setMessage(`Εφαρμόστηκαν σε ${payload.pricedProducts ?? 0} προϊόντα · public τώρα ${payload.visibleProducts ?? 0}.`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η εφαρμογή απέτυχε.");
+    } finally { setBusy(false); }
+  }
+
+  return <div className="workspace-queue-card" style={{ marginBottom: 14 }}>
+    <div className="workspace-queue-head">
+      <div><strong>Global supplier settings</strong><small>{defaults.configured ? "Αποθηκευμένα defaults" : "Δεν έχουν οριστεί ακόμη"}</small></div>
+      <span className="vendor-merchant-status">{visible ? "Public eligible" : "Hidden eligible"}</span>
+    </div>
+    <p style={{ marginTop: 10 }}>Οι ρυθμίσεις αποθηκεύονται χωριστά από το supplier integration. Δεν ενεργοποιούν draft προϊόντα, δεν αλλάζουν supplier stock και δεν ενεργοποιούν order forwarding.</p>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+      <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} /> <span>Approved products public</span></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Show supplier MSRP</span></label>
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+      <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση defaults</button>
+      <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Εφαρμογή σε τρέχον catalogue</button>
+    </div>
+    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Μετά μπορείς να κάνεις per-product override από τις κάρτες προϊόντων. Αν αλλάξεις κάποια τιμή εδώ, αποθήκευσέ την πρώτα πριν την εφαρμογή.</small>
+    {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
+  </div>;
+}
