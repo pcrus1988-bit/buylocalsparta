@@ -1,4 +1,5 @@
 import type { SqlRow } from "@buy-local-sparta/core";
+import { classifyNovaSupplierCondition } from "./bazaar-commerce";
 import { canonicalNovaSlug } from "./nova-canonical-slug";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
@@ -67,6 +68,11 @@ export type NovaMaterializationSliceResult = Readonly<{
  * - only checksum-valid global identifiers may reuse an existing canonical;
  * - ambiguous or materially conflicting strong identity fails closed;
  * - vendor offers stay draft + hidden and dropship offers stay inactive.
+ *
+ * BAZAAR contract:
+ * - supplier condition is classified before canonical matching;
+ * - normal and BAZAAR canonicals never match across the commerce-channel boundary;
+ * - Preloved and Preowned / Defect supplier inventory is staged directly into BAZAAR.
  *
  * The source scan is deliberately cursor-bounded. Searching the entire immutable
  * supplier history for the next missing variant made each slice increasingly
@@ -204,6 +210,7 @@ async function materializeSourceProduct(
 ): Promise<ProductMaterializationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const payload = sourceProduct.normalizedPayload;
+  const classification = classifyNovaSupplierCondition(payload);
   const variants = normalizedVariants(payload);
   const brandId = await resolveOrCreateBrand(payload);
   let canonicalCreated = 0;
@@ -228,15 +235,17 @@ async function materializeSourceProduct(
       SELECT id
       FROM public.canonical_variants
       WHERE market_id=$1::uuid
+        AND COALESCE(commerce_channel,'normal')=$3
         AND variant_attributes->>'source'='nova_shopwoo_v1'
         AND variant_attributes->>'externalVariantId'=$2
       ORDER BY created_at,id
       LIMIT 2
-    `,[context.marketId,variant.externalVariantId]);
+    `,[context.marketId,variant.externalVariantId,classification.commerceChannel]);
 
     if (sourceScoped.rows.length > 1) {
       reviewsCreated += await upsertReview(context,sourceProduct,"canonical_identity_ambiguous",null,{
         externalVariantId: variant.externalVariantId,
+        commerceChannel: classification.commerceChannel,
         sourceScopedCollision: true
       });
       continue;
@@ -252,6 +261,7 @@ async function materializeSourceProduct(
           bls_private.catalog_material_variant_conflict($3::jsonb,cv.variant_attributes) AS material_conflict
         FROM public.canonical_variants cv
         WHERE cv.market_id=$1::uuid
+          AND COALESCE(cv.commerce_channel,'normal')=$4
           AND cv.recalled=false
           AND (
             (
@@ -271,13 +281,14 @@ async function materializeSourceProduct(
           )
         ORDER BY cv.created_at,cv.id
         LIMIT 2
-      `,[context.marketId,globalIdentifier.value,JSON.stringify(materialAttributes)]);
+      `,[context.marketId,globalIdentifier.value,JSON.stringify(materialAttributes),classification.commerceChannel]);
 
       if (matches.rows.length > 1) {
         reviewsCreated += await upsertReview(context,sourceProduct,"canonical_identity_ambiguous",null,{
           externalVariantId: variant.externalVariantId,
           identifierType: globalIdentifier.type,
-          identifierValue: globalIdentifier.value
+          identifierValue: globalIdentifier.value,
+          commerceChannel: classification.commerceChannel
         });
         continue;
       }
@@ -291,6 +302,7 @@ async function materializeSourceProduct(
             externalVariantId: variant.externalVariantId,
             identifierType: globalIdentifier.type,
             identifierValue: globalIdentifier.value,
+            commerceChannel: classification.commerceChannel,
             conflict
           });
           continue;
@@ -305,18 +317,20 @@ async function materializeSourceProduct(
         ...materialAttributes,
         source: "nova_shopwoo_v1",
         externalProductId: sourceProduct.sourceProductKey,
-        externalVariantId: variant.externalVariantId
+        externalVariantId: variant.externalVariantId,
+        commerceChannel: classification.commerceChannel,
+        supplierCondition: classification.condition
       };
       const slug = canonicalNovaSlug(sourceProduct.title,sourceProduct.sourceProductKey,variant.externalVariantId);
       let created: Readonly<{ rows: readonly SqlRow[]; rowCount: number }>;
       try {
         created = await pool.query<SqlRow>(`
           INSERT INTO public.canonical_variants(
-            market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,
+            market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,commerce_channel,bazaar_source,
             variant_attributes,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled
           ) VALUES(
-            $1::uuid,NULL,$2::uuid,NULL,$3,$4,$5,$6,'new',
-            $7::jsonb,NULL,'EUR',$8,false,false,false
+            $1::uuid,NULL,$2::uuid,NULL,$3,$4,$5,$6,$7,$8,$9,
+            $10::jsonb,NULL,'EUR',$11,false,false,false
           )
           RETURNING id
         `,[
@@ -326,6 +340,9 @@ async function materializeSourceProduct(
           globalIdentifier?.value ?? null,
           brandId ? variant.mpn : null,
           productModel(payload),
+          classification.condition,
+          classification.commerceChannel,
+          classification.bazaarSource,
           JSON.stringify(variantAttributes),
           DEFAULT_TAX_RATE_BPS
         ]);
@@ -337,7 +354,8 @@ async function materializeSourceProduct(
           uniqueConflict: conflict,
           canonicalSlug: slug,
           identifierType: globalIdentifier?.type ?? null,
-          identifierValue: globalIdentifier?.value ?? null
+          identifierValue: globalIdentifier?.value ?? null,
+          commerceChannel: classification.commerceChannel
         });
         continue;
       }
@@ -373,7 +391,7 @@ async function materializeSourceProduct(
       ) VALUES($1::uuid,$2::uuid,'approved',$3,1,$4::jsonb,now())
       ON CONFLICT (source_product_id,canonical_variant_id)
       DO UPDATE SET link_status='approved',match_method=EXCLUDED.match_method,confidence=EXCLUDED.confidence,reasons=EXCLUDED.reasons,updated_at=now()
-    `,[sourceProduct.id,canonicalVariantId,matchMethod,JSON.stringify([{ source: "nova_shopwoo_v1",externalProductId: sourceProduct.sourceProductKey,externalVariantId: variant.externalVariantId,globalIdentifier: globalIdentifier?.value ?? null,rule: matchMethod === "exact_gtin" ? "global_identifier" : "automatic_inactive_draft" }])]);
+    `,[sourceProduct.id,canonicalVariantId,matchMethod,JSON.stringify([{ source: "nova_shopwoo_v1",externalProductId: sourceProduct.sourceProductKey,externalVariantId: variant.externalVariantId,globalIdentifier: globalIdentifier?.value ?? null,commerceChannel: classification.commerceChannel,condition: classification.condition,bazaarSource: classification.bazaarSource,rule: matchMethod === "exact_gtin" ? "global_identifier_same_channel" : "automatic_inactive_draft" }])]);
 
     const vendorSku = `nova:${variant.externalVariantId}`;
     const vendorOffer = await pool.query<SqlRow>(`
@@ -390,7 +408,7 @@ async function materializeSourceProduct(
       ON CONFLICT (vendor_id,location_id,canonical_variant_id,vendor_sku)
       DO UPDATE SET source_gtin=COALESCE(EXCLUDED.source_gtin,public.vendor_offers.source_gtin),supplier_unit_price_minor=EXCLUDED.supplier_unit_price_minor,source_payload=public.vendor_offers.source_payload || EXCLUDED.source_payload,msrp_minor=EXCLUDED.msrp_minor,updated_at=now()
       RETURNING id
-    `,[context.marketId,context.vendorId,context.locationId,canonicalVariantId,vendorSku,globalIdentifier?.value ?? variant.barcode,variant.buyingCostMinor ?? 0,DEFAULT_TAX_RATE_BPS,JSON.stringify({ dropship: true,supplierCode: SUPPLIER_CODE,externalProductId: sourceProduct.sourceProductKey,externalVariantId: variant.externalVariantId,externalSku: variant.sku,publicationState: "STAGED",pricingPending: true,supplierContentSource: "catalog_source_products",schemaPolicy: "catalog_identity_v3_simplified" }),stagedPrice(variant),positiveMinor(variant.msrpMinor) ? variant.msrpMinor : null]);
+    `,[context.marketId,context.vendorId,context.locationId,canonicalVariantId,vendorSku,globalIdentifier?.value ?? variant.barcode,variant.buyingCostMinor ?? 0,DEFAULT_TAX_RATE_BPS,JSON.stringify({ dropship: true,supplierCode: SUPPLIER_CODE,externalProductId: sourceProduct.sourceProductKey,externalVariantId: variant.externalVariantId,externalSku: variant.sku,publicationState: "STAGED",pricingPending: true,supplierContentSource: "catalog_source_products",schemaPolicy: "catalog_identity_v3_simplified",commerceChannel: classification.commerceChannel,condition: classification.condition,bazaarSource: classification.bazaarSource }),stagedPrice(variant),positiveMinor(variant.msrpMinor) ? variant.msrpMinor : null]);
     const vendorOfferId = requiredText(vendorOffer.rows[0]?.id,"vendor offer id");
 
     await pool.query(`
@@ -414,7 +432,7 @@ async function materializeSourceProduct(
       ON CONFLICT (supplier_id,external_variant_id)
       DO UPDATE SET source_product_id=EXCLUDED.source_product_id,external_product_id=EXCLUDED.external_product_id,external_sku=COALESCE(EXCLUDED.external_sku,public.dropship_supplier_offers.external_sku),ean=COALESCE(EXCLUDED.ean,public.dropship_supplier_offers.ean),mpn=COALESCE(EXCLUDED.mpn,public.dropship_supplier_offers.mpn),supplier_cost_minor=EXCLUDED.supplier_cost_minor,cached_available=EXCLUDED.cached_available,cached_quantity=EXCLUDED.cached_quantity,availability_checked_at=EXCLUDED.availability_checked_at,availability_expires_at=EXCLUDED.availability_expires_at,availability_payload=public.dropship_supplier_offers.availability_payload || EXCLUDED.availability_payload,last_catalogue_sync_at=now(),updated_at=now()
       RETURNING (xmax=0) AS inserted
-    `,[context.supplierId,vendorOfferId,sourceProduct.id,sourceProduct.sourceProductKey,variant.externalVariantId,variant.sku,variant.barcode,variant.mpn,variant.buyingCostMinor,variant.available,variant.quantity,JSON.stringify({ source: "nova_catalogue_materializer",stockStatus: variant.stockStatus,backordersAllowed: false,staged: true })]);
+    `,[context.supplierId,vendorOfferId,sourceProduct.id,sourceProduct.sourceProductKey,variant.externalVariantId,variant.sku,variant.barcode,variant.mpn,variant.buyingCostMinor,variant.available,variant.quantity,JSON.stringify({ source: "nova_catalogue_materializer",stockStatus: variant.stockStatus,backordersAllowed: false,staged: true,commerceChannel: classification.commerceChannel,condition: classification.condition,bazaarSource: classification.bazaarSource })]);
     if (supplierOffer.rows[0]?.inserted === true) offersCreated += 1;
   }
 
