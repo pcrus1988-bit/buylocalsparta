@@ -25,27 +25,6 @@ const batchLimit = boundedPositiveInteger(
   "BLS_NOVA_ORDER_RECONCILIATION_LIMIT"
 );
 
-// This worker is deliberately read-only with respect to Nova. It only calls GET
-// order endpoints; supplier-order submission stays behind the separate forwarding gate.
-novaApiKeyFromEnvironment();
-const readiness = await productionDatabaseReadiness();
-if (!readiness.ok) {
-  throw new Error(`Nova order reconciliation worker refused to start: ${readiness.message}`);
-}
-
-const runtime = getProductionPostgresRuntime();
-const lockClient = await runtime.nativePool.connect();
-const lockResult = await lockClient.query<{ claimed: boolean }>(
-  "SELECT pg_try_advisory_lock(hashtext($1)) AS claimed",
-  ["kontamou:nova-order-reconciliation-worker"]
-);
-const claimed = lockResult.rows[0]?.claimed === true;
-if (!claimed) {
-  lockClient.release();
-  await runtime.close();
-  throw new Error("Nova order reconciliation worker refused to start: advisory lock is already held");
-}
-
 let stopping = false;
 const requestStop = (signal: string) => {
   if (stopping) return;
@@ -55,45 +34,89 @@ const requestStop = (signal: string) => {
 process.once("SIGTERM", () => requestStop("SIGTERM"));
 process.once("SIGINT", () => requestStop("SIGINT"));
 
-log("info", "nova.order_reconciliation_worker_started", {
-  workerId,
-  pollMs,
-  batchLimit,
-  supplier: "nova_brandsgateway",
-  writesSupplierOrders: false
-});
+await main();
 
-try {
-  while (!stopping) {
-    try {
-      const result = await runDropshipOrderReconciliationSweep(Date.now(), batchLimit);
-      log("info", "nova.order_reconciliation_sweep", { workerId, ...result });
-      if (stopping) break;
-      await delay(pollMs);
-    } catch (error) {
-      log("error", "nova.order_reconciliation_failed", {
+async function main(): Promise<void> {
+  // This worker is deliberately read-only with respect to Nova. It only calls GET
+  // order endpoints; supplier-order submission stays behind the separate forwarding gate.
+  novaApiKeyFromEnvironment();
+  const readiness = await productionDatabaseReadiness();
+  if (!readiness.ok) {
+    throw new Error(`Nova order reconciliation worker refused to start: ${readiness.message}`);
+  }
+
+  const runtime = getProductionPostgresRuntime();
+  const lockClient = await runtime.nativePool.connect();
+  let claimed = false;
+
+  try {
+    while (!claimed && !stopping) {
+      const lockResult = await lockClient.query<{ claimed: boolean }>(
+        "SELECT pg_try_advisory_lock(hashtext($1)) AS claimed",
+        ["kontamou:nova-order-reconciliation-worker"]
+      );
+      claimed = lockResult.rows[0]?.claimed === true;
+      if (claimed) break;
+
+      log("info", "nova.order_reconciliation_lock_wait", {
         workerId,
-        error: safeError(error)
+        retryMs,
+        writesSupplierOrders: false
       });
-      if (stopping) break;
       await delay(retryMs);
     }
-  }
-} finally {
-  try {
-    await lockClient.query(
-      "SELECT pg_advisory_unlock(hashtext($1))",
-      ["kontamou:nova-order-reconciliation-worker"]
-    );
-  } catch (error) {
-    log("error", "nova.order_reconciliation_unlock_failed", {
+
+    if (!claimed) {
+      log("info", "nova.order_reconciliation_worker_stopped", {
+        workerId,
+        reason: "shutdown_before_lock_claim"
+      });
+      return;
+    }
+
+    log("info", "nova.order_reconciliation_worker_started", {
       workerId,
-      error: safeError(error)
+      pollMs,
+      batchLimit,
+      supplier: "nova_brandsgateway",
+      writesSupplierOrders: false
     });
+
+    while (!stopping) {
+      try {
+        const result = await runDropshipOrderReconciliationSweep(Date.now(), batchLimit);
+        log("info", "nova.order_reconciliation_sweep", { workerId, ...result });
+        if (stopping) break;
+        await delay(pollMs);
+      } catch (error) {
+        log("error", "nova.order_reconciliation_failed", {
+          workerId,
+          error: safeError(error)
+        });
+        if (stopping) break;
+        await delay(retryMs);
+      }
+    }
+  } finally {
+    if (claimed) {
+      try {
+        await lockClient.query(
+          "SELECT pg_advisory_unlock(hashtext($1))",
+          ["kontamou:nova-order-reconciliation-worker"]
+        );
+      } catch (error) {
+        log("error", "nova.order_reconciliation_unlock_failed", {
+          workerId,
+          error: safeError(error)
+        });
+      }
+    }
+    lockClient.release();
+    await runtime.close();
+    if (claimed) {
+      log("info", "nova.order_reconciliation_worker_stopped", { workerId });
+    }
   }
-  lockClient.release();
-  await runtime.close();
-  log("info", "nova.order_reconciliation_worker_stopped", { workerId });
 }
 
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
