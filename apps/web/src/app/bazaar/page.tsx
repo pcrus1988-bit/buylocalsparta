@@ -80,7 +80,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
       </div> : <div className="product-grid">
         {products.map((product,index) => {
           const approvedImageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined;
-          const sourceImageSrc = approvedImageSrc ? undefined : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+          const sourceImageSrc = approvedImageSrc ? undefined : product.previewImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
           const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
           return <article className="product-card" key={product.id} style={{ overflow: "hidden", position: "relative" }}>
             {product.savingsPercent ? <div style={{ position: "absolute", zIndex: 3, top: 12, right: 12, background: "#111", color: "#fff", borderRadius: 999, padding: "7px 10px", fontWeight: 900 }}>−{product.savingsPercent}%</div> : null}
@@ -91,11 +91,13 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
                 fill
                 sizes="(max-width: 620px) 50vw, (max-width: 1180px) 33vw, 280px"
                 loading={index < 4 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
                 style={{ objectFit: "contain", padding: 16, background: "#fff" }}
               /> : <img
                 src={sourceImageSrc}
                 alt={product.title}
                 loading={index < 4 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
                 decoding="async"
                 referrerPolicy="no-referrer"
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", padding: 16, background: "#fff" }}
