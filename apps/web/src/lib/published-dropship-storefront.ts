@@ -93,8 +93,11 @@ export async function getPublishedDropshipCatalogCards(
       AND l.active=true
       AND dso.active=true
       AND ds.active=true
+      AND ds.api_authoritative_availability=true
       AND dso.cached_available=true
       AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+      AND dso.availability_expires_at IS NOT NULL
+      AND dso.availability_expires_at > now()
       AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
       AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       AND ($1::text IS NULL OR v.public_id=$1)
