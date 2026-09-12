@@ -13,11 +13,15 @@ import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { productPublicPath } from "../../../lib/product-url";
-import { storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
+import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
 export const dynamic = "force-dynamic";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+
+export function generateStaticParams() {
+  return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
