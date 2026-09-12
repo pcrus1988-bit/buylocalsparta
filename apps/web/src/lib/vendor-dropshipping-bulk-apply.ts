@@ -42,7 +42,8 @@ async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
  * changes that product explicitly. setVendorProductVisibility() records manual
  * changes in merchant_visibility_updated_at; those rows must not be overwritten
  * by later supplier-level apply operations. Hard eligibility rules still win:
- * unapproved or inactive supplier offers remain hidden even with an override.
+ * unapproved/inactive supplier offers and inactive/suppressed/recalled canonical
+ * variants remain hidden even with a manual visibility override.
  */
 export async function applyDropshippingSupplierDefaultsSequential(
   vendorIdentity: string,
@@ -107,7 +108,12 @@ export async function applyDropshippingSupplierDefaultsSequential(
              ),
              show_msrp=$5,
              merchant_visible=CASE
-               WHEN vo.status <> 'approved' OR NOT dso.active THEN false
+               WHEN vo.status <> 'approved'
+                 OR NOT dso.active
+                 OR cv.active IS NOT TRUE
+                 OR cv.suppressed IS TRUE
+                 OR cv.recalled IS TRUE
+               THEN false
                WHEN vo.merchant_visibility_updated_at IS NOT NULL THEN vo.merchant_visible
                ELSE $6
              END,
@@ -116,8 +122,10 @@ export async function applyDropshippingSupplierDefaultsSequential(
         CROSS JOIN LATERAL (
           SELECT dso.supplier_cost_minor
                  + ROUND(dso.supplier_cost_minor * $3::numeric / 100)::bigint AS after_markup_minor
-        ) calc
+        ) calc,
+             canonical_variants cv
        WHERE dso.vendor_offer_id=vo.id
+         AND cv.id=vo.canonical_variant_id
          AND dso.supplier_id=$1::uuid
          AND vo.vendor_id=$2::uuid
          AND dso.supplier_cost_minor IS NOT NULL
