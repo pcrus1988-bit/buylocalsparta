@@ -1,5 +1,6 @@
 import { requireVendorSession } from "../../../../lib/vendor-session";
-import { updateVendorStock, vendorDashboard } from "../../../../lib/vendor-runtime";
+import { vendorDashboard } from "../../../../lib/vendor-runtime";
+import { updateVendorStock } from "../../../../lib/vendor-inventory-service";
 
 export async function PUT(request: Request) {
   try {
