@@ -202,14 +202,18 @@ if (!shop.includes("isReadOnlyPublicCrawlerRequest") || !shop.includes("getCrawl
 // Vendor metadata/schema.
 if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
-requireText(vendor, 'replaceAll("<", "\\\\u003c")', "Structured data must escape HTML-opening characters");
+requireText(vendor, 'replaceAll("<", "\\u003c")', "Structured data must escape HTML-opening characters");
 if (!(vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`'))) failures.push("Vendor metadata must publish a canonical URL");
 requireText(vendor, "seoControl.schemaAllowed ? <script", "Vendor structured data must honor the governed schema decision");
 
 // Product metadata/schema and crawler/customer separation.
-for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', "availableAtOrFrom:", '"@type": "BreadcrumbList"', "gtinSchema(product.gtin)", 'itemCondition: "https://schema.org/NewCondition"']) {
+for (const contract of ['"@type": "Product"', '"@type": "Offer"', 'price: (product.priceMinor / 100).toFixed(2)', '"@type": "Organization"', "availableAtOrFrom:", '"@type": "BreadcrumbList"', "gtinSchema(displayGtin)", 'itemCondition: "https://schema.org/NewCondition"']) {
   requireText(product, contract, `Product SEO contract is missing ${contract}`);
 }
+for (const contract of ["getPublicDropshipPresentation", "displayGtin = publicFields?.gtin === false ? undefined", "displayMpn = publicFields?.mpn === false ? undefined"]) {
+  requireText(product, contract, `Product public-field privacy contract is missing ${contract}`);
+}
+if (product.includes("gtinSchema(product.gtin)")) failures.push("Product structured data must use visibility-resolved GTIN rather than raw product.gtin");
 requireText(product, "settings.canonicalOrigin", "Product structured data must use the governed canonical origin");
 if (!product.includes("buildGovernedSeoMetadata") || !product.includes("productPublicPath(product)")) failures.push("Product metadata/schema must publish the governed friendly canonical URL");
 requireText(product, "seoControl.schemaAllowed ? <script", "Product structured data must honor the governed schema decision");
