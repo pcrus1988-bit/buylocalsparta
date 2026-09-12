@@ -55,7 +55,8 @@ export async function getPublishedDropshipCatalogCards(
   category = "",
   filters: CatalogFilters = {},
   attributeFilters: CatalogAttributeFilters = {},
-  vendorId?: string
+  vendorId?: string,
+  canonicalVariantId?: string
 ): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
 
@@ -101,8 +102,9 @@ export async function getPublishedDropshipCatalogCards(
       AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
       AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       AND ($1::text IS NULL OR v.public_id=$1)
+      AND ($2::text IS NULL OR cv.public_id=$2)
     ORDER BY cv.id,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
-  `, [vendorId ?? null]);
+  `, [vendorId ?? null, canonicalVariantId ?? null]);
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
