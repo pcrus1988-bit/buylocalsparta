@@ -77,7 +77,7 @@ async function uploadLogo(objectKey: string, bytes: Uint8Array, mime: string): P
   const response = await fetch(`${PROJECT_URL}/storage/v1/object/brands/${encodeObjectPath(objectKey)}`, {
     method: "POST",
     headers: { ...storageHeaders(key), "content-type": mime, "cache-control": "31536000", "x-upsert": "true" },
-    body: bytes
+    body: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   });
   if (!response.ok) throw new Error(`Supabase Storage upload failed (HTTP ${response.status})`);
 }
