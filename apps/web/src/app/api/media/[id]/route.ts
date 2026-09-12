@@ -10,6 +10,18 @@ export async function GET(_request: Request, context: Context) {
     const media = await readApprovedPublicMedia(id);
     if (!media) return new Response(null, { status: 404, headers: noStoreHeaders() });
 
+    if (media.delivery === "redirect") {
+      return new Response(null, {
+        status: 307,
+        headers: {
+          "Location": media.sourceUrl,
+          "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+          "Referrer-Policy": "no-referrer",
+          "X-Content-Type-Options": "nosniff"
+        }
+      });
+    }
+
     return new Response(toWebStream(media.stream), {
       status: 200,
       headers: {
