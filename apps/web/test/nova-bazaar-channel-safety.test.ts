@@ -6,6 +6,7 @@ import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
 const transitionMigrationUrl = new URL("../../../db/migrations/0237_bazaar_condition_transition_guard.sql", import.meta.url);
 const existingClassificationMigrationUrl = new URL("../../../db/migrations/0238_bazaar_existing_nova_classification.sql", import.meta.url);
+const bazaarCatalogUrl = new URL("../src/lib/bazaar-catalog.ts", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
   assert.deepEqual(classifyNovaSupplierCondition({ condition: "New" }), {
@@ -46,4 +47,11 @@ test("existing second-life backfill is NOVA-scoped and fails closed on mixed evi
   assert.match(source, /SET commerce_channel = 'bazaar'/);
   assert.match(source, /supplier_preowned_defect/);
   assert.match(source, /supplier_preloved/);
+});
+
+test("BAZAAR dropship discovery uses the same fail-closed supplier and cost gates as normal discovery", async () => {
+  const source = await readFile(bazaarCatalogUrl, "utf8");
+  assert.match(source, /ds\.api_authoritative_availability=true/);
+  assert.match(source, /vo\.cost_ceiling_minor IS NULL OR vo\.supplier_unit_price_minor<=vo\.cost_ceiling_minor/);
+  assert.match(source, /dso\.availability_expires_at>now\(\)/);
 });
