@@ -101,6 +101,17 @@ type DatabaseCatalogRecord = Readonly<{
 }>;
 
 type PublicOfferAvailabilityRow = Readonly<{ canonical_public_id: string }>;
+type AssignedPriceRow = Readonly<{
+  canonical_public_id: string;
+  vendor_public_id: string;
+  customer_price_minor: number | string;
+}>;
+type VendorOfferPriceRow = Readonly<{
+  canonical_public_id: string;
+  customer_price_minor: number | string;
+}>;
+
+const CATALOG_ASSIGNMENT_CONCURRENCY = 6;
 
 /**
  * Stable search-admission signal: a public canonical must have at least one
@@ -223,6 +234,25 @@ function safeMinor(value: unknown, field: string): number {
   return parsed;
 }
 
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
   if (!right) return true;
   return normalizeSearchText(left ?? "") === normalizeSearchText(right);
@@ -306,6 +336,58 @@ async function withStickyAssignedOfferPrice(record: DatabaseCatalogRecord, visit
   return { ...record, priceMinor: safeMinor(result.rows[0]?.customer_price_minor, "customer_price_minor") };
 }
 
+async function withStickyAssignedOfferPrices(
+  records: readonly DatabaseCatalogRecord[],
+  visitorKey: string,
+  postcode: string
+): Promise<readonly DatabaseCatalogRecord[]> {
+  if (records.length === 0) return [];
+  const ids = [...new Set(records.filter((record) => record.available && record.vendorId).map((record) => record.id))];
+  if (ids.length === 0) {
+    return records.map((record) => record.available
+      ? { ...record, available: false, availableToSell: 0, vendorId: undefined, vendorName: undefined, adviser: undefined }
+      : record);
+  }
+
+  const result = await getProductionPostgresRuntime().nativePool.query<AssignedPriceRow>(`
+    SELECT DISTINCT ON (cv.public_id)
+      cv.public_id AS canonical_public_id,
+      v.public_id AS vendor_public_id,
+      vo.customer_price_minor
+    FROM sticky_assignments sa
+    JOIN canonical_variants cv ON cv.id=sa.canonical_variant_id
+    JOIN vendor_offers vo ON vo.id=sa.offer_id
+    JOIN vendor_businesses v ON v.id=vo.vendor_id
+    WHERE cv.public_id=ANY($1::text[])
+      AND sa.visitor_hash=$2
+      AND sa.postcode_scope=$3
+      AND sa.released_at IS NULL
+      AND sa.expires_at>now()
+      AND vo.status='approved'
+    ORDER BY cv.public_id,sa.locked_at DESC
+  `, [ids, hashVisitor(visitorKey), postcode]);
+
+  const byCanonical = new Map(result.rows.map((row) => [row.canonical_public_id, row] as const));
+  let degraded = 0;
+  const projected = records.map((record) => {
+    if (!record.available) return record;
+    const row = byCanonical.get(record.id);
+    if (!record.vendorId || !row || row.vendor_public_id !== record.vendorId) {
+      degraded += 1;
+      return { ...record, available: false, availableToSell: 0, vendorId: undefined, vendorName: undefined, adviser: undefined };
+    }
+    return { ...record, priceMinor: safeMinor(row.customer_price_minor, "customer_price_minor") };
+  });
+  if (degraded > 0) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.catalog_price_bulk_degraded",
+      canonicalCount: degraded
+    }));
+  }
+  return projected;
+}
+
 /**
  * Storefront discovery should include active canonicals even before a sellable offer
  * exists. In that state the card is rendered as unavailable and its canonical price
@@ -317,24 +399,29 @@ async function withStorefrontDisplayPrice(record: DatabaseCatalogRecord, visitor
   return withStickyAssignedOfferPrice(record, visitorKey, postcode);
 }
 
-async function withVendorOfferPrice(record: DatabaseCatalogRecord, vendorId: string): Promise<DatabaseCatalogRecord | undefined> {
-  const runtime = getProductionPostgresRuntime();
-  const result = await runtime.nativePool.query(`
-    SELECT vo.customer_price_minor
+async function withVendorOfferPrices(records: readonly DatabaseCatalogRecord[], vendorId: string): Promise<readonly DatabaseCatalogRecord[]> {
+  if (records.length === 0) return [];
+  const ids = [...new Set(records.map((record) => record.id))];
+  const result = await getProductionPostgresRuntime().nativePool.query<VendorOfferPriceRow>(`
+    SELECT DISTINCT ON (cv.public_id)
+      cv.public_id AS canonical_public_id,
+      vo.customer_price_minor
     FROM vendor_offers vo
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     JOIN vendor_businesses v ON v.id=vo.vendor_id
     JOIN vendor_locations l ON l.id=vo.location_id
     LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
-    WHERE cv.public_id=$1
+    WHERE cv.public_id=ANY($1::text[])
       AND v.public_id=$2
       AND vo.status='approved'
       AND l.active=true
-    ORDER BY ib.stock_confirmed_at DESC NULLS LAST, vo.updated_at DESC, vo.public_id
-    LIMIT 1
-  `, [record.id, vendorId]);
-  if (!result.rowCount) return undefined;
-  return { ...record, priceMinor: safeMinor(result.rows[0]?.customer_price_minor, "customer_price_minor") };
+    ORDER BY cv.public_id,ib.stock_confirmed_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
+  `, [ids, vendorId]);
+  const byCanonical = new Map(result.rows.map((row) => [row.canonical_public_id, row.customer_price_minor] as const));
+  return records.flatMap((record) => {
+    const price = byCanonical.get(record.id);
+    return price === undefined ? [] : [{ ...record, priceMinor: safeMinor(price, "customer_price_minor") }];
+  });
 }
 
 async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[], providedMetadata?: ReadonlyMap<string, CatalogMetadata>): Promise<readonly CatalogCard[]> {
@@ -352,14 +439,12 @@ async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[], 
 
 /**
  * Authoritative public-admission check used before a direct fairness assignment.
- * `publicCanonicals()` is itself filtered in PostgreSQL to active, non-suppressed,
- * non-recalled canonicals; the customer projection additionally removes obvious
- * fixture/demo titles before any public assignment or detail route can resolve.
+ * Reuse the request-local public catalogue snapshot rather than issuing a second
+ * full canonical query from the product-detail path.
  */
 async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<boolean> {
   if (!productionDatabaseConfigured()) return false;
-  return customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
-    .some((product) => product.id === canonicalVariantId);
+  return (await getPublicCatalogProducts()).some((product) => product.id === canonicalVariantId);
 }
 
 /**
@@ -473,11 +558,10 @@ export async function getCatalogCards(
     return product ? matchesCatalogFilters(product, metadata.get(id), filters) : false;
   });
 
-  const assigned: DatabaseCatalogRecord[] = [];
-  for (const canonicalVariantId of canonicalIds) {
+  const assignedResults = await mapWithConcurrency(canonicalIds, CATALOG_ASSIGNMENT_CONCURRENCY, async (canonicalVariantId) => {
     try {
       const record = await commerce.publicAssignedCanonical({ canonicalVariantId, visitorKey, postcode, reason: "search_card" });
-      if (record) assigned.push({ ...record, departmentCode: canonicalById.get(canonicalVariantId)?.departmentCode });
+      return record ? { ...record, departmentCode: canonicalById.get(canonicalVariantId)?.departmentCode } : undefined;
     } catch (error) {
       const fallback = canonicalById.get(canonicalVariantId);
       console.error(JSON.stringify({
@@ -486,25 +570,26 @@ export async function getCatalogCards(
         canonicalVariantId,
         message: error instanceof Error ? error.message : String(error)
       }));
-      if (fallback) assigned.push({ ...fallback, available: false, availableToSell: 0 });
+      return fallback ? { ...fallback, available: false, availableToSell: 0 } : undefined;
     }
+  });
+  const assigned = assignedResults.flatMap((record) => record ? [record] : []);
+
+  let priced: readonly DatabaseCatalogRecord[];
+  try {
+    priced = await withStickyAssignedOfferPrices(assigned, visitorKey, postcode);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.catalog_price_bulk_failed",
+      canonicalCount: assigned.length,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    priced = assigned.map((record) => record.available
+      ? { ...record, available: false, availableToSell: 0, vendorId: undefined, vendorName: undefined, adviser: undefined }
+      : record);
   }
 
-  const priced: DatabaseCatalogRecord[] = [];
-  for (const record of assigned) {
-    try {
-      const display = await withStorefrontDisplayPrice(record, visitorKey, postcode);
-      if (display) priced.push(display);
-    } catch (error) {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "storefront.catalog_price_degraded",
-        canonicalVariantId: record.id,
-        message: error instanceof Error ? error.message : String(error)
-      }));
-      priced.push({ ...record, available: false, availableToSell: 0, vendorId: undefined, vendorName: undefined, adviser: undefined });
-    }
-  }
   const localProducts = await enrichDatabaseRecords(priced, metadata);
   const dropshipProducts = await getPublishedDropshipCatalogCards(query, category, filters, attributeFilters);
   return mergePublishedDropshipCards(localProducts, dropshipProducts);
@@ -534,13 +619,15 @@ export async function getPublicVendor(vendorId: string): Promise<PublicVendorVie
 
 export async function getVendorCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
-  const records = customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId));
-  const priced = await Promise.all(records.map((record) => withVendorOfferPrice(record, vendorId)));
-  const availableRecords = priced.flatMap((record) => record ? [record] : []);
-  const [metadata, departmentCodes, dropshipProducts] = await Promise.all([
-    loadCatalogMetadata(availableRecords.map((record) => record.id)),
-    loadCatalogDepartmentCodes(availableRecords.map((record) => record.id)),
+  const [rawRecords, dropshipProducts] = await Promise.all([
+    getProductionPostgresRuntime().customerCommerce.publicVendorCanonicals(vendorId),
     getPublishedDropshipCatalogCards("", "", {}, {}, vendorId)
+  ]);
+  const records = customerVisibleCanonicals(rawRecords);
+  const availableRecords = await withVendorOfferPrices(records, vendorId);
+  const [metadata, departmentCodes] = await Promise.all([
+    loadCatalogMetadata(availableRecords.map((record) => record.id)),
+    loadCatalogDepartmentCodes(availableRecords.map((record) => record.id))
   ]);
   const localProducts = await enrichDatabaseRecords(availableRecords.map((record) => ({ ...record, departmentCode: departmentCodes.get(record.id) })), metadata);
   return mergePublishedDropshipCards(localProducts, dropshipProducts);
