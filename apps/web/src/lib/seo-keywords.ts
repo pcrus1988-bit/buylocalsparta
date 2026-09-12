@@ -28,6 +28,16 @@ const STATIC_SEARCH_INTENTS: Readonly<Record<string, readonly string[]>> = {
     "διαθέσιμα προϊόντα Λακωνία",
     "buy local Sparta"
   ],
+  "/bazaar": [
+    "BAZAAR Ελλάδα",
+    "preloved προϊόντα Ελλάδα",
+    "preowned προϊόντα Ελλάδα",
+    "open box προϊόντα Ελλάδα",
+    "προϊόντα με ελάττωμα Ελλάδα",
+    "επιστροφές προϊόντων BAZAAR",
+    "second life προϊόντα Ελλάδα",
+    "KONTA MOY BAZAAR"
+  ],
   "/shops": [
     "καταστήματα Σπάρτη",
     "τοπικές επιχειρήσεις Σπάρτη",
