@@ -45,6 +45,29 @@ async function authoritativeDropshipCost(vendorId: string | null | undefined, of
   return cost;
 }
 
+async function markDropshippingManualOverride(vendorId: string | null | undefined, offerId: string): Promise<void> {
+  if (!vendorId || !offerId) return;
+  await getProductionPostgresRuntime().sqlPool.query(`
+    UPDATE vendor_offers vo
+       SET source_payload=COALESCE(vo.source_payload,'{}'::jsonb)
+             || jsonb_build_object(
+                  'pricingManualOverride',true,
+                  'pricingManagedBy','manual_override',
+                  'pricingManualOverrideAt',now()
+                ),
+           updated_at=now()
+     WHERE vo.public_id=$1
+       AND vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2 OR id::text=$2 LIMIT 1)
+       AND EXISTS (
+         SELECT 1
+           FROM dropship_supplier_offers dso
+           JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+          WHERE dso.vendor_offer_id=vo.id
+            AND ds.owner_vendor_id=vo.vendor_id
+       )
+  `, [offerId, vendorId]);
+}
+
 export async function GET(request: Request) {
   try {
     const principal = await requireVendorSession(request);
@@ -107,6 +130,7 @@ export async function PUT(request: Request) {
       msrpMinor: dropshippingOnly ? undefined : optionalMinor(body, "msrpMinor"),
       showMsrp: typeof body.showMsrp === "boolean" ? body.showMsrp : undefined
     });
+    if (dropshippingOnly) await markDropshippingManualOverride(principal.vendorId, offerId);
     return Response.json(result);
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_pricing_failed" }, { status: 400 });
