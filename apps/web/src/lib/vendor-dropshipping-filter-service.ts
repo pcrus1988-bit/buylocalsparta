@@ -1,8 +1,10 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import {
-  vendorDropshippingWorkspace,
-  type DropshippingProductRow,
-  type DropshippingWorkspace
+import { assertDropshippingOnlyVendor } from "./vendor-dropshipping-access";
+import type {
+  DropshippingProductRow,
+  DropshippingSupplierDefaults,
+  DropshippingSupplierSummary,
+  DropshippingWorkspace
 } from "./vendor-dropshipping-service";
 
 export type DropshippingPublicationFilter = "all" | "published" | "unpublished";
@@ -83,6 +85,14 @@ const EMPTY_OPTIONS: DropshippingFilterOptions = {
   colors: []
 };
 
+const EMPTY_DEFAULTS: DropshippingSupplierDefaults = {
+  configured: false,
+  visible: false,
+  markupPercent: 0,
+  discountPercent: 0,
+  showMsrp: false
+};
+
 function compact(value: unknown, maxLength = 160): string {
   return String(value ?? "").trim().slice(0, maxLength);
 }
@@ -153,6 +163,22 @@ function adjustmentType(value: unknown): "percent" | "fixed" | null {
   return value === "percent" || value === "fixed" ? value : null;
 }
 
+function supplierDefaults(value: unknown): DropshippingSupplierDefaults {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY_DEFAULTS;
+  const raw = value as Record<string, unknown>;
+  if (Number(raw.version) !== 1) return EMPTY_DEFAULTS;
+  const markupPercent = Number(raw.markupPercent);
+  const discountPercent = Number(raw.discountPercent);
+  if (!Number.isFinite(markupPercent) || !Number.isFinite(discountPercent)) return EMPTY_DEFAULTS;
+  return {
+    configured: true,
+    visible: raw.visible === true,
+    markupPercent,
+    discountPercent,
+    showMsrp: raw.showMsrp === true
+  };
+}
+
 async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
   const vendor = await getProductionPostgresRuntime().nativePool.query(
     `SELECT id::text id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1`,
@@ -173,6 +199,48 @@ function facetOptions(rows: readonly Record<string, unknown>[], kind: string): r
     }));
 }
 
+async function loadSupplierSummaries(vendorId: string): Promise<readonly DropshippingSupplierSummary[]> {
+  const supplierResult = await getProductionPostgresRuntime().nativePool.query(`
+    SELECT ds.id::text id, ds.public_id, ds.code, ds.display_name, ds.provider_kind, ds.active,
+           ds.catalogue_sync_enabled, ds.order_forwarding_enabled, ds.tracking_sync_enabled,
+           ds.last_healthcheck_at, ds.last_healthcheck_ok,
+           ds.configuration->'vendorMerchandising' vendor_merchandising,
+           count(dso.id)::bigint total_products,
+           count(dso.id) FILTER (WHERE dso.active AND vo.merchant_visible AND vo.status='approved')::bigint published_products,
+           count(dso.id) FILTER (WHERE dso.active AND dso.cached_available)::bigint available_products,
+           count(dso.id) FILTER (WHERE dso.active AND NOT dso.cached_available)::bigint out_of_stock_products,
+           count(dso.id) FILTER (WHERE dso.supplier_cost_minor IS NOT NULL)::bigint products_with_cost,
+           max(dso.last_catalogue_sync_at) last_catalogue_sync_at
+      FROM dropship_suppliers ds
+      LEFT JOIN dropship_supplier_offers dso ON dso.supplier_id=ds.id
+      LEFT JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+     WHERE ds.owner_vendor_id=$1::uuid
+     GROUP BY ds.id
+     ORDER BY ds.display_name, ds.code
+  `, [vendorId]);
+
+  return supplierResult.rows.map((row) => ({
+    id: String(row.id),
+    publicId: String(row.public_id),
+    code: String(row.code),
+    displayName: String(row.display_name),
+    providerKind: String(row.provider_kind),
+    active: Boolean(row.active),
+    catalogueSyncEnabled: Boolean(row.catalogue_sync_enabled),
+    orderForwardingEnabled: Boolean(row.order_forwarding_enabled),
+    trackingSyncEnabled: Boolean(row.tracking_sync_enabled),
+    lastHealthcheckAt: asNullableIso(row.last_healthcheck_at),
+    lastHealthcheckOk: row.last_healthcheck_ok == null ? null : Boolean(row.last_healthcheck_ok),
+    totalProducts: asNumber(row.total_products),
+    publishedProducts: asNumber(row.published_products),
+    availableProducts: asNumber(row.available_products),
+    outOfStockProducts: asNumber(row.out_of_stock_products),
+    productsWithCost: asNumber(row.products_with_cost),
+    lastCatalogueSyncAt: asNullableIso(row.last_catalogue_sync_at),
+    defaults: supplierDefaults(row.vendor_merchandising)
+  }));
+}
+
 export async function vendorDropshippingFilteredWorkspace(
   vendorIdentity: string,
   options: Readonly<{
@@ -183,21 +251,17 @@ export async function vendorDropshippingFilteredWorkspace(
     filters?: DropshippingFilterInput;
   }> = {}
 ): Promise<DropshippingFilteredWorkspace> {
+  await assertDropshippingOnlyVendor(vendorIdentity);
+
   const filters = normalizeDropshippingProductFilters(options.filters);
   const query = compact(options.query, 120);
   const pageSize = Math.min(100, Math.max(20, Number.isSafeInteger(options.pageSize) ? Number(options.pageSize) : 50));
   const page = Math.max(1, Number.isSafeInteger(options.page) ? Number(options.page) : 1);
 
-  const base = await vendorDropshippingWorkspace(vendorIdentity, {
-    supplierCode: options.supplierCode,
-    query: "",
-    page: 1,
-    pageSize: 20
-  });
-
-  if (!productionDatabaseConfigured() || !base.selectedSupplier) {
+  if (!productionDatabaseConfigured()) {
     return {
-      ...base,
+      suppliers: [],
+      selectedSupplier: null,
       products: [],
       totalProducts: 0,
       page,
@@ -210,7 +274,28 @@ export async function vendorDropshippingFilteredWorkspace(
 
   const pool = getProductionPostgresRuntime().nativePool;
   const vendorId = await resolveVendorUuid(vendorIdentity);
-  const supplierId = base.selectedSupplier.id;
+  const suppliers = await loadSupplierSummaries(vendorId);
+  const selectedSupplier = suppliers.find((supplier) => supplier.code === options.supplierCode) ?? suppliers[0] ?? null;
+
+  const base: DropshippingWorkspace = {
+    suppliers,
+    selectedSupplier,
+    products: [],
+    totalProducts: 0,
+    page,
+    pageSize,
+    query
+  };
+
+  if (!selectedSupplier) {
+    return {
+      ...base,
+      filters,
+      filterOptions: EMPTY_OPTIONS
+    };
+  }
+
+  const supplierId = selectedSupplier.id;
 
   const [productResult, facetResult] = await Promise.all([
     pool.query(`
@@ -271,31 +356,28 @@ export async function vendorDropshippingFilteredWorkspace(
            OR coalesce(cv.variant_attributes->>'size',cv.variant_attributes->>'Size','') ILIKE '%' || $3 || '%'
            OR coalesce(cv.variant_attributes->>'color',cv.variant_attributes->>'colour','') ILIKE '%' || $3 || '%'
          )
-         AND (
-           $4::text=''
-           OR (CASE WHEN c.parent_id IS NULL THEN c.id::text ELSE pc.id::text END)=$4
-         )
+         AND ($4::text='' OR (CASE WHEN c.parent_id IS NULL THEN c.id::text ELSE pc.id::text END)=$4)
          AND ($5::text='' OR (c.parent_id IS NOT NULL AND c.id::text=$5))
          AND ($6::text='' OR b.id::text=$6)
          AND (
            $7::text=''
-           OR lower(coalesce(
+           OR lower(btrim(coalesce(
              cv.variant_attributes->>'size',
              cv.variant_attributes->>'Size',
              cv.variant_attributes->>'shoe_size',
              cv.variant_attributes->>'clothing_size',
              ''
-           ))=lower($7)
+           )))=lower(btrim($7))
          )
          AND (
            $8::text=''
-           OR lower(coalesce(
+           OR lower(btrim(coalesce(
              cv.variant_attributes->>'color',
              cv.variant_attributes->>'colour',
              cv.variant_attributes->>'Color',
              cv.variant_attributes->>'Colour',
              ''
-           ))=lower($8)
+           )))=lower(btrim($8))
          )
          AND (
            $9::text='all'
@@ -388,28 +470,37 @@ export async function vendorDropshippingFilteredWorkspace(
         LEFT JOIN category_translations ct_en ON ct_en.category_id=c.id AND ct_en.locale='en'
         LEFT JOIN category_translations pct_el ON pct_el.category_id=pc.id AND pct_el.locale='el'
         LEFT JOIN category_translations pct_en ON pct_en.category_id=pc.id AND pct_en.locale='en'
-        WHERE ds.id=$1::uuid
-          AND ds.owner_vendor_id=$2::uuid
+       WHERE ds.id=$1::uuid
+         AND ds.owner_vendor_id=$2::uuid
       ),
       facets AS (
-        SELECT 'category'::text kind, category_id value, category_name label, NULL::text parent_value
-          FROM base WHERE category_id IS NOT NULL AND category_name IS NOT NULL
+        SELECT 'category'::text kind, category_id value, min(category_name) label, NULL::text parent_value, count(*)::bigint item_count
+          FROM base
+         WHERE category_id IS NOT NULL AND category_name IS NOT NULL
+         GROUP BY category_id
         UNION ALL
-        SELECT 'subcategory', subcategory_id, subcategory_name, category_id
-          FROM base WHERE subcategory_id IS NOT NULL AND subcategory_name IS NOT NULL
+        SELECT 'subcategory', subcategory_id, min(subcategory_name), category_id, count(*)::bigint
+          FROM base
+         WHERE subcategory_id IS NOT NULL AND subcategory_name IS NOT NULL
+         GROUP BY subcategory_id, category_id
         UNION ALL
-        SELECT 'brand', brand_id, brand_name, NULL::text
-          FROM base WHERE brand_id IS NOT NULL AND brand_name IS NOT NULL
+        SELECT 'brand', brand_id, min(brand_name), NULL::text, count(*)::bigint
+          FROM base
+         WHERE brand_id IS NOT NULL AND brand_name IS NOT NULL
+         GROUP BY brand_id
         UNION ALL
-        SELECT 'size', size_value, size_value, NULL::text
-          FROM base WHERE size_value IS NOT NULL
+        SELECT 'size', lower(size_value), min(size_value), NULL::text, count(*)::bigint
+          FROM base
+         WHERE size_value IS NOT NULL
+         GROUP BY lower(size_value)
         UNION ALL
-        SELECT 'color', color_value, color_value, NULL::text
-          FROM base WHERE color_value IS NOT NULL
+        SELECT 'color', lower(color_value), min(color_value), NULL::text, count(*)::bigint
+          FROM base
+         WHERE color_value IS NOT NULL
+         GROUP BY lower(color_value)
       )
-      SELECT kind,value,label,parent_value,count(*)::bigint item_count
+      SELECT kind,value,label,parent_value,item_count
         FROM facets
-       GROUP BY kind,value,label,parent_value
        ORDER BY kind,lower(label),label
     `, [supplierId, vendorId])
   ]);
