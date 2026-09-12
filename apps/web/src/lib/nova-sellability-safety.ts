@@ -4,6 +4,7 @@ const SUPPLIER_CODE = "nova_brandsgateway";
 
 export type NovaSellabilitySafetySweepResult = Readonly<{
   deactivatedUnavailable: number;
+  deactivatedExpired: number;
   deactivatedReappeared: number;
 }>;
 
@@ -11,9 +12,10 @@ export type NovaSellabilitySafetySweepResult = Readonly<{
  * Fail-closed local sellability reconciliation for Nova.
  *
  * Supplier catalogue sync may refresh cached evidence, but it must never make an
- * inactive offer sellable. Conversely, a currently-live offer whose latest Nova
- * evidence says unavailable must be deactivated. Reappeared deleted-feed rows
- * also remain inactive until a later explicit vendor promotion updates the offer.
+ * inactive offer sellable. A currently-live offer is deactivated when Nova says
+ * it is unavailable or when its supplier evidence has expired. Reappeared
+ * deleted-feed rows also remain inactive until a later explicit vendor promotion
+ * updates the offer.
  *
  * This sweep changes only dropship supplier offer activation. It does not change
  * vendor publication intent, customer price, local inventory, checkout authority,
@@ -25,6 +27,8 @@ export async function runNovaSellabilitySafetySweep(): Promise<NovaSellabilitySa
       SELECT dso.id,
              CASE
                WHEN dso.cached_available=false THEN 'supplier_unavailable'
+               WHEN dso.availability_expires_at IS NOT NULL AND dso.availability_expires_at <= now()
+                 THEN 'supplier_availability_expired'
                ELSE 'supplier_reappeared_requires_explicit_promotion'
              END reason
         FROM public.dropship_supplier_offers dso
@@ -36,6 +40,7 @@ export async function runNovaSellabilitySafetySweep(): Promise<NovaSellabilitySa
          AND dso.active=true
          AND (
            dso.cached_available=false
+           OR (dso.availability_expires_at IS NOT NULL AND dso.availability_expires_at <= now())
            OR (
              NULLIF(dso.availability_payload->>'reappearedAt','') IS NOT NULL
              AND vo.updated_at <= (dso.availability_payload->>'reappearedAt')::timestamptz
@@ -55,6 +60,7 @@ export async function runNovaSellabilitySafetySweep(): Promise<NovaSellabilitySa
       RETURNING unsafe.reason
     )
     SELECT count(*) FILTER (WHERE reason='supplier_unavailable')::int deactivated_unavailable,
+           count(*) FILTER (WHERE reason='supplier_availability_expired')::int deactivated_expired,
            count(*) FILTER (WHERE reason='supplier_reappeared_requires_explicit_promotion')::int deactivated_reappeared
       FROM updated
   `, [SUPPLIER_CODE]);
@@ -62,6 +68,7 @@ export async function runNovaSellabilitySafetySweep(): Promise<NovaSellabilitySa
   const row = result.rows[0] ?? {};
   return {
     deactivatedUnavailable: safeCount(row.deactivated_unavailable),
+    deactivatedExpired: safeCount(row.deactivated_expired),
     deactivatedReappeared: safeCount(row.deactivated_reappeared)
   };
 }
