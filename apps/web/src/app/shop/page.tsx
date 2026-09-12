@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
 import { getCatalogCards, type CatalogCard } from "../../lib/catalog-view";
+import { getPublishedDropshipCatalogCards } from "../../lib/published-dropship-storefront";
 import { getAvailableCatalogTaxonomy } from "../../lib/available-catalog-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
@@ -108,6 +109,15 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let products: ShopCard[] = readOnlyCrawler
     ? [...await getCrawlerCatalogCards("23100", catalogQuery, category, { ...filters, fit })]
     : [...await getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)];
+  const publishedDropshipProducts = await getPublishedDropshipCatalogCards(catalogQuery, category, filters, attributeFilters);
+  if (publishedDropshipProducts.length > 0) {
+    const byCanonical = new Map(products.map((product) => [product.id, product] as const));
+    for (const dropshipProduct of publishedDropshipProducts) {
+      const existing = byCanonical.get(dropshipProduct.id);
+      if (!existing || !purchasablePublicProduct(existing)) byCanonical.set(dropshipProduct.id, dropshipProduct);
+    }
+    products = [...byCanonical.values()];
+  }
   products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
   if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
   products = products.filter(purchasablePublicProduct);
