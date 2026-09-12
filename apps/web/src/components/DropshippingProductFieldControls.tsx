@@ -23,7 +23,7 @@ export function DropshippingProductFieldControls({ offerId }: Props) {
   const [message, setMessage] = useState("");
 
   async function load(force = false) {
-    if ((!force && loaded) || busy) return;
+    if ((!force && loaded) || (busy && !force)) return;
     setBusy(true); setMessage("");
     try {
       const response = await fetch(`/api/vendor/dropshipping/presentation?offerId=${encodeURIComponent(offerId)}`, { cache: "no-store" });
