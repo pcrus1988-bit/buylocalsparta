@@ -285,7 +285,7 @@ export async function checkoutApiAuthoritativeDropship(
         retailMinor,
         taxRateBps,
         lineTax,
-        retailMinor,
+        line.supplierCostMinor,
         JSON.stringify({ postcode: input.postcode, mode: input.fulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString() }),
         JSON.stringify({ assignedOfferId: row.offer_public_id, vendorId: row.vendor_public_id, fairness: "api_authoritative_dropship" }),
         createdAt
