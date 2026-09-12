@@ -7,7 +7,10 @@ import { DropshippingSupplierDefaultsControls } from "../../../components/Dropsh
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { isDropshippingOnlyVendor } from "../../../lib/vendor-dropshipping-access";
-import { vendorDropshippingWorkspace } from "../../../lib/vendor-dropshipping-service";
+import {
+  vendorDropshippingFilteredWorkspace,
+  type DropshippingProductFilters
+} from "../../../lib/vendor-dropshipping-filter-service";
 import { vendorProductAnalytics } from "../../../lib/vendor-product-analytics";
 import { getVendorSession } from "../../../lib/vendor-session";
 
@@ -18,6 +21,49 @@ const first = (value: string | string[] | undefined) => Array.isArray(value) ? v
 const euro = (minor: number | null) => minor == null ? "—" : new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 const date = (value: string | null) => value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value)) : "—";
 const pct = (n: number, d: number) => d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "0,0%";
+const numberParam = (value: string | string[] | undefined) => {
+  const raw = first(value).trim();
+  return raw === "" ? null : raw;
+};
+
+function productUrl(supplier: string, query: string, filters: DropshippingProductFilters, page: number): string {
+  const params = new URLSearchParams();
+  params.set("supplier", supplier);
+  if (query) params.set("q", query);
+  if (filters.categoryId) params.set("category", filters.categoryId);
+  if (filters.subcategoryId) params.set("subcategory", filters.subcategoryId);
+  if (filters.brandId) params.set("brand", filters.brandId);
+  if (filters.size) params.set("size", filters.size);
+  if (filters.color) params.set("color", filters.color);
+  if (filters.publication !== "all") params.set("publication", filters.publication);
+  if (filters.availability !== "all") params.set("availability", filters.availability);
+  if (filters.cost !== "all") params.set("cost", filters.cost);
+  if (filters.markup !== "all") params.set("markup", filters.markup);
+  if (filters.discount !== "all") params.set("discount", filters.discount);
+  if (filters.markupMin != null) params.set("markupMin", String(filters.markupMin));
+  if (filters.markupMax != null) params.set("markupMax", String(filters.markupMax));
+  if (filters.discountMin != null) params.set("discountMin", String(filters.discountMin));
+  if (filters.discountMax != null) params.set("discountMax", String(filters.discountMax));
+  if (page > 1) params.set("page", String(page));
+  return `/vendor/dropshipping?${params.toString()}`;
+}
+
+function activeFilterCount(filters: DropshippingProductFilters): number {
+  return [
+    Boolean(filters.categoryId),
+    Boolean(filters.subcategoryId),
+    Boolean(filters.brandId),
+    Boolean(filters.size),
+    Boolean(filters.color),
+    filters.publication !== "all",
+    filters.availability !== "all",
+    filters.cost !== "all",
+    filters.markup !== "all",
+    filters.discount !== "all",
+    filters.markupMin != null || filters.markupMax != null,
+    filters.discountMin != null || filters.discountMax != null
+  ].filter(Boolean).length;
+}
 
 export default async function VendorDropshippingPage({ searchParams }: { searchParams: SearchParams }) {
   const principal = await getVendorSession();
@@ -32,7 +78,28 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
   const [workspace, analytics] = await Promise.all([
-    vendorDropshippingWorkspace(principal.vendorId ?? "", { supplierCode, query, page, pageSize: 50 }),
+    vendorDropshippingFilteredWorkspace(principal.vendorId ?? "", {
+      supplierCode,
+      query,
+      page,
+      pageSize: 50,
+      filters: {
+        categoryId: first(queryParams.category),
+        subcategoryId: first(queryParams.subcategory),
+        brandId: first(queryParams.brand),
+        size: first(queryParams.size),
+        color: first(queryParams.color),
+        publication: first(queryParams.publication),
+        availability: first(queryParams.availability),
+        cost: first(queryParams.cost),
+        markup: first(queryParams.markup),
+        discount: first(queryParams.discount),
+        markupMin: numberParam(queryParams.markupMin),
+        markupMax: numberParam(queryParams.markupMax),
+        discountMin: numberParam(queryParams.discountMin),
+        discountMax: numberParam(queryParams.discountMax)
+      }
+    }),
     vendorProductAnalytics(operatingContext, { periodDays: 30 })
   ]);
 
@@ -43,6 +110,25 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const t = analytics.totals;
   const pages = Math.max(1, Math.ceil(workspace.totalProducts / workspace.pageSize));
   const selectedCode = workspace.selectedSupplier?.code ?? "";
+  const filterCount = activeFilterCount(workspace.filters);
+  const categoryLabels = new Map(workspace.filterOptions.categories.map((option) => [option.value, option.label]));
+  const clearFiltersHref = productUrl(selectedCode, workspace.query, {
+    ...workspace.filters,
+    categoryId: "",
+    subcategoryId: "",
+    brandId: "",
+    size: "",
+    color: "",
+    publication: "all",
+    availability: "all",
+    cost: "all",
+    markup: "all",
+    discount: "all",
+    markupMin: null,
+    markupMax: null,
+    discountMin: null,
+    discountMax: null
+  }, 1);
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -83,16 +169,99 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
     {workspace.selectedSupplier ? <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow={workspace.selectedSupplier.displayName} title="Προϊόντα supplier" note={`${workspace.totalProducts} αποτελέσματα · σελίδα ${workspace.page}/${pages}`} />
       <DropshippingSupplierDefaultsControls supplierCode={selectedCode} defaults={workspace.selectedSupplier.defaults} />
-      <form method="get" className="workspace-queue-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end", marginBottom: 14 }}>
+
+      <form method="get" className="workspace-queue-card" style={{ marginBottom: 14 }}>
         <input type="hidden" name="supplier" value={selectedCode} />
-        <label><small>Αναζήτηση τίτλου, brand, SKU, EAN</small><input name="q" defaultValue={workspace.query} placeholder="π.χ. Michael Kors, SKU, EAN" style={{ width: "100%" }} /></label>
-        <button className="button" type="submit">Αναζήτηση</button>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end" }}>
+          <label><small>Αναζήτηση τίτλου, brand, SKU, EAN, κατηγορίας ή variant</small><input name="q" defaultValue={workspace.query} placeholder="π.χ. Michael Kors, SKU, EAN" style={{ width: "100%" }} /></label>
+          <button className="button" type="submit">Αναζήτηση / φίλτρα</button>
+        </div>
+
+        <details open={filterCount > 0} style={{ marginTop: 14 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>
+            Φίλτρα προϊόντων{filterCount ? ` · ${filterCount} ενεργά` : ""}
+          </summary>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginTop: 12 }}>
+            <label><small>Κατηγορία</small><select name="category" defaultValue={workspace.filters.categoryId} style={{ width: "100%" }}>
+              <option value="">Όλες</option>
+              {workspace.filterOptions.categories.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+            </select></label>
+
+            <label><small>Υποκατηγορία</small><select name="subcategory" defaultValue={workspace.filters.subcategoryId} style={{ width: "100%" }}>
+              <option value="">Όλες</option>
+              {workspace.filterOptions.subcategories.map((option) => <option key={option.value} value={option.value}>
+                {option.parentValue && categoryLabels.get(option.parentValue) ? `${categoryLabels.get(option.parentValue)} › ` : ""}{option.label} ({option.count})
+              </option>)}
+            </select></label>
+
+            <label><small>Brand</small><select name="brand" defaultValue={workspace.filters.brandId} style={{ width: "100%" }}>
+              <option value="">Όλα</option>
+              {workspace.filterOptions.brands.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+            </select></label>
+
+            <label><small>Size</small><select name="size" defaultValue={workspace.filters.size} style={{ width: "100%" }}>
+              <option value="">Όλα</option>
+              {workspace.filterOptions.sizes.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+            </select></label>
+
+            <label><small>Χρώμα</small><select name="color" defaultValue={workspace.filters.color} style={{ width: "100%" }}>
+              <option value="">Όλα</option>
+              {workspace.filterOptions.colors.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+            </select></label>
+
+            <label><small>Δημοσίευση</small><select name="publication" defaultValue={workspace.filters.publication} style={{ width: "100%" }}>
+              <option value="all">Όλα</option>
+              <option value="published">Published</option>
+              <option value="unpublished">Unpublished</option>
+            </select></label>
+
+            <label><small>Supplier stock</small><select name="availability" defaultValue={workspace.filters.availability} style={{ width: "100%" }}>
+              <option value="all">Όλα</option>
+              <option value="available">Διαθέσιμα</option>
+              <option value="out_of_stock">Out of stock</option>
+            </select></label>
+
+            <label><small>Buying price</small><select name="cost" defaultValue={workspace.filters.cost} style={{ width: "100%" }}>
+              <option value="all">Όλα</option>
+              <option value="with_cost">Με buying price</option>
+              <option value="missing_cost">Χωρίς buying price</option>
+            </select></label>
+
+            <label><small>Markup</small><select name="markup" defaultValue={workspace.filters.markup} style={{ width: "100%" }}>
+              <option value="all">Όλα</option>
+              <option value="with">Με markup</option>
+              <option value="without">Χωρίς markup</option>
+              <option value="percent">% markup</option>
+              <option value="fixed">Fixed markup</option>
+            </select></label>
+
+            <label><small>Discount</small><select name="discount" defaultValue={workspace.filters.discount} style={{ width: "100%" }}>
+              <option value="all">Όλα</option>
+              <option value="with">Με discount</option>
+              <option value="without">Χωρίς discount</option>
+              <option value="percent">% discount</option>
+              <option value="fixed">Fixed discount</option>
+            </select></label>
+
+            <label><small>Markup % από</small><input name="markupMin" type="number" min="0" max="1000" step="0.01" defaultValue={workspace.filters.markupMin ?? ""} style={{ width: "100%" }} /></label>
+            <label><small>Markup % έως</small><input name="markupMax" type="number" min="0" max="1000" step="0.01" defaultValue={workspace.filters.markupMax ?? ""} style={{ width: "100%" }} /></label>
+            <label><small>Discount % από</small><input name="discountMin" type="number" min="0" max="100" step="0.01" defaultValue={workspace.filters.discountMin ?? ""} style={{ width: "100%" }} /></label>
+            <label><small>Discount % έως</small><input name="discountMax" type="number" min="0" max="100" step="0.01" defaultValue={workspace.filters.discountMax ?? ""} style={{ width: "100%" }} /></label>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="button" type="submit">Εφαρμογή φίλτρων</button>
+            {filterCount ? <Link className="button button-secondary" href={clearFiltersHref}>Καθαρισμός φίλτρων</Link> : null}
+          </div>
+        </details>
       </form>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
         {workspace.products.map((product) => <article className="workspace-queue-card" key={product.supplierOfferId}>
-          <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div><span className="vendor-merchant-status">{product.visible ? "Public" : "Hidden"}</span></div>
+          <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div><span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span></div>
           <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+            {(product.category || product.subcategory) ? <div className="workspace-compact-row"><strong>Κατηγορία</strong><span>{[product.category, product.subcategory].filter(Boolean).join(" › ")}</span></div> : null}
+            {(product.size || product.color) ? <div className="workspace-compact-row"><strong>Variant</strong><span>{[product.size && `Size ${product.size}`, product.color].filter(Boolean).join(" · ")}</span></div> : null}
             <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
             <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span></div>
             <div className="workspace-compact-row"><strong>Markup</strong><span>{product.markupType === "percent" && product.markupValue != null ? `${product.markupValue}%` : product.markupType === "fixed" && product.markupValue != null ? `${product.markupValue}` : "—"}</span></div>
@@ -101,12 +270,12 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
           </div>
           <DropshippingProductControls offerId={product.offerId} supplierCostMinor={product.supplierCostMinor} visible={product.visible} markupValue={product.markupType === "percent" ? product.markupValue : null} discountValue={product.discountType === "percent" ? product.discountValue : null} msrpMinor={product.msrpMinor} showMsrp={product.showMsrp} />
         </article>)}
-        {!workspace.products.length ? <article className="workspace-queue-card"><strong>Δεν βρέθηκαν προϊόντα.</strong><p>Άλλαξε τον όρο αναζήτησης ή έλεγξε το supplier sync.</p></article> : null}
+        {!workspace.products.length ? <article className="workspace-queue-card"><strong>Δεν βρέθηκαν προϊόντα.</strong><p>Άλλαξε τον όρο αναζήτησης ή τα φίλτρα προϊόντων.</p></article> : null}
       </div>
 
       {pages > 1 ? <nav aria-label="Σελιδοποίηση προϊόντων" style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 16 }}>
-        {workspace.page > 1 ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(selectedCode)}&q=${encodeURIComponent(workspace.query)}&page=${workspace.page - 1}`}>← Προηγούμενα</Link> : <span />}
-        {workspace.page < pages ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(selectedCode)}&q=${encodeURIComponent(workspace.query)}&page=${workspace.page + 1}`}>Επόμενα →</Link> : null}
+        {workspace.page > 1 ? <Link className="button button-secondary" href={productUrl(selectedCode, workspace.query, workspace.filters, workspace.page - 1)}>← Προηγούμενα</Link> : <span />}
+        {workspace.page < pages ? <Link className="button button-secondary" href={productUrl(selectedCode, workspace.query, workspace.filters, workspace.page + 1)}>Επόμενα →</Link> : null}
       </nav> : null}
     </section> : null}
 
