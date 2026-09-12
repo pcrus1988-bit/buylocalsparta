@@ -1,6 +1,7 @@
 import { searchTextRelevance } from "@buy-local-sparta/core";
-import { getCanonicalAvailability, getPublicCatalogProducts, type PublicCatalogProduct } from "./catalog-view";
+import { getPublicCatalogProducts, type PublicCatalogProduct } from "./catalog-view";
 import { loadCatalogMetadata } from "./catalog-metadata";
+import { loadPublicCatalogAvailability } from "./public-catalog-availability-bulk";
 import {
   categoryCodeMatches,
   STOREFRONT_CATEGORIES,
@@ -181,19 +182,14 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
     .sort((a, b) => b.score - a.score || a.product.title.localeCompare(b.product.title, "el"))
     .slice(0, 4);
 
-  const availability = await Promise.all(rankedProducts.map(async ({ product }) => {
-    try {
-      return Boolean((await getCanonicalAvailability(product.id))?.available);
-    } catch {
-      return false;
-    }
-  }));
-
-  const productItems = rankedProducts.map(({ product }, index) => ({
+  // One bulk query replaces four independent availability lookups (and, for a
+  // dropship miss, four potential supplier-projection queries) on every typeahead.
+  const availableIds = await loadPublicCatalogAvailability(rankedProducts.map(({ product }) => product.id));
+  const productItems = rankedProducts.map(({ product }) => ({
     kind: "product" as const,
     label: product.title,
     subtitle: [product.brand, product.categoryLabel].filter(Boolean).join(" · ") || "Προϊόν",
-    available: availability[index],
+    available: availableIds.has(product.id),
     href: `/product/${encodeURIComponent(product.slug)}`
   }));
 
