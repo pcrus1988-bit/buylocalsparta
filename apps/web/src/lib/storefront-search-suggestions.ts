@@ -1,5 +1,5 @@
 import { searchTextRelevance } from "@buy-local-sparta/core";
-import { getCanonicalAvailability, getPublicCatalogProducts } from "./catalog-view";
+import { getCanonicalAvailability, getPublicCatalogProducts, type PublicCatalogProduct } from "./catalog-view";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import {
   categoryCodeMatches,
@@ -31,6 +31,24 @@ type QuerySeed = Readonly<{
   category?: string;
 }>;
 
+type SearchProduct = PublicCatalogProduct & Readonly<{
+  brand?: string;
+  categoryLabel?: string;
+  gtin?: string;
+  mpn?: string;
+}>;
+
+type SearchSnapshot = Readonly<{
+  expiresAt: number;
+  products: readonly SearchProduct[];
+}>;
+
+const SEARCH_SNAPSHOT_TTL_MS = 30_000;
+const searchSnapshotState = globalThis as typeof globalThis & {
+  __blsSearchSuggestionSnapshot?: SearchSnapshot;
+  __blsSearchSuggestionSnapshotPromise?: Promise<readonly SearchProduct[]>;
+};
+
 const QUERY_SEEDS: readonly QuerySeed[] = [
   { label: "Σχολικές τσάντες", aliases: ["school bags", "school bag", "sxolikes tsantes", "scholikes tsantes", "σχολική τσάντα"], category: "fashion" },
   { label: "Σχολικές τσάντες δημοτικού", aliases: ["primary school bags", "sxolikes tsantes dimotikou", "σχολική τσάντα δημοτικού"], category: "fashion" },
@@ -44,6 +62,46 @@ const QUERY_SEEDS: readonly QuerySeed[] = [
   { label: "Τηλεοράσεις", aliases: ["televisions", "tvs", "tileoraseis"], category: "technology" }
 ];
 
+async function readSearchProducts(): Promise<readonly SearchProduct[]> {
+  const catalog = await getPublicCatalogProducts();
+  const metadata = await loadCatalogMetadata(catalog.map((product) => product.id));
+  return catalog.map((product) => {
+    const details = metadata.get(product.id);
+    return {
+      ...product,
+      brand: details?.brand,
+      categoryLabel: details?.categoryLabel,
+      gtin: details?.gtin,
+      mpn: details?.mpn
+    };
+  });
+}
+
+/**
+ * Typeahead requests arrive as a burst of different prefixes, so HTTP caching by
+ * exact query cannot reuse the underlying catalogue projection. Keep one tiny,
+ * short-lived process-local snapshot and share an in-flight refresh. Fresh stock
+ * is still resolved separately for the few product suggestions actually shown.
+ */
+async function getSearchProducts(now = Date.now()): Promise<readonly SearchProduct[]> {
+  const cached = searchSnapshotState.__blsSearchSuggestionSnapshot;
+  if (cached && cached.expiresAt > now) return cached.products;
+  if (searchSnapshotState.__blsSearchSuggestionSnapshotPromise) {
+    return searchSnapshotState.__blsSearchSuggestionSnapshotPromise;
+  }
+
+  const pending = readSearchProducts()
+    .then((products) => {
+      searchSnapshotState.__blsSearchSuggestionSnapshot = { expiresAt: Date.now() + SEARCH_SNAPSHOT_TTL_MS, products };
+      return products;
+    })
+    .finally(() => {
+      searchSnapshotState.__blsSearchSuggestionSnapshotPromise = undefined;
+    });
+  searchSnapshotState.__blsSearchSuggestionSnapshotPromise = pending;
+  return pending;
+}
+
 /**
  * Search discovery intentionally uses the lightweight catalogue projection.
  * The old path built the complete SEO inventory for every keystroke, including
@@ -56,18 +114,7 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
   const clean = query.trim().slice(0, 120);
   if (clean.length < 2) return { items: [], hasResults: false };
 
-  const catalog = await getPublicCatalogProducts();
-  const metadata = await loadCatalogMetadata(catalog.map((product) => product.id));
-  const products = catalog.map((product) => {
-    const details = metadata.get(product.id);
-    return {
-      ...product,
-      brand: details?.brand,
-      categoryLabel: details?.categoryLabel,
-      gtin: details?.gtin,
-      mpn: details?.mpn
-    };
-  });
+  const products = await getSearchProducts();
   const max = Math.max(4, Math.min(20, limit));
 
   const queryItems = QUERY_SEEDS
