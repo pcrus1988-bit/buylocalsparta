@@ -21,6 +21,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/nova-canonical-media",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/order-sla",
       "schedule": "*/5 * * * *"
     },
