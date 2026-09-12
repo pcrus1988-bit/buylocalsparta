@@ -1,3 +1,4 @@
+import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
 import { normalizeNovaProduct } from "../../../../integrations/dropship-suppliers/src/nova-normalize.ts";
 import { NovaV1Client, novaApiKeyFromEnvironment } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
@@ -5,8 +6,6 @@ import { NovaV1Client, novaApiKeyFromEnvironment } from "../../../../integration
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
 const AVAILABILITY_TTL_HOURS = 2;
 
-type ProductRow = Readonly<{ external_product_id: string }>;
-type SourceRow = Readonly<{ store_id: string }>;
 type AvailabilityVariant = Readonly<{
   externalVariantId: string;
   sku: string | null;
@@ -30,7 +29,7 @@ export type NovaAvailabilityRefreshResult = Readonly<{
  */
 export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
   const db = getProductionPostgresRuntime().sqlPool;
-  const source = await db.query<SourceRow>(`
+  const source = await db.query<SqlRow>(`
     SELECT COALESCE(
       metadata #>> '{novaSync,storeId}',
       metadata ->> 'storeId',
@@ -40,9 +39,9 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
     WHERE code='nova-brandsgateway'
     LIMIT 1
   `);
-  const storeId = source.rows[0]?.store_id?.trim() || "2";
+  const storeId = text(source.rows[0]?.store_id) || "2";
 
-  const products = await db.query<ProductRow>(`
+  const productResult = await db.query<SqlRow>(`
     SELECT DISTINCT dso.external_product_id
     FROM public.dropship_supplier_offers dso
     JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
@@ -56,22 +55,25 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
       AND dso.external_product_id IS NOT NULL
     ORDER BY dso.external_product_id
   `, [NOVA_SUPPLIER_CODE]);
+  const productIds = productResult.rows
+    .map((row) => text(row.external_product_id))
+    .filter((value): value is string => Boolean(value));
 
   const client = new NovaV1Client({ apiKey: novaApiKeyFromEnvironment() });
   let refreshedProducts = 0;
   let failedProducts = 0;
   let updatedOffers = 0;
 
-  for (const row of products.rows) {
+  for (const externalProductId of productIds) {
     try {
-      const supplierProduct = await client.getProduct(storeId, row.external_product_id, "en");
+      const supplierProduct = await client.getProduct(storeId, externalProductId, "en");
       const normalized = normalizeNovaProduct(supplierProduct, storeId);
       const variants = availabilityVariants(normalized.normalizedPayload.variants);
       if (variants.length === 0) throw new Error("Nova product returned no normalized variants");
 
       const checkedAt = new Date();
       for (const variant of variants) {
-        const update = await db.query(`
+        const update = await db.query<SqlRow>(`
           UPDATE public.dropship_supplier_offers dso
           SET cached_available=$4,
               cached_quantity=$5,
@@ -97,7 +99,7 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
             )
         `, [
           NOVA_SUPPLIER_CODE,
-          row.external_product_id,
+          externalProductId,
           variant.externalVariantId,
           variant.available,
           variant.stockQuantity,
@@ -112,7 +114,7 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
       console.error(JSON.stringify({
         level: "error",
         event: "nova.availability_product_refresh_failed",
-        externalProductId: row.external_product_id,
+        externalProductId,
         error: safeError(error),
         at: new Date().toISOString()
       }));
@@ -120,7 +122,7 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
   }
 
   return {
-    attemptedProducts: products.rows.length,
+    attemptedProducts: productIds.length,
     refreshedProducts,
     failedProducts,
     updatedOffers
@@ -133,11 +135,11 @@ function availabilityVariants(value: unknown): readonly AvailabilityVariant[] {
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const record = item as Record<string, unknown>;
-    const externalVariantId = typeof record.externalVariantId === "string" ? record.externalVariantId.trim() : "";
+    const externalVariantId = text(record.externalVariantId);
     if (!externalVariantId || typeof record.available !== "boolean") continue;
     variants.push({
       externalVariantId,
-      sku: typeof record.sku === "string" && record.sku.trim() ? record.sku.trim() : null,
+      sku: text(record.sku),
       stockQuantity: typeof record.stockQuantity === "number" && Number.isFinite(record.stockQuantity)
         ? record.stockQuantity
         : null,
@@ -145,6 +147,10 @@ function availabilityVariants(value: unknown): readonly AvailabilityVariant[] {
     });
   }
   return variants;
+}
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function safeError(error: unknown): string {
