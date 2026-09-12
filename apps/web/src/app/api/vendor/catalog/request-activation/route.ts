@@ -4,7 +4,7 @@ import { requestVendorProductActivation } from "../../../../../lib/product-lifec
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const principal = await requireVendorSession(request,true);
     if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("Manual product activation is disabled for the dropshipping-only vendor");
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId.trim() : "";
