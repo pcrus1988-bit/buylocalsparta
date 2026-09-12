@@ -70,6 +70,13 @@ export function DropshippingProductControls(props: Props) {
   const [sellingPriceDraft, setSellingPriceDraft] = useState(initialPreviewMinor == null ? "" : (initialPreviewMinor / 100).toFixed(2));
   const [editingSellingPrice, setEditingSellingPrice] = useState(false);
 
+  useEffect(() => {
+    if (busy || editingSellingPrice) return;
+    setMarkup(initialMarkup);
+    setDiscount(initialDiscount);
+    setVisible(props.visible);
+  }, [busy, editingSellingPrice, initialDiscount, initialMarkup, props.visible]);
+
   const previewMinor = useMemo(
     () => previewPriceMinor(props.supplierCostMinor, markup, discount),
     [props.supplierCostMinor, markup, discount]

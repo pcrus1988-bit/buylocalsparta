@@ -24,6 +24,7 @@ export async function PUT(request: Request) {
     const scope = body.scope === "category" ? "category" : body.scope === "product" ? "product" : undefined;
     if (!scope) throw new Error("Visibility scope must be product or category");
     if (typeof body.visible !== "boolean") throw new Error("Visibility must be true or false");
+    const minimalResponse = body.minimalResponse === true;
 
     if (scope === "product") {
       const offerId = typeof body.offerId === "string" ? body.offerId : "";
@@ -41,6 +42,7 @@ export async function PUT(request: Request) {
       });
     }
 
+    if (minimalResponse) return Response.json({ ok: true });
     return Response.json(await vendorCatalogControlWorkspace(principal));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_visibility_failed" }, { status: 400 });
