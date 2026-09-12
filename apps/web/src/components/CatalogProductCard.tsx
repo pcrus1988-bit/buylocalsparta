@@ -79,11 +79,12 @@ function PublicCatalogPrice({ product, demoMode, priceLabel }: { product: Catalo
   }, [demoMode, product.available, product.id, product.priceMinor, product.vendorId]);
 
   const saving = msrpMinor === undefined ? undefined : savingsPercent(msrpMinor, product.priceMinor);
+  const savingLabel = saving === undefined ? undefined : saving.toLocaleString("el-GR", { maximumFractionDigits: 1 });
 
   return <div className="price">
     {msrpMinor !== undefined ? <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>{formatEuroMinor(msrpMinor)}</s>
-      {saving !== undefined ? <span aria-label={`Όφελος ${saving}%`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{saving.toLocaleString("el-GR", { maximumFractionDigits: 1 })}%</span> : null}
+      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
+      {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{savingLabel}% vs ΠΛΤ</span> : null}
     </div> : null}
     <span>{priceLabel}</span>
   </div>;
