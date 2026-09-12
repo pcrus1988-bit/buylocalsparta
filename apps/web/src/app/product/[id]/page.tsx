@@ -12,6 +12,7 @@ import { ProductDetailSections, type ProductDetailRow } from "../../../component
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
+import { PublicPriceComparison } from "../../../components/PublicPriceComparison";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -424,7 +425,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="purchase-card" style={{ marginTop: 18 }}>
             <div>
               <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
-              <div className="detail-price">{displayPrice}</div>
+              <PublicPriceComparison productId={product.id} vendorId={product.vendorId} retailPriceMinor={product.priceMinor} retailLabel={displayPrice} comparisonEnabled={!readOnlyCrawler} />
               <strong>{product.available ? `${product.availableToSell} τεμ. διαθέσιμα` : "Προσωρινά μη διαθέσιμο"}</strong>
               <span>{product.available ? "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
             </div>
