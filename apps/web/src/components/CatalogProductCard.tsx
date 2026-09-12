@@ -37,6 +37,11 @@ function availabilityLabel(product: CatalogCardWithPreview, demoMode: boolean): 
 
 const formatEuroMinor = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 
+function savingsPercent(msrpMinor: number, retailPriceMinor: number): number | undefined {
+  if (!Number.isSafeInteger(msrpMinor) || !Number.isSafeInteger(retailPriceMinor) || msrpMinor <= retailPriceMinor || retailPriceMinor < 0) return undefined;
+  return Math.round(((msrpMinor - retailPriceMinor) / msrpMinor) * 1000) / 10;
+}
+
 function PublicCatalogPrice({ product, demoMode, priceLabel }: { product: CatalogCardWithPreview; demoMode: boolean; priceLabel: string }) {
   const [msrpMinor, setMsrpMinor] = useState<number | undefined>();
 
@@ -73,8 +78,13 @@ function PublicCatalogPrice({ product, demoMode, priceLabel }: { product: Catalo
     return () => controller.abort();
   }, [demoMode, product.available, product.id, product.priceMinor, product.vendorId]);
 
+  const saving = msrpMinor === undefined ? undefined : savingsPercent(msrpMinor, product.priceMinor);
+
   return <div className="price">
-    {msrpMinor !== undefined ? <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ display: "block", fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>{formatEuroMinor(msrpMinor)}</s> : null}
+    {msrpMinor !== undefined ? <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>{formatEuroMinor(msrpMinor)}</s>
+      {saving !== undefined ? <span aria-label={`Όφελος ${saving}%`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{saving.toLocaleString("el-GR", { maximumFractionDigits: 1 })}%</span> : null}
+    </div> : null}
     <span>{priceLabel}</span>
   </div>;
 }
