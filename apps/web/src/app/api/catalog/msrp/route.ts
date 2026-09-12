@@ -3,6 +3,8 @@ import { getVisibleOfferMsrpMinor } from "../../../../lib/public-offer-msrp";
 
 export const dynamic = "force-dynamic";
 
+const MSRP_CACHE = "public, max-age=60, s-maxage=300, stale-while-revalidate=600";
+
 function safeRetailMinor(raw: string | null): number | undefined {
   if (!raw || !/^\d+$/.test(raw)) return undefined;
   const value = Number(raw);
@@ -21,6 +23,6 @@ export async function GET(request: NextRequest) {
   const msrpMinor = await getVisibleOfferMsrpMinor(productId, vendorId, retailPriceMinor);
   return NextResponse.json(
     msrpMinor === undefined ? {} : { msrpMinor },
-    { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" } }
+    { headers: { "Cache-Control": MSRP_CACHE } }
   );
 }
