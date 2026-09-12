@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getAdminSession } from "../../../lib/admin-session";
+import { assertAdminPermission } from "../../../lib/admin-runtime";
 import { adminProfitabilityIntelligence, type ProfitabilityPeriod } from "../../../lib/profitability-intelligence";
+
+export const metadata: Metadata = { title: "Admin · Profitability & Margins", robots: { index: false, follow: false } };
 
 type PageProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 
@@ -17,6 +21,7 @@ function periodLabel(value: ProfitabilityPeriod): string { return value === null
 export default async function AdminProfitabilityPage({ searchParams }: PageProps) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
+  assertAdminPermission(principal, "finance.read");
   const query = await searchParams;
   const selectedPeriod = period(first(query.period));
   const report = await adminProfitabilityIntelligence(principal, selectedPeriod);
@@ -34,8 +39,8 @@ export default async function AdminProfitabilityPage({ searchParams }: PageProps
 
     <WorkspaceMetricStrip items={[
       { label: "Realised revenue", value: euro(s.realizedRevenueMinor), hint: periodLabel(selectedPeriod) },
-      { label: "Gross product profit", value: euro(s.grossProfitMinor), hint: `${pctBps(s.grossMarginBps)} on cost-covered revenue`, tone: s.grossProfitMinor > 0 ? "positive" : s.grossProfitMinor < 0 ? "danger" : "default" },
-      { label: "Contribution after marketplace fees", value: euro(s.contributionAfterMarketplaceFeesMinor), hint: pctBps(s.contributionMarginBps), tone: s.contributionAfterMarketplaceFeesMinor > 0 ? "positive" : s.contributionAfterMarketplaceFeesMinor < 0 ? "danger" : "default" },
+      { label: "Gross product profit", value: euro(s.grossProfitMinor), hint: `${pctBps(s.grossMarginBps)} on cost-covered revenue`, tone: s.grossProfitMinor > 0 ? "positive" : s.grossProfitMinor < 0 ? "attention" : "default" },
+      { label: "Contribution after marketplace fees", value: euro(s.contributionAfterMarketplaceFeesMinor), hint: pctBps(s.contributionMarginBps), tone: s.contributionAfterMarketplaceFeesMinor > 0 ? "positive" : s.contributionAfterMarketplaceFeesMinor < 0 ? "attention" : "default" },
       { label: "Historical cost coverage", value: pct(s.costCoveragePct), hint: `${s.costCoveredLines}/${s.recognizedLines} realised lines` }
     ]} />
 
@@ -54,7 +59,7 @@ export default async function AdminProfitabilityPage({ searchParams }: PageProps
         { label: "Approved offers", value: c.offers },
         { label: "Cost coverage", value: pct(c.coveragePct), hint: `${c.costCoveredOffers} offers with buying cost` },
         { label: "Missing buying cost", value: c.missingCostOffers, tone: c.missingCostOffers ? "attention" : "positive" },
-        { label: "Negative / thin margin", value: `${c.negativeMarginOffers} / ${c.thinMarginOffers}`, tone: c.negativeMarginOffers ? "danger" : c.thinMarginOffers ? "attention" : "positive" }
+        { label: "Negative / thin margin", value: `${c.negativeMarginOffers} / ${c.thinMarginOffers}`, tone: c.negativeMarginOffers || c.thinMarginOffers ? "attention" : "positive" }
       ]} />
       <WorkspaceRecordDetails label="Highest-priority pricing risks" open>
         <div className="workspace-compact-list">
