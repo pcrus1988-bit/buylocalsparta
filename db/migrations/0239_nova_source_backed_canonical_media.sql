@@ -4,6 +4,7 @@
 -- sort_order=0 is the supplier's first image (_1 / position 0), followed by _2, _3, ...
 
 ALTER TABLE product_media
+  ALTER COLUMN object_key DROP NOT NULL,
   ADD COLUMN IF NOT EXISTS source_id uuid REFERENCES catalog_sources(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS source_url text;
 
@@ -112,14 +113,7 @@ INSERT INTO product_media(
   created_at,
   original_filename,
   content_type,
-  byte_size,
-  sha256,
   scan_status,
-  storage_verified_at,
-  scan_attempts,
-  next_scan_at,
-  last_scan_error,
-  quarantined_at,
   reviewed_at,
   source_id,
   source_url
@@ -139,14 +133,7 @@ SELECT
   now(),
   left('nova:' || source_product_id::text || ':' || canonical_sort_order::text || ':' || basename, 255),
   content_type,
-  NULL,
-  NULL,
   'clean',
-  NULL,
-  0,
-  now(),
-  NULL,
-  NULL,
   now(),
   source_id,
   source_url
@@ -156,6 +143,7 @@ ON CONFLICT (canonical_variant_id, vendor_id, source_id, source_url)
 DO UPDATE SET
   sort_order=EXCLUDED.sort_order,
   alt_text=EXCLUDED.alt_text,
+  original_filename=EXCLUDED.original_filename,
   rights_owner=EXCLUDED.rights_owner,
   rights_status='approved',
   moderation_status='approved',
