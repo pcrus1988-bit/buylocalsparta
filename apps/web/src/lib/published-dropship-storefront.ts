@@ -43,7 +43,8 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
 }
 
 /**
- * Public browsing projection for explicitly published dropshipping offers.
+ * Public browsing projection for explicitly published NORMAL-channel dropshipping offers.
+ * BAZAAR inventory is intentionally excluded at SQL level and has its own discovery surface.
  *
  * Supplier variants remain independent canonical variants/offers for stock, price
  * and checkout. Browsing first evaluates category/search/facet policy per child,
@@ -96,6 +97,7 @@ export async function getPublishedDropshipCatalogCards(
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     WHERE m.code='sparta'
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
