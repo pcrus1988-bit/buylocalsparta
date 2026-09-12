@@ -81,6 +81,6 @@ export function AdminWorkspaceHeaderClient({ csrfToken, groups, entityLabel }: {
       </div>
       <AdminContextNavigation groups={groups} />
     </div>
-    <AdminCatalogueSuiteNavigation />
+    <AdminCatalogueSuiteNavigation availableRoutes={availableRoutes} />
   </>;
 }
