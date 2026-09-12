@@ -6,15 +6,18 @@ const actionsUrl = new URL("../src/lib/vendor-dropshipping-actions.ts", import.m
 const bulkApplyUrl = new URL("../src/lib/vendor-dropshipping-bulk-apply.ts", import.meta.url);
 const visibilityRouteUrl = new URL("../src/app/api/vendor/catalog/visibility/route.ts", import.meta.url);
 
-test("dedicated dropshipping vendor can self-approve safe supplier drafts", async () => {
+test("dedicated dropshipping vendor can activate and self-approve safe supplier drafts", async () => {
   const source = await readFile(actionsUrl, "utf8");
 
   assert.match(source, /status === "draft" \|\| status === "approved"/);
+  assert.match(source, /UPDATE dropship_supplier_offers/);
+  assert.match(source, /SET active=true/);
   assert.match(source, /WHEN \$3::boolean AND status='draft' THEN 'approved'::public\.offer_status/);
   assert.match(source, /vo\.status IN \('draft','approved'\)/);
   assert.match(source, /latest_submission_status === "archived"/);
   assert.match(source, /canonical_suppressed/);
   assert.match(source, /canonical_recalled/);
+  assert.doesNotMatch(source, /supplier_offer_active !== true/);
 });
 
 test("product visibility route uses the dropshipping self-publish path only for the dropshipping vendor", async () => {
@@ -25,9 +28,11 @@ test("product visibility route uses the dropshipping self-publish path only for 
   assert.match(source, /setVendorProductVisibility\(principal, \{ offerId, visible: body\.visible \}\)/);
 });
 
-test("public supplier defaults may promote safe draft imports while moderation gates remain enforced", async () => {
+test("public supplier defaults activate safe supplier rows and promote drafts while moderation gates remain enforced", async () => {
   const source = await readFile(bulkApplyUrl, "utf8");
 
+  assert.match(source, /UPDATE dropship_supplier_offers dso/);
+  assert.match(source, /SET active=true/);
   assert.match(source, /vo\.status='draft'/);
   assert.match(source, /THEN 'approved'::public\.offer_status/);
   assert.match(source, /vo\.status NOT IN \('draft','approved'\)/);
