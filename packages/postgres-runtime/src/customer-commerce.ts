@@ -176,6 +176,7 @@ export class PostgresCustomerCommerceService {
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE (m.code=$1 OR m.id::text=$1)
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
         AND (
           NOT EXISTS (SELECT 1 FROM vendor_offers any_vo WHERE any_vo.canonical_variant_id=cv.id)
@@ -254,6 +255,7 @@ export class PostgresCustomerCommerceService {
                  WHERE vo.canonical_variant_id=cv.id AND vo.status='approved' AND v.status='active' AND l.active=true
                    AND vo.merchant_visible=true AND vo.merchant_pause_active=false
                    AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+                   AND COALESCE(cv.commerce_channel,'normal')='normal'
                    AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
                    AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=ci.quantity
                    AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds) > now()
@@ -261,7 +263,9 @@ export class PostgresCustomerCommerceService {
         FROM cart_items ci JOIN canonical_variants cv ON cv.id=ci.canonical_variant_id
         LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-        WHERE ci.cart_id=$1 ORDER BY ci.created_at,ci.public_id
+        WHERE ci.cart_id=$1
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
+        ORDER BY ci.created_at,ci.public_id
       `, [cartUuid]);
       return {
         id: text(cart.rows[0].public_id, "cart.public_id"), customerId, marketId,
@@ -660,6 +664,7 @@ export class PostgresCustomerCommerceService {
         LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         WHERE vo.vendor_id=$1 AND vo.status='approved' AND l.active=true AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
           AND vo.merchant_visible=true AND vo.merchant_pause_active=false
           AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
           AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds) > $2
@@ -678,6 +683,7 @@ export class PostgresCustomerCommerceService {
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE (cv.public_id=$1 OR cv.id::text=$1) AND (m.code=$2 OR m.id::text=$2)
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
         AND (
           NOT EXISTS (SELECT 1 FROM vendor_offers any_vo WHERE any_vo.canonical_variant_id=cv.id)
@@ -722,6 +728,7 @@ export class PostgresCustomerCommerceService {
           AND fo.status=ANY($5::fulfilment_status[]) AND co.status <> 'pending_payment'
       ) load ON true
       WHERE vo.canonical_variant_id=$1 AND vo.status='approved' AND v.status='active' AND l.active=true
+        AND COALESCE(offer_cv.commerce_channel,'normal')='normal'
         AND vo.merchant_visible=true AND vo.merchant_pause_active=false
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,offer_cv.category_id)
         AND $2=ANY(vo.fulfilment_modes)
@@ -754,7 +761,6 @@ export class PostgresCustomerCommerceService {
       return stickyOffer;
     }
 
-    // Exactly one fairness ticket per vendor: freshest/best stable offer represents each vendor.
     const representatives = new Map<string, OfferRow>();
     for (const offer of input.offers) {
       const vendor = text(offer.vendor_uuid, "vendor_uuid");
