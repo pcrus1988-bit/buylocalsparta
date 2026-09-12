@@ -3,11 +3,12 @@
 -- between the normal and BAZAAR commerce channels when supplier condition changes.
 --
 -- The materializer treats (supplier_id, external_variant_id) as the live supplier
--- identity. If a newer catalogue snapshot classifies that identity into a different
--- commerce channel, the historical supplier offer is retained under a retired key,
--- deactivated, and its old vendor offer is hidden/paused. The next materialization
--- pass is then free to create/reuse a canonical strictly inside the new channel.
--- No historical supplier-offer row is deleted because fulfilment lines may reference it.
+-- identity. If a newer immutable catalogue snapshot classifies that identity into a
+-- different commerce channel, the historical supplier offer is retained under a
+-- retired key, deactivated, and its old vendor offer is hidden/paused. The next
+-- materialization pass is then free to create/reuse a canonical strictly inside the
+-- new channel. No historical supplier-offer row is deleted because fulfilment lines
+-- may reference it.
 
 CREATE OR REPLACE FUNCTION bls_private.catalog_nova_condition_label(payload jsonb)
 RETURNS text
@@ -148,11 +149,13 @@ $$;
 DROP TRIGGER IF EXISTS catalog_nova_channel_transition_guard
   ON public.catalog_source_products;
 
+-- Supplier catalogue evidence is append-only. The guard therefore observes only
+-- newly appended evidence; it never attempts to mutate historical source rows.
 CREATE TRIGGER catalog_nova_channel_transition_guard
-AFTER INSERT OR UPDATE OF normalized_payload
+AFTER INSERT
 ON public.catalog_source_products
 FOR EACH ROW
 EXECUTE FUNCTION bls_private.catalog_nova_retire_channel_transition();
 
 COMMENT ON FUNCTION bls_private.catalog_nova_retire_channel_transition() IS
-  'Fail-closed NOVA condition transition guard. Retires the old supplier identity and hides its vendor offer when a SKU crosses normal/BAZAAR channel boundaries, preserving fulfilment history and allowing the materializer to recreate the live identity in the target channel.';
+  'Fail-closed NOVA condition transition guard. On newly appended immutable supplier evidence, retires the old supplier identity and hides its vendor offer when a SKU crosses normal/BAZAAR channel boundaries, preserving fulfilment history and allowing the materializer to recreate the live identity in the target channel.';
