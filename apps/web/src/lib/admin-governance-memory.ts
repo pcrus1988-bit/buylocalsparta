@@ -64,7 +64,7 @@ function createGovernanceRuntime() {
         available,
         pickupToday: approved.some((submission) => submission.fulfilmentModes.includes("pickup") && submission.stockOnHand - submission.safetyStock > 0),
         adviceAvailable: canonical.adviceAvailable ?? false,
-        priceMinor: canonical.platformPrice.minor,
+        priceMinor: canonical.platformPrice?.minor,
         attributes: canonical.identity.attributes,
         metadata: { indexedAt: now }
       };
@@ -86,7 +86,7 @@ function createGovernanceRuntime() {
       available: approved.some((submission) => submission.stockOnHand - submission.safetyStock > 0),
       pickupToday: approved.some((submission) => submission.fulfilmentModes.includes("pickup") && submission.stockOnHand - submission.safetyStock > 0),
       adviceAvailable: canonical.adviceAvailable ?? false,
-      priceMinor: canonical.platformPrice.minor,
+      priceMinor: canonical.platformPrice?.minor,
       attributes: canonical.identity.attributes
     });
   }
