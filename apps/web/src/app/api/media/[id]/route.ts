@@ -2,7 +2,9 @@ import { readApprovedPublicMedia } from "../../../../lib/public-media-service";
 
 type Context = { params: Promise<{ id: string }> };
 
-const PUBLIC_MEDIA_CACHE = "public, max-age=300, s-maxage=3600, stale-while-revalidate=3600";
+// Cache enough to remove repeated DB/object-storage reads from product grids while
+// keeping rights/moderation revocations reasonably quick to propagate.
+const PUBLIC_MEDIA_CACHE = "public, max-age=60, s-maxage=300, stale-while-revalidate=300";
 
 export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
