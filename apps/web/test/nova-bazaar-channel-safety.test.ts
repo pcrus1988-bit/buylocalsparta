@@ -5,6 +5,7 @@ import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 
 const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
 const transitionMigrationUrl = new URL("../../../db/migrations/0237_bazaar_condition_transition_guard.sql", import.meta.url);
+const existingClassificationMigrationUrl = new URL("../../../db/migrations/0238_bazaar_existing_nova_classification.sql", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
   assert.deepEqual(classifyNovaSupplierCondition({ condition: "New" }), {
@@ -34,4 +35,13 @@ test("NOVA transitions preserve history and fail closed during rolling deploymen
   assert.match(source, /catalog_nova_supplier_offer_channel_guard/);
   assert.match(source, /BEFORE INSERT OR UPDATE OF supplier_id, vendor_offer_id, source_product_id/);
   assert.match(source, /ERRCODE = '23514'/);
+});
+
+test("existing NOVA second-life canonicals move only when their source evidence is channel-pure", async () => {
+  const source = await readFile(existingClassificationMigrationUrl, "utf8");
+  assert.match(source, /has_bazaar AND has_normal/);
+  assert.match(source, /BAZAAR backfill blocked/);
+  assert.match(source, /SET commerce_channel = 'bazaar'/);
+  assert.match(source, /supplier_preowned_defect/);
+  assert.match(source, /supplier_preloved/);
 });
