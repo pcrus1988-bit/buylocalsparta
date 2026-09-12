@@ -4,6 +4,7 @@ import { matchesCatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { CatalogCard, CatalogFilters } from "./catalog-view";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { loadCatalogDepartmentCodes } from "./catalog-category-department";
+import { parseDropshipPresentationConfig, resolveDropshipPublicFields } from "./dropship-presentation-policy";
 import { approvedCatalogImages } from "./public-media-service";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
@@ -11,6 +12,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 type PublishedDropshipRow = Readonly<{
   canonical_public_id: string;
+  offer_public_id: string;
   slug: string;
   title: string;
   category_code: string;
@@ -18,6 +20,7 @@ type PublishedDropshipRow = Readonly<{
   cached_quantity: number | string | null;
   vendor_public_id: string;
   vendor_name: string;
+  vendor_presentation: unknown;
 }>;
 
 function safeMinor(value: unknown): number | undefined {
@@ -42,6 +45,10 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
  * browsing evidence. It is not a checkout/reservation authority and it must never
  * be copied into `inventory_balances`. Checkout still has to revalidate the exact
  * supplier variant against the supplier API before an order can be authorised.
+ *
+ * Supplier/product public-field policy is resolved inside this projection before
+ * metadata is searched or returned. This prevents the browsing/search path from
+ * re-exposing GTIN/MPN/technical metadata hidden through the vendor controls.
  */
 export async function getPublishedDropshipCatalogCards(
   query = "",
@@ -55,13 +62,15 @@ export async function getPublishedDropshipCatalogCards(
   const result = await getProductionPostgresRuntime().nativePool.query<PublishedDropshipRow>(`
     SELECT DISTINCT ON (cv.id)
       cv.public_id AS canonical_public_id,
+      vo.public_id AS offer_public_id,
       cv.slug,
       COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
       c.code AS category_code,
       vo.customer_price_minor,
       dso.cached_quantity,
       v.public_id AS vendor_public_id,
-      v.trading_name AS vendor_name
+      v.trading_name AS vendor_name,
+      ds.configuration->'vendorPresentation' AS vendor_presentation
     FROM vendor_offers vo
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     JOIN markets m ON m.id=cv.market_id
@@ -95,6 +104,10 @@ export async function getPublishedDropshipCatalogCards(
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
     if (!priceMinor || !isPublicCatalogueTitle(row.title)) return [];
+    const presentation = resolveDropshipPublicFields(
+      parseDropshipPresentationConfig(row.vendor_presentation),
+      row.offer_public_id
+    );
     return [{
       id: row.canonical_public_id,
       slug: row.slug,
@@ -104,7 +117,8 @@ export async function getPublishedDropshipCatalogCards(
       available: true,
       availableToSell: safeQuantity(row.cached_quantity),
       vendorId: row.vendor_public_id,
-      vendorName: row.vendor_name
+      vendorName: row.vendor_name,
+      publicFields: presentation.fields
     }];
   });
   if (!base.length) return [];
@@ -122,20 +136,23 @@ export async function getPublishedDropshipCatalogCards(
       if (!sameFilterValue(details?.brand, filters.brand)) return false;
       if (!sameFilterValue(details?.color, filters.color)) return false;
       if (filters.size && !(details?.sizes ?? []).some((size) => sameFilterValue(size, filters.size))) return false;
-      if (!matchesCatalogAttributeFilters(details?.attributes, attributeFilters)) return false;
+      if (Object.keys(attributeFilters).length > 0) {
+        if (record.publicFields.technicalAttributes === false) return false;
+        if (!matchesCatalogAttributeFilters(details?.attributes, attributeFilters)) return false;
+      }
       if (!normalizedQuery) return true;
       return searchTextRelevance(normalizedQuery, [
         record.title,
         details?.description,
         details?.brand,
         details?.color,
-        details?.mpn,
-        details?.gtin,
+        record.publicFields.mpn === false ? undefined : details?.mpn,
+        record.publicFields.gtin === false ? undefined : details?.gtin,
         details?.categoryLabel,
         ...(details?.sizes ?? []),
-        details?.fit,
-        details?.composition,
-        details?.madeIn
+        record.publicFields.technicalAttributes === false ? undefined : details?.fit,
+        record.publicFields.technicalAttributes === false ? undefined : details?.composition,
+        record.publicFields.technicalAttributes === false ? undefined : details?.madeIn
       ]) > 0;
     });
 
@@ -157,19 +174,21 @@ export async function getPublishedDropshipCatalogCards(
   return visible.map((record) => {
     const details = metadata.get(record.id);
     const image = imageByCanonical.get(record.id);
+    const { publicFields, ...catalogRecord } = record;
+    const technicalAttributesVisible = publicFields.technicalAttributes !== false;
     return {
-      ...record,
+      ...catalogRecord,
       price: formatMoney(money(record.priceMinor)),
       categoryLabel: details?.categoryLabel,
-      gtin: details?.gtin,
-      mpn: details?.mpn,
+      gtin: publicFields.gtin === false ? undefined : details?.gtin,
+      mpn: publicFields.mpn === false ? undefined : details?.mpn,
       description: details?.description,
       brand: details?.brand,
       color: details?.color,
       sizes: details?.sizes ?? [],
-      fit: details?.fit,
-      composition: details?.composition,
-      madeIn: details?.madeIn,
+      fit: technicalAttributesVisible ? details?.fit : undefined,
+      composition: technicalAttributesVisible ? details?.composition : undefined,
+      madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText
     } satisfies CatalogCard;
