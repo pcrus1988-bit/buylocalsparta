@@ -4,7 +4,8 @@ type Context = { params: Promise<{ id: string }> };
 
 // Cache enough to remove repeated DB/object-storage reads from product grids while
 // keeping rights/moderation revocations reasonably quick to propagate.
-const PUBLIC_MEDIA_CACHE = "public, max-age=60, s-maxage=300, stale-while-revalidate=300";
+const PUBLIC_MEDIA_BROWSER_CACHE = "public, max-age=60";
+const PUBLIC_MEDIA_CDN_CACHE = "max-age=300, stale-while-revalidate=300";
 
 export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
@@ -17,7 +18,9 @@ export async function GET(_request: Request, context: Context) {
     return new Response(toWebStream(media.stream), {
       status: 200,
       headers: {
-        "Cache-Control": PUBLIC_MEDIA_CACHE,
+        "Cache-Control": PUBLIC_MEDIA_BROWSER_CACHE,
+        "CDN-Cache-Control": PUBLIC_MEDIA_CDN_CACHE,
+        "Vercel-CDN-Cache-Control": PUBLIC_MEDIA_CDN_CACHE,
         "Content-Type": media.contentType,
         "Content-Length": String(media.byteSize),
         "Content-Disposition": "inline",
