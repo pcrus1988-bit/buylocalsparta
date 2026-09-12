@@ -2,6 +2,7 @@ import { buildVendorOperatingContextFromSession } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { DropshippingFilteredPageBulkActions } from "../../../components/DropshippingFilteredPageBulkActions";
 import { DropshippingProductControls } from "../../../components/DropshippingProductControls";
 import { DropshippingSupplierDefaultsControls } from "../../../components/DropshippingSupplierDefaultsControls";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
@@ -217,6 +218,13 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}><button className="button" type="submit">Εφαρμογή φίλτρων</button>{filterCount ? <Link className="button button-secondary" href={clearFiltersHref}>Καθαρισμός φίλτρων</Link> : null}</div>
         </details>
       </form>
+
+      <DropshippingFilteredPageBulkActions
+        offerIds={workspace.products.map((product) => product.offerId)}
+        resultCount={workspace.totalProducts}
+        page={workspace.page}
+        activeFilterCount={filterCount}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
         {workspace.products.map((product) => {
