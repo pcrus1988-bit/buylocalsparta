@@ -1,3 +1,4 @@
+import { buildVendorOperatingContextFromSession } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -22,6 +23,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
   if (!await isDropshippingOnlyVendor(principal.vendorId)) redirect("/vendor");
+  const operatingContext = buildVendorOperatingContextFromSession(principal);
 
   const queryParams = await searchParams;
   const supplierCode = first(queryParams.supplier).trim().slice(0, 80) || null;
@@ -31,7 +33,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
   const [workspace, analytics] = await Promise.all([
     vendorDropshippingWorkspace(principal.vendorId ?? "", { supplierCode, query, page, pageSize: 50 }),
-    vendorProductAnalytics(principal.vendorId ?? "", { periodDays: 30 })
+    vendorProductAnalytics(operatingContext, { periodDays: 30 })
   ]);
 
   const totalSupplierProducts = workspace.suppliers.reduce((sum, supplier) => sum + supplier.totalProducts, 0);

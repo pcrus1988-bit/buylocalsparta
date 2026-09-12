@@ -1,3 +1,4 @@
+import { buildVendorOperatingContextFromSession } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -20,11 +21,12 @@ function euro(minor: number): string {
 export default async function VendorBackofficePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
+  const operatingContext = buildVendorOperatingContextFromSession(principal);
 
   const [dashboard, catalog, analytics, orderNotifications] = await Promise.all([
     vendorDashboard(principal),
     vendorCatalogControlWorkspace(principal),
-    vendorProductAnalytics(principal.vendorId ?? "", { periodDays: 30 }),
+    vendorProductAnalytics(operatingContext, { periodDays: 30 }),
     vendorOrderNotificationWorkspace(principal)
   ]);
 
