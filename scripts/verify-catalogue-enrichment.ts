@@ -39,7 +39,15 @@ if (!worker.includes("enrichmentGenerationConfigured") || !worker.includes("cata
   throw new Error("NOVA worker must keep catalogue enrichment explicitly gated and failure-isolated");
 }
 
-for (const marker of ["assertAdminPermission(principal, \"catalog.write\")","validateLuxuryCatalogueDraft","recordAdminAudit","generation_candidate","status='needs_review'","status='pending'"]) {
+for (const marker of [
+  "assertAdminPermission(principal, \"catalog.write\")",
+  "validateLuxuryCatalogueDraft",
+  "recordAdminAudit",
+  "generation_candidate",
+  "'needs_review'",
+  "'pending'",
+  "enrichment_version+1"
+]) {
   if (!adminRuntime.includes(marker)) throw new Error(`Admin enrichment QA safety marker missing: ${marker}`);
 }
 if (!adminPage.includes("There is no approve-anyway action") || !adminPage.includes("Validate &amp; save")) {
