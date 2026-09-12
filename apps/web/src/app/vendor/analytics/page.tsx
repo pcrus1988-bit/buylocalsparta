@@ -1,3 +1,4 @@
+import { buildVendorOperatingContextFromSession } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
@@ -26,6 +27,7 @@ function duration(seconds: number): string {
 export default async function VendorAnalyticsPage({ searchParams }: { searchParams: SearchParams }) {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
+  const operatingContext = buildVendorOperatingContextFromSession(principal);
   const query = await searchParams;
   const requestedPeriod = first(query.period);
   const periodKey = PERIOD_KEYS.has(requestedPeriod) ? requestedPeriod : "30";
@@ -37,7 +39,7 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
 
   const [legacy, commerce] = await Promise.all([
     vendorAnalyticsWorkspace(principal),
-    vendorProductAnalytics(principal.vendorId ?? "", { periodDays, fromDate, toDate, categoryId, productId })
+    vendorProductAnalytics(operatingContext, { periodDays, fromDate, toDate, categoryId, productId })
   ]);
   const t = commerce.totals;
   const selectedCategory = commerce.categories.find((entry) => entry.id === categoryId)?.label;

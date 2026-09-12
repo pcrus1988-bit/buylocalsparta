@@ -1,3 +1,4 @@
+import { assertVendorCapability, buildVendorOperatingContext, type VendorOperatingContext } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type VendorAnalyticsFilters = Readonly<{
@@ -72,7 +73,13 @@ function totalRows(rows: readonly VendorProductAnalyticsRow[]): VendorProductAna
   }), result);
 }
 
-export async function vendorProductAnalytics(vendorIdentity: string, filters: VendorAnalyticsFilters = {}): Promise<VendorProductAnalyticsReport> {
+export async function vendorProductAnalytics(contextOrVendorIdentity: VendorOperatingContext | string, filters: VendorAnalyticsFilters = {}): Promise<VendorProductAnalyticsReport> {
+  // Raw identity support keeps existing MANAGED dashboard consumers backwards-compatible while
+  // callers migrate to the explicit operating context. SELF_GOVERNED callers must pass context.
+  const context = typeof contextOrVendorIdentity === "string"
+    ? buildVendorOperatingContext({ vendorId: contextOrVendorIdentity })
+    : contextOrVendorIdentity;
+  assertVendorCapability(context, "analytics.read");
   if (!productionDatabaseConfigured()) return { rows: [], products: [], categories: [], totals: emptyTotals() };
   const pool = getProductionPostgresRuntime().nativePool;
   const vendor = await pool.query(`
@@ -80,7 +87,7 @@ export async function vendorProductAnalytics(vendorIdentity: string, filters: Ve
     FROM vendor_businesses
     WHERE public_id=$1 OR id::text=$1
     LIMIT 1
-  `, [vendorIdentity]);
+  `, [context.vendorId]);
   if (!vendor.rowCount) return { rows: [], products: [], categories: [], totals: emptyTotals() };
   const vendorId = vendor.rows[0].id as string;
 
