@@ -125,6 +125,8 @@ export async function resetDropshippingProductToSupplierDefaults(
          SET customer_price_minor=$2::bigint,
              show_msrp=$3::boolean,
              merchant_visible=$4::boolean,
+             merchant_visibility_updated_by=NULL,
+             merchant_visibility_updated_at=NULL,
              updated_at=now()
        WHERE id=$1::uuid
          AND vendor_id=$5::uuid
