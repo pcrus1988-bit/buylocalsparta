@@ -116,6 +116,8 @@ export async function prepareNovaCatalogueEnrichment(input: PrepareCatalogueEnri
  * Backfill and refresh the enrichment foundation from the latest immutable NOVA
  * source evidence. Rows are selected when supplier evidence changed, or when a
  * previously staged enrichment can now be attached to its governed family.
+ * Governed/materialized product families are deliberately processed first so
+ * customer-facing catalogue work is not starved by the much larger raw feed.
  * This is preparation only: no model/API call is made and no public copy changes.
  */
 export async function runNovaEnrichmentPreparationSlice(): Promise<NovaEnrichmentPreparationSliceResult> {
@@ -144,17 +146,17 @@ export async function runNovaEnrichmentPreparationSlice(): Promise<NovaEnrichmen
     LEFT JOIN public.catalogue_enrichments ce
       ON ce.supplier_id=ds.id
      AND ce.external_product_id=latest.source_product_key
+    LEFT JOIN LATERAL (
+      SELECT pf.id
+      FROM public.product_families pf
+      WHERE pf.source_supplier_id=ds.id
+        AND pf.source_external_product_id=latest.source_product_key
+      ORDER BY pf.created_at,pf.id
+      LIMIT 1
+    ) governed_family ON true
     WHERE ce.source_product_id IS DISTINCT FROM latest.id
-       OR (
-         ce.family_id IS NULL
-         AND EXISTS (
-           SELECT 1
-           FROM public.product_families pf
-           WHERE pf.source_supplier_id=ds.id
-             AND pf.source_external_product_id=latest.source_product_key
-         )
-       )
-    ORDER BY latest.source_product_key
+       OR (ce.family_id IS NULL AND governed_family.id IS NOT NULL)
+    ORDER BY (governed_family.id IS NOT NULL) DESC,latest.source_product_key
     LIMIT $3
   `,[NOVA_SOURCE_CODE,NOVA_SUPPLIER_CODE,preparationBatchSize()]);
 
