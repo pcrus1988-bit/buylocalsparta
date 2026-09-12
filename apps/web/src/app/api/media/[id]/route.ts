@@ -2,6 +2,8 @@ import { readApprovedPublicMedia } from "../../../../lib/public-media-service";
 
 type Context = { params: Promise<{ id: string }> };
 
+const PUBLIC_MEDIA_CACHE = "public, max-age=300, s-maxage=3600, stale-while-revalidate=3600";
+
 export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
   if (!/^media_[A-Za-z0-9_-]{8,128}$/.test(id)) return new Response(null, { status: 404, headers: noStoreHeaders() });
@@ -13,7 +15,7 @@ export async function GET(_request: Request, context: Context) {
     return new Response(toWebStream(media.stream), {
       status: 200,
       headers: {
-        ...noStoreHeaders(),
+        "Cache-Control": PUBLIC_MEDIA_CACHE,
         "Content-Type": media.contentType,
         "Content-Length": String(media.byteSize),
         "Content-Disposition": "inline",
