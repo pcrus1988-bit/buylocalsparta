@@ -65,7 +65,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
           : await fetch("/api/vendor/catalog/visibility", {
               method: "PUT",
               headers: { "content-type": "application/json", "x-csrf-token": token },
-              body: JSON.stringify({ scope: "product", offerId, visible: action === "publish" })
+              body: JSON.stringify({ scope: "product", offerId, visible: action === "publish", minimalResponse: true })
             });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({})) as { error?: string };
