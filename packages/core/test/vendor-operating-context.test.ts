@@ -1,13 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_MANAGED_HUB_ID,
   DEFAULT_MANAGED_MARKET_ID,
   PLATFORM_GOVERNANCE_BOUNDARIES,
   assertVendorCapability,
   assertVendorResourceScope,
   buildVendorOperatingContext,
   buildVendorOperatingContextFromSession,
-  hasVendorCapability
+  hasVendorCapability,
+  vendorOperatingAssignmentFromPersistedScope
 } from "../src/index.ts";
 
 test("Sparta-compatible vendor context defaults to MANAGED without changing current scope", () => {
@@ -19,6 +21,50 @@ test("Sparta-compatible vendor context defaults to MANAGED without changing curr
   assert.equal(hasVendorCapability(context, "orders.manage"), true);
   assert.equal(hasVendorCapability(context, "shop.manage"), false);
   assert.equal(hasVendorCapability(context, "catalogue.import"), false);
+});
+
+test("persisted Sparta scope remains MANAGED with legacy hub and primary location", () => {
+  const assignment = vendorOperatingAssignmentFromPersistedScope({
+    marketId: "sparta",
+    hubId: DEFAULT_MANAGED_HUB_ID,
+    locationId: "location_sparta_center"
+  });
+  assert.deepEqual(assignment, {
+    marketId: "sparta",
+    hubId: DEFAULT_MANAGED_HUB_ID,
+    locationId: "location_sparta_center",
+    operatingModel: "MANAGED"
+  });
+});
+
+test("persisted Sparta scope keeps backwards-compatible MANAGED fallback without hub mapping", () => {
+  const assignment = vendorOperatingAssignmentFromPersistedScope({ marketId: "sparta" });
+  assert.deepEqual(assignment, { marketId: "sparta", operatingModel: "MANAGED" });
+});
+
+test("persisted non-Sparta hub scope becomes SELF_GOVERNED", () => {
+  const assignment = vendorOperatingAssignmentFromPersistedScope({
+    marketId: "tripoli",
+    hubId: "KM-HUB-031",
+    locationId: "location_tripoli_center"
+  });
+  assert.deepEqual(assignment, {
+    marketId: "tripoli",
+    hubId: "KM-HUB-031",
+    locationId: "location_tripoli_center",
+    operatingModel: "SELF_GOVERNED"
+  });
+});
+
+test("persisted expansion scope fails closed without a hub or with Sparta legacy hub", () => {
+  assert.throws(
+    () => vendorOperatingAssignmentFromPersistedScope({ marketId: "tripoli" }),
+    /hubId is required for expansion vendor operating context/
+  );
+  assert.throws(
+    () => vendorOperatingAssignmentFromPersistedScope({ marketId: "tripoli", hubId: DEFAULT_MANAGED_HUB_ID }),
+    /Sparta legacy hub cannot be assigned to an expansion market/
+  );
 });
 
 test("SELF_GOVERNED expansion vendor gains own-shop operations but never platform governance", () => {
