@@ -1,6 +1,8 @@
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
 import { sendTransactionalEmailBestEffort } from "./transactional-email";
 
+const APPLICATION_OPERATIONS_EMAIL = "info@kontamou.site";
+
 function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const explicit = env.BLS_PUBLIC_BASE_URL?.trim() || env.NEXT_PUBLIC_SITE_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
@@ -105,10 +107,8 @@ export async function notifyOperationsOfVendorApplication(input: {
   contactEmail: string;
   requestedPlanCode: string;
 }) {
-  const to = process.env.BLS_OPERATIONS_EMAIL?.trim();
-  if (!to) return { sent: false as const };
   return sendTransactionalEmailBestEffort({
-    to,
+    to: APPLICATION_OPERATIONS_EMAIL,
     subject: `Νέα αίτηση vendor · ${input.tradingName}`,
     text: [
       "Νέα αίτηση συνεργασίας καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ Sparta.",
@@ -119,11 +119,45 @@ export async function notifyOperationsOfVendorApplication(input: {
       `Πλάνο: ${input.requestedPlanCode}`,
       `Application ID: ${input.applicationId}`,
       "",
-      `Admin queue: ${publicBaseUrl()}/admin/vendors`
+      `Admin queue: ${publicBaseUrl()}/admin/applications`
     ].join("\n"),
     eventType: "admin.vendor_application_received",
     idempotencyKey: `admin-vendor-application:${input.applicationId}`,
     payload: { applicationId: input.applicationId }
+  });
+}
+
+export async function notifyOperationsOfHubProspectApplication(input: {
+  reference: string;
+  businessName: string;
+  contactName: string;
+  contactEmail: string;
+  phone: string;
+  hubName: string;
+  hubSlug: string;
+  planCode: string;
+  billingCycle: string;
+}) {
+  return sendTransactionalEmailBestEffort({
+    to: APPLICATION_OPERATIONS_EMAIL,
+    subject: `Νέα αίτηση HUB · ${input.businessName}`,
+    text: [
+      "Νέα αίτηση επέκτασης HUB καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ.",
+      "",
+      `Κατάστημα: ${input.businessName}`,
+      `Υπεύθυνος: ${input.contactName}`,
+      `Email: ${input.contactEmail}`,
+      `Τηλέφωνο: ${input.phone}`,
+      `HUB: ${input.hubName} (${input.hubSlug})`,
+      `Πλάνο: ${input.planCode}`,
+      `Χρέωση: ${input.billingCycle}`,
+      `Application ID: ${input.reference}`,
+      "",
+      `Admin queue: ${publicBaseUrl()}/admin/applications`
+    ].join("\n"),
+    eventType: "admin.hub_prospect_application_received",
+    idempotencyKey: `admin-hub-prospect-application:${input.reference}`,
+    payload: { applicationId: input.reference, hubSlug: input.hubSlug }
   });
 }
 
