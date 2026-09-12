@@ -4,7 +4,7 @@ import { previewOrCommitVendorCsv } from "../../../../../lib/vendor-backoffice-s
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const principal = await requireVendorSession(request,true);
     if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("CSV catalogue import is disabled for the dropshipping-only vendor");
     const body = await request.json() as { csv?: unknown; confirm?: unknown };
     if (typeof body.csv !== "string") throw new Error("CSV content is required");
