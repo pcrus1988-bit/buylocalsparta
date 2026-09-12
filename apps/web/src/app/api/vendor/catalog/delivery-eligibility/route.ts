@@ -1,5 +1,9 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
-import { setVendorProductDeliveryEligibility, vendorProductDeliverySettings } from "../../../../../lib/vendor-delivery-eligibility-service";
+import {
+  setVendorProductFulfilmentBulk,
+  setVendorProductFulfilmentPreference,
+  vendorProductDeliverySettings
+} from "../../../../../lib/vendor-delivery-eligibility-service";
 
 export async function GET(request: Request) {
   try {
@@ -15,14 +19,41 @@ export async function PUT(request: Request) {
     const principal = await requireVendorSession(request, true);
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId : "";
-    if (typeof body.deliveryEligible !== "boolean") throw new Error("Η επιλογή παράδοσης δεν είναι έγκυρη.");
-    const result = await setVendorProductDeliveryEligibility(principal, {
+    if (typeof body.deliveryEligible !== "boolean") {
+      throw new Error("Η επιλογή παράδοσης δεν είναι έγκυρη.");
+    }
+    // Backward compatibility: older vendor surfaces only sent deliveryEligible and
+    // historically implied pickup=true. New catalogue UI always sends both fields.
+    const pickupEligible = typeof body.pickupEligible === "boolean" ? body.pickupEligible : true;
+    const result = await setVendorProductFulfilmentPreference(principal, {
       offerId,
       deliveryEligible: body.deliveryEligible,
+      pickupEligible,
       source: "products"
     });
     return Response.json(result);
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_delivery_update_failed" }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const principal = await requireVendorSession(request, true);
+    const body = await request.json() as Record<string, unknown>;
+    if (typeof body.deliveryEligible !== "boolean" || typeof body.pickupEligible !== "boolean") {
+      throw new Error("Οι επιλογές παράδοσης και παραλαβής δεν είναι έγκυρες.");
+    }
+    const offerIds = Array.isArray(body.offerIds) ? body.offerIds.filter((value): value is string => typeof value === "string") : undefined;
+    const result = await setVendorProductFulfilmentBulk(principal, {
+      offerIds,
+      applyToAll: body.applyToAll === true,
+      deliveryEligible: body.deliveryEligible,
+      pickupEligible: body.pickupEligible,
+      source: "products"
+    });
+    return Response.json(result);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "catalog_delivery_bulk_update_failed" }, { status: 400 });
   }
 }

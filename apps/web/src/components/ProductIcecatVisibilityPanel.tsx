@@ -16,49 +16,38 @@ export function VendorProductIcecatVisibilityPanel({ records }: Readonly<{ recor
   return <section className="vendor-section section-tint" id="product-data-icecat">
     <div className="shell">
       <WorkspaceSectionHeading
-        eyebrow="Δεδομένα προϊόντων · Icecat"
-        title="Τι γνωρίζει το ΚΟΝΤΑ ΜΟΥ για κάθε προϊόν"
-        note="Εδώ φαίνεται αν υπάρχει συνδεδεμένο Open Icecat evidence, σε ποια κατάσταση βρίσκεται ο εμπλουτισμός και ποια κοινά στοιχεία προϊόντος προέρχονται από Icecat. Η προβολή είναι μόνο για το δικό σου catalogue."
+        eyebrow="Στοιχεία προϊόντων"
+        title="Icecat & εμπλουτισμός περιεχομένου"
+        note="Δευτερεύουσα πληροφορία για τίτλους, περιγραφές, χαρακτηριστικά και εικόνες. Δεν επηρεάζει τιμή, stock ή τους τρόπους παράδοσης του προϊόντος."
       />
       <WorkspaceMetricStrip items={[
-        { label: "Προϊόντα στη σημερινή προβολή", value: records.length },
-        { label: "Με Icecat evidence", value: linked, tone: linked ? "positive" : "default" },
+        { label: "Προϊόντα", value: records.length },
+        { label: "Με Icecat", value: linked, tone: linked ? "positive" : "default" },
         { label: "Greek-ready", value: ready, tone: ready ? "positive" : "default" },
-        { label: "Χρειάζονται εμπλουτισμό", value: attention, tone: attention ? "attention" : "positive" }
+        { label: "Θέλουν προσοχή", value: attention, tone: attention ? "attention" : "positive" }
       ]} />
-      <div className="workspace-inline-note">
-        <strong>Σαφές όριο:</strong> το Icecat μπορεί να δώσει κοινά στοιχεία όπως τίτλο, περιγραφή, κατηγορία, τεχνικά χαρακτηριστικά και εικόνες. Δεν αλλάζει το δικό σου SKU, την τιμή προμηθευτή/πώλησης, το φυσικό stock, την ορατότητα ή την έγκριση του offer.
-      </div>
       {records.length === 0 ? <WorkspaceEmptyState
         title="Δεν υπάρχουν ακόμη προϊόντα για έλεγχο Icecat."
         body="Μόλις δημιουργηθεί ή ανατεθεί προϊόν, η κατάσταση προέλευσης δεδομένων θα εμφανιστεί εδώ."
-      /> : <div className="workspace-queue-list">{records.map((record) => {
-        const presentation = statusPresentation(record.status);
-        return <article className="workspace-queue-card" key={`${record.contextKind}:${record.contextId}`}>
-          <div className="workspace-queue-head">
-            <div><strong>{record.title}</strong><small>{contextLabel(record.contextKind)}{record.canonicalVariantId ? ` · ${record.canonicalVariantId}` : " · canonical matching εκκρεμεί"}</small></div>
-            <WorkspaceStatusBadge status={record.status} label={presentation.label} tone={presentation.tone} />
-          </div>
-          <div className="workspace-queue-primary">
-            <span><strong>{record.hasIcecatEvidence ? "Icecat συνδεδεμένο" : "Χωρίς Icecat link"}</strong></span>
-            <span>Ελληνικά: {completenessLabel(record.greekCompleteness)}</span>
-            <span>{record.specificationCount} χαρακτηριστικά</span>
-            <span>{record.imageCount} εικόνες evidence</span>
-          </div>
-          {!record.hasIcecatEvidence && <div className="workspace-inline-note">Δεν υπάρχει ακόμη εγκεκριμένη σύνδεση αυτού του προϊόντος με Open Icecat evidence. Αυτό δεν μπλοκάρει από μόνο του το δικό σου offer· η σύνδεση μπορεί να εμφανιστεί μετά το canonical matching.</div>}
-          {record.hasIcecatEvidence && <WorkspaceRecordDetails label="Τι έδωσε το Icecat" open={record.status === "needs_enrichment" || record.status === "retry" || record.status === "failed"}>
-            <div className="workspace-compact-list">
-              <div className="workspace-compact-row"><strong>Κατάσταση enrichment</strong><span>{presentation.label}</span></div>
-              <div className="workspace-compact-row"><strong>Πεδία από Icecat</strong><span>{record.providedFields.length ? record.providedFields.map(fieldLabel).join(" · ") : "Source evidence χωρίς ολοκληρωμένα localized fields"}</span></div>
-              <div className="workspace-compact-row"><strong>Προέλευση περιεχομένου</strong><span>{originLabel(record.contentOrigin)}{record.sourceLocale ? ` · source locale ${record.sourceLocale}` : ""}</span></div>
-              <div className="workspace-compact-row"><strong>Greek quality</strong><span>{completenessLabel(record.greekCompleteness)}{record.qualityStatus ? ` · ${record.qualityStatus}` : ""}</span></div>
-              {record.qualityMissing.length > 0 && <div className="workspace-compact-row"><strong>Λείπουν ακόμη</strong><span>{record.qualityMissing.join(" · ")}</span></div>}
-              {record.providerProductId && <div className="workspace-compact-row"><strong>Icecat product</strong><span className="vendor-technical-id">{record.providerProductId}</span></div>}
-              {record.updatedAt && <div className="workspace-compact-row"><strong>Τελευταίο evidence update</strong><span>{when(record.updatedAt)}</span></div>}
-            </div>
-          </WorkspaceRecordDetails>}
-        </article>;
-      })}</div>}
+      /> : <WorkspaceRecordDetails label={`Προβολή κατάστασης Icecat · ${records.length.toLocaleString("el-GR")} προϊόντα`}>
+        <div className="workspace-inline-note">
+          Το Icecat είναι βοηθητικό enrichment. Ένα προϊόν χωρίς σύνδεση Icecat μπορεί να συνεχίσει κανονικά στο δικό σου catalogue όταν τα εμπορικά του στοιχεία είναι έγκυρα.
+        </div>
+        <div className="workspace-compact-list">{records.map((record) => {
+          const presentation = statusPresentation(record.status);
+          const details = [
+            presentation.label,
+            record.hasIcecatEvidence ? "συνδεδεμένο" : "χωρίς σύνδεση",
+            record.greekCompleteness === undefined ? undefined : `EL ${completenessLabel(record.greekCompleteness)}`,
+            record.specificationCount ? `${record.specificationCount} χαρακτηριστικά` : undefined,
+            record.imageCount ? `${record.imageCount} εικόνες` : undefined
+          ].filter(Boolean).join(" · ");
+          return <div className="workspace-compact-row" key={`${record.contextKind}:${record.contextId}`}>
+            <strong>{record.title}</strong>
+            <span>{details}</span>
+          </div>;
+        })}</div>
+      </WorkspaceRecordDetails>}
     </div>
   </section>;
 }
@@ -107,28 +96,4 @@ function statusPresentation(status: ProductIcecatVisibilityStatus): { label: str
   }
 }
 
-function contextLabel(kind: ProductIcecatVisibility["contextKind"]): string {
-  if (kind === "offer") return "Ενεργό catalogue product";
-  if (kind === "submission") return "Νέα καταχώρηση";
-  if (kind === "assigned") return "Supplier PIM assignment";
-  return "Admin source product";
-}
 function completenessLabel(value?: number): string { return value === undefined ? "—" : `${Math.round(value * 100)}%`; }
-function originLabel(value?: string): string {
-  if (value === "icecat_native") return "Native Greek Icecat";
-  if (value === "translated_verified") return "Verified translation from Icecat";
-  if (value === "mixed") return "Mixed verified Icecat evidence";
-  if (value === "manual_verified") return "Manually verified source evidence";
-  return value ?? "—";
-}
-function fieldLabel(value: string): string {
-  if (value === "title") return "τίτλος";
-  if (value === "description") return "περιγραφή";
-  if (value === "category") return "κατηγορία";
-  if (value === "specifications") return "χαρακτηριστικά";
-  if (value === "images") return "εικόνες";
-  return value;
-}
-function when(value: number): string {
-  return new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
-}
