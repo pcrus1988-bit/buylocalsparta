@@ -53,9 +53,11 @@ async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
  * Dropshipping supplier products are trusted catalogue imports owned by the
  * dedicated dropshipping vendor. A vendor publish action may therefore promote
  * an otherwise safe supplier-linked offer from draft -> approved without an
- * Admin review round-trip. Marketplace moderation states remain authoritative:
- * pending_review/rejected/archived/suppressed offers, archived submissions and
- * suppressed/recalled canonicals can never be self-published here.
+ * Admin review round-trip. The dropship_supplier_offers.active flag represents
+ * vendor activation/publication intent, not live supplier stock: publishing an
+ * eligible product activates that row. Live availability remains API-authoritative
+ * and is enforced separately by storefront/checkout availability guards.
+ * Marketplace moderation states remain authoritative.
  */
 export async function setDropshippingProductVisibility(
   vendorIdentity: string,
@@ -79,6 +81,7 @@ export async function setDropshippingProductVisibility(
              vo.status::text status,
              vo.customer_price_minor,
              vo.merchant_pause_active,
+             dso.id::text supplier_offer_uuid,
              dso.active supplier_offer_active,
              dso.supplier_cost_minor,
              cv.active canonical_active,
@@ -118,10 +121,17 @@ export async function setDropshippingProductVisibility(
     if (visible) {
       if (!selfPublishableStatus) throw new Error("Το προϊόν έχει marketplace moderation status και δεν μπορεί να δημοσιευτεί από τον vendor.");
       if (row.latest_submission_status === "archived") throw new Error("Το προϊόν έχει αρχειοθετηθεί από marketplace moderation και δεν μπορεί να δημοσιευτεί από τον vendor.");
-      if (row.supplier_offer_active !== true) throw new Error("Το supplier product δεν είναι ενεργό.");
       if (!Number.isSafeInteger(supplierCostMinor) || supplierCostMinor < 0) throw new Error("Δεν υπάρχει έγκυρη supplier buying price για αυτό το προϊόν.");
       if (!Number.isSafeInteger(customerPriceMinor) || customerPriceMinor < supplierCostMinor) throw new Error("Η τελική τιμή πρέπει να είναι τουλάχιστον ίση με τη supplier buying price.");
       if (!canonicalEligible) throw new Error("Το προϊόν είναι suppressed ή recalled και δεν μπορεί να δημοσιευτεί.");
+
+      await client.query(`
+        UPDATE dropship_supplier_offers
+           SET active=true,
+               updated_at=now()
+         WHERE id=$1::uuid
+           AND vendor_offer_id=$2::uuid
+      `, [String(row.supplier_offer_uuid), String(row.offer_uuid)]);
     }
 
     const changed = await client.query(`
@@ -153,10 +163,11 @@ export async function setDropshippingProductVisibility(
           'source','vendor_dashboard',
           'channel','dropshipping',
           'offer_public_id',$5::text,
-          'self_approved_from_draft',($3::boolean AND $6::text='draft')
+          'self_approved_from_draft',($3::boolean AND $6::text='draft'),
+          'supplier_offer_activated',($3::boolean AND NOT $7::boolean)
         )
       )
-    `, [vendorId, String(row.offer_uuid), visible, actorId, publicOfferId, status]);
+    `, [vendorId, String(row.offer_uuid), visible, actorId, publicOfferId, status, row.supplier_offer_active === true]);
 
     await client.query("COMMIT");
     const changedRow = changed.rows[0];
@@ -189,6 +200,7 @@ export async function resetDropshippingProductToSupplierDefaults(
     await client.query("BEGIN");
     const result = await client.query(`
       SELECT vo.id::text offer_uuid, vo.status::text status, vo.vendor_sku,
+             dso.id::text supplier_offer_uuid,
              dso.active supplier_offer_active,
              dso.supplier_cost_minor, ds.configuration->'vendorMerchandising' vendor_merchandising,
              cv.active canonical_active, cv.suppressed canonical_suppressed, cv.recalled canonical_recalled,
@@ -234,7 +246,6 @@ export async function resetDropshippingProductToSupplierDefaults(
     const visible = defaults.visible
       && selfPublishableStatus
       && row.latest_submission_status !== "archived"
-      && row.supplier_offer_active === true
       && canonicalEligible;
 
     await client.query(`
@@ -256,6 +267,16 @@ export async function resetDropshippingProductToSupplierDefaults(
         discount_value=EXCLUDED.discount_value,
         updated_at=now()
     `, [offerUuid, vendorId, supplierCostMinor, defaults.markupPercent, defaults.discountPercent]);
+
+    if (visible) {
+      await client.query(`
+        UPDATE dropship_supplier_offers
+           SET active=true,
+               updated_at=now()
+         WHERE id=$1::uuid
+           AND vendor_offer_id=$2::uuid
+      `, [String(row.supplier_offer_uuid), offerUuid]);
+    }
 
     await client.query(`
       UPDATE vendor_offers
@@ -300,81 +321,125 @@ export async function setDropshippingSupplierVisibility(
   const code = supplierCode.trim();
   if (!code) throw new Error("Απαιτείται supplier.");
   const vendorId = await resolveVendorUuid(vendorIdentity);
+  const client = await getProductionPostgresRuntime().nativePool.connect();
 
-  const result = await getProductionPostgresRuntime().nativePool.query(`
-    UPDATE vendor_offers vo
-       SET status=CASE
-             WHEN $3::boolean
-              AND vo.status='draft'
-              AND dso.active=true
-              AND dso.supplier_cost_minor IS NOT NULL
-              AND dso.supplier_cost_minor >= 0
-              AND vo.customer_price_minor >= dso.supplier_cost_minor
-              AND cv.active=true
-              AND cv.suppressed=false
-              AND cv.recalled=false
-              AND NOT EXISTS (
-                SELECT 1
-                  FROM vendor_product_submissions s
-                 WHERE s.vendor_id=vo.vendor_id
-                   AND s.canonical_variant_id=vo.canonical_variant_id
-                   AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
-                   AND s.status='archived'
-              )
-             THEN 'approved'::public.offer_status
-             ELSE vo.status
-           END,
-           merchant_visible=CASE
-             WHEN $3::boolean
-              AND vo.status IN ('draft','approved')
-              AND dso.active=true
-              AND dso.supplier_cost_minor IS NOT NULL
-              AND dso.supplier_cost_minor >= 0
-              AND vo.customer_price_minor >= dso.supplier_cost_minor
-              AND cv.active=true
-              AND cv.suppressed=false
-              AND cv.recalled=false
-              AND NOT EXISTS (
-                SELECT 1
-                  FROM vendor_product_submissions s
-                 WHERE s.vendor_id=vo.vendor_id
-                   AND s.canonical_variant_id=vo.canonical_variant_id
-                   AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
-                   AND s.status='archived'
-              )
-             THEN true
-             ELSE false
-           END,
-           merchant_pause_active=CASE
-             WHEN $3::boolean
-              AND vo.status IN ('draft','approved')
-              AND dso.active=true
-              AND dso.supplier_cost_minor IS NOT NULL
-              AND dso.supplier_cost_minor >= 0
-              AND vo.customer_price_minor >= dso.supplier_cost_minor
-              AND cv.active=true
-              AND cv.suppressed=false
-              AND cv.recalled=false
-             THEN false
-             ELSE vo.merchant_pause_active
-           END,
-           merchant_visibility_updated_by=NULL,
-           merchant_visibility_updated_at=now(),
-           updated_at=now()
-      FROM dropship_supplier_offers dso
-      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id,
-           canonical_variants cv
-     WHERE dso.vendor_offer_id=vo.id
-       AND cv.id=vo.canonical_variant_id
-       AND vo.vendor_id=$1::uuid
-       AND ds.owner_vendor_id=$1::uuid
-       AND ds.code=$2
-       AND ds.active=true
-     RETURNING vo.status::text status,vo.merchant_visible
-  `, [vendorId, code, visible]);
+  try {
+    await client.query("BEGIN");
 
-  return {
-    affectedProducts: result.rowCount ?? 0,
-    visibleProducts: result.rows.filter((row) => row.merchant_visible === true).length
-  };
+    if (visible) {
+      await client.query(`
+        UPDATE dropship_supplier_offers dso
+           SET active=true,
+               updated_at=now()
+          FROM vendor_offers vo,
+               canonical_variants cv,
+               dropship_suppliers ds
+         WHERE dso.vendor_offer_id=vo.id
+           AND cv.id=vo.canonical_variant_id
+           AND ds.id=dso.supplier_id
+           AND vo.vendor_id=$1::uuid
+           AND ds.owner_vendor_id=$1::uuid
+           AND ds.code=$2
+           AND ds.active=true
+           AND vo.status IN ('draft','approved')
+           AND dso.supplier_cost_minor IS NOT NULL
+           AND dso.supplier_cost_minor >= 0
+           AND vo.customer_price_minor >= dso.supplier_cost_minor
+           AND cv.active=true
+           AND cv.suppressed=false
+           AND cv.recalled=false
+           AND NOT EXISTS (
+             SELECT 1
+               FROM vendor_product_submissions s
+              WHERE s.vendor_id=vo.vendor_id
+                AND s.canonical_variant_id=vo.canonical_variant_id
+                AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                AND s.status='archived'
+           )
+      `, [vendorId, code]);
+    }
+
+    const result = await client.query(`
+      UPDATE vendor_offers vo
+         SET status=CASE
+               WHEN $3::boolean
+                AND vo.status='draft'
+                AND dso.active=true
+                AND dso.supplier_cost_minor IS NOT NULL
+                AND dso.supplier_cost_minor >= 0
+                AND vo.customer_price_minor >= dso.supplier_cost_minor
+                AND cv.active=true
+                AND cv.suppressed=false
+                AND cv.recalled=false
+                AND NOT EXISTS (
+                  SELECT 1
+                    FROM vendor_product_submissions s
+                   WHERE s.vendor_id=vo.vendor_id
+                     AND s.canonical_variant_id=vo.canonical_variant_id
+                     AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                     AND s.status='archived'
+                )
+               THEN 'approved'::public.offer_status
+               ELSE vo.status
+             END,
+             merchant_visible=CASE
+               WHEN $3::boolean
+                AND vo.status IN ('draft','approved')
+                AND dso.active=true
+                AND dso.supplier_cost_minor IS NOT NULL
+                AND dso.supplier_cost_minor >= 0
+                AND vo.customer_price_minor >= dso.supplier_cost_minor
+                AND cv.active=true
+                AND cv.suppressed=false
+                AND cv.recalled=false
+                AND NOT EXISTS (
+                  SELECT 1
+                    FROM vendor_product_submissions s
+                   WHERE s.vendor_id=vo.vendor_id
+                     AND s.canonical_variant_id=vo.canonical_variant_id
+                     AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                     AND s.status='archived'
+                )
+               THEN true
+               ELSE false
+             END,
+             merchant_pause_active=CASE
+               WHEN $3::boolean
+                AND vo.status IN ('draft','approved')
+                AND dso.active=true
+                AND dso.supplier_cost_minor IS NOT NULL
+                AND dso.supplier_cost_minor >= 0
+                AND vo.customer_price_minor >= dso.supplier_cost_minor
+                AND cv.active=true
+                AND cv.suppressed=false
+                AND cv.recalled=false
+               THEN false
+               ELSE vo.merchant_pause_active
+             END,
+             merchant_visibility_updated_by=NULL,
+             merchant_visibility_updated_at=now(),
+             updated_at=now()
+        FROM dropship_supplier_offers dso
+        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id,
+             canonical_variants cv
+       WHERE dso.vendor_offer_id=vo.id
+         AND cv.id=vo.canonical_variant_id
+         AND vo.vendor_id=$1::uuid
+         AND ds.owner_vendor_id=$1::uuid
+         AND ds.code=$2
+         AND ds.active=true
+       RETURNING vo.status::text status,vo.merchant_visible
+    `, [vendorId, code, visible]);
+
+    await client.query("COMMIT");
+    return {
+      affectedProducts: result.rowCount ?? 0,
+      visibleProducts: result.rows.filter((row) => row.merchant_visible === true).length
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
