@@ -1,8 +1,10 @@
 import type { SessionPrincipal } from "@buy-local-sparta/core";
-import { requireVendorSession } from "../../../../../lib/vendor-session";
-import { setVendorCatalogVisibility, vendorCatalogControlWorkspace } from "../../../../../lib/vendor-catalog-control-service";
-import { setVendorProductVisibility } from "../../../../../lib/vendor-product-visibility-service";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
+import { setVendorCatalogVisibility, vendorCatalogControlWorkspace } from "../../../../../lib/vendor-catalog-control-service";
+import { setDropshippingProductVisibility } from "../../../../../lib/vendor-dropshipping-actions";
+import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
+import { setVendorProductVisibility } from "../../../../../lib/vendor-product-visibility-service";
+import { requireVendorSession } from "../../../../../lib/vendor-session";
 
 async function resolveActorPrincipal(principal: SessionPrincipal): Promise<SessionPrincipal> {
   const result = await getProductionPostgresRuntime().sqlPool.query(
@@ -24,10 +26,13 @@ export async function PUT(request: Request) {
     if (typeof body.visible !== "boolean") throw new Error("Visibility must be true or false");
 
     if (scope === "product") {
-      await setVendorProductVisibility(principal, {
-        offerId: typeof body.offerId === "string" ? body.offerId : "",
-        visible: body.visible
-      });
+      const offerId = typeof body.offerId === "string" ? body.offerId : "";
+      if (await isDropshippingOnlyVendor(principal.vendorId)) {
+        if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+        await setDropshippingProductVisibility(principal.vendorId, principal.userId, offerId, body.visible);
+      } else {
+        await setVendorProductVisibility(principal, { offerId, visible: body.visible });
+      }
     } else {
       await setVendorCatalogVisibility(principal, {
         scope: "category",
