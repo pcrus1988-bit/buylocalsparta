@@ -2,13 +2,30 @@ import { requireVendorSession } from "../../../../../lib/vendor-session";
 import {
   setVendorProductFulfilmentBulk,
   setVendorProductFulfilmentPreference,
-  vendorProductDeliverySettings
+  vendorProductDeliverySettings,
+  type VendorProductDeliveryFilter
 } from "../../../../../lib/vendor-delivery-eligibility-service";
+
+function integerParam(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
+}
+
+function filterParam(value: string | null): VendorProductDeliveryFilter {
+  return value === "delivery" || value === "pickup" || value === "custom" ? value : "all";
+}
 
 export async function GET(request: Request) {
   try {
     const principal = await requireVendorSession(request, false);
-    return Response.json({ products: await vendorProductDeliverySettings(principal) });
+    const url = new URL(request.url);
+    const result = await vendorProductDeliverySettings(principal, {
+      query: url.searchParams.get("q") ?? "",
+      filter: filterParam(url.searchParams.get("filter")),
+      limit: integerParam(url.searchParams.get("limit"), 40),
+      offset: integerParam(url.searchParams.get("offset"), 0)
+    });
+    return Response.json(result, { headers: { "cache-control": "private, no-store, max-age=0" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_delivery_settings_failed" }, { status: 400 });
   }
@@ -19,11 +36,7 @@ export async function PUT(request: Request) {
     const principal = await requireVendorSession(request, true);
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId : "";
-    if (typeof body.deliveryEligible !== "boolean") {
-      throw new Error("Η επιλογή παράδοσης δεν είναι έγκυρη.");
-    }
-    // Backward compatibility: older vendor surfaces only sent deliveryEligible and
-    // historically implied pickup=true. New catalogue UI always sends both fields.
+    if (typeof body.deliveryEligible !== "boolean") throw new Error("Η επιλογή παράδοσης δεν είναι έγκυρη.");
     const pickupEligible = typeof body.pickupEligible === "boolean" ? body.pickupEligible : true;
     const result = await setVendorProductFulfilmentPreference(principal, {
       offerId,
