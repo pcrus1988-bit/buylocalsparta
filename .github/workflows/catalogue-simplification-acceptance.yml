@@ -11,7 +11,12 @@ on:
       - "db/migrations/checksums.0227.json"
       - "scripts/catalogue-simplification-policy-smoke.sql"
       - "scripts/catalogue-isbn10-identity-smoke.sql"
+      - "apps/web/src/app/admin/matching/page.tsx"
+      - "apps/web/src/app/api/admin/catalog/canonical/route.ts"
+      - "apps/web/src/lib/admin-canonical-identity-runtime.ts"
       - "apps/web/src/lib/admin-catalogue-dashboard-runtime.ts"
+      - "packages/core/src/catalog/management.ts"
+      - "packages/core/test/catalog-management.test.ts"
       - "packages/postgres-runtime/src/index.ts"
       - ".github/workflows/catalogue-simplification-acceptance.yml"
   workflow_dispatch:
