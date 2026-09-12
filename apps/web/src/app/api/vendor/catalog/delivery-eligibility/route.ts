@@ -19,13 +19,16 @@ export async function PUT(request: Request) {
     const principal = await requireVendorSession(request, true);
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId : "";
-    if (typeof body.deliveryEligible !== "boolean" || typeof body.pickupEligible !== "boolean") {
-      throw new Error("Οι επιλογές παράδοσης και παραλαβής δεν είναι έγκυρες.");
+    if (typeof body.deliveryEligible !== "boolean") {
+      throw new Error("Η επιλογή παράδοσης δεν είναι έγκυρη.");
     }
+    // Backward compatibility: older vendor surfaces only sent deliveryEligible and
+    // historically implied pickup=true. New catalogue UI always sends both fields.
+    const pickupEligible = typeof body.pickupEligible === "boolean" ? body.pickupEligible : true;
     const result = await setVendorProductFulfilmentPreference(principal, {
       offerId,
       deliveryEligible: body.deliveryEligible,
-      pickupEligible: body.pickupEligible,
+      pickupEligible,
       source: "products"
     });
     return Response.json(result);
