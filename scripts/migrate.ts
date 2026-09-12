@@ -22,6 +22,27 @@ const pool = new Pool({ connectionString, max: 2, application_name: "buy-local-s
 try {
   const client = await pool.connect();
   try {
+    // Supabase provides storage.buckets itself. Fresh CI/local PostgreSQL databases do
+    // not, but repository migration 0235 legitimately records the public brand bucket.
+    // Provide only the minimal local compatibility surface instead of rewriting an
+    // already-applied production migration/checksum. Never create this shim remotely.
+    const databaseHost = new URL(connectionString).hostname.toLowerCase();
+    if (databaseHost === "localhost" || databaseHost === "127.0.0.1" || databaseHost === "::1") {
+      const storageBuckets = await client.query("SELECT to_regclass('storage.buckets') AS relation");
+      if (!storageBuckets.rows[0]?.relation) {
+        await client.query(`
+          CREATE SCHEMA IF NOT EXISTS storage;
+          CREATE TABLE IF NOT EXISTS storage.buckets (
+            id text PRIMARY KEY,
+            name text NOT NULL UNIQUE,
+            public boolean NOT NULL DEFAULT false,
+            file_size_limit bigint,
+            allowed_mime_types text[]
+          );
+        `);
+      }
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version integer PRIMARY KEY,
