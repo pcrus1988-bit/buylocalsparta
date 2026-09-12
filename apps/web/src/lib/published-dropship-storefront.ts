@@ -41,6 +41,11 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
 /**
  * Public browsing projection for explicitly published dropshipping offers.
  *
+ * A canonical family is one customer-facing product. Supplier variants such as
+ * size or colour remain separate canonical variants/offers for price, stock and
+ * checkout, but browsing selects only one currently sellable representative per
+ * family. Family-less staged/legacy rows fall back to their own canonical id.
+ *
  * `dropship_supplier_offers.cached_*` is deliberately used only as catalogue
  * browsing evidence. It is not a checkout/reservation authority and it must never
  * be copied into `inventory_balances`. Checkout still has to revalidate the exact
@@ -61,7 +66,7 @@ export async function getPublishedDropshipCatalogCards(
   if (!productionDatabaseConfigured()) return [];
 
   const result = await getProductionPostgresRuntime().nativePool.query<PublishedDropshipRow>(`
-    SELECT DISTINCT ON (cv.id)
+    SELECT DISTINCT ON (COALESCE(cv.family_id,cv.id))
       cv.public_id AS canonical_public_id,
       vo.public_id AS offer_public_id,
       cv.slug,
@@ -103,7 +108,7 @@ export async function getPublishedDropshipCatalogCards(
       AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       AND ($1::text IS NULL OR v.public_id=$1)
       AND ($2::text IS NULL OR cv.public_id=$2)
-    ORDER BY cv.id,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
+    ORDER BY COALESCE(cv.family_id,cv.id),vo.customer_price_minor ASC,cv.created_at ASC,cv.id,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
   `, [vendorId ?? null, canonicalVariantId ?? null]);
 
   const base = result.rows.flatMap((row) => {
