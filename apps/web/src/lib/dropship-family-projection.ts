@@ -32,7 +32,8 @@ function representativeOrder(left: DropshipFamilyProjectionRecord, right: Dropsh
  * Collapse sellable supplier children only after child-level catalogue filters have
  * been evaluated. A family qualifies when any child matches. The matching child is
  * preferred as the representative, while stock and size facets are aggregated
- * across every currently sellable sibling.
+ * across every currently sellable sibling. Source-parent fallback is deliberate so
+ * a taxonomy/backfill lag cannot reintroduce one-card-per-size duplication.
  */
 export function projectDropshipFamilies<T extends DropshipFamilyProjectionRecord>(
   records: readonly T[],
