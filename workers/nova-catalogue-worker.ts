@@ -3,6 +3,7 @@ import {
   getProductionPostgresRuntime,
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
+import { runNovaEnrichmentPreparationSlice } from "../apps/web/src/lib/catalogue-enrichment-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
@@ -86,6 +87,18 @@ try {
             error: safeError(error)
           });
         }
+      }
+
+      try {
+        const enrichmentPreparation = await runNovaEnrichmentPreparationSlice();
+        log("info", "nova.catalogue_enrichment_preparation_slice", { workerId, ...enrichmentPreparation });
+      } catch (error) {
+        // Enrichment preparation is derived metadata. It must never block or roll
+        // back durable supplier ingestion/materialization and can safely retry.
+        log("error", "nova.catalogue_enrichment_preparation_failed", {
+          workerId,
+          error: safeError(error)
+        });
       }
 
       try {
