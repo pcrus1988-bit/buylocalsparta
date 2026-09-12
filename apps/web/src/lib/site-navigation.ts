@@ -14,6 +14,7 @@ type IndexableStaticRoute = SiteLink & Readonly<{
 export const SITE_LINKS = {
   home: { label: "Αρχική", href: "/", description: "Η κεντρική είσοδος στην τοπική αγορά της Σπάρτης." },
   shop: { label: "Προϊόντα", href: "/shop", description: "Ο ενιαίος κατάλογος προϊόντων του marketplace." },
+  bazaar: { label: "BAZAAR", href: "/bazaar", description: "Greece-wide outlet για Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα, πλήρως χωρισμένο από τον κανονικό κατάλογο." },
   shops: { label: "Καταστήματα & άνθρωποι", href: "/shops", description: "Χαρτογραφημένες τοπικές επιχειρήσεις και ενεργοί συνεργάτες, με σαφή ένδειξη του σταδίου συνεργασίας." },
   shopsMap: { label: "Χάρτης καταστημάτων", href: "/shops/map", description: "Διαδραστικός χάρτης τοπικών επιχειρήσεων με κατηγορίες, φίλτρα απόστασης και απευθείας πρόσβαση σε κάθε δημόσιο dossier." },
   advice: { label: "Συμβουλή από κατάστημα", href: "/advice", description: "Βρες δημόσια διαθέσιμους τοπικούς συμβούλους πριν αγοράσεις." },
@@ -43,6 +44,7 @@ export const SITE_LINKS = {
 export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.home, changeFrequency: "daily", priority: 1 },
   { ...SITE_LINKS.shop, changeFrequency: "daily", priority: 0.9 },
+  { ...SITE_LINKS.bazaar, changeFrequency: "hourly", priority: 0.9 },
   { ...SITE_LINKS.shops, changeFrequency: "daily", priority: 0.85 },
   { ...SITE_LINKS.shopsMap, changeFrequency: "daily", priority: 0.8 },
   { ...SITE_LINKS.advice, changeFrequency: "weekly", priority: 0.8 },
@@ -67,6 +69,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
 
 export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
   SITE_LINKS.shop,
+  SITE_LINKS.bazaar,
   SITE_LINKS.shops,
   SITE_LINKS.advice,
   SITE_LINKS.askLocal,
@@ -74,14 +77,14 @@ export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
 ];
 
 export const FOOTER_NAVIGATION = [
-  { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
+  { title: "Ανακάλυψε", links: [SITE_LINKS.shop, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Αγορά με σιγουριά", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "ΚΟΝΤΑ ΜΟΥ Σπάρτη", links: [SITE_LINKS.about, SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.join, SITE_LINKS.sitemap] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] }
 ] as const;
 
 export const HUMAN_SITEMAP_SECTIONS = [
-  { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
+  { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
   { title: "Άνθρωποι & συμβουλή", links: [SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
@@ -91,7 +94,7 @@ export const HUMAN_SITEMAP_SECTIONS = [
 
 export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.login, SITE_LINKS.register];
 
-export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]"] as const;
+export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]"] as const;
 
 export const NON_INDEXABLE_PAGE_ROUTES = [
   "/cart",
