@@ -6,6 +6,7 @@ import { DropshippingProductControls } from "../../../components/DropshippingPro
 import { DropshippingSupplierDefaultsControls } from "../../../components/DropshippingSupplierDefaultsControls";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { dropshippingFeedHealth } from "../../../lib/dropshipping-feed-health";
 import { loadNovaBrandsGatewaySourceCategories } from "../../../lib/nova-brandsgateway-category-service";
 import {
   calculateNovaBrandsGatewayRecommendation,
@@ -115,6 +116,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const totalPublished = workspace.suppliers.reduce((sum, supplier) => sum + supplier.publishedProducts, 0);
   const totalAvailable = workspace.suppliers.reduce((sum, supplier) => sum + supplier.availableProducts, 0);
   const totalMissingCost = workspace.suppliers.reduce((sum, supplier) => sum + Math.max(0, supplier.totalProducts - supplier.productsWithCost), 0);
+  const supplierHealth = new Map(workspace.suppliers.map((supplier) => [supplier.id, dropshippingFeedHealth(supplier)]));
   const t = analytics.totals;
   const pages = Math.max(1, Math.ceil(workspace.totalProducts / workspace.pageSize));
   const selectedCode = workspace.selectedSupplier?.code ?? "";
@@ -163,18 +165,21 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Προμηθευτές" title="Κατάσταση feeds & καταλόγου" note="Η διαθεσιμότητα supplier είναι ξεχωριστή από το τοπικό απόθεμα και επανελέγχεται από το supplier integration." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
-        {workspace.suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.id}>
-          <div className="workspace-queue-head"><div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div><span className="vendor-merchant-status">{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
-          <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-            <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span></div>
-            <div className="workspace-compact-row"><strong>Δημοσιευμένα</strong><span>{supplier.publishedProducts}</span></div>
-            <div className="workspace-compact-row"><strong>Διαθέσιμα</strong><span>{supplier.availableProducts}</span><small>{supplier.outOfStockProducts} μη διαθέσιμα</small></div>
-            <div className="workspace-compact-row"><strong>Buying price</strong><span>{supplier.productsWithCost}/{supplier.totalProducts}</span></div>
-            <div className="workspace-compact-row"><strong>Health</strong><span>{supplier.lastHealthcheckOk === true ? "OK" : supplier.lastHealthcheckOk === false ? "Πρόβλημα" : "Άγνωστο"}</span><small>{date(supplier.lastHealthcheckAt)}</small></div>
-            <div className="workspace-compact-row"><strong>Τελευταίο sync</strong><span>{date(supplier.lastCatalogueSyncAt)}</span></div>
-          </div>
-          <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier</Link>
-        </article>)}
+        {workspace.suppliers.map((supplier) => {
+          const health = supplierHealth.get(supplier.id) ?? dropshippingFeedHealth(supplier);
+          return <article className="workspace-queue-card" key={supplier.id}>
+            <div className="workspace-queue-head"><div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div><span className="vendor-merchant-status">{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
+            <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+              <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span></div>
+              <div className="workspace-compact-row"><strong>Δημοσιευμένα</strong><span>{supplier.publishedProducts}</span></div>
+              <div className="workspace-compact-row"><strong>Διαθέσιμα</strong><span>{supplier.availableProducts}</span><small>{supplier.outOfStockProducts} μη διαθέσιμα</small></div>
+              <div className="workspace-compact-row"><strong>Buying price</strong><span>{supplier.productsWithCost}/{supplier.totalProducts}</span></div>
+              <div className="workspace-compact-row"><strong>Health</strong><span>{health.label}</span><small>{date(supplier.lastHealthcheckAt)} · {health.detail}</small></div>
+              <div className="workspace-compact-row"><strong>Τελευταίο sync</strong><span>{date(supplier.lastCatalogueSyncAt)}</span></div>
+            </div>
+            <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier</Link>
+          </article>;
+        })}
         {!workspace.suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει ενεργός Dropshipping supplier.</strong><p>Το vendor account είναι κλειδωμένο σε Dropshipping, αλλά δεν βρέθηκε supplier mapping στη βάση.</p></article> : null}
       </div>
     </section>
