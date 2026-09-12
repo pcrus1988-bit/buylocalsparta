@@ -143,32 +143,42 @@ export async function adminCatalogueIntakeWorkspace(principal: SessionPrincipal,
 
 async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeSnapshot[]> {
   const result = await tx.query<SqlRow>(`
-    WITH product_counts AS (
-      SELECT snapshot_id,
+    WITH recent_snapshots AS MATERIALIZED (
+      SELECT ss.id, ss.source_id, ss.source_filename, ss.source_hash, ss.source_version,
+             ss.observed_at, ss.created_at, ss.row_count
+      FROM catalog_source_snapshots ss
+      ORDER BY ss.created_at DESC, ss.id DESC
+      LIMIT 30
+    ), product_counts AS (
+      SELECT sp.snapshot_id,
              count(*)::integer AS product_count,
-             count(*) FILTER (WHERE price_state='matched')::integer AS price_matched,
-             count(*) FILTER (WHERE price_state='unpriced')::integer AS price_unpriced,
-             count(*) FILTER (WHERE price_state='conflict')::integer AS price_conflict,
-             count(*) FILTER (WHERE price_state='review_required')::integer AS price_review_required,
-             count(*) FILTER (WHERE classification_status='review_required')::integer AS classification_review_required
-      FROM catalog_source_products
-      GROUP BY snapshot_id
+             count(*) FILTER (WHERE sp.price_state='matched')::integer AS price_matched,
+             count(*) FILTER (WHERE sp.price_state='unpriced')::integer AS price_unpriced,
+             count(*) FILTER (WHERE sp.price_state='conflict')::integer AS price_conflict,
+             count(*) FILTER (WHERE sp.price_state='review_required')::integer AS price_review_required,
+             count(*) FILTER (WHERE sp.classification_status='review_required')::integer AS classification_review_required
+      FROM catalog_source_products sp
+      JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
+      GROUP BY sp.snapshot_id
     ), attribute_counts AS (
       SELECT sp.snapshot_id,
              count(a.id) FILTER (WHERE a.mapping_status='unmapped')::integer AS unmapped_attributes
       FROM catalog_source_products sp
+      JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
       LEFT JOIN catalog_source_attribute_observations a ON a.source_product_id=sp.id
       GROUP BY sp.snapshot_id
     ), compatibility_counts AS (
       SELECT sp.snapshot_id,
              count(c.id) FILTER (WHERE c.review_status='candidate')::integer AS candidate_compatibility
       FROM catalog_source_products sp
+      JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
       LEFT JOIN product_compatibility_claims c ON c.source_product_id=sp.id
       GROUP BY sp.snapshot_id
     ), link_counts AS (
       SELECT sp.snapshot_id,
              count(l.id) FILTER (WHERE l.link_status='candidate')::integer AS candidate_links
       FROM catalog_source_products sp
+      JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
       LEFT JOIN catalog_source_product_links l ON l.source_product_id=sp.id
       GROUP BY sp.snapshot_id
     ), category_counts AS (
@@ -176,11 +186,12 @@ async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeS
              count(DISTINCT m.id) FILTER (WHERE m.mapping_status='candidate')::integer AS candidate_category_mappings,
              count(DISTINCT m.id) FILTER (WHERE m.mapping_status='approved')::integer AS approved_category_mappings
       FROM catalog_source_products sp
+      JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
       LEFT JOIN catalog_source_category_mappings m ON m.source_taxonomy_node_id=sp.source_taxonomy_node_id
       GROUP BY sp.snapshot_id
     )
-    SELECT ss.id::text AS snapshot_id, s.id::text AS source_id, s.code AS source_code, s.name AS source_name,
-           ss.source_filename, ss.source_hash, ss.source_version, ss.observed_at, ss.created_at, ss.row_count,
+    SELECT rs.id::text AS snapshot_id, s.id::text AS source_id, s.code AS source_code, s.name AS source_name,
+           rs.source_filename, rs.source_hash, rs.source_version, rs.observed_at, rs.created_at, rs.row_count,
            COALESCE(pc.product_count,0) AS product_count,
            COALESCE(pc.price_matched,0) AS price_matched,
            COALESCE(pc.price_unpriced,0) AS price_unpriced,
@@ -192,15 +203,14 @@ async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeS
            COALESCE(lc.candidate_links,0) AS candidate_links,
            COALESCE(tc.candidate_category_mappings,0) AS candidate_category_mappings,
            COALESCE(tc.approved_category_mappings,0) AS approved_category_mappings
-    FROM catalog_source_snapshots ss
-    JOIN catalog_sources s ON s.id=ss.source_id
-    LEFT JOIN product_counts pc ON pc.snapshot_id=ss.id
-    LEFT JOIN attribute_counts ac ON ac.snapshot_id=ss.id
-    LEFT JOIN compatibility_counts cc ON cc.snapshot_id=ss.id
-    LEFT JOIN link_counts lc ON lc.snapshot_id=ss.id
-    LEFT JOIN category_counts tc ON tc.snapshot_id=ss.id
-    ORDER BY ss.created_at DESC, ss.id DESC
-    LIMIT 30
+    FROM recent_snapshots rs
+    JOIN catalog_sources s ON s.id=rs.source_id
+    LEFT JOIN product_counts pc ON pc.snapshot_id=rs.id
+    LEFT JOIN attribute_counts ac ON ac.snapshot_id=rs.id
+    LEFT JOIN compatibility_counts cc ON cc.snapshot_id=rs.id
+    LEFT JOIN link_counts lc ON lc.snapshot_id=rs.id
+    LEFT JOIN category_counts tc ON tc.snapshot_id=rs.id
+    ORDER BY rs.created_at DESC, rs.id DESC
   `);
   return result.rows.map((row) => ({
     id: stringField(row.snapshot_id),
