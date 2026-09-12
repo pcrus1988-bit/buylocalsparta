@@ -1,4 +1,5 @@
 import { normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
+import { cache } from "react";
 import type { CatalogFacetOption, CatalogFacets, CatalogFilters } from "./catalog-view";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -153,14 +154,21 @@ async function buildFacetBundle(
  * Public discovery inventory: active, non-suppressed canonical products remain
  * navigable even when no local shop has fresh sellable stock at this moment.
  * Availability is a commerce annotation, not the definition of the catalogue.
+ *
+ * React cache keeps repeated taxonomy passes inside one App Router request from
+ * re-reading the same canonical/departments inventory. The shop can legitimately
+ * rebuild facets two or three times while resolving inferred filters; the underlying
+ * catalogue snapshot only needs to be loaded once for that render.
  */
-export async function getDiscoverableCatalogCanonicals(): Promise<readonly AvailableCanonical[]> {
+async function readDiscoverableCatalogCanonicals(): Promise<readonly AvailableCanonical[]> {
   if (!productionDatabaseConfigured()) return [];
   const canonicals = await getProductionPostgresRuntime().customerCommerce.publicCanonicals();
   if (canonicals.length === 0) return [];
   const departmentCodes = await loadCatalogDepartmentCodes(canonicals.map((product) => product.id));
   return canonicals.map((product) => ({ ...product, departmentCode: departmentCodes.get(product.id) }));
 }
+
+export const getDiscoverableCatalogCanonicals = cache(readDiscoverableCatalogCanonicals);
 
 /**
  * Strict sellability projection retained for surfaces that specifically need to
