@@ -6,6 +6,7 @@ const actionsUrl = new URL("../src/lib/vendor-dropshipping-actions.ts", import.m
 const bulkApplyUrl = new URL("../src/lib/vendor-dropshipping-bulk-apply.ts", import.meta.url);
 const visibilityRouteUrl = new URL("../src/app/api/vendor/catalog/visibility/route.ts", import.meta.url);
 
+// Supplier-offer activation is merchant catalogue intent; live stock is API-authoritative elsewhere.
 test("dedicated dropshipping vendor can activate and self-approve safe supplier drafts", async () => {
   const source = await readFile(actionsUrl, "utf8");
 
