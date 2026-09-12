@@ -83,9 +83,11 @@ export async function resetDropshippingProductToSupplierDefaults(
     const supplierCostMinor = Number(row.supplier_cost_minor);
     if (!Number.isSafeInteger(supplierCostMinor) || supplierCostMinor < 0) throw new Error("Δεν υπάρχει έγκυρη supplier buying price για αυτό το προϊόν.");
 
+    const afterMarkupMinor = supplierCostMinor
+      + Math.round(supplierCostMinor * defaults.markupPercent / 100);
     const calculatedPriceMinor = Math.max(
       supplierCostMinor,
-      Math.round(supplierCostMinor * (1 + defaults.markupPercent / 100) * (1 - defaults.discountPercent / 100))
+      afterMarkupMinor - Math.round(afterMarkupMinor * defaults.discountPercent / 100)
     );
     const offerUuid = String(row.offer_uuid);
     const visible = defaults.visible && row.status === "approved" && row.supplier_offer_active === true;
