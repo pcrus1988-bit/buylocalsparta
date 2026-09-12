@@ -132,7 +132,13 @@ const HIDDEN_ATTRIBUTE_KEYS = new Set([
   "recommended_price_minor",
   "price_status",
   "price_match_confidence",
-  "price_review_required"
+  "price_review_required",
+  "externalProductId",
+  "external_product_id",
+  "externalVariantId",
+  "external_variant_id",
+  "supplierContent",
+  "supplier_content"
 ]);
 
 const EXTRA_SPECIFICATION_KEYS = [
