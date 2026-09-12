@@ -103,7 +103,7 @@ test("luxury validator accepts grounded Greek copy and rejects operational/inter
 
 test("sanitized supplier evidence can authorize explicit material, percentage and season details missed by structured extraction", () => {
   const item = evidence();
-  const facts = { ...item.facts,materials: [],season: null };
+  const facts = { ...item.facts,model: null,materials: [],season: null };
   const sourceDescription = "Monkey Business T-Shirt. Loose oversize fit with crewneck and front graphic. Season: SS26. Composition: 100% Cotton.";
   const errors = validateLuxuryCatalogueDraft({
     facts,
