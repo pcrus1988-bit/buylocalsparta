@@ -1,4 +1,5 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
@@ -376,7 +377,7 @@ function directoryPresentation(vendor: PublicVendorDirectoryEntry, profileMedia:
     : { ...vendor, story: effectiveStory };
 }
 
-export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
+async function readPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
   if (!productionDatabaseConfigured()) return [];
   const directory = await databaseDirectory();
   const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
@@ -388,7 +389,9 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
   return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
 }
 
-export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
+export const getPublicVendorDirectory = cache(readPublicVendorDirectory);
+
+async function readPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
   if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
   const vendor = (await databaseDirectory(vendorId))[0];
   if (!vendor) return undefined;
@@ -402,3 +405,10 @@ export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<P
   const fallback = fallbackImages[0];
   return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
 }
+
+/**
+ * generateMetadata() and the page body both resolve the same vendor during one
+ * App Router request. Request-local React caching keeps that heavy lateral-query
+ * projection and its media lookups from running twice.
+ */
+export const getPublicVendorDirectoryEntry = cache(readPublicVendorDirectoryEntry);
