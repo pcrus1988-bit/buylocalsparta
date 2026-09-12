@@ -6,6 +6,7 @@ import { DropshippingProductControls } from "../../../components/DropshippingPro
 import { DropshippingSupplierDefaultsControls } from "../../../components/DropshippingSupplierDefaultsControls";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
+import { loadNovaBrandsGatewaySourceCategories } from "../../../lib/nova-brandsgateway-category-service";
 import {
   calculateNovaBrandsGatewayRecommendation,
   isNovaBrandsGatewaySupplier
@@ -115,6 +116,9 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const pages = Math.max(1, Math.ceil(workspace.totalProducts / workspace.pageSize));
   const selectedCode = workspace.selectedSupplier?.code ?? "";
   const novaBrandsGatewaySelected = isNovaBrandsGatewaySupplier(workspace.selectedSupplier);
+  const novaSourceCategories = novaBrandsGatewaySelected
+    ? await loadNovaBrandsGatewaySourceCategories(principal.vendorId ?? "", workspace.products.map((product) => product.offerId))
+    : new Map<string, string>();
   const filterCount = activeFilterCount(workspace.filters);
   const categoryLabels = new Map(workspace.filterOptions.categories.map((option) => [option.value, option.label]));
   const clearFiltersHref = productUrl(selectedCode, workspace.query, {
@@ -263,11 +267,12 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
         {workspace.products.map((product) => {
+          const supplierCategory = novaSourceCategories.get(product.offerId) ?? null;
           const recommendation = novaBrandsGatewaySelected
             ? calculateNovaBrandsGatewayRecommendation({
                 supplierCostMinor: product.supplierCostMinor,
                 msrpMinor: product.msrpMinor,
-                category: product.category,
+                category: supplierCategory ?? product.category,
                 subcategory: product.subcategory
               })
             : null;
@@ -277,11 +282,12 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
             && product.markupType == null
             && product.discountType == null
           );
+          const displayedCategory = supplierCategory ?? [product.category, product.subcategory].filter(Boolean).join(" › ");
 
           return <article className="workspace-queue-card" key={product.supplierOfferId}>
             <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div><span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span></div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              {(product.category || product.subcategory) ? <div className="workspace-compact-row"><strong>Κατηγορία</strong><span>{[product.category, product.subcategory].filter(Boolean).join(" › ")}</span></div> : null}
+              {displayedCategory ? <div className="workspace-compact-row"><strong>Κατηγορία</strong><span>{displayedCategory}</span>{supplierCategory ? <small>NOVA API</small> : null}</div> : null}
               {(product.size || product.color) ? <div className="workspace-compact-row"><strong>Variant</strong><span>{[product.size && `Size ${product.size}`, product.color].filter(Boolean).join(" · ")}</span></div> : null}
               <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
               <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span><small>αποθηκευμένη</small></div>
