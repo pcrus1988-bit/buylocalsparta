@@ -47,14 +47,31 @@ const OPERATIONAL_TERMS = [
   "τιμή πώλησης"
 ];
 
+const GENERIC_COPY_PATTERNS = [
+  "σύγχρονη πρόταση",
+  "καθαρή σχεδιαστική γραμμή",
+  "σύγχρονη εκδοχή του συγκεκριμένου κομματιού",
+  "λειτουργεί φυσικά τόσο σε καθημερινά όσο και σε πιο προσεγμένα σύνολα",
+  "μια προσεγμένη επιλογή",
+  "χαρακτηριστική πρόταση",
+  "η συγκεκριμένη εκδοχή ανήκει",
+  "πρόκειται για γυναικεία επιλογή",
+  "πρόκειται για ανδρική επιλογή"
+];
+
 /**
  * Second-pass deterministic policy after model generation.
  *
- * The model is a copywriter, never an authority. A draft is accepted only when
- * it survives both the fact-level validator and these merchandising boundaries.
+ * Structured facts remain highest priority, but sanitized supplier prose is also
+ * valid evidence for explicit product details such as fit, print, material,
+ * dimensions and season. Sensitive claims remain locked to VERIFIED_FACTS.
  */
 export function validateLuxuryCatalogueDraft(input: CatalogueDraftValidationInput): readonly string[] {
-  const errors = [...validateCatalogueEnrichmentDraft(input.facts,input.draft)];
+  const sourceEvidence = [input.sourceTitle,input.sourceDescription].filter(Boolean).join(" ");
+  const sourceNormalized = normalize(sourceEvidence);
+  const sourceNumbers = new Set(numericTokens(sourceEvidence));
+  const errors = validateCatalogueEnrichmentDraft(input.facts,input.draft)
+    .filter((error) => !sourceEvidenceAuthorizesBaseError(error,sourceNormalized,sourceNumbers));
   const title = input.draft.titleEl.trim();
   const short = input.draft.shortDescriptionEl?.trim() ?? "";
   const description = input.draft.descriptionEl?.trim() ?? "";
@@ -74,6 +91,12 @@ export function validateLuxuryCatalogueDraft(input: CatalogueDraftValidationInpu
   if (sourceRich && description.length < 80) errors.push("description_too_thin_for_evidence");
   if (description.length > 1800) errors.push("description_too_long");
   if (short.length > 280) errors.push("short_description_too_long");
+
+  if (sourceRich) {
+    for (const pattern of GENERIC_COPY_PATTERNS) {
+      if (lowered.includes(normalize(pattern))) errors.push(`generic_source_copy:${pattern}`);
+    }
+  }
 
   if (/<\/?[a-z][^>]*>/i.test(generated)) errors.push("html_not_allowed");
   if (/https?:\/\/|www\./i.test(generated)) errors.push("url_not_allowed");
@@ -117,6 +140,22 @@ export function sanitizeSupplierEvidenceText(value: unknown, maxLength = 6000): 
   return decoded ? decoded.slice(0,maxLength) : null;
 }
 
+function sourceEvidenceAuthorizesBaseError(
+  error: string,
+  sourceNormalized: string,
+  sourceNumbers: ReadonlySet<string>
+): boolean {
+  if (error.startsWith("unsupported_number:")) {
+    const value = error.slice("unsupported_number:".length);
+    return sourceNumbers.has(value);
+  }
+  if (error.startsWith("unsupported_material:")) {
+    const material = error.slice("unsupported_material:".length);
+    return Boolean(material) && sourceNormalized.includes(normalize(material));
+  }
+  return false;
+}
+
 function factDensity(facts: VerifiedProductFacts): number {
   return [
     facts.brand,
@@ -134,6 +173,10 @@ function factDensity(facts: VerifiedProductFacts): number {
 
 function includesNormalized(haystack: string, needle: string): boolean {
   return normalize(haystack).includes(normalize(needle));
+}
+
+function numericTokens(value: string): string[] {
+  return value.match(/\d+(?:[.,]\d+)?/g)?.map((token) => token.replace(",",".")) ?? [];
 }
 
 function normalize(value: string): string {
