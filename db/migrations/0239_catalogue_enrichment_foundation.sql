@@ -37,6 +37,7 @@ CREATE TABLE public.catalogue_enrichments (
   generation_model text,
   generation_request_id text,
   generation_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  generation_candidate jsonb NOT NULL DEFAULT '{}'::jsonb,
   generation_attempt_count integer NOT NULL DEFAULT 0 CHECK (generation_attempt_count >= 0),
   last_attempt_at timestamptz,
   processing_lease_until timestamptz,
@@ -56,7 +57,8 @@ CREATE TABLE public.catalogue_enrichments (
   CONSTRAINT catalogue_enrichments_fallback_object CHECK (jsonb_typeof(deterministic_fallback)='object'),
   CONSTRAINT catalogue_enrichments_bazaar_overlay_object CHECK (jsonb_typeof(bazaar_overlay)='object'),
   CONSTRAINT catalogue_enrichments_validation_errors_array CHECK (jsonb_typeof(validation_errors)='array'),
-  CONSTRAINT catalogue_enrichments_generation_metadata_object CHECK (jsonb_typeof(generation_metadata)='object')
+  CONSTRAINT catalogue_enrichments_generation_metadata_object CHECK (jsonb_typeof(generation_metadata)='object'),
+  CONSTRAINT catalogue_enrichments_generation_candidate_object CHECK (jsonb_typeof(generation_candidate)='object')
 );
 
 CREATE UNIQUE INDEX catalogue_enrichments_family_uidx
@@ -89,6 +91,8 @@ COMMENT ON COLUMN public.catalogue_enrichments.processing_lease_until IS
   'Short worker lease for generation. Expired leases are retryable; the supplier ingest pipeline never waits on this lease.';
 COMMENT ON COLUMN public.catalogue_enrichments.generation_metadata IS
   'Non-secret generation telemetry such as token counts and validation outcome. Prompts, API keys and raw supplier payloads are not stored here.';
+COMMENT ON COLUMN public.catalogue_enrichments.generation_candidate IS
+  'Latest generated customer-facing candidate retained for QA when validation rejects it; never used by the storefront unless status becomes enriched.';
 
 ALTER TABLE public.catalogue_enrichments ENABLE ROW LEVEL SECURITY;
 
