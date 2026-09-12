@@ -4,7 +4,7 @@ import { updateVendorCatalogInventory, vendorCatalogControlWorkspace } from "../
 
 export async function PUT(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const principal = await requireVendorSession(request,true);
     if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("Local inventory adjustments are disabled for the dropshipping-only vendor");
     const body = await request.json() as Record<string, unknown>;
     await updateVendorCatalogInventory(principal, {
