@@ -6,11 +6,27 @@ import {
   novaBrandsGatewayCategoryShippingMinor,
   novaBrandsGatewayShippingClass
 } from "../src/lib/nova-brandsgateway-pricing.ts";
+import { novaBrandsGatewaySourceCategoryPath } from "../src/lib/nova-brandsgateway-source-category.ts";
 
 test("recognises NOVA / BrandsGateway supplier identities", () => {
   assert.equal(isNovaBrandsGatewaySupplier({ code: "NOVA", displayName: "Nova", providerKind: "dropship" }), true);
   assert.equal(isNovaBrandsGatewaySupplier({ code: "bg-eu", displayName: "BrandsGateway EU", providerKind: "api" }), true);
   assert.equal(isNovaBrandsGatewaySupplier({ code: "other", displayName: "Other Supplier", providerKind: "api" }), false);
+});
+
+test("reads exact human NOVA API category labels without leaking numeric ids", () => {
+  const path = novaBrandsGatewaySourceCategoryPath(
+    [{ id: 12, name: "Accessories" }, { id: 44, name: "Bags & Wallets" }],
+    [12, 44]
+  );
+  assert.equal(path, "Accessories › Bags & Wallets");
+  assert.equal(novaBrandsGatewayShippingClass(path, null), "bags_wallets");
+
+  assert.equal(
+    novaBrandsGatewaySourceCategoryPath([], [{ id: 8, slug: "shoes" }]),
+    "shoes"
+  );
+  assert.equal(novaBrandsGatewaySourceCategoryPath([], [12, 44]), null);
 });
 
 test("maps BrandsGateway category shipping fees conservatively", () => {
