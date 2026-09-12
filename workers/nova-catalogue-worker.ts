@@ -3,7 +3,7 @@ import {
   getProductionPostgresRuntime,
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
-import { runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
+import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
@@ -33,7 +33,7 @@ log("info", "nova.worker_started", {
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
   materializesPublicOffers: false,
-  automaticPricing: true
+  automaticPricing: novaAutoPricingEnabled()
 });
 
 try {
