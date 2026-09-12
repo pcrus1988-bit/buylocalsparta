@@ -98,6 +98,13 @@ export type VendorOperatingContext = Readonly<{
   capabilities: readonly VendorCapability[];
 }>;
 
+export type VendorOperatingAssignment = Readonly<{
+  marketId?: string;
+  hubId?: string;
+  locationId?: string;
+  operatingModel?: VendorOperatingModel;
+}>;
+
 export function capabilitiesForVendorOperatingModel(model: VendorOperatingModel): readonly VendorCapability[] {
   return model === "SELF_GOVERNED"
     ? [...MANAGED_CAPABILITIES, ...SELF_GOVERNED_EXTRA_CAPABILITIES]
@@ -114,7 +121,9 @@ export function buildVendorOperatingContext(input: {
 }): VendorOperatingContext {
   const vendorId = requiredScopeValue(input.vendorId, "vendorId");
   const operatingModel = input.operatingModel ?? "MANAGED";
-  const marketId = requiredScopeValue(input.marketId ?? DEFAULT_MANAGED_MARKET_ID, "marketId");
+  const marketId = operatingModel === "SELF_GOVERNED"
+    ? requiredScopeValue(input.marketId ?? "", "marketId")
+    : requiredScopeValue(input.marketId ?? DEFAULT_MANAGED_MARKET_ID, "marketId");
   const hubId = optionalScopeValue(input.hubId);
   const locationId = optionalScopeValue(input.locationId);
   return {
@@ -126,6 +135,24 @@ export function buildVendorOperatingContext(input: {
     roles: [...(input.roles ?? [])],
     capabilities: capabilitiesForVendorOperatingModel(operatingModel)
   };
+}
+
+/**
+ * Converts an authenticated vendor principal plus an explicit persisted assignment into the
+ * operating context consumed by backend services. Self-governed scope is never inferred from
+ * shop/profile data and can never fall back to Sparta.
+ */
+export function buildVendorOperatingContextFromSession(
+  principal: { vendorId?: string; roles: readonly string[] },
+  assignment: VendorOperatingAssignment = {}
+): VendorOperatingContext {
+  const vendorId = requiredScopeValue(principal.vendorId ?? "", "principal.vendorId");
+  if (!principal.roles.some(isVendorStaffRole)) throw new Error("Vendor staff role is required");
+  return buildVendorOperatingContext({
+    vendorId,
+    ...assignment,
+    roles: principal.roles
+  });
 }
 
 export function hasVendorCapability(context: VendorOperatingContext, capability: VendorCapability): boolean {
@@ -149,6 +176,10 @@ export function assertVendorResourceScope(
   if (resource.marketId != null && requiredScopeValue(resource.marketId, "resource.marketId") !== context.marketId) throw new Error("Vendor market access denied");
   if (resource.hubId != null && requiredScopeValue(resource.hubId, "resource.hubId") !== context.hubId) throw new Error("Vendor hub access denied");
   if (resource.locationId != null && requiredScopeValue(resource.locationId, "resource.locationId") !== context.locationId) throw new Error("Vendor location access denied");
+}
+
+function isVendorStaffRole(role: string): boolean {
+  return role.startsWith("vendor_");
 }
 
 function requiredScopeValue(value: string, field: string): string {
