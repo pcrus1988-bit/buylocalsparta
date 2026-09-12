@@ -3,6 +3,7 @@ import {
   getProductionPostgresRuntime,
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
+import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
@@ -11,7 +12,6 @@ const workerId = process.env.BLS_NOVA_WORKER_ID?.trim() || `nova-catalogue-worke
 const pollMs = positiveInteger(process.env.BLS_NOVA_POLL_MS, 5_000, "BLS_NOVA_POLL_MS");
 const retryMs = positiveInteger(process.env.BLS_NOVA_RETRY_MS, 30_000, "BLS_NOVA_RETRY_MS");
 
-// Fail before entering the loop if either durable state or supplier credentials are unavailable.
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
 if (!readiness.ok) {
@@ -32,7 +32,8 @@ log("info", "nova.worker_started", {
   pollMs,
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
-  materializesPublicOffers: false
+  materializesPublicOffers: false,
+  automaticPricing: novaAutoPricingEnabled()
 });
 
 try {
@@ -47,13 +48,23 @@ try {
           const materialization = await runNovaCatalogueMaterializationSlice();
           log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
         } catch (error) {
-          // Source ingestion/watermarks are already durable at this point. A staging
-          // failure must not replay or corrupt the supplier sync cursor.
           log("error", "nova.catalogue_materialization_failed", {
             workerId,
             error: safeError(error)
           });
         }
+      }
+
+      try {
+        const pricing = await runNovaAutoPricingSlice();
+        log("info", "nova.auto_pricing_slice", { workerId, ...pricing });
+      } catch (error) {
+        // Pricing is a derived layer. Supplier source ingestion remains durable even
+        // if a pricing pass fails, and the next loop safely retries the same cursor.
+        log("error", "nova.auto_pricing_failed", {
+          workerId,
+          error: safeError(error)
+        });
       }
 
       if (stopping) break;

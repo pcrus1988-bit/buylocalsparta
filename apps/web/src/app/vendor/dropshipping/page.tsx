@@ -45,6 +45,7 @@ function productUrl(supplier: string, query: string, filters: DropshippingProduc
   if (filters.cost !== "all") params.set("cost", filters.cost);
   if (filters.markup !== "all") params.set("markup", filters.markup);
   if (filters.discount !== "all") params.set("discount", filters.discount);
+  if (filters.pricingFlag !== "all") params.set("pricingFlag", filters.pricingFlag);
   if (filters.markupMin != null) params.set("markupMin", String(filters.markupMin));
   if (filters.markupMax != null) params.set("markupMax", String(filters.markupMax));
   if (filters.discountMin != null) params.set("discountMin", String(filters.discountMin));
@@ -65,6 +66,7 @@ function activeFilterCount(filters: DropshippingProductFilters): number {
     filters.cost !== "all",
     filters.markup !== "all",
     filters.discount !== "all",
+    filters.pricingFlag !== "all",
     filters.markupMin != null || filters.markupMax != null,
     filters.discountMin != null || filters.discountMax != null
   ].filter(Boolean).length;
@@ -99,6 +101,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
         cost: first(queryParams.cost),
         markup: first(queryParams.markup),
         discount: first(queryParams.discount),
+        pricingFlag: first(queryParams.pricingFlag),
         markupMin: numberParam(queryParams.markupMin),
         markupMax: numberParam(queryParams.markupMax),
         discountMin: numberParam(queryParams.discountMin),
@@ -133,6 +136,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
     cost: "all",
     markup: "all",
     discount: "all",
+    pricingFlag: "all",
     markupMin: null,
     markupMax: null,
     discountMin: null,
@@ -182,130 +186,57 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       <form method="get" className="workspace-queue-card" style={{ marginBottom: 14 }}>
         <input type="hidden" name="supplier" value={selectedCode} />
         <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end" }}>
-          <label><small>Αναζήτηση τίτλου, brand, SKU, EAN, κατηγορίας ή variant</small><input name="q" defaultValue={workspace.query} placeholder="π.χ. Michael Kors, SKU, EAN" style={{ width: "100%" }} /></label>
+          <label><small>Αναζήτηση τίτλου, brand, SKU, EAN, κατηγορίας ή OVERPRICED</small><input name="q" defaultValue={workspace.query} placeholder="π.χ. Michael Kors, SKU, EAN, OVERPRICED" style={{ width: "100%" }} /></label>
           <button className="button" type="submit">Αναζήτηση / φίλτρα</button>
         </div>
 
         <details open={filterCount > 0} style={{ marginTop: 14 }}>
-          <summary style={{ cursor: "pointer", fontWeight: 700 }}>
-            Φίλτρα προϊόντων{filterCount ? ` · ${filterCount} ενεργά` : ""}
-          </summary>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Φίλτρα προϊόντων{filterCount ? ` · ${filterCount} ενεργά` : ""}</summary>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginTop: 12 }}>
-            <label><small>Κατηγορία</small><select name="category" defaultValue={workspace.filters.categoryId} style={{ width: "100%" }}>
-              <option value="">Όλες</option>
-              {workspace.filterOptions.categories.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
-            </select></label>
-
-            <label><small>Υποκατηγορία</small><select name="subcategory" defaultValue={workspace.filters.subcategoryId} style={{ width: "100%" }}>
-              <option value="">Όλες</option>
-              {workspace.filterOptions.subcategories.map((option) => <option key={option.value} value={option.value}>
-                {option.parentValue && categoryLabels.get(option.parentValue) ? `${categoryLabels.get(option.parentValue)} › ` : ""}{option.label} ({option.count})
-              </option>)}
-            </select></label>
-
-            <label><small>Brand</small><select name="brand" defaultValue={workspace.filters.brandId} style={{ width: "100%" }}>
-              <option value="">Όλα</option>
-              {workspace.filterOptions.brands.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
-            </select></label>
-
-            <label><small>Size</small><select name="size" defaultValue={workspace.filters.size} style={{ width: "100%" }}>
-              <option value="">Όλα</option>
-              {workspace.filterOptions.sizes.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
-            </select></label>
-
-            <label><small>Χρώμα</small><select name="color" defaultValue={workspace.filters.color} style={{ width: "100%" }}>
-              <option value="">Όλα</option>
-              {workspace.filterOptions.colors.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
-            </select></label>
-
-            <label><small>Δημοσίευση</small><select name="publication" defaultValue={workspace.filters.publication} style={{ width: "100%" }}>
-              <option value="all">Όλα</option>
-              <option value="published">Published</option>
-              <option value="unpublished">Unpublished</option>
-            </select></label>
-
-            <label><small>Supplier stock</small><select name="availability" defaultValue={workspace.filters.availability} style={{ width: "100%" }}>
-              <option value="all">Όλα</option>
-              <option value="available">Διαθέσιμα</option>
-              <option value="out_of_stock">Out of stock</option>
-            </select></label>
-
-            <label><small>Buying price</small><select name="cost" defaultValue={workspace.filters.cost} style={{ width: "100%" }}>
-              <option value="all">Όλα</option>
-              <option value="with_cost">Με buying price</option>
-              <option value="missing_cost">Χωρίς buying price</option>
-            </select></label>
-
-            <label><small>Markup</small><select name="markup" defaultValue={workspace.filters.markup} style={{ width: "100%" }}>
-              <option value="all">Όλα</option>
-              <option value="with">Με markup</option>
-              <option value="without">Χωρίς markup</option>
-              <option value="percent">% markup</option>
-              <option value="fixed">Fixed markup</option>
-            </select></label>
-
-            <label><small>Discount</small><select name="discount" defaultValue={workspace.filters.discount} style={{ width: "100%" }}>
-              <option value="all">Όλα</option>
-              <option value="with">Με discount</option>
-              <option value="without">Χωρίς discount</option>
-              <option value="percent">% discount</option>
-              <option value="fixed">Fixed discount</option>
-            </select></label>
-
+            <label><small>Κατηγορία</small><select name="category" defaultValue={workspace.filters.categoryId} style={{ width: "100%" }}><option value="">Όλες</option>{workspace.filterOptions.categories.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}</select></label>
+            <label><small>Υποκατηγορία</small><select name="subcategory" defaultValue={workspace.filters.subcategoryId} style={{ width: "100%" }}><option value="">Όλες</option>{workspace.filterOptions.subcategories.map((option) => <option key={option.value} value={option.value}>{option.parentValue && categoryLabels.get(option.parentValue) ? `${categoryLabels.get(option.parentValue)} › ` : ""}{option.label} ({option.count})</option>)}</select></label>
+            <label><small>Brand</small><select name="brand" defaultValue={workspace.filters.brandId} style={{ width: "100%" }}><option value="">Όλα</option>{workspace.filterOptions.brands.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}</select></label>
+            <label><small>Size</small><select name="size" defaultValue={workspace.filters.size} style={{ width: "100%" }}><option value="">Όλα</option>{workspace.filterOptions.sizes.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}</select></label>
+            <label><small>Χρώμα</small><select name="color" defaultValue={workspace.filters.color} style={{ width: "100%" }}><option value="">Όλα</option>{workspace.filterOptions.colors.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}</select></label>
+            <label><small>Δημοσίευση</small><select name="publication" defaultValue={workspace.filters.publication} style={{ width: "100%" }}><option value="all">Όλα</option><option value="published">Published</option><option value="unpublished">Unpublished</option></select></label>
+            <label><small>Supplier stock</small><select name="availability" defaultValue={workspace.filters.availability} style={{ width: "100%" }}><option value="all">Όλα</option><option value="available">Διαθέσιμα</option><option value="out_of_stock">Out of stock</option></select></label>
+            <label><small>Buying price</small><select name="cost" defaultValue={workspace.filters.cost} style={{ width: "100%" }}><option value="all">Όλα</option><option value="with_cost">Με buying price</option><option value="missing_cost">Χωρίς buying price</option></select></label>
+            <label><small>Markup</small><select name="markup" defaultValue={workspace.filters.markup} style={{ width: "100%" }}><option value="all">Όλα</option><option value="with">Με markup</option><option value="without">Χωρίς markup</option><option value="percent">% markup</option><option value="fixed">Fixed markup</option></select></label>
+            <label><small>Discount</small><select name="discount" defaultValue={workspace.filters.discount} style={{ width: "100%" }}><option value="all">Όλα</option><option value="with">Με discount</option><option value="without">Χωρίς discount</option><option value="percent">% discount</option><option value="fixed">Fixed discount</option></select></label>
+            <label><small>Pricing status</small><select name="pricingFlag" defaultValue={workspace.filters.pricingFlag} style={{ width: "100%" }}><option value="all">Όλα</option><option value="OVERPRICED">OVERPRICED · πάνω από MSRP</option><option value="OK">Χωρίς OVERPRICED</option></select></label>
             <label><small>Markup % από</small><input name="markupMin" type="number" min="0" max="1000" step="0.01" defaultValue={workspace.filters.markupMin ?? ""} style={{ width: "100%" }} /></label>
             <label><small>Markup % έως</small><input name="markupMax" type="number" min="0" max="1000" step="0.01" defaultValue={workspace.filters.markupMax ?? ""} style={{ width: "100%" }} /></label>
             <label><small>Discount % από</small><input name="discountMin" type="number" min="0" max="100" step="0.01" defaultValue={workspace.filters.discountMin ?? ""} style={{ width: "100%" }} /></label>
             <label><small>Discount % έως</small><input name="discountMax" type="number" min="0" max="100" step="0.01" defaultValue={workspace.filters.discountMax ?? ""} style={{ width: "100%" }} /></label>
           </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button className="button" type="submit">Εφαρμογή φίλτρων</button>
-            {filterCount ? <Link className="button button-secondary" href={clearFiltersHref}>Καθαρισμός φίλτρων</Link> : null}
-          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}><button className="button" type="submit">Εφαρμογή φίλτρων</button>{filterCount ? <Link className="button button-secondary" href={clearFiltersHref}>Καθαρισμός φίλτρων</Link> : null}</div>
         </details>
       </form>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
         {workspace.products.map((product) => {
           const supplierCategory = novaSourceCategories.get(product.offerId) ?? null;
-          const recommendation = novaBrandsGatewaySelected
-            ? calculateNovaBrandsGatewayRecommendation({
-                supplierCostMinor: product.supplierCostMinor,
-                msrpMinor: product.msrpMinor,
-                category: supplierCategory ?? product.category,
-                subcategory: product.subcategory
-              })
-            : null;
-          const useRecommendedPricingDefault = Boolean(
-            recommendation?.recommendedSellingPriceMinor != null
-            && recommendation.recommendedMarkupPercent != null
-            && product.markupType == null
-            && product.discountType == null
-          );
+          const recommendation = novaBrandsGatewaySelected ? calculateNovaBrandsGatewayRecommendation({ supplierCostMinor: product.supplierCostMinor, msrpMinor: product.msrpMinor, category: supplierCategory ?? product.category, subcategory: product.subcategory }) : null;
+          const useRecommendedPricingDefault = Boolean(recommendation?.recommendedSellingPriceMinor != null && recommendation.recommendedMarkupPercent != null && product.markupType == null && product.discountType == null);
           const displayedCategory = supplierCategory ?? [product.category, product.subcategory].filter(Boolean).join(" › ");
+          const overpriced = product.pricingFlag === "OVERPRICED";
 
           return <article className="workspace-queue-card" key={product.supplierOfferId}>
-            <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div><span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span></div>
+            <div className="workspace-queue-head">
+              <div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>{overpriced ? <span className="vendor-merchant-status">OVERPRICED</span> : null}<span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span></div>
+            </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               {displayedCategory ? <div className="workspace-compact-row"><strong>Κατηγορία</strong><span>{displayedCategory}</span>{supplierCategory ? <small>NOVA API</small> : null}</div> : null}
               {(product.size || product.color) ? <div className="workspace-compact-row"><strong>Variant</strong><span>{[product.size && `Size ${product.size}`, product.color].filter(Boolean).join(" · ")}</span></div> : null}
               <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
-              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span><small>αποθηκευμένη</small></div>
+              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span><small>NOVA auto pricing</small></div>
+              {overpriced ? <div className="workspace-compact-row"><strong>Internal flag</strong><span>OVERPRICED</span><small>{euro(product.customerPriceMinor)} &gt; MSRP {euro(product.msrpMinor)}</small></div> : null}
               <div className="workspace-compact-row"><strong>Markup</strong><span>{product.markupType === "percent" && product.markupValue != null ? `${product.markupValue}%` : product.markupType === "fixed" && product.markupValue != null ? `${product.markupValue}` : "—"}</span></div>
               <div className="workspace-compact-row"><strong>Έκπτωση</strong><span>{product.discountType === "percent" && product.discountValue != null ? `${product.discountValue}%` : product.discountType === "fixed" && product.discountValue != null ? `${product.discountValue}` : "—"}</span></div>
               <div className="workspace-compact-row"><strong>Supplier stock</strong><span>{product.cachedAvailable ? (product.cachedQuantity ?? "Διαθέσιμο") : "Μη διαθέσιμο"}</span><small>{date(product.availabilityCheckedAt)}</small></div>
             </div>
-            <DropshippingProductControls
-              offerId={product.offerId}
-              supplierCostMinor={product.supplierCostMinor}
-              visible={product.visible}
-              markupValue={product.markupType === "percent" ? product.markupValue : null}
-              discountValue={product.discountType === "percent" ? product.discountValue : null}
-              msrpMinor={product.msrpMinor}
-              showMsrp={product.showMsrp}
-              recommendation={recommendation}
-              useRecommendedPricingDefault={useRecommendedPricingDefault}
-            />
+            <DropshippingProductControls offerId={product.offerId} supplierCostMinor={product.supplierCostMinor} visible={product.visible} markupValue={product.markupType === "percent" ? product.markupValue : null} discountValue={product.discountType === "percent" ? product.discountValue : null} msrpMinor={product.msrpMinor} showMsrp={product.showMsrp} recommendation={recommendation} useRecommendedPricingDefault={useRecommendedPricingDefault} />
           </article>;
         })}
         {!workspace.products.length ? <article className="workspace-queue-card"><strong>Δεν βρέθηκαν προϊόντα.</strong><p>Άλλαξε τον όρο αναζήτησης ή τα φίλτρα προϊόντων.</p></article> : null}
@@ -317,8 +248,6 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       </nav> : null}
     </section> : null}
 
-    <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Ασφάλεια" title="Dropshipping-only vendor" note="Αυτό το account δεν χρησιμοποιεί χειροκίνητο τοπικό απόθεμα. Η πρόσβαση στο συμβατικό catalogue θα ανακατευθύνεται εδώ και οι supplier τιμές αγοράς δεν δημοσιεύονται." />
-    </section>
+    <section className="shell vendor-section"><WorkspaceSectionHeading eyebrow="Ασφάλεια" title="Dropshipping-only vendor" note="Αυτό το account δεν χρησιμοποιεί χειροκίνητο τοπικό απόθεμα. Η πρόσβαση στο συμβατικό catalogue θα ανακατευθύνεται εδώ και οι supplier τιμές αγοράς δεν δημοσιεύονται." /></section>
   </main>;
 }

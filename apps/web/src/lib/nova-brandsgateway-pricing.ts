@@ -29,6 +29,7 @@ export type NovaBrandsGatewayPricingConfig = Readonly<{
 
 export type NovaBrandsGatewayPricingRecommendation = Readonly<{
   recommendedSellingPriceMinor: number | null;
+  unroundedSellingPriceMinor: number | null;
   recommendedMarkupPercent: number | null;
   recommendedProfitMinor: number | null;
   recommendedProfitPercent: number | null;
@@ -41,18 +42,14 @@ export type NovaBrandsGatewayPricingRecommendation = Readonly<{
   shippingStatus: NovaBrandsGatewayShippingStatus;
   shippingAbsorptionScore: number | null;
   cappedAtMsrp: boolean;
+  overpriced: boolean;
+  overpricedByMinor: number | null;
+  overpricedByPercent: number | null;
   vatRate: number;
   transactionRate: number;
 }>;
 
-/**
- * Greece / Zone U, BrandsGateway discounted Economy tariff for the Italian
- * warehouses (Pomezia, Florence, Rome and Modena).
- *
- * The order-level €15 base fee is intentionally NOT assigned in full to every
- * SKU. The engine allocates a basket-aware share and then caps that share by
- * the headroom available below MSRP while preserving the configured profit.
- */
+/** Greece / Zone U discounted Economy assumptions for BrandsGateway. */
 export const NOVA_BRANDSGATEWAY_GREECE_PRICING: NovaBrandsGatewayPricingConfig = Object.freeze({
   baseShippingMinor: 1_500,
   vatRate: 0.24,
@@ -74,8 +71,6 @@ const SHIPPING_PER_ITEM_MINOR: Readonly<Record<NovaBrandsGatewayShippingClass, n
   frames: 200,
   sunglasses: 200,
   watches: 200,
-  // Conservative fallback: use the highest published per-item fee when the
-  // category cannot be mapped rather than silently under-recover shipping.
   unknown: 400
 });
 
@@ -112,18 +107,11 @@ export function isNovaBrandsGatewaySupplier(input: Readonly<{
   return identity.includes("nova") || identity.includes("brandsgateway") || identity.includes("brands gateway");
 }
 
-/**
- * Maps the canonical/API category labels already available in the dropshipping
- * workspace to the shipping classes published by BrandsGateway.
- */
 export function novaBrandsGatewayShippingClass(
   category: string | null | undefined,
   subcategory: string | null | undefined
 ): NovaBrandsGatewayShippingClass {
-  // Put the most specific label first so e.g. "Accessories > Bags" maps to
-  // bags (€4) rather than generic accessories (€2).
   const value = normalizeText([subcategory, category].filter(Boolean).join(" "));
-
   if (includesAny(value, ["shoe", "footwear", "sneaker", "boot", "sandal", "loafer", "παπουτ", "υποδημ"])) return "shoes";
   if (includesAny(value, ["bag", "wallet", "purse", "handbag", "backpack", "clutch", "τσαντ", "πορτοφολ"])) return "bags_wallets";
   if (includesAny(value, ["sunglass", "sun glass", "γυαλια ηλιου"])) return "sunglasses";
@@ -136,7 +124,6 @@ export function novaBrandsGatewayShippingClass(
     "dress", "jacket", "coat", "trouser", "pants", "jeans", "skirt", "blouse", "swimwear",
     "ρουχ", "ενδυ", "μπλουζ", "φορεμ", "παντελον", "σακακ", "παλτο"
   ])) return "clothing";
-
   return "unknown";
 }
 
@@ -145,6 +132,22 @@ export function novaBrandsGatewayCategoryShippingMinor(
   subcategory: string | null | undefined
 ): number {
   return SHIPPING_PER_ITEM_MINOR[novaBrandsGatewayShippingClass(category, subcategory)];
+}
+
+/**
+ * Psychological price rounding requested for NOVA:
+ * - x0.00 .. x4.90 => x4.90
+ * - x4.91 .. x9.99 => x9.90
+ *
+ * This intentionally maps x9.91..x9.99 down by at most €0.09 because the
+ * commercial rule explicitly fixes the upper band at x9.90.
+ */
+export function roundNovaBrandsGatewaySellingPriceMinor(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const minor = Math.ceil(value);
+  const block = Math.floor(minor / 1_000) * 1_000;
+  const remainder = minor - block;
+  return remainder <= 490 ? block + 490 : block + 990;
 }
 
 export function calculateNovaBrandsGatewayProfit(input: Readonly<{
@@ -157,11 +160,9 @@ export function calculateNovaBrandsGatewayProfit(input: Readonly<{
   const landedCostMinor = finiteNonNegative(input.landedCostMinor);
   const vatRate = input.vatRate ?? NOVA_BRANDSGATEWAY_GREECE_PRICING.vatRate;
   const transactionRate = input.transactionRate ?? NOVA_BRANDSGATEWAY_GREECE_PRICING.transactionRate;
-
   if (sellingPriceMinor == null || landedCostMinor == null || sellingPriceMinor <= 0) {
     return { profitMinor: null, profitPercent: null };
   }
-
   const netRevenueMinor = sellingPriceMinor / (1 + vatRate);
   const revenueAfterTransactionCostsMinor = netRevenueMinor * (1 - transactionRate);
   const profitMinor = Math.round(revenueAfterTransactionCostsMinor - landedCostMinor);
@@ -184,6 +185,7 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
 
   const unavailable: NovaBrandsGatewayPricingRecommendation = {
     recommendedSellingPriceMinor: null,
+    unroundedSellingPriceMinor: null,
     recommendedMarkupPercent: null,
     recommendedProfitMinor: null,
     recommendedProfitPercent: null,
@@ -196,6 +198,9 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
     shippingStatus: "unviable",
     shippingAbsorptionScore: null,
     cappedAtMsrp: false,
+    overpriced: false,
+    overpricedByMinor: null,
+    overpricedByPercent: null,
     vatRate: config.vatRate,
     transactionRate: config.transactionRate
   };
@@ -211,7 +216,6 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
     (costWithFixedMinor + config.minimumProfitMinor) / (1 - config.transactionRate),
     costWithFixedMinor / (1 - config.transactionRate - config.targetMarginRate)
   );
-
   const allocatedBaseShare = Math.min(
     1,
     Math.max(1 / config.expectedItemsPerOrder, basePriceBeforeShippingMinor / config.expectedAovMinor)
@@ -224,37 +228,23 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
     const msrpNetMinor = msrpMinor / (1 + config.vatRate);
     const maximumLandedForMarginMinor = msrpNetMinor * (1 - config.transactionRate - config.targetMarginRate);
     const maximumLandedForAbsoluteProfitMinor = msrpNetMinor * (1 - config.transactionRate) - config.minimumProfitMinor;
-    const maximumLandedMinor = Math.min(maximumLandedForMarginMinor, maximumLandedForAbsoluteProfitMinor);
-    maximumAbsorbableShippingMinor = Math.max(0, Math.floor(maximumLandedMinor - costWithFixedMinor));
+    maximumAbsorbableShippingMinor = Math.max(
+      0,
+      Math.floor(Math.min(maximumLandedForMarginMinor, maximumLandedForAbsoluteProfitMinor) - costWithFixedMinor)
+    );
   }
 
-  const embeddedShippingMinor = Math.max(0, Math.min(targetShippingMinor, maximumAbsorbableShippingMinor));
+  // MSRP is now a reference/flag threshold, not a price ceiling. We recover the
+  // expected basket shipping allocation first, then flag the result if it exceeds MSRP.
+  const embeddedShippingMinor = targetShippingMinor;
   const landedCostMinor = costWithFixedMinor + embeddedShippingMinor;
   const protectedPriceNetMinor = Math.max(
     landedCostMinor * (1 + config.minimumMarkupRate),
     (landedCostMinor + config.minimumProfitMinor) / (1 - config.transactionRate),
     landedCostMinor / (1 - config.transactionRate - config.targetMarginRate)
   );
-  const uncappedGrossRecommendationMinor = Math.ceil(protectedPriceNetMinor * (1 + config.vatRate));
-
-  // MSRP is a hard commercial ceiling for the recommendation. If MSRP itself
-  // is below supplier cost, there is no safely saveable recommendation.
-  if (msrpMinor != null && msrpMinor > 0 && msrpMinor < supplierCostMinor) {
-    return {
-      ...unavailable,
-      landedCostMinor,
-      embeddedShippingMinor,
-      targetShippingMinor,
-      maximumAbsorbableShippingMinor,
-      shippingAbsorptionScore: roundPercent(maximumAbsorbableShippingMinor / (config.baseShippingMinor + categoryShippingMinor)),
-      cappedAtMsrp: true
-    };
-  }
-
-  const cappedAtMsrp = msrpMinor != null && msrpMinor > 0 && uncappedGrossRecommendationMinor > msrpMinor;
-  const recommendedSellingPriceMinor = msrpMinor != null && msrpMinor > 0
-    ? Math.min(uncappedGrossRecommendationMinor, msrpMinor)
-    : uncappedGrossRecommendationMinor;
+  const unroundedSellingPriceMinor = Math.ceil(protectedPriceNetMinor * (1 + config.vatRate));
+  const recommendedSellingPriceMinor = roundNovaBrandsGatewaySellingPriceMinor(unroundedSellingPriceMinor);
   const recommendedMarkupPercent = roundPercent(((recommendedSellingPriceMinor / supplierCostMinor) - 1) * 100);
   const profit = calculateNovaBrandsGatewayProfit({
     sellingPriceMinor: recommendedSellingPriceMinor,
@@ -263,19 +253,20 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
     transactionRate: config.transactionRate
   });
 
-  let shippingStatus: NovaBrandsGatewayShippingStatus;
-  if (maximumAbsorbableShippingMinor < categoryShippingMinor || (profit.profitMinor ?? -1) < 0) {
-    shippingStatus = "unviable";
-  } else if (embeddedShippingMinor >= config.baseShippingMinor + categoryShippingMinor) {
-    shippingStatus = "standalone_safe";
-  } else if (embeddedShippingMinor >= targetShippingMinor) {
-    shippingStatus = "basket_safe";
-  } else {
-    shippingStatus = "basket_dependent";
-  }
+  const overpriced = msrpMinor != null && msrpMinor > 0 && recommendedSellingPriceMinor > msrpMinor;
+  const overpricedByMinor = overpriced && msrpMinor != null ? recommendedSellingPriceMinor - msrpMinor : null;
+  const overpricedByPercent = overpriced && msrpMinor != null
+    ? roundPercent(((recommendedSellingPriceMinor / msrpMinor) - 1) * 100)
+    : null;
+
+  const fullStandaloneShippingMinor = config.baseShippingMinor + categoryShippingMinor;
+  const shippingStatus: NovaBrandsGatewayShippingStatus = targetShippingMinor >= fullStandaloneShippingMinor
+    ? "standalone_safe"
+    : "basket_safe";
 
   return {
     recommendedSellingPriceMinor,
+    unroundedSellingPriceMinor,
     recommendedMarkupPercent,
     recommendedProfitMinor: profit.profitMinor,
     recommendedProfitPercent: profit.profitPercent,
@@ -286,8 +277,11 @@ export function calculateNovaBrandsGatewayRecommendation(input: Readonly<{
     categoryShippingMinor,
     shippingClass,
     shippingStatus,
-    shippingAbsorptionScore: roundPercent(maximumAbsorbableShippingMinor / (config.baseShippingMinor + categoryShippingMinor)),
-    cappedAtMsrp,
+    shippingAbsorptionScore: roundPercent(maximumAbsorbableShippingMinor / fullStandaloneShippingMinor),
+    cappedAtMsrp: false,
+    overpriced,
+    overpricedByMinor,
+    overpricedByPercent,
     vatRate: config.vatRate,
     transactionRate: config.transactionRate
   };
