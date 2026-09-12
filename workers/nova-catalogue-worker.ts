@@ -7,6 +7,7 @@ import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
+import { assertNovaRuntimeInvariants } from "../apps/web/src/lib/nova-runtime-invariants.ts";
 import { runNovaSellabilitySafetySweep } from "../apps/web/src/lib/nova-sellability-safety.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
 
@@ -24,6 +25,7 @@ const readiness = await productionDatabaseReadiness();
 if (!readiness.ok) {
   throw new Error(`Nova catalogue worker refused to start: ${readiness.message}`);
 }
+await assertNovaRuntimeInvariants();
 
 let stopping = false;
 let nextAvailabilityRefreshAt = 0;
@@ -43,7 +45,8 @@ log("info", "nova.worker_started", {
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
   materializesPublicOffers: false,
-  automaticPricing: novaAutoPricingEnabled()
+  automaticPricing: novaAutoPricingEnabled(),
+  runtimeInvariantsVerified: true
 });
 
 try {

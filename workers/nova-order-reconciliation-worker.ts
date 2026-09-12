@@ -4,6 +4,7 @@ import {
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
 import { runDropshipOrderReconciliationSweep } from "../apps/web/src/lib/dropship-order-reconciliation.ts";
+import { assertNovaRuntimeInvariants } from "../apps/web/src/lib/nova-runtime-invariants.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
 
 const workerId = process.env.BLS_NOVA_ORDER_RECONCILIATION_WORKER_ID?.trim()
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   if (!readiness.ok) {
     throw new Error(`Nova order reconciliation worker refused to start: ${readiness.message}`);
   }
+  await assertNovaRuntimeInvariants();
 
   const runtime = getProductionPostgresRuntime();
   const lockClient = await runtime.nativePool.connect();
@@ -79,7 +81,8 @@ async function main(): Promise<void> {
       pollMs,
       batchLimit,
       supplier: "nova_brandsgateway",
-      writesSupplierOrders: false
+      writesSupplierOrders: false,
+      runtimeInvariantsVerified: true
     });
 
     while (!stopping) {
