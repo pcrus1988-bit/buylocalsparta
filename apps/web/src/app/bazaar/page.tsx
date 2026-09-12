@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
-import { bazaarConditionLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { bazaarConditionLabel, bazaarSourceLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
 
 export const metadata: Metadata = {
   title: "BAZAAR | KONTA MOY",
@@ -24,16 +24,18 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
   const params = await searchParams;
   const query = valueOf(params.q).trim();
   const condition = valueOf(params.condition).trim();
+  const source = valueOf(params.source).trim();
   const brand = valueOf(params.brand).trim();
   const category = valueOf(params.category).trim();
   const [products, allProducts] = await Promise.all([
-    getBazaarCatalog({ query,condition,brand,category }),
+    getBazaarCatalog({ query,condition,source,brand,category }),
     getBazaarCatalog()
   ]);
 
   const brands = [...new Set(allProducts.map((product) => product.brand).filter((value): value is string => Boolean(value)))].sort((a,b) => a.localeCompare(b,"el"));
   const categories = [...new Set(allProducts.map((product) => product.categoryCode))].sort((a,b) => a.localeCompare(b,"el"));
   const conditions = [...new Set(allProducts.map((product) => product.condition))];
+  const sources = [...new Set(allProducts.map((product) => product.bazaarSource).filter((value): value is NonNullable<typeof value> => Boolean(value)))];
 
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
     <div className="announcement">BAZAAR · Μοναδικά κομμάτια, πανελλαδικά.</div>
@@ -58,6 +60,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
       <form action="/bazaar" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", gap: 10, alignItems: "end" }}>
         <label style={{ display: "grid", gap: 6 }}><span>Αναζήτηση BAZAAR</span><input name="q" defaultValue={query} placeholder="Brand, προϊόν, κατηγορία…" /></label>
         <label style={{ display: "grid", gap: 6 }}><span>Κατάσταση</span><select name="condition" defaultValue={condition}><option value="">Όλες</option>{conditions.map((item) => <option key={item} value={item}>{bazaarConditionLabel(item)}</option>)}</select></label>
+        <label style={{ display: "grid", gap: 6 }}><span>Προέλευση</span><select name="source" defaultValue={source}><option value="">Όλες</option>{sources.map((item) => <option key={item} value={item}>{bazaarSourceLabel(item)}</option>)}</select></label>
         <label style={{ display: "grid", gap: 6 }}><span>Brand</span><select name="brand" defaultValue={brand}><option value="">Όλα</option>{brands.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <label style={{ display: "grid", gap: 6 }}><span>Κατηγορία</span><select name="category" defaultValue={category}><option value="">Όλες</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <button type="submit" className="button primary">Φίλτρα</button>
@@ -67,7 +70,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
     <section className="shell" style={{ paddingBottom: 72 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", marginBottom: 22, flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>{products.length ? `${products.length} BAZAAR επιλογές` : "BAZAAR"}</h2>
-        {(query || condition || brand || category) ? <Link href="/bazaar">Καθαρισμός φίλτρων</Link> : null}
+        {(query || condition || source || brand || category) ? <Link href="/bazaar">Καθαρισμός φίλτρων</Link> : null}
       </div>
 
       {products.length === 0 ? <div className="empty-state" style={{ padding: 48 }}>
@@ -84,7 +87,8 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
             <div className="product-body">
               <div className="eyebrow">{bazaarConditionLabel(product.condition)}</div>
               <h3><Link href={`/bazaar/product/${encodeURIComponent(product.slug)}`}>{product.title}</Link></h3>
-              {product.brand ? <p style={{ margin: "4px 0 10px", opacity: .7 }}>{product.brand}</p> : null}
+              {product.brand ? <p style={{ margin: "4px 0 6px", opacity: .7 }}>{product.brand}</p> : null}
+              {product.bazaarSource ? <p style={{ margin: "0 0 10px", fontSize: ".86rem", fontWeight: 800 }}>{bazaarSourceLabel(product.bazaarSource)}</p> : null}
               <div className="price">
                 {product.msrpMinor && product.msrpMinor > product.priceMinor ? <s style={{ opacity: .55, fontSize: ".7em" }}>ΠΛΤ {euro(product.msrpMinor)}</s> : null}
                 <span>{euro(product.priceMinor)}</span>
