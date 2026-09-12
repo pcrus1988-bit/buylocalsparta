@@ -1,4 +1,5 @@
 import type { SqlRow } from "@buy-local-sparta/core";
+import { canonicalNovaSlug } from "./nova-canonical-slug";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const SOURCE_CODE = "nova-brandsgateway";
@@ -308,25 +309,37 @@ async function materializeSourceProduct(
         externalProductId: sourceProduct.sourceProductKey,
         externalVariantId: variant.externalVariantId
       };
-      const created = await pool.query<SqlRow>(`
-        INSERT INTO public.canonical_variants(
-          market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,
-          variant_attributes,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled
-        ) VALUES(
-          $1::uuid,NULL,$2::uuid,NULL,$3,$4,$5,$6,'new',
-          $7::jsonb,NULL,'EUR',$8,false,false,false
-        )
-        RETURNING id
-      `,[
-        context.marketId,
-        brandId,
-        canonicalSlug(sourceProduct.title,sourceProduct.sourceProductKey,variant.externalVariantId),
-        globalIdentifier?.value ?? null,
-        brandId ? variant.mpn : null,
-        productModel(payload),
-        JSON.stringify(variantAttributes),
-        DEFAULT_TAX_RATE_BPS
-      ]);
+      const slug = canonicalNovaSlug(sourceProduct.title,sourceProduct.sourceProductKey,variant.externalVariantId);
+      let created: { rows: SqlRow[] };
+      try {
+        created = await pool.query<SqlRow>(`
+          INSERT INTO public.canonical_variants(
+            market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,
+            variant_attributes,platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled
+          ) VALUES(
+            $1::uuid,NULL,$2::uuid,NULL,$3,$4,$5,$6,'new',
+            $7::jsonb,NULL,'EUR',$8,false,false,false
+          )
+          RETURNING id
+        `,[
+          context.marketId,
+          brandId,
+          slug,
+          globalIdentifier?.value ?? null,
+          brandId ? variant.mpn : null,
+          productModel(payload),
+          JSON.stringify(variantAttributes),
+          DEFAULT_TAX_RATE_BPS
+        ]);
+      } catch (error) {
+        if (!isCanonicalSlugUniqueViolation(error)) throw error;
+        reviewsCreated += await upsertReview(context,sourceProduct,"canonical_identity_ambiguous",null,{
+          externalVariantId: variant.externalVariantId,
+          slugCollision: true,
+          canonicalSlug: slug
+        });
+        continue;
+      }
       canonicalVariantId = requiredText(created.rows[0]?.id,"created canonical variant id");
       canonicalCreated += 1;
 
@@ -653,17 +666,13 @@ function productModel(payload: Readonly<Record<string, unknown>>): string | null
   return optionalText(payload.mpn) ?? optionalText(payload.sku);
 }
 
-function canonicalSlug(title: string, externalProductId: string, externalVariantId: string): string {
-  const base = title
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g,"")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"")
-    .slice(0,64) || "nova-product";
-  const product = externalProductId.toLowerCase().replace(/[^a-z0-9]+/g,"-").slice(0,20);
-  const variant = externalVariantId.toLowerCase().replace(/[^a-z0-9]+/g,"-").slice(0,20);
-  return `${base}-${product}-${variant}`.slice(0,128);
+function isCanonicalSlugUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const row = error as { code?: unknown; constraint?: unknown; message?: unknown };
+  return row.code === "23505" && (
+    row.constraint === "canonical_variants_market_id_slug_key" ||
+    (typeof row.message === "string" && row.message.includes("canonical_variants_market_id_slug_key"))
+  );
 }
 
 function normalizeBrandName(value: string): string {
