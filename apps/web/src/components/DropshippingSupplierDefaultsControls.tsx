@@ -50,7 +50,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
   }
 
   async function applyDefaults() {
-    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων στο τρέχον catalogue; Οι global τιμές και το MSRP θα εφαρμοστούν ξανά. Τα manual Public/Hidden overrides ανά προϊόν θα διατηρηθούν, εκτός αν ένα προϊόν αποτύχει σε hard safety gate.");
+    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων στο τρέχον catalogue; Οι global τιμές και το MSRP θα εφαρμοστούν ξανά. Τα manual Public/Hidden overrides ανά προϊόν θα διατηρηθούν. Όταν το supplier default είναι Public, ασφαλή supplier-linked draft προϊόντα εγκρίνονται αυτόματα από τον Dropshipping vendor. Marketplace moderation, suppressed/recalled και inactive προϊόντα παραμένουν κλειδωμένα.");
     if (!confirmed) return;
     setBusy(true); setMessage("");
     try {
@@ -71,7 +71,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
 
   async function bulkVisibility(nextVisible: boolean) {
     const confirmed = window.confirm(nextVisible
-      ? "Force publish όλων των eligible προϊόντων αυτού του supplier; Η ενέργεια εφαρμόζει νέα global κατάσταση στο τρέχον catalogue και καθαρίζει τα υπάρχοντα per-product visibility overrides. Θα δημοσιευτούν μόνο approved/active και ασφαλή προϊόντα με buying price και τελική τιμή τουλάχιστον ίση με το supplier cost."
+      ? "Force publish όλων των eligible προϊόντων αυτού του supplier; Η ενέργεια εφαρμόζει νέα global κατάσταση στο τρέχον catalogue και καθαρίζει τα υπάρχοντα per-product visibility overrides. Τα ασφαλή supplier-linked draft προϊόντα εγκρίνονται αυτόματα. pending_review/rejected/archived/suppressed, inactive, recalled ή προϊόντα χωρίς έγκυρη buying/final price παραμένουν hidden."
       : "Force hide όλων των προϊόντων αυτού του supplier; Η ενέργεια καθαρίζει τα υπάρχοντα per-product visibility overrides ώστε η απόκρυψη να γίνει η νέα global τρέχουσα κατάσταση.");
     if (!confirmed) return;
     setBusy(true); setMessage("");
@@ -98,11 +98,11 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <div><strong>Global supplier settings</strong><small>{defaults.configured ? "Αποθηκευμένα defaults" : "Δεν έχουν οριστεί ακόμη"}</small></div>
       <span className="vendor-merchant-status">{visible ? "Public eligible" : "Hidden eligible"}</span>
     </div>
-    <p style={{ marginTop: 10 }}>Η ορατότητα εδώ είναι supplier default. Μπορείς μετά να αλλάξεις Public/Hidden σε μεμονωμένο προϊόν· αυτή η επιλογή γίνεται manual override και διατηρείται όταν ξαναεφαρμόζεις τα defaults. Τα hard safety gates έχουν πάντα προτεραιότητα.</p>
+    <p style={{ marginTop: 10 }}>Η ορατότητα εδώ είναι supplier default. Μπορείς μετά να αλλάξεις Public/Hidden σε μεμονωμένο προϊόν· αυτή η επιλογή γίνεται manual override και διατηρείται όταν ξαναεφαρμόζεις τα defaults. Τα hard marketplace/safety gates έχουν πάντα προτεραιότητα.</p>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
       <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
       <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} /> <span>Approved products public</span></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} /> <span>Eligible supplier products public</span></label>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Show supplier MSRP</span></label>
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
@@ -111,7 +111,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Bulk publish eligible</button>
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Bulk publish/hide: είναι force global ενέργεια και καθαρίζει όλα τα per-product visibility overrides του supplier. Draft, inactive, suppressed ή recalled προϊόντα παραμένουν hidden.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Bulk publish/hide: force global ενέργεια που καθαρίζει τα per-product visibility overrides. Safe draft supplier products μπορούν να εγκριθούν αυτόματα· marketplace-blocked, inactive, suppressed ή recalled προϊόντα παραμένουν hidden.</small>
     <DropshippingSupplierFieldControls supplierCode={supplierCode} />
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
