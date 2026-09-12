@@ -426,7 +426,25 @@ async function resolveOrCreateBrand(payload: Readonly<Record<string, unknown>>):
   if (!brandName) return null;
   const normalizedName = normalizeBrandName(brandName);
   if (!normalizedName) return null;
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const pool = getProductionPostgresRuntime().sqlPool;
+  // Resolve governed aliases first. A compact spelling (MichaelKors) only
+  // matches when exactly one existing brand has that spelling without spaces.
+  const existing = await pool.query<SqlRow>(`
+    SELECT id FROM (
+      SELECT b.id,0 AS priority FROM public.brands b WHERE b.normalized_name=$1
+      UNION ALL
+      SELECT b.id,1 FROM public.brand_aliases a JOIN public.brands b ON b.id=a.brand_id
+        WHERE a.active AND a.normalized_alias=$1 AND b.status='active'
+      UNION ALL
+      SELECT b.id,2 FROM public.brands b
+        WHERE b.status='active' AND length($2::text)>=8
+          AND regexp_replace(b.normalized_name,'[[:space:]]','','g')=$2
+    ) matched ORDER BY priority,id LIMIT 2
+  `,[normalizedName,normalizedName.replace(/\s/g,"")]);
+  const uniqueMatches = [...new Set(existing.rows.map((row) => String(row.id)))];
+  if (uniqueMatches.length === 1) return uniqueMatches[0];
+  if (uniqueMatches.length > 1) return null; // Ambiguous identity: never silently merge brands.
+  const result = await pool.query<SqlRow>(`
     INSERT INTO public.brands(name,normalized_name,status)
     VALUES($1,$2,'active')
     ON CONFLICT (normalized_name) DO UPDATE SET updated_at=now()

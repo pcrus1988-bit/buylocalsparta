@@ -224,6 +224,7 @@ export async function getPublishedDropshipCatalogCards(
       mpn: publicFields.mpn === false ? undefined : details?.mpn,
       description: details?.description,
       brand: details?.brand,
+      brandLogoObjectKey: details?.brandLogoObjectKey,
       color: details?.color,
       sizes: projection.sizes,
       fit: technicalAttributesVisible ? details?.fit : undefined,

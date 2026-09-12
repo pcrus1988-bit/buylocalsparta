@@ -128,6 +128,10 @@
   background: #fff;
 }
 .product-body { padding: 16px; }
+.catalog-card-brand { display: flex; align-items: center; gap: 6px; min-height: 22px; margin-top: 4px; color: #4b5852; font-size: 11px; line-height: 1.2; }
+.catalog-card-brand img { display: block; width: auto; max-width: 80px; height: auto; max-height: 20px; object-fit: contain; flex: none; }
+.catalog-card-brand img[hidden] { display: none; }
+.catalog-card-brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .product-body h3 {
   margin: 7px 0 8px;
   font-family: Arial, Helvetica, sans-serif;
