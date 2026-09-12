@@ -75,6 +75,33 @@ function normalizeCondition(value: string): BazaarCondition {
 }
 
 /**
+ * Apply BAZAAR discovery filters to an already loaded catalogue snapshot.
+ * The main BAZAAR page uses this helper so facets and filtered results share one
+ * database/media projection instead of issuing two identical expensive reads.
+ */
+export function filterBazaarCatalogCards(cards: readonly BazaarCard[], filters: BazaarFilters = {}): readonly BazaarCard[] {
+  const query = normalizeSearchText(filters.query ?? "");
+  const requestedCondition = normalizeSearchText(filters.condition ?? "");
+  const requestedBrand = normalizeSearchText(filters.brand ?? "");
+  const requestedCategory = normalizeSearchText(filters.category ?? "");
+
+  let filtered = [...cards];
+  if (query) {
+    filtered = filtered.filter((card) => normalizeSearchText([
+      card.title,
+      card.description ?? "",
+      card.brand ?? "",
+      card.categoryCode,
+      card.condition
+    ].join(" ")).includes(query));
+  }
+  if (requestedCondition) filtered = filtered.filter((card) => normalizeSearchText(card.condition) === requestedCondition);
+  if (requestedBrand) filtered = filtered.filter((card) => normalizeSearchText(card.brand ?? "") === requestedBrand);
+  if (requestedCategory) filtered = filtered.filter((card) => normalizeSearchText(card.categoryCode) === requestedCategory);
+  return filtered;
+}
+
+/**
  * Dedicated BAZAAR read model.
  *
  * It intentionally has no hub/postcode predicate: BAZAAR is a Greece-wide discovery
@@ -148,11 +175,6 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
     LIMIT $1
   `,[limit,slugOrId]);
 
-  const query = normalizeSearchText(filters.query ?? "");
-  const requestedCondition = normalizeSearchText(filters.condition ?? "");
-  const requestedBrand = normalizeSearchText(filters.brand ?? "");
-  const requestedCategory = normalizeSearchText(filters.category ?? "");
-
   let cards = result.rows.flatMap((row) => {
     const priceMinor = positiveInt(row.customer_price_minor);
     if (!priceMinor) return [];
@@ -178,19 +200,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
     return card.availableToSell > 0 ? [card] : [];
   });
 
-  if (query) {
-    cards = cards.filter((card) => normalizeSearchText([
-      card.title,
-      card.description ?? "",
-      card.brand ?? "",
-      card.categoryCode,
-      card.condition
-    ].join(" ")).includes(query));
-  }
-  if (requestedCondition) cards = cards.filter((card) => normalizeSearchText(card.condition) === requestedCondition);
-  if (requestedBrand) cards = cards.filter((card) => normalizeSearchText(card.brand ?? "") === requestedBrand);
-  if (requestedCategory) cards = cards.filter((card) => normalizeSearchText(card.categoryCode) === requestedCategory);
-
+  cards = [...filterBazaarCatalogCards(cards, filters)];
   if (!cards.length) return cards;
 
   try {
