@@ -294,7 +294,7 @@ export async function setDropshippingSupplierVisibility(
   vendorIdentity: string,
   supplierCode: string,
   visible: boolean
-): Promise<Readonly<{ affectedProducts: number; visibleProducts: number; selfApprovedProducts: number }>> {
+): Promise<Readonly<{ affectedProducts: number; visibleProducts: number }>> {
   await assertDropshippingOnlyVendor(vendorIdentity);
   if (!productionDatabaseConfigured()) throw new Error("Η μαζική αλλαγή ορατότητας απαιτεί ενεργή βάση δεδομένων.");
   const code = supplierCode.trim();
@@ -375,7 +375,6 @@ export async function setDropshippingSupplierVisibility(
 
   return {
     affectedProducts: result.rowCount ?? 0,
-    visibleProducts: result.rows.filter((row) => row.merchant_visible === true).length,
-    selfApprovedProducts: result.rows.filter((row) => row.status === "approved" && row.merchant_visible === true).length
+    visibleProducts: result.rows.filter((row) => row.merchant_visible === true).length
   };
 }
