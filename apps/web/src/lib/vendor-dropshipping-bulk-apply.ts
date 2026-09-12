@@ -45,10 +45,12 @@ async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
  * changes, the timestamp alone is intentionally not used as provenance.
  *
  * Safe supplier-linked draft offers can be self-approved by the dedicated
- * dropshipping vendor when the supplier default is public. Public defaults also
- * activate the matching dropship_supplier_offers rows; that flag is catalogue
- * activation intent, while live stock remains governed by API-authoritative
- * availability. Marketplace moderation and canonical safety stay authoritative.
+ * dropshipping vendor when the supplier default is public. Newly materialized
+ * supplier canonicals start inactive by design; a public supplier default is an
+ * explicit publication decision, so eligible non-suppressed/non-recalled
+ * canonicals are activated before their supplier offers. Live stock remains
+ * governed by API-authoritative availability. Marketplace moderation and
+ * canonical safety remain authoritative.
  */
 export async function applyDropshippingSupplierDefaultsSequential(
   vendorIdentity: string,
@@ -106,6 +108,29 @@ export async function applyDropshippingSupplierDefaultsSequential(
     `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent]);
 
     if (defaults.visible) {
+      await client.query(`
+        UPDATE canonical_variants cv
+           SET active=true
+          FROM vendor_offers vo
+          JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+         WHERE cv.id=vo.canonical_variant_id
+           AND dso.supplier_id=$1::uuid
+           AND vo.vendor_id=$2::uuid
+           AND vo.status IN ('draft','approved')
+           AND dso.supplier_cost_minor IS NOT NULL
+           AND dso.supplier_cost_minor >= 0
+           AND cv.suppressed=false
+           AND cv.recalled=false
+           AND NOT EXISTS (
+             SELECT 1
+               FROM vendor_product_submissions s
+              WHERE s.vendor_id=vo.vendor_id
+                AND s.canonical_variant_id=vo.canonical_variant_id
+                AND ((s.vendor_sku IS NULL AND vo.vendor_sku IS NULL) OR s.vendor_sku=vo.vendor_sku OR s.vendor_sku IS NULL)
+                AND s.status='archived'
+           )
+      `, [supplierId, vendorId]);
+
       await client.query(`
         UPDATE dropship_supplier_offers dso
            SET active=true,
