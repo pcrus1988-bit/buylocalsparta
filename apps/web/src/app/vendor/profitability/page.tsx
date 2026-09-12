@@ -44,8 +44,8 @@ export default async function VendorProfitabilityPage({ searchParams }: PageProp
 
     <WorkspaceMetricStrip items={[
       { label: "Πραγματοποιημένες πωλήσεις", value: euro(s.realizedRevenueMinor), hint: periodLabel(selectedPeriod) },
-      { label: "Μικτό κέρδος", value: euro(s.grossProfitMinor), hint: `μόνο για γραμμές με ιστορικό κόστος · ${pctBps(s.grossMarginBps)}`, tone: s.grossProfitMinor > 0 ? "positive" : s.grossProfitMinor < 0 ? "danger" : "default" },
-      { label: "Συνεισφορά μετά marketplace fees", value: euro(s.contributionAfterMarketplaceFeesMinor), hint: pctBps(s.contributionMarginBps), tone: s.contributionAfterMarketplaceFeesMinor > 0 ? "positive" : s.contributionAfterMarketplaceFeesMinor < 0 ? "danger" : "default" },
+      { label: "Μικτό κέρδος", value: euro(s.grossProfitMinor), hint: `μόνο για γραμμές με ιστορικό κόστος · ${pctBps(s.grossMarginBps)}`, tone: s.grossProfitMinor > 0 ? "positive" : s.grossProfitMinor < 0 ? "attention" : "default" },
+      { label: "Συνεισφορά μετά marketplace fees", value: euro(s.contributionAfterMarketplaceFeesMinor), hint: pctBps(s.contributionMarginBps), tone: s.contributionAfterMarketplaceFeesMinor > 0 ? "positive" : s.contributionAfterMarketplaceFeesMinor < 0 ? "attention" : "default" },
       { label: "Κάλυψη ιστορικού κόστους", value: pct(s.costCoveragePct), hint: `${s.costCoveredLines}/${s.recognizedLines} γραμμές πώλησης` }
     ]} />
 
@@ -63,7 +63,7 @@ export default async function VendorProfitabilityPage({ searchParams }: PageProp
       <WorkspaceMetricStrip items={[
         { label: "Προϊόντα με κόστος", value: c.costCoveredOffers, hint: `${pct(c.coveragePct)} κάλυψη` },
         { label: "Χωρίς τιμή αγοράς", value: c.missingCostOffers, tone: c.missingCostOffers ? "attention" : "positive" },
-        { label: "Αρνητικό περιθώριο", value: c.negativeMarginOffers, tone: c.negativeMarginOffers ? "danger" : "positive" },
+        { label: "Αρνητικό περιθώριο", value: c.negativeMarginOffers, tone: c.negativeMarginOffers ? "attention" : "positive" },
         { label: "Χαμηλό περιθώριο (<15%)", value: c.thinMarginOffers, tone: c.thinMarginOffers ? "attention" : "positive" }
       ]} />
       {report.currentRows.length ? <div className="workspace-queue-list" style={{ marginTop: 16 }}>
