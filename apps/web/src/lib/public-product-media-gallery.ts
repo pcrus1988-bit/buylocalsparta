@@ -49,6 +49,7 @@ export async function approvedCatalogImageGallery(
           AND pm.object_key IS NOT NULL
           AND pm.content_type IN ('image/jpeg','image/png','image/webp')
         ORDER BY CASE WHEN $2::text IS NOT NULL AND v.public_id=$2 THEN 0 ELSE 1 END,
+                 pm.sort_order ASC,
                  pm.reviewed_at DESC NULLS LAST,
                  pm.created_at DESC,
                  pm.public_id
