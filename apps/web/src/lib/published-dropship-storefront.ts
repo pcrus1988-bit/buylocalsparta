@@ -26,6 +26,8 @@ type PublishedDropshipRow = Readonly<{
   vendor_public_id: string;
   vendor_name: string;
   vendor_presentation: unknown;
+  source_website: string | null;
+  normalized_payload: unknown;
 }>;
 
 function safeMinor(value: unknown): number | undefined {
@@ -41,6 +43,47 @@ function safeQuantity(value: unknown): number {
 function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
   if (!right) return true;
   return normalizeSearchText(left ?? "") === normalizeSearchText(right);
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function sameSourceHttpsUrl(sourceWebsite: unknown, candidate: unknown): string | undefined {
+  const website = optionalText(sourceWebsite);
+  const value = optionalText(candidate);
+  if (!website || !value) return undefined;
+  try {
+    const source = new URL(website);
+    const asset = new URL(value, source);
+    if (asset.protocol !== "https:") return undefined;
+    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
+    if (normalizeHost(source.hostname) !== normalizeHost(asset.hostname)) return undefined;
+    return asset.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function firstSourceImage(sourceWebsite: unknown, normalizedPayload: unknown): string | undefined {
+  const payload = objectValue(normalizedPayload);
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  const candidates = images
+    .map((entry, sourceIndex) => {
+      const image = objectValue(entry);
+      const src = sameSourceHttpsUrl(sourceWebsite, image.src ?? image.url ?? image.image);
+      if (!src) return undefined;
+      const numeric = Number(image.position);
+      const position = Number.isFinite(numeric) && numeric >= 0 ? numeric : sourceIndex;
+      return { src, position, sourceIndex };
+    })
+    .filter((entry): entry is { src: string; position: number; sourceIndex: number } => Boolean(entry))
+    .sort((left, right) => left.position - right.position || left.sourceIndex - right.sourceIndex);
+  return candidates[0]?.src;
 }
 
 /**
@@ -86,7 +129,9 @@ async function readPublishedDropshipCatalogCards(
       dso.cached_quantity,
       v.public_id AS vendor_public_id,
       v.trading_name AS vendor_name,
-      ds.configuration->'vendorPresentation' AS vendor_presentation
+      ds.configuration->'vendorPresentation' AS vendor_presentation,
+      cs.website AS source_website,
+      csp.normalized_payload
     FROM vendor_offers vo
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     JOIN markets m ON m.id=cv.market_id
@@ -95,6 +140,8 @@ async function readPublishedDropshipCatalogCards(
     JOIN vendor_locations l ON l.id=vo.location_id
     JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
     JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+    LEFT JOIN catalog_source_products csp ON csp.id=dso.source_product_id
+    LEFT JOIN catalog_sources cs ON cs.id=csp.source_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     WHERE m.code='sparta'
@@ -142,7 +189,8 @@ async function readPublishedDropshipCatalogCards(
       availableToSell: safeQuantity(row.cached_quantity),
       vendorId: row.vendor_public_id,
       vendorName: row.vendor_name,
-      publicFields: presentation.fields
+      publicFields: presentation.fields,
+      sourceImageUrl: firstSourceImage(row.source_website, row.normalized_payload)
     }];
   });
   if (!base.length) return [];
@@ -217,6 +265,7 @@ async function readPublishedDropshipCatalogCards(
       supplierId: _supplierId,
       externalProductId: _externalProductId,
       sizes: _childSizes,
+      sourceImageUrl,
       ...catalogRecord
     } = record;
     const technicalAttributesVisible = publicFields.technicalAttributes !== false;
@@ -237,8 +286,9 @@ async function readPublishedDropshipCatalogCards(
       madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
+      previewImageSrc: image ? undefined : sourceImageUrl,
       supplierFulfilled: true
-    } satisfies CatalogCard & Readonly<{ supplierFulfilled: true }>;
+    } as CatalogCard & Readonly<{ previewImageSrc?: string; supplierFulfilled: true }>;
   });
 }
 
