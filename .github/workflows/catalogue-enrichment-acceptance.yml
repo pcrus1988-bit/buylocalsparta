@@ -45,7 +45,9 @@ jobs:
 
       - name: Test catalogue enrichment grounding and pilot controls
         run: >-
-          node --experimental-strip-types --test
+          node --experimental-strip-types
+          --loader ./scripts/resolve-typescript-extension.mjs
+          --test
           apps/web/src/lib/catalogue-enrichment.test.ts
           apps/web/src/lib/catalogue-enrichment-generation.test.ts
 
