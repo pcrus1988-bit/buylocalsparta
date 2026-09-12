@@ -72,40 +72,10 @@ COMMENT ON COLUMN public.catalogue_enrichments.deterministic_fallback IS
 COMMENT ON COLUMN public.catalogue_enrichments.bazaar_overlay IS
   'Condition/channel facts layered on the canonical presentation for BAZAAR; it does not replace the canonical merchandising copy.';
 
-CREATE OR REPLACE FUNCTION bls_private.bind_catalogue_enrichment_family()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path=pg_catalog,public,bls_private
-AS $$
-BEGIN
-  IF NEW.source_supplier_id IS NULL OR NULLIF(btrim(NEW.source_external_product_id),'') IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  UPDATE public.catalogue_enrichments ce
-  SET family_id=NEW.id,
-      updated_at=now()
-  WHERE ce.supplier_id=NEW.source_supplier_id
-    AND ce.external_product_id=NEW.source_external_product_id
-    AND ce.family_id IS DISTINCT FROM NEW.id;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER product_families_bind_catalogue_enrichment
-  AFTER INSERT OR UPDATE OF source_supplier_id,source_external_product_id
-  ON public.product_families
-  FOR EACH ROW EXECUTE FUNCTION bls_private.bind_catalogue_enrichment_family();
-
 ALTER TABLE public.catalogue_enrichments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY bls_platform_runtime_all ON public.catalogue_enrichments
   FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
-
-GRANT EXECUTE ON FUNCTION bls_private.bind_catalogue_enrichment_family()
-  TO bls_app_runtime,bls_platform_runtime;
 
 COMMIT;
