@@ -68,6 +68,30 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
     } finally { setBusy(false); }
   }
 
+  async function bulkVisibility(nextVisible: boolean) {
+    const confirmed = window.confirm(nextVisible
+      ? "Μαζική δημοσίευση όλων των eligible προϊόντων αυτού του supplier; Θα δημοσιευτούν μόνο approved/active προϊόντα με buying price και τελική τιμή τουλάχιστον ίση με το supplier cost."
+      : "Μαζική απόκρυψη όλων των προϊόντων αυτού του supplier από το storefront;");
+    if (!confirmed) return;
+    setBusy(true); setMessage("");
+    try {
+      const token = await csrfToken();
+      const response = await fetch("/api/vendor/dropshipping/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": token },
+        body: JSON.stringify({ action: "set-supplier-visibility", supplierCode, visible: nextVisible })
+      });
+      const payload = await response.json() as { error?: string; affectedProducts?: number; visibleProducts?: number };
+      if (!response.ok) throw new Error(payload.error ?? "Η μαζική αλλαγή ορατότητας απέτυχε.");
+      setMessage(nextVisible
+        ? `Ελέγχθηκαν ${payload.affectedProducts ?? 0} προϊόντα · public ${payload.visibleProducts ?? 0}.`
+        : `Κρύφτηκαν τα προϊόντα του supplier (${payload.affectedProducts ?? 0} ελεγμένα).`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η μαζική αλλαγή απέτυχε.");
+    } finally { setBusy(false); }
+  }
+
   return <div className="workspace-queue-card" style={{ marginBottom: 14 }}>
     <div className="workspace-queue-head">
       <div><strong>Global supplier settings</strong><small>{defaults.configured ? "Αποθηκευμένα defaults" : "Δεν έχουν οριστεί ακόμη"}</small></div>
@@ -82,9 +106,11 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
       <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση defaults</button>
-      <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Εφαρμογή σε τρέχον catalogue</button>
+      <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Reset catalogue στα defaults</button>
+      <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Bulk publish eligible</button>
+      <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Μετά μπορείς να κάνεις per-product override από τις κάρτες προϊόντων. Αν αλλάξεις κάποια τιμή εδώ, αποθήκευσέ την πρώτα πριν την εφαρμογή.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Το reset ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Τα bulk visibility actions αλλάζουν μόνο το τρέχον catalogue· δεν αλλάζουν τα αποθηκευμένα defaults. Μετά μπορείς να κάνεις per-product override ή reset από κάθε κάρτα.</small>
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
 }
