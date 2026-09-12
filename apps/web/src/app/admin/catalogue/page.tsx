@@ -89,19 +89,19 @@ export default async function Page() {
           <i>Open crawl &amp; import →</i>
         </Link>
 
-        <Link className={`catalogue-workflow-card${metrics.uncategorizedProducts + metrics.missingAttributeProducts > 0 ? " needs-attention" : ""}`} href="/admin/catalogue/attribute-matching">
+        <Link className={`catalogue-workflow-card${metrics.uncategorizedProducts + metrics.missingAttributeProducts > 0 ? " needs-attention" : ""}`} href="/admin/catalogue/structure">
           <span>3 · Structure</span>
           <strong>Categories &amp; Attributes</strong>
-          <p>Review taxonomy, reusable attribute mappings and the products still missing semantic structure.</p>
+          <p>Inspect the canonical taxonomy, Product Types, reusable attribute mappings and products still missing semantic structure.</p>
           {metrics.uncategorizedProducts + metrics.missingAttributeProducts > 0 && <b>{metrics.uncategorizedProducts + metrics.missingAttributeProducts}</b>}
-          <i>Open structure tools →</i>
+          <i>Open catalogue structure →</i>
         </Link>
 
         <Link className="catalogue-workflow-card" href="/admin/matching">
           <span>4 · Automate</span>
-          <strong>Auto-organise</strong>
+          <strong>Vendor Matching</strong>
           <p>Resolve vendor submissions, reuse an exact canonical when possible and keep commercial matching separate from source identity exceptions.</p>
-          <i>Open organisation queue →</i>
+          <i>Open vendor matching →</i>
         </Link>
 
         <Link className="catalogue-workflow-card" href="/admin/catalogue-intake">
