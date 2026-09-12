@@ -32,6 +32,32 @@ type RegistryProjectionRow = SqlRow & {
   registry_checked_at: Date | string | null;
 };
 
+type HubProspectRow = SqlRow & {
+  public_id: string;
+  hub_slug: string;
+  hub_city: string;
+  hub_region: string;
+  plan_code: string;
+  billing_cycle: string;
+  tax_number: string;
+  gemi_number: string | null;
+  business_name: string;
+  legal_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  address_line: string;
+  postal_code: string;
+  primary_category: string;
+  website_url: string | null;
+  current_sales_channels: string | null;
+  notes: string | null;
+  status: string;
+  payment_state: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
 type DemoProjection = { status: string; demoMode: boolean };
 type RegistryProjection = {
   taxNumber: string;
@@ -41,6 +67,31 @@ type RegistryProjection = {
   emailSource: string;
   phoneSource: string;
   checkedAt?: number;
+};
+type HubProspectProjection = {
+  reference: string;
+  hubSlug: string;
+  hubCity: string;
+  hubRegion: string;
+  planCode: string;
+  billingCycle: string;
+  taxNumber: string;
+  gemiNumber?: string;
+  businessName: string;
+  legalName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  addressLine: string;
+  postalCode: string;
+  primaryCategory: string;
+  websiteUrl?: string;
+  currentSalesChannels?: string;
+  notes?: string;
+  status: string;
+  paymentState: string;
+  createdAt: number;
+  updatedAt: number;
 };
 
 function DemoControls({ csrfToken, vendorId, applicationId, demo }: { csrfToken: string; vendorId?: string; applicationId?: string; demo?: DemoProjection }) {
@@ -75,9 +126,10 @@ export default async function ApplicationsPage() {
 
   const demoByVendor = new Map<string, DemoProjection>();
   const registryByApplication = new Map<string, RegistryProjection>();
+  const hubProspects: HubProspectProjection[] = [];
   if (productionDatabaseConfigured()) {
     const runtime = getProductionPostgresRuntime();
-    const [demoResult, registryResult] = await Promise.all([
+    const [demoResult, registryResult, hubProspectResult] = await Promise.all([
       runtime.sqlPool.query<VendorProjectionRow>(`
         SELECT vb.public_id,vb.status::text AS status,vb.demo_mode
         FROM vendor_businesses vb
@@ -94,6 +146,14 @@ export default async function ApplicationsPage() {
         WHERE m.code='sparta'
           AND va.status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
         ORDER BY va.updated_at DESC
+      `),
+      runtime.sqlPool.query<HubProspectRow>(`
+        SELECT public_id,hub_slug,hub_city,hub_region,plan_code,billing_cycle,tax_number,gemi_number,
+               business_name,legal_name,contact_name,email,phone,address_line,postal_code,primary_category,
+               website_url,current_sales_channels,notes,status,payment_state,created_at,updated_at
+        FROM hub_expansion_prospects
+        ORDER BY created_at DESC
+        LIMIT 250
       `)
     ]);
     for (const row of demoResult.rows) demoByVendor.set(row.public_id, { status: row.status, demoMode: Boolean(row.demo_mode) });
@@ -109,13 +169,41 @@ export default async function ApplicationsPage() {
         checkedAt: Number.isFinite(checkedAt) ? checkedAt : undefined
       });
     }
+    for (const row of hubProspectResult.rows) {
+      hubProspects.push({
+        reference: row.public_id,
+        hubSlug: row.hub_slug,
+        hubCity: row.hub_city,
+        hubRegion: row.hub_region,
+        planCode: row.plan_code,
+        billingCycle: row.billing_cycle,
+        taxNumber: row.tax_number,
+        gemiNumber: row.gemi_number || undefined,
+        businessName: row.business_name,
+        legalName: row.legal_name,
+        contactName: row.contact_name,
+        email: row.email,
+        phone: row.phone,
+        addressLine: row.address_line,
+        postalCode: row.postal_code,
+        primaryCategory: row.primary_category,
+        websiteUrl: row.website_url || undefined,
+        currentSalesChannels: row.current_sales_channels || undefined,
+        notes: row.notes || undefined,
+        status: row.status,
+        paymentState: row.payment_state,
+        createdAt: Date.parse(String(row.created_at)),
+        updatedAt: Date.parse(String(row.updated_at))
+      });
+    }
   }
 
   const unlinked = formalApplications.filter((application) => !application.vendorId).length;
   const verificationPending = formalApplications.filter((application) => application.state === "verification_pending").length;
   const demoEnabled = [...demoByVendor.values()].filter((vendor) => vendor.demoMode).length;
   const registryMatched = [...registryByApplication.values()].filter((registry) => registry.lookupStatus === "matched").length;
-  const totalQueue = formalApplications.length + promotedResearch.length;
+  const pendingHubApplications = hubProspects.filter((prospect) => prospect.status === "pending").length;
+  const totalQueue = formalApplications.length + pendingHubApplications + promotedResearch.length;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={applicationWorkspace.csrfToken} />
@@ -134,6 +222,7 @@ export default async function ApplicationsPage() {
 
     <WorkspaceMetricStrip items={[
       { label: "Application queue", value: totalQueue, tone: totalQueue ? "attention" : "default" },
+      { label: "HUB applications", value: hubProspects.length, tone: pendingHubApplications ? "attention" : "default", hint: `${pendingHubApplications} pending` },
       { label: "Inbound not provisioned", value: unlinked, tone: unlinked ? "attention" : "positive", hint: "A pre-live vendor record is created only when needed" },
       { label: "Verification pending", value: verificationPending },
       { label: "ΓΕΜΗ matched", value: registryMatched, tone: registryMatched ? "positive" : "default", hint: "Legal identity matched; representation still requires verification" },
@@ -180,6 +269,32 @@ export default async function ApplicationsPage() {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
+      <WorkspaceSectionHeading eyebrow="Hub expansion" title="Applications from /hubs/join" note="HUB applications are persisted separately from Sparta vendor onboarding, but are surfaced here in the same Admin intake inbox so no submitted prospect disappears from operations view." />
+      {hubProspects.length === 0 ? <WorkspaceEmptyState title="No HUB applications have been submitted yet." body="New /hubs/join submissions will appear here immediately after they are stored." /> : <div className="workspace-queue-list">
+        {hubProspects.map((prospect) => <article className="workspace-queue-card" id={`hub-application-${prospect.reference}`} key={prospect.reference}>
+          <div className="workspace-queue-head">
+            <div><strong>{prospect.businessName}</strong><small>{prospect.legalName} · {prospect.email}</small></div>
+            <WorkspaceStatusBadge status={prospect.status} />
+          </div>
+          <div className="workspace-queue-primary">
+            <span>{prospect.hubCity} · {prospect.hubRegion}</span>
+            <span>Plan {prospect.planCode} · {prospect.billingCycle}</span>
+            <span>{prospect.primaryCategory}</span>
+            <span>{prospect.phone}</span>
+          </div>
+          <div className="workspace-inline-note">
+            <strong>HUB {prospect.hubSlug}</strong>{` · ΑΦΜ ${prospect.taxNumber}`}{prospect.gemiNumber ? ` · ΓΕΜΗ ${prospect.gemiNumber}` : ""}{` · payment ${prospect.paymentState}`}
+          </div>
+          <p className="workspace-queue-summary">{prospect.notes ?? prospect.currentSalesChannels ?? "No additional application notes supplied."}</p>
+          <div className="workspace-inline-note">Contact: <strong>{prospect.contactName}</strong> · {prospect.addressLine} · {prospect.postalCode}{prospect.websiteUrl ? ` · ${prospect.websiteUrl}` : ""}</div>
+          <div className="workspace-action-bar">
+            <span>Reference {prospect.reference} · received {fmtDate(prospect.createdAt)} · updated {fmtDate(prospect.updatedAt)}</span>
+          </div>
+        </article>)}
+      </div>}
+    </div></section>
+
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Promoted prospects" title="Research vendors moved into Applications" note="These records keep their research dossier for evidence, but they now sit in the application-stage operating queue so Admin can prepare catalogue and DEMO before a commercial activation decision." />
       {promotedResearch.length === 0 ? <WorkspaceEmptyState title="No research prospects have been moved into Applications." body="Use “Move to Applications” from Research Vendors when a prospect is ready for a demonstration or active follow-up." action={<Link className="button button-secondary" href="/admin/research-vendors">Open Research Vendors</Link>} /> : <div className="workspace-queue-list">
         {promotedResearch.map((vendor) => {
@@ -198,6 +313,6 @@ export default async function ApplicationsPage() {
           </article>;
         })}
       </div>}
-    </div></section>
+    </section>
   </main>;
 }
