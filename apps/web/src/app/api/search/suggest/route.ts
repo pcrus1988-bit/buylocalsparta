@@ -17,12 +17,12 @@ export async function GET(request: Request) {
         hasResults: result.hasResults,
         provider: "postgres"
       },
-      { headers: { "Cache-Control": "private, max-age=10" } }
+      { headers: { "Cache-Control": "public, max-age=15, s-maxage=60, stale-while-revalidate=300" } }
     );
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Search unavailable" },
-      { status: 503 }
+      { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }
 }
