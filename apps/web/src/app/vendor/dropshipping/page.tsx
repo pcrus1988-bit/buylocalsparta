@@ -3,11 +3,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DropshippingProductControls } from "../../../components/DropshippingProductControls";
+import { DropshippingProductFieldControls } from "../../../components/DropshippingProductFieldControls";
 import { DropshippingSupplierDefaultsControls } from "../../../components/DropshippingSupplierDefaultsControls";
+import { DropshippingSupplierFieldControls } from "../../../components/DropshippingSupplierFieldControls";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { isDropshippingOnlyVendor } from "../../../lib/vendor-dropshipping-access";
 import { vendorDropshippingWorkspace } from "../../../lib/vendor-dropshipping-service";
+import { vendorDropshippingPresentationSnapshot } from "../../../lib/vendor-dropshipping-presentation";
 import { vendorProductAnalytics } from "../../../lib/vendor-product-analytics";
 import { getVendorSession } from "../../../lib/vendor-session";
 
@@ -43,6 +46,11 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const t = analytics.totals;
   const pages = Math.max(1, Math.ceil(workspace.totalProducts / workspace.pageSize));
   const selectedCode = workspace.selectedSupplier?.code ?? "";
+  const presentation = await vendorDropshippingPresentationSnapshot(
+    principal.vendorId ?? "",
+    selectedCode,
+    workspace.products.map((product) => product.offerId)
+  );
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -83,6 +91,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
     {workspace.selectedSupplier ? <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow={workspace.selectedSupplier.displayName} title="Προϊόντα supplier" note={`${workspace.totalProducts} αποτελέσματα · σελίδα ${workspace.page}/${pages}`} />
       <DropshippingSupplierDefaultsControls supplierCode={selectedCode} defaults={workspace.selectedSupplier.defaults} />
+      <DropshippingSupplierFieldControls supplierCode={selectedCode} fields={presentation.supplierFields} />
       <form method="get" className="workspace-queue-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end", marginBottom: 14 }}>
         <input type="hidden" name="supplier" value={selectedCode} />
         <label><small>Αναζήτηση τίτλου, brand, SKU, EAN</small><input name="q" defaultValue={workspace.query} placeholder="π.χ. Michael Kors, SKU, EAN" style={{ width: "100%" }} /></label>
@@ -90,17 +99,21 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       </form>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
-        {workspace.products.map((product) => <article className="workspace-queue-card" key={product.supplierOfferId}>
-          <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div><span className="vendor-merchant-status">{product.visible ? "Public" : "Hidden"}</span></div>
-          <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-            <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
-            <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span></div>
-            <div className="workspace-compact-row"><strong>Markup</strong><span>{product.markupType === "percent" && product.markupValue != null ? `${product.markupValue}%` : product.markupType === "fixed" && product.markupValue != null ? `${product.markupValue}` : "—"}</span></div>
-            <div className="workspace-compact-row"><strong>Έκπτωση</strong><span>{product.discountType === "percent" && product.discountValue != null ? `${product.discountValue}%` : product.discountType === "fixed" && product.discountValue != null ? `${product.discountValue}` : "—"}</span></div>
-            <div className="workspace-compact-row"><strong>Supplier stock</strong><span>{product.cachedAvailable ? (product.cachedQuantity ?? "Διαθέσιμο") : "Μη διαθέσιμο"}</span><small>{date(product.availabilityCheckedAt)}</small></div>
-          </div>
-          <DropshippingProductControls offerId={product.offerId} supplierCostMinor={product.supplierCostMinor} visible={product.visible} markupValue={product.markupType === "percent" ? product.markupValue : null} discountValue={product.discountType === "percent" ? product.discountValue : null} msrpMinor={product.msrpMinor} showMsrp={product.showMsrp} />
-        </article>)}
+        {workspace.products.map((product) => {
+          const publicFields = presentation.products[product.offerId] ?? { fields: presentation.supplierFields, overridden: false };
+          return <article className="workspace-queue-card" key={product.supplierOfferId}>
+            <div className="workspace-queue-head"><div><strong>{product.title}</strong><small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small></div><span className="vendor-merchant-status">{product.visible ? "Public" : "Hidden"}</span></div>
+            <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+              <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
+              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span></div>
+              <div className="workspace-compact-row"><strong>Markup</strong><span>{product.markupType === "percent" && product.markupValue != null ? `${product.markupValue}%` : product.markupType === "fixed" && product.markupValue != null ? `${product.markupValue}` : "—"}</span></div>
+              <div className="workspace-compact-row"><strong>Έκπτωση</strong><span>{product.discountType === "percent" && product.discountValue != null ? `${product.discountValue}%` : product.discountType === "fixed" && product.discountValue != null ? `${product.discountValue}` : "—"}</span></div>
+              <div className="workspace-compact-row"><strong>Supplier stock</strong><span>{product.cachedAvailable ? (product.cachedQuantity ?? "Διαθέσιμο") : "Μη διαθέσιμο"}</span><small>{date(product.availabilityCheckedAt)}</small></div>
+            </div>
+            <DropshippingProductControls offerId={product.offerId} supplierCostMinor={product.supplierCostMinor} visible={product.visible} markupValue={product.markupType === "percent" ? product.markupValue : null} discountValue={product.discountType === "percent" ? product.discountValue : null} msrpMinor={product.msrpMinor} showMsrp={product.showMsrp} />
+            <DropshippingProductFieldControls offerId={product.offerId} fields={publicFields.fields} overridden={publicFields.overridden} />
+          </article>;
+        })}
         {!workspace.products.length ? <article className="workspace-queue-card"><strong>Δεν βρέθηκαν προϊόντα.</strong><p>Άλλαξε τον όρο αναζήτησης ή έλεγξε το supplier sync.</p></article> : null}
       </div>
 
