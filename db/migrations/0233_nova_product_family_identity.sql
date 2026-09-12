@@ -61,7 +61,6 @@ SELECT DISTINCT ON (dso.supplier_id,dso.external_product_id)
   cv.brand_id,
   cv.category_id,
   cv.model,
-  cv.product_type_id,
   cv.active
 FROM public.dropship_supplier_offers dso
 JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
@@ -84,10 +83,10 @@ WHERE ds.code='nova_brandsgateway'
 ORDER BY dso.supplier_id,dso.external_product_id,cv.active DESC,cv.created_at,cv.id;
 
 INSERT INTO public.product_families(
-  market_id,brand_id,category_id,model,active,product_type_id
+  market_id,brand_id,category_id,model,active
 )
 SELECT DISTINCT
-  a.market_id,a.brand_id,a.category_id,a.model,true,a.product_type_id
+  a.market_id,a.brand_id,a.category_id,a.model,true
 FROM tmp_nova_family_anchor a
 ON CONFLICT DO NOTHING;
 
@@ -203,7 +202,7 @@ BEGIN
     RETURN v_family_id;
   END IF;
 
-  SELECT cv.market_id,cv.brand_id,cv.category_id,cv.model,cv.product_type_id
+  SELECT cv.market_id,cv.brand_id,cv.category_id,cv.model
   INTO v_anchor
   FROM public.dropship_supplier_offers dso
   JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
@@ -222,9 +221,9 @@ BEGIN
   END IF;
 
   INSERT INTO public.product_families(
-    market_id,brand_id,category_id,model,active,product_type_id
+    market_id,brand_id,category_id,model,active
   ) VALUES(
-    v_anchor.market_id,v_anchor.brand_id,v_anchor.category_id,v_anchor.model,true,v_anchor.product_type_id
+    v_anchor.market_id,v_anchor.brand_id,v_anchor.category_id,v_anchor.model,true
   )
   ON CONFLICT DO NOTHING
   RETURNING id INTO v_family_id;
