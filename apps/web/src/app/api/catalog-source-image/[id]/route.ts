@@ -4,6 +4,10 @@ import { getPublicProductDetail } from "../../../../lib/public-product-detail";
 type Context = { params: Promise<{ id: string }> };
 
 const EMPTY_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"></svg>`;
+const SOURCE_REDIRECT_BROWSER_CACHE = "public, max-age=900";
+const SOURCE_REDIRECT_CDN_CACHE = "max-age=3600, stale-while-revalidate=86400";
+const EMPTY_BROWSER_CACHE = "public, max-age=120";
+const EMPTY_CDN_CACHE = "max-age=300, stale-while-revalidate=3600";
 
 export async function GET(request: Request, context: Context) {
   const { id } = await context.params;
@@ -29,7 +33,9 @@ export async function GET(request: Request, context: Context) {
       status: 307,
       headers: {
         "Location": sourceImageUrl,
-        "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+        "Cache-Control": SOURCE_REDIRECT_BROWSER_CACHE,
+        "CDN-Cache-Control": SOURCE_REDIRECT_CDN_CACHE,
+        "Vercel-CDN-Cache-Control": SOURCE_REDIRECT_CDN_CACHE,
         "Referrer-Policy": "no-referrer",
         "X-Content-Type-Options": "nosniff"
       }
@@ -50,7 +56,9 @@ function emptyImage(): Response {
     status: 200,
     headers: {
       "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
+      "Cache-Control": EMPTY_BROWSER_CACHE,
+      "CDN-Cache-Control": EMPTY_CDN_CACHE,
+      "Vercel-CDN-Cache-Control": EMPTY_CDN_CACHE,
       "Cross-Origin-Resource-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff"
     }
