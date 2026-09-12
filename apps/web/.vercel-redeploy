@@ -1,2 +1,3 @@
 schema-0135-ledger-reconciled-2026-08-24
 This file is an inert deployment trigger only; runtime schema authority remains packages/postgres-runtime and db/migrations.
+supplier-html-description-preview-2026-09-12
