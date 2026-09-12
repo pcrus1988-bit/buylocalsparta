@@ -85,6 +85,33 @@ export function DropshippingProductControls(props: Props) {
     finally { setBusy(false); }
   }
 
+  async function resetToSupplierDefaults() {
+    const confirmed = window.confirm("Επαναφορά αυτού του προϊόντος στα αποθηκευμένα supplier defaults; Το per-product markup, discount και visibility override θα αντικατασταθούν.");
+    if (!confirmed) return;
+    setBusy(true); setMessage("");
+    try {
+      const token = await csrfToken();
+      const response = await fetch("/api/vendor/dropshipping/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": token },
+        body: JSON.stringify({ action: "reset-product", offerId: props.offerId })
+      });
+      const payload = await response.json() as {
+        error?: string;
+        markupPercent?: number;
+        discountPercent?: number;
+        visible?: boolean;
+      };
+      if (!response.ok) throw new Error(payload.error ?? "Η επαναφορά στα supplier defaults απέτυχε.");
+      if (typeof payload.markupPercent === "number") setMarkup(payload.markupPercent);
+      if (typeof payload.discountPercent === "number") setDiscount(payload.discountPercent);
+      if (typeof payload.visible === "boolean") setVisible(payload.visible);
+      setMessage("Επαναφέρθηκε στα supplier defaults");
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Η επαναφορά απέτυχε."); }
+    finally { setBusy(false); }
+  }
+
   return <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(110px,1fr))", gap: 8 }}>
       <label><small>Markup %</small><input type="number" min="0" max="1000" step="0.1" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
@@ -94,6 +121,7 @@ export function DropshippingProductControls(props: Props) {
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση τιμής</button>
       <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
+      <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Reset στα supplier defaults</button>
     </div>
     {message ? <small role="status">{message}</small> : null}
   </div>;
