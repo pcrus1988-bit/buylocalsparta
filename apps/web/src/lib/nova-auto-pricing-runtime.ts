@@ -152,7 +152,24 @@ export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceRes
       continue;
     }
 
-    if (recommendation.overpriced) overpriced += 1;
+    if (recommendation.overpriced) {
+      overpriced += 1;
+      updates.push({
+        offerId: row.offerId,
+        vendorId: row.vendorId,
+        supplierCostMinor: row.supplierCostMinor,
+        sellingPriceMinor: null,
+        markupPercent: null,
+        profitMinor: recommendation.recommendedProfitMinor,
+        profitPercent: recommendation.recommendedProfitPercent,
+        pricingFlag: "OVERPRICED",
+        sourceCategoryPath,
+        overpricedByMinor: recommendation.overpricedByMinor,
+        overpricedByPercent: recommendation.overpricedByPercent
+      });
+      continue;
+    }
+
     updates.push({
       offerId: row.offerId,
       vendorId: row.vendorId,
@@ -161,10 +178,10 @@ export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceRes
       markupPercent: recommendation.recommendedMarkupPercent,
       profitMinor: recommendation.recommendedProfitMinor,
       profitPercent: recommendation.recommendedProfitPercent,
-      pricingFlag: recommendation.overpriced ? "OVERPRICED" : null,
+      pricingFlag: null,
       sourceCategoryPath,
-      overpricedByMinor: recommendation.overpricedByMinor,
-      overpricedByPercent: recommendation.overpricedByPercent
+      overpricedByMinor: null,
+      overpricedByPercent: null
     });
   }
 
