@@ -1,0 +1,124 @@
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { assertDropshippingOnlyVendor } from "./vendor-dropshipping-access";
+import type { DropshippingSupplierDefaults } from "./vendor-dropshipping-service";
+
+function parseDefaults(value: unknown): DropshippingSupplierDefaults {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Αποθήκευσε πρώτα τις global Dropshipping ρυθμίσεις.");
+  const raw = value as Record<string, unknown>;
+  const markupPercent = Number(raw.markupPercent);
+  const discountPercent = Number(raw.discountPercent);
+  if (Number(raw.version) !== 1
+    || !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000
+    || !Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    throw new Error("Οι αποθηκευμένες global Dropshipping ρυθμίσεις δεν είναι έγκυρες.");
+  }
+  const finalFactor = (1 + markupPercent / 100) * (1 - discountPercent / 100);
+  if (finalFactor < 1) throw new Error("Οι global κανόνες δεν μπορούν να δημιουργούν τιμή χαμηλότερη από την supplier buying price.");
+  return {
+    configured: true,
+    visible: raw.visible === true,
+    markupPercent,
+    discountPercent,
+    showMsrp: raw.showMsrp === true
+  };
+}
+
+async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
+  const result = await getProductionPostgresRuntime().nativePool.query(
+    `SELECT id::text id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1`,
+    [vendorIdentity]
+  );
+  if (result.rowCount !== 1) throw new Error("DROPSHIPPING_VENDOR_NOT_FOUND");
+  return String(result.rows[0].id);
+}
+
+/**
+ * Apply saved supplier defaults using the same sequential rounding as
+ * calculateRetailPriceMinor(): round markup first, then round discount on the
+ * marked-up amount. This keeps bulk and per-product calculated prices identical
+ * down to the cent while retaining the database-level supplier-cost floor.
+ */
+export async function applyDropshippingSupplierDefaultsSequential(
+  vendorIdentity: string,
+  supplierCode: string
+): Promise<Readonly<{ pricedProducts: number; eligibleProducts: number; visibleProducts: number; defaults: DropshippingSupplierDefaults }>> {
+  await assertDropshippingOnlyVendor(vendorIdentity);
+  if (!productionDatabaseConfigured()) throw new Error("Η εφαρμογή global Dropshipping ρυθμίσεων απαιτεί ενεργή βάση δεδομένων.");
+  const code = supplierCode.trim();
+  if (!code) throw new Error("Απαιτείται supplier.");
+  const vendorId = await resolveVendorUuid(vendorIdentity);
+  const pool = getProductionPostgresRuntime().nativePool;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const supplier = await client.query(`
+      SELECT ds.id::text id, ds.configuration->'vendorMerchandising' vendor_merchandising
+        FROM dropship_suppliers ds
+       WHERE ds.owner_vendor_id=$1::uuid
+         AND ds.code=$2
+         AND ds.active=true
+       FOR UPDATE
+    `, [vendorId, code]);
+    if (supplier.rowCount !== 1) throw new Error("Ο Dropshipping supplier δεν βρέθηκε ή δεν είναι ενεργός.");
+    const defaults = parseDefaults(supplier.rows[0].vendor_merchandising);
+    const supplierId = String(supplier.rows[0].id);
+
+    const priced = await client.query(`
+      INSERT INTO vendor_offer_pricing_private(
+        offer_id,vendor_id,buying_price_minor,pricing_mode,markup_type,markup_value,discount_type,discount_value,created_at,updated_at
+      )
+      SELECT vo.id,vo.vendor_id,dso.supplier_cost_minor,'calculated','percent',$3::numeric,
+             CASE WHEN $4::numeric > 0 THEN 'percent' ELSE NULL END,
+             CASE WHEN $4::numeric > 0 THEN $4::numeric ELSE NULL END,
+             now(),now()
+        FROM dropship_supplier_offers dso
+        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+       WHERE dso.supplier_id=$1::uuid
+         AND vo.vendor_id=$2::uuid
+         AND dso.supplier_cost_minor IS NOT NULL
+      ON CONFLICT(offer_id) DO UPDATE SET
+        buying_price_minor=EXCLUDED.buying_price_minor,
+        pricing_mode='calculated',
+        markup_type='percent',
+        markup_value=EXCLUDED.markup_value,
+        discount_type=EXCLUDED.discount_type,
+        discount_value=EXCLUDED.discount_value,
+        updated_at=now()
+      RETURNING offer_id
+    `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent]);
+
+    const changed = await client.query(`
+      UPDATE vendor_offers vo
+         SET customer_price_minor=GREATEST(
+               dso.supplier_cost_minor,
+               calc.after_markup_minor - ROUND(calc.after_markup_minor * $4::numeric / 100)::bigint
+             ),
+             show_msrp=$5,
+             merchant_visible=CASE WHEN vo.status='approved' AND dso.active THEN $6 ELSE false END,
+             updated_at=now()
+        FROM dropship_supplier_offers dso
+        CROSS JOIN LATERAL (
+          SELECT dso.supplier_cost_minor
+                 + ROUND(dso.supplier_cost_minor * $3::numeric / 100)::bigint AS after_markup_minor
+        ) calc
+       WHERE dso.vendor_offer_id=vo.id
+         AND dso.supplier_id=$1::uuid
+         AND vo.vendor_id=$2::uuid
+         AND dso.supplier_cost_minor IS NOT NULL
+      RETURNING vo.id,vo.merchant_visible
+    `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent, defaults.showMsrp, defaults.visible]);
+
+    await client.query("COMMIT");
+    return {
+      pricedProducts: priced.rowCount ?? 0,
+      eligibleProducts: changed.rowCount ?? 0,
+      visibleProducts: changed.rows.filter((row) => Boolean(row.merchant_visible)).length,
+      defaults
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
