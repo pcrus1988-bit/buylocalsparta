@@ -55,7 +55,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
     </section>
 
     <section className="shell" style={{ paddingBottom: 28 }}>
-      <form action="/bazaar" style={{ display: "grid", gridTemplateColumns: "minmax(220px,2fr) repeat(3,minmax(150px,1fr)) auto", gap: 10, alignItems: "end" }}>
+      <form action="/bazaar" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", gap: 10, alignItems: "end" }}>
         <label style={{ display: "grid", gap: 6 }}><span>Αναζήτηση BAZAAR</span><input name="q" defaultValue={query} placeholder="Brand, προϊόν, κατηγορία…" /></label>
         <label style={{ display: "grid", gap: 6 }}><span>Κατάσταση</span><select name="condition" defaultValue={condition}><option value="">Όλες</option>{conditions.map((item) => <option key={item} value={item}>{bazaarConditionLabel(item)}</option>)}</select></label>
         <label style={{ display: "grid", gap: 6 }}><span>Brand</span><select name="brand" defaultValue={brand}><option value="">Όλα</option>{brands.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -65,7 +65,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
     </section>
 
     <section className="shell" style={{ paddingBottom: 72 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", marginBottom: 22 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", marginBottom: 22, flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>{products.length ? `${products.length} BAZAAR επιλογές` : "BAZAAR"}</h2>
         {(query || condition || brand || category) ? <Link href="/bazaar">Καθαρισμός φίλτρων</Link> : null}
       </div>
