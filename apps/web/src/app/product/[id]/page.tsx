@@ -264,6 +264,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     getPublicProductVariantOptions(product.id),
     getPublicDropshipPresentation(product.id, product.vendorId)
   ]);
+  const isDropship = Boolean(dropshipPresentation);
   const publicFields = dropshipPresentation?.fields;
   const mediaGallery = approvedGallery.length
     ? approvedGallery
@@ -431,7 +432,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
             {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
             {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
-            <span className="product-badge">{product.available ? "Σε τοπικό απόθεμα" : "Προσωρινά μη διαθέσιμο"}</span>
+            <span className="product-badge">{product.available ? (isDropship ? "Διαθέσιμο για αποστολή" : "Σε τοπικό απόθεμα") : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
           {mediaGallery.length > 1 ? (
             <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
@@ -455,7 +456,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
               <PublicPriceComparison productId={product.id} vendorId={product.vendorId} retailPriceMinor={product.priceMinor} retailLabel={displayPrice} comparisonEnabled={!readOnlyCrawler} />
               <strong>{product.available ? `${product.availableToSell} τεμ. διαθέσιμα` : "Προσωρινά μη διαθέσιμο"}</strong>
-              <span>{product.available ? "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
+              <span>{product.available ? "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι." : isDropship ? "Η αγορά ενεργοποιείται ξανά μόλις επιβεβαιωθεί διαθεσιμότητα από τον προμηθευτή." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
             </div>
             <div className="purchase-actions">
               {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{
@@ -473,8 +474,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
               }} /><ProductAccountActions productId={product.id} /></>}
             </div>
             <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
-              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>Πραγματικό τοπικό απόθεμα</strong><span>Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν.</span></div></div>
-              <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>Παραλαβή ή αποστολή</strong><span>Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή.</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>{isDropship ? "Επιβεβαιωμένη διαθεσιμότητα προμηθευτή" : "Πραγματικό τοπικό απόθεμα"}</strong><span>{isDropship ? "Η διαθεσιμότητα ενημερώνεται από τον προμηθευτή και επανελέγχεται πριν από την παραγγελία." : "Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν."}</span></div></div>
+              <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>{isDropship ? "Αποστολή" : "Παραλαβή ή αποστολή"}</strong><span>{isDropship ? "Οι χρόνοι και το κόστος αποστολής επιβεβαιώνονται πριν από την πληρωμή." : "Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή."}</span></div></div>
               <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
             </div>
             <nav className="purchase-support-links" aria-label="Πληροφορίες πριν από την αγορά">
