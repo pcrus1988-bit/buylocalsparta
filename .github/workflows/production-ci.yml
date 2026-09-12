@@ -59,7 +59,7 @@ jobs:
         run: npm run typecheck:db-smoke
       - name: Typecheck staging activation tooling
         run: npm run typecheck:activation
-      - name: Bootstrap Supabase role and Vault topology
+      - name: Bootstrap Supabase role, Vault and Storage topology
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
@@ -76,10 +76,11 @@ jobs:
           END
           $$;
 
-          -- Supabase provides the Vault schema in hosted projects. The plain PostGIS
-          -- service used by CI does not, so reproduce only the narrow SQL contract
-          -- required to compile/test migration 0084. Production continues to use
-          -- Supabase Vault itself; this compatibility surface exists only in CI.
+          -- Supabase provides Vault and Storage schemas in hosted projects. The plain
+          -- PostGIS service used by CI does not, so reproduce only the narrow SQL
+          -- contracts required to compile/test migrations 0084 and 0235. Production
+          -- continues to use Supabase Vault and Storage themselves; these compatibility
+          -- surfaces exist only inside this ephemeral CI database.
           CREATE SCHEMA IF NOT EXISTS vault;
           CREATE TABLE IF NOT EXISTS vault.secrets (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,6 +112,15 @@ jobs:
             RETURN created_id;
           END;
           $$;
+
+          CREATE SCHEMA IF NOT EXISTS storage;
+          CREATE TABLE IF NOT EXISTS storage.buckets (
+            id text PRIMARY KEY,
+            name text NOT NULL UNIQUE,
+            public boolean NOT NULL DEFAULT false,
+            file_size_limit bigint,
+            allowed_mime_types text[]
+          );
           SQL
       - name: Apply PostgreSQL/PostGIS migrations
         run: npm run db:migrate
