@@ -37,10 +37,12 @@ test("NOVA transitions preserve history and fail closed during rolling deploymen
   assert.match(source, /ERRCODE = '23514'/);
 });
 
-test("existing NOVA second-life canonicals move only when their source evidence is channel-pure", async () => {
+test("existing second-life backfill is NOVA-scoped and fails closed on mixed evidence", async () => {
   const source = await readFile(existingClassificationMigrationUrl, "utf8");
-  assert.match(source, /has_bazaar AND has_normal/);
-  assert.match(source, /BAZAAR backfill blocked/);
+  assert.match(source, /cs\.code = 'nova-brandsgateway'/);
+  assert.match(source, /nova_bazaar_targets/);
+  assert.match(source, /all_evidence/);
+  assert.match(source, /target canonical variants also have normal-condition source evidence/);
   assert.match(source, /SET commerce_channel = 'bazaar'/);
   assert.match(source, /supplier_preowned_defect/);
   assert.match(source, /supplier_preloved/);
