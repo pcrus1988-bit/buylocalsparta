@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
-import { bazaarConditionLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { bazaarConditionLabel, filterBazaarCatalogCards, getBazaarCatalog } from "../../lib/bazaar-catalog";
 import { publicBrandLogoUrl } from "../../lib/brand-logo";
 
 export const metadata: Metadata = {
@@ -27,10 +28,12 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
   const condition = valueOf(params.condition).trim();
   const brand = valueOf(params.brand).trim();
   const category = valueOf(params.category).trim();
-  const [products, allProducts] = await Promise.all([
-    getBazaarCatalog({ query,condition,brand,category }),
-    getBazaarCatalog()
-  ]);
+
+  // One catalogue/media projection is enough for both facets and filtered results.
+  // The previous implementation executed this relatively expensive BAZAAR read
+  // twice on every page request, which doubled DB pressure during traffic spikes.
+  const allProducts = await getBazaarCatalog();
+  const products = filterBazaarCatalogCards(allProducts, { query, condition, brand, category });
 
   const brands = [...new Set(allProducts.map((product) => product.brand).filter((value): value is string => Boolean(value)))].sort((a,b) => a.localeCompare(b,"el"));
   const categories = [...new Set(allProducts.map((product) => product.categoryCode))].sort((a,b) => a.localeCompare(b,"el"));
@@ -81,7 +84,14 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
           return <article className="product-card" key={product.id} style={{ overflow: "hidden", position: "relative" }}>
             {product.savingsPercent ? <div style={{ position: "absolute", zIndex: 3, top: 12, right: 12, background: "#111", color: "#fff", borderRadius: 999, padding: "7px 10px", fontWeight: 900 }}>−{product.savingsPercent}%</div> : null}
             <Link href={`/bazaar/product/${encodeURIComponent(product.slug)}`} className="product-art" aria-label={`Δες ${product.title}`}>
-              <img src={imageSrc} alt={product.mediaAlt ?? product.title} loading={index < 4 ? "eager" : "lazy"} decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", padding: 16, background: "#fff" }} />
+              <Image
+                src={imageSrc}
+                alt={product.mediaAlt ?? product.title}
+                fill
+                sizes="(max-width: 620px) 50vw, (max-width: 1180px) 33vw, 280px"
+                loading={index < 4 ? "eager" : "lazy"}
+                style={{ objectFit: "contain", padding: 16, background: "#fff" }}
+              />
             </Link>
             <div className="product-body">
               <div className="eyebrow">{bazaarConditionLabel(product.condition)}</div>
