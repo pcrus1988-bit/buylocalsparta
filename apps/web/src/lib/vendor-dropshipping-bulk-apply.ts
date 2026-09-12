@@ -37,11 +37,27 @@ async function resolveVendorUuid(vendorIdentity: string): Promise<string> {
  * calculateRetailPriceMinor(): round markup first, then round discount on the
  * marked-up amount. This keeps bulk and per-product calculated prices identical
  * down to the cent while retaining the database-level supplier-cost floor.
+ *
+ * Visibility defaults are inheritance, not a destructive overwrite of an
+ * explicit product choice. A manual product decision is identified by the
+ * authenticated actor stored in merchant_visibility_updated_by. Because the
+ * database trigger also updates merchant_visibility_updated_at for automated
+ * changes, the timestamp alone is intentionally not used as provenance.
+ *
+ * When a manual override exists, the last audited vendor_dashboard product event
+ * is used as its intended value. Hard safety still wins: unapproved/inactive or
+ * suppressed/recalled canonicals remain hidden regardless of an override.
  */
 export async function applyDropshippingSupplierDefaultsSequential(
   vendorIdentity: string,
   supplierCode: string
-): Promise<Readonly<{ pricedProducts: number; eligibleProducts: number; visibleProducts: number; defaults: DropshippingSupplierDefaults }>> {
+): Promise<Readonly<{
+  pricedProducts: number;
+  eligibleProducts: number;
+  visibleProducts: number;
+  overriddenProducts: number;
+  defaults: DropshippingSupplierDefaults;
+}>> {
   await assertDropshippingOnlyVendor(vendorIdentity);
   if (!productionDatabaseConfigured()) throw new Error("Η εφαρμογή global Dropshipping ρυθμίσεων απαιτεί ενεργή βάση δεδομένων.");
   const code = supplierCode.trim();
@@ -94,18 +110,38 @@ export async function applyDropshippingSupplierDefaultsSequential(
                calc.after_markup_minor - ROUND(calc.after_markup_minor * $4::numeric / 100)::bigint
              ),
              show_msrp=$5,
-             merchant_visible=CASE WHEN vo.status='approved' AND dso.active THEN $6 ELSE false END,
+             merchant_visible=CASE
+               WHEN vo.status <> 'approved'
+                 OR NOT dso.active
+                 OR NOT cv.active
+                 OR cv.suppressed
+                 OR cv.recalled THEN false
+               WHEN vo.merchant_visibility_updated_by IS NOT NULL THEN COALESCE((
+                 SELECT e.visible
+                   FROM vendor_catalog_visibility_events e
+                  WHERE e.vendor_id=vo.vendor_id
+                    AND e.offer_id=vo.id
+                    AND e.scope='product'
+                    AND e.actor_id IS NOT NULL
+                    AND coalesce(e.metadata->>'source','')='vendor_dashboard'
+                  ORDER BY e.created_at DESC,e.id DESC
+                  LIMIT 1
+               ),vo.merchant_visible)
+               ELSE $6
+             END,
              updated_at=now()
         FROM dropship_supplier_offers dso
         CROSS JOIN LATERAL (
           SELECT dso.supplier_cost_minor
                  + ROUND(dso.supplier_cost_minor * $3::numeric / 100)::bigint AS after_markup_minor
-        ) calc
+        ) calc,
+        canonical_variants cv
        WHERE dso.vendor_offer_id=vo.id
+         AND cv.id=vo.canonical_variant_id
          AND dso.supplier_id=$1::uuid
          AND vo.vendor_id=$2::uuid
          AND dso.supplier_cost_minor IS NOT NULL
-      RETURNING vo.id,vo.merchant_visible
+      RETURNING vo.id,vo.merchant_visible,(vo.merchant_visibility_updated_by IS NOT NULL) visibility_overridden
     `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent, defaults.showMsrp, defaults.visible]);
 
     await client.query("COMMIT");
@@ -113,6 +149,7 @@ export async function applyDropshippingSupplierDefaultsSequential(
       pricedProducts: priced.rowCount ?? 0,
       eligibleProducts: changed.rowCount ?? 0,
       visibleProducts: changed.rows.filter((row) => Boolean(row.merchant_visible)).length,
+      overriddenProducts: changed.rows.filter((row) => Boolean(row.visibility_overridden)).length,
       defaults
     };
   } catch (error) {

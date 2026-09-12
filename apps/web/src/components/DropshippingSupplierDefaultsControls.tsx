@@ -41,7 +41,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση των global ρυθμίσεων απέτυχε.");
-      setMessage("Οι global ρυθμίσεις αποθηκεύτηκαν. Δεν άλλαξαν προϊόντα ακόμη.");
+      setMessage("Οι global ρυθμίσεις αποθηκεύτηκαν. Πάτησε reset catalogue για να εφαρμοστούν στις τιμές και στα προϊόντα χωρίς manual visibility override.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η αποθήκευση απέτυχε.");
@@ -49,7 +49,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
   }
 
   async function applyDefaults() {
-    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων σε όλα τα προϊόντα αυτού του supplier με διαθέσιμη buying price; Οι υπάρχουσες per-product τιμές/ρυθμίσεις θα αντικατασταθούν και μετά θα μπορούν να ξαναγίνουν override ανά προϊόν.");
+    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων στο τρέχον catalogue; Οι global τιμές και το MSRP θα εφαρμοστούν ξανά. Τα manual Public/Hidden overrides ανά προϊόν θα διατηρηθούν, εκτός αν ένα προϊόν αποτύχει σε hard safety gate.");
     if (!confirmed) return;
     setBusy(true); setMessage("");
     try {
@@ -59,9 +59,9 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
         headers: { "content-type": "application/json", "x-csrf-token": token },
         body: JSON.stringify({ supplierCode })
       });
-      const payload = await response.json() as { error?: string; pricedProducts?: number; visibleProducts?: number };
+      const payload = await response.json() as { error?: string; pricedProducts?: number; visibleProducts?: number; overriddenProducts?: number };
       if (!response.ok) throw new Error(payload.error ?? "Η εφαρμογή των global ρυθμίσεων απέτυχε.");
-      setMessage(`Εφαρμόστηκαν σε ${payload.pricedProducts ?? 0} προϊόντα · public τώρα ${payload.visibleProducts ?? 0}.`);
+      setMessage(`Εφαρμόστηκαν σε ${payload.pricedProducts ?? 0} προϊόντα · public τώρα ${payload.visibleProducts ?? 0} · manual visibility overrides διατηρήθηκαν ${payload.overriddenProducts ?? 0}.`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η εφαρμογή απέτυχε.");
@@ -70,8 +70,8 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
 
   async function bulkVisibility(nextVisible: boolean) {
     const confirmed = window.confirm(nextVisible
-      ? "Μαζική δημοσίευση όλων των eligible προϊόντων αυτού του supplier; Θα δημοσιευτούν μόνο approved/active προϊόντα με buying price και τελική τιμή τουλάχιστον ίση με το supplier cost."
-      : "Μαζική απόκρυψη όλων των προϊόντων αυτού του supplier από το storefront;");
+      ? "Force publish όλων των eligible προϊόντων αυτού του supplier; Η ενέργεια εφαρμόζει νέα global κατάσταση στο τρέχον catalogue και καθαρίζει τα υπάρχοντα per-product visibility overrides. Θα δημοσιευτούν μόνο approved/active και ασφαλή προϊόντα με buying price και τελική τιμή τουλάχιστον ίση με το supplier cost."
+      : "Force hide όλων των προϊόντων αυτού του supplier; Η ενέργεια καθαρίζει τα υπάρχοντα per-product visibility overrides ώστε η απόκρυψη να γίνει η νέα global τρέχουσα κατάσταση.");
     if (!confirmed) return;
     setBusy(true); setMessage("");
     try {
@@ -84,8 +84,8 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       const payload = await response.json() as { error?: string; affectedProducts?: number; visibleProducts?: number };
       if (!response.ok) throw new Error(payload.error ?? "Η μαζική αλλαγή ορατότητας απέτυχε.");
       setMessage(nextVisible
-        ? `Ελέγχθηκαν ${payload.affectedProducts ?? 0} προϊόντα · public ${payload.visibleProducts ?? 0}.`
-        : `Κρύφτηκαν τα προϊόντα του supplier (${payload.affectedProducts ?? 0} ελεγμένα).`);
+        ? `Ελέγχθηκαν ${payload.affectedProducts ?? 0} προϊόντα · public ${payload.visibleProducts ?? 0}. Τα προηγούμενα product visibility overrides καθαρίστηκαν.`
+        : `Κρύφτηκαν τα προϊόντα του supplier (${payload.affectedProducts ?? 0} ελεγμένα) και καθαρίστηκαν τα προηγούμενα product visibility overrides.`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η μαζική αλλαγή απέτυχε.");
@@ -97,7 +97,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <div><strong>Global supplier settings</strong><small>{defaults.configured ? "Αποθηκευμένα defaults" : "Δεν έχουν οριστεί ακόμη"}</small></div>
       <span className="vendor-merchant-status">{visible ? "Public eligible" : "Hidden eligible"}</span>
     </div>
-    <p style={{ marginTop: 10 }}>Οι ρυθμίσεις αποθηκεύονται χωριστά από το supplier integration. Δεν ενεργοποιούν draft προϊόντα, δεν αλλάζουν supplier stock και δεν ενεργοποιούν order forwarding.</p>
+    <p style={{ marginTop: 10 }}>Η ορατότητα εδώ είναι supplier default. Μπορείς μετά να αλλάξεις Public/Hidden σε μεμονωμένο προϊόν· αυτή η επιλογή γίνεται manual override και διατηρείται όταν ξαναεφαρμόζεις τα defaults. Τα hard safety gates έχουν πάντα προτεραιότητα.</p>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
       <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
       <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
@@ -110,7 +110,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Bulk publish eligible</button>
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Το reset ενημερώνει μόνο συνδεδεμένα προϊόντα με έγκυρη supplier buying price. Draft/unapproved προϊόντα παραμένουν hidden. Τα bulk visibility actions αλλάζουν μόνο το τρέχον catalogue· δεν αλλάζουν τα αποθηκευμένα defaults. Μετά μπορείς να κάνεις per-product override ή reset από κάθε κάρτα.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Bulk publish/hide: είναι force global ενέργεια και καθαρίζει όλα τα per-product visibility overrides του supplier. Draft, inactive, suppressed ή recalled προϊόντα παραμένουν hidden.</small>
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
 }
