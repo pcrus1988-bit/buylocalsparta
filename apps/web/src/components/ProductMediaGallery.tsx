@@ -14,11 +14,13 @@ type ProductMediaGalleryProps = Readonly<{
   placeholderLabel: string;
   placeholderSymbol: string;
   artClass?: string;
+  surface?: "default" | "bazaar";
+  showInfoMarker?: boolean;
 }>;
 
 const iconButtonStyle = {
   position: "absolute",
-  zIndex: 4,
+  zIndex: 6,
   width: 42,
   height: 42,
   borderRadius: 999,
@@ -49,12 +51,21 @@ function Chevron({ direction }: Readonly<{ direction: "left" | "right" }>) {
   );
 }
 
-export function ProductMediaGallery({ images, badge, placeholderLabel, placeholderSymbol, artClass = "" }: ProductMediaGalleryProps) {
+export function ProductMediaGallery({
+  images,
+  badge,
+  placeholderLabel,
+  placeholderSymbol,
+  artClass = "",
+  surface = "default",
+  showInfoMarker = false
+}: ProductMediaGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
   const imageCount = images.length;
   const activeImage = images[activeIndex] ?? images[0];
+  const isBazaar = surface === "bazaar";
 
   const selectIndex = (index: number) => {
     if (!imageCount) return;
@@ -81,9 +92,13 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
     };
   }, [activeIndex, imageCount, lightboxOpen]);
 
+  const artStyle = isBazaar
+    ? { position: "relative" as const, overflow: "hidden" as const, aspectRatio: "1 / 1", background: "#fff", borderRadius: 28, minWidth: 0, minHeight: 320 }
+    : { position: "relative" as const, overflow: "hidden" as const };
+
   return (
     <div style={{ display: "grid", gap: 12, alignSelf: "start", minWidth: 0 }}>
-      <div className={`product-detail-art ${artClass}`} style={{ position: "relative", overflow: "hidden" }}>
+      <div className={isBazaar ? undefined : `product-detail-art ${artClass}`} style={artStyle}>
         {!activeImage ? <span className="detail-category">{placeholderLabel}</span> : null}
         {!activeImage ? <span className="detail-symbol" aria-hidden="true">{placeholderSymbol}</span> : null}
         {activeImage ? (
@@ -99,7 +114,7 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
               loading="eager"
               fetchPriority="high"
               draggable={false}
-              style={{ width: "100%", height: "100%", objectFit: "contain", padding: 18, display: "block", background: "#fff" }}
+              style={{ width: "100%", height: "100%", minHeight: isBazaar ? 320 : undefined, objectFit: "contain", padding: isBazaar ? 24 : 18, display: "block", background: "#fff" }}
             />
           </button>
         ) : null}
@@ -110,7 +125,7 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
             aria-label="Μεγέθυνση φωτογραφίας"
             title="Μεγέθυνση"
             onClick={() => setLightboxOpen(true)}
-            style={{ ...iconButtonStyle, top: 14, right: 14 }}
+            style={{ ...iconButtonStyle, top: 14, ...(isBazaar ? { left: 14 } : { right: 14 }) }}
           >
             <MagnifierIcon />
           </button>
@@ -124,13 +139,21 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
             <button type="button" aria-label="Επόμενη φωτογραφία" onClick={() => selectIndex(activeIndex + 1)} style={{ ...iconButtonStyle, right: 12, top: "50%", transform: "translateY(-50%)" }}>
               <Chevron direction="right" />
             </button>
-            <span style={{ position: "absolute", zIndex: 4, right: 14, bottom: 14, borderRadius: 999, padding: "6px 10px", background: "rgba(17,24,39,.78)", color: "#fff", fontSize: 12, fontWeight: 800 }}>
+            <span style={{ position: "absolute", zIndex: 6, right: 14, bottom: 14, borderRadius: 999, padding: "6px 10px", background: "rgba(17,24,39,.78)", color: "#fff", fontSize: 12, fontWeight: 800 }}>
               {activeIndex + 1} / {imageCount}
             </span>
           </>
         ) : null}
 
-        <span className="product-badge" style={{ zIndex: 5 }}>{badge}</span>
+        {badge ? (
+          isBazaar
+            ? <span style={{ position: "absolute", zIndex: 7, top: 18, right: 18, background: "#111", color: "#fff", borderRadius: 999, padding: "9px 13px", fontWeight: 900 }}>{badge}</span>
+            : <span className="product-badge" style={{ zIndex: 7 }}>{badge}</span>
+        ) : null}
+
+        {isBazaar && showInfoMarker ? (
+          <span aria-hidden="true" style={{ position: "absolute", zIndex: 7, left: 16, bottom: 16, width: 52, height: 52, borderRadius: 999, border: "3px solid #173f35", background: "rgba(255,255,255,.92)", color: "#173f35", display: "grid", placeItems: "center", fontFamily: "Georgia,serif", fontSize: 34, lineHeight: 1 }}>i</span>
+        ) : null}
       </div>
 
       {imageCount > 1 ? (
