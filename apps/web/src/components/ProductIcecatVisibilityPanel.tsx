@@ -96,28 +96,4 @@ function statusPresentation(status: ProductIcecatVisibilityStatus): { label: str
   }
 }
 
-function contextLabel(kind: ProductIcecatVisibility["contextKind"]): string {
-  if (kind === "offer") return "Ενεργό catalogue product";
-  if (kind === "submission") return "Νέα καταχώρηση";
-  if (kind === "assigned") return "Supplier PIM assignment";
-  return "Admin source product";
-}
 function completenessLabel(value?: number): string { return value === undefined ? "—" : `${Math.round(value * 100)}%`; }
-function originLabel(value?: string): string {
-  if (value === "icecat_native") return "Native Greek Icecat";
-  if (value === "translated_verified") return "Verified translation from Icecat";
-  if (value === "mixed") return "Mixed verified Icecat evidence";
-  if (value === "manual_verified") return "Manually verified source evidence";
-  return value ?? "—";
-}
-function fieldLabel(value: string): string {
-  if (value === "title") return "τίτλος";
-  if (value === "description") return "περιγραφή";
-  if (value === "category") return "κατηγορία";
-  if (value === "specifications") return "χαρακτηριστικά";
-  if (value === "images") return "εικόνες";
-  return value;
-}
-function when(value: number): string {
-  return new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
-}
