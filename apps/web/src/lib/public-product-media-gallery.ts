@@ -1,6 +1,6 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { governedPublicMediaEnabled, type ApprovedCatalogImage, type CatalogMediaRequest } from "./public-media-service";
+import type { ApprovedCatalogImage, CatalogMediaRequest } from "./public-media-service";
 
 type CatalogGalleryRow = SqlRow & {
   canonical_public_id: string;
@@ -11,17 +11,16 @@ type CatalogGalleryRow = SqlRow & {
 const optionalText = (value: unknown): string | undefined => typeof value === "string" && value.trim() ? value.trim() : undefined;
 
 /**
- * Return all publishable images for one canonical product, ordered with images from
- * the currently assigned vendor first. Every returned id still passes through the
- * governed /api/media endpoint, which independently re-checks scan, rights and
- * moderation status before reading the private object.
+ * Return all publishable images for one canonical product. Supplier-backed canonical
+ * media uses the same rights/moderation status gates and is delivered through the
+ * same /api/media boundary as stored media.
  */
 export async function approvedCatalogImageGallery(
   request: CatalogMediaRequest,
   limit = 8
 ): Promise<readonly ApprovedCatalogImage[]> {
   const canonicalVariantId = request.canonicalVariantId.trim();
-  if (!canonicalVariantId || !governedPublicMediaEnabled()) return [];
+  if (!canonicalVariantId || !process.env.DATABASE_URL?.trim()) return [];
   const safeLimit = Math.min(12, Math.max(1, Math.trunc(limit)));
 
   try {
@@ -46,8 +45,10 @@ export async function approvedCatalogImageGallery(
           AND pm.scan_status='clean'
           AND pm.rights_status='approved'
           AND pm.moderation_status='approved'
-          AND pm.object_key IS NOT NULL
-          AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+          AND (
+            (pm.source_url IS NOT NULL AND pm.source_id IS NOT NULL)
+            OR (pm.object_key IS NOT NULL AND pm.content_type IN ('image/jpeg','image/png','image/webp'))
+          )
         ORDER BY CASE WHEN $2::text IS NOT NULL AND v.public_id=$2 THEN 0 ELSE 1 END,
                  pm.sort_order ASC,
                  pm.reviewed_at DESC NULLS LAST,
