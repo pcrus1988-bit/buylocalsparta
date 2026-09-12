@@ -51,6 +51,8 @@ const MARKS: Readonly<Record<SearchDiscoveryKind, string>> = {
   product: "•"
 };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function useSearchDiscovery(query: string, limit = 12): SearchDiscoveryState {
   const [items, setItems] = useState<readonly SearchDiscoveryItem[]>([]);
   const [hasResults, setHasResults] = useState<boolean | null>(null);
@@ -88,7 +90,7 @@ export function useSearchDiscovery(query: string, limit = 12): SearchDiscoverySt
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, 180);
+    }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timer);
