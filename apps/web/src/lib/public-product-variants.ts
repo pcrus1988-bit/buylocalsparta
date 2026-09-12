@@ -89,22 +89,42 @@ const VARIANT_DIMENSIONS: readonly VariantDimension[] = [
   { key: "σχεδιο", label: "Σχέδιο", kind: "style" }
 ] as const;
 
-const NOVA_SIZE_KEYS = new Set([
-  "italian size men",
-  "italian size women",
-  "shoe size men",
-  "shoe size women",
-  "shoe size",
-  "waist size",
-  "belt size",
-  "waist length size",
-  "hat size",
-  "swimwear sleepwear size",
-  "earrings size",
-  "bracelets size",
-  "gloves size women",
-  "ring size"
-]);
+const NOVA_VARIANT_DIMENSIONS: Readonly<Record<string, Readonly<{ label: string; kind: PublicProductVariantKind }>>> = {
+  "italian size men": { label: "Ιταλικό μέγεθος", kind: "size" },
+  "italian size women": { label: "Ιταλικό μέγεθος", kind: "size" },
+  "shoe size men": { label: "Μέγεθος παπουτσιού", kind: "size" },
+  "shoe size women": { label: "Μέγεθος παπουτσιού", kind: "size" },
+  "shoe size": { label: "Μέγεθος παπουτσιού", kind: "size" },
+  "footwear size": { label: "Μέγεθος παπουτσιού", kind: "size" },
+  "footwear size men": { label: "Μέγεθος παπουτσιού", kind: "size" },
+  "footwear size women": { label: "Μέγεθος παπουτσιού", kind: "size" },
+  "waist size": { label: "Μέγεθος μέσης", kind: "size" },
+  "belt size": { label: "Μέγεθος ζώνης", kind: "size" },
+  "waist length size": { label: "Μέγεθος μέσης / μήκους", kind: "size" },
+  "hat size": { label: "Μέγεθος καπέλου", kind: "size" },
+  "swimwear sleepwear size": { label: "Μέγεθος", kind: "size" },
+  "earrings size": { label: "Μέγεθος σκουλαρικιών", kind: "size" },
+  "bracelets size": { label: "Μέγεθος βραχιολιού", kind: "size" },
+  "bracelet size": { label: "Μέγεθος βραχιολιού", kind: "size" },
+  "gloves size women": { label: "Μέγεθος γαντιών", kind: "size" },
+  "glove size": { label: "Μέγεθος γαντιών", kind: "size" },
+  "ring size": { label: "Μέγεθος δαχτυλιδιού", kind: "size" },
+  "clothing size": { label: "Μέγεθος ρούχου", kind: "size" },
+  "clothing size men": { label: "Μέγεθος ρούχου", kind: "size" },
+  "clothing size women": { label: "Μέγεθος ρούχου", kind: "size" },
+  "sock size": { label: "Μέγεθος κάλτσας", kind: "size" },
+  "bra size": { label: "Μέγεθος σουτιέν", kind: "size" },
+  "cup size": { label: "Cup", kind: "size" },
+  "luggage size": { label: "Μέγεθος αποσκευής", kind: "size" },
+  "product size": { label: "Μέγεθος", kind: "size" },
+  "display size": { label: "Μέγεθος οθόνης", kind: "size" },
+  "pet size": { label: "Μέγεθος", kind: "size" },
+  "heel height": { label: "Ύψος τακουνιού", kind: "height" },
+  "inseam length": { label: "Μήκος εσωτερικής ραφής", kind: "length" },
+  "necklace length": { label: "Μήκος κολιέ", kind: "length" },
+  "foot length": { label: "Μήκος πέλματος", kind: "length" },
+  "storage size": { label: "Χωρητικότητα", kind: "capacity" }
+};
 
 const FALLBACK_LABEL_KEYS = new Set(["variant label", "variantlabel", "option label", "option", "option name"]);
 
@@ -145,7 +165,14 @@ function dimensionForKey(key: string): VariantDimension | undefined {
   const normalized = normalizeKey(key);
   const direct = VARIANT_DIMENSIONS.find((dimension) => dimension.key === normalized);
   if (direct) return direct;
-  if (NOVA_SIZE_KEYS.has(normalized)) return { key: normalized, label: "Μέγεθος", kind: "size" };
+
+  const supplierDimension = NOVA_VARIANT_DIMENSIONS[normalized];
+  if (supplierDimension) return { key: normalized, ...supplierDimension };
+
+  if (normalized.endsWith(" size")) return { key: normalized, label: "Μέγεθος", kind: "size" };
+  if (normalized.endsWith(" color") || normalized.endsWith(" colour")) return { key: normalized, label: "Χρώμα", kind: "color" };
+  if (normalized.endsWith(" length")) return { key: normalized, label: "Μήκος", kind: "length" };
+  if (normalized.endsWith(" height")) return { key: normalized, label: "Ύψος", kind: "height" };
   return undefined;
 }
 
@@ -180,7 +207,7 @@ function variantAttributes(value: unknown): readonly PublicProductVariantAttribu
   if (publicAttributes.length) {
     const seen = new Set<string>();
     return publicAttributes.filter((attribute) => {
-      const identity = `${attribute.kind}:${attribute.value.toLocaleLowerCase("el")}`;
+      const identity = `${attribute.key}:${attribute.value.toLocaleLowerCase("el")}`;
       if (seen.has(identity)) return false;
       seen.add(identity);
       return true;
@@ -250,7 +277,9 @@ function variantImage(row: VariantOptionRow): Pick<PublicProductVariantOption, "
  *
  * Local offers use governed inventory balances. Dropship offers use only fresh,
  * API-authoritative supplier availability as a browsing hint; checkout still
- * revalidates the exact supplier variant before authorisation.
+ * revalidates the exact supplier variant before authorisation. Dropship siblings are
+ * also joined by supplier + external product identity, so newly ingested variants do
+ * not disappear while canonical family assignment is catching up.
  */
 export const getPublicProductVariantOptions = cache(async (
   canonicalVariantId: string
@@ -261,7 +290,7 @@ export const getPublicProductVariantOptions = cache(async (
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<VariantOptionRow>(`
       WITH current_variant AS (
-        SELECT cv.family_id
+        SELECT cv.id, cv.family_id
         FROM canonical_variants cv
         JOIN markets m ON m.id=cv.market_id
         WHERE cv.public_id=$1
@@ -270,6 +299,37 @@ export const getPublicProductVariantOptions = cache(async (
           AND cv.suppressed=false
           AND cv.recalled=false
         LIMIT 1
+      ),
+      current_dropship_product AS (
+        SELECT DISTINCT dso.supplier_id, dso.external_product_id
+        FROM current_variant current
+        JOIN vendor_offers vo ON vo.canonical_variant_id=current.id
+        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        WHERE dso.active=true
+          AND NULLIF(BTRIM(dso.external_product_id),'') IS NOT NULL
+      ),
+      sibling_candidates AS (
+        SELECT sibling.id
+        FROM canonical_variants sibling
+        JOIN markets sibling_market ON sibling_market.id=sibling.market_id
+        CROSS JOIN current_variant current
+        WHERE sibling_market.code='sparta'
+          AND sibling.active=true
+          AND sibling.suppressed=false
+          AND sibling.recalled=false
+          AND (
+            (current.family_id IS NOT NULL AND sibling.family_id=current.family_id)
+            OR EXISTS (
+              SELECT 1
+              FROM vendor_offers sibling_offer
+              JOIN dropship_supplier_offers sibling_dso ON sibling_dso.vendor_offer_id=sibling_offer.id
+              JOIN current_dropship_product current_source
+                ON current_source.supplier_id=sibling_dso.supplier_id
+               AND current_source.external_product_id=sibling_dso.external_product_id
+              WHERE sibling_offer.canonical_variant_id=sibling.id
+                AND sibling_dso.active=true
+            )
+          )
       )
       SELECT sibling.public_id AS canonical_public_id,
              sibling.slug,
@@ -281,10 +341,8 @@ export const getPublicProductVariantOptions = cache(async (
              source_image.source_image_candidate,
              source_image.source_website
       FROM canonical_variants sibling
+      JOIN sibling_candidates candidate ON candidate.id=sibling.id
       JOIN markets m ON m.id=sibling.market_id
-      JOIN current_variant current
-        ON current.family_id IS NOT NULL
-       AND sibling.family_id=current.family_id
       LEFT JOIN LATERAL (
         SELECT MIN(eligible_offer.customer_price_minor)::bigint AS from_price_minor
         FROM (
