@@ -64,16 +64,18 @@ export async function resetDropshippingProductToSupplierDefaults(
     await client.query("BEGIN");
     const result = await client.query(`
       SELECT vo.id::text offer_uuid, vo.status, dso.active supplier_offer_active,
-             dso.supplier_cost_minor, ds.configuration->'vendorMerchandising' vendor_merchandising
+             dso.supplier_cost_minor, ds.configuration->'vendorMerchandising' vendor_merchandising,
+             cv.active canonical_active, cv.suppressed canonical_suppressed, cv.recalled canonical_recalled
         FROM vendor_offers vo
         JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
         JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
        WHERE vo.public_id=$1
          AND vo.vendor_id=$2::uuid
          AND ds.owner_vendor_id=$2::uuid
          AND ds.active=true
        LIMIT 1
-       FOR UPDATE OF vo,dso,ds
+       FOR UPDATE OF vo,dso,ds,cv
     `, [publicOfferId, vendorId]);
     if (result.rowCount !== 1) throw new Error("Το Dropshipping προϊόν δεν βρέθηκε.");
 
@@ -90,7 +92,13 @@ export async function resetDropshippingProductToSupplierDefaults(
       afterMarkupMinor - Math.round(afterMarkupMinor * defaults.discountPercent / 100)
     );
     const offerUuid = String(row.offer_uuid);
-    const visible = defaults.visible && row.status === "approved" && row.supplier_offer_active === true;
+    const canonicalEligible = row.canonical_active === true
+      && row.canonical_suppressed !== true
+      && row.canonical_recalled !== true;
+    const visible = defaults.visible
+      && row.status === "approved"
+      && row.supplier_offer_active === true
+      && canonicalEligible;
 
     await client.query(`
       INSERT INTO vendor_offer_pricing_private(
@@ -157,13 +165,18 @@ export async function setDropshippingSupplierVisibility(
               AND dso.active=true
               AND dso.supplier_cost_minor IS NOT NULL
               AND vo.customer_price_minor >= dso.supplier_cost_minor
+              AND cv.active=true
+              AND cv.suppressed=false
+              AND cv.recalled=false
              THEN true
              ELSE false
            END,
            updated_at=now()
       FROM dropship_supplier_offers dso
-      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id,
+           canonical_variants cv
      WHERE dso.vendor_offer_id=vo.id
+       AND cv.id=vo.canonical_variant_id
        AND vo.vendor_id=$1::uuid
        AND ds.owner_vendor_id=$1::uuid
        AND ds.code=$2
