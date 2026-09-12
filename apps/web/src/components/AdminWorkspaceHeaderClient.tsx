@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { WorkspaceNavGroup } from "../lib/workspace-navigation";
+import { AdminCatalogueSuiteNavigation } from "./AdminCatalogueSuiteNavigation";
 import { AdminBreadcrumbs, AdminContextNavigation, AdminDomainNavigation } from "./AdminDomainNavigation";
 
 const SHORTCUTS = [
@@ -80,5 +81,6 @@ export function AdminWorkspaceHeaderClient({ csrfToken, groups, entityLabel }: {
       </div>
       <AdminContextNavigation groups={groups} />
     </div>
+    <AdminCatalogueSuiteNavigation />
   </>;
 }
