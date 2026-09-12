@@ -14,27 +14,40 @@ export function VendorWorkspaceHeader() {
   const [busy, setBusy] = useState(false);
   const [roles, setRoles] = useState<readonly string[]>([]);
   const [csrfToken, setCsrfToken] = useState("");
+  const [dropshippingOnly, setDropshippingOnly] = useState(false);
 
   useEffect(() => {
     let active = true;
     void fetch("/api/vendor/auth-context", { cache: "no-store" })
       .then(async (response) => response.ok ? response.json() : undefined)
-      .then((payload: { csrfToken?: string; account?: { roles?: readonly string[] } } | undefined) => {
+      .then((payload: { csrfToken?: string; dropshippingOnly?: boolean; account?: { roles?: readonly string[] } } | undefined) => {
         if (!active) return;
         if (Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
         if (typeof payload?.csrfToken === "string") setCsrfToken(payload.csrfToken);
+        setDropshippingOnly(payload?.dropshippingOnly === true);
       })
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
 
   const navigation = useMemo(() => {
-    if (roles.includes("vendor_owner")) return VENDOR_WORKSPACE_NAVIGATION;
-    return VENDOR_WORKSPACE_NAVIGATION
+    const roleFiltered = roles.includes("vendor_owner") ? VENDOR_WORKSPACE_NAVIGATION : VENDOR_WORKSPACE_NAVIGATION
       .map((group) => ({ ...group, links: group.links.filter((link) => link.href !== "/vendor/daily-access") }))
       .filter((group) => group.links.length > 0)
       .map((group) => group.href === "/vendor/daily-access" ? { ...group, href: group.links[0]?.href } : group);
-  }, [roles]);
+
+    if (!dropshippingOnly) return roleFiltered;
+    return roleFiltered.map((group) => group.href === "/vendor/catalog" ? {
+      ...group,
+      label: "Dropshipping",
+      href: "/vendor/dropshipping",
+      icon: "⇄",
+      links: [
+        { label: "Dropshipping Control Centre", href: "/vendor/dropshipping", icon: "⇄" },
+        ...group.links.filter((link) => link.href !== "/vendor/catalog")
+      ]
+    } : group);
+  }, [roles, dropshippingOnly]);
 
   async function logout() {
     setBusy(true);
