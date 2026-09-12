@@ -3,7 +3,8 @@ import { getVisibleOfferMsrpMinor } from "../../../../lib/public-offer-msrp";
 
 export const dynamic = "force-dynamic";
 
-const MSRP_CACHE = "public, max-age=60, s-maxage=300, stale-while-revalidate=600";
+const MSRP_BROWSER_CACHE = "public, max-age=60";
+const MSRP_CDN_CACHE = "max-age=300, stale-while-revalidate=600";
 
 function safeRetailMinor(raw: string | null): number | undefined {
   if (!raw || !/^\d+$/.test(raw)) return undefined;
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
   const msrpMinor = await getVisibleOfferMsrpMinor(productId, vendorId, retailPriceMinor);
   return NextResponse.json(
     msrpMinor === undefined ? {} : { msrpMinor },
-    { headers: { "Cache-Control": MSRP_CACHE } }
+    { headers: {
+      "Cache-Control": MSRP_BROWSER_CACHE,
+      "CDN-Cache-Control": MSRP_CDN_CACHE,
+      "Vercel-CDN-Cache-Control": MSRP_CDN_CACHE
+    } }
   );
 }
