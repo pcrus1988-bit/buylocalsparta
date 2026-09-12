@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
+  DEFAULT_MANAGED_MARKET_ID,
   verifyPassword,
   type AuthSession,
   type DatabaseScope,
@@ -101,8 +102,18 @@ export class PostgresVendorAuthService {
   #csrfForToken(token: string): string { return createHmac("sha256", this.#secret).update(`csrf:${token}`).digest("base64url"); }
 }
 
+/**
+ * Backwards-compatible scope for the existing managed Sparta marketplace.
+ * Expansion runtimes must use vendorScopeForMarket with their resolved market/hub context.
+ */
 export function vendorScope(userId: string, vendorId: string, requestId?: string): DatabaseScope {
-  return { actorUserId: userId, vendorId, marketId: "sparta", requestId };
+  return vendorScopeForMarket(userId, vendorId, DEFAULT_MANAGED_MARKET_ID, requestId);
+}
+
+export function vendorScopeForMarket(userId: string, vendorId: string, marketId: string, requestId?: string): DatabaseScope {
+  const resolvedMarketId = marketId.trim();
+  if (!resolvedMarketId) throw new Error("Vendor market scope is required");
+  return { actorUserId: userId, vendorId, marketId: resolvedMarketId, requestId };
 }
 
 function safeStringEqual(a: string, b: string): boolean {
