@@ -192,7 +192,7 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
     search: env.BLS_SEARCH_ENABLED === "true" ? meilisearchConfigFromEnv(env) : undefined,
     resend: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? resendConfigFromEnv(env) : undefined,
     notificationSuppressionSecret: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? requiredSecret(env.BLS_NOTIFICATION_SUPPRESSION_SECRET, "BLS_NOTIFICATION_SUPPRESSION_SECRET") : undefined,
-    notificationWorkerId: env.BLS_WORKER_ID?.trim() || undefined,
+    notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
     boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
   };
 }
