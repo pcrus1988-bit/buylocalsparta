@@ -22,6 +22,23 @@ const pool = new Pool({ connectionString, max: 2, application_name: "buy-local-s
 try {
   const client = await pool.connect();
   try {
+    // GitHub Actions uses a plain PostGIS container rather than hosted Supabase.
+    // Migration 0235 references the Supabase Storage bucket registry, so provide
+    // only that narrow compatibility contract in GitHub Actions. This branch is
+    // never taken by the production migrator, where Supabase owns the schema.
+    if (process.env.GITHUB_ACTIONS === "true") {
+      await client.query(`
+        CREATE SCHEMA IF NOT EXISTS storage;
+        CREATE TABLE IF NOT EXISTS storage.buckets (
+          id text PRIMARY KEY,
+          name text NOT NULL UNIQUE,
+          public boolean NOT NULL DEFAULT false,
+          file_size_limit bigint,
+          allowed_mime_types text[]
+        )
+      `);
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version integer PRIMARY KEY,
