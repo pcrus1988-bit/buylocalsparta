@@ -100,6 +100,14 @@ export async function vendorDropshippingSupplierAnalytics(
       WHERE pae.vendor_id=$1::uuid
         AND pae.occurred_at >= now() - ($3::int * interval '1 day')
       GROUP BY pae.canonical_variant_id
+    ), supplier_unique AS (
+      SELECT count(DISTINCT pae.visitor_hash)::bigint AS unique_viewers
+      FROM product_analytics_events pae
+      JOIN supplier_products sp ON sp.id=pae.canonical_variant_id
+      WHERE pae.vendor_id=$1::uuid
+        AND pae.event_type='page_view'
+        AND pae.visitor_hash IS NOT NULL
+        AND pae.occurred_at >= now() - ($3::int * interval '1 day')
     ), metrics AS (
       SELECT sp.public_id, sp.product_title, sp.category_id, sp.category_name,
         coalesce(f.impressions,0)::bigint AS impressions,
@@ -118,7 +126,7 @@ export async function vendorDropshippingSupplierAnalytics(
     SELECT metrics.*,
       sum(impressions) OVER()::bigint AS total_impressions,
       sum(page_views) OVER()::bigint AS total_page_views,
-      sum(unique_viewers) OVER()::bigint AS total_unique_viewers,
+      su.unique_viewers::bigint AS total_unique_viewers,
       sum(engaged_seconds) OVER()::bigint AS total_engaged_seconds,
       sum(add_to_carts) OVER()::bigint AS total_add_to_carts,
       sum(checkout_starts) OVER()::bigint AS total_checkout_starts,
@@ -126,6 +134,7 @@ export async function vendorDropshippingSupplierAnalytics(
       sum(units_sold) OVER()::bigint AS total_units_sold,
       sum(revenue_minor) OVER()::bigint AS total_revenue_minor
     FROM metrics
+    CROSS JOIN supplier_unique su
     WHERE impressions > 0 OR page_views > 0 OR add_to_carts > 0 OR checkout_starts > 0 OR purchases > 0 OR revenue_minor > 0
     ORDER BY revenue_minor DESC, purchases DESC, page_views DESC, impressions DESC, product_title
     LIMIT 20
