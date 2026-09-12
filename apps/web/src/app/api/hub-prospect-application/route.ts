@@ -6,6 +6,7 @@ import {
   submitHubProspectApplication,
   type HubProspectApplicationInput
 } from "../../../lib/hub-prospect-application-runtime";
+import { notifyOperationsOfHubProspectApplication } from "../../../lib/vendor-email-workflows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +55,26 @@ export async function POST(request: Request) {
     };
 
     const receipt = await submitHubProspectApplication({ application, now });
+    const operationsEmail = await notifyOperationsOfHubProspectApplication({
+      reference: receipt.reference,
+      businessName: application.businessName,
+      contactName: application.contactName,
+      contactEmail: application.email,
+      phone: application.phone,
+      hubName: receipt.hubName,
+      hubSlug: receipt.hubSlug,
+      planCode: receipt.planCode,
+      billingCycle: receipt.billingCycle
+    });
+    if (!operationsEmail.sent) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "hub_prospect_application.admin_notification_failed",
+        reference: receipt.reference,
+        destination: "info@kontamou.site"
+      }));
+    }
+
     return Response.json({
       ...receipt,
       message: receipt.planCode === "claim"
