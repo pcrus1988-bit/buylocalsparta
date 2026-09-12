@@ -1,2 +1,24 @@
-import { requireAdminSession } from "../../../../../lib/admin-session";import { adminCreateCanonical, adminMatchingWorkspace } from "../../../../../lib/admin-runtime";
-export async function POST(request:Request){try{const p=await requireAdminSession(request,{csrf:true,permission:"catalog.write"});const b=await request.json() as Record<string,unknown>;const platformPriceMinor=Number(b.platformPriceMinor);if(!Number.isSafeInteger(platformPriceMinor)||platformPriceMinor<0)throw new Error("Platform price must be non-negative integer cents");await adminCreateCanonical(p,{submissionId:typeof b.submissionId==="string"?b.submissionId:"",platformPriceMinor,titleEl:typeof b.titleEl==="string"?b.titleEl:undefined,reason:typeof b.reason==="string"?b.reason:""});return Response.json(await adminMatchingWorkspace(p))}catch(e){return Response.json({error:e instanceof Error?e.message:"canonical_create_failed"},{status:400})}}
+import { requireAdminSession } from "../../../../../lib/admin-session";
+import { adminMatchingWorkspace } from "../../../../../lib/admin-runtime";
+import { adminCreateCanonicalIdentity } from "../../../../../lib/admin-canonical-identity-runtime";
+
+export async function POST(request: Request) {
+  try {
+    const principal = await requireAdminSession(request, {
+      csrf: true,
+      permission: "catalog.write"
+    });
+    const body = await request.json() as Record<string, unknown>;
+    await adminCreateCanonicalIdentity(principal, {
+      submissionId: typeof body.submissionId === "string" ? body.submissionId : "",
+      titleEl: typeof body.titleEl === "string" ? body.titleEl : undefined,
+      reason: typeof body.reason === "string" ? body.reason : ""
+    });
+    return Response.json(await adminMatchingWorkspace(principal));
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "canonical_create_failed" },
+      { status: 400 }
+    );
+  }
+}
