@@ -1,3 +1,15 @@
 import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { previewOrCommitVendorCsv } from "../../../../../lib/vendor-backoffice-service";
-export async function POST(request:Request){try{const p=await requireVendorSession(request,true);const b=await request.json() as {csv?:unknown;confirm?:unknown};if(typeof b.csv!=="string")throw new Error("CSV content is required");return Response.json(await previewOrCommitVendorCsv(p,b.csv,b.confirm===true));}catch(e){return Response.json({error:e instanceof Error?e.message:"csv_import_failed"},{status:400})}}
+
+export async function POST(request: Request) {
+  try {
+    const principal = await requireVendorSession(request, true);
+    if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("CSV catalogue import is disabled for the dropshipping-only vendor");
+    const body = await request.json() as { csv?: unknown; confirm?: unknown };
+    if (typeof body.csv !== "string") throw new Error("CSV content is required");
+    return Response.json(await previewOrCommitVendorCsv(principal, body.csv, body.confirm === true));
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "csv_import_failed" }, { status: 400 });
+  }
+}
