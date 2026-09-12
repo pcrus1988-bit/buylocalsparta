@@ -29,12 +29,7 @@ test("OVERPRICED is a diagnostic flag, never an MSRP execution ceiling", () => {
     "utf8"
   );
 
-  assert.match(
-    source,
-    /sellingPriceMinor:\s*recommendation\.recommendedSellingPriceMinor/[Symbol.match]
-      ? /sellingPriceMinor:\s*recommendation\.recommendedSellingPriceMinor/
-      : /sellingPriceMinor:\s*recommendation\.recommendedSellingPriceMinor/
-  );
+  assert.match(source, /sellingPriceMinor:\s*recommendation\.recommendedSellingPriceMinor/);
   assert.match(source, /pricingFlag:\s*recommendation\.overpriced\s*\?\s*"OVERPRICED"\s*:\s*null/);
   assert.doesNotMatch(
     source,
