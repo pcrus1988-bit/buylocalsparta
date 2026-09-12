@@ -33,3 +33,14 @@ test("failed availability refresh cannot extend supplier evidence", async () => 
   assert.match(source, /ds\.api_authoritative_availability=true/);
   assert.doesNotMatch(source.slice(failurePosition), /availability_expires_at=/);
 });
+
+test("availability refresh matches the deployed dropship offer schema", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+
+  // dropship_supplier_offers has availability_checked_at/availability_expires_at and
+  // last_catalogue_sync_at, but no last_seen_at column in production. Keep the
+  // authoritative refresh update limited to fields that actually exist.
+  assert.doesNotMatch(source, /last_seen_at\s*=/);
+  assert.match(source, /availability_checked_at=\$6/);
+  assert.match(source, /availability_expires_at=\$6::timestamptz/);
+});
