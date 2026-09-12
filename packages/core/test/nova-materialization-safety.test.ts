@@ -12,7 +12,9 @@ test("Nova materialization follows the schema-227 draft-only identity contract",
   assert.match(materializer, /material_variant_conflict/);
   assert.doesNotMatch(materializer, /taxonomy_missing/);
 
-  assert.match(materializer, /\$7::jsonb,NULL,'EUR',\$8,false,false,false/);
+  assert.match(materializer, /commerce_channel,bazaar_source/);
+  assert.match(materializer, /\$10::jsonb,NULL,'EUR',\$11,false,false,false/);
+  assert.match(materializer, /COALESCE\(commerce_channel,'normal'\)=\$3/);
   assert.match(materializer, /'draft'/);
   assert.match(materializer, /publicationState: "STAGED"/);
   assert.match(materializer, /pricingPending: true/);
