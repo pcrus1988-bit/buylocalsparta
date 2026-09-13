@@ -35,8 +35,8 @@ for (const requirement of ["<svg", 'stroke: "currentColor"', '"aria-hidden": tru
 
 const css = readFileSync(`${root}/apps/web/src/app/admin-nav-icons.css`, "utf8");
 for (const requirement of [".admin-domain-icon svg", "prefers-reduced-motion"]) if (!css.includes(requirement)) failures.push(`Admin icon styles are missing ${requirement}`);
-const layout = readFileSync(`${root}/apps/web/src/app/layout.tsx`, "utf8");
-if (!layout.includes('import "./admin-nav-icons.css"')) failures.push("Shared layout must load admin-nav-icons.css");
+const layout = readFileSync(`${root}/apps/web/src/app/admin/layout.tsx`, "utf8");
+if (!layout.includes('import "../admin-nav-icons.css"')) failures.push("Admin layout must load admin-nav-icons.css");
 
 if (failures.length) {
   console.error("Admin domain icon checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
