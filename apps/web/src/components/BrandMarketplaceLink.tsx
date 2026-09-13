@@ -62,16 +62,16 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
       }
       .brand-marketplace-link-card {
         flex: 0 1 auto;
-        height: 20px;
-        max-width: 88px;
+        height: 14px;
+        max-width: 60px;
       }
       .brand-marketplace-link-card img {
-        height: 20px;
-        max-width: 88px;
+        height: 14px;
+        max-width: 60px;
       }
       .brand-marketplace-link-card span {
-        max-width: 88px;
-        font-size: 15px;
+        max-width: 60px;
+        font-size: 13px;
         line-height: 1;
         letter-spacing: -.01em;
       }
@@ -91,16 +91,16 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
       }
       @media (max-width: 620px) {
         .brand-marketplace-link-card {
-          height: 17px;
-          max-width: 76px;
+          height: 12px;
+          max-width: 52px;
         }
         .brand-marketplace-link-card img {
-          height: 17px;
-          max-width: 76px;
+          height: 12px;
+          max-width: 52px;
         }
         .brand-marketplace-link-card span {
-          max-width: 76px;
-          font-size: 13px;
+          max-width: 52px;
+          font-size: 12px;
         }
         .brand-marketplace-link-detail,
         .brand-marketplace-link-detail img,

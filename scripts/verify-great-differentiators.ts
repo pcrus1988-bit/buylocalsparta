@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 const proof = readFileSync("apps/web/src/lib/local-commerce-proof.ts", "utf8");
 const card = readFileSync("apps/web/src/components/CatalogProductCard.tsx", "utf8");
+const localProofComponent = readFileSync("apps/web/src/components/LocalCommerceProof.tsx", "utf8");
 const shop = readFileSync("apps/web/src/app/shop/page.tsx", "utf8");
 const tracking = readFileSync("apps/web/src/components/CustomerDeliveryWorkspaceClient.tsx", "utf8");
 
@@ -22,8 +23,8 @@ for (const contract of requiredProofContracts) {
 if (proof.includes("opening_hours") || proof.includes("sameDay: true")) {
   throw new Error("Differentiator proof must not invent same-day opening-hours truth");
 }
-if (!card.includes("Σε τοπικό απόθεμα · επιβεβαιωμένο σήμερα") || !card.includes("LocalCommerceProof")) {
-  throw new Error("Catalogue cards must show evidence-backed local proof");
+if (!card.includes("LocalCommerceProof") || !localProofComponent.includes("Τοπικό απόθεμα · επιβεβαιωμένο σήμερα")) {
+  throw new Error("Catalogue cards must retain evidence-backed local proof without requiring redundant availability copy");
 }
 if (card.includes('product.available ? "Διαθέσιμο σήμερα"')) {
   throw new Error("Generic availability must not be labelled as same-day availability");
