@@ -253,11 +253,17 @@ export async function getPublishedDropshipCatalogCards(
   const metadata = await loadCatalogMetadata(ids);
   const normalizedQuery = normalizeSearchText(query);
 
-  const enriched = base.map((record) => ({
-    ...record,
-    departmentCode: departmentCodes.get(record.id),
-    sizes: metadata.get(record.id)?.sizes ?? []
-  }));
+  // Accepted V4 enrichment is projected only after its V4 validator has passed.
+  // Supplier/translation content remains the fallback for non-V4 products.
+  const enriched = base.map((record) => {
+    const details = metadata.get(record.id);
+    return {
+      ...record,
+      title: details?.title ?? record.title,
+      departmentCode: departmentCodes.get(record.id),
+      sizes: details?.sizes ?? []
+    };
+  });
 
   const matching = enriched
     .filter((record) => categoryCodeMatches(record.categoryCode, category, record.departmentCode))
@@ -274,6 +280,7 @@ export async function getPublishedDropshipCatalogCards(
       if (!normalizedQuery) return true;
       return searchTextRelevance(normalizedQuery, [
         record.title,
+        details?.shortDescription,
         details?.description,
         details?.brand,
         details?.color,
