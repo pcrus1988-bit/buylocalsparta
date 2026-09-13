@@ -9,19 +9,31 @@ type BrandMarketplaceLinkProps = Readonly<{
   logoObjectKey?: string;
   variant?: "card" | "detail";
   eager?: boolean;
+  href?: string;
+  ariaLabel?: string;
+  linkTitle?: string;
 }>;
 
-export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", eager = false }: BrandMarketplaceLinkProps) {
+export function BrandMarketplaceLink({
+  brand,
+  logoObjectKey,
+  variant = "card",
+  eager = false,
+  href,
+  ariaLabel,
+  linkTitle
+}: BrandMarketplaceLinkProps) {
   const logoUrl = publicBrandLogoUrl(logoObjectKey);
   const [logoFailed, setLogoFailed] = useState(false);
   const showLogo = Boolean(logoUrl) && !logoFailed;
-  const href = `/shop?brand=${encodeURIComponent(brand)}`;
+  const targetHref = href ?? `/shop?brand=${encodeURIComponent(brand)}`;
+  const defaultLabel = `Όλα τα προϊόντα ${brand}`;
 
   return <Link
-    href={href}
+    href={targetHref}
     className={`brand-marketplace-link brand-marketplace-link-${variant}`}
-    aria-label={`Όλα τα προϊόντα ${brand}`}
-    title={`Όλα τα προϊόντα ${brand}`}
+    aria-label={ariaLabel ?? defaultLabel}
+    title={linkTitle ?? defaultLabel}
   >
     {showLogo ? <img
       src={logoUrl}
@@ -34,15 +46,14 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
       .brand-marketplace-link {
         display: inline-flex;
         align-items: center;
-        justify-content: flex-start;
         flex: 0 0 auto;
         min-width: 0;
         max-width: 100%;
         border-radius: 7px;
         color: var(--ink);
-        transition: opacity .18s ease;
+        transition: opacity .18s ease, box-shadow .18s ease;
       }
-      .brand-marketplace-link:hover { opacity: .68; }
+      .brand-marketplace-link:hover { opacity: .76; }
       .brand-marketplace-link:focus-visible {
         outline: 3px solid var(--brass);
         outline-offset: 3px;
@@ -50,6 +61,7 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
       .brand-marketplace-link img {
         display: block;
         width: auto;
+        height: auto;
         object-fit: contain;
       }
       .brand-marketplace-link span {
@@ -61,21 +73,30 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
         font-weight: 500;
       }
       .brand-marketplace-link-card {
-        flex: 0 1 auto;
-        height: 14px;
-        max-width: 60px;
+        width: 64px;
+        height: 24px;
+        padding: 5px 6px;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid rgba(13, 43, 35, .12);
+        background: rgba(255, 255, 255, .92);
+        box-shadow: 0 3px 10px rgba(13, 43, 35, .08);
       }
       .brand-marketplace-link-card img {
-        height: 14px;
-        max-width: 60px;
+        width: auto;
+        height: auto;
+        max-width: 50px;
+        max-height: 10px;
       }
       .brand-marketplace-link-card span {
-        max-width: 60px;
-        font-size: 13px;
+        max-width: 50px;
+        font-size: 10px;
         line-height: 1;
+        text-align: center;
         letter-spacing: -.01em;
       }
       .brand-marketplace-link-detail {
+        justify-content: flex-start;
         height: clamp(52px, 6vw, 86px);
         max-width: min(220px, 36vw);
       }
@@ -91,17 +112,15 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
       }
       @media (max-width: 620px) {
         .brand-marketplace-link-card {
-          height: 12px;
-          max-width: 52px;
+          width: 60px;
+          height: 23px;
+          padding-inline: 5px;
         }
-        .brand-marketplace-link-card img {
-          height: 12px;
-          max-width: 52px;
-        }
+        .brand-marketplace-link-card img,
         .brand-marketplace-link-card span {
-          max-width: 52px;
-          font-size: 12px;
+          max-width: 48px;
         }
+        .brand-marketplace-link-card img { max-height: 10px; }
         .brand-marketplace-link-detail,
         .brand-marketplace-link-detail img,
         .brand-marketplace-link-detail span { max-width: 34vw; }

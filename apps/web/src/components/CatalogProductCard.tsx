@@ -195,8 +195,15 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
-        <div className="catalog-card-title-row">
-          {product.brand ? <BrandMarketplaceLink brand={product.brand} logoObjectKey={product.brandLogoObjectKey} variant="card" /> : null}
+        <div className="catalog-card-title-stack">
+          {product.brand ? <BrandMarketplaceLink
+            brand={product.brand}
+            logoObjectKey={product.brandLogoObjectKey}
+            variant="card"
+            href={productHref}
+            ariaLabel={`Δες ${displayTitle}`}
+            linkTitle={`Δες ${displayTitle}`}
+          /> : null}
           <h3><Link href={productHref}>{displayTitle}</Link></h3>
         </div>
         <div className="product-bottom">
@@ -206,15 +213,16 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
       <style jsx>{`
-        .catalog-card-title-row {
+        .catalog-card-title-stack {
           display: flex;
-          align-items: center;
-          gap: 8px;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 7px;
           min-width: 0;
           margin-top: 11px;
         }
-        .catalog-card-title-row h3 {
-          flex: 1 1 auto;
+        .catalog-card-title-stack h3 {
+          width: 100%;
           min-width: 0;
           margin: 0;
         }
@@ -222,7 +230,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           justify-content: flex-start;
         }
         @media (max-width: 620px) {
-          .catalog-card-title-row { gap: 7px; }
+          .catalog-card-title-stack { gap: 6px; }
         }
       `}</style>
     </article>
