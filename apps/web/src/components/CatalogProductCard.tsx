@@ -7,8 +7,8 @@ import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local
 import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
-import { publicBrandLogoUrl } from "../lib/brand-logo";
 import { publicPriceBadgeLabel, publicSavingsLabel, type PriceHighlightKind } from "../lib/public-price-presentation";
+import { BrandMarketplaceLink } from "./BrandMarketplaceLink";
 import { LocalCommerceProof } from "./LocalCommerceProof";
 
 const catalogImageStyle = {
@@ -144,8 +144,6 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
   const priceLabel = publicCatalogPriceLabel(product);
-  const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
-  const brandHref = product.brand ? `/shop?brand=${encodeURIComponent(product.brand)}` : undefined;
 
   return (
     <article className="product-card">
@@ -187,25 +185,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
         <div className="catalog-card-title-row">
-          {product.brand && brandHref ? <Link className="catalog-card-brand-link" href={brandHref} aria-label={`Όλα τα προϊόντα ${product.brand}`} title={`Όλα τα προϊόντα ${product.brand}`}>
-            {brandLogoUrl ? <>
-              <span className="catalog-card-brand-logo">
-                <img
-                  src={brandLogoUrl}
-                  alt={product.brand}
-                  loading="lazy"
-                  decoding="async"
-                  onError={(event) => {
-                    const logoSlot = event.currentTarget.parentElement;
-                    if (logoSlot) logoSlot.hidden = true;
-                    const fallback = logoSlot?.nextElementSibling;
-                    if (fallback instanceof HTMLElement) fallback.hidden = false;
-                  }}
-                />
-              </span>
-              <span className="catalog-card-brand-name" hidden>{product.brand}</span>
-            </> : <span className="catalog-card-brand-name">{product.brand}</span>}
-          </Link> : null}
+          {product.brand ? <BrandMarketplaceLink brand={product.brand} logoObjectKey={product.brandLogoObjectKey} variant="card" /> : null}
           <h3><Link href={productHref}>{displayTitle}</Link></h3>
         </div>
         <div className="product-bottom">
@@ -229,59 +209,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           min-width: 0;
           margin: 0;
         }
-        .catalog-card-brand-link {
-          display: inline-flex;
-          align-items: center;
-          justify-content: flex-start;
-          flex: 0 0 auto;
-          min-width: 0;
-          max-width: 132px;
-          min-height: 28px;
-          border-radius: 6px;
-        }
-        .catalog-card-brand-logo {
-          display: inline-flex;
-          align-items: center;
-          justify-content: flex-start;
-          height: 28px;
-          max-width: 132px;
-          overflow: hidden;
-        }
-        .catalog-card-brand-logo[hidden],
-        .catalog-card-brand-name[hidden] { display: none; }
-        .catalog-card-brand-logo img {
-          display: block;
-          width: auto;
-          height: 28px;
-          max-width: 132px;
-          object-fit: contain;
-        }
-        .catalog-card-brand-name {
-          display: block;
-          max-width: 132px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: var(--ink);
-          font-family: Georgia, 'Times New Roman', serif;
-          font-size: 27px;
-          font-weight: 500;
-          line-height: 1.04;
-          letter-spacing: -.02em;
-        }
-        .catalog-card-brand-link:hover {
-          opacity: .68;
-        }
-        .catalog-card-brand-link:focus-visible {
-          outline: 3px solid var(--brass);
-          outline-offset: 3px;
-        }
         @media (max-width: 620px) {
           .catalog-card-title-row { gap: 9px; }
-          .catalog-card-brand-link,
-          .catalog-card-brand-logo { max-width: 118px; }
-          .catalog-card-brand-logo img { max-width: 118px; }
-          .catalog-card-brand-name { max-width: 118px; }
         }
       `}</style>
     </article>
