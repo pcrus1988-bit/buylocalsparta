@@ -47,13 +47,15 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
     >
       <span className="brand-runner-badge">
         {showLogo ? (
-          <img
-            src={logoUrl}
-            alt={duplicate ? "" : brand.name}
-            loading="lazy"
-            decoding="async"
-            onError={() => setLogoFailed(true)}
-          />
+          <span className="brand-logo-viewport" aria-hidden={duplicate || undefined}>
+            <img
+              src={logoUrl}
+              alt={duplicate ? "" : brand.name}
+              loading="lazy"
+              decoding="async"
+              onError={() => setLogoFailed(true)}
+            />
+          </span>
         ) : (
           <span className="brand-runner-fallback">{brand.name}</span>
         )}
@@ -66,25 +68,47 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
           justify-content: center;
           flex: 0 0 96px;
           width: 96px;
-          height: 30px;
+          height: 32px;
           color: var(--ink, #173c34);
           opacity: .94;
           text-decoration: none;
           transition: opacity .18s ease, transform .18s ease;
         }
         .brand-runner-badge {
+          box-sizing: border-box;
           display: flex;
           align-items: center;
           justify-content: center;
           width: 96px;
-          height: 30px;
+          height: 32px;
           padding: 4px 8px;
-          overflow: hidden;
+          overflow: visible;
           border: 1px solid rgba(23, 60, 52, .12);
           border-radius: 8px;
           background: rgba(255, 255, 255, .76);
           box-shadow: 0 1px 2px rgba(23, 60, 52, .04), 0 3px 8px rgba(23, 60, 52, .07);
           transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+        .brand-logo-viewport {
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex: 0 0 76px;
+          width: 76px;
+          height: 20px;
+          min-width: 0;
+          overflow: visible;
+        }
+        .brand-logo-viewport img {
+          box-sizing: border-box;
+          display: block;
+          width: 100%;
+          height: 100%;
+          padding: 1px 2px;
+          object-fit: contain;
+          object-position: center;
+          filter: grayscale(1);
         }
         .brand-runner-item:hover {
           opacity: 1;
@@ -101,17 +125,6 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
         .brand-runner-item:focus-visible .brand-runner-badge {
           outline: 2px solid var(--brass, #a3834d);
           outline-offset: 2px;
-        }
-        .brand-runner-item img {
-          display: block;
-          width: auto;
-          height: auto;
-          max-width: 76px;
-          max-height: 20px;
-          aspect-ratio: auto;
-          object-fit: contain;
-          object-position: center;
-          filter: grayscale(1);
         }
         .brand-runner-fallback {
           display: block;
@@ -131,18 +144,22 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
             flex-basis: 90px;
             width: 90px;
           }
-          .brand-runner-item { height: 28px; }
+          .brand-runner-item { height: 30px; }
           .brand-runner-badge {
-            height: 28px;
-            padding: 3px 7px;
+            height: 30px;
+            padding: 4px 7px;
             border-radius: 7px;
           }
-          .brand-runner-item img {
-            width: auto;
-            height: auto;
-            max-width: 72px;
-            max-height: 20px;
-            aspect-ratio: auto;
+          .brand-logo-viewport {
+            flex-basis: 72px;
+            width: 72px;
+            height: 20px;
+          }
+          .brand-logo-viewport img {
+            width: 100%;
+            height: 100%;
+            padding: 1px 2px;
+            object-fit: contain;
           }
           .brand-runner-fallback {
             width: 72px;
@@ -208,7 +225,7 @@ export function HomeBrandRunner() {
         .brand-runner {
           position: relative;
           width: 100%;
-          min-height: 56px;
+          min-height: 58px;
           padding: 6px 0 6px;
           overflow: hidden;
           border-top: 1px solid rgba(23, 60, 52, .09);
@@ -227,7 +244,7 @@ export function HomeBrandRunner() {
         }
         .brand-runner-viewport {
           width: 100%;
-          min-height: 30px;
+          min-height: 32px;
           overflow: hidden;
           -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
@@ -269,7 +286,7 @@ export function HomeBrandRunner() {
         }
         @media (max-width: 620px) {
           .brand-runner {
-            min-height: 53px;
+            min-height: 55px;
             padding-block: 5px 5px;
           }
           .brand-runner-label {
@@ -278,7 +295,7 @@ export function HomeBrandRunner() {
             letter-spacing: .14em;
           }
           .brand-runner-viewport {
-            min-height: 28px;
+            min-height: 30px;
             -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
             mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
           }
