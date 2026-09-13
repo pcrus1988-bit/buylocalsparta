@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { HomepageHeroSlide } from "../lib/homepage-hero-runtime";
+import { HomeBrandRunner } from "./HomeBrandRunner";
 import styles from "./HomeHeroCarousel.module.css";
 
 /**
@@ -20,6 +21,7 @@ export function HomeHeroCarousel({ slides, children }: { slides: readonly Homepa
   return (
     <div className={styles.heroExperience}>
       <div className={styles.stage}>{children}</div>
+      <HomeBrandRunner />
       {campaigns.length ? (
         <section className={styles.campaigns} aria-label="Τρέχουσες προτάσεις και ανακοινώσεις">
           <div className={styles.campaignRail}>
