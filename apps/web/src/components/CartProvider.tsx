@@ -26,6 +26,9 @@ type CartContextValue = Readonly<{
   clear: () => void;
   hydrated: boolean;
   detailsReady: boolean;
+  cartOpen: boolean;
+  openCart: () => void;
+  closeCart: () => void;
 }>;
 
 type CartProductDetails = Readonly<{
@@ -87,6 +90,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [detailsReady, setDetailsReady] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [persistentCsrf, setPersistentCsrf] = useState<string>();
   const persistentEnabled = useRef(false);
   const initialMergeDone = useRef(false);
@@ -122,7 +126,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!itemIdsKey || !/^\/(?:cart|checkout)\/?$/.test(window.location.pathname)) {
+    const cartPresentationVisible = cartOpen || /^\/(?:cart|checkout)\/?$/.test(window.location.pathname);
+    if (!itemIdsKey || !cartPresentationVisible) {
       setDetailsReady(true);
       return;
     }
@@ -153,7 +158,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) setDetailsReady(true);
       });
     return () => controller.abort();
-  }, [hydrated, itemIdsKey]);
+  }, [hydrated, itemIdsKey, cartOpen]);
 
   useEffect(() => {
     if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items.map(persistentCartItem)));
@@ -190,6 +195,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeItem = useCallback((id: string) => setItems((current) => current.filter((item) => item.canonicalVariantId !== id)), []);
   const clear = useCallback(() => setItems([]), []);
+  const openCart = useCallback(() => setCartOpen(true), []);
+  const closeCart = useCallback(() => setCartOpen(false), []);
   const value = useMemo(() => ({
     items,
     count: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -199,8 +206,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     removeItem,
     clear,
     hydrated,
-    detailsReady
-  }), [items, addItem, setQuantity, removeItem, clear, hydrated, detailsReady]);
+    detailsReady,
+    cartOpen,
+    openCart,
+    closeCart
+  }), [items, addItem, setQuantity, removeItem, clear, hydrated, detailsReady, cartOpen, openCart, closeCart]);
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
