@@ -133,6 +133,7 @@ async function loadStickyPrices(
     JOIN vendor_offers vo ON vo.id=sa.offer_id
     JOIN vendor_businesses v ON v.id=vo.vendor_id
     WHERE cv.public_id=ANY($1::text[])
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND sa.visitor_hash=$2
       AND sa.postcode_scope=$3
       AND sa.released_at IS NULL
