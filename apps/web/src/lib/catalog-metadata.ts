@@ -3,6 +3,8 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 export type CatalogMetadata = Readonly<{
   id: string;
+  title?: string;
+  shortDescription?: string;
   gtin?: string;
   mpn?: string;
   description?: string;
@@ -19,6 +21,8 @@ export type CatalogMetadata = Readonly<{
 
 type MetadataRow = Readonly<{
   id: string;
+  title: string | null;
+  short_description: string | null;
   gtin: string | null;
   mpn: string | null;
   description: string | null;
@@ -150,9 +154,11 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
   if (!productionDatabaseConfigured() || ids.length === 0) return new Map();
   const result = await getProductionPostgresRuntime().nativePool.query<MetadataRow>(`
     SELECT cv.public_id AS id,
+           v4.display_title_el AS title,
+           v4.display_short_description_el AS short_description,
            cv.gtin,
            cv.mpn,
-           COALESCE(el.description,en.description) AS description,
+           COALESCE(v4.display_description_el,el.description,en.description) AS description,
            b.name AS brand,
            b.logo_object_key AS brand_logo_object_key,
            COALESCE(ctel.name,cten.name,c.code) AS category_label,
@@ -166,6 +172,25 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
     LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+    LEFT JOIN LATERAL (
+      SELECT ce.display_title_el,
+             ce.display_short_description_el,
+             ce.display_description_el
+      FROM vendor_offers evo
+      JOIN dropship_supplier_offers edso ON edso.vendor_offer_id=evo.id
+      JOIN catalogue_enrichments ce
+        ON ce.supplier_id=edso.supplier_id
+       AND ce.external_product_id=edso.external_product_id
+      WHERE evo.canonical_variant_id=cv.id
+        AND ce.status='enriched'
+        AND ce.quality_version='catalogue-quality-v4'
+        AND ce.display_title_el IS NOT NULL
+        AND ce.display_description_el IS NOT NULL
+      ORDER BY ce.validated_at DESC NULLS LAST,
+               ce.enrichment_version DESC,
+               ce.updated_at DESC
+      LIMIT 1
+    ) v4 ON true
     WHERE cv.public_id = ANY($1::text[])
       AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
   `, [ids]);
@@ -176,6 +201,8 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
     const sizes = stringArray(specifications.sizes).length ? stringArray(specifications.sizes) : stringArray(attributes.sizes_observed);
     return [row.id, {
       id: row.id,
+      title: textValue(row.title),
+      shortDescription: publicDescriptionText(row.short_description),
       gtin: textValue(row.gtin),
       mpn: textValue(row.mpn),
       description: publicDescriptionText(row.description),
