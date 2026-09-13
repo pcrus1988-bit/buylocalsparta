@@ -200,8 +200,8 @@ export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise
     .map((product) => ({ ...product, departmentCode: departmentCodes.get(product.id) }));
 }
 
-export async function getAvailableStorefrontCategories(postcode = "23100"): Promise<readonly StorefrontCategory[]> {
-  return availableCategories(await getAvailableCatalogCanonicals(postcode));
+export async function getAvailableStorefrontCategories(_postcode = "23100"): Promise<readonly StorefrontCategory[]> {
+  return availableCategories(await getDiscoverableCatalogCanonicals());
 }
 
 /**
