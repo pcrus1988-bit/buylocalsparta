@@ -2,6 +2,7 @@ import { requireDailySession } from "../../../../lib/daily-session";
 import { quickAddLookup, saveCanonicalToVendorShop } from "../../../../lib/quickadd-service";
 import { recordQuickAddDemandSignal } from "../../../../lib/quickadd-demand-signal";
 import { setVendorProductDeliveryEligibility } from "../../../../lib/vendor-delivery-eligibility-service";
+import { isDropshippingOnlyVendor } from "../../../../lib/vendor-dropshipping-access";
 
 function quickAddDeliveryOverride(request: Request): boolean | undefined {
   const cookie = request.headers.get("cookie") ?? "";
@@ -42,6 +43,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const principal = await requireDailySession(request, true);
+    if (await isDropshippingOnlyVendor(principal.vendorId)) {
+      throw new Error("Quick Add is disabled for the dropshipping-only vendor. Manage supplier products from the Dropshipping workspace.");
+    }
     const body = await request.json() as Record<string, unknown>;
     const result = await saveCanonicalToVendorShop(principal, {
       canonicalVariantId: typeof body.canonicalVariantId === "string" ? body.canonicalVariantId : "",
