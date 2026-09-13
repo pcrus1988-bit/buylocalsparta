@@ -24,6 +24,7 @@ export type NovaAutoPublicationResult = Readonly<{
  *
  * Safety remains fail-closed:
  * - category assignment only uses deterministic supplier evidence;
+ * - publication waits until canonical family consolidation has completed;
  * - ambiguous/unmapped taxonomy stays inactive and hidden;
  * - moderation, archive, suppression, recall and price/cost gates remain authoritative;
  * - this never invents supplier stock or extends availability TTLs.
@@ -92,6 +93,7 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
       JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
       WHERE cv.category_id IS NOT NULL
+        AND cv.family_id IS NOT NULL
         AND vo.status::text IN ('draft','approved')
         AND COALESCE((
           SELECT s.status::text
