@@ -1,3 +1,4 @@
+import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import {
   resetDropshippingProductToSupplierDefaults,
@@ -8,6 +9,8 @@ export async function POST(request: Request) {
   try {
     const principal = await requireVendorSession(request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+    await assertDropshippingOnlyVendor(principal.vendorId);
+
     const body = await request.json() as Record<string, unknown>;
     const action = typeof body.action === "string" ? body.action.trim() : "";
 

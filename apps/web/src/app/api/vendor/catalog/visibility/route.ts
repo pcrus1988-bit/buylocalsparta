@@ -25,10 +25,15 @@ export async function PUT(request: Request) {
     if (!scope) throw new Error("Visibility scope must be product or category");
     if (typeof body.visible !== "boolean") throw new Error("Visibility must be true or false");
     const minimalResponse = body.minimalResponse === true;
+    const dropshippingOnly = await isDropshippingOnlyVendor(principal.vendorId);
+
+    if (dropshippingOnly && scope === "category") {
+      throw new Error("Το Dropshipping account αλλάζει ορατότητα μόνο ανά supplier ή Dropshipping προϊόν.");
+    }
 
     if (scope === "product") {
       const offerId = typeof body.offerId === "string" ? body.offerId : "";
-      if (await isDropshippingOnlyVendor(principal.vendorId)) {
+      if (dropshippingOnly) {
         if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
         await setDropshippingProductVisibility(principal.vendorId, principal.userId, offerId, body.visible);
       } else {
