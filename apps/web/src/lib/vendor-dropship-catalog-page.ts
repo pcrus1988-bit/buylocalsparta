@@ -155,7 +155,11 @@ export async function getVendorDropshipCatalogPage(
   const runtime = getProductionPostgresRuntime();
 
   const result = await runtime.nativePool.query<PageRow>(`
-    WITH raw AS MATERIALIZED (
+    WITH vendor AS MATERIALIZED (
+      SELECT id,public_id,trading_name
+      FROM vendor_businesses
+      WHERE public_id=$1 AND status='active'
+    ), raw AS MATERIALIZED (
       SELECT
         cv.id AS canonical_uuid,
         cv.public_id AS canonical_public_id,
@@ -189,13 +193,11 @@ export async function getVendorDropshipCatalogPage(
           AND dso.availability_expires_at IS NOT NULL
           AND dso.availability_expires_at>now()
         ) AS currently_available,
-        v.public_id AS vendor_public_id,
-        v.trading_name AS vendor_name,
+        (SELECT public_id FROM vendor) AS vendor_public_id,
+        (SELECT trading_name FROM vendor) AS vendor_name,
         ds.configuration->'vendorPresentation' AS vendor_presentation
       FROM vendor_offers vo
-      JOIN vendor_businesses v ON v.id=vo.vendor_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN markets m ON m.id=cv.market_id
       JOIN categories c ON c.id=cv.category_id
       JOIN vendor_locations l ON l.id=vo.location_id
       JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
@@ -204,8 +206,8 @@ export async function getVendorDropshipCatalogPage(
       LEFT JOIN brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      WHERE v.public_id=$1
-        AND m.code='sparta'
+      WHERE vo.vendor_id=(SELECT id FROM vendor)
+        AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
         AND COALESCE(cv.commerce_channel,'normal')='normal'
         AND cv.active=true
         AND cv.suppressed=false
@@ -214,7 +216,6 @@ export async function getVendorDropshipCatalogPage(
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
-        AND v.status='active'
         AND l.active=true
         AND dso.active=true
         AND ds.active=true
