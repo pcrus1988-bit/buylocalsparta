@@ -386,8 +386,8 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string) => {
     loadPublicOfferAvailability([product.id])
   ]);
   const displayTitle = metadata?.title ?? product.title;
-  const titleKey = displayTitle.trim().toLocaleLowerCase("el");
-  const duplicateTitleCount = (await getPublicProductSeoInventory()).products.filter((entry) => entry.title.trim().toLocaleLowerCase("el") === titleKey).length;
+  const titleKey = product.title.trim().toLocaleLowerCase("el");
+  const duplicateTitleCount = (await getPublicCatalogProducts()).filter((entry) => entry.title.trim().toLocaleLowerCase("el") === titleKey).length;
   let image: ApprovedCatalogImage | undefined;
   try {
     image = (await approvedCatalogImages([{ canonicalVariantId: product.id }]))[0];
