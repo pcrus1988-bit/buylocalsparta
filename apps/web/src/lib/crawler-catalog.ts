@@ -50,6 +50,10 @@ function optionalText(value: unknown): string | undefined {
  * fairness_rotation_state, sticky_assignments, qualified_exposures or assignment events.
  * The returned price/vendor are nevertheless real, currently eligible public commerce data,
  * keeping crawler-visible content materially aligned with what a customer can receive.
+ *
+ * The commerce-channel predicate is intentionally repeated here even though callers are
+ * fed by the normal-only SEO inventory. It is a defense-in-depth boundary: an internal
+ * refactor must never make BAZAAR inventory eligible for the normal crawler projection.
  */
 async function readOnlyOfferPreview(canonicalVariantId: string, postcode: string, now = Date.now()): Promise<PublicOfferPreview> {
   const result = await getProductionPostgresRuntime().nativePool.query<PublicOfferPreviewRow>(`
@@ -96,6 +100,7 @@ async function readOnlyOfferPreview(canonicalVariantId: string, postcode: string
     ) load ON true
     WHERE cv.public_id=$1
       AND (m.code='sparta' OR m.id::text='sparta')
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
       AND vo.status='approved'
       AND v.status='active'
