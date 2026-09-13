@@ -90,6 +90,19 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/mollie-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "brandsgateway-img.s3.fr-par.scw.cloud",
+        port: "",
+        pathname: "/**"
+      }
+    ],
+    // Supplier image URLs are stable catalogue assets. Keep optimized derivatives
+    // warm at the edge so repeat visits avoid re-fetching full-resolution originals.
+    minimumCacheTTL: 86_400
+  },
   // kontamou.site is the only public SEO authority. Keep the retired .info host
   // attached only long enough to preserve old links and redirect every path with
   // a permanent host-level redirect instead of serving duplicate indexable HTML.
