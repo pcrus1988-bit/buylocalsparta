@@ -215,7 +215,7 @@ async function loadSupplierSummaries(vendorId: string): Promise<readonly Dropshi
            max(dso.last_catalogue_sync_at) last_catalogue_sync_at
       FROM dropship_suppliers ds
       LEFT JOIN dropship_supplier_offers dso ON dso.supplier_id=ds.id
-      LEFT JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      LEFT JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id AND vo.vendor_id=ds.owner_vendor_id
      WHERE ds.owner_vendor_id=$1::uuid
      GROUP BY ds.id
      ORDER BY ds.display_name, ds.code
@@ -307,6 +307,7 @@ export async function vendorDropshippingFilteredWorkspace(
         LEFT JOIN vendor_offer_pricing_private pp ON pp.offer_id=vo.id
        WHERE ds.id=$1::uuid
          AND ds.owner_vendor_id=$2::uuid
+         AND vo.vendor_id=$2::uuid
          AND (
            $3::text=''
            OR coalesce(pt_el.title,pt_en.title,cv.model,cv.slug,cv.public_id) ILIKE '%' || $3 || '%'
@@ -368,7 +369,9 @@ export async function vendorDropshippingFilteredWorkspace(
         LEFT JOIN category_translations ct_en ON ct_en.category_id=c.id AND ct_en.locale='en'
         LEFT JOIN category_translations pct_el ON pct_el.category_id=pc.id AND pct_el.locale='el'
         LEFT JOIN category_translations pct_en ON pct_en.category_id=pc.id AND pct_en.locale='en'
-       WHERE ds.id=$1::uuid AND ds.owner_vendor_id=$2::uuid
+       WHERE ds.id=$1::uuid
+         AND ds.owner_vendor_id=$2::uuid
+         AND vo.vendor_id=$2::uuid
       ), facets AS (
         SELECT 'category'::text kind, category_id value, min(category_name) label, NULL::text parent_value, count(*)::bigint item_count FROM base WHERE category_id IS NOT NULL AND category_name IS NOT NULL GROUP BY category_id
         UNION ALL
