@@ -60,6 +60,7 @@ import "./premium-interactions.css";
 import "./premium-responsive.css";
 import "./premium-mobile-acceptance.css";
 import { CartProvider } from "../components/CartProvider";
+import { CartDrawer } from "../components/CartDrawer";
 import { CustomerMobileCommerceProvider } from "../components/CustomerMobileCommerceNav";
 import { PrivacyConsentProvider } from "../components/PrivacyConsentProvider";
 import { AccessibilityPreferences } from "../components/AccessibilityPreferences";
@@ -184,7 +185,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <body>
       <a className="skip-link" href="#main-content">Μετάβαση στο κύριο περιεχόμενο</a>
       <div id="main-content" className="main-content-scope" tabIndex={-1}>
-        <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}<MobileCatalogFilters /></CustomerMobileCommerceProvider></CartProvider></PrivacyConsentProvider>
+        <PrivacyConsentProvider><CartProvider><CustomerMobileCommerceProvider>{children}<MobileCatalogFilters /></CustomerMobileCommerceProvider><CartDrawer /></CartProvider></PrivacyConsentProvider>
       </div>
       <AccessibilityPreferences />
       <SiteUtilityLauncher />
