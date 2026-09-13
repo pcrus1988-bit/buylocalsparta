@@ -22,6 +22,7 @@ type PublishedDropshipRow = Readonly<{
   category_code: string;
   customer_price_minor: number | string;
   cached_quantity: number | string | null;
+  currently_available: boolean;
   vendor_public_id: string;
   vendor_name: string;
   vendor_presentation: unknown;
@@ -46,6 +47,12 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
  * Public browsing projection for explicitly published NORMAL-channel dropshipping offers.
  * BAZAAR inventory is intentionally excluded at SQL level and has its own discovery surface.
  *
+ * Publication and supplier-stock freshness are deliberately separate concerns. A published
+ * supplier product remains discoverable when its short-lived availability assertion expires,
+ * but stale/out-of-stock children contribute zero sellable quantity and are never represented
+ * as immediately available. Checkout/reservation still revalidates the exact supplier variant
+ * against the supplier API before an order can be authorised.
+ *
  * Supplier variants remain independent canonical variants/offers for stock, price
  * and checkout. Browsing first evaluates category/search/facet policy per child,
  * then collapses qualified children to one customer-facing family. Family-less
@@ -54,8 +61,7 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
  *
  * `dropship_supplier_offers.cached_*` is deliberately used only as catalogue
  * browsing evidence. It is not a checkout/reservation authority and it must never
- * be copied into `inventory_balances`. Checkout still has to revalidate the exact
- * supplier variant against the supplier API before an order can be authorised.
+ * be copied into `inventory_balances`.
  *
  * Supplier/product public-field policy is resolved for each child before metadata
  * is searched. This prevents a sibling with stricter presentation controls from
@@ -83,6 +89,12 @@ export async function getPublishedDropshipCatalogCards(
       c.code AS category_code,
       vo.customer_price_minor,
       dso.cached_quantity,
+      (
+        dso.cached_available=true
+        AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at > now()
+      ) AS currently_available,
       v.public_id AS vendor_public_id,
       v.trading_name AS vendor_name,
       ds.configuration->'vendorPresentation' AS vendor_presentation
@@ -110,15 +122,11 @@ export async function getPublishedDropshipCatalogCards(
       AND dso.active=true
       AND ds.active=true
       AND ds.api_authoritative_availability=true
-      AND dso.cached_available=true
-      AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
-      AND dso.availability_expires_at IS NOT NULL
-      AND dso.availability_expires_at > now()
       AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
       AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       AND ($1::text IS NULL OR v.public_id=$1)
       AND ($2::text IS NULL OR cv.public_id=$2)
-    ORDER BY cv.id,vo.customer_price_minor ASC,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
+    ORDER BY cv.id,currently_available DESC,vo.customer_price_minor ASC,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
   `, [vendorId ?? null, canonicalVariantId ?? null]);
 
   const base = result.rows.flatMap((row) => {
@@ -128,6 +136,7 @@ export async function getPublishedDropshipCatalogCards(
       parseDropshipPresentationConfig(row.vendor_presentation),
       row.offer_public_id
     );
+    const available = row.currently_available === true;
     return [{
       id: row.canonical_public_id,
       familyId: row.family_id,
@@ -137,8 +146,8 @@ export async function getPublishedDropshipCatalogCards(
       title: row.title,
       categoryCode: row.category_code,
       priceMinor,
-      available: true,
-      availableToSell: safeQuantity(row.cached_quantity),
+      available,
+      availableToSell: available ? safeQuantity(row.cached_quantity) : 0,
       vendorId: row.vendor_public_id,
       vendorName: row.vendor_name,
       publicFields: presentation.fields
@@ -219,6 +228,7 @@ export async function getPublishedDropshipCatalogCards(
     const technicalAttributesVisible = publicFields.technicalAttributes !== false;
     return {
       ...catalogRecord,
+      available: projection.availableToSell > 0,
       availableToSell: projection.availableToSell,
       price: formatMoney(money(record.priceMinor)),
       categoryLabel: details?.categoryLabel,
