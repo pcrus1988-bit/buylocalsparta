@@ -14,6 +14,7 @@ const worker=await readFile(join(root,"workers/nova-catalogue-worker.ts"),"utf8"
 const adminRuntime=await readFile(join(root,"apps/web/src/lib/admin-catalogue-enrichment.ts"),"utf8");
 const adminPage=await readFile(join(root,"apps/web/src/app/admin/catalogue/enrichment/page.tsx"),"utf8");
 const catalogMetadata=await readFile(join(root,"apps/web/src/lib/catalog-metadata.ts"),"utf8");
+const catalogView=await readFile(join(root,"apps/web/src/lib/catalog-view.ts"),"utf8");
 const dropshipStorefront=await readFile(join(root,"apps/web/src/lib/published-dropship-storefront.ts"),"utf8");
 const dropshipCatalogPage=await readFile(join(root,"apps/web/src/lib/published-dropship-catalog-page.ts"),"utf8");
 
@@ -60,6 +61,9 @@ for (const marker of ["title: details?.title ?? record.title","details?.shortDes
 }
 for (const marker of ["title: details?.title ?? record.title","description: details?.description"]) {
   if (!dropshipCatalogPage.includes(marker)) throw new Error(`Catalogue enrichment paginated-storefront projection missing: ${marker}`);
+}
+for (const marker of ["title: metadata?.title ?? record.title","metadata?.shortDescription","title: displayTitle","const displayTitle = details?.title ?? product.title"]) {
+  if (!catalogView.includes(marker)) throw new Error(`Catalogue enrichment product-detail/SEO projection missing: ${marker}`);
 }
 
 console.log("Catalogue enrichment V4 safety contract OK.");
