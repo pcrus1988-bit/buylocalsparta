@@ -192,9 +192,37 @@
     min-height: 44px;
   }
 
-  /* The PDF acceptance target calls for a compact Filter/Sort control with visible result count. */
+  /* Mobile search lives in the persistent bottom commerce navigation. Keep the
+     filter drawer focused on filtering/sorting while preserving the mounted q
+     input so an existing search query survives when filters are applied. */
+  .catalog-sidebar .filter-form > label[for="q"],
+  .catalog-sidebar .filter-form > label[for="q"] + div {
+    display: none !important;
+  }
+
+  /* The phone filter control is a compact right-edge drawer handle rather than a
+     second sticky bar above the bottom navigation. */
   .km-mobile-filter-trigger {
-    max-width: calc(100% - 24px);
+    left: auto !important;
+    right: 0 !important;
+    top: 56%;
+    bottom: auto !important;
+    transform: translateY(-50%) !important;
+    min-height: 50px;
+    max-width: min(150px, calc(100vw - 16px));
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 0 12px 0 13px;
+    border-radius: 16px 0 0 16px !important;
+    box-shadow: -10px 12px 28px rgba(13,42,34,.24);
+  }
+  .km-mobile-filter-trigger > span:first-child {
+    flex: 0 0 auto;
+    font-size: 18px;
+  }
+  .km-mobile-filter-trigger > span:nth-child(2) {
+    font-size: 12px;
+    line-height: 1.1;
   }
   .km-mobile-filter-count {
     padding-left: 9px;
@@ -204,6 +232,16 @@
     font-weight: 800;
     white-space: nowrap;
   }
+
+  /* The filter sheet is a true right-side drawer and should sit above the mobile
+     commerce navigation while it is open. */
+  .catalog-sidebar {
+    z-index: 1300;
+    width: min(86vw, 380px);
+    border-radius: 18px 0 0 18px;
+  }
+  .km-mobile-filter-backdrop { z-index: 1290; }
+  .km-mobile-filter-close { z-index: 1310; }
 
   /* Checkout stage labels are decision/navigation text, not microcopy. Keep them
      at readable mobile sizes instead of falling back to the old 8–9px treatment. */
