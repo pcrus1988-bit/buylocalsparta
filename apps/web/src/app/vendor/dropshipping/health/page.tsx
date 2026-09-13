@@ -32,6 +32,10 @@ export default async function DropshippingFeedHealthPage() {
   const healthy = suppliers.filter(({ health }) => health.status === "healthy").length;
   const attention = suppliers.filter(({ health }) => health.status === "stale" || health.status === "degraded").length;
   const unknown = suppliers.filter(({ health }) => health.status === "unknown").length;
+  const staleCatalogueProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.staleCatalogueProducts ?? 0), 0);
+  const missingAvailabilityTelemetryProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.missingAvailabilityTelemetryProducts ?? 0), 0);
+  const publishedUnavailableProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.publishedUnavailableProducts ?? 0), 0);
+  const productsMissingCost = suppliers.reduce((sum, { supplier }) => sum + Math.max(0, supplier.totalProducts - supplier.productsWithCost), 0);
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -39,7 +43,7 @@ export default async function DropshippingFeedHealthPage() {
       <div>
         <div className="eyebrow">Dropshipping Control Centre</div>
         <h1>Feed health</h1>
-        <p className="lead">Πραγματική φρεσκάδα supplier healthchecks και catalogue syncs. Παλιές χρονοσφραγίδες δεν εμφανίζονται ως πράσινο health.</p>
+        <p className="lead">Πραγματική φρεσκάδα supplier healthchecks και catalogue syncs, μαζί με συγκεκριμένα catalogue προβλήματα που χρειάζονται ενέργεια.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <Link className="button button-secondary" href="/vendor/dropshipping">← Επιστροφή στο Dropshipping</Link>
         </div>
@@ -54,26 +58,50 @@ export default async function DropshippingFeedHealthPage() {
     ]} />
 
     <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Catalogue diagnostics" title="Τι χρειάζεται ενέργεια" note="Οι μετρήσεις προέρχονται από τα υπάρχοντα supplier offers και δεν δημιουργούν δεύτερο sync ή catalogue σύστημα." />
+      <WorkspaceMetricStrip items={[
+        { label: "Stale catalogue rows", value: staleCatalogueProducts, tone: staleCatalogueProducts ? "attention" : "positive" },
+        { label: "Χωρίς availability telemetry", value: missingAvailabilityTelemetryProducts, tone: missingAvailabilityTelemetryProducts ? "attention" : "positive" },
+        { label: "Published αλλά unavailable", value: publishedUnavailableProducts, tone: publishedUnavailableProducts ? "attention" : "positive" },
+        { label: "Χωρίς supplier cost", value: productsMissingCost, tone: productsMissingCost ? "attention" : "positive" }
+      ]} />
+    </section>
+
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Sync operations" title="Supplier feed freshness" note="Catalogue sync θεωρείται stale μετά από 12 ώρες και supplier healthcheck μετά από 24 ώρες. Αποτυχημένο healthcheck εμφανίζεται άμεσα ως πρόβλημα." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
-        {suppliers.map(({ supplier, health }) => <article className="workspace-queue-card" key={supplier.id}>
-          <div className="workspace-queue-head">
-            <div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div>
-            <span className="vendor-merchant-status">{health.label}</span>
-          </div>
-          <p style={{ marginTop: 10 }}>{health.detail}</p>
-          <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-            <div className="workspace-compact-row"><strong>Supplier</strong><span>{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
-            <div className="workspace-compact-row"><strong>Catalogue sync</strong><span>{supplier.catalogueSyncEnabled ? "Enabled" : "Disabled"}</span></div>
-            <div className="workspace-compact-row"><strong>Order forwarding</strong><span>{supplier.orderForwardingEnabled ? "Enabled" : "Disabled"}</span></div>
-            <div className="workspace-compact-row"><strong>Tracking sync</strong><span>{supplier.trackingSyncEnabled ? "Enabled" : "Disabled"}</span></div>
-            <div className="workspace-compact-row"><strong>Τελευταίο healthcheck</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
-            <div className="workspace-compact-row"><strong>Healthcheck result</strong><span>{supplier.lastHealthcheckOk === true ? "OK" : supplier.lastHealthcheckOk === false ? "FAILED" : "Άγνωστο"}</span></div>
-            <div className="workspace-compact-row"><strong>Τελευταίο catalogue sync</strong><span>{date(supplier.lastCatalogueSyncAt)}</span><small>{age(health.catalogueSyncAgeMinutes)}</small></div>
-            <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
-          </div>
-          <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier workspace</Link>
-        </article>)}
+        {suppliers.map(({ supplier, health }) => {
+          const staleRows = supplier.staleCatalogueProducts ?? 0;
+          const missingAvailability = supplier.missingAvailabilityTelemetryProducts ?? 0;
+          const publishedUnavailable = supplier.publishedUnavailableProducts ?? 0;
+          const missingCost = Math.max(0, supplier.totalProducts - supplier.productsWithCost);
+          const hasCatalogueIssues = staleRows > 0 || missingAvailability > 0 || publishedUnavailable > 0 || missingCost > 0;
+          return <article className="workspace-queue-card" key={supplier.id}>
+            <div className="workspace-queue-head">
+              <div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div>
+              <span className="vendor-merchant-status">{health.label}</span>
+            </div>
+            <p style={{ marginTop: 10 }}>{health.detail}</p>
+            <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+              <div className="workspace-compact-row"><strong>Supplier</strong><span>{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
+              <div className="workspace-compact-row"><strong>Catalogue sync</strong><span>{supplier.catalogueSyncEnabled ? "Enabled" : "Disabled"}</span></div>
+              <div className="workspace-compact-row"><strong>Order forwarding</strong><span>{supplier.orderForwardingEnabled ? "Enabled" : "Disabled"}</span></div>
+              <div className="workspace-compact-row"><strong>Tracking sync</strong><span>{supplier.trackingSyncEnabled ? "Enabled" : "Disabled"}</span></div>
+              <div className="workspace-compact-row"><strong>Τελευταίο healthcheck</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
+              <div className="workspace-compact-row"><strong>Healthcheck result</strong><span>{supplier.lastHealthcheckOk === true ? "OK" : supplier.lastHealthcheckOk === false ? "FAILED" : "Άγνωστο"}</span></div>
+              <div className="workspace-compact-row"><strong>Τελευταίο catalogue sync</strong><span>{date(supplier.lastCatalogueSyncAt)}</span><small>{age(health.catalogueSyncAgeMinutes)}</small></div>
+              <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
+            </div>
+            <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span></div>
+              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span></div>
+              <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{publishedUnavailable}</span></div>
+              <div className="workspace-compact-row"><strong>Χωρίς supplier cost</strong><span>{missingCost}</span></div>
+            </div>
+            <p style={{ marginTop: 10 }}><small>{hasCatalogueIssues ? "Υπάρχουν catalogue εγγραφές που χρειάζονται έλεγχο ή επόμενο supplier sync." : "Δεν εντοπίστηκαν catalogue-level προβλήματα σε αυτόν τον supplier."}</small></p>
+            <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier workspace</Link>
+          </article>;
+        })}
         {!suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει supplier mapping.</strong><p>Το account είναι Dropshipping-only, αλλά δεν βρέθηκε supplier για παρακολούθηση.</p></article> : null}
       </div>
     </section>
