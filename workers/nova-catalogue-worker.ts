@@ -8,6 +8,7 @@ import {
   catalogueEnrichmentGenerationScope,
   runCatalogueEnrichmentGenerationSlice
 } from "../apps/web/src/lib/catalogue-enrichment-generation-runtime.ts";
+import { runNovaAutoPublicationSweep } from "../apps/web/src/lib/nova-auto-publication-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
@@ -52,7 +53,7 @@ log("info", "nova.worker_started", {
   availabilityTtlHours: 2,
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
-  materializesPublicOffers: false,
+  materializesPublicOffers: true,
   automaticPricing: novaAutoPricingEnabled(),
   catalogueEnrichment: {
     enabled: enrichmentGenerationScope.enabled,
@@ -102,6 +103,18 @@ try {
             error: safeError(error)
           });
         }
+      }
+
+      try {
+        const publication = await runNovaAutoPublicationSweep();
+        log("info", "nova.auto_publication_sweep", { workerId, ...publication });
+      } catch (error) {
+        // Publication is derived from already durable supplier/catalogue state. A
+        // failure remains fail-closed and retries on the next worker iteration.
+        log("error", "nova.auto_publication_failed", {
+          workerId,
+          error: safeError(error)
+        });
       }
 
       try {
