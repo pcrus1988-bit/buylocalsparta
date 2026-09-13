@@ -123,8 +123,11 @@ if (tied.connection) failures.push("Natural attribute intent must not hard-filte
 const shopPage = readFileSync(new URL("../apps/web/src/app/shop/page.tsx", import.meta.url), "utf8");
 const catalogView = readFileSync(new URL("../apps/web/src/lib/catalog-view.ts", import.meta.url), "utf8");
 for (const contract of [
-  'getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)',
-  "filterCatalogCardsByAttributes(products, attributeFilters)",
+  "getShopCatalogPage({",
+  "getPublishedDropshipCatalogPage({",
+  "query: catalogQuery",
+  "attributeFilters,",
+  "filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)",
   "formatStorefrontAttributeAdvisory(definition.label, intent.value)"
 ]) {
   if (!shopPage.includes(contract)) failures.push(`Storefront search integration must retain ${contract}`);
