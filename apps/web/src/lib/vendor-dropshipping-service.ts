@@ -1,5 +1,6 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { assertDropshippingOnlyVendor } from "./vendor-dropshipping-access";
+import { applyDropshippingSupplierDefaultsSequential } from "./vendor-dropshipping-bulk-apply";
 
 export type DropshippingSupplierDefaults = Readonly<{
   configured: boolean;
@@ -286,85 +287,20 @@ export async function saveDropshippingSupplierDefaults(
   return supplierDefaults(result.rows[0].vendor_merchandising);
 }
 
+/**
+ * Backward-compatible service entry point. Keep all supplier-default application
+ * semantics in the hardened sequential bulk helper so pricing, moderation,
+ * manual visibility overrides and publication safety cannot drift between callers.
+ */
 export async function applyDropshippingSupplierDefaults(
   vendorIdentity: string,
   supplierCode: string
 ): Promise<Readonly<{ pricedProducts: number; eligibleProducts: number; visibleProducts: number; defaults: DropshippingSupplierDefaults }>> {
-  await assertDropshippingOnlyVendor(vendorIdentity);
-  if (!productionDatabaseConfigured()) throw new Error("Η εφαρμογή global Dropshipping ρυθμίσεων απαιτεί ενεργή βάση δεδομένων.");
-  const code = supplierCode.trim();
-  if (!code) throw new Error("Απαιτείται supplier.");
-  const vendorId = await resolveVendorUuid(vendorIdentity);
-  const pool = getProductionPostgresRuntime().nativePool;
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const supplier = await client.query(`
-      SELECT ds.id::text id, ds.configuration->'vendorMerchandising' vendor_merchandising
-        FROM dropship_suppliers ds
-       WHERE ds.owner_vendor_id=$1::uuid
-         AND ds.code=$2
-         AND ds.active=true
-       FOR UPDATE
-    `, [vendorId, code]);
-    if (supplier.rowCount !== 1) throw new Error("Ο Dropshipping supplier δεν βρέθηκε ή δεν είναι ενεργός.");
-    const defaults = supplierDefaults(supplier.rows[0].vendor_merchandising);
-    if (!defaults.configured) throw new Error("Αποθήκευσε πρώτα τις global Dropshipping ρυθμίσεις.");
-    validateDefaults(defaults);
-    const supplierId = String(supplier.rows[0].id);
-
-    const priced = await client.query(`
-      INSERT INTO vendor_offer_pricing_private(
-        offer_id,vendor_id,buying_price_minor,pricing_mode,markup_type,markup_value,discount_type,discount_value,created_at,updated_at
-      )
-      SELECT vo.id,vo.vendor_id,dso.supplier_cost_minor,'calculated','percent',$3::numeric,
-             CASE WHEN $4::numeric > 0 THEN 'percent' ELSE NULL END,
-             CASE WHEN $4::numeric > 0 THEN $4::numeric ELSE NULL END,
-             now(),now()
-        FROM dropship_supplier_offers dso
-        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
-       WHERE dso.supplier_id=$1::uuid
-         AND vo.vendor_id=$2::uuid
-         AND dso.supplier_cost_minor IS NOT NULL
-      ON CONFLICT(offer_id) DO UPDATE SET
-        buying_price_minor=EXCLUDED.buying_price_minor,
-        pricing_mode='calculated',
-        markup_type='percent',
-        markup_value=EXCLUDED.markup_value,
-        discount_type=EXCLUDED.discount_type,
-        discount_value=EXCLUDED.discount_value,
-        updated_at=now()
-      RETURNING offer_id
-    `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent]);
-
-    const changed = await client.query(`
-      UPDATE vendor_offers vo
-         SET customer_price_minor=GREATEST(
-               dso.supplier_cost_minor,
-               ROUND(dso.supplier_cost_minor * (1 + $3::numeric / 100) * (1 - $4::numeric / 100))::bigint
-             ),
-             show_msrp=$5,
-             merchant_visible=CASE WHEN vo.status='approved' AND dso.active THEN $6 ELSE false END,
-             updated_at=now()
-        FROM dropship_supplier_offers dso
-       WHERE dso.vendor_offer_id=vo.id
-         AND dso.supplier_id=$1::uuid
-         AND vo.vendor_id=$2::uuid
-         AND dso.supplier_cost_minor IS NOT NULL
-      RETURNING vo.id,vo.merchant_visible
-    `, [supplierId, vendorId, defaults.markupPercent, defaults.discountPercent, defaults.showMsrp, defaults.visible]);
-
-    await client.query("COMMIT");
-    return {
-      pricedProducts: priced.rowCount ?? 0,
-      eligibleProducts: changed.rowCount ?? 0,
-      visibleProducts: changed.rows.filter((row) => Boolean(row.merchant_visible)).length,
-      defaults
-    };
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
+  const result = await applyDropshippingSupplierDefaultsSequential(vendorIdentity, supplierCode);
+  return {
+    pricedProducts: result.pricedProducts,
+    eligibleProducts: result.eligibleProducts,
+    visibleProducts: result.visibleProducts,
+    defaults: result.defaults
+  };
 }
