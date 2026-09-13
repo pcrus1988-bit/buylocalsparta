@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../lib/postgres-runtime";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 
 export const dynamic = "force-dynamic";
 
