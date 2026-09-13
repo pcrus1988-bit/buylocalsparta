@@ -53,7 +53,7 @@ log("info", "nova.worker_started", {
   availabilityTtlHours: 2,
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
-  materializesPublicOffers: true,
+  materializesPublicOffers: false,
   automaticPricing: novaAutoPricingEnabled(),
   catalogueEnrichment: {
     enabled: enrichmentGenerationScope.enabled,
