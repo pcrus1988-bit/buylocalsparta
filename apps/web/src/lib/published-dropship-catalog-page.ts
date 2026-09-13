@@ -4,6 +4,7 @@ import { matchesCatalogAttributeFilters, type CatalogAttributeFilters } from "./
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { projectDropshipFamilies } from "./dropship-family-projection";
 import { parseDropshipPresentationConfig, resolveDropshipPublicFields } from "./dropship-presentation-policy";
+import { getPublicCatalogSourcePrimaryImages } from "./public-catalog-source-gallery";
 import { approvedCatalogImages } from "./public-media-service";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -30,7 +31,10 @@ type PublishedDropshipPageRow = Readonly<{
   total_families: number | string;
 }>;
 
-type ShopDropshipCard = CatalogCard & Readonly<{ supplierFulfilled: true }>;
+type ShopDropshipCard = CatalogCard & Readonly<{
+  supplierFulfilled: true;
+  previewImageSrc?: string;
+}>;
 
 export type PublishedDropshipCatalogPage = Readonly<{
   products: readonly ShopDropshipCard[];
@@ -287,24 +291,32 @@ export async function getPublishedDropshipCatalogPage(
   }));
   const projections = projectDropshipFamilies(enriched, matchingIds);
   const representatives = projections.map((projection) => projection.representative);
-
-  const images = await approvedCatalogImages(representatives.map((record) => ({
+  const imageRequests = representatives.map((record) => ({
     canonicalVariantId: record.id,
     preferredVendorId: record.vendorId
-  }))).catch((error) => {
-    console.error(JSON.stringify({
-      level: "error",
-      event: "storefront.dropship_public_media_projection_failed",
-      message: error instanceof Error ? error.message : String(error)
-    }));
-    return [];
-  });
+  }));
+
+  // Governed internal media remains preferred. In parallel, resolve one validated
+  // supplier image per page so cards without internal media can render the source
+  // asset directly rather than paying for a serverless lookup + redirect per card.
+  const [images, sourcePrimaryImages] = await Promise.all([
+    approvedCatalogImages(imageRequests).catch((error) => {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.dropship_public_media_projection_failed",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      return [];
+    }),
+    getPublicCatalogSourcePrimaryImages(imageRequests)
+  ]);
   const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image] as const));
 
   const products: ShopDropshipCard[] = projections.map((projection) => {
     const record = projection.representative;
     const details = metadata.get(record.id);
     const image = imageByCanonical.get(record.id);
+    const sourceImage = sourcePrimaryImages.get(record.id);
     const technicalAttributesVisible = record.publicFields.technicalAttributes !== false;
     return {
       id: record.id,
@@ -328,7 +340,8 @@ export async function getPublishedDropshipCatalogPage(
       vendorId: record.vendorId,
       vendorName: record.vendorName,
       mediaId: image?.mediaId,
-      mediaAlt: image?.altText,
+      mediaAlt: image?.altText ?? sourceImage?.altText,
+      previewImageSrc: image?.mediaId ? undefined : sourceImage?.src,
       available: true,
       availableToSell: projection.availableToSell,
       supplierFulfilled: true
