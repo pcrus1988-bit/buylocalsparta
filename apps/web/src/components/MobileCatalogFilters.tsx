@@ -141,7 +141,7 @@ export function MobileCatalogFilters() {
         onClick={() => open ? close(false) : setOpen(true)}
       >
         <span aria-hidden="true">☷</span>
-        <span>{open ? "Κλείσιμο" : "Φίλτρα & ταξινόμηση"}</span>
+        <span>{open ? "Κλείσιμο" : "Φίλτρα"}</span>
         {!open && resultLabel ? <small className="km-mobile-filter-count">{resultLabel}</small> : null}
       </button>
       {open ? (
