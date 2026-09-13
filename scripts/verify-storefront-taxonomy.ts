@@ -148,19 +148,19 @@ const mobileCommerceSearch = readFileSync(`${root}/apps/web/src/components/Custo
 const searchDiscovery = readFileSync(`${root}/apps/web/src/components/SearchDiscovery.tsx`, "utf8");
 const searchSuggestions = readFileSync(`${root}/apps/web/src/lib/storefront-search-suggestions.ts`, "utf8");
 
-if (!categoryPage.includes('getCatalogCards(visitorKey, "23100", "", category.slug)')) failures.push("Category landing pages must filter the canonical public catalog through getCatalogCards");
+if (!categoryPage.includes("getShopCatalogPage({") || !categoryPage.includes("category: categorySlug") || !categoryPage.includes("getPublishedDropshipCatalogPage({")) failures.push("Category landing pages must use bounded page-first local and dropship catalogue projections");
 if (!categoryPage.includes("storefrontCategoryBySlug(slug)")) failures.push("Canonical category routes must resolve from the governed static storefront taxonomy, not transient inventory availability");
 if (!categoryPage.includes("STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }))")) failures.push("Every governed storefront category must have a canonical /category/[slug] route regardless of current stock");
 if (categoryPage.includes("const category = availableCategories.find((item) => item.slug === slug)")) failures.push("Category route existence must never be gated by current available inventory");
 if (!homePage.includes('href={`/category/${category.slug}`}')) failures.push("Homepage category cards must point to the canonical category route");
-if (!shopPage.includes('getCatalogCards(visitorKey, "23100", catalogQuery, category')) failures.push("Shop category filter must send attribute-stripped residual text into canonical catalogue search");
+if (!shopPage.includes("getShopCatalogPage({") || !shopPage.includes("query: catalogQuery") || !shopPage.includes("category,") || !shopPage.includes("getPublishedDropshipCatalogPage({")) failures.push("Shop category and residual text filters must feed bounded local and dropship catalogue projections");
 if (!shopPage.includes("inferStorefrontTaxonomyIntent(taxonomySeedQuery)")) failures.push("Natural-language shop search must infer governed department and leaf intent before attribute extraction");
 if (!shopPage.includes("extractStorefrontAttributeQuery(taxonomySeedQuery, activeLeaf?.key)")) failures.push("Shop must extract structured attribute intent only after a product leaf is known");
 if (!shopPage.includes("resolveStorefrontAttributeIntents(")) failures.push("Natural structured attributes must resolve against live facet options before becoming hard filters");
 if (!shopPage.includes("resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories)")) failures.push("Leaf intent must resolve only against currently available catalogue subcategories");
 if (!shopPage.includes("storefrontFacetEnabled(activeLeaf")) failures.push("Shop fixed facets must be conditioned by leaf-specific relevance");
 if (!shopPage.includes("attributeFacets.map")) failures.push("Shop must render live governed structured attribute facets");
-if (!shopPage.includes("filterCatalogCardsByAttributes(products, attributeFilters)")) failures.push("Selected and resolved structured attributes must filter rendered catalogue results");
+if (!shopPage.includes("attributeFilters,") || !shopPage.includes("filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)")) failures.push("Selected and resolved structured attributes must feed bounded catalogue projections and crawler filtering");
 if (!shopPage.includes("unresolvedAttributeLabels")) failures.push("Understood but unavailable structured attributes must remain advisory instead of silently hard-filtering");
 if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must retain attribute guidance for sparse catalogues");
 if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)')) failures.push("PostgreSQL catalog projection must filter category codes through the governed department hierarchy before fairness assignment");
