@@ -50,7 +50,7 @@ function CloseIcon() {
 function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProductAction }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { addItem, count } = useCart();
+  const { addItem, count, openCart } = useCart();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmation, setConfirmation] = useState<string>();
@@ -86,7 +86,9 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
     setConfirmation(`Προστέθηκε 1 × ${product.title} στο καλάθι.`);
     if (confirmationTimer.current) window.clearTimeout(confirmationTimer.current);
     confirmationTimer.current = window.setTimeout(() => setConfirmation(undefined), 3000);
-  }, [addItem, product]);
+    setSearchOpen(false);
+    openCart();
+  }, [addItem, openCart, product]);
 
   return (
     <>
@@ -133,9 +135,12 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
             <span className="customer-mobile-commerce-add-icon"><AddIcon /></span><span>{product?.available ? "+1 προϊόν" : "Μη διαθέσιμο"}</span>
           </button>
         ) : null}
-        <Link className={`customer-mobile-commerce-item customer-mobile-commerce-cart${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
+        <button className={`customer-mobile-commerce-item customer-mobile-commerce-cart${pathname === "/cart" ? " is-active" : ""}`} type="button" aria-haspopup="dialog" aria-label={`Καλάθι, ${count} προϊόντα`} onClick={() => {
+          setSearchOpen(false);
+          openCart();
+        }}>
           <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span><span>Καλάθι</span>
-        </Link>
+        </button>
       </nav>
     </>
   );
