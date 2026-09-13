@@ -34,3 +34,12 @@ test("catalogue worker runs sellability safety before materialization", async ()
   assert.match(source, /writesSupplierOrders: false/);
   assert.match(source, /materializesPublicOffers: false/);
 });
+
+test("catalogue worker keeps automatic publication fail-closed unless explicitly enabled", async () => {
+  const source = await readFile(workerSourceUrl, "utf8");
+
+  assert.match(source, /BLS_NOVA_AUTO_PUBLICATION_ENABLED/);
+  assert.match(source, /automaticPublication: automaticPublicationEnabled/);
+  assert.match(source, /if \(automaticPublicationEnabled\) \{[\s\S]*?await runNovaAutoPublicationSweep\(\)/);
+  assert.doesNotMatch(source, /const automaticPublicationEnabled = true/);
+});

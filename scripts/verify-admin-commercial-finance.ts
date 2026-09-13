@@ -56,8 +56,10 @@ requireText("apps/web/src/components/VendorBillingClient.tsx", [
 ]);
 requireText("apps/web/src/app/admin-commercial-finance.css", [".admin-commercial-controls", ".admin-directory-row.is-selected", ".admin-split-workspace>.admin-directory-table"]);
 requireText("apps/web/src/app/admin-finance-operational.css", [".admin-finance-workflow-grid", ".admin-finance-workflow-card", ".admin-finance-disclosure"]);
-requireText("apps/web/src/app/layout.tsx", ['import "./admin-commercial-finance.css"']);
-requireText("apps/web/src/app/admin/layout.tsx", ['import "../admin-finance-operational.css"']);
+requireText("apps/web/src/app/admin/layout.tsx", [
+  'import "../admin-commercial-finance.css"',
+  'import "../admin-finance-operational.css"'
+]);
 
 if (failures.length) {
   console.error("Admin commercial finance checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
