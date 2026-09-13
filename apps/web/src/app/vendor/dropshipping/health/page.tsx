@@ -32,9 +32,9 @@ export default async function DropshippingFeedHealthPage() {
   const healthy = suppliers.filter(({ health }) => health.status === "healthy").length;
   const attention = suppliers.filter(({ health }) => health.status === "stale" || health.status === "degraded").length;
   const unknown = suppliers.filter(({ health }) => health.status === "unknown").length;
-  const staleCatalogueProducts = suppliers.reduce((sum, { supplier }) => sum + supplier.staleCatalogueProducts, 0);
-  const missingAvailabilityTelemetryProducts = suppliers.reduce((sum, { supplier }) => sum + supplier.missingAvailabilityTelemetryProducts, 0);
-  const publishedUnavailableProducts = suppliers.reduce((sum, { supplier }) => sum + supplier.publishedUnavailableProducts, 0);
+  const staleCatalogueProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.staleCatalogueProducts ?? 0), 0);
+  const missingAvailabilityTelemetryProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.missingAvailabilityTelemetryProducts ?? 0), 0);
+  const publishedUnavailableProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.publishedUnavailableProducts ?? 0), 0);
   const productsMissingCost = suppliers.reduce((sum, { supplier }) => sum + Math.max(0, supplier.totalProducts - supplier.productsWithCost), 0);
 
   return <main className="vendor-app">
@@ -71,11 +71,11 @@ export default async function DropshippingFeedHealthPage() {
       <WorkspaceSectionHeading eyebrow="Sync operations" title="Supplier feed freshness" note="Catalogue sync θεωρείται stale μετά από 12 ώρες και supplier healthcheck μετά από 24 ώρες. Αποτυχημένο healthcheck εμφανίζεται άμεσα ως πρόβλημα." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
         {suppliers.map(({ supplier, health }) => {
+          const staleRows = supplier.staleCatalogueProducts ?? 0;
+          const missingAvailability = supplier.missingAvailabilityTelemetryProducts ?? 0;
+          const publishedUnavailable = supplier.publishedUnavailableProducts ?? 0;
           const missingCost = Math.max(0, supplier.totalProducts - supplier.productsWithCost);
-          const hasCatalogueIssues = supplier.staleCatalogueProducts > 0
-            || supplier.missingAvailabilityTelemetryProducts > 0
-            || supplier.publishedUnavailableProducts > 0
-            || missingCost > 0;
+          const hasCatalogueIssues = staleRows > 0 || missingAvailability > 0 || publishedUnavailable > 0 || missingCost > 0;
           return <article className="workspace-queue-card" key={supplier.id}>
             <div className="workspace-queue-head">
               <div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div>
@@ -93,9 +93,9 @@ export default async function DropshippingFeedHealthPage() {
               <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
             </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{supplier.staleCatalogueProducts}</span></div>
-              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{supplier.missingAvailabilityTelemetryProducts}</span></div>
-              <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{supplier.publishedUnavailableProducts}</span></div>
+              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span></div>
+              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span></div>
+              <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{publishedUnavailable}</span></div>
               <div className="workspace-compact-row"><strong>Χωρίς supplier cost</strong><span>{missingCost}</span></div>
             </div>
             <p style={{ marginTop: 10 }}><small>{hasCatalogueIssues ? "Υπάρχουν catalogue εγγραφές που χρειάζονται έλεγχο ή επόμενο supplier sync." : "Δεν εντοπίστηκαν catalogue-level προβλήματα σε αυτόν τον supplier."}</small></p>
