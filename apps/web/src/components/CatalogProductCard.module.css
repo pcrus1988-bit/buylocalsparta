@@ -17,8 +17,81 @@
   justify-content: flex-start;
 }
 
+.catalogImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 16px;
+  background: #fff;
+  z-index: 1;
+}
+
+.deferredCard {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 460px;
+}
+
+.msrpRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.msrpInline {
+  font-size: .72em;
+  opacity: .62;
+  font-weight: 500;
+}
+
+.inlineSavings {
+  font-size: .62em;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.savingsBadge {
+  position: absolute;
+  z-index: 3;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.savingsMsrp {
+  color: rgba(13, 43, 35, .62);
+  font-size: .7rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.savingsPill {
+  background: #111;
+  color: #fff;
+  border-radius: 999px;
+  padding: 9px 13px;
+  font-weight: 900;
+  font-size: .92rem;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .12);
+}
+
+.salePill {
+  background: var(--terracotta, #aa664f);
+}
+
 @media (max-width: 620px) {
   .titleStack {
     gap: 6px;
+  }
+
+  .deferredCard {
+    contain-intrinsic-size: auto 430px;
   }
 }
