@@ -520,10 +520,16 @@ export async function getPublishedDropshipCatalogPage(
   }));
   if (!matchingIds.size) return { products: [], total, hasMore: offset + limit < total };
 
-  const enriched = base.map((record) => ({
-    ...record,
-    sizes: metadata.get(record.id)?.sizes ?? []
-  }));
+  // Preserve the bounded SQL page and overlay only already-validated V4 display
+  // copy from metadata; no commercial or availability state is changed here.
+  const enriched = base.map((record) => {
+    const details = metadata.get(record.id);
+    return {
+      ...record,
+      title: details?.title ?? record.title,
+      sizes: details?.sizes ?? []
+    };
+  });
   const projections = projectDropshipFamilies(enriched, matchingIds);
   const representatives = projections.map((projection) => projection.representative);
   const imageRequests = representatives.map((record) => ({
