@@ -44,62 +44,108 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
       aria-label={duplicate ? undefined : `Δες προϊόντα ${brand.name}`}
       title={duplicate ? undefined : title}
       tabIndex={duplicate ? -1 : undefined}
-      style={{ width: 96, height: 24, padding: "2px 4px" }}
     >
-      {showLogo ? (
-        <img
-          src={logoUrl}
-          alt={duplicate ? "" : brand.name}
-          loading="lazy"
-          decoding="async"
-          onError={() => setLogoFailed(true)}
-          style={{
-            display: "block",
-            width: "auto",
-            height: 20,
-            maxWidth: 88,
-            maxHeight: 20,
-            objectFit: "contain",
-            filter: "grayscale(1)"
-          }}
-        />
-      ) : (
-        <span>{brand.name}</span>
-      )}
+      <span className="brand-runner-badge">
+        {showLogo ? (
+          <img
+            src={logoUrl}
+            alt={duplicate ? "" : brand.name}
+            loading="lazy"
+            decoding="async"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : (
+          <span className="brand-runner-fallback">{brand.name}</span>
+        )}
+      </span>
+
       <style jsx>{`
         .brand-runner-item {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          flex: 0 0 auto;
+          flex: 0 0 96px;
+          width: 96px;
+          height: 30px;
           color: var(--ink, #173c34);
-          opacity: .72;
-          overflow: hidden;
+          opacity: .94;
+          text-decoration: none;
           transition: opacity .18s ease, transform .18s ease;
+        }
+        .brand-runner-badge {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 96px;
+          height: 30px;
+          padding: 4px 8px;
+          overflow: hidden;
+          border: 1px solid rgba(23, 60, 52, .12);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, .76);
+          box-shadow: 0 1px 2px rgba(23, 60, 52, .04), 0 3px 8px rgba(23, 60, 52, .07);
+          transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
         }
         .brand-runner-item:hover {
           opacity: 1;
           transform: translateY(-1px);
         }
+        .brand-runner-item:hover .brand-runner-badge {
+          border-color: rgba(23, 60, 52, .22);
+          background: rgba(255, 255, 255, .9);
+          box-shadow: 0 2px 4px rgba(23, 60, 52, .06), 0 5px 12px rgba(23, 60, 52, .09);
+        }
         .brand-runner-item:focus-visible {
-          opacity: 1;
+          outline: none;
+        }
+        .brand-runner-item:focus-visible .brand-runner-badge {
           outline: 2px solid var(--brass, #a3834d);
           outline-offset: 2px;
-          border-radius: 6px;
         }
-        .brand-runner-item span {
+        .brand-runner-item img {
           display: block;
-          max-width: 88px;
+          width: 76px;
+          height: 20px;
+          max-width: 76px;
+          max-height: 20px;
+          object-fit: contain;
+          object-position: center;
+          filter: grayscale(1);
+        }
+        .brand-runner-fallback {
+          display: block;
+          width: 76px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          text-align: center;
           font-family: Georgia, 'Times New Roman', serif;
-          font-size: .76rem;
+          font-size: .72rem;
           line-height: 1;
           letter-spacing: -.01em;
         }
         @media (max-width: 620px) {
-          .brand-runner-item span { font-size: .72rem; }
+          .brand-runner-item,
+          .brand-runner-badge {
+            flex-basis: 90px;
+            width: 90px;
+          }
+          .brand-runner-item { height: 28px; }
+          .brand-runner-badge {
+            height: 28px;
+            padding: 3px 7px;
+            border-radius: 7px;
+          }
+          .brand-runner-item img {
+            width: 72px;
+            height: 20px;
+            max-width: 72px;
+            max-height: 20px;
+          }
+          .brand-runner-fallback {
+            width: 72px;
+            font-size: .68rem;
+          }
         }
       `}</style>
     </Link>
@@ -160,15 +206,15 @@ export function HomeBrandRunner() {
         .brand-runner {
           position: relative;
           width: 100%;
-          min-height: 50px;
-          padding: 6px 0 5px;
+          min-height: 56px;
+          padding: 6px 0 6px;
           overflow: hidden;
           border-top: 1px solid rgba(23, 60, 52, .09);
           border-bottom: 1px solid rgba(23, 60, 52, .09);
           background: rgba(251, 248, 239, .78);
         }
         .brand-runner-label {
-          margin: 0 auto 3px;
+          margin: 0 auto 5px;
           padding-inline: 16px;
           color: rgba(23, 60, 52, .58);
           font-size: .5rem;
@@ -179,7 +225,7 @@ export function HomeBrandRunner() {
         }
         .brand-runner-viewport {
           width: 100%;
-          min-height: 26px;
+          min-height: 30px;
           overflow: hidden;
           -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
@@ -199,8 +245,8 @@ export function HomeBrandRunner() {
           display: flex;
           align-items: center;
           flex: 0 0 auto;
-          gap: clamp(10px, 1.8vw, 22px);
-          padding-right: clamp(10px, 1.8vw, 22px);
+          gap: 10px;
+          padding-right: 10px;
         }
         .brand-runner-loading {
           width: min(70%, 520px);
@@ -221,22 +267,22 @@ export function HomeBrandRunner() {
         }
         @media (max-width: 620px) {
           .brand-runner {
-            min-height: 48px;
-            padding-block: 5px 4px;
+            min-height: 53px;
+            padding-block: 5px 5px;
           }
           .brand-runner-label {
-            margin-bottom: 3px;
+            margin-bottom: 4px;
             font-size: .47rem;
             letter-spacing: .14em;
           }
           .brand-runner-viewport {
-            min-height: 25px;
+            min-height: 28px;
             -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
             mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
           }
           .brand-runner-group {
-            gap: 10px;
-            padding-right: 10px;
+            gap: 8px;
+            padding-right: 8px;
           }
           .brand-runner-track { animation-duration: 38s; }
         }
