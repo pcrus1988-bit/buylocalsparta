@@ -143,6 +143,7 @@ const attributeFilter = readFileSync(`${root}/apps/web/src/lib/catalog-attribute
 const attributeQuery = readFileSync(`${root}/apps/web/src/lib/storefront-attribute-query.ts`, "utf8");
 const availableTaxonomy = readFileSync(`${root}/apps/web/src/lib/available-catalog-taxonomy.ts`, "utf8");
 const productCard = readFileSync(`${root}/apps/web/src/components/CatalogProductCard.tsx`, "utf8");
+const productCardClient = readFileSync(`${root}/apps/web/src/components/CatalogProductCardClient.tsx`, "utf8");
 const catalogSearchInput = readFileSync(`${root}/apps/web/src/components/CatalogSearchInput.tsx`, "utf8");
 const homeQuickSearch = readFileSync(`${root}/apps/web/src/components/HomeQuickSearch.tsx`, "utf8");
 const mobileCommerceSearch = readFileSync(`${root}/apps/web/src/components/CustomerMobileCommerceNav.tsx`, "utf8");
@@ -175,7 +176,7 @@ if (!availableTaxonomy.includes("getDiscoverableCatalogCanonicals")) failures.pu
 if (!availableTaxonomy.includes("catalogAttributeDefinitionsForLeaf(leafKey)")) failures.push("Available taxonomy must build attributes only from the inferred governed leaf");
 if (!availableTaxonomy.includes("matchesCatalogAttributeFilters(details?.attributes, attributeFilters, definition.key)")) failures.push("Structured facet options must respect other selected attributes while self-excluding their own key");
 if (!availableTaxonomy.includes("searchTextRelevance(query")) failures.push("Dynamic facets must use the same relevance engine as catalog results");
-if (!productCard.includes("storefrontCategoryForCode(product.categoryCode, product.departmentCode)")) failures.push("Product cards must derive their visual category from canonical leaf and department codes");
+if (!productCard.includes("departmentCode: product.departmentCode") || !productCardClient.includes("storefrontCategoryForCode(product.categoryCode, product.departmentCode)")) failures.push("Product cards must preserve canonical department metadata across the server/client boundary and derive their visual category from canonical leaf and department codes");
 if (!shopPage.includes("<CatalogSearchInput") || !catalogSearchInput.includes("useSearchDiscovery") || !catalogSearchInput.includes("<SearchDiscoveryPanel")) failures.push("Shop search must consume the shared governed discovery component");
 if (!homeQuickSearch.includes("useSearchDiscovery") || !homeQuickSearch.includes("<SearchDiscoveryPanel") || !homeQuickSearch.includes('surface="home"')) failures.push("Homepage search must expose the same structured discovery engine as /shop");
 if (!mobileCommerceSearch.includes("useSearchDiscovery") || !mobileCommerceSearch.includes("<SearchDiscoveryPanel") || !mobileCommerceSearch.includes('placement="above"') || !mobileCommerceSearch.includes('surface="mobile"')) failures.push("Mobile sticky search must expose the same structured discovery engine above the bottom navigation");
