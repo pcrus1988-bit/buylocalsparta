@@ -11,6 +11,8 @@ import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
+const VENDOR_STOREFRONT_VARIANT_CAP = 480;
+
 type PublishedDropshipRow = Readonly<{
   canonical_public_id: string;
   family_id: string | null;
@@ -66,6 +68,13 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
  * Supplier/product public-field policy is resolved for each child before metadata
  * is searched. This prevents a sibling with stricter presentation controls from
  * leaking GTIN/MPN/technical metadata through family-level search.
+ *
+ * A vendor storefront is a discovery surface, not a bulk catalogue export. Supplier
+ * publication can create tens of thousands of child variants for one vendor. Hydrating
+ * all of them synchronously makes the page scale linearly with supplier catalogue size
+ * and can exhaust the web database statement timeout. For a vendor-scoped storefront,
+ * preselect a bounded window before the expensive governance/translation joins. Global
+ * catalogue/search and canonical-detail calls retain the complete projection path.
  */
 export async function getPublishedDropshipCatalogCards(
   query = "",
@@ -77,57 +86,141 @@ export async function getPublishedDropshipCatalogCards(
 ): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
 
-  const result = await getProductionPostgresRuntime().nativePool.query<PublishedDropshipRow>(`
-    SELECT DISTINCT ON (cv.id)
-      cv.public_id AS canonical_public_id,
-      cv.family_id::text AS family_id,
-      dso.supplier_id::text AS supplier_id,
-      dso.external_product_id,
-      vo.public_id AS offer_public_id,
-      cv.slug,
-      COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-      c.code AS category_code,
-      vo.customer_price_minor,
-      dso.cached_quantity,
-      (
-        dso.cached_available=true
-        AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at > now()
-      ) AS currently_available,
-      v.public_id AS vendor_public_id,
-      v.trading_name AS vendor_name,
-      ds.configuration->'vendorPresentation' AS vendor_presentation
-    FROM vendor_offers vo
-    JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-    JOIN markets m ON m.id=cv.market_id
-    JOIN categories c ON c.id=cv.category_id
-    JOIN vendor_businesses v ON v.id=vo.vendor_id
-    JOIN vendor_locations l ON l.id=vo.location_id
-    JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-    JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    WHERE m.code='sparta'
-      AND COALESCE(cv.commerce_channel,'normal')='normal'
-      AND cv.active=true
-      AND cv.suppressed=false
-      AND cv.recalled=false
-      AND vo.status='approved'
-      AND vo.merchant_visible=true
-      AND vo.merchant_pause_active=false
-      AND vo.customer_price_minor>0
-      AND v.status='active'
-      AND l.active=true
-      AND dso.active=true
-      AND ds.active=true
-      AND ds.api_authoritative_availability=true
-      AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-      AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-      AND ($1::text IS NULL OR v.public_id=$1)
-      AND ($2::text IS NULL OR cv.public_id=$2)
-    ORDER BY cv.id,currently_available DESC,vo.customer_price_minor ASC,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
-  `, [vendorId ?? null, canonicalVariantId ?? null]);
+  const runtime = getProductionPostgresRuntime();
+  const vendorStorefrontScope = Boolean(vendorId && !canonicalVariantId);
+  const result = vendorStorefrontScope
+    ? await runtime.nativePool.query<PublishedDropshipRow>(`
+      WITH vendor_scope AS MATERIALIZED (
+        SELECT
+          vo.id,
+          vo.public_id,
+          vo.vendor_id,
+          vo.location_id,
+          vo.canonical_variant_id,
+          vo.customer_price_minor,
+          vo.cost_ceiling_minor,
+          vo.supplier_unit_price_minor,
+          vo.updated_at,
+          dso.supplier_id,
+          dso.external_product_id,
+          dso.cached_quantity,
+          dso.cached_available,
+          dso.availability_expires_at,
+          dso.availability_checked_at
+        FROM vendor_offers vo
+        JOIN vendor_businesses vendor_filter ON vendor_filter.id=vo.vendor_id
+        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        WHERE vendor_filter.public_id=$1
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND dso.active=true
+        ORDER BY vo.updated_at DESC,vo.public_id
+        LIMIT $2
+      )
+      SELECT DISTINCT ON (cv.id)
+        cv.public_id AS canonical_public_id,
+        cv.family_id::text AS family_id,
+        scope.supplier_id::text AS supplier_id,
+        scope.external_product_id,
+        scope.public_id AS offer_public_id,
+        cv.slug,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        c.code AS category_code,
+        scope.customer_price_minor,
+        scope.cached_quantity,
+        (
+          scope.cached_available=true
+          AND (scope.cached_quantity IS NULL OR scope.cached_quantity>=1)
+          AND scope.availability_expires_at IS NOT NULL
+          AND scope.availability_expires_at > now()
+        ) AS currently_available,
+        v.public_id AS vendor_public_id,
+        v.trading_name AS vendor_name,
+        ds.configuration->'vendorPresentation' AS vendor_presentation
+      FROM vendor_scope scope
+      JOIN canonical_variants cv ON cv.id=scope.canonical_variant_id
+      JOIN markets m ON m.id=cv.market_id
+      JOIN categories c ON c.id=cv.category_id
+      JOIN vendor_businesses v ON v.id=scope.vendor_id
+      JOIN vendor_locations l ON l.id=scope.location_id
+      JOIN dropship_suppliers ds ON ds.id=scope.supplier_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND v.status='active'
+        AND l.active=true
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+        AND bls_private.vendor_category_effectively_visible(scope.vendor_id,cv.category_id)
+        AND (scope.cost_ceiling_minor IS NULL OR scope.supplier_unit_price_minor<=scope.cost_ceiling_minor)
+      ORDER BY cv.id,currently_available DESC,scope.customer_price_minor ASC,scope.availability_checked_at DESC NULLS LAST,scope.updated_at DESC,scope.public_id
+    `, [vendorId, VENDOR_STOREFRONT_VARIANT_CAP])
+    : await runtime.nativePool.query<PublishedDropshipRow>(`
+      SELECT DISTINCT ON (cv.id)
+        cv.public_id AS canonical_public_id,
+        cv.family_id::text AS family_id,
+        dso.supplier_id::text AS supplier_id,
+        dso.external_product_id,
+        vo.public_id AS offer_public_id,
+        cv.slug,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        c.code AS category_code,
+        vo.customer_price_minor,
+        dso.cached_quantity,
+        (
+          dso.cached_available=true
+          AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at > now()
+        ) AS currently_available,
+        v.public_id AS vendor_public_id,
+        v.trading_name AS vendor_name,
+        ds.configuration->'vendorPresentation' AS vendor_presentation
+      FROM vendor_offers vo
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN markets m ON m.id=cv.market_id
+      JOIN categories c ON c.id=cv.category_id
+      JOIN vendor_businesses v ON v.id=vo.vendor_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND v.status='active'
+        AND l.active=true
+        AND dso.active=true
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND ($1::text IS NULL OR v.public_id=$1)
+        AND ($2::text IS NULL OR cv.public_id=$2)
+      ORDER BY cv.id,currently_available DESC,vo.customer_price_minor ASC,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
+    `, [vendorId ?? null, canonicalVariantId ?? null]);
+
+  if (vendorStorefrontScope && result.rows.length >= VENDOR_STOREFRONT_VARIANT_CAP) {
+    console.info(JSON.stringify({
+      level: "info",
+      event: "storefront.dropship_vendor_window_applied",
+      vendorId,
+      variantCap: VENDOR_STOREFRONT_VARIANT_CAP
+    }));
+  }
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
