@@ -186,8 +186,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
         {product.brand ? <div className="catalog-card-brand">
-          {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
-          <span>{product.brand}</span>
+          {brandLogoUrl ? <span className="catalog-card-brand-logo" aria-hidden="true"><img src={brandLogoUrl} alt="" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.parentElement?.setAttribute("hidden", ""); }} /></span> : null}
+          <span className="catalog-card-brand-name">{product.brand}</span>
         </div> : null}
         <h3><Link href={productHref}>{displayTitle}</Link></h3>
         <div className="product-bottom">
@@ -198,6 +198,50 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {supplierFulfilled ? <p className="catalog-card-vendor">Αποστολή μέσω συνεργαζόμενου προμηθευτή</p> : vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
         {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
+      <style jsx>{`
+        .catalog-card-brand {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 24px;
+          margin-top: 8px;
+          min-width: 0;
+        }
+        .catalog-card-brand-logo {
+          display: inline-flex;
+          align-items: center;
+          justify-content: flex-start;
+          width: 72px;
+          height: 20px;
+          flex: 0 0 72px;
+          overflow: hidden;
+        }
+        .catalog-card-brand-logo[hidden] { display: none; }
+        .catalog-card-brand-logo img {
+          display: block;
+          width: auto;
+          height: auto;
+          max-width: 72px;
+          max-height: 20px;
+          object-fit: contain;
+        }
+        .catalog-card-brand-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--ink-soft);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        @media (min-width: 768px) {
+          .catalog-card-brand { min-height: 26px; }
+          .catalog-card-brand-logo { width: 88px; height: 24px; flex-basis: 88px; }
+          .catalog-card-brand-logo img { max-width: 88px; max-height: 24px; }
+        }
+      `}</style>
     </article>
   );
 }
