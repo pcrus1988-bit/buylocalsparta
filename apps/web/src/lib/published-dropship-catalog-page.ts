@@ -23,6 +23,7 @@ type PublishedDropshipPageRow = Readonly<{
   category_code: string;
   department_code: string | null;
   customer_price_minor: number | string;
+  msrp_minor: number | string | null;
   cached_quantity: number | string | null;
   vendor_public_id: string;
   vendor_name: string;
@@ -34,6 +35,7 @@ type PublishedDropshipPageRow = Readonly<{
 type ShopDropshipCard = CatalogCard & Readonly<{
   supplierFulfilled: true;
   previewImageSrc?: string;
+  msrpMinor: number | null;
 }>;
 
 export type PublishedDropshipCatalogPage = Readonly<{
@@ -124,6 +126,7 @@ export async function getPublishedDropshipCatalogPage(
         COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
         cv.variant_attributes,
         vo.customer_price_minor,
+        vo.msrp_minor,
         dso.cached_quantity,
         v.public_id AS vendor_public_id,
         v.trading_name AS vendor_name,
@@ -214,6 +217,7 @@ export async function getPublishedDropshipCatalogPage(
       base.category_code,
       base.department_code,
       base.customer_price_minor,
+      base.msrp_minor,
       base.cached_quantity,
       base.vendor_public_id,
       base.vendor_name,
@@ -251,6 +255,7 @@ export async function getPublishedDropshipCatalogPage(
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
     if (!priceMinor || !isPublicCatalogueTitle(row.title)) return [];
+    const msrpMinor = safeMinor(row.msrp_minor);
     const presentation = resolveDropshipPublicFields(
       parseDropshipPresentationConfig(row.vendor_presentation),
       row.offer_public_id
@@ -265,6 +270,7 @@ export async function getPublishedDropshipCatalogPage(
       categoryCode: row.category_code,
       departmentCode: row.department_code ?? undefined,
       priceMinor,
+      msrpMinor: msrpMinor !== undefined && msrpMinor > priceMinor ? msrpMinor : null,
       available: true,
       availableToSell: safeQuantity(row.cached_quantity),
       vendorId: row.vendor_public_id,
@@ -344,7 +350,8 @@ export async function getPublishedDropshipCatalogPage(
       previewImageSrc: image?.mediaId ? undefined : sourceImage?.src,
       available: true,
       availableToSell: projection.availableToSell,
-      supplierFulfilled: true
+      supplierFulfilled: true,
+      msrpMinor: record.msrpMinor
     };
   });
 
