@@ -45,7 +45,7 @@ function SearchIcon() {
 }
 
 export function SiteHeader({ compact = false }: { compact?: boolean }) {
-  const { count } = useCart();
+  const { count, openCart } = useCart();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const relocateMobileCommerceActions = isCustomerMobileCommercePath(pathname);
@@ -86,10 +86,13 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           <AccountIcon />
           <span className="header-action-text">Λογαριασμός</span>
         </Link>
-        <Link className={`cart-button${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
+        <button className={`cart-button${pathname === "/cart" ? " is-active" : ""}`} type="button" aria-haspopup="dialog" aria-label={`Καλάθι, ${count} προϊόντα`} onClick={() => {
+          setMenuOpen(false);
+          openCart();
+        }}>
           <CartIcon />
           <span className="header-action-text">Καλάθι</span> <span aria-hidden="true">{count}</span>
-        </Link>
+        </button>
       </div>
 
       <style>{`
