@@ -51,8 +51,19 @@ export function dropshippingFeedHealth(
     };
   }
 
-  const healthcheckStale = healthcheckAgeMinutes != null
-    && healthcheckAgeMinutes > DROPSHIPPING_HEALTHCHECK_STALE_AFTER_MINUTES;
+  if (healthcheckAgeMinutes == null) {
+    return {
+      status: "unknown",
+      label: "Health telemetry incomplete",
+      detail: supplier.lastHealthcheckOk === true
+        ? "Υπάρχει επιτυχές healthcheck result, αλλά λείπει η χρονοσφραγίδα του. Δεν θεωρείται healthy μέχρι να καταγραφεί νέο healthcheck."
+        : "Δεν έχει καταγραφεί ακόμη supplier healthcheck με χρονοσφραγίδα.",
+      healthcheckAgeMinutes,
+      catalogueSyncAgeMinutes
+    };
+  }
+
+  const healthcheckStale = healthcheckAgeMinutes > DROPSHIPPING_HEALTHCHECK_STALE_AFTER_MINUTES;
   const catalogueStale = catalogueSyncAgeMinutes != null
     && catalogueSyncAgeMinutes > DROPSHIPPING_CATALOGUE_STALE_AFTER_MINUTES;
 
