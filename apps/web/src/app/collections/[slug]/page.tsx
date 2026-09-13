@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { getCatalogCards, type CatalogCard } from "../../../lib/catalog-view";
+import type { CatalogCard } from "../../../lib/catalog-view";
 import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
 import { EDITORIAL_COLLECTIONS, editorialCollectionBySlug } from "../../../lib/editorial-collections";
+import { getPublishedDropshipCatalogPage } from "../../../lib/published-dropship-catalog-page";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
+import { getShopCatalogPage } from "../../../lib/shop-catalog-page";
 import { getVisitorKey } from "../../../lib/visitor";
 import styles from "./editorial-collection.module.css";
 
@@ -43,24 +45,58 @@ function uniqueProducts(products: readonly CatalogCard[]): CatalogCard[] {
   return [...new Map(products.filter(purchasable).map((product) => [product.id, product])).values()];
 }
 
+async function boundedCollectionSlice(
+  visitorKey: string,
+  readOnlyCrawler: boolean,
+  query: string,
+  category: string,
+  limit: number
+): Promise<readonly CatalogCard[]> {
+  if (limit <= 0) return [];
+  if (readOnlyCrawler) {
+    return getCrawlerCatalogCards("23100", query, category, {}, limit);
+  }
+
+  const localPage = await getShopCatalogPage({
+    visitorKey,
+    postcode: "23100",
+    query,
+    category,
+    limit,
+    offset: 0
+  });
+  const local = uniqueProducts(localPage.products);
+  if (local.length >= limit) return local.slice(0, limit);
+
+  const remaining = limit - local.length;
+  const dropshipPage = await getPublishedDropshipCatalogPage({
+    query,
+    category,
+    limit: remaining,
+    offset: 0
+  });
+  return uniqueProducts([...local, ...dropshipPage.products]).slice(0, limit);
+}
+
 async function liveCollectionProducts(slug: string, visitorKey: string, readOnlyCrawler: boolean): Promise<readonly CatalogCard[]> {
   const collection = editorialCollectionBySlug(slug);
   if (!collection) return [];
-  const load = (query: string, category: string) => readOnlyCrawler
-    ? getCrawlerCatalogCards("23100", query, category)
-    : getCatalogCards(visitorKey, "23100", query, category);
 
   let products: CatalogCard[] = [];
+  const append = async (query: string, category: string) => {
+    const remaining = PRODUCT_LIMIT - products.length;
+    if (remaining <= 0) return;
+    const next = await boundedCollectionSlice(visitorKey, readOnlyCrawler, query, category, remaining);
+    products = uniqueProducts([...products, ...next]);
+  };
+
   try {
-    products = uniqueProducts(await load(collection.query, collection.primaryCategory));
+    await append(collection.query, collection.primaryCategory);
     for (const category of collection.fallbackCategories) {
       if (products.length >= PRODUCT_LIMIT) break;
-      const next = await load("", category);
-      products = uniqueProducts([...products, ...next]);
+      await append("", category);
     }
-    if (products.length < 6) {
-      products = uniqueProducts([...products, ...await load("", "")]);
-    }
+    if (products.length < 6) await append("", "");
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",

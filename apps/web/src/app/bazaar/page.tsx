@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
 import { bazaarConditionLabel, bazaarSourceLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { getCachedBazaarFacets } from "../../lib/bazaar-facets";
 import { publicBrandLogoUrl } from "../../lib/brand-logo";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 
@@ -33,15 +34,12 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
   const source = valueOf(params.source).trim();
   const brand = valueOf(params.brand).trim();
   const category = valueOf(params.category).trim();
-  const [products, allProducts] = await Promise.all([
+  const [products, facets] = await Promise.all([
     getBazaarCatalog({ query,condition,source,brand,category }),
-    getBazaarCatalog()
+    getCachedBazaarFacets()
   ]);
 
-  const brands = [...new Set(allProducts.map((product) => product.brand).filter((value): value is string => Boolean(value)))].sort((a,b) => a.localeCompare(b,"el"));
-  const categories = [...new Set(allProducts.map((product) => product.categoryCode))].sort((a,b) => a.localeCompare(b,"el"));
-  const conditions = [...new Set(allProducts.map((product) => product.condition))];
-  const sources = [...new Set(allProducts.map((product) => product.bazaarSource).filter((value): value is NonNullable<typeof value> => Boolean(value)))];
+  const { brands, categories, conditions, sources } = facets;
 
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
     <div className="announcement">BAZAAR · Μοναδικά κομμάτια, πανελλαδικά.</div>
