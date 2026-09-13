@@ -7,6 +7,10 @@ const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce
 const transitionMigrationUrl = new URL("../../../db/migrations/0237_bazaar_condition_transition_guard.sql", import.meta.url);
 const existingClassificationMigrationUrl = new URL("../../../db/migrations/0238_bazaar_existing_nova_classification.sql", import.meta.url);
 const bazaarCatalogUrl = new URL("../src/lib/bazaar-catalog.ts", import.meta.url);
+const normalDropshipCatalogUrl = new URL("../src/lib/published-dropship-storefront.ts", import.meta.url);
+const normalCustomerCommerceUrl = new URL("../../../packages/postgres-runtime/src/customer-commerce.ts", import.meta.url);
+const crawlerCatalogUrl = new URL("../src/lib/crawler-catalog.ts", import.meta.url);
+const siteHeaderUrl = new URL("../src/components/SiteHeader.tsx", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
   assert.deepEqual(classifyNovaSupplierCondition({ condition: "New" }), {
@@ -54,4 +58,22 @@ test("BAZAAR dropship discovery uses the same fail-closed supplier and cost gate
   assert.match(source, /ds\.api_authoritative_availability=true/);
   assert.match(source, /vo\.cost_ceiling_minor IS NULL OR vo\.supplier_unit_price_minor<=vo\.cost_ceiling_minor/);
   assert.match(source, /dso\.availability_expires_at>now\(\)/);
+});
+
+test("normal catalogue read models explicitly reject BAZAAR canonicals", async () => {
+  const [customerCommerce, normalDropship, crawlerCatalog] = await Promise.all([
+    readFile(normalCustomerCommerceUrl, "utf8"),
+    readFile(normalDropshipCatalogUrl, "utf8"),
+    readFile(crawlerCatalogUrl, "utf8")
+  ]);
+  const normalChannelGuard = /COALESCE\(cv\.commerce_channel,'normal'\)='normal'/;
+  assert.match(customerCommerce, normalChannelGuard);
+  assert.match(normalDropship, normalChannelGuard);
+  assert.match(crawlerCatalog, normalChannelGuard);
+});
+
+test("BAZAAR navigation remains selected throughout the dedicated commerce experience", async () => {
+  const source = await readFile(siteHeaderUrl, "utf8");
+  assert.match(source, /href === "\/bazaar"/);
+  assert.match(source, /pathname\.startsWith\("\/bazaar\/"\)/);
 });
