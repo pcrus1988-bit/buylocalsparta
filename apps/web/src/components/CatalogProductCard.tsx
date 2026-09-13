@@ -38,15 +38,6 @@ function demoBookCover(product: CatalogCard): string | undefined {
   return `https://covers.openlibrary.org/b/isbn/${product.mpn}-L.jpg?default=false`;
 }
 
-function availabilityLabel(product: CatalogCardWithPreview, demoMode: boolean): string {
-  if (demoMode) return "Προεπισκόπηση · η αγορά είναι απενεργοποιημένη";
-  if (product.supplierFulfilled) return product.available ? "Διαθέσιμο για αποστολή" : "Προσωρινά μη διαθέσιμο";
-  if (product.localProof?.stockConfirmedToday) return "Σε τοπικό απόθεμα · επιβεβαιωμένο σήμερα";
-  if (product.localProof?.freshLocalStock) return "Σε τοπικό απόθεμα";
-  if (product.available) return "Διαθέσιμο από τοπικό κατάστημα";
-  return "Προσωρινά μη διαθέσιμο";
-}
-
 const formatEuroMinor = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 
 function usePublicCatalogMsrp(product: CatalogCardWithPreview, demoMode: boolean): number | undefined {
@@ -211,15 +202,14 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         <div className="product-bottom">
           <PublicCatalogPrice msrpMinor={msrpMinor} retailPriceMinor={product.priceMinor} priceLabel={priceLabel} savingLabel={savingLabel} prominentSavings={prominentSavings} />
         </div>
-        <p className={`catalog-card-availability${product.available ? " is-available" : ""}`}>{availabilityLabel(product, demoMode)}</p>
-        {supplierFulfilled ? <p className="catalog-card-vendor">Αποστολή μέσω συνεργαζόμενου προμηθευτή</p> : vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
+        {!supplierFulfilled && vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
         {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
       <style jsx>{`
         .catalog-card-title-row {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           min-width: 0;
           margin-top: 11px;
         }
@@ -232,7 +222,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           justify-content: flex-start;
         }
         @media (max-width: 620px) {
-          .catalog-card-title-row { gap: 9px; }
+          .catalog-card-title-row { gap: 7px; }
         }
       `}</style>
     </article>
