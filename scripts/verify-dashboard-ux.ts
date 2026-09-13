@@ -136,9 +136,11 @@ const adminStyles = [
 ] as const;
 const adminCss = adminStyles.map((name) => read(`apps/web/src/app/${name}`)).join("\n");
 for (const requirement of [".admin-domain-nav", ".admin-domain-badge", ".admin-topbar", ".admin-context-nav", ".admin-global-search", ".admin-attention-list", ".admin-domain-card-grid", ".admin-pipeline", ".admin-directory-table", ".admin-search-results", ".admin-local-tabs", ".admin-partner-directory", ".admin-order-record-hero", ".admin-order-line-table", ".admin-status-stack", ".admin-record-state", ".admin-attention-flag", ".admin-split-workspace", ".admin-work-queue-split", ".admin-insight-table", ".admin-tax-documents", "@media(max-width:1020px)"]) if (!adminCss.includes(requirement)) failures.push(`Admin IA styles are missing ${requirement}`);
-const layout = read("apps/web/src/app/layout.tsx");
-for (const stylesheet of ["workspace-polish.css", "dashboard-luxury.css", "workspace-pages.css", ...adminStyles]) if (!layout.includes(`import "./${stylesheet}"`)) failures.push(`Shared layout is missing ${stylesheet}`);
-if (layout.indexOf('import "./admin-information-architecture.css"') < layout.indexOf('import "./typography-readability.css"')) failures.push("Admin IA overrides must load after shared readability styles");
+const rootLayout = read("apps/web/src/app/layout.tsx");
+for (const stylesheet of ["workspace-polish.css", "dashboard-luxury.css", "workspace-pages.css"]) if (!rootLayout.includes(`import "./${stylesheet}"`)) failures.push(`Shared layout is missing ${stylesheet}`);
+const adminLayout = read("apps/web/src/app/admin/layout.tsx");
+for (const stylesheet of adminStyles) if (!adminLayout.includes(`import "../${stylesheet}"`)) failures.push(`Admin layout is missing ${stylesheet}`);
+if (!rootLayout.includes('import "./typography-readability.css"')) failures.push("Shared layout must retain typography-readability.css before nested Admin styles are applied");
 
 if (failures.length) {
   console.error("Dashboard UX checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
