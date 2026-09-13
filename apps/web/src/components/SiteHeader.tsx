@@ -11,6 +11,7 @@ const PRIVATE_VENDOR_ROUTES = new Set(NON_INDEXABLE_PAGE_ROUTES.filter((route) =
 
 function navigationActive(pathname: string, href: string): boolean {
   if (href === "/shop") return pathname === "/shop" || pathname.startsWith("/category/") || pathname.startsWith("/product/");
+  if (href === "/bazaar") return pathname === "/bazaar" || pathname.startsWith("/bazaar/");
   if (href === "/shops") return pathname === "/shops" || (/^\/vendor\/[^/]+$/.test(pathname) && !PRIVATE_VENDOR_ROUTES.has(pathname));
   return pathname === href;
 }
