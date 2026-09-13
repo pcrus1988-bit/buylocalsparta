@@ -27,6 +27,9 @@ export type DropshippingSupplierSummary = Readonly<{
   availableProducts: number;
   outOfStockProducts: number;
   productsWithCost: number;
+  staleCatalogueProducts: number;
+  missingAvailabilityTelemetryProducts: number;
+  publishedUnavailableProducts: number;
   lastCatalogueSyncAt: string | null;
   defaults: DropshippingSupplierDefaults;
 }>;
@@ -150,6 +153,14 @@ export async function vendorDropshippingWorkspace(
            count(vo.id) FILTER (WHERE dso.active AND dso.cached_available)::bigint available_products,
            count(vo.id) FILTER (WHERE dso.active AND NOT dso.cached_available)::bigint out_of_stock_products,
            count(vo.id) FILTER (WHERE dso.supplier_cost_minor IS NOT NULL)::bigint products_with_cost,
+           count(vo.id) FILTER (
+             WHERE dso.active
+               AND (dso.last_catalogue_sync_at IS NULL OR dso.last_catalogue_sync_at < now() - interval '12 hours')
+           )::bigint stale_catalogue_products,
+           count(vo.id) FILTER (WHERE dso.active AND dso.availability_checked_at IS NULL)::bigint missing_availability_telemetry_products,
+           count(vo.id) FILTER (
+             WHERE dso.active AND vo.merchant_visible AND vo.status='approved' AND NOT dso.cached_available
+           )::bigint published_unavailable_products,
            max(dso.last_catalogue_sync_at) FILTER (WHERE vo.id IS NOT NULL) last_catalogue_sync_at
       FROM dropship_suppliers ds
       LEFT JOIN dropship_supplier_offers dso ON dso.supplier_id=ds.id
@@ -176,6 +187,9 @@ export async function vendorDropshippingWorkspace(
     availableProducts: asNumber(row.available_products),
     outOfStockProducts: asNumber(row.out_of_stock_products),
     productsWithCost: asNumber(row.products_with_cost),
+    staleCatalogueProducts: asNumber(row.stale_catalogue_products),
+    missingAvailabilityTelemetryProducts: asNumber(row.missing_availability_telemetry_products),
+    publishedUnavailableProducts: asNumber(row.published_unavailable_products),
     lastCatalogueSyncAt: asNullableIso(row.last_catalogue_sync_at),
     defaults: supplierDefaults(row.vendor_merchandising)
   }));
