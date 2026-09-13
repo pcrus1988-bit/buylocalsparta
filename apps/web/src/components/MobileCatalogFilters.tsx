@@ -61,7 +61,11 @@ export function MobileCatalogFilters() {
       sidebar.setAttribute("aria-modal", "true");
       sidebar.setAttribute("aria-label", "Φίλτρα και ταξινόμηση προϊόντων");
       body.style.overflow = "hidden";
-      window.setTimeout(() => sidebar.querySelector<HTMLElement>(FOCUSABLE)?.focus(), 60);
+      window.setTimeout(() => {
+        const firstVisible = Array.from(sidebar.querySelectorAll<HTMLElement>(FOCUSABLE))
+          .find((item) => item.getClientRects().length > 0);
+        firstVisible?.focus();
+      }, 60);
     }
 
     return () => {
