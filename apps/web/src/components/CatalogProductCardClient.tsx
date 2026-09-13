@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local-commerce-proof";
+import { requestCatalogMsrp } from "../lib/catalog-msrp-client";
 import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
@@ -59,33 +60,18 @@ function usePublicCatalogMsrp(product: CatalogProductCardClientProduct, demoMode
     setMsrpMinor(undefined);
     if (projectionKnown || demoMode || !product.available || !product.vendorId || !Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) return;
 
-    const controller = new AbortController();
-    const params = new URLSearchParams({
+    let active = true;
+    void requestCatalogMsrp({
       productId: product.id,
       vendorId: product.vendorId,
-      retailPriceMinor: String(product.priceMinor)
+      retailPriceMinor: product.priceMinor
+    }).then((value) => {
+      if (active) setMsrpMinor(value);
     });
 
-    void fetch(`/api/catalog/msrp?${params.toString()}`, {
-      method: "GET",
-      credentials: "same-origin",
-      signal: controller.signal,
-      headers: { accept: "application/json" }
-    })
-      .then(async (response) => {
-        if (!response.ok) return undefined;
-        const payload = await response.json() as { msrpMinor?: unknown };
-        const value = Number(payload.msrpMinor);
-        return Number.isSafeInteger(value) && value > product.priceMinor ? value : undefined;
-      })
-      .then((value) => {
-        if (!controller.signal.aborted) setMsrpMinor(value);
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) setMsrpMinor(undefined);
-      });
-
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, [demoMode, product.available, product.id, product.priceMinor, product.vendorId, projectionKnown]);
 
   return msrpMinor;
