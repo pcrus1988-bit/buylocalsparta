@@ -166,6 +166,29 @@ export class PostgresCustomerCommerceService {
 
   async publicCanonicals(marketId = "sparta"): Promise<readonly PublicCatalogRecord[]> {
     const result = await this.#uow.withTransaction({ marketId, platformAccess: true }, (tx) => tx.query<CanonicalRow>(`
+      WITH hidden_vendors AS MATERIALIZED (
+        SELECT DISTINCT vendor_id
+        FROM vendor_category_visibility
+        WHERE visible=false
+      ),
+      offer_visibility AS MATERIALIZED (
+        SELECT vo.canonical_variant_id,
+               bool_or(
+                 vo.status NOT IN ('archived','suppressed')
+                 AND vo.merchant_visible=true
+                 AND vo.merchant_pause_active=false
+                 AND CASE
+                   WHEN hv.vendor_id IS NULL THEN true
+                   ELSE bls_private.vendor_category_effectively_visible(
+                     vo.vendor_id,
+                     (SELECT cv2.category_id FROM canonical_variants cv2 WHERE cv2.id=vo.canonical_variant_id)
+                   )
+                 END
+               ) AS has_public_offer
+        FROM vendor_offers vo
+        LEFT JOIN hidden_vendors hv ON hv.vendor_id=vo.vendor_id
+        GROUP BY vo.canonical_variant_id
+      )
       SELECT cv.id::text AS canonical_uuid, cv.public_id AS canonical_public_id, cv.slug,
              m.id::text AS market_uuid, m.code AS market_code, c.code AS category_code,
              COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
@@ -175,20 +198,11 @@ export class PostgresCustomerCommerceService {
       JOIN categories c ON c.id=cv.category_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN offer_visibility ov ON ov.canonical_variant_id=cv.id
       WHERE (m.code=$1 OR m.id::text=$1)
         AND COALESCE(cv.commerce_channel,'normal')='normal'
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-        AND (
-          NOT EXISTS (SELECT 1 FROM vendor_offers any_vo WHERE any_vo.canonical_variant_id=cv.id)
-          OR EXISTS (
-            SELECT 1 FROM vendor_offers public_vo
-            WHERE public_vo.canonical_variant_id=cv.id
-              AND public_vo.status NOT IN ('archived','suppressed')
-              AND public_vo.merchant_visible=true
-              AND public_vo.merchant_pause_active=false
-              AND bls_private.vendor_category_effectively_visible(public_vo.vendor_id,cv.category_id)
-          )
-        )
+        AND (ov.canonical_variant_id IS NULL OR ov.has_public_offer)
       ORDER BY cv.created_at DESC,cv.public_id
     `, [marketId]), { readOnly: true });
     return result.rows.map((row) => this.#canonicalRecord(row));
