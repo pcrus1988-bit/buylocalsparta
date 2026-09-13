@@ -90,6 +90,46 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           <span className="header-action-text">Καλάθι</span> <span aria-hidden="true">{count}</span>
         </Link>
       </div>
+
+      <style>{`
+        @media (max-width: 1320px) and (min-width: 1081px) {
+          .site-header {
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 70px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+          }
+          .site-header > .brand { flex: 0 0 auto; }
+          .site-header > .public-menu-toggle {
+            display: inline-flex;
+            margin-left: auto;
+            min-width: 44px;
+            min-height: 44px;
+          }
+          .site-header > .nav {
+            display: none;
+            order: 10;
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 2px;
+            padding: 8px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--white);
+          }
+          .site-header.is-menu-open > .nav { display: flex; }
+          .site-header > .nav a {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 44px;
+            padding: 0 14px;
+            border-radius: 9px;
+          }
+        }
+      `}</style>
     </header>
   );
 }
