@@ -9,6 +9,7 @@ import { publicPriceBadgeLabel, publicSavingsLabel } from "../lib/public-price-p
 import { BrandMarketplaceLink } from "./BrandMarketplaceLink";
 import { LocalCommerceProof } from "./LocalCommerceProof";
 import { CatalogProductCardClient, type CatalogProductCardClientProduct } from "./CatalogProductCardClient";
+import styles from "./CatalogProductCard.module.css";
 
 type CatalogProductCardSource = CatalogCard & Readonly<{
   previewImageSrc?: string;
@@ -188,7 +189,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
-        <div className="catalog-card-title-stack">
+        <div className={`catalog-card-title-stack ${styles.titleStack}`}>
           {product.brand ? <BrandMarketplaceLink
             brand={product.brand}
             logoObjectKey={product.brandLogoObjectKey}
@@ -199,7 +200,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           /> : null}
           <h3><Link href={productHref}>{displayTitle}</Link></h3>
         </div>
-        <div className="product-bottom">
+        <div className={`product-bottom ${styles.productBottom}`}>
           <StaticPublicCatalogPrice
             msrpMinor={projectedMsrpMinor}
             retailPriceMinor={product.priceMinor}
@@ -211,27 +212,6 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {!supplierFulfilled && vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
         {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
-      <style jsx>{`
-        .catalog-card-title-stack {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 7px;
-          min-width: 0;
-          margin-top: 11px;
-        }
-        .catalog-card-title-stack h3 {
-          width: 100%;
-          min-width: 0;
-          margin: 0;
-        }
-        .product-bottom {
-          justify-content: flex-start;
-        }
-        @media (max-width: 620px) {
-          .catalog-card-title-stack { gap: 6px; }
-        }
-      `}</style>
     </article>
   );
 }
