@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
-import { getCatalogCards, type CatalogCard } from "../../lib/catalog-view";
-import { getPublishedDropshipCatalogCards } from "../../lib/published-dropship-storefront";
-import { getAvailableCatalogTaxonomy } from "../../lib/available-catalog-taxonomy";
+import type { CatalogCard } from "../../lib/catalog-view";
+import { getShopCatalogPage } from "../../lib/shop-catalog-page";
+import { getPublishedDropshipCatalogPage } from "../../lib/published-dropship-catalog-page";
+import { getCachedShopTaxonomy } from "../../lib/cached-shop-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
 import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-analytics";
@@ -21,20 +23,42 @@ import { catalogAttributeDefinitionsForLeaf } from "../../lib/catalog-attribute-
 import { filterCatalogCardsByAttributes, type CatalogAttributeFilters } from "../../lib/catalog-attribute-filter";
 import { extractStorefrontAttributeQuery, resolveStorefrontAttributeIntents } from "../../lib/storefront-attribute-query";
 import { formatStorefrontAttributeAdvisory } from "../../lib/storefront-attribute-label";
-
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 
+const SHOP_PAGE_SIZE = 30;
+
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
-type ShopCard = CatalogCard & Readonly<{ previewImageSrc?: string; localProof?: LocalCommerceProof }>;
+type ShopCard = CatalogCard & Readonly<{
+  previewImageSrc?: string;
+  localProof?: LocalCommerceProof;
+  supplierFulfilled?: boolean;
+}>;
 
 function valueOf(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+function positivePage(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function purchasablePublicProduct(product: ShopCard): boolean {
   return product.available && product.availableToSell > 0 && product.priceMinor > 0 && Boolean(product.vendorId);
+}
+
+function shopPageHref(params: Record<string, string | string[] | undefined>, page: number): string {
+  const next = new URLSearchParams();
+  for (const [key, rawValue] of Object.entries(params)) {
+    if (key === "page" || rawValue === undefined) continue;
+    const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+    for (const value of values) if (value.trim()) next.append(key, value);
+  }
+  if (page > 1) next.set("page", String(page));
+  const query = next.toString();
+  return query ? `/shop?${query}` : "/shop";
 }
 
 export async function generateMetadata({ searchParams }: ShopProps): Promise<Metadata> {
@@ -55,6 +79,8 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
 
 export default async function ShopPage({ searchParams }: ShopProps) {
   const params = await searchParams;
+  const page = positivePage(valueOf(params.page));
+  const pageOffset = (page - 1) * SHOP_PAGE_SIZE;
   const query = valueOf(params.q).trim();
   const searchIntent = interpretSearchQuery(query);
   const taxonomySeedQuery = searchIntent.text || (searchIntent.applied.length ? "" : query);
@@ -84,14 +110,18 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let resolvedNaturalAttributeFilters: CatalogAttributeFilters = {};
   let subcategory = requestedSubcategory;
   let filters = { subcategory, brand, color, size };
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  let taxonomy = await getAvailableCatalogTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+
+  // Audience detection and the non-personal catalogue vocabulary are independent.
+  // Start both immediately; taxonomy is cached for three minutes by its wrapper.
+  const audiencePromise = isReadOnlyPublicCrawlerRequest();
+  let taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+  const readOnlyCrawler = await audiencePromise;
+
   const inferredSubcategory = requestedSubcategory ? undefined : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
   if (inferredSubcategory) {
     subcategory = inferredSubcategory.value;
     filters = { subcategory, brand, color, size };
-    taxonomy = await getAvailableCatalogTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+    taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
   resolvedNaturalAttributeFilters = resolveStorefrontAttributeIntents(
     naturalAttributeQuery.intents,
@@ -100,26 +130,89 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   );
   if (Object.keys(resolvedNaturalAttributeFilters).length > 0) {
     attributeFilters = { ...resolvedNaturalAttributeFilters, ...explicitAttributeFilters };
-    taxonomy = await getAvailableCatalogTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
+    taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
+
   const facets = taxonomy.facets;
   const attributeFacets = taxonomy.attributeFacets;
   const availableCategories = taxonomy.categories;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
-  let products: ShopCard[] = readOnlyCrawler
-    ? [...await getCrawlerCatalogCards("23100", catalogQuery, category, { ...filters, fit })]
-    : [...await getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)];
-  const publishedDropshipProducts = await getPublishedDropshipCatalogCards(catalogQuery, category, filters, attributeFilters);
-  if (publishedDropshipProducts.length > 0) {
-    const byCanonical = new Map(products.map((product) => [product.id, product] as const));
-    for (const dropshipProduct of publishedDropshipProducts) {
-      const existing = byCanonical.get(dropshipProduct.id);
-      if (!existing || !purchasablePublicProduct(existing)) byCanonical.set(dropshipProduct.id, dropshipProduct);
+  const allowDropship = searchIntent.availability !== "pickup_today";
+  let products: ShopCard[] = [];
+  let hasNextPage = false;
+  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
+
+  if (readOnlyCrawler) {
+    let crawlerProducts = [...await getCrawlerCatalogCards(
+      "23100",
+      catalogQuery,
+      category,
+      { ...filters, fit },
+      SHOP_PAGE_SIZE
+    )];
+    crawlerProducts = [...await filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)];
+    products = crawlerProducts;
+
+    if (allowDropship && page === 1 && products.length < SHOP_PAGE_SIZE) {
+      const remaining = SHOP_PAGE_SIZE - products.length;
+      const dropshipPage = await getPublishedDropshipCatalogPage({
+        query: catalogQuery,
+        category,
+        filters: { ...filters, fit },
+        attributeFilters,
+        minPriceMinor: searchIntent.minPriceMinor,
+        maxPriceMinor: searchIntent.maxPriceMinor,
+        sort,
+        limit: remaining,
+        offset: 0
+      });
+      const seen = new Set(products.map((product) => product.id));
+      products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
     }
-    products = [...byCanonical.values()];
+  } else {
+    const localPage = await getShopCatalogPage({
+      visitorKey,
+      postcode: "23100",
+      query: catalogQuery,
+      category,
+      filters: { ...filters, fit },
+      attributeFilters,
+      minPriceMinor: searchIntent.minPriceMinor,
+      maxPriceMinor: searchIntent.maxPriceMinor,
+      sort,
+      limit: SHOP_PAGE_SIZE,
+      offset: pageOffset
+    });
+
+    products = [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")];
+    const expectedLocalCount = Math.max(0, Math.min(SHOP_PAGE_SIZE, localPage.total - pageOffset));
+    const atFinalLocalWindow = pageOffset + SHOP_PAGE_SIZE >= localPage.total;
+
+    if (allowDropship && atFinalLocalWindow) {
+      const dropshipOffset = Math.max(0, pageOffset - localPage.total);
+      const dropshipSlots = Math.max(0, SHOP_PAGE_SIZE - expectedLocalCount);
+      const dropshipPage = await getPublishedDropshipCatalogPage({
+        query: catalogQuery,
+        category,
+        filters: { ...filters, fit },
+        attributeFilters,
+        minPriceMinor: searchIntent.minPriceMinor,
+        maxPriceMinor: searchIntent.maxPriceMinor,
+        sort,
+        limit: Math.max(1, dropshipSlots),
+        offset: dropshipOffset
+      });
+
+      if (dropshipSlots > 0) {
+        const seen = new Set(products.map((product) => product.id));
+        products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, dropshipSlots));
+      }
+      hasNextPage = dropshipPage.total > dropshipOffset + dropshipSlots;
+    } else {
+      hasNextPage = localPage.hasMore || pageOffset + SHOP_PAGE_SIZE < localPage.total;
+    }
   }
-  products = [...await filterCatalogCardsByAttributes(products, attributeFilters)];
-  if (!readOnlyCrawler) products = [...await enrichCatalogCardsWithLocalProof(products, visitorKey, "23100")];
+
   products = products.filter(purchasablePublicProduct);
   if (availability === "available") products = products.filter((product) => product.available);
   const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
@@ -129,25 +222,41 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   if (searchIntent.maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= searchIntent.maxPriceMinor!);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
-  if (!readOnlyCrawler) await recordStorefrontSearchAnalytics({
-    visitorKey,
-    query,
-    resultCount: products.length,
-    categoryCode: subcategory || category || undefined,
-    filters: {
-      subcategory: subcategory || undefined,
-      brand: brand || undefined,
-      color: color || undefined,
-      size: size || undefined,
-      fit: fit || undefined,
-      availability: availability || searchIntent.availability || undefined,
-      sort: sort || undefined,
-      interpretedMaxPriceMinor: searchIntent.maxPriceMinor,
-      interpretedMinPriceMinor: searchIntent.minPriceMinor,
-      interpretedAttributeCount: naturalAttributeQuery.intents.length || undefined,
-      ...Object.fromEntries(Object.entries(attributeFilters).map(([key, value]) => [`attr_${key}`, value]))
-    }
-  });
+
+  if (!readOnlyCrawler) {
+    const analyticsPayload = {
+      visitorKey,
+      query,
+      resultCount: products.length,
+      categoryCode: subcategory || category || undefined,
+      filters: {
+        subcategory: subcategory || undefined,
+        brand: brand || undefined,
+        color: color || undefined,
+        size: size || undefined,
+        fit: fit || undefined,
+        availability: availability || searchIntent.availability || undefined,
+        sort: sort || undefined,
+        interpretedMaxPriceMinor: searchIntent.maxPriceMinor,
+        interpretedMinPriceMinor: searchIntent.minPriceMinor,
+        interpretedAttributeCount: naturalAttributeQuery.intents.length || undefined,
+        page,
+        ...Object.fromEntries(Object.entries(attributeFilters).map(([key, value]) => [`attr_${key}`, value]))
+      }
+    };
+    after(async () => {
+      try {
+        await recordStorefrontSearchAnalytics(analyticsPayload);
+      } catch (error) {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "storefront.search_analytics_deferred_failed",
+          message: error instanceof Error ? error.message : String(error)
+        }));
+      }
+    });
+  }
+
   const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit || Object.keys(attributeFilters).length);
   const activeSubcategoryLabel = facets.subcategories.find((item) => item.value === subcategory)?.label ?? inferredSubcategory?.label;
   const selectedAttributeLabels = attributeDefinitions.flatMap((definition) => {
@@ -268,7 +377,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         </aside>
 
         <div className="catalog-results">
-          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {activeSubcategoryLabel}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
+          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {activeSubcategoryLabel}</span>}{page > 1 && <span> · Σελίδα {page}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
           {interpretedLabels.length > 0 ? <div className="category-chip-row" aria-label="Κατανόηση αναζήτησης">{interpretedLabels.map((label) => <span className="category-chip active" key={label}>{label}</span>)}</div> : null}
           {activeLeaf?.attributeHints.length ? <div className="fairness-note"><strong>Χρήσιμα χαρακτηριστικά για {activeLeaf.label.toLocaleLowerCase("el")}</strong><p>{activeLeaf.attributeHints.join(" · ")}</p></div> : null}
           {products.length === 0 ? (
@@ -278,6 +387,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               {products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
             </div>
           )}
+          {(page > 1 || hasNextPage) ? <nav aria-label="Σελιδοποίηση προϊόντων" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18, margin: "32px 0 8px" }}>
+            {page > 1 ? <a className="button" href={shopPageHref(params, page - 1)}>← Προηγούμενα</a> : null}
+            <span aria-current="page">Σελίδα {page}</span>
+            {hasNextPage ? <a className="button" href={shopPageHref(params, page + 1)}>Επόμενα →</a> : null}
+          </nav> : null}
         </div>
       </section>
       <SiteFooter />

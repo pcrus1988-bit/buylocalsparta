@@ -28,6 +28,7 @@ export async function GET() {
       LEFT JOIN product_families pf ON pf.id = cv.family_id
       JOIN brands b ON b.id = COALESCE(cv.brand_id, pf.brand_id)
       WHERE cv.active = true
+        AND COALESCE(cv.commerce_channel, 'normal') = 'normal'
         AND cv.suppressed = false
         AND cv.recalled = false
         AND b.logo_object_key IS NOT NULL
