@@ -144,15 +144,15 @@ export async function vendorDropshippingWorkspace(
            ds.catalogue_sync_enabled, ds.order_forwarding_enabled, ds.tracking_sync_enabled,
            ds.last_healthcheck_at, ds.last_healthcheck_ok,
            ds.configuration->'vendorMerchandising' vendor_merchandising,
-           count(dso.id)::bigint total_products,
-           count(dso.id) FILTER (WHERE dso.active AND vo.merchant_visible AND vo.status='approved')::bigint published_products,
-           count(dso.id) FILTER (WHERE dso.active AND dso.cached_available)::bigint available_products,
-           count(dso.id) FILTER (WHERE dso.active AND NOT dso.cached_available)::bigint out_of_stock_products,
-           count(dso.id) FILTER (WHERE dso.supplier_cost_minor IS NOT NULL)::bigint products_with_cost,
-           max(dso.last_catalogue_sync_at) last_catalogue_sync_at
+           count(vo.id)::bigint total_products,
+           count(vo.id) FILTER (WHERE dso.active AND vo.merchant_visible AND vo.status='approved')::bigint published_products,
+           count(vo.id) FILTER (WHERE dso.active AND dso.cached_available)::bigint available_products,
+           count(vo.id) FILTER (WHERE dso.active AND NOT dso.cached_available)::bigint out_of_stock_products,
+           count(vo.id) FILTER (WHERE dso.supplier_cost_minor IS NOT NULL)::bigint products_with_cost,
+           max(dso.last_catalogue_sync_at) FILTER (WHERE vo.id IS NOT NULL) last_catalogue_sync_at
       FROM dropship_suppliers ds
       LEFT JOIN dropship_supplier_offers dso ON dso.supplier_id=ds.id
-      LEFT JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      LEFT JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id AND vo.vendor_id=ds.owner_vendor_id
      WHERE ds.owner_vendor_id=$1::uuid
      GROUP BY ds.id
      ORDER BY ds.display_name, ds.code
@@ -205,6 +205,7 @@ export async function vendorDropshippingWorkspace(
       LEFT JOIN vendor_offer_pricing_private pp ON pp.offer_id=vo.id
      WHERE ds.id=$1::uuid
        AND ds.owner_vendor_id=$2::uuid
+       AND vo.vendor_id=$2::uuid
        AND (
          $3::text=''
          OR coalesce(pt_el.title,pt_en.title,cv.model,cv.slug,cv.public_id) ILIKE '%' || $3 || '%'
