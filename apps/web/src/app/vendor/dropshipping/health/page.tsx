@@ -22,6 +22,14 @@ const age = (minutes: number | null) => {
   return `${Math.floor(hours / 24)} ημέρες`;
 };
 
+function supplierWorkspaceUrl(supplierCode: string, filters: Record<string, string> = {}): string {
+  const params = new URLSearchParams({ supplier: supplierCode });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value);
+  }
+  return `/vendor/dropshipping?${params.toString()}`;
+}
+
 export default async function DropshippingFeedHealthPage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
@@ -65,6 +73,7 @@ export default async function DropshippingFeedHealthPage() {
         { label: "Published αλλά unavailable", value: publishedUnavailableProducts, tone: publishedUnavailableProducts ? "attention" : "positive" },
         { label: "Χωρίς supplier cost", value: productsMissingCost, tone: productsMissingCost ? "attention" : "positive" }
       ]} />
+      <p style={{ marginTop: 12 }}><small>Όπου υπάρχει ακριβής αντιστοίχιση με τα υπάρχοντα φίλτρα καταλόγου, το πρόβλημα ανοίγει κατευθείαν στο αντίστοιχο product subset. Τα stale/telemetry-only diagnostics παραμένουν supplier-level μέχρι να προστεθεί ασφαλές timestamp filter στο κοινό query engine.</small></p>
     </section>
 
     <section className="shell vendor-section">
@@ -76,12 +85,18 @@ export default async function DropshippingFeedHealthPage() {
           const publishedUnavailable = supplier.publishedUnavailableProducts ?? 0;
           const missingCost = Math.max(0, supplier.totalProducts - supplier.productsWithCost);
           const hasCatalogueIssues = staleRows > 0 || missingAvailability > 0 || publishedUnavailable > 0 || missingCost > 0;
+          const supplierHref = supplierWorkspaceUrl(supplier.code);
+          const publishedUnavailableHref = supplierWorkspaceUrl(supplier.code, { publication: "published", availability: "out_of_stock" });
+          const missingCostHref = supplierWorkspaceUrl(supplier.code, { cost: "missing_cost" });
           return <article className="workspace-queue-card" key={supplier.id}>
             <div className="workspace-queue-head">
               <div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div>
               <span className="vendor-merchant-status">{health.label}</span>
             </div>
             <p style={{ marginTop: 10 }}>{health.detail}</p>
+            {!supplier.active ? <div className="workspace-compact-list" style={{ marginTop: 12 }}>
+              <div className="workspace-compact-row"><strong>Sync blocker</strong><span>Supplier inactive</span><small>Το supplier feed δεν πρέπει να συγχρονίζεται όσο ο supplier παραμένει ανενεργός.</small></div>
+            </div> : null}
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               <div className="workspace-compact-row"><strong>Supplier</strong><span>{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
               <div className="workspace-compact-row"><strong>Catalogue sync</strong><span>{supplier.catalogueSyncEnabled ? "Enabled" : "Disabled"}</span></div>
@@ -93,13 +108,13 @@ export default async function DropshippingFeedHealthPage() {
               <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
             </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span></div>
-              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span></div>
-              <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{publishedUnavailable}</span></div>
-              <div className="workspace-compact-row"><strong>Χωρίς supplier cost</strong><span>{missingCost}</span></div>
+              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span>{staleRows > 0 ? <Link href={supplierHref}>Άνοιγμα supplier</Link> : null}</div>
+              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span>{missingAvailability > 0 ? <Link href={supplierHref}>Άνοιγμα supplier</Link> : null}</div>
+              <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{publishedUnavailable}</span>{publishedUnavailable > 0 ? <Link href={publishedUnavailableHref}>Προβολή προϊόντων</Link> : null}</div>
+              <div className="workspace-compact-row"><strong>Χωρίς supplier cost</strong><span>{missingCost}</span>{missingCost > 0 ? <Link href={missingCostHref}>Προβολή προϊόντων</Link> : null}</div>
             </div>
             <p style={{ marginTop: 10 }}><small>{hasCatalogueIssues ? "Υπάρχουν catalogue εγγραφές που χρειάζονται έλεγχο ή επόμενο supplier sync." : "Δεν εντοπίστηκαν catalogue-level προβλήματα σε αυτόν τον supplier."}</small></p>
-            <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier workspace</Link>
+            <Link className="button button-secondary" style={{ marginTop: 12 }} href={supplierHref}>Άνοιγμα supplier workspace</Link>
           </article>;
         })}
         {!suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει supplier mapping.</strong><p>Το account είναι Dropshipping-only, αλλά δεν βρέθηκε supplier για παρακολούθηση.</p></article> : null}
