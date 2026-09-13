@@ -5,6 +5,7 @@ import {
   type VendorOperatingAssignment,
   type VendorOperatingContext
 } from "@buy-local-sparta/core";
+import { resolveVendorOperatingAssignment } from "./vendor-operating-assignment";
 import { assertVendorCsrf, vendorSessionFromToken, VENDOR_SESSION_COOKIE } from "./vendor-runtime";
 
 export async function getVendorSession(): Promise<SessionPrincipal | undefined> {
@@ -16,10 +17,12 @@ export async function getVendorSession(): Promise<SessionPrincipal | undefined> 
 }
 
 export async function getVendorOperatingContext(
-  assignment: VendorOperatingAssignment = {}
+  assignment?: VendorOperatingAssignment
 ): Promise<VendorOperatingContext | undefined> {
   const principal = await getVendorSession();
-  return principal ? buildVendorOperatingContextFromSession(principal, assignment) : undefined;
+  if (!principal) return undefined;
+  const resolvedAssignment = assignment ?? await resolveVendorOperatingAssignment(principal);
+  return buildVendorOperatingContextFromSession(principal, resolvedAssignment);
 }
 
 export async function requireVendorSession(request?: Request, csrf = false): Promise<SessionPrincipal> {
@@ -30,10 +33,11 @@ export async function requireVendorSession(request?: Request, csrf = false): Pro
 }
 
 export async function requireVendorOperatingContext(
-  assignment: VendorOperatingAssignment = {},
+  assignment?: VendorOperatingAssignment,
   request?: Request,
   csrf = false
 ): Promise<VendorOperatingContext> {
   const principal = await requireVendorSession(request, csrf);
-  return buildVendorOperatingContextFromSession(principal, assignment);
+  const resolvedAssignment = assignment ?? await resolveVendorOperatingAssignment(principal);
+  return buildVendorOperatingContextFromSession(principal, resolvedAssignment);
 }
