@@ -1,3 +1,4 @@
+import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import { applyDropshippingSupplierDefaultsSequential } from "../../../../../lib/vendor-dropshipping-bulk-apply";
 import { saveDropshippingSupplierDefaults } from "../../../../../lib/vendor-dropshipping-service";
@@ -12,6 +13,7 @@ export async function PUT(request: Request) {
   try {
     const principal = await requireVendorSession(request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+    await assertDropshippingOnlyVendor(principal.vendorId);
     const body = await request.json() as Record<string, unknown>;
     const supplierCode = typeof body.supplierCode === "string" ? body.supplierCode.trim() : "";
     if (!supplierCode) throw new Error("Απαιτείται supplier.");
@@ -32,6 +34,7 @@ export async function POST(request: Request) {
   try {
     const principal = await requireVendorSession(request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+    await assertDropshippingOnlyVendor(principal.vendorId);
     const body = await request.json() as Record<string, unknown>;
     const supplierCode = typeof body.supplierCode === "string" ? body.supplierCode.trim() : "";
     if (!supplierCode) throw new Error("Απαιτείται supplier.");
