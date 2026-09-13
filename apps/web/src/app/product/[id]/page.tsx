@@ -14,6 +14,7 @@ import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
 import { PublicPriceComparison } from "../../../components/PublicPriceComparison";
+import { ProductBrandTitle } from "../../../components/ProductBrandTitle";
 import { storefrontCategoryForCode } from "../../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -31,7 +32,6 @@ import { approvedCatalogImageGallery } from "../../../lib/public-product-media-g
 import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "../../../lib/product-presentation-guards";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 import { getPublicDropshipPresentation } from "../../../lib/public-dropship-presentation";
-import { publicBrandLogoUrl } from "../../../lib/brand-logo";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -302,7 +302,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
       });
   const packagingAttributes = storefrontTechnicalAttributes.filter(isPackagingAttribute);
   const displayBrand = product.brand ?? detail?.brand;
-  const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
   const displayModel = publicFields?.model === false ? undefined : detail?.model;
   const displayMpn = publicFields?.mpn === false ? undefined : product.mpn;
   const displayGtin = publicFields?.gtin === false ? undefined : product.gtin ?? detail?.sourceGtin;
@@ -459,11 +458,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
         <div className="product-detail-copy">
           <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a>{product.categoryLabel ? <> · <a href={`/shop?category=${category.slug}&subcategory=${encodeURIComponent(product.categoryCode)}`}>{product.categoryLabel}</a></> : null}{isDropship ? " · Αποστολή πανελλαδικά" : " · Sparta 23100"}</div>
-          {displayBrand ? <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 30, marginTop: 8, marginBottom: 10, fontWeight: 900 }}>
-            {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="eager" decoding="async" style={{ display: "block", maxHeight: 28, maxWidth: 130, width: "auto", height: "auto", objectFit: "contain" }} /> : null}
-            <span>{displayBrand}</span>
-          </div> : null}
-          <h1>{displayTitle}</h1>
+          <ProductBrandTitle title={displayTitle} brand={displayBrand} logoObjectKey={product.brandLogoObjectKey} />
 
           <ProductVariantSelector currentVariantId={product.id} title={variantSelectorTitle} options={variantOptions} varyingKeys={varyingVariantKeys} />
 
