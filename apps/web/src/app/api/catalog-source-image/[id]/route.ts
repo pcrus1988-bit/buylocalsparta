@@ -1,5 +1,4 @@
 import { getPublicCatalogSourceImageAtIndex } from "../../../../lib/public-catalog-source-gallery";
-import { getPublicProductDetail } from "../../../../lib/public-product-detail";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -17,16 +16,10 @@ export async function GET(request: Request, context: Context) {
   try {
     const url = new URL(request.url);
     const requestedIndex = url.searchParams.get("index");
-    let sourceImageUrl: string | undefined;
+    const index = requestedIndex === null ? 0 : Number(requestedIndex);
+    if (!Number.isSafeInteger(index) || index < 0 || index > 11) return emptyImage();
 
-    if (requestedIndex !== null) {
-      const index = Number(requestedIndex);
-      if (!Number.isSafeInteger(index) || index < 0 || index > 11) return emptyImage();
-      sourceImageUrl = (await getPublicCatalogSourceImageAtIndex(canonicalVariantId, index))?.src;
-    } else {
-      sourceImageUrl = (await getPublicProductDetail(canonicalVariantId))?.sourceImageUrl;
-    }
-
+    const sourceImageUrl = (await getPublicCatalogSourceImageAtIndex(canonicalVariantId, index))?.src;
     if (!sourceImageUrl) return emptyImage();
 
     return new Response(null, {
