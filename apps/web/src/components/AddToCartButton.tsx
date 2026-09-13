@@ -21,7 +21,7 @@ type AddToCartProduct = Readonly<{
 }>;
 
 export function AddToCartButton({ product }: { product: AddToCartProduct }) {
-  const { addItem } = useCart();
+  const { addItem, openCart } = useCart();
   const { registerProduct } = useCustomerMobileCommerce();
   const [added, setAdded] = useState(false);
 
@@ -58,6 +58,7 @@ export function AddToCartButton({ product }: { product: AddToCartProduct }) {
         surface: "product_page_desktop"
       });
       setAdded(true);
+      openCart();
     }}>{!product.available ? "Μη διαθέσιμο" : added ? "Προστέθηκε ✓" : "Προσθήκη στο καλάθι"}</button>
     <span className={`cart-add-toast${added ? " is-visible" : ""}`} role="status" aria-live="polite" aria-atomic="true">
       {added ? "Προστέθηκε στο καλάθι σου." : ""}
