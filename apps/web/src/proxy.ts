@@ -23,6 +23,14 @@ const REDIRECT_PROTECTED_ROOTS = [
   "/vendor/storefront", "/vendor/trust"
 ] as const;
 
+// Core commerce routes are canonical application routes, not CMS vanity paths.
+// Keeping them out of the redirect resolver avoids a database/cache lookup in
+// middleware before every catalogue/product/vendor render. That lookup becomes
+// especially expensive when the database pool is busy with catalogue work.
+const CMS_REDIRECT_BYPASS_ROOTS = [
+  "/shop", "/shops", "/category", "/product", "/vendor", "/bazaar", "/ask-local", "/advice"
+] as const;
+
 function validVisitor(value: string | undefined): string | undefined {
   return value && SAFE_VISITOR_KEY.test(value) ? value : undefined;
 }
@@ -75,6 +83,7 @@ function allowsContentRedirect(request: NextRequest): boolean {
   if (request.method !== "GET" && request.method !== "HEAD") return false;
   const pathname = request.nextUrl.pathname;
   if (pathname === "/") return false;
+  if (CMS_REDIRECT_BYPASS_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`))) return false;
   return !REDIRECT_PROTECTED_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
