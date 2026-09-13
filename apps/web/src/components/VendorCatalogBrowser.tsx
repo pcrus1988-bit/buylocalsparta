@@ -6,7 +6,25 @@ import { CatalogProductCard } from "./CatalogProductCard";
 import styles from "./VendorStorefront.module.css";
 
 type AvailabilityFilter = "all" | "available";
+type RemoteFacetOption = Readonly<{ value: string; label: string; count: number }>;
+type RemoteFacets = Readonly<{
+  total: number;
+  categories: readonly RemoteFacetOption[];
+  brands: readonly RemoteFacetOption[];
+  colors: readonly RemoteFacetOption[];
+  sizes: readonly RemoteFacetOption[];
+}>;
+type VendorCatalogApiResponse = Readonly<{
+  products: readonly CatalogCard[];
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  facets: RemoteFacets | null;
+}>;
+
 const SHOWCASE_LIMIT = 10;
+const REMOTE_PAGE_SIZE = 36;
 
 function normalized(value: string | undefined): string {
   return (value ?? "")
@@ -36,6 +54,60 @@ function showcase(products: readonly CatalogCard[], seed: string): readonly Cata
     .slice(0, SHOWCASE_LIMIT);
 }
 
+function isSupplierFulfilled(product: CatalogCard): boolean {
+  return (product as CatalogCard & Readonly<{ supplierFulfilled?: boolean }>).supplierFulfilled === true;
+}
+
+function dedupeProducts(products: readonly CatalogCard[]): readonly CatalogCard[] {
+  const byId = new Map<string, CatalogCard>();
+  for (const product of products) byId.set(product.id, product);
+  return [...byId.values()];
+}
+
+function fallbackCategoryOptions(products: readonly CatalogCard[]): readonly RemoteFacetOption[] {
+  const map = new Map<string, { label: string; count: number }>();
+  for (const product of products) {
+    const existing = map.get(product.categoryCode);
+    map.set(product.categoryCode, {
+      label: product.categoryLabel ?? product.categoryCode,
+      count: (existing?.count ?? 0) + 1
+    });
+  }
+  return [...map.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((left, right) => left.label.localeCompare(right.label, "el"));
+}
+
+function localMatches(
+  product: CatalogCard,
+  input: Readonly<{
+    query: string;
+    category: string;
+    brand: string;
+    color: string;
+    size: string;
+    availability: AvailabilityFilter;
+  }>
+): boolean {
+  if (input.category !== "all" && product.categoryCode !== input.category) return false;
+  if (input.brand !== "all" && product.brand !== input.brand) return false;
+  if (input.color !== "all" && product.color !== input.color) return false;
+  if (input.size !== "all" && !product.sizes.includes(input.size)) return false;
+  if (input.availability === "available" && !product.available) return false;
+  const needle = normalized(input.query);
+  if (!needle) return true;
+  return normalized([
+    product.title,
+    product.description,
+    product.categoryLabel,
+    product.brand,
+    product.color,
+    product.mpn,
+    product.gtin,
+    ...product.sizes
+  ].filter(Boolean).join(" ")).includes(needle);
+}
+
 export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
@@ -48,7 +120,33 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   const [size, setSize] = useState("all");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [browseExpanded, setBrowseExpanded] = useState(false);
+  const [publicVendorId, setPublicVendorId] = useState<string>();
+  const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>(null);
+  const [remoteTotal, setRemoteTotal] = useState<number>();
+  const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
+  const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteError, setRemoteError] = useState(false);
   const demoMode = Boolean(demoVendorId);
+
+  const initialLocalProducts = useMemo(
+    () => products.filter((product) => !isSupplierFulfilled(product)),
+    [products]
+  );
+
+  useEffect(() => {
+    if (demoMode) return;
+    const match = window.location.pathname.match(/^\/vendor\/([^/?#]+)/);
+    const raw = match?.[1];
+    if (!raw) return;
+    try {
+      const decoded = decodeURIComponent(raw);
+      if (/^[A-Za-z0-9_-]{3,128}$/.test(decoded)) setPublicVendorId(decoded);
+    } catch {
+      // Keep the SSR catalogue if the route segment is malformed.
+    }
+  }, [demoMode]);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -64,56 +162,104 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     };
   }, [filtersOpen]);
 
-  const categories = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const product of products) map.set(product.categoryCode, product.categoryLabel ?? product.categoryCode);
-    return [...map.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((left, right) => left.label.localeCompare(right.label, "el"));
-  }, [products]);
+  useEffect(() => {
+    if (!publicVendorId || demoMode) return;
+    const controller = new AbortController();
+    const delay = query.trim() ? 260 : 0;
+    const timer = window.setTimeout(async () => {
+      setRemoteLoading(true);
+      setRemoteError(false);
+      const params = new URLSearchParams({ offset: "0", limit: String(REMOTE_PAGE_SIZE) });
+      if (query.trim()) params.set("q", query.trim());
+      if (category !== "all") params.set("category", category);
+      if (brand !== "all") params.set("brand", brand);
+      if (color !== "all") params.set("color", color);
+      if (size !== "all") params.set("size", size);
+      if (availability === "available") params.set("available", "1");
+      if (!remoteFacets) params.set("facets", "1");
 
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const product of products) counts.set(product.categoryCode, (counts.get(product.categoryCode) ?? 0) + 1);
-    return counts;
-  }, [products]);
+      try {
+        const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store"
+        });
+        if (!response.ok) throw new Error(`Catalogue request failed with ${response.status}`);
+        const payload = await response.json() as VendorCatalogApiResponse;
+        setRemoteProducts(payload.products);
+        setRemoteTotal(payload.total);
+        setRemoteNextOffset(payload.nextOffset);
+        if (payload.facets) setRemoteFacets(payload.facets);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("Vendor catalogue pagination failed", error);
+        setRemoteError(true);
+      } finally {
+        if (!controller.signal.aborted) setRemoteLoading(false);
+      }
+    }, delay);
 
-  const categoryProducts = useMemo(
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+    // Facets are intentionally not a dependency: once loaded they remain the stable
+    // five-minute catalogue vocabulary while product pages react to every filter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availability, brand, category, color, demoMode, publicVendorId, query, size]);
+
+  const localFiltered = useMemo(
+    () => initialLocalProducts.filter((product) => localMatches(product, { query, category, brand, color, size, availability })),
+    [availability, brand, category, color, initialLocalProducts, query, size]
+  );
+
+  const fallbackFiltered = useMemo(
+    () => products.filter((product) => localMatches(product, { query, category, brand, color, size, availability })),
+    [availability, brand, category, color, products, query, size]
+  );
+
+  const workingProducts = useMemo(
+    () => remoteProducts === null ? fallbackFiltered : dedupeProducts([...localFiltered, ...remoteProducts]),
+    [fallbackFiltered, localFiltered, remoteProducts]
+  );
+
+  const categories = useMemo(
+    () => remoteFacets?.categories ?? fallbackCategoryOptions(products),
+    [products, remoteFacets]
+  );
+  const fallbackCategoryProducts = useMemo(
     () => category === "all" ? products : products.filter((product) => product.categoryCode === category),
     [category, products]
   );
-  const brands = useMemo(() => unique(categoryProducts.map((product) => product.brand)), [categoryProducts]);
-  const colors = useMemo(() => unique(categoryProducts.map((product) => product.color)), [categoryProducts]);
-  const sizes = useMemo(() => unique(categoryProducts.flatMap((product) => product.sizes)), [categoryProducts]);
-
-  const filtered = useMemo(() => {
-    const needle = normalized(query);
-    return categoryProducts.filter((product) => {
-      if (brand !== "all" && product.brand !== brand) return false;
-      if (color !== "all" && product.color !== color) return false;
-      if (size !== "all" && !product.sizes.includes(size)) return false;
-      if (availability === "available" && !product.available) return false;
-      if (!needle) return true;
-      return normalized([
-        product.title,
-        product.description,
-        product.categoryLabel,
-        product.brand,
-        product.color,
-        product.mpn,
-        product.gtin,
-        ...product.sizes
-      ].filter(Boolean).join(" ")).includes(needle);
-    });
-  }, [availability, brand, categoryProducts, color, query, size]);
+  const brands = useMemo(
+    () => remoteFacets?.brands.map((entry) => entry.value) ?? unique(fallbackCategoryProducts.map((product) => product.brand)),
+    [fallbackCategoryProducts, remoteFacets]
+  );
+  const colors = useMemo(
+    () => remoteFacets?.colors.map((entry) => entry.value) ?? unique(fallbackCategoryProducts.map((product) => product.color)),
+    [fallbackCategoryProducts, remoteFacets]
+  );
+  const sizes = useMemo(
+    () => remoteFacets?.sizes.map((entry) => entry.value) ?? unique(fallbackCategoryProducts.flatMap((product) => product.sizes)),
+    [fallbackCategoryProducts, remoteFacets]
+  );
 
   const filtersActive = category !== "all" || brand !== "all" || color !== "all" || size !== "all" || availability !== "all";
   const activeFilterCount = [category !== "all", brand !== "all", color !== "all", size !== "all", availability !== "all"].filter(Boolean).length;
   const discoveryActive = Boolean(query.trim()) || filtersActive;
   const visibleProducts = useMemo(
-    () => discoveryActive ? filtered : showcase(filtered, `${vendor.name}:${category}`),
-    [category, discoveryActive, filtered, vendor.name]
+    () => discoveryActive || browseExpanded ? workingProducts : showcase(workingProducts, `${vendor.name}:${category}`),
+    [browseExpanded, category, discoveryActive, vendor.name, workingProducts]
   );
+  const resultTotal = remoteProducts === null
+    ? fallbackFiltered.length
+    : (remoteTotal ?? remoteProducts.length) + localFiltered.length;
+  const catalogueTotal = remoteFacets?.total !== undefined
+    ? remoteFacets.total + initialLocalProducts.length
+    : remoteTotal !== undefined
+      ? remoteTotal + initialLocalProducts.length
+      : products.length;
+  const canExpandShowcase = !discoveryActive && !browseExpanded && workingProducts.length > SHOWCASE_LIMIT;
+  const canLoadMore = !demoMode && remoteNextOffset !== null;
 
   const resetSecondaryFilters = () => {
     setBrand("all");
@@ -137,12 +283,43 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     resetSecondaryFilters();
   };
 
+  const loadMore = async () => {
+    if (canExpandShowcase) {
+      setBrowseExpanded(true);
+      return;
+    }
+    if (!publicVendorId || remoteNextOffset === null || remoteLoading) return;
+    setRemoteLoading(true);
+    setRemoteError(false);
+    const params = new URLSearchParams({ offset: String(remoteNextOffset), limit: String(REMOTE_PAGE_SIZE) });
+    if (query.trim()) params.set("q", query.trim());
+    if (category !== "all") params.set("category", category);
+    if (brand !== "all") params.set("brand", brand);
+    if (color !== "all") params.set("color", color);
+    if (size !== "all") params.set("size", size);
+    if (availability === "available") params.set("available", "1");
+    try {
+      const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Catalogue request failed with ${response.status}`);
+      const payload = await response.json() as VendorCatalogApiResponse;
+      setRemoteProducts((current) => dedupeProducts([...(current ?? []), ...payload.products]));
+      setRemoteTotal(payload.total);
+      setRemoteNextOffset(payload.nextOffset);
+      setBrowseExpanded(true);
+    } catch (error) {
+      console.error("Vendor catalogue load-more failed", error);
+      setRemoteError(true);
+    } finally {
+      setRemoteLoading(false);
+    }
+  };
+
   const filterPanel = (mobile = false) => (
     <div className={styles.catalogFilterPanel}>
       <div className={styles.filterHeader}>
         <div>
           <strong>Φίλτρα προϊόντων</strong>
-          <span>Βρες γρήγορα αυτό που ψάχνεις στο συγκεκριμένο κατάστημα.</span>
+          <span>Η αναζήτηση και τα φίλτρα καλύπτουν ολόκληρο τον κατάλογο του καταστήματος.</span>
         </div>
         {filtersActive ? <button type="button" className={styles.clearButton} onClick={resetAllFilters}>Καθαρισμός</button> : null}
       </div>
@@ -157,7 +334,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
               onClick={() => selectCategory("all")}
             >
               <span>Όλα τα προϊόντα</span>
-              <span className={styles.filterCategoryCount}>{products.length}</span>
+              <span className={styles.filterCategoryCount}>{catalogueTotal}</span>
             </button>
             {categories.map((entry) => (
               <button
@@ -167,7 +344,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
                 key={entry.value}
               >
                 <span>{entry.label}</span>
-                <span className={styles.filterCategoryCount}>{categoryCounts.get(entry.value) ?? 0}</span>
+                <span className={styles.filterCategoryCount}>{entry.count}</span>
               </button>
             ))}
           </div>
@@ -216,7 +393,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
 
       {mobile ? (
         <div className={styles.mobileFilterHint}>
-          {filtered.length} {filtered.length === 1 ? "προϊόν" : "προϊόντα"} με τα επιλεγμένα φίλτρα
+          {remoteLoading ? "Ενημέρωση καταλόγου…" : `${resultTotal} ${resultTotal === 1 ? "προϊόν" : "προϊόντα"} με τα επιλεγμένα φίλτρα`}
         </div>
       ) : null}
     </div>
@@ -242,19 +419,35 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
 
           <div className={styles.catalogMeta}>
             {discoveryActive ? (
-              <span><strong>{filtered.length}</strong> αποτελέσματα.</span>
+              <span><strong>{resultTotal}</strong> αποτελέσματα στον πλήρη κατάλογο.</span>
             ) : (
-              <span><strong>{Math.min(SHOWCASE_LIMIT, filtered.length)}</strong> επιλογές από {filtered.length} προϊόντα.</span>
+              <span><strong>{Math.min(SHOWCASE_LIMIT, workingProducts.length)}</strong> επιλογές από {catalogueTotal} προϊόντα.</span>
             )}
+            {remoteLoading ? <span>Ενημέρωση…</span> : null}
+            {remoteError ? <span>Ο πλήρης κατάλογος δεν ήταν προσωρινά διαθέσιμος· εμφανίζεται η τελευταία διαθέσιμη επιλογή.</span> : null}
             {demoMode ? <span>DEMO · οι κάρτες ανοίγουν πλήρη προεπισκόπηση προϊόντος, χωρίς checkout.</span> : null}
             {query ? <button type="button" className={styles.clearButton} onClick={() => setQuery("")}>Καθαρισμός αναζήτησης</button> : null}
           </div>
 
           {visibleProducts.length > 0 ? (
-            <div className="vendorCatalogGrid">
-              {visibleProducts.map((product, index) => (
-                <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />
-              ))}
+            <>
+              <div className="vendorCatalogGrid">
+                {visibleProducts.map((product, index) => (
+                  <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />
+                ))}
+              </div>
+              {(canExpandShowcase || canLoadMore) ? (
+                <div style={{ display: "flex", justifyContent: "center", paddingTop: 24 }}>
+                  <button type="button" className="button button-secondary" onClick={loadMore} disabled={remoteLoading}>
+                    {remoteLoading ? "Φόρτωση…" : canExpandShowcase ? "Δες περισσότερα προϊόντα" : "Φόρτωση περισσότερων"}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : remoteLoading ? (
+            <div className={styles.noResults}>
+              <h3>Αναζήτηση στον κατάλογο…</h3>
+              <p>Ελέγχουμε ολόκληρο τον κατάλογο του καταστήματος.</p>
             </div>
           ) : (
             <div className={styles.noResults}>
@@ -299,7 +492,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
             <div className={styles.mobileFilterSheetBody}>{filterPanel(true)}</div>
             <div className={styles.mobileFilterSheetFooter}>
               <button type="button" className="button" onClick={() => setFiltersOpen(false)}>
-                Προβολή {filtered.length} {filtered.length === 1 ? "προϊόντος" : "προϊόντων"}
+                Προβολή {resultTotal} {resultTotal === 1 ? "προϊόντος" : "προϊόντων"}
               </button>
             </div>
           </aside>
