@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { bazaarSourceLabel } from "../src/lib/bazaar-catalog.ts";
 import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 
 const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
 const transitionMigrationUrl = new URL("../../../db/migrations/0237_bazaar_condition_transition_guard.sql", import.meta.url);
 const existingClassificationMigrationUrl = new URL("../../../db/migrations/0238_bazaar_existing_nova_classification.sql", import.meta.url);
 const bazaarCatalogUrl = new URL("../src/lib/bazaar-catalog.ts", import.meta.url);
+const bazaarPageUrl = new URL("../src/app/bazaar/page.tsx", import.meta.url);
 const normalDropshipCatalogUrl = new URL("../src/lib/published-dropship-storefront.ts", import.meta.url);
 const normalCustomerCommerceUrl = new URL("../../../packages/postgres-runtime/src/customer-commerce.ts", import.meta.url);
 const crawlerCatalogUrl = new URL("../src/lib/crawler-catalog.ts", import.meta.url);
@@ -29,6 +31,23 @@ test("canonical identity is structurally isolated by commerce channel", async ()
   assert.match(source, /ON public\.canonical_variants \(market_id, commerce_channel, slug\)/);
   assert.match(source, /commerce_channel = 'normal'/);
   assert.match(source, /condition NOT IN \('preloved', 'preowned_defect', 'open_box'\)/);
+});
+
+test("BAZAAR provenance supports future second-life sources and filtering", async () => {
+  const [migration, catalog, page] = await Promise.all([
+    readFile(channelMigrationUrl, "utf8"),
+    readFile(bazaarCatalogUrl, "utf8"),
+    readFile(bazaarPageUrl, "utf8")
+  ]);
+  for (const source of ["customer_return", "open_box", "display_stock", "damaged_packaging", "admin_curated"]) {
+    assert.match(migration, new RegExp(`'${source}'`));
+    assert.match(catalog, new RegExp(`"${source}"`));
+  }
+  assert.match(catalog, /source\?: string/);
+  assert.match(catalog, /requestedSource/);
+  assert.match(page, /name="source"/);
+  assert.equal(bazaarSourceLabel("customer_return"), "Επιστροφή πελάτη");
+  assert.equal(bazaarSourceLabel("display_stock"), "Εκθεσιακό τεμάχιο");
 });
 
 test("NOVA transitions preserve history and fail closed during rolling deployments", async () => {
