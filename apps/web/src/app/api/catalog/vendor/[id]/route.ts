@@ -1,4 +1,5 @@
-import { getVendorDropshipCatalogPage, getVendorDropshipFacets } from "../../../../../lib/vendor-dropship-catalog-page";
+import { getVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-catalog-page";
+import { getFastVendorDropshipFacets } from "../../../../../lib/vendor-dropship-fast-facets";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -40,7 +41,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         offset,
         limit
       }),
-      includeFacets ? getVendorDropshipFacets(id) : Promise.resolve(undefined)
+      includeFacets ? getFastVendorDropshipFacets(id) : Promise.resolve(undefined)
     ]);
 
     return Response.json({
