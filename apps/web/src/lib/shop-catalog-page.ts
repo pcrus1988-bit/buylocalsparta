@@ -20,10 +20,15 @@ type StickyPriceRow = Readonly<{
   canonical_public_id: string;
   vendor_public_id: string;
   customer_price_minor: number | string;
+  msrp_minor: number | string | null;
+}>;
+
+type ShopCatalogCard = CatalogCard & Readonly<{
+  msrpMinor: number | null;
 }>;
 
 export type ShopCatalogPage = Readonly<{
-  products: readonly CatalogCard[];
+  products: readonly ShopCatalogCard[];
   total: number;
   hasMore: boolean;
 }>;
@@ -105,7 +110,24 @@ async function loadStickyPrices(
     SELECT DISTINCT ON (cv.public_id)
       cv.public_id AS canonical_public_id,
       v.public_id AS vendor_public_id,
-      vo.customer_price_minor
+      vo.customer_price_minor,
+      CASE
+        WHEN vo.msrp_minor IS NOT NULL
+          AND vo.msrp_minor>vo.customer_price_minor
+          AND (
+            vo.show_msrp=true
+            OR EXISTS (
+              SELECT 1
+              FROM dropship_supplier_offers dso
+              JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+              WHERE dso.vendor_offer_id=vo.id
+                AND dso.active=true
+                AND ds.active=true
+            )
+          )
+          THEN vo.msrp_minor
+        ELSE NULL
+      END AS msrp_minor
     FROM sticky_assignments sa
     JOIN canonical_variants cv ON cv.id=sa.canonical_variant_id
     JOIN vendor_offers vo ON vo.id=sa.offer_id
@@ -274,11 +296,12 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
   const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image] as const));
   const departmentByCanonical = new Map(candidateRows.map((row) => [row.canonical_public_id, row.department_code ?? undefined] as const));
 
-  const products = assigned.flatMap((record) => {
+  const products: ShopCatalogCard[] = assigned.flatMap((record) => {
     const priceRow = stickyPrices.get(record.id);
     if (!priceRow || priceRow.vendor_public_id !== record.vendorId) return [];
     const priceMinor = safeInt(priceRow.customer_price_minor);
     if (priceMinor <= 0) return [];
+    const projectedMsrpMinor = safeInt(priceRow.msrp_minor);
     const details = metadata.get(record.id);
     const image = imageByCanonical.get(record.id);
     return [{
@@ -306,8 +329,9 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
       available: true,
-      availableToSell: record.availableToSell
-    } satisfies CatalogCard];
+      availableToSell: record.availableToSell,
+      msrpMinor: projectedMsrpMinor > priceMinor ? projectedMsrpMinor : null
+    }];
   });
 
   return {
