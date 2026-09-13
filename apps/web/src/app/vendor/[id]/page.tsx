@@ -8,7 +8,7 @@ import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import { VendorLocationMap } from "../../../components/VendorLocationMap";
 import styles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
-import { getVendorCatalogCards } from "../../../lib/catalog-view";
+import { getVendorLocalCatalogCards } from "../../../lib/vendor-local-catalog";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -124,7 +124,7 @@ export default async function VendorPage({ params }: Props) {
   });
   const [products, principal, profileMedia] = isResearch
     ? [[], undefined, []] as const
-    : await Promise.all([getVendorCatalogCards(id), getAccountSession(), approvedVendorProfileMedia([id])]);
+    : await Promise.all([getVendorLocalCatalogCards(id), getAccountSession(), approvedVendorProfileMedia([id])]);
   const location = vendor.location;
   const merchantStoryMedia = vendor.story?.mediaUrl;
   const logoMedia = firstRole(profileMedia, "logo");
@@ -200,7 +200,7 @@ export default async function VendorPage({ params }: Props) {
               <h1>{vendor.name}</h1>
               <p className={styles.intro}>{intro}</p>
               <div className={styles.quickFacts}>
-                {!isResearch && <span className={styles.quickFact}>{products.length} διαθέσιμα προϊόντα</span>}
+                {!isResearch && <span className={styles.quickFact}>Κατάλογος προϊόντων</span>}
                 {vendor.taxonomies.slice(0, 2).map((taxonomy) => (
                   <span className={styles.quickFact} key={`${taxonomy.categorySlug}-${taxonomy.subcategorySlug ?? "all"}`}>
                     {taxonomy.subcategoryLabel ?? taxonomy.categoryLabel}
@@ -327,14 +327,8 @@ export default async function VendorPage({ params }: Props) {
             <div className={styles.researchNotice}>
               <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
-          ) : products.length > 0 ? (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} />
           ) : (
-            <div className={styles.noResults}>
-              <h3>Δεν υπάρχουν αυτή τη στιγμή δημοσιευμένα προϊόντα.</h3>
-              <p>Το κατάστημα παραμένει ορατό, αλλά μη διαθέσιμες ή μη εγκεκριμένες προσφορές δεν εμφανίζονται ως ενεργός κατάλογος.</p>
-              <a className="button" href="#ask-local">Ρώτησε το κατάστημα</a>
-            </div>
+            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} />
           )}
         </div>
       </section>
