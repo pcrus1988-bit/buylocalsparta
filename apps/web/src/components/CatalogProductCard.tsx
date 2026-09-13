@@ -102,9 +102,9 @@ function PublicCatalogPrice({
   prominentSavings: boolean;
 }) {
   return <div className="price">
-    {msrpMinor !== undefined ? <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+    {msrpMinor !== undefined && !prominentSavings ? <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
       <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
-      {!prominentSavings && savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{savingLabel}% vs ΠΛΤ</span> : null}
+      {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{savingLabel}% vs ΠΛΤ</span> : null}
     </div> : null}
     <span aria-label={`Τελική τιμή ${formatEuroMinor(retailPriceMinor)}`}>{priceLabel}</span>
   </div>;
@@ -159,26 +159,46 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           referrerPolicy={externalImage ? "no-referrer" : undefined}
           style={catalogImageStyle}
         />
-        {prominentSavings && savingLabel ? (
+        {prominentSavings && savingLabel && msrpMinor !== undefined ? (
           <span
-            aria-label={highlightKind === "sale" ? `SALE, όφελος ${savingLabel}% έναντι ΠΛΤ` : `Όφελος ${savingLabel}% έναντι ΠΛΤ`}
+            aria-label={highlightKind === "sale" ? `ΠΛΤ ${formatEuroMinor(msrpMinor)}, SALE, όφελος ${savingLabel}%` : `ΠΛΤ ${formatEuroMinor(msrpMinor)}, όφελος ${savingLabel}%`}
             data-price-highlight-kind={highlightKind}
             style={{
               position: "absolute",
               zIndex: 3,
-              top: 18,
-              right: 18,
-              background: highlightKind === "sale" ? "var(--terracotta, #aa664f)" : "#111",
-              color: "#fff",
-              borderRadius: 999,
-              padding: "9px 13px",
-              fontWeight: 900,
-              fontSize: ".92rem",
-              lineHeight: 1,
-              boxShadow: "0 8px 22px rgba(0,0,0,.12)"
+              top: 14,
+              right: 14,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 5
             }}
           >
-            {publicPriceBadgeLabel(highlightKind, savingLabel)}
+            <s
+              aria-hidden="true"
+              style={{
+                color: "rgba(13, 43, 35, .62)",
+                fontSize: ".7rem",
+                fontWeight: 700,
+                lineHeight: 1,
+                whiteSpace: "nowrap"
+              }}
+            >ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
+            <span
+              aria-hidden="true"
+              style={{
+                background: highlightKind === "sale" ? "var(--terracotta, #aa664f)" : "#111",
+                color: "#fff",
+                borderRadius: 999,
+                padding: "9px 13px",
+                fontWeight: 900,
+                fontSize: ".92rem",
+                lineHeight: 1,
+                boxShadow: "0 8px 22px rgba(0,0,0,.12)"
+              }}
+            >
+              {publicPriceBadgeLabel(highlightKind, savingLabel)}
+            </span>
           </span>
         ) : null}
       </Link>
@@ -190,7 +210,6 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         </div>
         <div className="product-bottom">
           <PublicCatalogPrice msrpMinor={msrpMinor} retailPriceMinor={product.priceMinor} priceLabel={priceLabel} savingLabel={savingLabel} prominentSavings={prominentSavings} />
-          <Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link>
         </div>
         <p className={`catalog-card-availability${product.available ? " is-available" : ""}`}>{availabilityLabel(product, demoMode)}</p>
         {supplierFulfilled ? <p className="catalog-card-vendor">Αποστολή μέσω συνεργαζόμενου προμηθευτή</p> : vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
@@ -208,6 +227,9 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           flex: 1 1 auto;
           min-width: 0;
           margin: 0;
+        }
+        .product-bottom {
+          justify-content: flex-start;
         }
         @media (max-width: 620px) {
           .catalog-card-title-row { gap: 9px; }
