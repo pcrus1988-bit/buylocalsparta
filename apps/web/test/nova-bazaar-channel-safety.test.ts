@@ -12,6 +12,8 @@ const bazaarPageUrl = new URL("../src/app/bazaar/page.tsx", import.meta.url);
 const normalDropshipCatalogUrl = new URL("../src/lib/published-dropship-storefront.ts", import.meta.url);
 const normalCustomerCommerceUrl = new URL("../../../packages/postgres-runtime/src/customer-commerce.ts", import.meta.url);
 const crawlerCatalogUrl = new URL("../src/lib/crawler-catalog.ts", import.meta.url);
+const merchantCenterFeedUrl = new URL("../src/app/merchant-center/products.xml/route.ts", import.meta.url);
+const sitemapUrl = new URL("../src/app/sitemap.ts", import.meta.url);
 const siteHeaderUrl = new URL("../src/components/SiteHeader.tsx", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
@@ -89,6 +91,28 @@ test("normal catalogue read models explicitly reject BAZAAR canonicals", async (
   assert.match(customerCommerce, normalChannelGuard);
   assert.match(normalDropship, normalChannelGuard);
   assert.match(crawlerCatalog, normalChannelGuard);
+});
+
+test("secondary SEO and Merchant discovery stay attached to normal-channel read models", async () => {
+  const [merchantFeed, sitemap] = await Promise.all([
+    readFile(merchantCenterFeedUrl, "utf8"),
+    readFile(sitemapUrl, "utf8")
+  ]);
+
+  // Merchant Center must intersect SEO inventory with the crawler projection. Both
+  // projections are normal-channel gated by the regression above, so BAZAAR stock
+  // cannot leak into the ordinary Google Shopping source through a future refactor.
+  assert.match(merchantFeed, /getCrawlerCatalogCards/);
+  assert.match(merchantFeed, /getPublicProductSeoInventory/);
+  assert.match(merchantFeed, /const cards = await getCrawlerCatalogCards\(SPARTA_POSTCODE\)/);
+  assert.match(merchantFeed, /recordById = new Map\(inventory\.products/);
+
+  // The normal sitemap deliberately reuses normal catalogue/category projections;
+  // the dedicated BAZAAR route remains a static channel entry rather than having its
+  // products merged into ordinary product/category discovery.
+  assert.match(sitemap, /getPublicProductSeoInventory/);
+  assert.match(sitemap, /getAvailableStorefrontCategories/);
+  assert.match(sitemap, /settings\.sitemap\.products \? getPublicProductSeoInventory\(\)/);
 });
 
 test("BAZAAR navigation remains selected throughout the dedicated commerce experience", async () => {
