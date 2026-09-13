@@ -127,7 +127,7 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
   const governedSourceFallback = !directImageSrc;
   const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const externalImage = governedSourceFallback || Boolean(imageSrc.startsWith("https://"));
-  const eagerImage = index < 4;
+  const eagerImage = index === 0;
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
