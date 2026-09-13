@@ -120,7 +120,7 @@ export async function vendorDropshippingAttention(
         )::bigint overpriced
       FROM dropship_supplier_offers dso
       JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id AND vo.vendor_id=ds.owner_vendor_id
       WHERE ds.owner_vendor_id=$1::uuid
     `, [vendorId]),
     pool.query(`
@@ -154,7 +154,7 @@ export async function vendorDropshippingAttention(
              END issue_priority
         FROM dropship_supplier_offers dso
         JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id AND vo.vendor_id=ds.owner_vendor_id
         JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
         LEFT JOIN product_translations pt_el ON pt_el.canonical_variant_id=cv.id AND pt_el.locale='el'
         LEFT JOIN product_translations pt_en ON pt_en.canonical_variant_id=cv.id AND pt_en.locale='en'
