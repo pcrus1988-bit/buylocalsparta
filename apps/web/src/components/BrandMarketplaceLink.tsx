@@ -61,18 +61,19 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
         font-weight: 500;
       }
       .brand-marketplace-link-card {
-        height: 28px;
-        max-width: 132px;
+        flex: 0 1 auto;
+        height: 20px;
+        max-width: 88px;
       }
       .brand-marketplace-link-card img {
-        height: 28px;
-        max-width: 132px;
+        height: 20px;
+        max-width: 88px;
       }
       .brand-marketplace-link-card span {
-        max-width: 132px;
-        font-size: 27px;
-        line-height: 1.04;
-        letter-spacing: -.02em;
+        max-width: 88px;
+        font-size: 15px;
+        line-height: 1;
+        letter-spacing: -.01em;
       }
       .brand-marketplace-link-detail {
         height: clamp(52px, 6vw, 86px);
@@ -89,9 +90,18 @@ export function BrandMarketplaceLink({ brand, logoObjectKey, variant = "card", e
         letter-spacing: -.05em;
       }
       @media (max-width: 620px) {
-        .brand-marketplace-link-card,
-        .brand-marketplace-link-card img,
-        .brand-marketplace-link-card span { max-width: 118px; }
+        .brand-marketplace-link-card {
+          height: 17px;
+          max-width: 76px;
+        }
+        .brand-marketplace-link-card img {
+          height: 17px;
+          max-width: 76px;
+        }
+        .brand-marketplace-link-card span {
+          max-width: 76px;
+          font-size: 13px;
+        }
         .brand-marketplace-link-detail,
         .brand-marketplace-link-detail img,
         .brand-marketplace-link-detail span { max-width: 34vw; }
