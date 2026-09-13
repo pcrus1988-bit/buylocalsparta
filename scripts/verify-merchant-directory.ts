@@ -88,7 +88,7 @@ if (!shopsPage.includes("getPublicVendorDirectory()")) failures.push("/shops mus
 if (!shopsPage.includes('role="search"') || !shopsPage.includes('name="category"') || !shopsPage.includes("normalizedSearch")) failures.push("/shops must provide server-rendered merchant name and category discovery controls");
 if (!shopsPage.includes('href="/fairness"') || !shopsPage.includes("δίκαιη συμμετοχή")) failures.push("/shops must explain directory visibility in the context of fair assignment");
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
-if (!vendorPage.includes("getVendorCatalogCards(id)")) failures.push("Public vendor profile products must retain the non-fairness vendor catalog projection");
+if (!vendorPage.includes("getVendorLocalCatalogCards(id)")) failures.push("Public vendor profile products must retain the bounded non-fairness local vendor catalog projection");
 if (!vendorPage.includes("vendor.profileStory ?? vendor.story?.excerpt ??") || !vendorPage.includes("Δεν έχει δημοσιευθεί ακόμη ιστορία από το κατάστημα") || !vendorPage.includes("Κείμενο βιτρίνας διαχειριζόμενο από Admin με καταγεγραμμένο ιστορικό ενεργειών.") || !vendorPage.includes("Ιστορία καταστήματος δημοσιευμένη με καταγεγραμμένη έγκριση του συνεργάτη.")) failures.push("Public vendor profile must distinguish Admin-managed, vendor-approved and no-story storytelling states");
 if (!PRIMARY_NAVIGATION.some((link) => link.href === "/shops")) failures.push("Primary navigation registry must link directly to /shops");
 if (!home.includes('href="/shops"') && !home.includes('href="/shops?status=partner"')) failures.push("Homepage merchant discovery must link to /shops");
