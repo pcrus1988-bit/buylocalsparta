@@ -1,5 +1,6 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { isDropshippingOnlyVendor } from "./vendor-dropshipping-access";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 
 export type VendorProductDeliverySetting = Readonly<{
@@ -61,6 +62,12 @@ function validatePreference(input: FulfilmentPreference) {
   }
   if (!input.deliveryEligible && !input.pickupEligible) {
     throw new Error("Κράτησε ενεργό τουλάχιστον έναν τρόπο διάθεσης: παράδοση ή παραλαβή.");
+  }
+}
+
+async function assertVendorFulfilmentPolicy(vendorIdentity: string, input: FulfilmentPreference): Promise<void> {
+  if (input.pickupEligible && await isDropshippingOnlyVendor(vendorIdentity)) {
+    throw new Error("Local pickup is disabled for the dropshipping-only vendor. Supplier products can only use shipping/delivery fulfilment.");
   }
 }
 
@@ -239,6 +246,7 @@ export async function setVendorProductFulfilmentPreference(
   if (!offerId) throw new Error("Απαιτείται προϊόν.");
   validatePreference(input);
   const id = vendorId(principal);
+  await assertVendorFulfilmentPolicy(id, input);
 
   return unitOfWork().withTransaction(
     { actorUserId: principal.userId, vendorId: id, marketId: "sparta" },
@@ -295,6 +303,7 @@ export async function setVendorProductFulfilmentBulk(
   if (!postgresVendorRuntimeEnabled()) throw new Error("Η μαζική αλλαγή τρόπου διάθεσης απαιτεί ενεργή βάση δεδομένων.");
   validatePreference(input);
   const id = vendorId(principal);
+  await assertVendorFulfilmentPolicy(id, input);
   const applyToAll = input.applyToAll === true;
   const offerIds = [...new Set((input.offerIds ?? []).map((value) => value.trim()).filter(Boolean))];
   if (!applyToAll && offerIds.length === 0) throw new Error("Επίλεξε τουλάχιστον ένα προϊόν.");
