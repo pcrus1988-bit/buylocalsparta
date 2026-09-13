@@ -44,6 +44,7 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
       aria-label={duplicate ? undefined : `Δες προϊόντα ${brand.name}`}
       title={duplicate ? undefined : title}
       tabIndex={duplicate ? -1 : undefined}
+      style={{ width: 96, height: 24, padding: "2px 4px" }}
     >
       {showLogo ? (
         <img
@@ -52,6 +53,15 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
           loading="lazy"
           decoding="async"
           onError={() => setLogoFailed(true)}
+          style={{
+            display: "block",
+            width: "auto",
+            height: 20,
+            maxWidth: 88,
+            maxHeight: 20,
+            objectFit: "contain",
+            filter: "grayscale(1)"
+          }}
         />
       ) : (
         <span>{brand.name}</span>
@@ -62,11 +72,9 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
           align-items: center;
           justify-content: center;
           flex: 0 0 auto;
-          width: clamp(112px, 12vw, 168px);
-          height: 38px;
-          padding: 4px 8px;
           color: var(--ink, #173c34);
           opacity: .72;
+          overflow: hidden;
           transition: opacity .18s ease, transform .18s ease;
         }
         .brand-runner-item:hover {
@@ -76,36 +84,22 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
         .brand-runner-item:focus-visible {
           opacity: 1;
           outline: 2px solid var(--brass, #a3834d);
-          outline-offset: 4px;
-          border-radius: 8px;
-        }
-        .brand-runner-item img {
-          display: block;
-          width: auto;
-          height: auto;
-          max-width: 100%;
-          max-height: 30px;
-          object-fit: contain;
-          filter: grayscale(1);
+          outline-offset: 2px;
+          border-radius: 6px;
         }
         .brand-runner-item span {
           display: block;
-          max-width: 100%;
+          max-width: 88px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
           font-family: Georgia, 'Times New Roman', serif;
-          font-size: clamp(.92rem, 1.45vw, 1.12rem);
-          letter-spacing: -.015em;
+          font-size: .76rem;
+          line-height: 1;
+          letter-spacing: -.01em;
         }
         @media (max-width: 620px) {
-          .brand-runner-item {
-            width: 106px;
-            height: 32px;
-            padding-inline: 6px;
-          }
-          .brand-runner-item img { max-height: 24px; }
-          .brand-runner-item span { font-size: .88rem; }
+          .brand-runner-item span { font-size: .72rem; }
         }
       `}</style>
     </Link>
@@ -166,25 +160,26 @@ export function HomeBrandRunner() {
         .brand-runner {
           position: relative;
           width: 100%;
-          min-height: 86px;
-          padding: 13px 0 12px;
+          min-height: 50px;
+          padding: 6px 0 5px;
           overflow: hidden;
           border-top: 1px solid rgba(23, 60, 52, .09);
           border-bottom: 1px solid rgba(23, 60, 52, .09);
           background: rgba(251, 248, 239, .78);
         }
         .brand-runner-label {
-          margin: 0 auto 8px;
-          padding-inline: 20px;
+          margin: 0 auto 3px;
+          padding-inline: 16px;
           color: rgba(23, 60, 52, .58);
-          font-size: .61rem;
+          font-size: .5rem;
+          line-height: 1;
           font-weight: 700;
-          letter-spacing: .18em;
+          letter-spacing: .16em;
           text-align: center;
         }
         .brand-runner-viewport {
           width: 100%;
-          min-height: 40px;
+          min-height: 26px;
           overflow: hidden;
           -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
@@ -204,13 +199,13 @@ export function HomeBrandRunner() {
           display: flex;
           align-items: center;
           flex: 0 0 auto;
-          gap: clamp(18px, 2.6vw, 42px);
-          padding-right: clamp(18px, 2.6vw, 42px);
+          gap: clamp(10px, 1.8vw, 22px);
+          padding-right: clamp(10px, 1.8vw, 22px);
         }
         .brand-runner-loading {
-          width: min(82%, 720px);
-          height: 26px;
-          margin: 5px auto 0;
+          width: min(70%, 520px);
+          height: 18px;
+          margin: 4px auto 0;
           border-radius: 999px;
           background: linear-gradient(90deg, rgba(23,60,52,.04), rgba(23,60,52,.10), rgba(23,60,52,.04));
           background-size: 220% 100%;
@@ -226,22 +221,22 @@ export function HomeBrandRunner() {
         }
         @media (max-width: 620px) {
           .brand-runner {
-            min-height: 76px;
-            padding-block: 11px 10px;
+            min-height: 48px;
+            padding-block: 5px 4px;
           }
           .brand-runner-label {
-            margin-bottom: 6px;
-            font-size: .56rem;
-            letter-spacing: .16em;
+            margin-bottom: 3px;
+            font-size: .47rem;
+            letter-spacing: .14em;
           }
           .brand-runner-viewport {
-            min-height: 34px;
+            min-height: 25px;
             -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
             mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
           }
           .brand-runner-group {
-            gap: 16px;
-            padding-right: 16px;
+            gap: 10px;
+            padding-right: 10px;
           }
           .brand-runner-track { animation-duration: 38s; }
         }
