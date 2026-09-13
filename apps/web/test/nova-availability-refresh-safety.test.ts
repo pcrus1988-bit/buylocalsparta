@@ -21,6 +21,17 @@ test("Nova availability refresh retries only provider throttling with bounded ba
   assert.match(source, /5_000, 10_000, 20_000, 30_000/);
 });
 
+test("Nova availability refresh is bounded to governed sellable candidates", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+
+  assert.match(source, /dso\.active=true/);
+  assert.match(source, /vo\.status='approved'/);
+  assert.match(source, /vo\.approved_at IS NOT NULL/);
+  assert.match(source, /vo\.merchant_visible=true/);
+  assert.match(source, /vo\.merchant_pause_active=false/);
+  assert.match(source, /vo\.customer_price_minor IS NOT NULL/);
+});
+
 test("failed availability refresh cannot extend supplier evidence", async () => {
   const source = await readFile(sourceUrl, "utf8");
   const fetchPosition = source.indexOf("await getProductWithRateLimitBackoff");

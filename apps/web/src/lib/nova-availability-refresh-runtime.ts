@@ -62,8 +62,10 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
       AND ds.api_authoritative_availability=true
       AND dso.active=true
       AND vo.status='approved'
+      AND vo.approved_at IS NOT NULL
       AND vo.merchant_visible=true
       AND vo.merchant_pause_active=false
+      AND vo.customer_price_minor IS NOT NULL
       AND dso.external_product_id IS NOT NULL
     ORDER BY dso.external_product_id
   `, [NOVA_SUPPLIER_CODE]);
