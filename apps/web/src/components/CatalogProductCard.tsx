@@ -7,8 +7,8 @@ import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local
 import { publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
 import { productPublicPath } from "../lib/product-url";
 import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
-import { publicBrandLogoUrl } from "../lib/brand-logo";
 import { publicPriceBadgeLabel, publicSavingsLabel, type PriceHighlightKind } from "../lib/public-price-presentation";
+import { BrandMarketplaceLink } from "./BrandMarketplaceLink";
 import { LocalCommerceProof } from "./LocalCommerceProof";
 
 const catalogImageStyle = {
@@ -144,7 +144,6 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
   const priceLabel = publicCatalogPriceLabel(product);
-  const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
 
   return (
     <article className="product-card">
@@ -185,11 +184,10 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
       </Link>
       <div className="product-body">
         <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
-        {product.brand ? <div className="catalog-card-brand">
-          {brandLogoUrl ? <span className="catalog-card-brand-logo" aria-hidden="true"><img src={brandLogoUrl} alt="" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.parentElement?.setAttribute("hidden", ""); }} /></span> : null}
-          <span className="catalog-card-brand-name">{product.brand}</span>
-        </div> : null}
-        <h3><Link href={productHref}>{displayTitle}</Link></h3>
+        <div className="catalog-card-title-row">
+          {product.brand ? <BrandMarketplaceLink brand={product.brand} logoObjectKey={product.brandLogoObjectKey} variant="card" /> : null}
+          <h3><Link href={productHref}>{displayTitle}</Link></h3>
+        </div>
         <div className="product-bottom">
           <PublicCatalogPrice msrpMinor={msrpMinor} retailPriceMinor={product.priceMinor} priceLabel={priceLabel} savingLabel={savingLabel} prominentSavings={prominentSavings} />
           <Link className="round-add" href={productHref} aria-label={`Δες ${displayTitle}`}>→</Link>
@@ -199,47 +197,20 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
       <style jsx>{`
-        .catalog-card-brand {
+        .catalog-card-title-row {
           display: flex;
           align-items: center;
-          gap: 8px;
-          min-height: 24px;
-          margin-top: 8px;
+          gap: 10px;
           min-width: 0;
+          margin-top: 11px;
         }
-        .catalog-card-brand-logo {
-          display: inline-flex;
-          align-items: center;
-          justify-content: flex-start;
-          width: 72px;
-          height: 20px;
-          flex: 0 0 72px;
-          overflow: hidden;
-        }
-        .catalog-card-brand-logo[hidden] { display: none; }
-        .catalog-card-brand-logo img {
-          display: block;
-          width: auto;
-          height: auto;
-          max-width: 72px;
-          max-height: 20px;
-          object-fit: contain;
-        }
-        .catalog-card-brand-name {
+        .catalog-card-title-row h3 {
+          flex: 1 1 auto;
           min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: var(--ink-soft);
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: .08em;
-          text-transform: uppercase;
+          margin: 0;
         }
-        @media (min-width: 768px) {
-          .catalog-card-brand { min-height: 26px; }
-          .catalog-card-brand-logo { width: 88px; height: 24px; flex-basis: 88px; }
-          .catalog-card-brand-logo img { max-width: 88px; max-height: 24px; }
+        @media (max-width: 620px) {
+          .catalog-card-title-row { gap: 9px; }
         }
       `}</style>
     </article>
