@@ -127,6 +127,7 @@ async function loadPublicOfferAvailability(
         JOIN vendor_locations l ON l.id=vo.location_id
         JOIN inventory_balances ib ON ib.offer_id=vo.id
         WHERE cv.public_id=ANY($1::text[])
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
           AND m.code='sparta'
           AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
           AND vo.status='approved'
@@ -152,6 +153,7 @@ async function loadPublicOfferAvailability(
         JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
         JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
         WHERE cv.public_id=ANY($1::text[])
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
           AND m.code='sparta'
           AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
           AND vo.status='approved'
@@ -293,6 +295,7 @@ async function withStickyAssignedOfferPrice(record: DatabaseCatalogRecord, visit
     JOIN vendor_offers vo ON vo.id=sa.offer_id
     JOIN vendor_businesses v ON v.id=vo.vendor_id
     WHERE cv.public_id=$1
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND sa.visitor_hash=$2
       AND sa.postcode_scope=$3
       AND sa.released_at IS NULL
@@ -327,6 +330,7 @@ async function withVendorOfferPrice(record: DatabaseCatalogRecord, vendorId: str
     JOIN vendor_locations l ON l.id=vo.location_id
     LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
     WHERE cv.public_id=$1
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND v.public_id=$2
       AND vo.status='approved'
       AND l.active=true
