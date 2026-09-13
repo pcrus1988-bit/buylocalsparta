@@ -25,6 +25,7 @@ const availabilityRefreshMs = positiveInteger(
   60 * 60 * 1_000,
   "BLS_NOVA_AVAILABILITY_REFRESH_MS"
 );
+const automaticPublicationEnabled = process.env.BLS_NOVA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
 const enrichmentGenerationScope = catalogueEnrichmentGenerationScope();
 const enrichmentGenerationConfigured = enrichmentGenerationScope.enabled
   && (enrichmentGenerationScope.allowAll || enrichmentGenerationScope.productIds.length > 0);
@@ -54,6 +55,7 @@ log("info", "nova.worker_started", {
   supplier: "nova_brandsgateway",
   writesSupplierOrders: false,
   materializesPublicOffers: false,
+  automaticPublication: automaticPublicationEnabled,
   automaticPricing: novaAutoPricingEnabled(),
   catalogueEnrichment: {
     enabled: enrichmentGenerationScope.enabled,
@@ -105,16 +107,18 @@ try {
         }
       }
 
-      try {
-        const publication = await runNovaAutoPublicationSweep();
-        log("info", "nova.auto_publication_sweep", { workerId, ...publication });
-      } catch (error) {
-        // Publication is derived from already durable supplier/catalogue state. A
-        // failure remains fail-closed and retries on the next worker iteration.
-        log("error", "nova.auto_publication_failed", {
-          workerId,
-          error: safeError(error)
-        });
+      if (automaticPublicationEnabled) {
+        try {
+          const publication = await runNovaAutoPublicationSweep();
+          log("info", "nova.auto_publication_sweep", { workerId, ...publication });
+        } catch (error) {
+          // Publication is an explicit opt-in capability. Any failure remains fail-closed
+          // and cannot make staged supplier catalogue rows public.
+          log("error", "nova.auto_publication_failed", {
+            workerId,
+            error: safeError(error)
+          });
+        }
       }
 
       try {
