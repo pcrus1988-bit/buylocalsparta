@@ -27,9 +27,9 @@ export type DropshippingSupplierSummary = Readonly<{
   availableProducts: number;
   outOfStockProducts: number;
   productsWithCost: number;
-  staleCatalogueProducts: number;
-  missingAvailabilityTelemetryProducts: number;
-  publishedUnavailableProducts: number;
+  staleCatalogueProducts?: number;
+  missingAvailabilityTelemetryProducts?: number;
+  publishedUnavailableProducts?: number;
   lastCatalogueSyncAt: string | null;
   defaults: DropshippingSupplierDefaults;
 }>;
