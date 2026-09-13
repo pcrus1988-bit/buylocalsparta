@@ -52,6 +52,7 @@ const crawlGraph = read("apps/web/src/lib/seo-crawl-graph.ts");
 const searchConsole = read("apps/web/src/lib/seo-search-console.ts");
 const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts");
 const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
+const catalogCardClient = read("apps/web/src/components/CatalogProductCardClient.tsx");
 const envExample = read(".env.example");
 
 // XML sitemap governance and honest freshness.
@@ -202,7 +203,7 @@ if (!shop.includes("isReadOnlyPublicCrawlerRequest") || !shop.includes("getCrawl
 // Vendor metadata/schema.
 if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
-requireText(vendor, 'replaceAll("<", "\\\\u003c")', "Structured data must escape HTML-opening characters");
+requireText(vendor, 'replaceAll("<", "\\u003c")', "Structured data must escape HTML-opening characters");
 if (!(vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`'))) failures.push("Vendor metadata must publish a canonical URL");
 requireText(vendor, "seoControl.schemaAllowed ? <script", "Vendor structured data must honor the governed schema decision");
 
@@ -234,7 +235,7 @@ if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") fai
 for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) requireText(commerceRuntime, contract, `Public catalogue slug projection is missing ${contract}`);
 for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount", "getPublicProductDetails", "loadPublicOfferAvailability", "sourceImageAvailable", "offerAvailable"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
 for (const contract of ["WITH RECURSIVE category_tree", "department_code", "loadCatalogDepartmentCodes"]) requireText(categoryDepartment, contract, `Governed category hierarchy projection is missing ${contract}`);
-requireText(catalogCard, "productPublicPath(product)", "Public catalogue cards must link to the preferred friendly product URL");
+if (!catalogCard.includes("<CatalogProductCardClient") || !catalogCardClient.includes("productPublicPath(product)")) failures.push("Public catalogue cards must preserve the server/client card boundary and link to the preferred friendly product URL");
 
 // Read-only crawler offer projection must be truthful and mutation-free.
 for (const contract of ["readOnlyOfferPreview", "vo.customer_price_minor", "available_to_sell", "vendor_public_id", "vendor_name", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
