@@ -1,5 +1,4 @@
 import { getPublicCatalogSourceImageAtIndex } from "../../../../lib/public-catalog-source-gallery";
-import { getPublicProductDetail } from "../../../../lib/public-product-detail";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -24,7 +23,7 @@ export async function GET(request: Request, context: Context) {
       if (!Number.isSafeInteger(index) || index < 0 || index > 11) return emptyImage();
       sourceImageUrl = (await getPublicCatalogSourceImageAtIndex(canonicalVariantId, index))?.src;
     } else {
-      sourceImageUrl = (await getPublicProductDetail(canonicalVariantId))?.sourceImageUrl;
+      sourceImageUrl = (await getPublicCatalogSourceImageAtIndex(canonicalVariantId, 0))?.src;
     }
 
     if (!sourceImageUrl) return emptyImage();
