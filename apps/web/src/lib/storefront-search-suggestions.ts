@@ -1,7 +1,7 @@
 import { searchTextRelevance } from "@buy-local-sparta/core";
-import { getPublicProductSeoInventory } from "./catalog-view";
+import { getPublicCatalogProducts } from "./catalog-view";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
-  categoryCodeMatches,
   STOREFRONT_CATEGORIES,
   STOREFRONT_LEAF_INTENTS,
   type StorefrontCategory,
@@ -30,6 +30,16 @@ type QuerySeed = Readonly<{
   category?: string;
 }>;
 
+type SearchCandidate = Readonly<{
+  id: string;
+  routeKey: string;
+  title: string;
+  brand?: string;
+  categoryLabel?: string;
+  available?: boolean;
+  score: number;
+}>;
+
 const QUERY_SEEDS: readonly QuerySeed[] = [
   { label: "Σχολικές τσάντες", aliases: ["school bags", "school bag", "sxolikes tsantes", "scholikes tsantes", "σχολική τσάντα"], category: "fashion" },
   { label: "Σχολικές τσάντες δημοτικού", aliases: ["primary school bags", "sxolikes tsantes dimotikou", "σχολική τσάντα δημοτικού"], category: "fashion" },
@@ -47,8 +57,7 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
   const clean = query.trim().slice(0, 120);
   if (clean.length < 2) return { items: [], hasResults: false };
 
-  const inventory = await getPublicProductSeoInventory();
-  const products = inventory.products;
+  const candidates = await loadSearchCandidates(clean);
   const max = Math.max(4, Math.min(20, limit));
 
   const queryItems = QUERY_SEEDS
@@ -72,7 +81,6 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
       kind: "category" as const,
       label: category.label,
       subtitle: category.eyebrow,
-      count: products.filter((product) => categoryCodeMatches(product.categoryCode, category.slug, product.departmentCode)).length,
       href: shopHref({ category: category.slug })
     }));
 
@@ -89,7 +97,7 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
     }));
 
   const brands = new Map<string, number>();
-  for (const product of products) {
+  for (const product of candidates) {
     const brand = product.brand?.trim();
     if (!brand) continue;
     const score = searchTextRelevance(clean, [brand]);
@@ -102,28 +110,72 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
       kind: "brand" as const,
       label: brand,
       subtitle: "Μάρκα",
-      count: products.filter((product) => product.brand === brand).length,
       href: shopHref({ brand })
     }));
 
-  const productItems = products
-    .map((product) => ({
-      product,
-      score: searchTextRelevance(clean, [product.title, product.brand, product.categoryLabel, product.gtin, product.mpn])
-    }))
+  const productItems = candidates
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || Number(b.product.offerAvailable) - Number(a.product.offerAvailable) || a.product.title.localeCompare(b.product.title, "el"))
+    .sort((a, b) => b.score - a.score || Number(b.available) - Number(a.available) || a.title.localeCompare(b.title, "el"))
     .slice(0, 4)
-    .map(({ product }) => ({
+    .map((product) => ({
       kind: "product" as const,
       label: product.title,
       subtitle: [product.brand, product.categoryLabel].filter(Boolean).join(" · ") || "Προϊόν",
-      available: product.offerAvailable,
-      href: `/product/${encodeURIComponent(product.slug)}`
+      available: product.available,
+      href: `/product/${encodeURIComponent(product.routeKey)}`
     }));
 
   const items = dedupe([...queryItems, ...categoryItems, ...leafItems, ...brandItems, ...productItems]).slice(0, max);
   return { items, hasResults: productItems.length > 0 };
+}
+
+async function loadSearchCandidates(query: string): Promise<readonly SearchCandidate[]> {
+  const runtime = getProductionPostgresRuntime();
+  if (process.env.BLS_SEARCH_ENABLED === "true" && runtime.search) {
+    try {
+      const hits = await runtime.search.search({ marketId: "sparta", q: query, type: "product", limit: 24 });
+      return hits.map((hit) => {
+        const document = hit.document;
+        const metadata = document.metadata ?? {};
+        const routeKey = typeof metadata.slug === "string" && metadata.slug.trim() ? metadata.slug.trim() : document.id;
+        const categoryLabel = typeof metadata.categoryLabel === "string" && metadata.categoryLabel.trim()
+          ? metadata.categoryLabel.trim()
+          : document.categoryCodes?.[0];
+        return {
+          id: document.id,
+          routeKey,
+          title: document.title,
+          brand: document.brand?.trim() || undefined,
+          categoryLabel,
+          available: document.available,
+          score: hit.score
+        };
+      });
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.search_suggest_index_degraded",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  }
+
+  // Search suggestions must never hydrate the full SEO/media inventory. If the
+  // dedicated search backend is unavailable, fall back to the already-optimized
+  // public canonical projection and rank titles only. This keeps autocomplete
+  // functional without triggering metadata, image, detail or offer scans for the
+  // entire 50k+ catalogue.
+  return (await getPublicCatalogProducts())
+    .map((product) => ({
+      id: product.id,
+      routeKey: product.slug,
+      title: product.title,
+      categoryLabel: product.departmentCode ?? product.categoryCode,
+      score: searchTextRelevance(query, [product.title])
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title, "el"))
+    .slice(0, 24);
 }
 
 function categoryScore(query: string, category: StorefrontCategory): number {
