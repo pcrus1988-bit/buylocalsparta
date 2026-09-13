@@ -1,3 +1,4 @@
+import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 import {
   resetDropshippingProductPublicFields,
@@ -11,6 +12,7 @@ export async function GET(request: Request) {
   try {
     const principal = await requireVendorSession(request);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+    await assertDropshippingOnlyVendor(principal.vendorId);
     const url = new URL(request.url);
     const offerId = url.searchParams.get("offerId")?.trim() ?? "";
     const supplierCode = url.searchParams.get("supplierCode")?.trim() ?? "";
@@ -32,6 +34,7 @@ export async function PUT(request: Request) {
   try {
     const principal = await requireVendorSession(request, true);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
+    await assertDropshippingOnlyVendor(principal.vendorId);
     const body = await request.json() as Record<string, unknown>;
     const action = typeof body.action === "string" ? body.action : "";
 
