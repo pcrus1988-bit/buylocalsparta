@@ -46,9 +46,10 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
   const hiddenCategoryIds = await hiddenVendorCategoryIds(vendorId);
   const pool = getProductionPostgresRuntime().nativePool;
 
+  // Resolve the public vendor and market through scalar InitPlans instead of joining
+  // them into the 50k+ row catalogue. This gives PostgreSQL an accurate vendor-scoped
+  // cardinality estimate and avoids pathological nested-loop plans across lookup tables.
   // Keep the expensive dynamic-size vocabulary isolated from family-count facets.
-  // Each query completes within the production statement timeout on the 50k+ NOVA
-  // catalogue, while combining both workloads into one CTE exceeds that budget.
   const [facetResult, sizeResult] = await Promise.all([
     pool.query<FacetRow>(`
       WITH base AS MATERIALIZED (
@@ -61,9 +62,7 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
             el.specifications->>'color',en.specifications->>'color',cv.variant_attributes->>'color',''
           )),'') AS color
         FROM vendor_offers vo
-        JOIN vendor_businesses v ON v.id=vo.vendor_id
         JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-        JOIN markets m ON m.id=cv.market_id
         JOIN categories c ON c.id=cv.category_id
         JOIN vendor_locations l ON l.id=vo.location_id
         JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
@@ -74,13 +73,15 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
         LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-        WHERE v.public_id=$1
-          AND m.code='sparta'
+        WHERE vo.vendor_id=(
+          SELECT id FROM vendor_businesses WHERE public_id=$1 AND status='active'
+        )
+          AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
           AND COALESCE(cv.commerce_channel,'normal')='normal'
           AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
           AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
           AND vo.customer_price_minor>0
-          AND v.status='active' AND l.active=true
+          AND l.active=true
           AND dso.active=true AND ds.active=true AND ds.api_authoritative_availability=true
           AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
           AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
@@ -103,11 +104,9 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
     pool.query<SizeRow>(`
       SELECT DISTINCT BTRIM(size_entry.value) AS value
       FROM vendor_offers vo
-      JOIN vendor_businesses v ON v.id=vo.vendor_id
       JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
       JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN markets m ON m.id=cv.market_id
       JOIN vendor_locations l ON l.id=vo.location_id
       CROSS JOIN LATERAL unnest(ARRAY[
         cv.variant_attributes->>'italian_size_men',
@@ -127,13 +126,15 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
         cv.variant_attributes->>'gloves_size_men',
         cv.variant_attributes->>'size'
       ]) AS size_entry(value)
-      WHERE v.public_id=$1
-        AND m.code='sparta'
+      WHERE vo.vendor_id=(
+        SELECT id FROM vendor_businesses WHERE public_id=$1 AND status='active'
+      )
+        AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
         AND COALESCE(cv.commerce_channel,'normal')='normal'
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
         AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
-        AND v.status='active' AND l.active=true
+        AND l.active=true
         AND dso.active=true AND ds.active=true AND ds.api_authoritative_availability=true
         AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
         AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
