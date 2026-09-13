@@ -204,7 +204,7 @@ function resolveNovaCategoryCode(payloadValue: unknown, sourceTitle: string): st
     if (containsAny(accessory,["earring"])) return "earrings";
     if (containsAny(accessory,["necklace"])) return "necklaces";
     if (containsAny(accessory,["bracelet"])) return "bracelets";
-    if (containsAny(accessory,[" ring ","rings"])) return "rings";
+    if (containsAny(` ${accessory} `,[" ring "," rings "])) return "rings";
     if (containsAny(accessory,["watch"])) return "watches";
     if (containsAny(accessory,["scarf","foulard","hat","beanie","cap","glove","ear muff"])) return "scarves-hats-gloves";
   }
@@ -231,9 +231,9 @@ function resolveNovaCategoryCode(payloadValue: unknown, sourceTitle: string): st
     if (containsAny(clothing,["jeans","pants","trouser","shorts","bermuda","jogger","chino","cargo"])) return men ? "fashion-mens-trousers-jeans" : "fashion-womens-trousers-jeans";
     if (containsAny(clothing,["dress"])) return men ? null : "fashion-womens-dresses";
     if (containsAny(clothing,["skirt"])) return men ? null : "fashion-womens-skirts";
-    if (containsAny(clothing,["jumpsuit"," set ","two piece suit","suit"])) return men ? "fashion-mens-suits-formal" : "fashion-womens-sets";
+    if (containsAny(clothing,["jumpsuit","two piece suit","suit"]) || level2 === "sets") return men ? "fashion-mens-suits-formal" : "fashion-womens-sets";
     if (containsAny(clothing,["dress shirt","shirt","blouse"])) return men ? "fashion-mens-shirts" : "fashion-womens-shirts";
-    if (containsAny(clothing,["t shirt","tshirt","polo","tank top","top","tee shirt","tee-shirt"])) return men ? "fashion-mens-tshirts-tops" : "fashion-womens-tops";
+    if (containsAny(clothing,["t shirt","tshirt","polo","tank top","top","tee shirt"])) return men ? "fashion-mens-tshirts-tops" : "fashion-womens-tops";
   }
 
   return null;
@@ -278,10 +278,11 @@ function attributeEvidence(payload: Readonly<Record<string,unknown>>): string[] 
 
 function inferGender(payload: Readonly<Record<string,unknown>>, evidence: string): "men" | "women" | null {
   const gender = normalize(nestedName(payload.gender) ?? "");
-  if (gender.includes("women") || gender.includes("female")) return "women";
-  if (gender.includes("men") || gender.includes("male")) return "men";
-  if (containsAny(evidence,["italian size women","shoe size women","women's","womens"," women "])) return "women";
-  if (containsAny(evidence,["italian size men","shoe size men","men's","mens"," men "])) return "men";
+  if (gender === "women" || gender === "female") return "women";
+  if (gender === "men" || gender === "male") return "men";
+  const padded = ` ${evidence} `;
+  if (containsAny(padded,[" italian size women "," shoe size women "," women s "," womens "," women "])) return "women";
+  if (containsAny(padded,[" italian size men "," shoe size men "," men s "," mens "," men "])) return "men";
   return null;
 }
 
@@ -290,7 +291,7 @@ function containsAny(value: string, needles: readonly string[]): boolean {
 }
 
 function normalize(value: string): string {
-  return ` ${value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()} `;
+  return value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
 }
 
 function nestedName(value: unknown): string | null {
