@@ -121,13 +121,16 @@ const tied = resolveStorefrontAttributeIntents([tiedIntent], [
 if (tied.connection) failures.push("Natural attribute intent must not hard-filter when multiple live values tie");
 
 const shopPage = readFileSync(new URL("../apps/web/src/app/shop/page.tsx", import.meta.url), "utf8");
+const shopCatalogPage = readFileSync(new URL("../apps/web/src/lib/shop-catalog-page.ts", import.meta.url), "utf8");
 const catalogView = readFileSync(new URL("../apps/web/src/lib/catalog-view.ts", import.meta.url), "utf8");
-for (const contract of [
-  'getCatalogCards(visitorKey, "23100", catalogQuery, category, filters, attributeFilters)',
-  "filterCatalogCardsByAttributes(products, attributeFilters)",
-  "formatStorefrontAttributeAdvisory(definition.label, intent.value)"
-]) {
-  if (!shopPage.includes(contract)) failures.push(`Storefront search integration must retain ${contract}`);
+if (!shopPage.includes("getShopCatalogPage({") || !shopPage.includes("query: catalogQuery") || !shopPage.includes("attributeFilters,")) {
+  failures.push("Storefront search integration must pass residual catalogue text and structured attributes into the paginated shop runtime");
+}
+if (!shopCatalogPage.includes("matchesCatalogAttributeFilters(metadata.get(id)?.attributes, attributeFilters)")) {
+  failures.push("Paginated shop runtime must apply governed structured attributes to candidate metadata");
+}
+if (!shopPage.includes("formatStorefrontAttributeAdvisory(definition.label, intent.value)")) {
+  failures.push("Storefront search integration must retain concise unavailable-attribute advisory labels");
 }
 for (const contract of [
   "attributeFilters: CatalogAttributeFilters = {}",
@@ -141,4 +144,4 @@ if (failures.length) {
   console.error("Natural attribute intent checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Natural attribute intent checks passed: leaf-scoped extraction, concise advisory labels, plural-unit parsing, negated booleans, end-to-end taxonomy handoff, ambiguity guards, pre-limit structured filtering, live-option resolution and explicit-filter precedence verified.");
+console.log("Natural attribute intent checks passed: leaf-scoped extraction, concise advisory labels, plural-unit parsing, negated booleans, end-to-end taxonomy handoff, ambiguity guards, paginated storefront integration, live-option resolution and explicit-filter precedence verified.");
