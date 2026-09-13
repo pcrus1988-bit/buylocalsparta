@@ -13,6 +13,10 @@ const migration=await readFile(join(root,"db/migrations/0242_catalogue_enrichmen
 const worker=await readFile(join(root,"workers/nova-catalogue-worker.ts"),"utf8");
 const adminRuntime=await readFile(join(root,"apps/web/src/lib/admin-catalogue-enrichment.ts"),"utf8");
 const adminPage=await readFile(join(root,"apps/web/src/app/admin/catalogue/enrichment/page.tsx"),"utf8");
+const catalogMetadata=await readFile(join(root,"apps/web/src/lib/catalog-metadata.ts"),"utf8");
+const catalogView=await readFile(join(root,"apps/web/src/lib/catalog-view.ts"),"utf8");
+const dropshipStorefront=await readFile(join(root,"apps/web/src/lib/published-dropship-storefront.ts"),"utf8");
+const dropshipCatalogPage=await readFile(join(root,"apps/web/src/lib/published-dropship-catalog-page.ts"),"utf8");
 
 if (!foundation.includes("BLS_CATALOGUE_AI_ENRICHMENT_ENABLED")) throw new Error("Catalogue enrichment must remain explicitly feature-gated");
 
@@ -46,5 +50,20 @@ for (const marker of ["assertAdminPermission(principal, \"catalog.write\")","val
   if (!adminRuntime.includes(marker)) throw new Error(`Admin enrichment QA safety marker missing: ${marker}`);
 }
 if (!adminPage.includes("There is no approve-anyway action")||!adminPage.includes("Validate &amp; save")) throw new Error("Admin enrichment QA must expose validation, not an approve-anyway bypass");
+
+// Storefront projection is deliberately fail-closed: only V4 rows that have
+// completed validation and reached the enriched state may replace supplier copy.
+for (const marker of ["ce.status='enriched'","ce.quality_version='catalogue-quality-v4'","ce.display_title_el IS NOT NULL","ce.display_description_el IS NOT NULL"]) {
+  if (!catalogMetadata.includes(marker)) throw new Error(`Catalogue enrichment storefront gate missing: ${marker}`);
+}
+for (const marker of ["title: details?.title ?? record.title","details?.shortDescription","details?.description"]) {
+  if (!dropshipStorefront.includes(marker)) throw new Error(`Catalogue enrichment vendor-storefront projection missing: ${marker}`);
+}
+for (const marker of ["title: details?.title ?? record.title","description: details?.description"]) {
+  if (!dropshipCatalogPage.includes(marker)) throw new Error(`Catalogue enrichment paginated-storefront projection missing: ${marker}`);
+}
+for (const marker of ["title: metadata?.title ?? record.title","metadata?.shortDescription","title: displayTitle","const displayTitle = details?.title ?? product.title"]) {
+  if (!catalogView.includes(marker)) throw new Error(`Catalogue enrichment product-detail/SEO projection missing: ${marker}`);
+}
 
 console.log("Catalogue enrichment V4 safety contract OK.");

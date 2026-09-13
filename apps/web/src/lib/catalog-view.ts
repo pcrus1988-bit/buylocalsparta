@@ -189,7 +189,7 @@ function fromDb(record: DatabaseCatalogRecord, image?: ApprovedCatalogImage, met
   return {
     id: record.id,
     slug: record.slug,
-    title: record.title,
+    title: metadata?.title ?? record.title,
     categoryCode: record.categoryCode,
     departmentCode: record.departmentCode,
     categoryLabel: metadata?.categoryLabel,
@@ -241,7 +241,8 @@ function matchesCatalogFilters(record: DatabaseCatalogRecord, metadata: CatalogM
 function matchesCatalogQuery(record: DatabaseCatalogRecord, metadata: CatalogMetadata | undefined, normalizedQuery: string): boolean {
   if (!normalizedQuery) return true;
   return searchTextRelevance(normalizedQuery, [
-    record.title,
+    metadata?.title ?? record.title,
+    metadata?.shortDescription,
     metadata?.description,
     metadata?.brand,
     metadata?.color,
@@ -384,6 +385,7 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string) => {
     getPublicProductDetail(product.id),
     loadPublicOfferAvailability([product.id])
   ]);
+  const displayTitle = metadata?.title ?? product.title;
   const titleKey = product.title.trim().toLocaleLowerCase("el");
   const duplicateTitleCount = (await getPublicCatalogProducts()).filter((entry) => entry.title.trim().toLocaleLowerCase("el") === titleKey).length;
   let image: ApprovedCatalogImage | undefined;
@@ -394,6 +396,7 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string) => {
   }
   return {
     ...product,
+    title: displayTitle,
     description: metadata?.description ?? detail?.description,
     brand: metadata?.brand ?? detail?.brand,
     gtin: metadata?.gtin ?? detail?.sourceGtin,
@@ -593,7 +596,7 @@ async function readPublicProductSeoInventory(): Promise<PublicProductSeoInventor
   ]);
   const titleCounts = new Map<string, number>();
   for (const product of products) {
-    const key = product.title.trim().toLocaleLowerCase("el");
+    const key = (metadata.get(product.id)?.title ?? product.title).trim().toLocaleLowerCase("el");
     titleCounts.set(key, (titleCounts.get(key) ?? 0) + 1);
   }
 
@@ -615,8 +618,10 @@ async function readPublicProductSeoInventory(): Promise<PublicProductSeoInventor
       const details = metadata.get(product.id);
       const sourceDetail = publicDetails.get(product.id);
       const image = imageByProduct.get(product.id);
+      const displayTitle = details?.title ?? product.title;
       return {
         ...product,
+        title: displayTitle,
         description: details?.description ?? sourceDetail?.description,
         brand: details?.brand ?? sourceDetail?.brand,
         gtin: details?.gtin ?? sourceDetail?.sourceGtin,
@@ -628,7 +633,7 @@ async function readPublicProductSeoInventory(): Promise<PublicProductSeoInventor
         mediaAlt: image?.altText,
         sourceImageAvailable: Boolean(sourceDetail?.sourceImageUrl),
         offerAvailable: availableOfferIds.has(product.id),
-        duplicateTitleCount: titleCounts.get(product.title.trim().toLocaleLowerCase("el")) ?? 1
+        duplicateTitleCount: titleCounts.get(displayTitle.trim().toLocaleLowerCase("el")) ?? 1
       };
     })
   };
