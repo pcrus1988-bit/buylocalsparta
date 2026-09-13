@@ -7,8 +7,12 @@ type SourceGalleryRow = SqlRow & {
   source_title: string | null;
 };
 
-type BatchSourceGalleryRow = SourceGalleryRow & {
+type BatchSourcePrimaryRow = SqlRow & {
   canonical_public_id: string;
+  source_website: string | null;
+  source_title: string | null;
+  source_image_url: string | null;
+  source_position: number | string | null;
 };
 
 export type PublicCatalogSourceImage = Readonly<{
@@ -143,9 +147,9 @@ export async function getPublicCatalogSourceGallery(
 
 /**
  * Resolve the primary governed supplier image for a page-sized catalogue window
- * in one database round trip. Card rendering can then point browsers straight at
- * the validated HTTPS asset instead of sending every image through a same-origin
- * serverless lookup + redirect first.
+ * in one database round trip. The SQL projection extracts only the winning image
+ * URL instead of sending each supplier's full normalized JSON payload back to the
+ * serverless runtime, which keeps page-sized card requests small as catalogues grow.
  */
 export async function getPublicCatalogSourcePrimaryImages(
   requests: readonly PublicCatalogSourceImageRequest[]
@@ -170,7 +174,7 @@ export async function getPublicCatalogSourcePrimaryImages(
     }));
     const result = await uow.withTransaction(
       { actorUserId: "public-storefront", marketId: "sparta", platformAccess: true },
-      (tx) => tx.query<BatchSourceGalleryRow>(`
+      (tx) => tx.query<BatchSourcePrimaryRow>(`
         WITH requested AS (
           SELECT canonical_public_id,preferred_vendor_public_id
           FROM jsonb_to_recordset($1::jsonb)
@@ -204,18 +208,58 @@ export async function getPublicCatalogSourcePrimaryImages(
             AND vo.status='approved'
             AND cs.active=true
             AND cs.code='nova-brandsgateway'
+        ), primary_source AS (
+          SELECT canonical_public_id,normalized_payload,source_website,source_title
+          FROM ranked
+          WHERE source_rank=1
         )
-        SELECT canonical_public_id,normalized_payload,source_website,source_title
-        FROM ranked
-        WHERE source_rank=1
+        SELECT
+          primary_source.canonical_public_id,
+          primary_source.source_website,
+          primary_source.source_title,
+          COALESCE(
+            primary_image.image->>'src',
+            primary_image.image->>'url',
+            primary_image.image->>'image'
+          ) AS source_image_url,
+          CASE
+            WHEN COALESCE(primary_image.image->>'position','') ~ '^[0-9]+([.][0-9]+)?$'
+              THEN (primary_image.image->>'position')::numeric
+            ELSE primary_image.ordinality - 1
+          END AS source_position
+        FROM primary_source
+        LEFT JOIN LATERAL (
+          SELECT image,ordinality
+          FROM jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(primary_source.normalized_payload->'images')='array'
+                THEN primary_source.normalized_payload->'images'
+              ELSE '[]'::jsonb
+            END
+          ) WITH ORDINALITY AS source_images(image,ordinality)
+          ORDER BY
+            CASE
+              WHEN COALESCE(image->>'position','') ~ '^[0-9]+([.][0-9]+)?$'
+                THEN (image->>'position')::numeric
+              ELSE ordinality - 1
+            END,
+            ordinality
+          LIMIT 1
+        ) primary_image ON true
       `, [JSON.stringify(requested)]),
       { readOnly: true }
     );
 
     const primary = new Map<string, PublicCatalogSourceImage>();
     for (const row of result.rows) {
-      const image = sourceImagesFromRow(row)[0];
-      if (image) primary.set(row.canonical_public_id, image);
+      const src = sameSourceHttpsUrl(row.source_website, row.source_image_url);
+      if (!src) continue;
+      primary.set(row.canonical_public_id, {
+        index: 0,
+        position: numericPosition(row.source_position, 0),
+        src,
+        altText: optionalText(row.source_title)
+      });
     }
     return primary;
   } catch (error) {
