@@ -104,10 +104,11 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
         }
         .brand-runner-item img {
           display: block;
-          width: 76px;
-          height: 20px;
+          width: auto;
+          height: auto;
           max-width: 76px;
           max-height: 20px;
+          aspect-ratio: auto;
           object-fit: contain;
           object-position: center;
           filter: grayscale(1);
@@ -137,10 +138,11 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
             border-radius: 7px;
           }
           .brand-runner-item img {
-            width: 72px;
-            height: 20px;
+            width: auto;
+            height: auto;
             max-width: 72px;
             max-height: 20px;
+            aspect-ratio: auto;
           }
           .brand-runner-fallback {
             width: 72px;
