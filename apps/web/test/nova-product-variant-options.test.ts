@@ -4,7 +4,7 @@ import test from "node:test";
 
 const sourceUrl = new URL("../src/lib/public-product-variants.ts", import.meta.url);
 
-test("NOVA customer-facing size attributes are projected as size variants", async () => {
+test("NOVA customer-facing variant dimensions are projected without leaking supplier identifiers", async () => {
   const source = await readFile(sourceUrl, "utf8");
 
   for (const key of [
@@ -21,13 +21,22 @@ test("NOVA customer-facing size attributes are projected as size variants", asyn
     "earrings size",
     "bracelets size",
     "gloves size women",
-    "ring size"
+    "ring size",
+    "heel height",
+    "inseam length",
+    "necklace length",
+    "storage size"
   ]) {
     assert.match(source, new RegExp(`\\"${key}\\"`));
   }
 
-  assert.match(source, /NOVA_SIZE_KEYS\.has\(normalized\)/);
-  assert.match(source, /label: "Μέγεθος", kind: "size"/);
+  assert.match(source, /NOVA_VARIANT_DIMENSIONS\[normalized\]/);
+  assert.match(source, /supplierDimension/);
+  assert.match(source, /kind: "size"/);
+  assert.match(source, /kind: "length"/);
+  assert.match(source, /kind: "height"/);
+  assert.match(source, /kind: "capacity"/);
+  assert.doesNotMatch(source, /NOVA_SIZE_KEYS/);
 });
 
 test("variant chooser accepts fresh authoritative dropship availability without inventing local inventory", async () => {

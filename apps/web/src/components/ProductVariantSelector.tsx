@@ -18,7 +18,8 @@ function visibleAttributes(option: PublicProductVariantOption, varyingKeys: Read
 function optionDisplayName(option: PublicProductVariantOption, varyingKeys: ReadonlySet<string>): string {
   const attributes = visibleAttributes(option, varyingKeys);
   if (!attributes.length) return "Παραλλαγή";
-  return attributes.map((attribute) => attribute.value).join(" · ");
+  if (attributes.length === 1) return attributes[0]?.value ?? "Παραλλαγή";
+  return attributes.map((attribute) => `${attribute.label}: ${attribute.value}`).join(" · ");
 }
 
 function optionColor(option: PublicProductVariantOption, varyingKeys: ReadonlySet<string>) {
