@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { CategoryCatalogBrowser } from "../../../components/CategoryCatalogBrowser";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { getCatalogCards } from "../../../lib/catalog-view";
-import { getAvailableStorefrontCategories } from "../../../lib/available-catalog-taxonomy";
+import { getShopCatalogPage } from "../../../lib/shop-catalog-page";
+import { getPublishedDropshipCatalogPage } from "../../../lib/published-dropship-catalog-page";
+import { getCachedShopTaxonomy } from "../../../lib/cached-shop-taxonomy";
 import { getVisitorKey } from "../../../lib/visitor";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
@@ -17,6 +18,8 @@ import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/st
 
 export const dynamic = "force-dynamic";
 
+const CATEGORY_PAGE_SIZE = 30;
+
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export function generateStaticParams() {
@@ -28,8 +31,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = storefrontCategoryBySlug(slug);
   if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
 
-  const availableCategories = await getAvailableStorefrontCategories("23100");
-  const entityEligible = availableCategories.some((item) => item.slug === category.slug);
+  const taxonomy = await getCachedShopTaxonomy(category.slug, "", {}, "23100");
+  const entityEligible = taxonomy.categories.some((item) => item.slug === category.slug);
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
   return buildGovernedSeoMetadata({
@@ -51,6 +54,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
+async function getBoundedCategoryProducts(categorySlug: string, visitorKey: string, readOnlyCrawler: boolean) {
+  if (readOnlyCrawler) {
+    return getCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE);
+  }
+
+  const localPage = await getShopCatalogPage({
+    visitorKey,
+    postcode: "23100",
+    query: "",
+    category: categorySlug,
+    filters: {},
+    attributeFilters: {},
+    limit: CATEGORY_PAGE_SIZE,
+    offset: 0
+  });
+  const products = [...localPage.products];
+
+  if (products.length < CATEGORY_PAGE_SIZE) {
+    const remaining = CATEGORY_PAGE_SIZE - products.length;
+    const dropshipPage = await getPublishedDropshipCatalogPage({
+      query: "",
+      category: categorySlug,
+      filters: {},
+      attributeFilters: {},
+      limit: remaining,
+      offset: 0
+    });
+    const seen = new Set(products.map((product) => product.id));
+    products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
+  }
+
+  return products;
+}
+
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
   const category = storefrontCategoryBySlug(slug);
@@ -58,18 +95,17 @@ export default async function CategoryPage({ params }: Props) {
 
   const settingsPromise = getSeoGlobalSettingsSnapshot();
   const overridesPromise = getSeoEntityOverridesSnapshot();
-  const availableCategoriesPromise = getAvailableStorefrontCategories("23100");
+  const taxonomyPromise = getCachedShopTaxonomy(category.slug, "", {}, "23100");
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const [products, availableCategories, { settings }, overrideSnapshot] = await Promise.all([
-    readOnlyCrawler
-      ? getCrawlerCatalogCards("23100", "", category.slug)
-      : getCatalogCards(visitorKey, "23100", "", category.slug),
-    availableCategoriesPromise,
+  const [products, taxonomy, { settings }, overrideSnapshot] = await Promise.all([
+    getBoundedCategoryProducts(category.slug, visitorKey, readOnlyCrawler),
+    taxonomyPromise,
     settingsPromise,
     overridesPromise
   ]);
   const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
+  const availableCategories = taxonomy.categories;
   const siblings = availableCategories.filter((item) => item.slug !== category.slug);
   const availableProducts = purchasableProducts;
   const entityEligible = availableProducts.length > 0;
@@ -167,10 +203,15 @@ export default async function CategoryPage({ params }: Props) {
         <div className="shell">
           <div className="section-heading">
             <div><div className="eyebrow">Διαθέσιμα τώρα</div><h2>{category.label} στη Σπάρτη</h2></div>
-            <p className="section-note">Δες πραγματικά διαθέσιμες επιλογές και χρησιμοποίησε αναζήτηση ή φίλτρα μόνο μέσα σε αυτή την κατηγορία.</p>
+            <p className="section-note">Δες επιλεγμένες διαθέσιμες επιλογές εδώ ή άνοιξε τον πλήρη κατάλογο για αναζήτηση και φίλτρα σε όλη την κατηγορία.</p>
           </div>
           {purchasableProducts.length ? (
-            <CategoryCatalogBrowser products={purchasableProducts} categoryName={category.label} />
+            <>
+              <CategoryCatalogBrowser products={purchasableProducts} categoryName={category.label} />
+              <div style={{ marginTop: 24 }}>
+                <a className="button" href={`/shop?category=${encodeURIComponent(category.slug)}`}>Δες όλη την κατηγορία και όλα τα φίλτρα</a>
+              </div>
+            </>
           ) : (
             <div className="empty-state category-empty-state"><div className="eyebrow">Η κατηγορία χτίζεται</div><h2>Δεν υπάρχουν ακόμη ενεργά προϊόντα εδώ.</h2><p>Όταν δεν υπάρχει επιλέξιμη τιμή και διαθέσιμο τοπικό offer, δεν εμφανίζουμε παραπλανητική κάρτα αγοράς. Το Ask Local μπορεί να δρομολογήσει ιδιωτικά αυτό που ψάχνεις σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ask Local</a></div>
           )}
