@@ -13,6 +13,7 @@ const normalDropshipCatalogUrl = new URL("../src/lib/published-dropship-storefro
 const normalCustomerCommerceUrl = new URL("../../../packages/postgres-runtime/src/customer-commerce.ts", import.meta.url);
 const crawlerCatalogUrl = new URL("../src/lib/crawler-catalog.ts", import.meta.url);
 const catalogViewUrl = new URL("../src/lib/catalog-view.ts", import.meta.url);
+const shopCatalogPageUrl = new URL("../src/lib/shop-catalog-page.ts", import.meta.url);
 const merchantCenterFeedUrl = new URL("../src/app/merchant-center/products.xml/route.ts", import.meta.url);
 const sitemapUrl = new URL("../src/app/sitemap.ts", import.meta.url);
 const siteHeaderUrl = new URL("../src/components/SiteHeader.tsx", import.meta.url);
@@ -83,17 +84,23 @@ test("BAZAAR dropship discovery uses the same fail-closed supplier and cost gate
 });
 
 test("normal catalogue read models explicitly reject BAZAAR canonicals", async () => {
-  const [customerCommerce, normalDropship, crawlerCatalog, catalogView] = await Promise.all([
+  const [customerCommerce, normalDropship, crawlerCatalog, catalogView, shopCatalogPage] = await Promise.all([
     readFile(normalCustomerCommerceUrl, "utf8"),
     readFile(normalDropshipCatalogUrl, "utf8"),
     readFile(crawlerCatalogUrl, "utf8"),
-    readFile(catalogViewUrl, "utf8")
+    readFile(catalogViewUrl, "utf8"),
+    readFile(shopCatalogPageUrl, "utf8")
   ]);
   const normalChannelGuard = /COALESCE\(cv\.commerce_channel,'normal'\)='normal'/;
   assert.match(customerCommerce, normalChannelGuard);
   assert.match(normalDropship, normalChannelGuard);
   assert.match(crawlerCatalog, normalChannelGuard);
   assert.equal(catalogView.split("COALESCE(cv.commerce_channel,'normal')='normal'").length - 1, 4);
+  assert.equal(shopCatalogPage.split("COALESCE(cv.commerce_channel,'normal')='normal'").length - 1, 2);
+  assert.match(
+    shopCatalogPage,
+    /async function loadStickyPrices[\s\S]*?WHERE cv\.public_id=ANY\(\$1::text\[\]\)[\s\S]*?COALESCE\(cv\.commerce_channel,'normal'\)='normal'/
+  );
 });
 
 test("secondary SEO and Merchant discovery stay attached to normal-channel read models", async () => {
