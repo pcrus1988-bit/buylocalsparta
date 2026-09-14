@@ -29,6 +29,10 @@
   gap: 9px;
 }
 
+.desktopGrid {
+  display: grid;
+}
+
 .option {
   position: relative;
   min-width: 0;
@@ -187,9 +191,14 @@
   font-weight: 900;
 }
 
-@media (max-width: 620px) {
+@media (max-width: 760px) {
   .section {
     margin-top: 16px;
+  }
+
+  .heading,
+  .desktopGrid {
+    display: none;
   }
 
   .grid {

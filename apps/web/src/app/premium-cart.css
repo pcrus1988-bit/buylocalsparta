@@ -1,3 +1,5 @@
+@import "./cart-overlay-polish.css";
+
 .cart-friendly-layout {
   gap: clamp(20px, 3vw, 34px);
   align-items: start;

@@ -6,7 +6,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { isCustomerMobileCommercePath } from "../lib/customer-mobile-commerce";
 import { recordProductAnalyticsEvent } from "../lib/product-analytics-client";
 import { googleAnalyticsItem, trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
+import { requestVariantPurchase } from "../lib/variant-purchase-events";
 import { useCart } from "./CartProvider";
+import { CartDrawer } from "./CartDrawer";
 import { SearchDiscoveryPanel, useSearchDiscovery } from "./SearchDiscovery";
 
 export type CustomerMobileProductAction = Readonly<{
@@ -15,6 +17,7 @@ export type CustomerMobileProductAction = Readonly<{
   priceMinor: number;
   price: string;
   available: boolean;
+  variantSheetAvailable?: boolean;
 }>;
 
 type CustomerMobileCommerceContextValue = Readonly<{
@@ -50,7 +53,7 @@ function CloseIcon() {
 function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProductAction }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { addItem, count } = useCart();
+  const { addItem, count, openCart, isCartOpen, cartPulseKey } = useCart();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmation, setConfirmation] = useState<string>();
@@ -59,6 +62,7 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
   const searchExpanded = searchOpen && searchQuery.trim().length >= 2 && (searchLoading || searchItems.length > 0);
   const productPage = pathname.startsWith("/product/");
   const showProductAction = productPage && Boolean(product);
+  const productActionAvailable = Boolean(product?.available || product?.variantSheetAvailable);
 
   useEffect(() => () => {
     if (confirmationTimer.current) window.clearTimeout(confirmationTimer.current);
@@ -74,7 +78,12 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
   }, [router, searchQuery]);
 
   const addProduct = useCallback(() => {
-    if (!product?.available) return;
+    if (!product) return;
+    if (product.variantSheetAvailable) {
+      requestVariantPurchase("mobile_nav");
+      return;
+    }
+    if (!product.available) return;
     addItem({ canonicalVariantId: product.id, title: product.title, priceMinor: product.priceMinor, price: product.price }, 1);
     recordProductAnalyticsEvent({ eventType: "add_to_cart", canonicalVariantId: product.id, surface: "product_page" });
     trackGoogleAnalyticsEvent("add_to_cart", {
@@ -129,13 +138,13 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
         <Link className={`customer-mobile-commerce-item${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός"><AccountIcon /><span>Λογαριασμός</span></Link>
         <Link className={`customer-mobile-commerce-item customer-mobile-commerce-ask-local${pathname.startsWith("/ask-local") ? " is-active" : ""}`} href="/ask-local" aria-label="Ask Local — ζήτησε βοήθεια για να βρεις προϊόν"><AskLocalIcon /><span>Ask Local</span></Link>
         {showProductAction ? (
-          <button className="customer-mobile-commerce-item customer-mobile-commerce-add" type="button" disabled={!product?.available} onClick={addProduct} aria-label={product?.available ? `Προσθήκη ενός ${product.title} στο καλάθι` : "Το προϊόν δεν είναι διαθέσιμο"}>
-            <span className="customer-mobile-commerce-add-icon"><AddIcon /></span><span>{product?.available ? "+1 προϊόν" : "Μη διαθέσιμο"}</span>
+          <button className="customer-mobile-commerce-item customer-mobile-commerce-add" type="button" disabled={!productActionAvailable} onClick={addProduct} aria-label={productActionAvailable ? product?.variantSheetAvailable ? "Επιλογή παραλλαγής και προσθήκη στο καλάθι" : `Προσθήκη ενός ${product?.title ?? "προϊόντος"} στο καλάθι` : "Το προϊόν δεν είναι διαθέσιμο"}>
+            <span className="customer-mobile-commerce-add-icon"><AddIcon /></span><span>{product?.variantSheetAvailable ? "Επιλογή" : product?.available ? "+1 προϊόν" : "Μη διαθέσιμο"}</span>
           </button>
         ) : null}
-        <Link className={`customer-mobile-commerce-item customer-mobile-commerce-cart${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
-          <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span><span>Καλάθι</span>
-        </Link>
+        <button className={`customer-mobile-commerce-item customer-mobile-commerce-cart${isCartOpen ? " is-active" : ""}`} type="button" onClick={openCart} aria-label={`Καλάθι, ${count} προϊόντα`} aria-expanded={isCartOpen} aria-controls="global-cart-drawer">
+          <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b key={cartPulseKey} aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span><span>Καλάθι</span>
+        </button>
       </nav>
     </>
   );
@@ -148,7 +157,7 @@ export function CustomerMobileCommerceProvider({ children }: { children: ReactNo
   const value = useMemo(() => ({ registerProduct }), [registerProduct]);
   const eligible = isCustomerMobileCommercePath(pathname);
 
-  return <CustomerMobileCommerceContext.Provider value={value}>{children}{eligible ? <><div className="customer-mobile-commerce-spacer" aria-hidden="true" /><CustomerMobileCommerceNav product={product} /></> : null}</CustomerMobileCommerceContext.Provider>;
+  return <CustomerMobileCommerceContext.Provider value={value}>{children}{eligible ? <><div className="customer-mobile-commerce-spacer" aria-hidden="true" /><CustomerMobileCommerceNav product={product} /></> : null}<CartDrawer /></CustomerMobileCommerceContext.Provider>;
 }
 
 export function useCustomerMobileCommerce() {

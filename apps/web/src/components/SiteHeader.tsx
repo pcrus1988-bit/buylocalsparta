@@ -45,7 +45,7 @@ function SearchIcon() {
 }
 
 export function SiteHeader({ compact = false }: { compact?: boolean }) {
-  const { count } = useCart();
+  const { count, openCart, isCartOpen, cartPulseKey } = useCart();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const relocateMobileCommerceActions = isCustomerMobileCommercePath(pathname);
@@ -86,13 +86,14 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           <AccountIcon />
           <span className="header-action-text">Λογαριασμός</span>
         </Link>
-        <Link className={`cart-button${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
+        <button className={`cart-button${isCartOpen ? " is-active" : ""}`} type="button" onClick={openCart} aria-label={`Καλάθι, ${count} προϊόντα`} aria-expanded={isCartOpen} aria-controls="global-cart-drawer">
           <CartIcon />
-          <span className="header-action-text">Καλάθι</span> <span aria-hidden="true">{count}</span>
-        </Link>
+          <span className="header-action-text">Καλάθι</span> <span key={cartPulseKey} aria-hidden="true">{count}</span>
+        </button>
       </div>
 
       <style>{`
+        .header-actions > button.cart-button { font: inherit; cursor: pointer; }
         @media (max-width: 1320px) and (min-width: 1081px) {
           .site-header {
             flex-wrap: wrap;

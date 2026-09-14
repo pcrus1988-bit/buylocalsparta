@@ -1,0 +1,18 @@
+@keyframes km-cart-count-bump {
+  0% { transform: scale(.72); }
+  52% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.header-actions > button.cart-button > span[aria-hidden="true"],
+.customer-mobile-commerce-cart-icon b {
+  animation: km-cart-count-bump .28s cubic-bezier(.2,.8,.2,1);
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-actions > button.cart-button > span[aria-hidden="true"],
+  .customer-mobile-commerce-cart-icon b {
+    animation: none;
+  }
+}

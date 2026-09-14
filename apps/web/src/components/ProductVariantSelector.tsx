@@ -1,4 +1,5 @@
 import type { PublicProductVariantOption } from "../lib/public-product-variants";
+import { ProductVariantBottomSheet, type MobileVariantOption } from "./ProductVariantBottomSheet";
 import styles from "./ProductVariantSelector.module.css";
 
 type ProductVariantSelectorProps = Readonly<{
@@ -41,6 +42,12 @@ function swatchStyle(color: NonNullable<ReturnType<typeof optionColor>>) {
   return { backgroundColor: color.hex };
 }
 
+function mobileSwatch(color: NonNullable<ReturnType<typeof optionColor>>): MobileVariantOption["swatch"] {
+  if (color.swatchKind === "transparent") return { kind: "transparent" };
+  if (color.swatchKind === "multicolor") return { kind: "multicolor" };
+  return { kind: "solid", hex: color.hex };
+}
+
 export function ProductVariantSelector({
   currentVariantId,
   title,
@@ -51,13 +58,28 @@ export function ProductVariantSelector({
 }: ProductVariantSelectorProps) {
   if (options.length <= 1) return null;
 
+  const mobileOptions: MobileVariantOption[] = options.map((option) => {
+    const color = optionColor(option, varyingKeys);
+    return {
+      id: option.canonicalVariantId,
+      href: hrefForOption(option),
+      label: optionDisplayName(option, varyingKeys),
+      selected: option.canonicalVariantId === currentVariantId,
+      unavailable: availabilityMode === "live" && !option.available,
+      imageSrc: option.imageSrc,
+      imageAlt: option.imageAlt,
+      swatch: color ? mobileSwatch(color) : undefined
+    };
+  });
+
   return (
     <section className={styles.section} aria-label="Υποχρεωτική επιλογή παραλλαγής">
       <div className={styles.heading}>
         <strong>{title}</strong>
         <span aria-hidden="true">*</span>
       </div>
-      <div className={styles.grid}>
+      <ProductVariantBottomSheet title={title} options={mobileOptions} />
+      <div className={`${styles.grid} ${styles.desktopGrid}`}>
         {options.map((option) => {
           const selected = option.canonicalVariantId === currentVariantId;
           const label = optionDisplayName(option, varyingKeys);
@@ -68,7 +90,26 @@ export function ProductVariantSelector({
             .join(" ");
           const accessibilityLabel = `${label}${selected ? ", επιλεγμένο" : ""}${unavailable ? ", μη διαθέσιμο" : ""}`;
 
-          return (
+          return unavailable && !selected ? (
+            <span
+              key={option.canonicalVariantId}
+              className={className}
+              aria-label={accessibilityLabel}
+              aria-disabled="true"
+            >
+              {option.imageSrc ? (
+                <span className={styles.imageFrame}>
+                  <img src={option.imageSrc} alt={option.imageAlt ?? label} loading="lazy" />
+                  <span className={styles.unavailableImageLabel}>Μη διαθέσιμο</span>
+                </span>
+              ) : null}
+              <span className={styles.optionBody}>
+                {color ? <span className={styles.swatch} style={swatchStyle(color)} aria-hidden="true" /> : null}
+                <span className={styles.label}>{label}</span>
+                {!option.imageSrc ? <span className={styles.unavailableText}>Μη διαθέσιμο</span> : null}
+              </span>
+            </span>
+          ) : (
             <a
               key={option.canonicalVariantId}
               href={hrefForOption(option)}
