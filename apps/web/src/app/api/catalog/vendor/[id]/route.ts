@@ -41,7 +41,9 @@ export async function GET(request: Request, { params }: RouteContext) {
   const size = optionalParam(url, "size", 120);
   const offset = intParam(url, "offset", 0, 100_000);
   const limit = Math.max(1, intParam(url, "limit", 20, 60));
-  const availableOnly = url.searchParams.get("available") === "1";
+  // Customer-facing dropship catalogues must never expose unavailable supplier stock.
+  // Keep the query parameter out of this policy: availability is a storefront invariant.
+  const availableOnly = true;
   const includeFacets = url.searchParams.get("facets") === "1";
   const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
 
@@ -68,8 +70,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       && !category
       && !brand
       && !color
-      && !size
-      && !availableOnly;
+      && !size;
 
     const page = useFastInitialPath
       ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
