@@ -25,11 +25,29 @@ export async function GET(request: Request, { params }: RouteContext) {
   const color = optionalParam(url, "color", 120);
   const size = optionalParam(url, "size", 120);
   const offset = intParam(url, "offset", 0, 100_000);
-  const limit = Math.max(1, intParam(url, "limit", 36, 60));
+  const limit = Math.max(1, intParam(url, "limit", 20, 60));
   const availableOnly = url.searchParams.get("available") === "1";
   const includeFacets = url.searchParams.get("facets") === "1";
+  const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
 
   try {
+    if (facetsOnly) {
+      const facets = await getFastVendorDropshipFacets(id);
+      return Response.json({
+        vendorId: id,
+        products: [],
+        total: facets.total,
+        offset: 0,
+        limit: 0,
+        nextOffset: null,
+        facets
+      }, {
+        headers: {
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=300"
+        }
+      });
+    }
+
     const [page, facets] = await Promise.all([
       getVendorDropshipCatalogPage(id, {
         query,
