@@ -30,13 +30,7 @@ function visitorHash(visitorKey: string): string {
   return createHash("sha256").update(visitorKey).digest("hex");
 }
 
-/**
- * Product detail routes must never materialize the full public catalogue. With
- * 60k+ canonicals that path caused statement timeouts and exhausted the small
- * serverless connection pool. Resolve exactly one public canonical instead.
- */
-const directPublicCanonical = cache(async (routeKey: string) => {
-  if (!productionDatabaseConfigured()) return undefined;
+async function queryDirectCanonicalByPublicId(routeKey: string): Promise<DirectCanonicalRow | undefined> {
   const result = await getProductionPostgresRuntime().nativePool.query<DirectCanonicalRow>(`
     SELECT cv.public_id AS id,
            cv.slug,
@@ -48,7 +42,7 @@ const directPublicCanonical = cache(async (routeKey: string) => {
     JOIN categories c ON c.id=cv.category_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    WHERE (cv.public_id=$1 OR cv.id::text=$1 OR cv.slug=$1)
+    WHERE cv.public_id=$1
       AND m.code='sparta'
       AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND cv.active=true
@@ -68,7 +62,54 @@ const directPublicCanonical = cache(async (routeKey: string) => {
       )
     LIMIT 1
   `, [routeKey]);
-  const row = result.rows[0];
+  return result.rows[0];
+}
+
+async function queryDirectCanonicalBySlug(routeKey: string): Promise<DirectCanonicalRow | undefined> {
+  const result = await getProductionPostgresRuntime().nativePool.query<DirectCanonicalRow>(`
+    SELECT cv.public_id AS id,
+           cv.slug,
+           COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+           c.code AS category_code,
+           cv.platform_price_minor AS price_minor
+    FROM markets m
+    JOIN canonical_variants cv ON cv.market_id=m.id AND cv.slug=$1
+    JOIN categories c ON c.id=cv.category_id
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE m.code='sparta'
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND (
+        NOT EXISTS (SELECT 1 FROM vendor_offers any_vo WHERE any_vo.canonical_variant_id=cv.id)
+        OR EXISTS (
+          SELECT 1
+          FROM vendor_offers public_vo
+          WHERE public_vo.canonical_variant_id=cv.id
+            AND public_vo.status NOT IN ('archived','suppressed')
+            AND public_vo.merchant_visible=true
+            AND public_vo.merchant_pause_active=false
+            AND bls_private.vendor_category_effectively_visible(public_vo.vendor_id,cv.category_id)
+        )
+      )
+    LIMIT 1
+  `, [routeKey]);
+  return result.rows[0];
+}
+
+/**
+ * Product detail routes must never materialize the full public catalogue. With
+ * 60k+ canonicals that path caused statement timeouts and exhausted the small
+ * serverless connection pool. Resolve an exact public id first so PostgreSQL can
+ * use the unique public-id index; only fall back to slug resolution when needed.
+ */
+const directPublicCanonical = cache(async (routeKey: string) => {
+  if (!productionDatabaseConfigured()) return undefined;
+  const key = routeKey.trim();
+  if (!key) return undefined;
+  const row = await queryDirectCanonicalByPublicId(key) ?? await queryDirectCanonicalBySlug(key);
   if (!row || !isPublicCatalogueTitle(String(row.title))) return undefined;
   const departmentCodes = await loadCatalogDepartmentCodes([String(row.id)]);
   const priceMinor = safeMinor(row.price_minor);
@@ -130,14 +171,18 @@ async function duplicateTitleCount(title: string): Promise<number> {
   if (!productionDatabaseConfigured()) return 1;
   const result = await getProductionPostgresRuntime().nativePool.query<{ count: number | string }>(`
     SELECT COUNT(*)::int AS count
-    FROM canonical_variants cv
-    JOIN markets m ON m.id=cv.market_id
-    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    WHERE m.code='sparta'
-      AND COALESCE(cv.commerce_channel,'normal')='normal'
-      AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-      AND LOWER(BTRIM(COALESCE(el.title,en.title,cv.model,cv.slug)))=LOWER(BTRIM($1))
+    FROM (
+      SELECT 1
+      FROM canonical_variants cv
+      JOIN markets m ON m.id=cv.market_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+        AND LOWER(BTRIM(COALESCE(el.title,en.title,cv.model,cv.slug)))=LOWER(BTRIM($1))
+      LIMIT 2
+    ) matches
   `, [title]);
   return Math.max(1, Number(result.rows[0]?.count ?? 1));
 }

@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8");
 const intelligence = read("packages/core/src/search/intelligence.ts");
-const catalog = read("apps/web/src/lib/catalog-view.ts");
+const catalog = [
+  read("apps/web/src/lib/catalog-view.ts"),
+  read("apps/web/src/lib/catalog-view-base.ts")
+].join("\n");
 const postgres = read("apps/web/src/lib/postgres-storefront-search.ts");
 const meili = read("packages/meilisearch-search/src/index.ts");
 const shop = read("apps/web/src/app/shop/page.tsx");
