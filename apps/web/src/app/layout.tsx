@@ -5,6 +5,7 @@ import "./storefront-merchants.css";
 import "./storefront-advice.css";
 import "./storefront-content.css";
 import "./storefront-merchant-media.css";
+import "./vendor-catalogue-loading-overlay.css";
 import "./dashboard-ux.css";
 import "./dashboard-premium.css";
 import "./site-polish.css";
