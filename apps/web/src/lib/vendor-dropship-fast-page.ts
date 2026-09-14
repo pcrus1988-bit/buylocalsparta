@@ -104,34 +104,38 @@ export async function getFastVendorDropshipCatalogPage(
       SELECT id
       FROM vendor_businesses
       WHERE public_id=$1 AND status='active'
+    ), markers AS (
+      SELECT DISTINCT dso.supplier_id,
+                      dso.source_product_id
+      FROM dropship_supplier_offers dso
+      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      WHERE ds.owner_vendor_id=(SELECT id FROM vendor)
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+        AND dso.active=true
+        AND dso.source_product_id IS NOT NULL
+        AND vo.vendor_id=(SELECT id FROM vendor)
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND l.active=true
+        AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
+      ORDER BY dso.supplier_id,dso.source_product_id
+      LIMIT $3 OFFSET $4
     )
-    SELECT DISTINCT dso.supplier_id::text AS supplier_id,
-                    dso.source_product_id::text AS source_product_id
-    FROM dropship_supplier_offers dso
-    JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-    JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
-    JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-    JOIN vendor_locations l ON l.id=vo.location_id
-    WHERE ds.owner_vendor_id=(SELECT id FROM vendor)
-      AND ds.active=true
-      AND ds.api_authoritative_availability=true
-      AND dso.active=true
-      AND dso.source_product_id IS NOT NULL
-      AND vo.vendor_id=(SELECT id FROM vendor)
-      AND vo.status='approved'
-      AND vo.merchant_visible=true
-      AND vo.merchant_pause_active=false
-      AND vo.customer_price_minor>0
-      AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-      AND l.active=true
-      AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
-      AND COALESCE(cv.commerce_channel,'normal')='normal'
-      AND cv.active=true
-      AND cv.suppressed=false
-      AND cv.recalled=false
-      AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
-    ORDER BY 1,2
-    LIMIT $3 OFFSET $4
+    SELECT supplier_id::text AS supplier_id,
+           source_product_id::text AS source_product_id
+    FROM markers
   `, [vendorId, hiddenCategoryIds, limit + 1, offset]);
 
   const hasMore = markerResult.rows.length > limit;
