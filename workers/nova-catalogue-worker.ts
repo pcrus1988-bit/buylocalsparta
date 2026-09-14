@@ -71,6 +71,23 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
+      // Pricing must make bounded progress before any catalogue-wide maintenance.
+      // Keeping this ahead of publication also means an offer imported in the previous
+      // cycle gets its structured NOVA price initialized before it can be auto-published.
+      // The cursor-based runtime is idempotent and safely retries the same slice on failure.
+      try {
+        const pricing = await runNovaAutoPricingSlice();
+        log("info", "nova.auto_pricing_slice", { workerId, phase: "pre_publication", ...pricing });
+      } catch (error) {
+        // Pricing is a derived layer. Supplier source ingestion remains durable even
+        // if a pricing pass fails, and the next loop safely retries the same cursor.
+        log("error", "nova.auto_pricing_failed", {
+          workerId,
+          phase: "pre_publication",
+          error: safeError(error)
+        });
+      }
+
       // Publication must not be starved by a slow supplier availability sweep after
       // a deploy/restart. Public catalogue queries still enforce the supplier TTL,
       // so publishing staged offers here does not invent stock or make stale stock sellable.
@@ -163,18 +180,6 @@ try {
             error: safeError(error)
           });
         }
-      }
-
-      try {
-        const pricing = await runNovaAutoPricingSlice();
-        log("info", "nova.auto_pricing_slice", { workerId, ...pricing });
-      } catch (error) {
-        // Pricing is a derived layer. Supplier source ingestion remains durable even
-        // if a pricing pass fails, and the next loop safely retries the same cursor.
-        log("error", "nova.auto_pricing_failed", {
-          workerId,
-          error: safeError(error)
-        });
       }
 
       if (stopping) break;
