@@ -29,6 +29,10 @@
   gap: 9px;
 }
 
+.desktopGrid {
+  display: grid;
+}
+
 .option {
   position: relative;
   min-width: 0;
@@ -190,6 +194,11 @@
 @media (max-width: 620px) {
   .section {
     margin-top: 16px;
+  }
+
+  .heading,
+  .desktopGrid {
+    display: none;
   }
 
   .grid {
