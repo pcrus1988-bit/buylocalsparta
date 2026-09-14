@@ -127,7 +127,7 @@ if (!header.includes("PRIVATE_VENDOR_ROUTES") || !header.includes("!PRIVATE_VEND
 
 const footer = read("apps/web/src/components/SiteFooter.tsx");
 if (!footer.includes("FOOTER_NAVIGATION")) failures.push("Public footer must use the canonical navigation registry");
-const sitemap = read("apps/web/src/app/sitemap.ts");
+const sitemap = read("apps/web/src/app/sitemaps/core/sitemap.ts");
 if (!sitemap.includes("INDEXABLE_STATIC_ROUTES")) failures.push("XML sitemap must source static public routes from the canonical navigation registry");
 if (!sitemap.includes("getPublicCmsSitemapEntries")) failures.push("XML sitemap must include governed published CMS routes");
 if (!sitemap.includes("new Map(entries.map")) failures.push("XML sitemap must deduplicate generated URLs");
