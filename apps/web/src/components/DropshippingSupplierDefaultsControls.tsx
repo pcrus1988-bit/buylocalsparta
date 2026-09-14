@@ -50,15 +50,21 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
   }
 
   async function applyDefaults() {
-    const confirmed = window.confirm("Εφαρμογή των global ρυθμίσεων στο τρέχον catalogue; Οι global τιμές και το MSRP θα εφαρμοστούν ξανά. Τα manual Public/Hidden overrides ανά προϊόν θα διατηρηθούν. Όταν το supplier default είναι Public, ασφαλή supplier-linked προϊόντα ενεργοποιούνται για πώληση και τα draft offers εγκρίνονται αυτόματα από τον Dropshipping vendor. Η πραγματική διαθεσιμότητα/stock συνεχίζει να ελέγχεται από το supplier API. Marketplace moderation και suppressed/recalled προϊόντα παραμένουν κλειδωμένα.");
-    if (!confirmed) return;
+    const confirmationCode = window.prompt(
+      `Supplier-wide action: Reset catalogue στα defaults. Αυτό επανεφαρμόζει pricing/MSRP σε όλο το catalogue του supplier και μπορεί να ενεργοποιήσει eligible supplier-linked προϊόντα όταν το supplier default είναι Public. Τα manual Public/Hidden overrides διατηρούνται, ενώ marketplace/safety gates και live supplier availability παραμένουν authoritative.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
+    );
+    if (confirmationCode == null) return;
+    if (confirmationCode.trim() !== supplierCode) {
+      setMessage(`Το catalogue reset ακυρώθηκε: ο κωδικός επιβεβαίωσης πρέπει να είναι ακριβώς ${supplierCode}.`);
+      return;
+    }
     setBusy(true); setMessage("");
     try {
       const token = await csrfToken();
       const response = await fetch("/api/vendor/dropshipping/settings", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": token },
-        body: JSON.stringify({ supplierCode })
+        body: JSON.stringify({ supplierCode, confirmationCode })
       });
       const payload = await response.json() as { error?: string; pricedProducts?: number; visibleProducts?: number; overriddenProducts?: number };
       if (!response.ok) throw new Error(payload.error ?? "Η εφαρμογή των global ρυθμίσεων απέτυχε.");
@@ -118,7 +124,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Bulk publish eligible</button>
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Οι supplier-wide Bulk publish / Bulk hide απαιτούν πλέον τον ακριβή supplier code πριν εκτελεστούν, επειδή καθαρίζουν τα υπάρχοντα per-product visibility overrides. Bulk publish ενεργοποιεί eligible supplier products και μπορεί να εγκρίνει safe drafts· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ και συνεχίζει να ελέγχεται από το supplier API.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει supplier-wide pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Όλες οι supplier-wide ενέργειες (Reset catalogue, Bulk publish, Bulk hide) απαιτούν τον ακριβή supplier code πριν εκτελεστούν. Bulk publish ενεργοποιεί eligible supplier products και μπορεί να εγκρίνει safe drafts· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ και συνεχίζει να ελέγχεται από το supplier API.</small>
     <DropshippingSupplierFieldControls supplierCode={supplierCode} />
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
