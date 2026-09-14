@@ -287,3 +287,70 @@ export function buildCustomerReturnMaterializationPlan(input: {
     metadata: input.metadata,
   });
 }
+
+export const INTERNAL_SECOND_LIFE_DEFAULT_CONDITION = {
+  customer_return: "open_box",
+  open_box: "open_box",
+  display_stock: "open_box",
+  damaged_packaging: "open_box",
+  admin_curated: "used",
+} as const satisfies Record<InternalSecondLifeSource, BazaarCondition>;
+
+export type NonReturnSecondLifeSource = Exclude<InternalSecondLifeSource, "customer_return">;
+
+export type BazaarSecondLifeSourcePlanInput = {
+  provenanceRef: string;
+  baseSlug: string;
+  baseVendorSku: string;
+  originalCanonicalId: string;
+  originalOfferId?: string;
+  metadata?: Record<string, unknown>;
+  condition?: BazaarCondition;
+};
+
+/**
+ * Entry point for future internal BAZAAR intake flows that do not originate
+ * from a customer return. Each source is forced through the dedicated BAZAAR
+ * commerce channel and a source-specific provenance namespace, while callers
+ * may refine the default second-life condition when inspection supports it.
+ */
+export function buildBazaarInternalSourceMaterializationPlan(
+  source: NonReturnSecondLifeSource,
+  input: BazaarSecondLifeSourcePlanInput,
+): BazaarSecondLifeMaterializationPlan {
+  const condition = input.condition ?? INTERNAL_SECOND_LIFE_DEFAULT_CONDITION[source];
+  return buildBazaarSecondLifeMaterializationPlan({
+    source,
+    condition,
+    provenanceRef: input.provenanceRef,
+    baseSlug: input.baseSlug,
+    baseVendorSku: input.baseVendorSku,
+    originalCanonicalId: input.originalCanonicalId,
+    originalOfferId: input.originalOfferId,
+    metadata: input.metadata,
+  });
+}
+
+export function buildOpenBoxMaterializationPlan(
+  input: BazaarSecondLifeSourcePlanInput,
+): BazaarSecondLifeMaterializationPlan {
+  return buildBazaarInternalSourceMaterializationPlan("open_box", input);
+}
+
+export function buildDisplayStockMaterializationPlan(
+  input: BazaarSecondLifeSourcePlanInput,
+): BazaarSecondLifeMaterializationPlan {
+  return buildBazaarInternalSourceMaterializationPlan("display_stock", input);
+}
+
+export function buildDamagedPackagingMaterializationPlan(
+  input: BazaarSecondLifeSourcePlanInput,
+): BazaarSecondLifeMaterializationPlan {
+  return buildBazaarInternalSourceMaterializationPlan("damaged_packaging", input);
+}
+
+export function buildAdminCuratedMaterializationPlan(
+  input: BazaarSecondLifeSourcePlanInput,
+): BazaarSecondLifeMaterializationPlan {
+  return buildBazaarInternalSourceMaterializationPlan("admin_curated", input);
+}
