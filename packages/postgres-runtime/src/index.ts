@@ -9,6 +9,7 @@ import { PostgresMolliePaymentsService } from "./mollie-payments.ts";
 import { MollieHostedCheckoutGateway } from "./mollie-checkout-gateway.ts";
 import { PostgresMediaPipelineService } from "./media-pipeline.ts";
 import { AadeMyDataClient, myDataConfigFromEnv, myDataIssuanceEnabled, type MyDataConfig } from "@buy-local-sparta/aade-mydata";
+import { PostgresMyDataService } from "./mydata.ts";
 import { meilisearchConfigFromEnv, type MeilisearchConfig } from "@buy-local-sparta/meilisearch-search";
 import { resendConfigFromEnv, type ResendConfig } from "@buy-local-sparta/resend-notifications";
 import { PostgresProductionSearchService } from "./search.ts";
@@ -178,34 +179,67 @@ export function postgresConfigFromEnv(env: NodeJS.ProcessEnv = process.env, appl
   const mollie = env.MOLLIE_PAYMENTS_ENABLED === "true" ? mollieConfigForRuntime(env) : undefined;
   return {
     connectionString,
-    applicationName,
-    maxConnections: Number(env.POSTGRES_POOL_MAX ?? 10),
-    connectionTimeoutMs: Number(env.POSTGRES_CONNECT_TIMEOUT_MS ?? 5000),
-    idleTimeoutMs: Number(env.POSTGRES_IDLE_TIMEOUT_MS ?? 30000),
+    applicationName: env.BLS_DB_APPLICATION_NAME?.trim() || applicationName,
+    maxConnections: positiveInteger(env.BLS_DB_POOL_MAX, 10, "BLS_DB_POOL_MAX"),
+    connectionTimeoutMs: positiveInteger(env.BLS_DB_CONNECT_TIMEOUT_MS, 5_000, "BLS_DB_CONNECT_TIMEOUT_MS"),
+    idleTimeoutMs: positiveInteger(env.BLS_DB_IDLE_TIMEOUT_MS, 30_000, "BLS_DB_IDLE_TIMEOUT_MS"),
     mollie,
-    molliePublicBaseUrl: env.PUBLIC_BASE_URL?.trim() || env.APP_PUBLIC_BASE_URL?.trim() || undefined,
-    mediaMaxBytes: Number(env.MEDIA_MAX_BYTES ?? 12 * 1024 * 1024),
-    myData: myDataConfigFromEnv(env),
+    molliePublicBaseUrl: mollie ? molliePublicBaseUrlFromEnv(env) : undefined,
+    mediaMaxBytes: positiveInteger(env.BLS_MEDIA_MAX_BYTES, 25 * 1024 * 1024, "BLS_MEDIA_MAX_BYTES"),
+    myData: env.AADE_MYDATA_USER_ID?.trim() && env.AADE_MYDATA_SUBSCRIPTION_KEY?.trim() ? myDataConfigFromEnv(env) : undefined,
     myDataIssuanceEnabled: myDataIssuanceEnabled(env),
-    myDataMappingVersion: env.AADE_MYDATA_MAPPING_VERSION?.trim() || undefined,
-    search: meilisearchConfigFromEnv(env),
-    resend: resendConfigFromEnv(env),
-    notificationSuppressionSecret: env.NOTIFICATION_SUPPRESSION_SECRET?.trim() || undefined,
-    notificationWorkerId: env.NOTIFICATION_WORKER_ID?.trim() || undefined,
-    boxNow: boxNowConfigFromEnv(env)
+    myDataMappingVersion: env.BLS_MYDATA_MAPPING_VERSION?.trim() || undefined,
+    search: env.BLS_SEARCH_ENABLED === "true" ? meilisearchConfigFromEnv(env) : undefined,
+    resend: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? resendConfigFromEnv(env) : undefined,
+    notificationSuppressionSecret: env.BLS_EMAIL_DELIVERY_ENABLED === "true" ? requiredSecret(env.BLS_NOTIFICATION_SUPPRESSION_SECRET, "BLS_NOTIFICATION_SUPPRESSION_SECRET") : undefined,
+    notificationWorkerId: env.BLS_NOTIFICATION_WORKER_ID?.trim() || undefined,
+    boxNow: env.BLS_BOXNOW_ENABLED === "true" ? boxNowConfigFromEnv(env) : undefined
   };
 }
 
-function mollieConfigForRuntime(env: NodeJS.ProcessEnv): MollieConfig | undefined {
-  if (env.MOLLIE_PAYMENTS_ENABLED !== "true") return undefined;
-  return mollieConfigFromEnv(env);
+export function createPostgresRuntimeFromEnv(input: { env?: NodeJS.ProcessEnv; applicationName?: string } = {}): ProductionPostgresRuntime {
+  return new ProductionPostgresRuntime(postgresConfigFromEnv(input.env, input.applicationName));
 }
 
-function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig | undefined {
-  const clientId = env.BOXNOW_CLIENT_ID?.trim();
-  const clientSecret = env.BOXNOW_CLIENT_SECRET?.trim();
-  const warehouseNumber = env.BOXNOW_WAREHOUSE_NUMBER?.trim();
-  const apiBaseUrl = env.BOXNOW_API_BASE_URL?.trim();
-  if (!clientId || !clientSecret || !warehouseNumber || !apiBaseUrl) return undefined;
-  return { clientId, clientSecret, warehouseNumber, apiBaseUrl };
+function boxNowConfigFromEnv(env: NodeJS.ProcessEnv): BoxNowConfig {
+  const environment = env.BOXNOW_ENVIRONMENT === "production" ? "production" : "stage";
+  if (env.NODE_ENV === "production" && environment !== "production" && env.BLS_ALLOW_BOXNOW_STAGE_PREVIEW !== "true") throw new Error("Production BOX NOW shipping requires BOXNOW_ENVIRONMENT=production");
+  const baseUrl = env.BOXNOW_API_URL?.trim(); const clientId = env.BOXNOW_CLIENT_ID?.trim(); const clientSecret = env.BOXNOW_CLIENT_SECRET?.trim();
+  if (!baseUrl || !clientId || !clientSecret) throw new Error("BOXNOW_API_URL, BOXNOW_CLIENT_ID and BOXNOW_CLIENT_SECRET are required when BLS_BOXNOW_ENABLED=true");
+  const webhookSecret = env.BOXNOW_WEBHOOK_SECRET?.trim(); if (!webhookSecret || webhookSecret.length < 16) throw new Error("BOXNOW_WEBHOOK_SECRET must be configured when BLS_BOXNOW_ENABLED=true");
+  return { environment, baseUrl, clientId, clientSecret, partnerId: env.BOXNOW_PARTNER_ID?.trim() || undefined, requestTimeoutMs: positiveInteger(env.BOXNOW_REQUEST_TIMEOUT_MS, 10_000, "BOXNOW_REQUEST_TIMEOUT_MS") };
 }
+
+function mollieConfigForRuntime(env: NodeJS.ProcessEnv): MollieConfig {
+  const config = mollieConfigFromEnv(env);
+  if (env.NODE_ENV === "production" && mollieEnvironment(config) !== "live" && env.BLS_ALLOW_MOLLIE_TEST_PREVIEW !== "true") throw new Error("Production Mollie payments require a live API key");
+  return config;
+}
+
+function molliePublicBaseUrlFromEnv(env: NodeJS.ProcessEnv): string {
+  const configured = env.MOLLIE_PUBLIC_BASE_URL?.trim();
+  if (configured) return configured;
+  const vercelHost = env.VERCEL_URL?.trim() || env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelHost) return /^https?:\/\//i.test(vercelHost) ? vercelHost : `https://${vercelHost}`;
+  if (env.NODE_ENV !== "production") return "http://localhost:3000";
+  throw new Error("MOLLIE_PUBLIC_BASE_URL or a Vercel public URL is required when Mollie payments are enabled");
+}
+
+function requiredSecret(raw: string | undefined, name: string): string { const value = raw?.trim(); if (!value || value.length < 32) throw new Error(`${name} must be at least 32 characters`); return value; }
+function positiveInteger(raw: string | undefined, fallback: number, name: string): number { if (raw == null || raw.trim() === "") return fallback; const value = Number(raw); if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`); return value; }
+
+export * from "./customer-auth.ts";
+export * from "./customer-commerce.ts";
+export * from "./vendor-auth.ts";
+export * from "./vendor-operations.ts";
+export * from "./admin-auth.ts";
+export * from "./admin-operations.ts";
+export * from "./admin-governance.ts";
+export * from "./mollie-payments.ts";
+export * from "./media-pipeline.ts";
+export * from "./mydata.ts";
+export * from "./search.ts";
+export * from "./notifications.ts";
+export * from "./boxnow-shipping.ts";
+export * from "./activation-evidence.ts";
+export * from "./cart-recovery.ts";
