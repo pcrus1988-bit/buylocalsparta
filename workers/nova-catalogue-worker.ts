@@ -26,6 +26,7 @@ const availabilityRefreshMs = positiveInteger(
   "BLS_NOVA_AVAILABILITY_REFRESH_MS"
 );
 const automaticPublicationEnabled = process.env.BLS_NOVA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
+const pricingCatchupMaxPasses = 8;
 const enrichmentGenerationScope = catalogueEnrichmentGenerationScope();
 const enrichmentGenerationConfigured = enrichmentGenerationScope.enabled
   && (enrichmentGenerationScope.allowAll || enrichmentGenerationScope.productIds.length > 0);
@@ -57,6 +58,7 @@ log("info", "nova.worker_started", {
   materializesPublicOffers: false,
   automaticPublication: automaticPublicationEnabled,
   automaticPricing: novaAutoPricingEnabled(),
+  pricingCatchupMaxPasses,
   catalogueEnrichment: {
     enabled: enrichmentGenerationScope.enabled,
     configured: enrichmentGenerationConfigured,
@@ -72,15 +74,23 @@ try {
   while (!stopping) {
     try {
       // Pricing must make bounded progress before any catalogue-wide maintenance.
-      // Keeping this ahead of publication also means an offer imported in the previous
-      // cycle gets its structured NOVA price initialized before it can be auto-published.
-      // The cursor-based runtime is idempotent and safely retries the same slice on failure.
+      // Newly imported/unmanaged offers are drained in bounded catch-up batches so
+      // they cannot wait for a random public-id cursor rotation. Once catch-up is
+      // clear, the regular cursor pass runs exactly once and normal repricing resumes.
       try {
-        const pricing = await runNovaAutoPricingSlice();
-        log("info", "nova.auto_pricing_slice", { workerId, phase: "pre_publication", ...pricing });
+        for (let pass = 1; pass <= pricingCatchupMaxPasses && !stopping; pass += 1) {
+          const pricing = await runNovaAutoPricingSlice();
+          log("info", "nova.auto_pricing_slice", {
+            workerId,
+            phase: pass === 1 ? "pre_publication" : "pre_publication_catchup",
+            catchupPass: pass,
+            ...pricing
+          });
+          if (pricing.message !== "auto_pricing_unmanaged_catchup" || pricing.scanned === 0) break;
+        }
       } catch (error) {
         // Pricing is a derived layer. Supplier source ingestion remains durable even
-        // if a pricing pass fails, and the next loop safely retries the same cursor.
+        // if a pricing pass fails, and the next loop safely retries the same work.
         log("error", "nova.auto_pricing_failed", {
           workerId,
           phase: "pre_publication",
