@@ -171,6 +171,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   const [size, setSize] = useState("all");
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryTransitionLoading, setCategoryTransitionLoading] = useState(false);
   const [publicVendorId, setPublicVendorId] = useState<string>();
   const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>(null);
   const [remoteTotal, setRemoteTotal] = useState<number>();
@@ -184,6 +185,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   const [loadingFactIndex, setLoadingFactIndex] = useState(0);
   const demoMode = Boolean(demoVendorId);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const catalogResultsRef = useRef<HTMLDivElement | null>(null);
   const prefetchedPageRef = useRef<PrefetchedPage | null>(null);
   const loadingMoreRef = useRef(false);
   const activeRequestKeyRef = useRef("");
@@ -327,7 +329,10 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
         setRemoteAttempted(true);
         setRemoteError(true);
       } finally {
-        if (!controller.signal.aborted && activeRequestKeyRef.current === key) setRemoteLoading(false);
+        if (!controller.signal.aborted && activeRequestKeyRef.current === key) {
+          setRemoteLoading(false);
+          setCategoryTransitionLoading(false);
+        }
       }
     }, delay);
 
@@ -473,8 +478,23 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     resetAllFilters();
   };
   const selectCategory = (nextCategory: string) => {
+    const categoryChanged = nextCategory !== category;
+    if (categoryChanged && !demoMode) {
+      setCategoryTransitionLoading(true);
+      setRemoteLoading(true);
+    }
     setCategory(nextCategory);
     resetSecondaryFilters();
+    setFiltersOpen(false);
+
+    // The mobile sheet locks body scrolling. Wait until it has closed and its
+    // scroll lock has been released, then place the results section at the top
+    // of the viewport regardless of the user's previous scroll position.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        catalogResultsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+      });
+    });
   };
 
   const filterPanel = (mobile = false) => (
@@ -569,7 +589,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
           {filterPanel()}
         </aside>
 
-        <div className={styles.catalogResults}>
+        <div ref={catalogResultsRef} className={styles.catalogResults} style={{ scrollMarginTop: 88 }}>
           <label className={`${styles.field} ${styles.desktopCatalogSearch}`}>
             <span>Αναζήτηση στο κατάστημα</span>
             <input
@@ -588,7 +608,9 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
             {query ? <button type="button" className={styles.clearButton} onClick={() => setQuery("")}>Καθαρισμός αναζήτησης</button> : null}
           </div>
 
-          {visibleProducts.length > 0 ? (
+          {categoryTransitionLoading ? (
+            <VendorCatalogueLoadingOverlay fact={loadingFacts[loadingFactIndex] ?? loadingFacts[0]} />
+          ) : visibleProducts.length > 0 ? (
             <>
               <div className="vendorCatalogGrid">
                 {visibleProducts.map((product, index) => (
