@@ -135,3 +135,74 @@ export function buildBazaarSecondLifeIdentity(input: {
     vendorSku: `${baseVendorSku}-BAZAAR-${input.source.toUpperCase()}-${identityToken}`,
   };
 }
+
+export type BazaarSecondLifeMaterializationPlan = {
+  commerceChannel: "bazaar";
+  source: InternalSecondLifeSource;
+  condition: BazaarCondition;
+  identity: BazaarSecondLifeIdentity;
+  canonicalProvenance: {
+    source: InternalSecondLifeSource;
+    provenanceRef: string;
+    provenanceNamespace: string;
+    originalCanonicalId: string;
+    originalOfferId?: string;
+    metadata: Record<string, unknown>;
+  };
+  offerSourcePayload: {
+    bazaarSource: InternalSecondLifeSource;
+    bazaarProvenanceRef: string;
+    bazaarProvenanceNamespace: string;
+    originalCanonicalId: string;
+    originalOfferId?: string;
+    metadata: Record<string, unknown>;
+  };
+};
+
+/**
+ * Produces the channel-safe application contract consumed by second-life
+ * materializers. The plan deliberately contains no SQL so returns, open-box,
+ * display-stock and damaged-packaging flows can share the same identity and
+ * provenance rules while keeping their own transactional orchestration.
+ */
+export function buildBazaarSecondLifeMaterializationPlan(input: {
+  source: unknown;
+  condition: unknown;
+  provenanceRef: string;
+  baseSlug: string;
+  baseVendorSku: string;
+  originalCanonicalId: string;
+  originalOfferId?: string;
+  metadata?: Record<string, unknown>;
+}): BazaarSecondLifeMaterializationPlan {
+  const identity = buildBazaarSecondLifeIdentity(input);
+  const originalCanonicalId = input.originalCanonicalId.trim();
+  const originalOfferId = input.originalOfferId?.trim() || undefined;
+  if (!originalCanonicalId) throw new Error("BAZAAR second-life original canonical ID is required");
+
+  const metadata = { ...(input.metadata ?? {}) };
+  const provenanceRef = input.provenanceRef.trim();
+
+  return {
+    commerceChannel: "bazaar",
+    source: identity.source,
+    condition: identity.condition,
+    identity,
+    canonicalProvenance: {
+      source: identity.source,
+      provenanceRef,
+      provenanceNamespace: identity.provenanceNamespace,
+      originalCanonicalId,
+      originalOfferId,
+      metadata,
+    },
+    offerSourcePayload: {
+      bazaarSource: identity.source,
+      bazaarProvenanceRef: provenanceRef,
+      bazaarProvenanceNamespace: identity.provenanceNamespace,
+      originalCanonicalId,
+      originalOfferId,
+      metadata,
+    },
+  };
+}
