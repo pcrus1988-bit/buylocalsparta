@@ -713,7 +713,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
           animation: vendorOrbitSpin 12s linear infinite;
         }
         .vendorLoaderOrbitItem {
-          --orbit-radius: 43%;
+          --orbit-radius: 132px;
           position: absolute;
           left: 50%;
           top: 50%;
@@ -721,7 +721,6 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
           height: 46px;
           margin: -23px 0 0 -34px;
           transform: rotate(var(--orbit-angle)) translateY(calc(-1 * var(--orbit-radius))) rotate(calc(-1 * var(--orbit-angle)));
-          transform-origin: 34px calc(23px + var(--orbit-radius));
         }
         .vendorLoaderLogoCard {
           width: 100%;
@@ -827,6 +826,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
             text-align: center;
           }
           .vendorLoaderOrbit { width: min(280px, 76vw); }
+          .vendorLoaderOrbitItem { --orbit-radius: 108px; }
           .vendorLoaderCore { width: 112px; height: 112px; }
           .vendorLoaderLead { margin-left: auto; margin-right: auto; }
           .vendorLoaderFact {
