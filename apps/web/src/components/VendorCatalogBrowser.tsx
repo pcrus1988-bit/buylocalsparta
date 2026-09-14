@@ -17,7 +17,7 @@ type RemoteFacets = Readonly<{
 }>;
 type VendorCatalogApiResponse = Readonly<{
   products: readonly CatalogCard[];
-  total: number;
+  total?: number;
   offset: number;
   limit: number;
   nextOffset: number | null;
@@ -319,7 +319,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
         const payload = await fetchPage(publicVendorId, filters, 0, controller.signal);
         if (controller.signal.aborted || activeRequestKeyRef.current !== key) return;
         setRemoteProducts(payload.products);
-        setRemoteTotal(payload.total);
+        setRemoteTotal(typeof payload.total === "number" ? payload.total : undefined);
         setRemoteNextOffset(payload.nextOffset);
         setRemoteAttempted(true);
         void prefetchNextPage(publicVendorId, filters, key, payload.nextOffset);
@@ -355,7 +355,10 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
         });
         if (!response.ok) throw new Error(`Facet request failed with ${response.status}`);
         const payload = await response.json() as VendorCatalogApiResponse;
-        if (!cancelled && payload.facets) setRemoteFacets(payload.facets);
+        if (!cancelled && payload.facets) {
+          setRemoteFacets(payload.facets);
+          setRemoteTotal(payload.facets.total);
+        }
       } catch (error) {
         if (!cancelled) console.error("Vendor catalogue facets failed", error);
       } finally {
@@ -408,7 +411,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     ? 0
     : remoteProducts === null
       ? fallbackFiltered.length
-      : (remoteTotal ?? remoteProducts.length) + localFiltered.length;
+      : (remoteFacets?.total ?? remoteTotal ?? remoteProducts.length) + localFiltered.length;
+  const resultTotalIsExact = demoMode
+    || remoteProducts === null
+    || remoteFacets?.total !== undefined
+    || remoteTotal !== undefined
+    || remoteNextOffset === null;
+  const resultTotalDisplay = `${resultTotal}${!resultTotalIsExact && remoteNextOffset !== null ? "+" : ""}`;
   const catalogueTotal = remoteFacets?.total !== undefined
     ? remoteFacets.total + initialLocalProducts.length
     : remoteTotal !== undefined
@@ -441,7 +450,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
       }
       if (activeRequestKeyRef.current !== key) return;
       setRemoteProducts((current) => dedupeProducts([...(current ?? []), ...payload.products]));
-      setRemoteTotal(payload.total);
+      if (typeof payload.total === "number") setRemoteTotal(payload.total);
       setRemoteNextOffset(payload.nextOffset);
       setRenderLimit((current) => current + PAGE_SIZE);
       void prefetchNextPage(publicVendorId, filters, key, payload.nextOffset);
@@ -487,9 +496,6 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     resetSecondaryFilters();
     setFiltersOpen(false);
 
-    // The mobile sheet locks body scrolling. Wait until it has closed and its
-    // scroll lock has been released, then place the results section at the top
-    // of the viewport regardless of the user's previous scroll position.
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         catalogResultsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -576,7 +582,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
 
       {mobile ? (
         <div className={styles.mobileFilterHint}>
-          {remoteLoading ? "Ετοιμάζουμε τη βιτρίνα…" : `${resultTotal} ${resultTotal === 1 ? "προϊόν" : "προϊόντα"} με τα επιλεγμένα φίλτρα`}
+          {remoteLoading ? "Ετοιμάζουμε τη βιτρίνα…" : `${resultTotalDisplay} ${resultTotal === 1 && resultTotalIsExact ? "προϊόν" : "προϊόντα"} με τα επιλεγμένα φίλτρα`}
         </div>
       ) : null}
     </div>
@@ -601,7 +607,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
           </label>
 
           <div className={styles.catalogMeta}>
-            <span><strong>{Math.min(PAGE_SIZE, visibleProducts.length)}</strong> άμεσες επιλογές · {resultTotal} προϊόντα στον κατάλογο.</span>
+            <span><strong>{Math.min(PAGE_SIZE, visibleProducts.length)}</strong> άμεσες επιλογές · {resultTotalDisplay} προϊόντα στον κατάλογο.</span>
             {facetsLoading ? <span>Κατηγορίες & μάρκες φορτώνουν στο παρασκήνιο…</span> : null}
             {remoteError ? <span>Ο πλήρης κατάλογος δεν ήταν προσωρινά διαθέσιμος· εμφανίζεται η τελευταία διαθέσιμη επιλογή.</span> : null}
             {demoMode ? <span>DEMO · οι κάρτες ανοίγουν πλήρη προεπισκόπηση προϊόντος, χωρίς checkout.</span> : null}
@@ -668,7 +674,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
             <div className={styles.mobileFilterSheetBody}>{filterPanel(true)}</div>
             <div className={styles.mobileFilterSheetFooter}>
               <button type="button" className="button" onClick={() => setFiltersOpen(false)}>
-                Προβολή {resultTotal} {resultTotal === 1 ? "προϊόντος" : "προϊόντων"}
+                Προβολή {resultTotalDisplay} {resultTotal === 1 && resultTotalIsExact ? "προϊόντος" : "προϊόντων"}
               </button>
             </div>
           </aside>
