@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { DropshipPublicFields } from "../lib/dropship-presentation-policy";
 
@@ -13,6 +13,7 @@ type Props = Readonly<{
 
 type BulkAction = "publish" | "hide" | "reset";
 type FeedDiagnosticFilter = "stale_sync" | "missing_telemetry";
+type RecoveryProgress = Readonly<{ current: number; total: number }>;
 
 const AVAILABILITY_RECOVERY_LIMIT = 10;
 const AVAILABILITY_RECOVERY_PACE_MS = 3_000;
@@ -56,18 +57,22 @@ function delay(ms: number): Promise<void> {
 
 export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, page, activeFilterCount }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [recoveryProgress, setRecoveryProgress] = useState<RecoveryProgress | null>(null);
   const [markupPercent, setMarkupPercent] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [publicFields, setPublicFields] = useState<DropshipPublicFields>(defaultPublicFields);
+  const activeDiagnostic = searchParams.get("availability");
+  const canRecoverAvailability = activeDiagnostic === "missing_telemetry" && offerIds.length > 0;
 
   function setPublicField(key: keyof DropshipPublicFields, checked: boolean) {
     setPublicFields((current) => ({ ...current, [key]: checked }));
   }
 
   function applyFeedDiagnosticFilter(filter: FeedDiagnosticFilter | null) {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     if (filter) params.set("availability", filter);
     else params.delete("availability");
     params.delete("page");
@@ -76,8 +81,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
   async function recoverMissingAvailabilityTelemetry() {
     if (!offerIds.length) return;
-    const diagnostic = new URLSearchParams(window.location.search).get("availability");
-    if (diagnostic !== "missing_telemetry") {
+    if (activeDiagnostic !== "missing_telemetry") {
       setMessage("Εφάρμοσε πρώτα το φίλτρο «Χωρίς availability telemetry» ώστε η recovery ενέργεια να αγγίζει μόνο διαγνωσμένα προϊόντα.");
       return;
     }
@@ -91,6 +95,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
     setBusy(true);
     setMessage("");
+    setRecoveryProgress({ current: 0, total: targets.length });
     try {
       const token = await csrfToken();
       let succeeded = 0;
@@ -111,6 +116,8 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
           updatedOffers += typeof payload.updatedOffers === "number" ? payload.updatedOffers : 0;
         } catch {
           failed += 1;
+        } finally {
+          setRecoveryProgress({ current: index + 1, total: targets.length });
         }
 
         if (index < targets.length - 1) await delay(AVAILABILITY_RECOVERY_PACE_MS);
@@ -123,6 +130,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η bounded availability recovery απέτυχε.");
     } finally {
+      setRecoveryProgress(null);
       setBusy(false);
     }
   }
@@ -277,10 +285,18 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Χωρίς re-materialization &gt;12h</button>
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter("missing_telemetry")}>Χωρίς availability telemetry</button>
-        <button className="button button-secondary" type="button" disabled={busy || !offerIds.length} onClick={recoverMissingAvailabilityTelemetry}>Recover έως 10 telemetry</button>
+        <button className="button button-secondary" type="button" disabled={busy || !canRecoverAvailability} onClick={recoverMissingAvailabilityTelemetry} aria-disabled={busy || !canRecoverAvailability}>
+          {recoveryProgress ? `Recovery ${recoveryProgress.current}/${recoveryProgress.total}…` : "Recover έως 10 telemetry"}
+        </button>
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter(null)}>Καθαρισμός feed diagnostic</button>
       </div>
-      <small style={{ display: "block", marginTop: 8 }}>Η recovery απαιτεί ενεργό φίλτρο «Χωρίς availability telemetry», επεξεργάζεται το πολύ 10 προϊόντα της ορατής σελίδας και αφήνει αποτυχημένες supplier κλήσεις χωρίς ψευδή νέα evidence.</small>
+      <small role="status" aria-live="polite" style={{ display: "block", marginTop: 8 }}>
+        {recoveryProgress
+          ? `Availability recovery σε εξέλιξη: ${recoveryProgress.current}/${recoveryProgress.total}. Οι supplier κλήσεις παραμένουν σειριακές με 3s pacing.`
+          : canRecoverAvailability
+            ? `Recovery έτοιμη για ${Math.min(offerIds.length, AVAILABILITY_RECOVERY_LIMIT)} προϊόντα της ορατής σελίδας. Αποτυχημένες supplier κλήσεις μένουν χωρίς ψευδή νέα evidence.`
+            : "Ενεργοποίησε πρώτα το φίλτρο «Χωρίς availability telemetry» για να γίνει διαθέσιμη η bounded recovery."}
+      </small>
     </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 10 }}>
