@@ -54,7 +54,7 @@ export function projectDropshipFamilies<T extends DropshipFamilyProjectionRecord
 ): readonly DropshipFamilyProjection<T>[] {
   const observedFamiliesBySource = new Map<string, Set<string>>();
   for (const record of records) {
-    if (!record.familyId) continue;
+    if (record.availableToSell <= 0 || !record.familyId) continue;
     const sourceKey = sourceParentKey(record);
     const observed = observedFamiliesBySource.get(sourceKey);
     if (observed) observed.add(record.familyId);
@@ -70,6 +70,10 @@ export function projectDropshipFamilies<T extends DropshipFamilyProjectionRecord
 
   const grouped = new Map<string, T[]>();
   for (const record of records) {
+    // Unavailable supplier children are never public catalogue members. Filtering
+    // here is a final safety net for every caller and keeps dead sizes/variants out
+    // of family stock, size facets and representative selection.
+    if (record.availableToSell <= 0) continue;
     const inheritedFamilyId = record.familyId ?? inheritedFamilyBySource.get(sourceParentKey(record));
     const key = inheritedFamilyId
       ? `family:${inheritedFamilyId}`
