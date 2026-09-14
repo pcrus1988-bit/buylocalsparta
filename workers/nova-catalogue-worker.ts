@@ -71,6 +71,22 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
+      // Publication must not be starved by a slow supplier availability sweep after
+      // a deploy/restart. Public catalogue queries still enforce the supplier TTL,
+      // so publishing staged offers here does not invent stock or make stale stock sellable.
+      if (automaticPublicationEnabled) {
+        try {
+          const publication = await runNovaAutoPublicationSweep();
+          log("info", "nova.auto_publication_sweep", { workerId, phase: "pre_refresh", ...publication });
+        } catch (error) {
+          log("error", "nova.auto_publication_failed", {
+            workerId,
+            phase: "pre_refresh",
+            error: safeError(error)
+          });
+        }
+      }
+
       if (Date.now() >= nextAvailabilityRefreshAt) {
         const sweepStartedAt = Date.now();
         try {
@@ -110,12 +126,13 @@ try {
       if (automaticPublicationEnabled) {
         try {
           const publication = await runNovaAutoPublicationSweep();
-          log("info", "nova.auto_publication_sweep", { workerId, ...publication });
+          log("info", "nova.auto_publication_sweep", { workerId, phase: "post_materialization", ...publication });
         } catch (error) {
           // Publication is an explicit opt-in capability. Any failure remains fail-closed
           // and cannot make staged supplier catalogue rows public.
           log("error", "nova.auto_publication_failed", {
             workerId,
+            phase: "post_materialization",
             error: safeError(error)
           });
         }
