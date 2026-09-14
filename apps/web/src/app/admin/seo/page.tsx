@@ -26,6 +26,7 @@ export default async function AdminSeoPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
 
+  // Scale-safe contract: this overview does not scan πλέον όλο το catalogue at render time.
   const [settingsSnapshot, reports] = await Promise.all([
     getSeoGlobalSettingsSnapshot(),
     getSeoDiagnosticReportsSnapshot()
