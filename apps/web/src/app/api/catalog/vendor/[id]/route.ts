@@ -1,4 +1,5 @@
 import { getVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-catalog-page";
+import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
 import { getFastVendorDropshipFacets } from "../../../../../lib/vendor-dropship-fast-facets";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
@@ -48,24 +49,33 @@ export async function GET(request: Request, { params }: RouteContext) {
       });
     }
 
-    const [page, facets] = await Promise.all([
-      getVendorDropshipCatalogPage(id, {
-        query,
-        category,
-        brand,
-        color,
-        size,
-        availableOnly,
-        offset,
-        limit
-      }),
-      includeFacets ? getFastVendorDropshipFacets(id) : Promise.resolve(undefined)
-    ]);
+    const useFastInitialPath = !includeFacets
+      && !query
+      && !category
+      && !brand
+      && !color
+      && !size
+      && !availableOnly;
+
+    const page = useFastInitialPath
+      ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
+      : await getVendorDropshipCatalogPage(id, {
+          query,
+          category,
+          brand,
+          color,
+          size,
+          availableOnly,
+          offset,
+          limit
+        });
+    const facets = includeFacets ? await getFastVendorDropshipFacets(id) : undefined;
+    const total = "total" in page ? page.total : undefined;
 
     return Response.json({
       vendorId: id,
       products: page.products,
-      total: page.total,
+      total,
       offset: page.offset,
       limit: page.limit,
       nextOffset: page.nextOffset ?? null,
