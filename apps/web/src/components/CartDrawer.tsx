@@ -48,6 +48,29 @@ function CartLine({ item }: { item: CartItem }) {
   );
 }
 
+function CartGroup({
+  id,
+  title,
+  subtitle,
+  items
+}: Readonly<{
+  id: string;
+  title: string;
+  subtitle: string;
+  items: readonly CartItem[];
+}>) {
+  if (!items.length) return null;
+  return (
+    <section className={styles.group} aria-labelledby={id}>
+      <div className={styles.groupHeading}>
+        <div><strong id={id}>{title}</strong><span>{subtitle}</span></div>
+        <span>{itemCountLabel(items.reduce((sum, item) => sum + item.quantity, 0))}</span>
+      </div>
+      <div className={styles.lines}>{items.map((item) => <CartLine key={item.canonicalVariantId} item={item} />)}</div>
+    </section>
+  );
+}
+
 export function CartDrawer() {
   const { items, count, subtotalMinor, isCartOpen, closeCart, detailsReady } = useCart();
   const [mounted, setMounted] = useState(false);
@@ -126,28 +149,29 @@ export function CartDrawer() {
               <button type="button" onClick={closeCart}>Συνέχεια αγορών</button>
             </div>
           ) : !detailsReady ? (
-            <div className={styles.loading} role="status">Φορτώνουμε τις λεπτομέρειες του καλαθιού…</div>
+            <>
+              <div className={styles.loading} role="status">Ενημερώνουμε τις επιλογές αποστολής…</div>
+              <CartGroup
+                id="cart-pending-group"
+                title="Προϊόντα καλαθιού"
+                subtitle="Οι λεπτομέρειες αποστολής ενημερώνονται στο παρασκήνιο"
+                items={items}
+              />
+            </>
           ) : (
             <>
-              {groups.local.length ? (
-                <section className={styles.group} aria-labelledby="cart-local-group">
-                  <div className={styles.groupHeading}>
-                    <div><strong id="cart-local-group">ΚΟΝΤΑ ΣΟΥ — Σπάρτη</strong><span>Τοπικά προϊόντα και διαθέσιμες επιλογές εκπλήρωσης</span></div>
-                    <span>{itemCountLabel(groups.local.reduce((sum, item) => sum + item.quantity, 0))}</span>
-                  </div>
-                  <div className={styles.lines}>{groups.local.map((item) => <CartLine key={item.canonicalVariantId} item={item} />)}</div>
-                </section>
-              ) : null}
-
-              {groups.partner.length ? (
-                <section className={styles.group} aria-labelledby="cart-partner-group">
-                  <div className={styles.groupHeading}>
-                    <div><strong id="cart-partner-group">Αποστολή συνεργάτη</strong><span>Αποστολή από συνεργαζόμενο προμηθευτή</span></div>
-                    <span>{itemCountLabel(groups.partner.reduce((sum, item) => sum + item.quantity, 0))}</span>
-                  </div>
-                  <div className={styles.lines}>{groups.partner.map((item) => <CartLine key={item.canonicalVariantId} item={item} />)}</div>
-                </section>
-              ) : null}
+              <CartGroup
+                id="cart-local-group"
+                title="ΚΟΝΤΑ ΣΟΥ — Σπάρτη"
+                subtitle="Τοπικά προϊόντα και διαθέσιμες επιλογές εκπλήρωσης"
+                items={groups.local}
+              />
+              <CartGroup
+                id="cart-partner-group"
+                title="Αποστολή συνεργάτη"
+                subtitle="Αποστολή από συνεργαζόμενο προμηθευτή"
+                items={groups.partner}
+              />
             </>
           )}
         </div>
