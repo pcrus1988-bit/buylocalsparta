@@ -8,7 +8,7 @@ import type {
 } from "./vendor-dropshipping-service";
 
 export type DropshippingPublicationFilter = "all" | "published" | "unpublished";
-export type DropshippingAvailabilityFilter = "all" | "available" | "out_of_stock";
+export type DropshippingAvailabilityFilter = "all" | "available" | "out_of_stock" | "missing_telemetry" | "stale_sync";
 export type DropshippingCostFilter = "all" | "with_cost" | "missing_cost";
 export type DropshippingAdjustmentFilter = "all" | "with" | "without" | "percent" | "fixed";
 export type DropshippingPricingFlagFilter = "all" | "OVERPRICED" | "OK";
@@ -134,7 +134,7 @@ export function normalizeDropshippingProductFilters(input: DropshippingFilterInp
     size: compact(input.size, 120),
     color: compact(input.color, 120),
     publication: oneOf(input.publication, ["all", "published", "unpublished"] as const, "all"),
-    availability: oneOf(input.availability, ["all", "available", "out_of_stock"] as const, "all"),
+    availability: oneOf(input.availability, ["all", "available", "out_of_stock", "missing_telemetry", "stale_sync"] as const, "all"),
     cost: oneOf(input.cost, ["all", "with_cost", "missing_cost"] as const, "all"),
     markup: oneOf(input.markup, ["all", "with", "without", "percent", "fixed"] as const, "all"),
     discount: oneOf(input.discount, ["all", "with", "without", "percent", "fixed"] as const, "all"),
@@ -327,7 +327,13 @@ export async function vendorDropshippingFilteredWorkspace(
          AND ($7::text='' OR lower(btrim(coalesce(cv.variant_attributes->>'size',cv.variant_attributes->>'Size',cv.variant_attributes->>'shoe_size',cv.variant_attributes->>'clothing_size','')))=lower(btrim($7)))
          AND ($8::text='' OR lower(btrim(coalesce(cv.variant_attributes->>'color',cv.variant_attributes->>'colour',cv.variant_attributes->>'Color',cv.variant_attributes->>'Colour','')))=lower(btrim($8)))
          AND ($9::text='all' OR ($9='published' AND dso.active AND vo.merchant_visible AND vo.status='approved') OR ($9='unpublished' AND NOT (dso.active AND vo.merchant_visible AND vo.status='approved')))
-         AND ($10::text='all' OR ($10='available' AND dso.cached_available) OR ($10='out_of_stock' AND NOT dso.cached_available))
+         AND (
+           $10::text='all'
+           OR ($10='available' AND dso.cached_available)
+           OR ($10='out_of_stock' AND NOT dso.cached_available)
+           OR ($10='missing_telemetry' AND dso.active AND dso.availability_checked_at IS NULL)
+           OR ($10='stale_sync' AND dso.active AND (dso.last_catalogue_sync_at IS NULL OR dso.last_catalogue_sync_at < now() - interval '12 hours'))
+         )
          AND ($11::text='all' OR ($11='with_cost' AND dso.supplier_cost_minor IS NOT NULL) OR ($11='missing_cost' AND dso.supplier_cost_minor IS NULL))
          AND ($12::text='all' OR ($12='with' AND coalesce(pp.markup_value,0)<>0) OR ($12='without' AND coalesce(pp.markup_value,0)=0) OR ($12='percent' AND pp.markup_type='percent' AND pp.markup_value IS NOT NULL) OR ($12='fixed' AND pp.markup_type='fixed' AND pp.markup_value IS NOT NULL))
          AND ($13::text='all' OR ($13='with' AND coalesce(pp.discount_value,0)<>0) OR ($13='without' AND coalesce(pp.discount_value,0)=0) OR ($13='percent' AND pp.discount_type='percent' AND pp.discount_value IS NOT NULL) OR ($13='fixed' AND pp.discount_type='fixed' AND pp.discount_value IS NOT NULL))
