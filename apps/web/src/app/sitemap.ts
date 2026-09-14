@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next";
-import { getPublicProductSeoInventory } from "../lib/catalog-view";
 import { INDEXABLE_STATIC_ROUTES } from "../lib/site-navigation";
 import { getPublicVendorDirectory } from "../lib/public-vendor-directory";
 import { productIndexEligibility, researchVendorIndexEligibility } from "../lib/seo-visibility-policy";
@@ -10,6 +9,7 @@ import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxon
 import { productPublicPath } from "../lib/product-url";
 import { getPublicCmsSitemapEntries } from "../lib/public-cms";
 import { EDITORIAL_COLLECTIONS } from "../lib/editorial-collections";
+import { getPublicProductSitemapInventory } from "../lib/product-sitemap-inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +97,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const [products, vendors] = await Promise.allSettled([
-    settings.sitemap.products ? getPublicProductSeoInventory() : Promise.resolve(null),
+    settings.sitemap.products ? getPublicProductSitemapInventory() : Promise.resolve(null),
     settings.sitemap.partnerVendors || settings.sitemap.researchVendors ? getPublicVendorDirectory() : Promise.resolve(null)
   ]);
   if (products.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_products_failed", message: String(products.reason) }));
@@ -105,7 +105,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     ...fixed,
-    ...(products.status === "fulfilled" && products.value ? products.value.products.flatMap((product) => {
+    ...(products.status === "fulfilled" && products.value ? products.value.flatMap((product) => {
       const reference: SeoEntityReference = { kind: "product", id: product.id };
       const quality = productIndexEligibility(product);
       const { override, control } = governed(reference, quality.blockingReasons.length === 0, quality.eligible);
