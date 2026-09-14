@@ -22,7 +22,9 @@ export async function POST(request: Request) {
 
     if (action === "set-supplier-visibility") {
       const supplierCode = typeof body.supplierCode === "string" ? body.supplierCode.trim() : "";
+      const confirmationCode = typeof body.confirmationCode === "string" ? body.confirmationCode.trim() : "";
       if (!supplierCode || typeof body.visible !== "boolean") throw new Error("Μη έγκυρη μαζική αλλαγή ορατότητας.");
+      if (confirmationCode !== supplierCode) throw new Error("Η supplier-wide αλλαγή απαιτεί επιβεβαίωση με τον ακριβή supplier code.");
       return Response.json({ ok: true, ...(await setDropshippingSupplierVisibility(principal.vendorId, supplierCode, body.visible)) });
     }
 
