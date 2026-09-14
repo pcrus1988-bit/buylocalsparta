@@ -11,6 +11,8 @@ import {
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
 const AVAILABILITY_TTL_HOURS = 2;
 const DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE = 20;
+const DEFAULT_FULL_SWEEP_PAGE_SIZE = 100;
+const FALLBACK_FULL_SWEEP_PAGE_SIZE = 50;
 const RATE_LIMIT_BACKOFF_MS = [5_000, 10_000, 20_000, 30_000] as const;
 
 type AvailabilityVariant = Readonly<{
@@ -18,6 +20,14 @@ type AvailabilityVariant = Readonly<{
   sku: string | null;
   stockQuantity: number | null;
   available: boolean;
+}>;
+
+type AvailabilityPageRow = Readonly<{
+  external_product_id: string;
+  external_variant_id: string;
+  external_sku: string | null;
+  cached_available: boolean;
+  cached_quantity: number | null;
 }>;
 
 export type NovaAvailabilityRefreshResult = Readonly<{
@@ -68,6 +78,24 @@ async function getProductWithRateLimitBackoff(
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await client.getProduct(storeId, externalProductId, "en");
+    } catch (error) {
+      if (!(error instanceof NovaV1ApiError) || error.status !== 429 || attempt >= RATE_LIMIT_BACKOFF_MS.length) {
+        throw error;
+      }
+      await delay(RATE_LIMIT_BACKOFF_MS[attempt]);
+    }
+  }
+}
+
+async function listProductsWithRateLimitBackoff(
+  client: NovaV1Client,
+  storeId: string,
+  page: number,
+  perPage: number
+) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await client.listProducts(storeId, { page, per_page: perPage, lang: "en" });
     } catch (error) {
       if (!(error instanceof NovaV1ApiError) || error.status !== 429 || attempt >= RATE_LIMIT_BACKOFF_MS.length) {
         throw error;
@@ -137,74 +165,113 @@ async function refreshNovaAvailabilityProductWithClient(
   return { externalProductId, updatedOffers };
 }
 
-/**
- * Refresh the full set of currently public NOVA/BrandsGateway products.
- *
- * This sweep is intentionally independent from the incremental catalogue cursor: a product
- * does not need to have changed upstream for its stock assertion to remain fresh. A successful
- * supplier fetch receives a two-hour validity window; failed fetches never extend stale stock.
- *
- * Production has demonstrated provider throttling below the generic client maximum, so this
- * path deliberately uses a conservative request rate and bounded 429 backoff. A throttled
- * product remains stale rather than being treated as available without fresh provider evidence.
- */
-export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
-  const db = getProductionPostgresRuntime().sqlPool;
-  const storeId = await resolveNovaStoreId();
+async function refreshNovaAvailabilityPage(
+  products: readonly NovaProduct[],
+  storeId: string,
+  checkedAt: Date
+): Promise<number> {
+  const rows: AvailabilityPageRow[] = products.flatMap((product) => {
+    const normalized = normalizeNovaProduct(product, storeId);
+    return availabilityVariants(normalized.normalizedPayload.variants).map((variant) => ({
+      external_product_id: normalized.sourceProductKey,
+      external_variant_id: variant.externalVariantId,
+      external_sku: variant.sku,
+      cached_available: variant.available,
+      cached_quantity: variant.stockQuantity
+    }));
+  });
+  if (rows.length === 0) return 0;
 
-  const productResult = await db.query<SqlRow>(`
-    SELECT DISTINCT dso.external_product_id
-    FROM public.dropship_supplier_offers dso
-    JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
-    JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
-    WHERE ds.code=$1
+  const update = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    UPDATE public.dropship_supplier_offers dso
+    SET cached_available=x.cached_available,
+        cached_quantity=x.cached_quantity,
+        availability_checked_at=$3::timestamptz,
+        availability_expires_at=$3::timestamptz + interval '${AVAILABILITY_TTL_HOURS} hours',
+        availability_payload=COALESCE(dso.availability_payload, '{}'::jsonb) || jsonb_build_object(
+          'source', 'nova_api_authoritative_full_catalogue',
+          'productId', x.external_product_id,
+          'variantId', x.external_variant_id,
+          'refreshedAt', $3::timestamptz,
+          'refreshPolicy', 'hourly_paginated_full_sweep_2h_ttl_rate_limited'
+        ),
+        updated_at=$3::timestamptz
+    FROM jsonb_to_recordset($1::jsonb) AS x(
+      external_product_id text,
+      external_variant_id text,
+      external_sku text,
+      cached_available boolean,
+      cached_quantity integer
+    ), public.dropship_suppliers ds,
+       public.vendor_offers vo
+    WHERE ds.id=dso.supplier_id
+      AND ds.code=$2
       AND ds.active=true
       AND ds.api_authoritative_availability=true
+      AND vo.id=dso.vendor_offer_id
+      AND vo.vendor_id=ds.owner_vendor_id
       AND dso.active=true
-      AND vo.status='approved'
-      AND vo.approved_at IS NOT NULL
-      AND vo.merchant_visible=true
-      AND vo.merchant_pause_active=false
-      AND vo.customer_price_minor IS NOT NULL
-      AND dso.external_product_id IS NOT NULL
-    ORDER BY dso.external_product_id
-  `, [NOVA_SUPPLIER_CODE]);
-  const productIds = productResult.rows
-    .map((row) => text(row.external_product_id))
-    .filter((value): value is string => Boolean(value));
+      AND dso.external_product_id=x.external_product_id
+      AND (
+        dso.external_variant_id=x.external_variant_id
+        OR (x.external_sku IS NOT NULL AND dso.external_sku=x.external_sku)
+      )
+  `, [JSON.stringify(rows), NOVA_SUPPLIER_CODE, checkedAt]);
 
+  return update.rowCount;
+}
+
+/**
+ * Refresh the full NOVA/BrandsGateway offer inventory from Nova's official paginated
+ * product API. Availability is supplier-authoritative and deliberately independent
+ * from KONTA MOY approval/publication state: staged products may receive fresh stock
+ * evidence, but this function never publishes them, changes customer prices, assigns
+ * taxonomy, or relaxes any activation/suppression gate.
+ *
+ * A full page carries stock for many products, avoiding the previous N+1 product
+ * refresh that could not keep a large dropshipping catalogue inside the two-hour TTL.
+ * Failed provider requests never extend stale evidence. Existing offers are updated
+ * only when they belong to the supplier's configured owner vendor.
+ */
+export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
+  const storeId = await resolveNovaStoreId();
   const client = createNovaAvailabilityClient();
+  let page = 1;
+  let perPage = DEFAULT_FULL_SWEEP_PAGE_SIZE;
+  let attemptedProducts = 0;
   let refreshedProducts = 0;
-  let failedProducts = 0;
   let updatedOffers = 0;
 
-  for (const externalProductId of productIds) {
+  while (true) {
+    let result;
     try {
-      const refreshed = await refreshNovaAvailabilityProductWithClient(
-        client,
-        storeId,
-        externalProductId,
-        null,
-        "hourly_full_sweep_2h_ttl_rate_limited"
-      );
-      updatedOffers += refreshed.updatedOffers;
-      refreshedProducts += 1;
+      result = await listProductsWithRateLimitBackoff(client, storeId, page, perPage);
     } catch (error) {
-      failedProducts += 1;
-      console.error(JSON.stringify({
-        level: "error",
-        event: "nova.availability_product_refresh_failed",
-        externalProductId,
-        error: safeError(error),
-        at: new Date().toISOString()
-      }));
+      // Nova has historically rejected a requested page size of 100 in some account
+      // configurations. Fall back once to the already-supported 50-product page size.
+      if (page === 1 && perPage > FALLBACK_FULL_SWEEP_PAGE_SIZE && error instanceof NovaV1ApiError && error.status === 422) {
+        perPage = FALLBACK_FULL_SWEEP_PAGE_SIZE;
+        continue;
+      }
+      throw error;
     }
+
+    if (result.items.length === 0) break;
+    attemptedProducts += result.items.length;
+    const checkedAt = new Date();
+    updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt);
+    refreshedProducts += result.items.length;
+
+    const pageComplete = result.items.length < perPage
+      || (result.totalPages !== null && page >= result.totalPages);
+    if (pageComplete) break;
+    page += 1;
   }
 
   return {
-    attemptedProducts: productIds.length,
+    attemptedProducts,
     refreshedProducts,
-    failedProducts,
+    failedProducts: 0,
     updatedOffers
   };
 }
