@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import type { CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
-import { getAvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
+import { getFastRichShopTaxonomy } from "./fast-rich-shop-taxonomy";
 import { getFastShopTaxonomy } from "./fast-shop-taxonomy";
 
 const readCachedFastShopTaxonomy = unstable_cache(
@@ -30,28 +30,15 @@ const readCachedRichShopTaxonomy = unstable_cache(
     postcode: string,
     leafKey: string,
     attributeFiltersJson: string
-  ) => {
-    const filters = JSON.parse(filtersJson) as CatalogFilters;
-    const attributeFilters = JSON.parse(attributeFiltersJson) as CatalogAttributeFilters;
-    try {
-      return await getAvailableCatalogTaxonomy(
-        category,
-        query,
-        filters,
-        postcode,
-        leafKey || undefined,
-        attributeFilters
-      );
-    } catch (error) {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "storefront.rich_taxonomy_degraded",
-        message: error instanceof Error ? error.message : String(error)
-      }));
-      return getFastShopTaxonomy(category, query, filters, postcode, attributeFilters);
-    }
-  },
-  ["shop-catalog-taxonomy-rich-v2"],
+  ) => getFastRichShopTaxonomy(
+    category,
+    query,
+    JSON.parse(filtersJson) as CatalogFilters,
+    postcode,
+    leafKey,
+    JSON.parse(attributeFiltersJson) as CatalogAttributeFilters
+  ),
+  ["shop-catalog-taxonomy-rich-v3"],
   { revalidate: 300 }
 );
 
@@ -64,10 +51,9 @@ function stableJson(value: Readonly<Record<string, string | undefined>>): string
 }
 
 /**
- * Standard /shop filters use the SQL-only taxonomy projection so catalogue growth
- * never forces the request to hydrate every canonical and every metadata record.
- * Governed leaf-specific attribute facets keep the richer path; if that projection
- * degrades, the page falls back to the standard vocabulary instead of failing.
+ * Both standard and governed leaf-specific /shop filters stay inside SQL. The
+ * previous rich path hydrated every public canonical plus metadata in Node, which
+ * made catalogue growth directly increase request time and connection pressure.
  */
 export function getCachedShopTaxonomy(
   category = "",
