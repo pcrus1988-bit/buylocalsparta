@@ -14,6 +14,7 @@ type Props = Readonly<{
 type BulkAction = "publish" | "hide" | "reset";
 type FeedDiagnosticFilter = "stale_sync" | "missing_telemetry";
 type RecoveryProgress = Readonly<{ current: number; total: number }>;
+type RecoveryFailure = Readonly<{ offerId: string; error: string }>;
 
 const AVAILABILITY_RECOVERY_LIMIT = 10;
 const AVAILABILITY_RECOVERY_PACE_MS = 3_000;
@@ -55,17 +56,24 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function recoveryError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "Supplier availability refresh failed.";
+  return message.trim().slice(0, 180) || "Supplier availability refresh failed.";
+}
+
 export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, page, activeFilterCount }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [recoveryProgress, setRecoveryProgress] = useState<RecoveryProgress | null>(null);
+  const [recoveryFailures, setRecoveryFailures] = useState<readonly RecoveryFailure[]>([]);
   const [markupPercent, setMarkupPercent] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [publicFields, setPublicFields] = useState<DropshipPublicFields>(defaultPublicFields);
   const activeDiagnostic = searchParams.get("availability");
   const canRecoverAvailability = activeDiagnostic === "missing_telemetry" && offerIds.length > 0;
+  const canRetryRecovery = activeDiagnostic === "missing_telemetry" && recoveryFailures.length > 0;
 
   function setPublicField(key: keyof DropshipPublicFields, checked: boolean) {
     setPublicFields((current) => ({ ...current, [key]: checked }));
@@ -76,7 +84,52 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
     if (filter) params.set("availability", filter);
     else params.delete("availability");
     params.delete("page");
+    setRecoveryFailures([]);
     router.push(`/vendor/dropshipping?${params.toString()}`);
+  }
+
+  async function runAvailabilityRecovery(targets: readonly string[]) {
+    setBusy(true);
+    setMessage("");
+    setRecoveryProgress({ current: 0, total: targets.length });
+    try {
+      const token = await csrfToken();
+      const failures: RecoveryFailure[] = [];
+      let succeeded = 0;
+      let updatedOffers = 0;
+
+      for (let index = 0; index < targets.length; index += 1) {
+        const offerId = targets[index]!;
+        try {
+          const response = await fetch("/api/vendor/dropshipping/availability-refresh", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-csrf-token": token },
+            body: JSON.stringify({ offerId })
+          });
+          const payload = await response.json().catch(() => ({})) as { error?: string; updatedOffers?: number };
+          if (!response.ok) throw new Error(payload.error ?? `Availability refresh απέτυχε για ${offerId}.`);
+          succeeded += 1;
+          updatedOffers += typeof payload.updatedOffers === "number" ? payload.updatedOffers : 0;
+        } catch (error) {
+          failures.push({ offerId, error: recoveryError(error) });
+        } finally {
+          setRecoveryProgress({ current: index + 1, total: targets.length });
+        }
+
+        if (index < targets.length - 1) await delay(AVAILABILITY_RECOVERY_PACE_MS);
+      }
+
+      setRecoveryFailures(failures);
+      setMessage(failures.length
+        ? `Availability recovery: ${succeeded}/${targets.length} προϊόντα ολοκληρώθηκαν · ${failures.length} απέτυχαν και μπορούν να επαναληφθούν μόνο για τα failed rows · ${updatedOffers} variants ενημερώθηκαν.`
+        : `Availability recovery ολοκληρώθηκε για ${succeeded}/${targets.length} προϊόντα · ${updatedOffers} variants ενημερώθηκαν.`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η bounded availability recovery απέτυχε.");
+    } finally {
+      setRecoveryProgress(null);
+      setBusy(false);
+    }
   }
 
   async function recoverMissingAvailabilityTelemetry() {
@@ -92,47 +145,19 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       + "Η recovery εκτελείται σειριακά και με pacing ώστε να μη δημιουργεί burst προς τον supplier. Δεν αλλάζει τιμές, publication, local stock ή supplier orders."
     );
     if (!confirmed) return;
+    setRecoveryFailures([]);
+    await runAvailabilityRecovery(targets);
+  }
 
-    setBusy(true);
-    setMessage("");
-    setRecoveryProgress({ current: 0, total: targets.length });
-    try {
-      const token = await csrfToken();
-      let succeeded = 0;
-      let failed = 0;
-      let updatedOffers = 0;
-
-      for (let index = 0; index < targets.length; index += 1) {
-        const offerId = targets[index]!;
-        try {
-          const response = await fetch("/api/vendor/dropshipping/availability-refresh", {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-csrf-token": token },
-            body: JSON.stringify({ offerId })
-          });
-          const payload = await response.json().catch(() => ({})) as { error?: string; updatedOffers?: number };
-          if (!response.ok) throw new Error(payload.error ?? `Availability refresh απέτυχε για ${offerId}.`);
-          succeeded += 1;
-          updatedOffers += typeof payload.updatedOffers === "number" ? payload.updatedOffers : 0;
-        } catch {
-          failed += 1;
-        } finally {
-          setRecoveryProgress({ current: index + 1, total: targets.length });
-        }
-
-        if (index < targets.length - 1) await delay(AVAILABILITY_RECOVERY_PACE_MS);
-      }
-
-      setMessage(failed
-        ? `Availability recovery: ${succeeded}/${targets.length} προϊόντα ολοκληρώθηκαν · ${failed} απέτυχαν και έμειναν χωρίς νέα supplier evidence · ${updatedOffers} variants ενημερώθηκαν.`
-        : `Availability recovery ολοκληρώθηκε για ${succeeded}/${targets.length} προϊόντα · ${updatedOffers} variants ενημερώθηκαν.`);
-      router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Η bounded availability recovery απέτυχε.");
-    } finally {
-      setRecoveryProgress(null);
-      setBusy(false);
-    }
+  async function retryFailedAvailabilityTelemetry() {
+    if (!canRetryRecovery) return;
+    const targets = recoveryFailures.map((failure) => failure.offerId).slice(0, AVAILABILITY_RECOVERY_LIMIT);
+    const confirmed = window.confirm(
+      `Retry authoritative NOVA availability μόνο για τα ${targets.length} failed προϊόντα; `
+      + "Το retry διατηρεί το ίδιο σειριακό 3s pacing και δεν αγγίζει προϊόντα που ολοκληρώθηκαν επιτυχώς."
+    );
+    if (!confirmed) return;
+    await runAvailabilityRecovery(targets);
   }
 
   async function execute(action: BulkAction) {
@@ -286,17 +311,30 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Χωρίς re-materialization &gt;12h</button>
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter("missing_telemetry")}>Χωρίς availability telemetry</button>
         <button className="button button-secondary" type="button" disabled={busy || !canRecoverAvailability} onClick={recoverMissingAvailabilityTelemetry} aria-disabled={busy || !canRecoverAvailability}>
-          {recoveryProgress ? `Recovery ${recoveryProgress.current}/${recoveryProgress.total}…` : "Recover έως 10 telemetry"}
+          {recoveryProgress && !recoveryFailures.length ? `Recovery ${recoveryProgress.current}/${recoveryProgress.total}…` : "Recover έως 10 telemetry"}
+        </button>
+        <button className="button button-secondary" type="button" disabled={busy || !canRetryRecovery} onClick={retryFailedAvailabilityTelemetry} aria-disabled={busy || !canRetryRecovery}>
+          {recoveryProgress && recoveryFailures.length ? `Retry ${recoveryProgress.current}/${recoveryProgress.total}…` : `Retry failed${recoveryFailures.length ? ` (${recoveryFailures.length})` : ""}`}
         </button>
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter(null)}>Καθαρισμός feed diagnostic</button>
       </div>
       <small role="status" aria-live="polite" style={{ display: "block", marginTop: 8 }}>
         {recoveryProgress
           ? `Availability recovery σε εξέλιξη: ${recoveryProgress.current}/${recoveryProgress.total}. Οι supplier κλήσεις παραμένουν σειριακές με 3s pacing.`
-          : canRecoverAvailability
-            ? `Recovery έτοιμη για ${Math.min(offerIds.length, AVAILABILITY_RECOVERY_LIMIT)} προϊόντα της ορατής σελίδας. Αποτυχημένες supplier κλήσεις μένουν χωρίς ψευδή νέα evidence.`
-            : "Ενεργοποίησε πρώτα το φίλτρο «Χωρίς availability telemetry» για να γίνει διαθέσιμη η bounded recovery."}
+          : canRetryRecovery
+            ? `${recoveryFailures.length} failed προϊόντα είναι διαθέσιμα για targeted retry. Επιτυχημένα rows δεν θα ξανακληθούν.`
+            : canRecoverAvailability
+              ? `Recovery έτοιμη για ${Math.min(offerIds.length, AVAILABILITY_RECOVERY_LIMIT)} προϊόντα της ορατής σελίδας. Αποτυχημένες supplier κλήσεις μένουν χωρίς ψευδή νέα evidence.`
+              : "Ενεργοποίησε πρώτα το φίλτρο «Χωρίς availability telemetry» για να γίνει διαθέσιμη η bounded recovery."}
       </small>
+      {recoveryFailures.length ? <details open style={{ marginTop: 8 }}>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}>Failed recovery rows · {recoveryFailures.length}</summary>
+        <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+          {recoveryFailures.map((failure) => <li key={failure.offerId} style={{ marginBottom: 4, overflowWrap: "anywhere" }}>
+            <code>{failure.offerId}</code> · {failure.error}
+          </li>)}
+        </ul>
+      </details> : null}
     </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 10 }}>
