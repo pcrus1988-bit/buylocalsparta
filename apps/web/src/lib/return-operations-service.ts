@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
+import {
+  buildCustomerReturnIdentityResolution,
+  isResolvedCustomerReturnCanonical,
+  isResolvedCustomerReturnOffer,
+} from "./bazaar-customer-return-resolution";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 function text(value: unknown, field: string): string {
@@ -106,66 +111,163 @@ export async function reconcileRefundedReturnInventory(returnId: string, now = D
       let restockOfferUuid = text(row.offer_uuid, "offer_uuid");
 
       if (text(row.commerce_channel, "canonical.commerce_channel") === "normal") {
-        const identitySuffix = `${returnUuid.replaceAll("-", "").slice(0, 12)}_${orderLineUuid.replaceAll("-", "").slice(0, 12)}`;
-        const bazaarCanonicalPublicId = `bazaar_return_${identitySuffix}`;
-        const bazaarOfferPublicId = `offer_bazaar_return_${identitySuffix}`;
-        const bazaarSlug = `${text(row.canonical_slug, "canonical.slug")}-return-${identitySuffix}`;
-        const bazaarVendorSku = `${text(row.vendor_sku, "vendor_sku")}-RETURN-${identitySuffix}`;
+        const originalCanonicalId = text(row.canonical_public_id, "canonical_public_id");
+        const originalOfferId = text(row.offer_public_id, "offer_public_id");
+        const resolution = buildCustomerReturnIdentityResolution({
+          returnUuid,
+          orderLineUuid,
+          baseSlug: text(row.canonical_slug, "canonical.slug"),
+          baseVendorSku: text(row.vendor_sku, "vendor_sku"),
+          originalCanonicalId,
+          originalOfferId,
+          metadata: { returnId },
+        });
 
-        await tx.query(`
-          INSERT INTO canonical_variants(
-            public_id,market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,variant_attributes,warranty_basis,
-            platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled,commerce_channel,bazaar_source,price_updated_at,updated_at
-          ) VALUES(
-            $1,$2,$3,$4,$5,$6,$7,$8,$9,'open_box',$10::jsonb,$11,$12,$13,$14,$15,$16,$17,'bazaar','customer_return',$18,$18
-          )
-          ON CONFLICT (public_id) DO NOTHING`, [
-          bazaarCanonicalPublicId,text(row.market_uuid,"market_uuid"),optionalText(row.family_uuid) ?? null,optionalText(row.brand_uuid) ?? null,
-          optionalText(row.category_uuid) ?? null,bazaarSlug,optionalText(row.gtin) ?? null,optionalText(row.mpn) ?? null,optionalText(row.model) ?? null,
-          JSON.stringify({ ...((row.variant_attributes ?? {}) as Record<string, unknown>), bazaarProvenance: { source: "customer_return", returnId, returnUuid, orderLineId: orderLineUuid, originalCanonicalId: text(row.canonical_public_id, "canonical_public_id") } }),
-          optionalText(row.warranty_basis) ?? null,integer(row.platform_price_minor, "platform_price_minor"),text(row.canonical_currency, "canonical_currency"),
-          integer(row.tax_rate_bps, "tax_rate_bps"),Boolean(row.canonical_active),Boolean(row.canonical_suppressed),Boolean(row.canonical_recalled),new Date(now)
-        ]);
+        const existingCanonical = await tx.query<SqlRow>(`
+          SELECT id::text AS canonical_uuid,public_id,commerce_channel,bazaar_source,condition
+          FROM canonical_variants
+          WHERE public_id=$1 OR public_id=$2
+          ORDER BY CASE WHEN public_id=$1 THEN 0 ELSE 1 END
+          LIMIT 1
+          FOR UPDATE`, [resolution.canonicalLookupOrder[0], resolution.canonicalLookupOrder[1]]);
 
-        const bazaarCanonical = await tx.query<SqlRow>(`
-          SELECT id::text AS canonical_uuid,commerce_channel,bazaar_source,condition
-          FROM canonical_variants WHERE public_id=$1 FOR UPDATE`, [bazaarCanonicalPublicId]);
-        if (!bazaarCanonical.rowCount
-          || text(bazaarCanonical.rows[0].commerce_channel, "bazaar.commerce_channel") !== "bazaar"
-          || text(bazaarCanonical.rows[0].bazaar_source, "bazaar.bazaar_source") !== "customer_return"
-          || text(bazaarCanonical.rows[0].condition, "bazaar.condition") !== "open_box") {
-          throw new Error("Customer-return BAZAAR canonical identity is invalid");
+        let canonicalPublicId: string;
+        let bazaarCanonicalUuid: string;
+        if (existingCanonical.rowCount) {
+          const existing = existingCanonical.rows[0];
+          if (!isResolvedCustomerReturnCanonical({
+            publicId: text(existing.public_id, "bazaar.public_id"),
+            commerceChannel: text(existing.commerce_channel, "bazaar.commerce_channel"),
+            bazaarSource: optionalText(existing.bazaar_source),
+            condition: text(existing.condition, "bazaar.condition"),
+            resolution,
+          })) {
+            throw new Error("Customer-return BAZAAR canonical identity is invalid");
+          }
+          canonicalPublicId = text(existing.public_id, "bazaar.public_id");
+          bazaarCanonicalUuid = text(existing.canonical_uuid, "bazaar.canonical_uuid");
+        } else {
+          const plan = resolution.shared;
+          canonicalPublicId = plan.identity.canonicalPublicId;
+          await tx.query(`
+            INSERT INTO canonical_variants(
+              public_id,market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,variant_attributes,warranty_basis,
+              platform_price_minor,currency,tax_rate_bps,active,suppressed,recalled,commerce_channel,bazaar_source,price_updated_at,updated_at
+            ) VALUES(
+              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$21
+            )
+            ON CONFLICT (public_id) DO NOTHING`, [
+            plan.identity.canonicalPublicId,text(row.market_uuid,"market_uuid"),optionalText(row.family_uuid) ?? null,optionalText(row.brand_uuid) ?? null,
+            optionalText(row.category_uuid) ?? null,plan.identity.slug,optionalText(row.gtin) ?? null,optionalText(row.mpn) ?? null,optionalText(row.model) ?? null,
+            plan.condition,
+            JSON.stringify({
+              ...((row.variant_attributes ?? {}) as Record<string, unknown>),
+              bazaarProvenance: {
+                ...plan.canonicalProvenance,
+                returnId,
+                returnUuid,
+                orderLineId: orderLineUuid,
+              },
+            }),
+            optionalText(row.warranty_basis) ?? null,integer(row.platform_price_minor, "platform_price_minor"),text(row.canonical_currency, "canonical_currency"),
+            integer(row.tax_rate_bps, "tax_rate_bps"),Boolean(row.canonical_active),Boolean(row.canonical_suppressed),Boolean(row.canonical_recalled),
+            plan.commerceChannel,plan.source,new Date(now)
+          ]);
+
+          const createdCanonical = await tx.query<SqlRow>(`
+            SELECT id::text AS canonical_uuid,public_id,commerce_channel,bazaar_source,condition
+            FROM canonical_variants WHERE public_id=$1 FOR UPDATE`, [plan.identity.canonicalPublicId]);
+          if (!createdCanonical.rowCount) throw new Error("Customer-return BAZAAR canonical creation failed");
+          const created = createdCanonical.rows[0];
+          if (!isResolvedCustomerReturnCanonical({
+            publicId: text(created.public_id, "bazaar.public_id"),
+            commerceChannel: text(created.commerce_channel, "bazaar.commerce_channel"),
+            bazaarSource: optionalText(created.bazaar_source),
+            condition: text(created.condition, "bazaar.condition"),
+            resolution,
+          })) {
+            throw new Error("Customer-return BAZAAR canonical identity is invalid");
+          }
+          bazaarCanonicalUuid = text(created.canonical_uuid, "bazaar.canonical_uuid");
         }
-        const bazaarCanonicalUuid = text(bazaarCanonical.rows[0].canonical_uuid, "bazaar.canonical_uuid");
 
-        await tx.query(`
-          INSERT INTO vendor_offers(
-            public_id,market_id,vendor_id,location_id,canonical_variant_id,vendor_sku,source_gtin,status,supplier_unit_price_minor,currency,
-            supplier_tax_rate_bps,cost_ceiling_minor,lead_time_minutes,fulfilment_modes,advice_capabilities,source_payload,approved_at,
-            customer_price_minor,merchant_visible,merchant_pause_active,updated_at
-          ) VALUES(
-            $1,$2,$3,$4,$5,$6,$7,'approved',$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,$17,true,false,$16
-          )
-          ON CONFLICT (public_id) DO NOTHING`, [
-          bazaarOfferPublicId,text(row.market_uuid,"market_uuid"),text(row.vendor_uuid,"vendor_uuid"),text(row.location_uuid,"location_uuid"),bazaarCanonicalUuid,
-          bazaarVendorSku,optionalText(row.source_gtin) ?? null,integer(row.supplier_unit_price_minor,"supplier_unit_price_minor"),text(row.offer_currency,"offer_currency"),
-          integer(row.supplier_tax_rate_bps,"supplier_tax_rate_bps"),row.cost_ceiling_minor == null ? null : integer(row.cost_ceiling_minor,"cost_ceiling_minor"),
-          row.lead_time_minutes == null ? null : integer(row.lead_time_minutes,"lead_time_minutes"),row.fulfilment_modes,
-          JSON.stringify((row.advice_capabilities ?? {}) as Record<string, unknown>),
-          JSON.stringify({ ...((row.source_payload ?? {}) as Record<string, unknown>), bazaarSource: "customer_return", returnId, returnUuid, orderLineId: orderLineUuid, originalOfferId: text(row.offer_public_id,"offer_public_id") }),
-          new Date(now),row.customer_price_minor == null ? null : integer(row.customer_price_minor,"customer_price_minor")
-        ]);
+        const selectedIdentity = canonicalPublicId === resolution.legacy.canonicalPublicId
+          ? resolution.legacy
+          : resolution.shared.identity;
+        const expectedOfferPublicId = selectedIdentity.offerPublicId;
 
-        const bazaarOffer = await tx.query<SqlRow>(`
-          SELECT vo.id::text AS offer_uuid,cv.commerce_channel,cv.bazaar_source
-          FROM vendor_offers vo JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-          WHERE vo.public_id=$1 FOR UPDATE OF vo`, [bazaarOfferPublicId]);
-        if (!bazaarOffer.rowCount
-          || text(bazaarOffer.rows[0].commerce_channel, "bazaar_offer.commerce_channel") !== "bazaar"
-          || text(bazaarOffer.rows[0].bazaar_source, "bazaar_offer.bazaar_source") !== "customer_return") {
-          throw new Error("Customer-return BAZAAR offer identity is invalid");
+        const existingOffer = await tx.query<SqlRow>(`
+          SELECT vo.id::text AS offer_uuid,vo.public_id,vo.canonical_variant_id::text AS canonical_uuid,cv.commerce_channel,cv.bazaar_source
+          FROM vendor_offers vo
+          JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+          WHERE vo.public_id=$1 OR vo.public_id=$2
+          ORDER BY CASE WHEN vo.public_id=$1 THEN 0 ELSE 1 END
+          LIMIT 1
+          FOR UPDATE OF vo`, [resolution.offerLookupOrder[0], resolution.offerLookupOrder[1]]);
+
+        if (existingOffer.rowCount) {
+          const existing = existingOffer.rows[0];
+          if (!isResolvedCustomerReturnOffer({
+            publicId: text(existing.public_id, "bazaar_offer.public_id"),
+            commerceChannel: text(existing.commerce_channel, "bazaar_offer.commerce_channel"),
+            bazaarSource: optionalText(existing.bazaar_source),
+            resolution,
+          }) || text(existing.canonical_uuid, "bazaar_offer.canonical_uuid") !== bazaarCanonicalUuid) {
+            throw new Error("Customer-return BAZAAR offer identity is invalid");
+          }
+          restockOfferUuid = text(existing.offer_uuid, "bazaar_offer.offer_uuid");
+        } else {
+          const offerSourcePayload = canonicalPublicId === resolution.legacy.canonicalPublicId
+            ? {
+                ...((row.source_payload ?? {}) as Record<string, unknown>),
+                bazaarSource: "customer_return",
+                returnId,
+                returnUuid,
+                orderLineId: orderLineUuid,
+                originalOfferId,
+              }
+            : {
+                ...((row.source_payload ?? {}) as Record<string, unknown>),
+                ...resolution.shared.offerSourcePayload,
+                returnId,
+                returnUuid,
+                orderLineId: orderLineUuid,
+              };
+
+          await tx.query(`
+            INSERT INTO vendor_offers(
+              public_id,market_id,vendor_id,location_id,canonical_variant_id,vendor_sku,source_gtin,status,supplier_unit_price_minor,currency,
+              supplier_tax_rate_bps,cost_ceiling_minor,lead_time_minutes,fulfilment_modes,advice_capabilities,source_payload,approved_at,
+              customer_price_minor,merchant_visible,merchant_pause_active,updated_at
+            ) VALUES(
+              $1,$2,$3,$4,$5,$6,$7,'approved',$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,$17,true,false,$16
+            )
+            ON CONFLICT (public_id) DO NOTHING`, [
+            expectedOfferPublicId,text(row.market_uuid,"market_uuid"),text(row.vendor_uuid,"vendor_uuid"),text(row.location_uuid,"location_uuid"),bazaarCanonicalUuid,
+            selectedIdentity.vendorSku,optionalText(row.source_gtin) ?? null,integer(row.supplier_unit_price_minor,"supplier_unit_price_minor"),text(row.offer_currency,"offer_currency"),
+            integer(row.supplier_tax_rate_bps,"supplier_tax_rate_bps"),row.cost_ceiling_minor == null ? null : integer(row.cost_ceiling_minor,"cost_ceiling_minor"),
+            row.lead_time_minutes == null ? null : integer(row.lead_time_minutes,"lead_time_minutes"),row.fulfilment_modes,
+            JSON.stringify((row.advice_capabilities ?? {}) as Record<string, unknown>),JSON.stringify(offerSourcePayload),
+            new Date(now),row.customer_price_minor == null ? null : integer(row.customer_price_minor,"customer_price_minor")
+          ]);
+
+          const createdOffer = await tx.query<SqlRow>(`
+            SELECT vo.id::text AS offer_uuid,vo.public_id,vo.canonical_variant_id::text AS canonical_uuid,cv.commerce_channel,cv.bazaar_source
+            FROM vendor_offers vo JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+            WHERE vo.public_id=$1 FOR UPDATE OF vo`, [expectedOfferPublicId]);
+          if (!createdOffer.rowCount) throw new Error("Customer-return BAZAAR offer creation failed");
+          const created = createdOffer.rows[0];
+          if (!isResolvedCustomerReturnOffer({
+            publicId: text(created.public_id, "bazaar_offer.public_id"),
+            commerceChannel: text(created.commerce_channel, "bazaar_offer.commerce_channel"),
+            bazaarSource: optionalText(created.bazaar_source),
+            resolution,
+          }) || text(created.canonical_uuid, "bazaar_offer.canonical_uuid") !== bazaarCanonicalUuid) {
+            throw new Error("Customer-return BAZAAR offer identity is invalid");
+          }
+          restockOfferUuid = text(created.offer_uuid, "bazaar_offer.offer_uuid");
         }
-        restockOfferUuid = text(bazaarOffer.rows[0].offer_uuid, "bazaar_offer.offer_uuid");
+
         await tx.query(`
           INSERT INTO inventory_balances(offer_id,on_hand,active_reservations,safety_stock,blocked,source,source_confidence,updated_at,stock_confirmed_at,freshness_ttl_seconds,freshness_status)
           VALUES($1,0,0,0,0,'customer_return','merchant_confirmed',$2,$2,86400,'fresh')
