@@ -13,6 +13,20 @@ function intParam(url: URL, key: string, fallback: number, max: number): number 
   return Number.isSafeInteger(parsed) && parsed >= 0 ? Math.min(parsed, max) : fallback;
 }
 
+async function optionalFacets(vendorId: string) {
+  try {
+    return await getFastVendorDropshipFacets(vendorId);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "storefront.vendor_catalog_facets_degraded",
+      vendorId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return undefined;
+  }
+}
+
 export async function GET(request: Request, { params }: RouteContext) {
   const { id } = await params;
   if (!/^[A-Za-z0-9_-]{3,128}$/.test(id)) {
@@ -33,15 +47,15 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   try {
     if (facetsOnly) {
-      const facets = await getFastVendorDropshipFacets(id);
+      const facets = await optionalFacets(id);
       return Response.json({
         vendorId: id,
         products: [],
-        total: facets.total,
+        total: facets?.total,
         offset: 0,
         limit: 0,
         nextOffset: null,
-        facets
+        facets: facets ?? null
       }, {
         headers: {
           "Cache-Control": "private, max-age=30, stale-while-revalidate=300"
@@ -69,7 +83,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           offset,
           limit
         });
-    const facets = includeFacets ? await getFastVendorDropshipFacets(id) : undefined;
+    const facets = includeFacets ? await optionalFacets(id) : undefined;
     const total = "total" in page ? page.total : undefined;
 
     return Response.json({
