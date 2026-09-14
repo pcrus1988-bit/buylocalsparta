@@ -24,6 +24,10 @@ type PublicOfferPreviewRow = Readonly<{
   adviser_name: string | null;
 }>;
 
+const CRAWLER_PREVIEW_BATCH_SIZE = 8;
+const CRAWLER_LIMIT_SCAN_MULTIPLIER = 2;
+const CRAWLER_MIN_LIMIT_SCAN = 24;
+
 function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
   if (!right) return true;
   return normalizeSearchText(left ?? "") === normalizeSearchText(right);
@@ -166,6 +170,11 @@ function crawlerCard(product: PublicProductSeoRecord, details: CatalogMetadata |
  * SEO/social crawlers receive the same admitted public canonical catalogue through a
  * read-only offer preview. The selected offer is real and currently eligible, but no
  * Fair Vendor Assignment state is consumed by bot traffic.
+ *
+ * Limited catalogue surfaces deliberately inspect a bounded candidate window and resolve
+ * previews in small parallel batches. This prevents crawler traffic from serially issuing
+ * an unbounded number of expensive offer/capacity queries as the catalogue grows while
+ * preserving the read-only, fail-closed commerce boundary.
  */
 export async function getCrawlerCatalogCards(
   postcode = "23100",
@@ -186,16 +195,34 @@ export async function getCrawlerCatalogCards(
     && sameFilterValue(product.color, filters.color)
     && (!filters.size || product.sizes.some((size) => sameFilterValue(size, filters.size)))
   );
-  const metadata = await loadCatalogMetadata(candidates.map((product) => product.id));
+  const scanLimit = limit === undefined
+    ? candidates.length
+    : Math.min(candidates.length, Math.max(CRAWLER_MIN_LIMIT_SCAN, limit * CRAWLER_LIMIT_SCAN_MULTIPLIER));
+  const scanCandidates = candidates.slice(0, scanLimit);
+  const metadata = await loadCatalogMetadata(scanCandidates.map((product) => product.id));
+  const eligibleCandidates = filters.fit
+    ? scanCandidates.filter((product) => sameFilterValue(metadata.get(product.id)?.fit, filters.fit))
+    : scanCandidates;
   const cards: CatalogCard[] = [];
 
-  for (const product of candidates) {
-    const details = metadata.get(product.id);
-    if (filters.fit && !sameFilterValue(details?.fit, filters.fit)) continue;
-    const preview = await readOnlyOfferPreview(product.id, postcode);
-    if (limit !== undefined && !preview.available) continue;
-    cards.push(crawlerCard(product, details, preview));
-    if (limit !== undefined && cards.length >= limit) break;
+  if (limit === undefined) {
+    for (const product of eligibleCandidates) {
+      const preview = await readOnlyOfferPreview(product.id, postcode);
+      cards.push(crawlerCard(product, metadata.get(product.id), preview));
+    }
+    return cards;
+  }
+
+  for (let offset = 0; offset < eligibleCandidates.length && cards.length < limit; offset += CRAWLER_PREVIEW_BATCH_SIZE) {
+    const batch = eligibleCandidates.slice(offset, offset + CRAWLER_PREVIEW_BATCH_SIZE);
+    const previews = await Promise.all(batch.map((product) => readOnlyOfferPreview(product.id, postcode)));
+    for (let index = 0; index < batch.length && cards.length < limit; index += 1) {
+      const preview = previews[index];
+      if (!preview?.available) continue;
+      const product = batch[index];
+      if (!product) continue;
+      cards.push(crawlerCard(product, metadata.get(product.id), preview));
+    }
   }
 
   return cards;
