@@ -55,7 +55,7 @@ function safeMinor(value: unknown): number | undefined {
 
 function safeQuantity(value: unknown): number {
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
 async function hiddenVendorCategoryIds(vendorId: string): Promise<readonly string[]> {
@@ -78,13 +78,10 @@ async function hiddenVendorCategoryIds(vendorId: string): Promise<readonly strin
 /**
  * Latency-critical unfiltered dropshipping storefront page.
  *
- * The legacy filtered catalogue query must inspect and hydrate the complete vendor
- * catalogue before it can identify a page of families. For the initial storefront
- * load we instead drive pagination from dropship_supplier_offers.source_product_id,
- * which has a supplier/source-product index and represents the supplier's product
- * boundary. PostgreSQL can therefore stop as soon as it finds limit+1 eligible
- * products; translations, metadata and media are hydrated only for the selected
- * product page.
+ * Pagination starts from currently sellable supplier products only. Unavailable,
+ * zero-stock or stale supplier rows never consume page slots and are never hydrated.
+ * PostgreSQL can therefore stop as soon as it finds limit+1 sellable products;
+ * translations, metadata and media are hydrated only for the selected product page.
  *
  * Search/filter requests intentionally remain on the full semantic query so this
  * optimization cannot narrow discovery or change filter behaviour.
@@ -116,6 +113,10 @@ export async function getFastVendorDropshipCatalogPage(
         AND ds.active=true
         AND ds.api_authoritative_availability=true
         AND dso.active=true
+        AND dso.cached_available=true
+        AND dso.cached_quantity>=1
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at>now()
         AND dso.source_product_id IS NOT NULL
         AND vo.vendor_id=(SELECT id FROM vendor)
         AND vo.status='approved'
@@ -165,12 +166,7 @@ export async function getFastVendorDropshipCatalogPage(
       c.code AS category_code,
       vo.customer_price_minor,
       dso.cached_quantity,
-      (
-        dso.cached_available=true
-        AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-      ) AS currently_available,
+      true AS currently_available,
       (SELECT public_id FROM vendor) AS vendor_public_id,
       (SELECT trading_name FROM vendor) AS vendor_name,
       ds.configuration->'vendorPresentation' AS vendor_presentation,
@@ -190,6 +186,10 @@ export async function getFastVendorDropshipCatalogPage(
       AND ds.active=true
       AND ds.api_authoritative_availability=true
       AND dso.active=true
+      AND dso.cached_available=true
+      AND dso.cached_quantity>=1
+      AND dso.availability_expires_at IS NOT NULL
+      AND dso.availability_expires_at>now()
       AND vo.vendor_id=(SELECT id FROM vendor)
       AND vo.status='approved'
       AND vo.merchant_visible=true
@@ -204,7 +204,6 @@ export async function getFastVendorDropshipCatalogPage(
       AND cv.recalled=false
       AND (cardinality($4::uuid[])=0 OR NOT (cv.category_id=ANY($4::uuid[])))
     ORDER BY selected.position,
-             currently_available DESC,
              vo.customer_price_minor ASC,
              dso.availability_checked_at DESC NULLS LAST,
              vo.updated_at DESC,
