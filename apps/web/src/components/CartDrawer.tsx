@@ -53,7 +53,7 @@ export function CartDrawer() {
   const [mounted, setMounted] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const touchStartX = useRef<number>();
+  const touchStartX = useRef<number | undefined>(undefined);
 
   const groups = useMemo(() => {
     const local: CartItem[] = [];
@@ -118,7 +118,6 @@ export function CartDrawer() {
         </header>
 
         <div className={styles.content}>
-          {!detailsReady && items.length ? <div className={styles.loading} role="status">Φορτώνουμε τις λεπτομέρειες του καλαθιού…</div> : null}
           {!items.length ? (
             <div className={styles.empty}>
               <span aria-hidden="true">🛍️</span>
@@ -126,6 +125,8 @@ export function CartDrawer() {
               <p>Συνέχισε την περιήγηση και πρόσθεσε προϊόντα χωρίς να χάσεις τη θέση σου.</p>
               <button type="button" onClick={closeCart}>Συνέχεια αγορών</button>
             </div>
+          ) : !detailsReady ? (
+            <div className={styles.loading} role="status">Φορτώνουμε τις λεπτομέρειες του καλαθιού…</div>
           ) : (
             <>
               {groups.local.length ? (
