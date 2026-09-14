@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { id, money, splitGrossTax, type CustomerOrder, type FulfilmentMode } from "@buy-local-sparta/core";
 import { revalidateNovaCheckoutStock } from "../../../../integrations/dropship-suppliers/src/nova-checkout-revalidation.ts";
 import { NovaV1Client, novaApiKeyFromEnvironment } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
+import { dropshipDeliveryChargeMinor } from "./dropship-delivery-pricing";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
@@ -226,6 +227,7 @@ export async function checkoutApiAuthoritativeDropship(
     if (!marketUuid) throw new Error("Sparta market not found");
 
     const subtotalMinor = validated.reduce((sum, line) => sum + safeInt(line.row.customer_price_minor, "customer price") * line.quantity, 0);
+    const deliveryChargeMinor = dropshipDeliveryChargeMinor(subtotalMinor);
     const taxMinor = validated.reduce((sum, line) => {
       const retail = safeInt(line.row.customer_price_minor, "customer price") * line.quantity;
       return sum + splitGrossTax(money(retail), safeInt(line.row.tax_rate_bps, "tax rate")).tax.minor;
@@ -239,7 +241,7 @@ export async function checkoutApiAuthoritativeDropship(
         id,public_id,order_number,market_id,user_id,visitor_hash,checkout_key,checkout_fingerprint,status,currency,
         subtotal_minor,shipping_minor,discount_minor,tax_minor,total_minor,billing_address_snapshot,shipping_address_snapshot,
         fulfilment_preference,partial_fulfilment_allowed,terms_version,created_at,updated_at
-      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending_payment','EUR',$9,0,0,$10,$9,'{}'::jsonb,'{}'::jsonb,$11,false,'terms-v1',$12,$12)
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending_payment','EUR',$9,$10,0,$11,($9+$10),'{}'::jsonb,'{}'::jsonb,$12,false,'terms-v1',$13,$13)
     `, [
       orderUuid,
       orderPublicId,
@@ -250,6 +252,7 @@ export async function checkoutApiAuthoritativeDropship(
       input.checkoutKey,
       fingerprint,
       subtotalMinor,
+      deliveryChargeMinor,
       taxMinor,
       input.fulfilmentMode,
       createdAt
@@ -298,14 +301,17 @@ export async function checkoutApiAuthoritativeDropship(
       fulfilmentGroups.set(groupKey, group);
     }
 
+    let deliveryChargeAssigned = false;
     for (const group of fulfilmentGroups.values()) {
       const fulfilmentUuid = randomUUID();
       const fulfilmentPublicId = id("ful");
+      const groupDeliveryChargeMinor = deliveryChargeAssigned ? 0 : deliveryChargeMinor;
+      deliveryChargeAssigned = true;
       await db.query(`
         INSERT INTO fulfilment_orders(
           id,public_id,fulfilment_number,order_id,vendor_id,location_id,mode,status,merchandise_subtotal_minor,
           delivery_charge_minor,waived_delivery_minor,delivery_rule_id,delivery_rule_version,delivery_quote_public_id,created_at,updated_at
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,'awaiting_acceptance',$8,0,0,NULL,NULL,NULL,$9,$9)
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,'awaiting_acceptance',$8,$9,0,NULL,NULL,NULL,$10,$10)
       `, [
         fulfilmentUuid,
         fulfilmentPublicId,
@@ -315,6 +321,7 @@ export async function checkoutApiAuthoritativeDropship(
         group.locationUuid,
         input.fulfilmentMode,
         group.merchandiseMinor,
+        groupDeliveryChargeMinor,
         createdAt
       ]);
       for (const lineUuid of group.lineUuids) {
