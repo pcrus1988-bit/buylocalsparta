@@ -108,6 +108,11 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   if (!productionDatabaseConfigured()) return [];
   const limit = Math.max(1, Math.min(500, Number.isSafeInteger(filters.limit) ? Number(filters.limit) : 240));
   const slugOrId = filters.slugOrId?.trim() || null;
+  const queryText = filters.query?.trim() || null;
+  const condition = filters.condition?.trim() || null;
+  const source = filters.source?.trim() || null;
+  const brand = filters.brand?.trim() || null;
+  const category = filters.category?.trim() || null;
   const result = await getProductionPostgresRuntime().nativePool.query<BazaarRow>(`
     SELECT DISTINCT ON (cv.id)
       cv.public_id AS canonical_public_id,
@@ -141,6 +146,17 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
     LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
     WHERE cv.commerce_channel='bazaar'
       AND ($2::text IS NULL OR cv.slug=$2 OR cv.public_id=$2)
+      AND ($3::text IS NULL OR
+        COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%' || $3 || '%' OR
+        COALESCE(el.description,en.description,'') ILIKE '%' || $3 || '%' OR
+        COALESCE(b.name,'') ILIKE '%' || $3 || '%' OR
+        c.code ILIKE '%' || $3 || '%' OR
+        cv.condition ILIKE '%' || $3 || '%' OR
+        COALESCE(cv.bazaar_source,'') ILIKE '%' || $3 || '%')
+      AND ($4::text IS NULL OR cv.condition=$4)
+      AND ($5::text IS NULL OR cv.bazaar_source=$5)
+      AND ($6::text IS NULL OR b.name=$6)
+      AND ($7::text IS NULL OR c.code=$7)
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
@@ -169,13 +185,9 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       )
     ORDER BY cv.id,vo.customer_price_minor ASC,vo.updated_at DESC,vo.public_id
     LIMIT $1
-  `,[limit,slugOrId]);
+  `,[limit,slugOrId,queryText,condition,source,brand,category]);
 
   const query = normalizeSearchText(filters.query ?? "");
-  const requestedCondition = normalizeSearchText(filters.condition ?? "");
-  const requestedSource = normalizeSearchText(filters.source ?? "");
-  const requestedBrand = normalizeSearchText(filters.brand ?? "");
-  const requestedCategory = normalizeSearchText(filters.category ?? "");
 
   let cards = result.rows.flatMap((row) => {
     const priceMinor = positiveInt(row.customer_price_minor);
@@ -212,10 +224,6 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       card.bazaarSource ?? ""
     ].join(" ")).includes(query));
   }
-  if (requestedCondition) cards = cards.filter((card) => normalizeSearchText(card.condition) === requestedCondition);
-  if (requestedSource) cards = cards.filter((card) => normalizeSearchText(card.bazaarSource ?? "") === requestedSource);
-  if (requestedBrand) cards = cards.filter((card) => normalizeSearchText(card.brand ?? "") === requestedBrand);
-  if (requestedCategory) cards = cards.filter((card) => normalizeSearchText(card.categoryCode) === requestedCategory);
 
   if (!cards.length) return cards;
 
