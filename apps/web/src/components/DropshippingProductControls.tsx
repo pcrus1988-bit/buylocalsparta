@@ -188,6 +188,23 @@ export function DropshippingProductControls(props: Props) {
     finally { setBusy(false); }
   }
 
+  async function refreshAvailability() {
+    setBusy(true); setMessage("");
+    try {
+      const token = await csrfToken();
+      const response = await fetch("/api/vendor/dropshipping/availability-refresh", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": token },
+        body: JSON.stringify({ offerId: props.offerId })
+      });
+      const payload = await response.json() as { error?: string; updatedOffers?: number };
+      if (!response.ok) throw new Error(payload.error ?? "Η ανανέωση availability απέτυχε.");
+      setMessage(`Availability ανανεώθηκε${typeof payload.updatedOffers === "number" ? ` · ${payload.updatedOffers} variants` : ""}`);
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Η ανανέωση availability απέτυχε."); }
+    finally { setBusy(false); }
+  }
+
   return <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
     <div className="workspace-compact-list">
       <div className="workspace-compact-row"><strong>MSRP / Προτεινόμενη λιανική</strong><span>{euro(props.msrpMinor)}</span><small>Supplier τιμή αναφοράς · δεν περιορίζει το auto price</small></div>
@@ -209,6 +226,7 @@ export function DropshippingProductControls(props: Props) {
       <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση manual override</button>
       <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
       <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Reset στα supplier defaults</button>
+      <button className="button button-secondary" type="button" onClick={refreshAvailability} disabled={busy}>Ανανέωση availability</button>
     </div>
     <DropshippingProductFieldControls offerId={props.offerId} />
     {message ? <small role="status">{message}</small> : null}

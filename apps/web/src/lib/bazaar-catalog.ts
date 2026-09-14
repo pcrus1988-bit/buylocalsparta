@@ -110,7 +110,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   const slugOrId = filters.slugOrId?.trim() || null;
   const queryText = filters.query?.trim() || null;
   const condition = filters.condition?.trim() || null;
-  const source = filters.source?.trim() || null;
+  const requestedSource = filters.source?.trim() || null;
   const brand = filters.brand?.trim() || null;
   const category = filters.category?.trim() || null;
   const result = await getProductionPostgresRuntime().nativePool.query<BazaarRow>(`
@@ -185,7 +185,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       )
     ORDER BY cv.id,vo.customer_price_minor ASC,vo.updated_at DESC,vo.public_id
     LIMIT $1
-  `,[limit,slugOrId,queryText,condition,source,brand,category]);
+  `,[limit,slugOrId,queryText,condition,requestedSource,brand,category]);
 
   const query = normalizeSearchText(filters.query ?? "");
 
