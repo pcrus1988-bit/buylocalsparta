@@ -107,7 +107,7 @@ export default async function DropshippingAttentionPage() {
               <Link className="button button-secondary" href={`/vendor/dropshipping?q=${encodeURIComponent(item.title)}&supplier=${encodeURIComponent(item.supplierCode)}`}>Άνοιγμα προϊόντος</Link>
               {item.kind === "published_unavailable" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&publication=published&availability=out_of_stock`}>Όλα τα public unavailable</Link> : null}
               {item.kind === "missing_cost" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&cost=missing_cost`}>Όλα τα missing cost</Link> : null}
-              {item.kind === "pricing_pending" ? <span className="vendor-merchant-status">Αναμονή background pricing</span> : null}
+              {item.kind === "pricing_pending" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=PENDING`}>Όλα τα pricing pending</Link> : null}
               {item.kind === "overpriced" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=OVERPRICED&publication=published`}>Όλα τα ενεργά OVERPRICED</Link> : null}
             </div>
           </article>;

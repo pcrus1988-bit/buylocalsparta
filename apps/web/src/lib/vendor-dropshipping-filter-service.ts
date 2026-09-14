@@ -11,7 +11,7 @@ export type DropshippingPublicationFilter = "all" | "published" | "unpublished";
 export type DropshippingAvailabilityFilter = "all" | "available" | "out_of_stock" | "missing_telemetry" | "stale_sync";
 export type DropshippingCostFilter = "all" | "with_cost" | "missing_cost";
 export type DropshippingAdjustmentFilter = "all" | "with" | "without" | "percent" | "fixed";
-export type DropshippingPricingFlagFilter = "all" | "OVERPRICED" | "OK";
+export type DropshippingPricingFlagFilter = "all" | "PENDING" | "OVERPRICED" | "OK";
 
 export type DropshippingProductFilters = Readonly<{
   categoryId: string;
@@ -138,7 +138,7 @@ export function normalizeDropshippingProductFilters(input: DropshippingFilterInp
     cost: oneOf(input.cost, ["all", "with_cost", "missing_cost"] as const, "all"),
     markup: oneOf(input.markup, ["all", "with", "without", "percent", "fixed"] as const, "all"),
     discount: oneOf(input.discount, ["all", "with", "without", "percent", "fixed"] as const, "all"),
-    pricingFlag: oneOf(input.pricingFlag, ["all", "OVERPRICED", "OK"] as const, "all"),
+    pricingFlag: oneOf(input.pricingFlag, ["all", "PENDING", "OVERPRICED", "OK"] as const, "all"),
     markupMin,
     markupMax,
     discountMin,
@@ -343,6 +343,16 @@ export async function vendorDropshippingFilteredWorkspace(
          AND ($17::numeric IS NULL OR (pp.discount_type='percent' AND pp.discount_value <= $17))
          AND (
            $18::text='all'
+           OR (
+             $18='PENDING'
+             AND dso.active
+             AND dso.supplier_cost_minor IS NOT NULL
+             AND coalesce(vo.source_payload->>'pricingManualOverride','false')<>'true'
+             AND (
+               coalesce(vo.source_payload->>'pricingManagedBy','')<>'nova_auto_v2'
+               OR coalesce(vo.source_payload->>'pricingPending','false')='true'
+             )
+           )
            OR ($18='OVERPRICED' AND vo.source_payload->>'pricingFlag'='OVERPRICED')
            OR ($18='OK' AND coalesce(vo.source_payload->>'pricingFlag','')<>'OVERPRICED')
          )
