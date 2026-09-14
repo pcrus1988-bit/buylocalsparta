@@ -15,6 +15,10 @@ type BulkAction = "publish" | "hide" | "reset";
 type FeedDiagnosticFilter = "stale_sync" | "missing_telemetry";
 type RecoveryProgress = Readonly<{ current: number; total: number }>;
 type RecoveryFailure = Readonly<{ offerId: string; error: string }>;
+type BulkRetryPlan =
+  | Readonly<{ kind: "action"; action: BulkAction }>
+  | Readonly<{ kind: "pricing"; markup: number; discount: number }>
+  | Readonly<{ kind: "presentation"; resetToSupplierDefaults: boolean; fields: DropshipPublicFields }>;
 
 const AVAILABILITY_RECOVERY_LIMIT = 10;
 const AVAILABILITY_RECOVERY_PACE_MS = 3_000;
@@ -62,6 +66,13 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function retryPlanLabel(plan: BulkRetryPlan | null): string {
+  if (!plan) return "bulk action";
+  if (plan.kind === "pricing") return "pricing";
+  if (plan.kind === "presentation") return plan.resetToSupplierDefaults ? "public-field reset" : "public fields";
+  return plan.action === "publish" ? "publish" : plan.action === "hide" ? "hide" : "supplier reset";
+}
+
 export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, page, activeFilterCount }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,12 +81,14 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
   const [recoveryProgress, setRecoveryProgress] = useState<RecoveryProgress | null>(null);
   const [recoveryFailures, setRecoveryFailures] = useState<readonly RecoveryFailure[]>([]);
   const [bulkFailures, setBulkFailures] = useState<readonly RecoveryFailure[]>([]);
+  const [bulkRetryPlan, setBulkRetryPlan] = useState<BulkRetryPlan | null>(null);
   const [markupPercent, setMarkupPercent] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [publicFields, setPublicFields] = useState<DropshipPublicFields>(defaultPublicFields);
   const activeDiagnostic = searchParams.get("availability");
   const canRecoverAvailability = activeDiagnostic === "missing_telemetry" && offerIds.length > 0;
   const canRetryRecovery = activeDiagnostic === "missing_telemetry" && recoveryFailures.length > 0;
+  const canRetryBulk = bulkFailures.length > 0 && bulkRetryPlan !== null;
 
   function setPublicField(key: keyof DropshipPublicFields, checked: boolean) {
     setPublicFields((current) => ({ ...current, [key]: checked }));
@@ -162,21 +175,13 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
     await runAvailabilityRecovery(targets);
   }
 
-  async function execute(action: BulkAction) {
-    if (!offerIds.length) return;
-    const verb = action === "publish" ? "δημοσίευση" : action === "hide" ? "απόκρυψη" : "reset στα supplier defaults";
-    const confirmed = window.confirm(
-      `Μαζική ${verb} για τα ${offerIds.length} προϊόντα που εμφανίζονται στην τρέχουσα σελίδα αποτελεσμάτων; `
-      + "Η ενέργεια εφαρμόζεται μόνο σε αυτά τα προϊόντα και περνά από τους ίδιους supplier/moderation/safety ελέγχους με τη μεμονωμένη αλλαγή."
-    );
-    if (!confirmed) return;
-
+  async function runActionTargets(action: BulkAction, targets: readonly string[]) {
     setBusy(true);
     setMessage("");
     setBulkFailures([]);
     try {
       const token = await csrfToken();
-      const errors = await runBounded(offerIds, async (offerId) => {
+      const failures = await runBounded(targets, async (offerId) => {
         const response = action === "reset"
           ? await fetch("/api/vendor/dropshipping/actions", {
               method: "POST",
@@ -194,14 +199,67 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
         }
       });
 
-      setBulkFailures(errors);
-      const succeeded = offerIds.length - errors.length;
-      setMessage(errors.length
-        ? `Ολοκληρώθηκαν ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα. Δες παρακάτω τα ακριβή failed rows και τον υπάρχοντα safety/moderation λόγο.`
-        : `Ολοκληρώθηκαν ${succeeded}/${offerIds.length} προϊόντα.`);
+      setBulkFailures(failures);
+      setBulkRetryPlan(failures.length ? { kind: "action", action } : null);
+      const succeeded = targets.length - failures.length;
+      setMessage(failures.length
+        ? `Ολοκληρώθηκαν ${succeeded}/${targets.length}. ${failures.length} προϊόντα παρέμειναν αμετάβλητα. Μπορείς να επαναλάβεις μόνο τα failed rows.`
+        : `Ολοκληρώθηκαν ${succeeded}/${targets.length} προϊόντα.`);
       router.refresh();
     } catch (error) {
+      setBulkRetryPlan(null);
       setMessage(error instanceof Error ? error.message : "Η μαζική ενέργεια απέτυχε.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function execute(action: BulkAction) {
+    if (!offerIds.length) return;
+    const verb = action === "publish" ? "δημοσίευση" : action === "hide" ? "απόκρυψη" : "reset στα supplier defaults";
+    const confirmed = window.confirm(
+      `Μαζική ${verb} για τα ${offerIds.length} προϊόντα που εμφανίζονται στην τρέχουσα σελίδα αποτελεσμάτων; `
+      + "Η ενέργεια εφαρμόζεται μόνο σε αυτά τα προϊόντα και περνά από τους ίδιους supplier/moderation/safety ελέγχους με τη μεμονωμένη αλλαγή."
+    );
+    if (!confirmed) return;
+    await runActionTargets(action, offerIds);
+  }
+
+  async function runPricingTargets(targets: readonly string[], markup: number, discount: number) {
+    setBusy(true);
+    setMessage("");
+    setBulkFailures([]);
+    try {
+      const token = await csrfToken();
+      const failures = await runBounded(targets, async (offerId) => {
+        const response = await fetch("/api/vendor/catalog/price", {
+          method: "PUT",
+          headers: { "content-type": "application/json", "x-csrf-token": token },
+          body: JSON.stringify({
+            offerId,
+            pricingMode: "calculated",
+            markupType: "percent",
+            markupValue: markup,
+            discountType: discount > 0 ? "percent" : null,
+            discountValue: discount > 0 ? discount : null
+          })
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({})) as { error?: string };
+          throw new Error(payload.error ?? `Η τιμολόγηση απέτυχε για ${offerId}.`);
+        }
+      });
+
+      setBulkFailures(failures);
+      setBulkRetryPlan(failures.length ? { kind: "pricing", markup, discount } : null);
+      const succeeded = targets.length - failures.length;
+      setMessage(failures.length
+        ? `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${targets.length}. ${failures.length} προϊόντα παρέμειναν αμετάβλητα και μπορούν να επαναληφθούν χωρίς να ξαναγραφτούν τα επιτυχημένα rows.`
+        : `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${targets.length} προϊόντα.`);
+      router.refresh();
+    } catch (error) {
+      setBulkRetryPlan(null);
+      setMessage(error instanceof Error ? error.message : "Η μαζική τιμολόγηση απέτυχε.");
     } finally {
       setBusy(false);
     }
@@ -225,39 +283,45 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       + "Κάθε προϊόν θα αποθηκευτεί ως manual pricing override με την authoritative supplier buying price. Προϊόντα χωρίς έγκυρη buying price θα παραμείνουν αμετάβλητα."
     );
     if (!confirmed) return;
+    await runPricingTargets(offerIds, markup, discount);
+  }
 
+  async function runPublicFieldTargets(
+    targets: readonly string[],
+    resetToSupplierDefaults: boolean,
+    fields: DropshipPublicFields
+  ) {
     setBusy(true);
     setMessage("");
     setBulkFailures([]);
     try {
       const token = await csrfToken();
-      const errors = await runBounded(offerIds, async (offerId) => {
-        const response = await fetch("/api/vendor/catalog/price", {
+      const failures = await runBounded(targets, async (offerId) => {
+        const response = await fetch("/api/vendor/dropshipping/presentation", {
           method: "PUT",
           headers: { "content-type": "application/json", "x-csrf-token": token },
-          body: JSON.stringify({
-            offerId,
-            pricingMode: "calculated",
-            markupType: "percent",
-            markupValue: markup,
-            discountType: discount > 0 ? "percent" : null,
-            discountValue: discount > 0 ? discount : null
-          })
+          body: JSON.stringify(resetToSupplierDefaults
+            ? { action: "reset-product", offerId }
+            : { action: "save-product", offerId, fields })
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({})) as { error?: string };
-          throw new Error(payload.error ?? `Η τιμολόγηση απέτυχε για ${offerId}.`);
+          throw new Error(payload.error ?? `Η αλλαγή public fields απέτυχε για ${offerId}.`);
         }
       });
 
-      setBulkFailures(errors);
-      const succeeded = offerIds.length - errors.length;
-      setMessage(errors.length
-        ? `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα. Δες παρακάτω ποια rows απέτυχαν και τον ακριβή pricing/supplier λόγο.`
-        : `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${offerIds.length} προϊόντα.`);
+      setBulkFailures(failures);
+      setBulkRetryPlan(failures.length
+        ? { kind: "presentation", resetToSupplierDefaults, fields: { ...fields } }
+        : null);
+      const succeeded = targets.length - failures.length;
+      setMessage(failures.length
+        ? `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${targets.length}. ${failures.length} προϊόντα παρέμειναν αμετάβλητα και μπορούν να επαναληφθούν με το ίδιο snapshot ρυθμίσεων.`
+        : `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${targets.length} προϊόντα.`);
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Η μαζική τιμολόγηση απέτυχε.");
+      setBulkRetryPlan(null);
+      setMessage(error instanceof Error ? error.message : "Η μαζική αλλαγή public fields απέτυχε.");
     } finally {
       setBusy(false);
     }
@@ -269,37 +333,28 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       ? `Επαναφορά των public-field overrides για τα ${offerIds.length} προϊόντα της τρέχουσας σελίδας; Κάθε προϊόν θα χρησιμοποιεί ξανά τα supplier public-field defaults.`
       : `Εφαρμογή των επιλεγμένων public fields στα ${offerIds.length} προϊόντα της τρέχουσας σελίδας; Θα δημιουργηθεί per-product field override μόνο για αυτά τα προϊόντα.`);
     if (!confirmed) return;
+    await runPublicFieldTargets(offerIds, resetToSupplierDefaults, { ...publicFields });
+  }
 
-    setBusy(true);
-    setMessage("");
-    setBulkFailures([]);
-    try {
-      const token = await csrfToken();
-      const errors = await runBounded(offerIds, async (offerId) => {
-        const response = await fetch("/api/vendor/dropshipping/presentation", {
-          method: "PUT",
-          headers: { "content-type": "application/json", "x-csrf-token": token },
-          body: JSON.stringify(resetToSupplierDefaults
-            ? { action: "reset-product", offerId }
-            : { action: "save-product", offerId, fields: publicFields })
-        });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({})) as { error?: string };
-          throw new Error(payload.error ?? `Η αλλαγή public fields απέτυχε για ${offerId}.`);
-        }
-      });
+  async function retryFailedBulkRows() {
+    if (!canRetryBulk || !bulkRetryPlan) return;
+    const targets = bulkFailures.map((failure) => failure.offerId);
+    const plan = bulkRetryPlan;
+    const confirmed = window.confirm(
+      `Retry ${retryPlanLabel(plan)} μόνο για τα ${targets.length} failed προϊόντα; `
+      + "Τα rows που ολοκληρώθηκαν επιτυχώς δεν θα ξανακληθούν και ισχύουν οι ίδιοι server-side ownership/supplier/safety έλεγχοι."
+    );
+    if (!confirmed) return;
 
-      setBulkFailures(errors);
-      const succeeded = offerIds.length - errors.length;
-      setMessage(errors.length
-        ? `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα. Δες παρακάτω τα failed rows και τον ownership/presentation λόγο.`
-        : `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${offerIds.length} προϊόντα.`);
-      router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Η μαζική αλλαγή public fields απέτυχε.");
-    } finally {
-      setBusy(false);
+    if (plan.kind === "action") {
+      await runActionTargets(plan.action, targets);
+      return;
     }
+    if (plan.kind === "pricing") {
+      await runPricingTargets(targets, plan.markup, plan.discount);
+      return;
+    }
+    await runPublicFieldTargets(targets, plan.resetToSupplierDefaults, plan.fields);
   }
 
   return <div className="workspace-queue-card" style={{ marginBottom: 14 }}>
@@ -374,10 +429,16 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       <button className="button button-secondary" type="button" disabled={busy || !offerIds.length} onClick={() => execute("hide")}>Hide current page</button>
       <button className="button button-secondary" type="button" disabled={busy || !offerIds.length} onClick={() => execute("reset")}>Reset current page</button>
     </div>
-    {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
+    {message ? <small role="status" aria-live="polite" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
     {bulkFailures.length ? <details open style={{ marginTop: 8 }}>
       <summary style={{ cursor: "pointer", fontWeight: 700 }}>Failed bulk rows · {bulkFailures.length}</summary>
       <small style={{ display: "block", marginTop: 6 }}>Τα παρακάτω προϊόντα δεν άλλαξαν. Το μήνυμα προέρχεται από το υπάρχον server-side ownership, supplier, moderation, pricing ή presentation gate.</small>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+        <button className="button button-secondary" type="button" disabled={busy || !canRetryBulk} onClick={retryFailedBulkRows}>
+          Retry failed rows ({bulkFailures.length})
+        </button>
+        <small style={{ alignSelf: "center" }}>Retry: {retryPlanLabel(bulkRetryPlan)} · μόνο failed IDs · ίδιο operation snapshot</small>
+      </div>
       <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
         {bulkFailures.map((failure) => <li key={failure.offerId} style={{ marginBottom: 4, overflowWrap: "anywhere" }}>
           <code>{failure.offerId}</code> · {failure.error}
