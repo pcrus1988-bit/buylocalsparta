@@ -1,2 +1,17 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";import { createVendorBoxNowShipment } from "../../../../../lib/boxnow-shipping-runtime";
-export async function POST(request:Request){try{const p=await requireVendorSession(request,true);const b=await request.json() as {fulfilmentId?:unknown};const id=typeof b.fulfilmentId==='string'?b.fulfilmentId.trim():'';if(!id)throw new Error('fulfilmentId is required');return Response.json(await createVendorBoxNowShipment(p,id))}catch(e){return Response.json({error:e instanceof Error?e.message:'boxnow_create_failed'},{status:400})}}
+import { createVendorShipment } from "../../../../../lib/vendor-shipping-service";
+import { requireVendorSession } from "../../../../../lib/vendor-session";
+
+export async function POST(request: Request) {
+  try {
+    const principal = await requireVendorSession(request, true);
+    const body = await request.json() as { fulfilmentId?: unknown };
+    const fulfilmentId = typeof body.fulfilmentId === "string" ? body.fulfilmentId.trim() : "";
+    if (!fulfilmentId) throw new Error("fulfilmentId is required");
+    return Response.json(await createVendorShipment(principal, fulfilmentId));
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "boxnow_create_failed" },
+      { status: 400 }
+    );
+  }
+}
