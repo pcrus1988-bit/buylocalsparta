@@ -40,7 +40,6 @@ export default async function DropshippingFeedHealthPage() {
   const healthy = suppliers.filter(({ health }) => health.status === "healthy").length;
   const attention = suppliers.filter(({ health }) => health.status === "stale" || health.status === "degraded").length;
   const unknown = suppliers.filter(({ health }) => health.status === "unknown").length;
-  const staleCatalogueProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.staleCatalogueProducts ?? 0), 0);
   const missingAvailabilityTelemetryProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.missingAvailabilityTelemetryProducts ?? 0), 0);
   const publishedUnavailableProducts = suppliers.reduce((sum, { supplier }) => sum + (supplier.publishedUnavailableProducts ?? 0), 0);
   const productsMissingCost = suppliers.reduce((sum, { supplier }) => sum + Math.max(0, supplier.totalProducts - supplier.productsWithCost), 0);
@@ -68,25 +67,23 @@ export default async function DropshippingFeedHealthPage() {
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Catalogue diagnostics" title="Τι χρειάζεται ενέργεια" note="Οι μετρήσεις προέρχονται από τα υπάρχοντα supplier offers και δεν δημιουργούν δεύτερο sync ή catalogue σύστημα." />
       <WorkspaceMetricStrip items={[
-        { label: "Stale catalogue rows", value: staleCatalogueProducts, tone: staleCatalogueProducts ? "attention" : "positive" },
         { label: "Χωρίς availability telemetry", value: missingAvailabilityTelemetryProducts, tone: missingAvailabilityTelemetryProducts ? "attention" : "positive" },
         { label: "Published αλλά unavailable", value: publishedUnavailableProducts, tone: publishedUnavailableProducts ? "attention" : "positive" },
         { label: "Χωρίς supplier cost", value: productsMissingCost, tone: productsMissingCost ? "attention" : "positive" }
       ]} />
-      <p style={{ marginTop: 12 }}><small>Κάθε catalogue diagnostic ανοίγει πλέον το ακριβές product subset στο κοινό Dropshipping product manager, ώστε να μπορούν να χρησιμοποιηθούν τα ίδια search, overrides και bulk actions.</small></p>
+      <p style={{ marginTop: 12 }}><small>Κάθε actionable catalogue diagnostic ανοίγει το ακριβές product subset στο κοινό Dropshipping product manager, ώστε να μπορούν να χρησιμοποιηθούν τα ίδια search, overrides και bulk actions.</small></p>
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Sync operations" title="Supplier feed freshness" note="Catalogue sync θεωρείται stale μετά από 12 ώρες και supplier healthcheck μετά από 24 ώρες. Αποτυχημένο healthcheck εμφανίζεται άμεσα ως πρόβλημα." />
+      <WorkspaceSectionHeading eyebrow="Sync operations" title="Supplier feed freshness" note="Η πραγματική υγεία του feed βασίζεται στο supplier healthcheck και στη νεότερη catalogue δραστηριότητα. Σε delta feeds, ένα αμετάβλητο product row μπορεί νόμιμα να μη γίνει re-materialize για πολλές ώρες και αυτό από μόνο του δεν αποτελεί sync failure." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
         {suppliers.map(({ supplier, health }) => {
-          const staleRows = supplier.staleCatalogueProducts ?? 0;
+          const unchangedMaterializationRows = supplier.staleCatalogueProducts ?? 0;
           const missingAvailability = supplier.missingAvailabilityTelemetryProducts ?? 0;
           const publishedUnavailable = supplier.publishedUnavailableProducts ?? 0;
           const missingCost = Math.max(0, supplier.totalProducts - supplier.productsWithCost);
-          const hasCatalogueIssues = staleRows > 0 || missingAvailability > 0 || publishedUnavailable > 0 || missingCost > 0;
+          const hasCatalogueIssues = missingAvailability > 0 || publishedUnavailable > 0 || missingCost > 0;
           const supplierHref = supplierWorkspaceUrl(supplier.code);
-          const staleRowsHref = supplierWorkspaceUrl(supplier.code, { availability: "stale_sync" });
           const missingAvailabilityHref = supplierWorkspaceUrl(supplier.code, { availability: "missing_telemetry" });
           const publishedUnavailableHref = supplierWorkspaceUrl(supplier.code, { publication: "published", availability: "out_of_stock" });
           const missingCostHref = supplierWorkspaceUrl(supplier.code, { cost: "missing_cost" });
@@ -106,16 +103,16 @@ export default async function DropshippingFeedHealthPage() {
               <div className="workspace-compact-row"><strong>Tracking sync</strong><span>{supplier.trackingSyncEnabled ? "Enabled" : "Disabled"}</span></div>
               <div className="workspace-compact-row"><strong>Τελευταίο healthcheck</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
               <div className="workspace-compact-row"><strong>Healthcheck result</strong><span>{supplier.lastHealthcheckOk === true ? "OK" : supplier.lastHealthcheckOk === false ? "FAILED" : "Άγνωστο"}</span></div>
-              <div className="workspace-compact-row"><strong>Τελευταίο catalogue sync</strong><span>{date(supplier.lastCatalogueSyncAt)}</span><small>{age(health.catalogueSyncAgeMinutes)}</small></div>
+              <div className="workspace-compact-row"><strong>Τελευταίο catalogue materialization</strong><span>{date(supplier.lastCatalogueSyncAt)}</span><small>{age(health.catalogueSyncAgeMinutes)}</small></div>
               <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
             </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span>{staleRows > 0 ? <Link href={staleRowsHref}>Προβολή προϊόντων</Link> : null}</div>
+              <div className="workspace-compact-row"><strong>Αμετάβλητα χωρίς re-materialization &gt;12h</strong><span>{unchangedMaterializationRows}</span><small>Πληροφοριακό για delta feeds — δεν θεωρείται μόνο του failure.</small></div>
               <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span>{missingAvailability > 0 ? <Link href={missingAvailabilityHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{publishedUnavailable}</span>{publishedUnavailable > 0 ? <Link href={publishedUnavailableHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Χωρίς supplier cost</strong><span>{missingCost}</span>{missingCost > 0 ? <Link href={missingCostHref}>Προβολή προϊόντων</Link> : null}</div>
             </div>
-            <p style={{ marginTop: 10 }}><small>{hasCatalogueIssues ? "Υπάρχουν catalogue εγγραφές που χρειάζονται έλεγχο ή επόμενο supplier sync." : "Δεν εντοπίστηκαν catalogue-level προβλήματα σε αυτόν τον supplier."}</small></p>
+            <p style={{ marginTop: 10 }}><small>{hasCatalogueIssues ? "Υπάρχουν catalogue εγγραφές που χρειάζονται έλεγχο ή επόμενο supplier sync." : "Δεν εντοπίστηκαν actionable catalogue-level προβλήματα σε αυτόν τον supplier."}</small></p>
             <Link className="button button-secondary" style={{ marginTop: 12 }} href={supplierHref}>Άνοιγμα supplier workspace</Link>
           </article>;
         })}
