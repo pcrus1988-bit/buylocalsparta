@@ -28,7 +28,7 @@ export function AddToCartButton({ product }: { product: AddToCartProduct }) {
   const [variantSheetAvailable, setVariantSheetAvailable] = useState(false);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 620px)");
+    const media = window.matchMedia("(max-width: 760px)");
     const update = () => {
       setVariantSheetAvailable(media.matches && Boolean(document.querySelector('[data-km-variant-sheet-trigger="true"]')));
     };
