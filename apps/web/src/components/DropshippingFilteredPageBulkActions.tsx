@@ -14,6 +14,9 @@ type Props = Readonly<{
 type BulkAction = "publish" | "hide" | "reset";
 type FeedDiagnosticFilter = "stale_sync" | "missing_telemetry";
 
+const AVAILABILITY_RECOVERY_LIMIT = 10;
+const AVAILABILITY_RECOVERY_PACE_MS = 3_000;
+
 const defaultPublicFields: DropshipPublicFields = {
   model: true,
   mpn: true,
@@ -47,6 +50,10 @@ async function runBounded<T>(items: readonly T[], worker: (item: T) => Promise<v
   return errors;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, page, activeFilterCount }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -65,6 +72,59 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
     else params.delete("availability");
     params.delete("page");
     router.push(`/vendor/dropshipping?${params.toString()}`);
+  }
+
+  async function recoverMissingAvailabilityTelemetry() {
+    if (!offerIds.length) return;
+    const diagnostic = new URLSearchParams(window.location.search).get("availability");
+    if (diagnostic !== "missing_telemetry") {
+      setMessage("Εφάρμοσε πρώτα το φίλτρο «Χωρίς availability telemetry» ώστε η recovery ενέργεια να αγγίζει μόνο διαγνωσμένα προϊόντα.");
+      return;
+    }
+
+    const targets = offerIds.slice(0, AVAILABILITY_RECOVERY_LIMIT);
+    const confirmed = window.confirm(
+      `Authoritative NOVA availability refresh για έως ${targets.length} προϊόντα της τρέχουσας filtered σελίδας; `
+      + "Η recovery εκτελείται σειριακά και με pacing ώστε να μη δημιουργεί burst προς τον supplier. Δεν αλλάζει τιμές, publication, local stock ή supplier orders."
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const token = await csrfToken();
+      let succeeded = 0;
+      let failed = 0;
+      let updatedOffers = 0;
+
+      for (let index = 0; index < targets.length; index += 1) {
+        const offerId = targets[index]!;
+        try {
+          const response = await fetch("/api/vendor/dropshipping/availability-refresh", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-csrf-token": token },
+            body: JSON.stringify({ offerId })
+          });
+          const payload = await response.json().catch(() => ({})) as { error?: string; updatedOffers?: number };
+          if (!response.ok) throw new Error(payload.error ?? `Availability refresh απέτυχε για ${offerId}.`);
+          succeeded += 1;
+          updatedOffers += typeof payload.updatedOffers === "number" ? payload.updatedOffers : 0;
+        } catch {
+          failed += 1;
+        }
+
+        if (index < targets.length - 1) await delay(AVAILABILITY_RECOVERY_PACE_MS);
+      }
+
+      setMessage(failed
+        ? `Availability recovery: ${succeeded}/${targets.length} προϊόντα ολοκληρώθηκαν · ${failed} απέτυχαν και έμειναν χωρίς νέα supplier evidence · ${updatedOffers} variants ενημερώθηκαν.`
+        : `Availability recovery ολοκληρώθηκε για ${succeeded}/${targets.length} προϊόντα · ${updatedOffers} variants ενημερώθηκαν.`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η bounded availability recovery απέτυχε.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function execute(action: BulkAction) {
@@ -215,10 +275,12 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       <strong style={{ display: "block", marginBottom: 6 }}>Feed diagnostics</strong>
       <small style={{ display: "block", marginBottom: 8 }}>Το «χωρίς availability telemetry» είναι actionable. Η ηλικία τελευταίου materialization είναι μόνο πληροφοριακή για delta feeds: αμετάβλητα προϊόντα μπορεί νόμιμα να μη ξαναγραφτούν για πολλές ώρες. Διατηρούνται ο supplier και τα υπόλοιπα ενεργά φίλτρα· η σελιδοποίηση επιστρέφει στη σελίδα 1.</small>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Χωρίς re-materialization &gt;12h</button>
-        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("missing_telemetry")}>Χωρίς availability telemetry</button>
-        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter(null)}>Καθαρισμός feed diagnostic</button>
+        <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Χωρίς re-materialization &gt;12h</button>
+        <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter("missing_telemetry")}>Χωρίς availability telemetry</button>
+        <button className="button button-secondary" type="button" disabled={busy || !offerIds.length} onClick={recoverMissingAvailabilityTelemetry}>Recover έως 10 telemetry</button>
+        <button className="button button-secondary" type="button" disabled={busy} onClick={() => applyFeedDiagnosticFilter(null)}>Καθαρισμός feed diagnostic</button>
       </div>
+      <small style={{ display: "block", marginTop: 8 }}>Η recovery απαιτεί ενεργό φίλτρο «Χωρίς availability telemetry», επεξεργάζεται το πολύ 10 προϊόντα της ορατής σελίδας και αφήνει αποτυχημένες supplier κλήσεις χωρίς ψευδή νέα evidence.</small>
     </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 10 }}>
