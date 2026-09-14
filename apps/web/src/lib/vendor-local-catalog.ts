@@ -26,15 +26,27 @@ function safeMinor(value: unknown): number {
  * Initial vendor storefront projection for genuine local inventory only.
  *
  * Dropshipping offers are deliberately excluded here. VendorCatalogBrowser already
- * retrieves those from /api/catalog/vendor/:id in bounded 36-item pages. Keeping
- * them out of SSR prevents large supplier catalogues from materialising tens of
- * thousands of records (and per-offer price lookups) before the first byte can be
- * sent to the browser.
+ * retrieves the complete public vendor catalogue from /api/catalog/vendor/:id in
+ * bounded 20-item pages. For vendors that have any dropshipping catalogue at all,
+ * skip this SSR projection entirely so the first byte is not blocked by scanning
+ * tens of thousands of supplier-backed vendor offers just to discover the handful
+ * of local rows. Local-only vendors retain the SSR fallback below.
  */
 export async function getVendorLocalCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
   if (!productionDatabaseConfigured()) return [];
 
-  const result = await getProductionPostgresRuntime().nativePool.query<LocalVendorCatalogRow>(`
+  const pool = getProductionPostgresRuntime().nativePool;
+  const supplierPresence = await pool.query<{ present: number }>(`
+    SELECT 1 AS present
+    FROM vendor_businesses v
+    JOIN vendor_offers vo ON vo.vendor_id = v.id
+    JOIN dropship_supplier_offers dso ON dso.vendor_offer_id = vo.id
+    WHERE v.public_id = $1
+    LIMIT 1
+  `, [vendorId]);
+  if ((supplierPresence.rowCount ?? 0) > 0) return [];
+
+  const result = await pool.query<LocalVendorCatalogRow>(`
     SELECT DISTINCT ON (cv.id)
       cv.public_id AS id,
       cv.slug,
