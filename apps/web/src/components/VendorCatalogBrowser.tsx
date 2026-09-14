@@ -128,7 +128,8 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   const [remoteTotal, setRemoteTotal] = useState<number>();
   const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
   const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
-  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteLoading, setRemoteLoading] = useState(!demoVendorId);
+  const [remoteAttempted, setRemoteAttempted] = useState(Boolean(demoVendorId));
   const [facetsLoading, setFacetsLoading] = useState(false);
   const [remoteError, setRemoteError] = useState(false);
   const [renderLimit, setRenderLimit] = useState(PAGE_SIZE);
@@ -161,8 +162,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     [filters, products]
   );
   const workingProducts = useMemo(
-    () => remoteProducts === null ? fallbackFiltered : dedupeProducts([...localFiltered, ...remoteProducts]),
-    [fallbackFiltered, localFiltered, remoteProducts]
+    () => !demoMode && !remoteAttempted
+      ? []
+      : remoteProducts === null
+        ? fallbackFiltered
+        : dedupeProducts([...remoteProducts, ...localFiltered]),
+    [demoMode, fallbackFiltered, localFiltered, remoteAttempted, remoteProducts]
   );
   const visibleProducts = useMemo(
     () => workingProducts.slice(0, renderLimit),
@@ -246,10 +251,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
         setRemoteProducts(payload.products);
         setRemoteTotal(payload.total);
         setRemoteNextOffset(payload.nextOffset);
+        setRemoteAttempted(true);
         void prefetchNextPage(publicVendorId, filters, key, payload.nextOffset);
       } catch (error) {
         if (controller.signal.aborted) return;
         console.error("Vendor catalogue first page failed", error);
+        setRemoteAttempted(true);
         setRemoteError(true);
       } finally {
         if (!controller.signal.aborted && activeRequestKeyRef.current === key) setRemoteLoading(false);
@@ -302,36 +309,40 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   }, [demoMode, publicVendorId, remoteFacets]);
 
   const categories = useMemo(
-    () => remoteFacets?.categories ?? fallbackCategoryOptions(products),
-    [products, remoteFacets]
+    () => remoteFacets?.categories ?? (demoMode || remoteError ? fallbackCategoryOptions(products) : []),
+    [demoMode, products, remoteError, remoteFacets]
   );
   const fallbackCategoryProducts = useMemo(
     () => category === "all" ? products : products.filter((product) => product.categoryCode === category),
     [category, products]
   );
   const brands = useMemo(
-    () => remoteFacets?.brands.map((entry) => entry.value) ?? unique(fallbackCategoryProducts.map((product) => product.brand)),
-    [fallbackCategoryProducts, remoteFacets]
+    () => remoteFacets?.brands.map((entry) => entry.value) ?? (demoMode || remoteError ? unique(fallbackCategoryProducts.map((product) => product.brand)) : []),
+    [demoMode, fallbackCategoryProducts, remoteError, remoteFacets]
   );
   const colors = useMemo(
-    () => remoteFacets?.colors.map((entry) => entry.value) ?? unique(fallbackCategoryProducts.map((product) => product.color)),
-    [fallbackCategoryProducts, remoteFacets]
+    () => remoteFacets?.colors.map((entry) => entry.value) ?? (demoMode || remoteError ? unique(fallbackCategoryProducts.map((product) => product.color)) : []),
+    [demoMode, fallbackCategoryProducts, remoteError, remoteFacets]
   );
   const sizes = useMemo(
-    () => remoteFacets?.sizes.map((entry) => entry.value) ?? unique(fallbackCategoryProducts.flatMap((product) => product.sizes)),
-    [fallbackCategoryProducts, remoteFacets]
+    () => remoteFacets?.sizes.map((entry) => entry.value) ?? (demoMode || remoteError ? unique(fallbackCategoryProducts.flatMap((product) => product.sizes)) : []),
+    [demoMode, fallbackCategoryProducts, remoteError, remoteFacets]
   );
 
   const filtersActive = category !== "all" || brand !== "all" || color !== "all" || size !== "all" || availability !== "all";
   const activeFilterCount = [category !== "all", brand !== "all", color !== "all", size !== "all", availability !== "all"].filter(Boolean).length;
-  const resultTotal = remoteProducts === null
-    ? fallbackFiltered.length
-    : (remoteTotal ?? remoteProducts.length) + localFiltered.length;
+  const resultTotal = !demoMode && !remoteAttempted
+    ? 0
+    : remoteProducts === null
+      ? fallbackFiltered.length
+      : (remoteTotal ?? remoteProducts.length) + localFiltered.length;
   const catalogueTotal = remoteFacets?.total !== undefined
     ? remoteFacets.total + initialLocalProducts.length
     : remoteTotal !== undefined
       ? remoteTotal + initialLocalProducts.length
-      : products.length;
+      : !demoMode && !remoteAttempted
+        ? 0
+        : products.length;
   const hasBufferedProducts = renderLimit < workingProducts.length;
   const canLoadRemote = !demoMode && remoteNextOffset !== null;
   const hasMore = hasBufferedProducts || canLoadRemote;
