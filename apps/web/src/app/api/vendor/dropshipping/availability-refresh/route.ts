@@ -4,6 +4,7 @@ import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropship
 import { requireVendorSession } from "../../../../../lib/vendor-session";
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
+const TARGETED_REFRESH_COOLDOWN_MS = 2 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +19,9 @@ export async function POST(request: Request) {
 
     const db = getProductionPostgresRuntime().sqlPool;
     const product = await db.query(`
-      SELECT dso.external_product_id
+      SELECT dso.external_product_id,
+             dso.availability_checked_at,
+             ds.owner_vendor_id::text owner_vendor_id
       FROM public.vendor_offers vo
       JOIN public.vendor_businesses vb ON vb.id=vo.vendor_id
       JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
@@ -38,9 +41,19 @@ export async function POST(request: Request) {
       throw new Error("Το προϊόν δεν βρέθηκε στον ενεργό NOVA/BrandsGateway supplier ή δεν ανήκει στον vendor.");
     }
 
-    const externalProductId = String(product.rows[0].external_product_id).trim();
-    const refreshed = await runNovaAvailabilityRefreshForProduct(externalProductId);
-    return Response.json({ ok: true, ...refreshed });
+    const row = product.rows[0];
+    const checkedAt = row.availability_checked_at ? new Date(String(row.availability_checked_at)).getTime() : Number.NaN;
+    if (Number.isFinite(checkedAt) && Date.now() - checkedAt < TARGETED_REFRESH_COOLDOWN_MS) {
+      return Response.json({ ok: true, alreadyFresh: true, updatedOffers: 0 });
+    }
+
+    const externalProductId = String(row.external_product_id).trim();
+    const ownerVendorId = String(row.owner_vendor_id).trim();
+    const refreshed = await runNovaAvailabilityRefreshForProduct(externalProductId, ownerVendorId);
+    if (refreshed.updatedOffers < 1) {
+      throw new Error("Η NOVA επέστρεψε availability, αλλά δεν αντιστοιχίστηκε σε ενεργό variant του vendor.");
+    }
+    return Response.json({ ok: true, alreadyFresh: false, ...refreshed });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "dropshipping_availability_refresh_failed" },
