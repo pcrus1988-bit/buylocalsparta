@@ -59,7 +59,7 @@ export function assertBazaarSecondLifeMaterialization(input: {
 }
 
 /**
- * Stable namespace used by future second-life ingestion flows when deriving
+ * Stable namespace used by second-life ingestion flows when deriving
  * canonical / offer identities. The source is part of the identity so an
  * open-box item can never silently reuse a customer-return/display-stock
  * canonical even when both originate from the same normal product.
@@ -71,4 +71,67 @@ export function bazaarSecondLifeIdentityNamespace(input: {
   const provenanceRef = input.provenanceRef.trim();
   if (!provenanceRef) throw new Error("BAZAAR second-life provenance reference is required");
   return `${input.source}:${provenanceRef}`;
+}
+
+function stableIdentityToken(value: string): string {
+  let hash = 0xcbf29ce484222325n;
+  const prime = 0x100000001b3n;
+  for (const char of value) {
+    hash ^= BigInt(char.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * prime);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+function sourceToken(source: InternalSecondLifeSource): string {
+  return source.replaceAll("_", "-");
+}
+
+export type BazaarSecondLifeIdentity = {
+  source: InternalSecondLifeSource;
+  condition: BazaarCondition;
+  provenanceNamespace: string;
+  identityToken: string;
+  canonicalPublicId: string;
+  offerPublicId: string;
+  slug: string;
+  vendorSku: string;
+};
+
+/**
+ * Derives the complete stable identity envelope for internally materialised
+ * BAZAAR inventory. Source + provenance are always part of the identity,
+ * preventing returns/open-box/display-stock/damaged-packaging stock from
+ * collapsing into one another or into normal catalogue identity.
+ */
+export function buildBazaarSecondLifeIdentity(input: {
+  source: unknown;
+  condition: unknown;
+  provenanceRef: string;
+  baseSlug: string;
+  baseVendorSku: string;
+}): BazaarSecondLifeIdentity {
+  assertBazaarSecondLifeMaterialization(input);
+
+  const provenanceNamespace = bazaarSecondLifeIdentityNamespace({
+    source: input.source,
+    provenanceRef: input.provenanceRef,
+  });
+  const identityToken = stableIdentityToken(provenanceNamespace);
+  const source = sourceToken(input.source);
+  const baseSlug = input.baseSlug.trim().replace(/-+$/g, "");
+  const baseVendorSku = input.baseVendorSku.trim();
+  if (!baseSlug) throw new Error("BAZAAR second-life base slug is required");
+  if (!baseVendorSku) throw new Error("BAZAAR second-life base vendor SKU is required");
+
+  return {
+    source: input.source,
+    condition: input.condition,
+    provenanceNamespace,
+    identityToken,
+    canonicalPublicId: `bazaar_${input.source}_${identityToken}`,
+    offerPublicId: `offer_bazaar_${input.source}_${identityToken}`,
+    slug: `${baseSlug}-bazaar-${source}-${identityToken}`,
+    vendorSku: `${baseVendorSku}-BAZAAR-${input.source.toUpperCase()}-${identityToken}`,
+  };
 }
