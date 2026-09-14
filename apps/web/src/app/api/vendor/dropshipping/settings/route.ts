@@ -37,7 +37,9 @@ export async function POST(request: Request) {
     await assertDropshippingOnlyVendor(principal.vendorId);
     const body = await request.json() as Record<string, unknown>;
     const supplierCode = typeof body.supplierCode === "string" ? body.supplierCode.trim() : "";
+    const confirmationCode = typeof body.confirmationCode === "string" ? body.confirmationCode.trim() : "";
     if (!supplierCode) throw new Error("Απαιτείται supplier.");
+    if (confirmationCode !== supplierCode) throw new Error("Το supplier-wide catalogue reset απαιτεί επιβεβαίωση με τον ακριβή supplier code.");
     const result = await applyDropshippingSupplierDefaultsSequential(principal.vendorId, supplierCode);
     return Response.json({ ok: true, ...result });
   } catch (error) {
