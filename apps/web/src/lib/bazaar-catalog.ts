@@ -127,7 +127,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       vo.customer_price_minor,
       vo.msrp_minor,
       CASE
-        WHEN dso.id IS NOT NULL THEN GREATEST(COALESCE(dso.cached_quantity,1),0)
+        WHEN dso.id IS NOT NULL THEN GREATEST(COALESCE(dso.cached_quantity,0),0)
         ELSE GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0))
       END AS available_to_sell,
       v.public_id AS vendor_public_id,
@@ -173,7 +173,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
           AND ds.active=true
           AND ds.api_authoritative_availability=true
           AND dso.cached_available=true
-          AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+          AND dso.cached_quantity>=1
           AND dso.availability_expires_at IS NOT NULL
           AND dso.availability_expires_at>now()
           AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
