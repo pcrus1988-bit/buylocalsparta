@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "../../../../components/AddToCartButton";
+import { BazaarImageGallery } from "../../../../components/BazaarImageGallery";
 import { ProductPurchaseInfoDialogs } from "../../../../components/ProductPurchaseInfoDialogs";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
 import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
@@ -76,6 +78,36 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
   const price = euro(product.priceMinor);
   const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
 
+  let galleryMedia: Awaited<ReturnType<typeof getBazaarMediaGallery>> = [];
+  try {
+    galleryMedia = await getBazaarMediaGallery(product.id, product.vendorId);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "bazaar.product_gallery_projection_failed",
+      productId: product.id,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
+  const orderedMedia = [...galleryMedia];
+  if (product.mediaId) {
+    const primaryIndex = orderedMedia.findIndex((media) => media.mediaId === product.mediaId);
+    if (primaryIndex > 0) {
+      const [primary] = orderedMedia.splice(primaryIndex, 1);
+      if (primary) orderedMedia.unshift(primary);
+    } else if (primaryIndex < 0) {
+      orderedMedia.unshift({ mediaId: product.mediaId, altText: product.mediaAlt });
+    }
+  }
+
+  const galleryImages = orderedMedia.length > 0
+    ? orderedMedia.map((media, index) => ({
+        src: `/api/media/${encodeURIComponent(media.mediaId)}`,
+        alt: media.altText ?? `${product.title} · εικόνα ${index + 1}`
+      }))
+    : [{ src: imageSrc, alt: product.mediaAlt ?? product.title }];
+
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
     <div className="announcement">BAZAAR · Greece-wide, condition-first.</div>
     <SiteHeader />
@@ -85,10 +117,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
     </section>
 
     <section className="shell" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: "clamp(28px,5vw,72px)", alignItems: "start", paddingBottom: 72 }}>
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#fff", borderRadius: 28, overflow: "hidden", minWidth: 0 }}>
-        {product.savingsPercent ? <div style={{ position: "absolute", zIndex: 2, top: 18, right: 18, background: "#111", color: "#fff", borderRadius: 999, padding: "9px 13px", fontWeight: 900 }}>−{product.savingsPercent}%</div> : null}
-        <img src={imageSrc} alt={product.mediaAlt ?? product.title} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 24 }} />
-      </div>
+      <BazaarImageGallery images={galleryImages} title={product.title} savingsPercent={product.savingsPercent} />
 
       <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
         <div className="eyebrow">{bazaarConditionLabel(product.condition)} · BAZAAR</div>
