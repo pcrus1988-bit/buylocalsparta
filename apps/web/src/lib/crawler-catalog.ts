@@ -1,7 +1,9 @@
 import { formatMoney, money, normalizeSearchText } from "@buy-local-sparta/core";
 import type { CatalogCard, CatalogFilters, PublicProductSeoRecord } from "./catalog-view";
 import { getPublicProductSeoInventory, getPublicProductSeoSummary } from "./catalog-view";
+import { loadCatalogDepartmentCodes } from "./catalog-category-department";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
+import { approvedCatalogImages } from "./public-media-service";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 
@@ -24,9 +26,35 @@ type PublicOfferPreviewRow = Readonly<{
   adviser_name: string | null;
 }>;
 
+type CrawlerHomepageCandidateRow = Readonly<{
+  canonical_public_id: string;
+  slug: string;
+  title: string;
+  category_code: string;
+  customer_price_minor: number | string;
+  available_to_sell: number | string;
+  vendor_public_id: string;
+  vendor_name: string;
+  freshness: Date | string | null;
+}>;
+
+type CrawlerHomepageCandidate = Readonly<{
+  id: string;
+  slug: string;
+  title: string;
+  categoryCode: string;
+  priceMinor: number;
+  availableToSell: number;
+  vendorId: string;
+  vendorName: string;
+  freshness: number;
+}>;
+
 const CRAWLER_PREVIEW_BATCH_SIZE = 8;
 const CRAWLER_LIMIT_SCAN_MULTIPLIER = 2;
 const CRAWLER_MIN_LIMIT_SCAN = 24;
+const CRAWLER_HOMEPAGE_MIN_SOURCE_SCAN = 64;
+const CRAWLER_HOMEPAGE_MAX_SOURCE_SCAN = 256;
 
 function sameFilterValue(left: string | undefined, right: string | undefined): boolean {
   if (!right) return true;
@@ -46,6 +74,12 @@ function safeMinor(value: unknown): number | undefined {
 
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function epoch(value: Date | string | null): number {
+  if (!value) return 0;
+  const parsed = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -239,6 +273,187 @@ export async function getCrawlerCatalogCard(routeKey: string, postcode = "23100"
   return crawlerCard(product, metadata.get(product.id), preview);
 }
 
+async function loadCrawlerHomepageCandidates(limit: number): Promise<readonly CrawlerHomepageCandidate[]> {
+  const sourceLimit = Math.min(CRAWLER_HOMEPAGE_MAX_SOURCE_SCAN, Math.max(CRAWLER_HOMEPAGE_MIN_SOURCE_SCAN, limit * 16));
+  const runtime = getProductionPostgresRuntime();
+  const [localResult, dropshipResult] = await Promise.all([
+    runtime.nativePool.query<CrawlerHomepageCandidateRow>(`
+      WITH candidate_inventory AS MATERIALIZED (
+        SELECT ib.offer_id,ib.stock_confirmed_at,
+               GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)::integer AS available_to_sell
+        FROM inventory_balances ib
+        WHERE GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+          AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>now()
+        ORDER BY ib.stock_confirmed_at DESC
+        LIMIT $1
+      )
+      SELECT DISTINCT ON (cv.id)
+        cv.public_id AS canonical_public_id,
+        cv.slug,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        c.code AS category_code,
+        vo.customer_price_minor,
+        candidate_inventory.available_to_sell,
+        v.public_id AS vendor_public_id,
+        v.trading_name AS vendor_name,
+        candidate_inventory.stock_confirmed_at AS freshness
+      FROM candidate_inventory
+      JOIN vendor_offers vo ON vo.id=candidate_inventory.offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN markets m ON m.id=cv.market_id
+      JOIN categories c ON c.id=cv.category_id
+      JOIN vendor_businesses v ON v.id=vo.vendor_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+        AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND v.status='active' AND l.active=true
+        AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+      ORDER BY cv.id,candidate_inventory.stock_confirmed_at DESC,vo.customer_price_minor,vo.public_id
+      LIMIT $2
+    `, [sourceLimit, sourceLimit]),
+    runtime.nativePool.query<CrawlerHomepageCandidateRow>(`
+      WITH candidate_dso AS MATERIALIZED (
+        SELECT dso.vendor_offer_id,dso.cached_quantity,dso.availability_checked_at
+        FROM dropship_supplier_offers dso
+        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        WHERE dso.active=true
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+          AND dso.cached_available=true
+          AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+          AND dso.availability_expires_at>now()
+        ORDER BY dso.availability_checked_at DESC NULLS LAST
+        LIMIT $1
+      )
+      SELECT DISTINCT ON (cv.id)
+        cv.public_id AS canonical_public_id,
+        cv.slug,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        c.code AS category_code,
+        vo.customer_price_minor,
+        GREATEST(COALESCE(candidate_dso.cached_quantity,1),1)::integer AS available_to_sell,
+        v.public_id AS vendor_public_id,
+        v.trading_name AS vendor_name,
+        COALESCE(candidate_dso.availability_checked_at,vo.updated_at) AS freshness
+      FROM candidate_dso
+      JOIN vendor_offers vo ON vo.id=candidate_dso.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN markets m ON m.id=cv.market_id
+      JOIN categories c ON c.id=cv.category_id
+      JOIN vendor_businesses v ON v.id=vo.vendor_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+        AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND v.status='active' AND l.active=true
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+      ORDER BY cv.id,COALESCE(candidate_dso.availability_checked_at,vo.updated_at) DESC,vo.customer_price_minor,vo.public_id
+      LIMIT $2
+    `, [sourceLimit, sourceLimit])
+  ]);
+
+  const byCanonical = new Map<string, CrawlerHomepageCandidate>();
+  for (const row of [...localResult.rows, ...dropshipResult.rows]) {
+    const priceMinor = safeMinor(row.customer_price_minor);
+    const availableToSell = safeMinor(row.available_to_sell) ?? 0;
+    const vendorId = optionalText(row.vendor_public_id);
+    const vendorName = optionalText(row.vendor_name);
+    if (priceMinor === undefined || priceMinor <= 0 || availableToSell <= 0 || !vendorId || !vendorName) continue;
+    const candidate: CrawlerHomepageCandidate = {
+      id: row.canonical_public_id,
+      slug: row.slug,
+      title: row.title,
+      categoryCode: row.category_code,
+      priceMinor,
+      availableToSell,
+      vendorId,
+      vendorName,
+      freshness: epoch(row.freshness)
+    };
+    const existing = byCanonical.get(candidate.id);
+    if (!existing || candidate.freshness > existing.freshness || (candidate.freshness === existing.freshness && candidate.priceMinor < existing.priceMinor)) {
+      byCanonical.set(candidate.id, candidate);
+    }
+  }
+
+  return [...byCanonical.values()]
+    .sort((left, right) => right.freshness - left.freshness || left.id.localeCompare(right.id))
+    .slice(0, sourceLimit);
+}
+
+/**
+ * Homepage crawler traffic is intentionally isolated from the full SEO inventory.
+ * The homepage needs only a handful of cards, so it first selects a bounded set of
+ * currently sellable local/dropship offers and enriches only those canonicals. This
+ * prevents crawlers from projecting tens of thousands of product details, offer
+ * availability records and media entries merely to render eight homepage cards.
+ */
 export async function getCrawlerHomepageCatalogCards(postcode = "23100", limit = 4): Promise<readonly CatalogCard[]> {
-  return getCrawlerCatalogCards(postcode, "", "", {}, limit);
+  if (!productionDatabaseConfigured() || limit <= 0) return [];
+  const candidates = await loadCrawlerHomepageCandidates(limit);
+  if (!candidates.length) return [];
+  const selected = candidates.slice(0, Math.max(limit, Math.min(candidates.length, limit * 2)));
+  const ids = selected.map((candidate) => candidate.id);
+  const [metadata, departmentCodes] = await Promise.all([
+    loadCatalogMetadata(ids),
+    loadCatalogDepartmentCodes(ids)
+  ]);
+  let imageByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
+  try {
+    const images = await approvedCatalogImages(selected.map((candidate) => ({
+      canonicalVariantId: candidate.id,
+      preferredVendorId: candidate.vendorId
+    })));
+    imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image]));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "crawler.homepage_media_projection_failed",
+      canonicalVariantCount: ids.length,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
+  return selected.slice(0, limit).map((candidate) => {
+    const details = metadata.get(candidate.id);
+    const image = imageByCanonical.get(candidate.id);
+    return {
+      id: candidate.id,
+      slug: candidate.slug,
+      title: details?.title ?? candidate.title,
+      priceMinor: candidate.priceMinor,
+      price: formatMoney(money(candidate.priceMinor)),
+      categoryCode: candidate.categoryCode,
+      departmentCode: departmentCodes.get(candidate.id),
+      categoryLabel: details?.categoryLabel,
+      gtin: details?.gtin,
+      mpn: details?.mpn,
+      description: details?.description,
+      brand: details?.brand,
+      brandLogoObjectKey: details?.brandLogoObjectKey,
+      color: details?.color,
+      sizes: details?.sizes ?? [],
+      fit: details?.fit,
+      composition: details?.composition,
+      madeIn: details?.madeIn,
+      vendorId: candidate.vendorId,
+      vendorName: candidate.vendorName,
+      mediaId: image?.mediaId,
+      mediaAlt: image?.altText,
+      available: true,
+      availableToSell: candidate.availableToSell
+    } satisfies CatalogCard;
+  });
 }
