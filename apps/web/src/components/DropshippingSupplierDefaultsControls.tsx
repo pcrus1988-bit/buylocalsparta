@@ -70,17 +70,24 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
   }
 
   async function bulkVisibility(nextVisible: boolean) {
-    const confirmed = window.confirm(nextVisible
-      ? "Force publish όλων των eligible προϊόντων αυτού του supplier; Η ενέργεια ενεργοποιεί τα ασφαλή supplier products για πώληση, εγκρίνει αυτόματα ασφαλή draft offers και καθαρίζει τα υπάρχοντα per-product visibility overrides. Η live διαθεσιμότητα παραμένει API-authoritative. pending_review/rejected/archived/suppressed, recalled ή προϊόντα χωρίς έγκυρη buying/final price παραμένουν hidden."
-      : "Force hide όλων των προϊόντων αυτού του supplier; Η ενέργεια καθαρίζει τα υπάρχοντα per-product visibility overrides ώστε η απόκρυψη να γίνει η νέα global τρέχουσα κατάσταση.");
-    if (!confirmed) return;
+    const operation = nextVisible ? "Bulk publish eligible" : "Bulk hide all";
+    const confirmationCode = window.prompt(
+      nextVisible
+        ? `Supplier-wide action: ${operation}. Αυτό μπορεί να αλλάξει μαζικά ολόκληρο τον supplier και καθαρίζει τα υπάρχοντα per-product visibility overrides. Marketplace/safety gates και live supplier availability εξακολουθούν να έχουν προτεραιότητα.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
+        : `Supplier-wide action: ${operation}. Αυτό κρύβει τα προϊόντα του supplier και καθαρίζει τα υπάρχοντα per-product visibility overrides.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
+    );
+    if (confirmationCode == null) return;
+    if (confirmationCode.trim() !== supplierCode) {
+      setMessage(`Η supplier-wide ενέργεια ακυρώθηκε: ο κωδικός επιβεβαίωσης πρέπει να είναι ακριβώς ${supplierCode}.`);
+      return;
+    }
     setBusy(true); setMessage("");
     try {
       const token = await csrfToken();
       const response = await fetch("/api/vendor/dropshipping/actions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": token },
-        body: JSON.stringify({ action: "set-supplier-visibility", supplierCode, visible: nextVisible })
+        body: JSON.stringify({ action: "set-supplier-visibility", supplierCode, visible: nextVisible, confirmationCode })
       });
       const payload = await response.json() as { error?: string; affectedProducts?: number; visibleProducts?: number };
       if (!response.ok) throw new Error(payload.error ?? "Η μαζική αλλαγή ορατότητας απέτυχε.");
@@ -100,10 +107,10 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
     </div>
     <p style={{ marginTop: 10 }}>Η ορατότητα εδώ είναι supplier default. Μπορείς μετά να αλλάξεις Public/Hidden σε μεμονωμένο προϊόν· αυτή η επιλογή γίνεται manual override και διατηρείται όταν ξαναεφαρμόζεις τα defaults. Η ενεργοποίηση ενός supplier product είναι διαφορετική από το live stock: η διαθεσιμότητα συνεχίζει να έρχεται από το supplier API. Τα hard marketplace/safety gates έχουν πάντα προτεραιότητα.</p>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
-      <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
-      <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} /> <span>Eligible supplier products public</span></label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Show supplier MSRP</span></label>
+      <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} disabled={busy} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} disabled={busy} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} disabled={busy} onChange={(event) => setVisible(event.target.checked)} /> <span>Eligible supplier products public</span></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} disabled={busy} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Show supplier MSRP</span></label>
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
       <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση defaults</button>
@@ -111,7 +118,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Bulk publish eligible</button>
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Bulk publish ενεργοποιεί eligible supplier products και μπορεί να εγκρίνει safe drafts· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ και συνεχίζει να ελέγχεται από το supplier API.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Reset catalogue: ενημερώνει pricing/MSRP και εφαρμόζει supplier visibility μόνο στα προϊόντα χωρίς manual override. Reset ανά προϊόν: αφαιρεί το override αυτού του προϊόντος. Οι supplier-wide Bulk publish / Bulk hide απαιτούν πλέον τον ακριβή supplier code πριν εκτελεστούν, επειδή καθαρίζουν τα υπάρχοντα per-product visibility overrides. Bulk publish ενεργοποιεί eligible supplier products και μπορεί να εγκρίνει safe drafts· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ και συνεχίζει να ελέγχεται από το supplier API.</small>
     <DropshippingSupplierFieldControls supplierCode={supplierCode} />
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
