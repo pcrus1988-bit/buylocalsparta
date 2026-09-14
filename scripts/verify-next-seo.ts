@@ -17,7 +17,8 @@ const requireText = (source: string, contract: string, message: string) => {
   if (!source.includes(contract)) failures.push(message);
 };
 
-const sitemap = read("apps/web/src/app/sitemap.ts");
+const coreSitemap = read("apps/web/src/app/sitemaps/core/sitemap.ts");
+const productSitemap = read("apps/web/src/app/sitemaps/products/[shard]/route.ts");
 const humanSitemap = read("apps/web/src/app/sitemap/page.tsx");
 const robots = read("apps/web/src/app/robots.ts");
 const rootLayout = read("apps/web/src/app/layout.tsx");
@@ -54,10 +55,11 @@ const commerceRuntime = read("packages/postgres-runtime/src/customer-commerce.ts
 const catalogCard = read("apps/web/src/components/CatalogProductCard.tsx");
 const envExample = read(".env.example");
 
-// XML sitemap governance and honest freshness.
+// XML sitemap governance and honest freshness. Core discovery and product discovery
+// are deliberately verified separately now that product URLs are served in bounded
+// shards rather than through the former monolithic sitemap implementation.
 for (const contract of [
-  "getPublicProductSeoInventory()",
-  "getPublicVendorDirectory()",
+  "getPublicVendorDirectory",
   "getAvailableStorefrontCategories",
   "Promise.allSettled",
   "INDEXABLE_STATIC_ROUTES",
@@ -65,25 +67,33 @@ for (const contract of [
   "getSeoEntityOverridesSnapshot()",
   "resolveSeoEntityControl",
   "absoluteSeoCanonical",
-  "productPublicPath(product)",
-  "productIndexEligibility(product)",
   "researchVendorIndexEligibility"
-]) requireText(sitemap, contract, `Sitemap is missing ${contract}`);
-requireText(sitemap, "if (!settings.indexingEnabled) return []", "Sitemap must fail closed when the global indexing master switch is off");
-requireText(sitemap, 'vendor.directoryStatus === "partner"', "Sitemap must independently control partner and Research vendor admission");
-requireText(sitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
-requireText(sitemap, "do not manufacture freshness", "Product sitemap freshness policy must explicitly forbid manufactured timestamps");
+]) requireText(coreSitemap, contract, `Core sitemap is missing ${contract}`);
+requireText(coreSitemap, "if (!settings.indexingEnabled) return []", "Core sitemap must fail closed when the global indexing master switch is off");
+requireText(coreSitemap, 'vendor.directoryStatus === "partner"', "Core sitemap must independently control partner and Research vendor admission");
+requireText(coreSitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
 
-const productSitemapStart = sitemap.indexOf('...(products.status === "fulfilled"');
-const productSitemapEnd = sitemap.indexOf('...(vendors.status === "fulfilled"');
-if (productSitemapStart < 0 || productSitemapEnd <= productSitemapStart) {
-  failures.push("Unable to isolate product sitemap block for freshness checks");
-} else {
-  const productSitemap = sitemap.slice(productSitemapStart, productSitemapEnd);
-  requireText(productSitemap, "lastModified: safeLastModified(override?.lastReviewedAt)", "Products may expose lastmod only from an explicit governed review date until a trustworthy public-content clock exists");
-  if (/lastModified:[^\n]*(?:Date\.now\(|new Date\(\)|product\.(?:updatedAt|createdAt|priceUpdatedAt))/i.test(productSitemap)) {
-    failures.push("Product sitemap must not manufacture or infer lastmod from incomplete/transient timestamps");
-  }
+for (const contract of [
+  "PRODUCT_SITEMAP_SHARD_COUNT",
+  "readPublicProductSitemapRouteShard",
+  "shard_base AS MATERIALIZED",
+  "cv.public_id >= $1",
+  "cv.public_id < $2",
+  "api_authoritative_availability=true",
+  "availability_expires_at>now()",
+  "getSeoGlobalSettingsSnapshot()",
+  "getSeoEntityOverridesSnapshot()",
+  "resolveSeoEntityControl",
+  "productPublicPath(product)",
+  "control.sitemapAllowed"
+]) requireText(productSitemap, contract, `Product sitemap shard is missing ${contract}`);
+requireText(productSitemap, "if (!settings.indexingEnabled || !settings.sitemap.products)", "Product sitemap shard must fail closed when product indexing is disabled");
+requireText(productSitemap, "lastModified: safeLastModified(override?.lastReviewedAt)", "Products may expose lastmod only from an explicit governed review date until a trustworthy public-content clock exists");
+if (/lastModified:[^\n]*(?:Date\.now\(|new Date\(\)|product\.(?:updatedAt|createdAt|priceUpdatedAt))/i.test(productSitemap)) {
+  failures.push("Product sitemap must not manufacture or infer lastmod from incomplete/transient timestamps");
+}
+if (productSitemap.includes("getPublicProductSeoInventory()") || productSitemap.includes("publicCanonicals()")) {
+  failures.push("Product sitemap shards must stay bounded and must not rebuild the full public catalogue");
 }
 
 // robots.txt is crawl policy, not access control.
@@ -232,7 +242,8 @@ if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: open
 if (productPublicPath({ id: "canonical_123", slug: "nike-air-max-90" }) !== "/product/nike-air-max-90") failures.push("Friendly product paths must prefer the catalogue slug");
 if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") failures.push("Friendly product paths must retain legacy-ID fallback");
 for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) requireText(commerceRuntime, contract, `Public catalogue slug projection is missing ${contract}`);
-for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount", "getPublicProductDetails", "loadPublicOfferAvailability", "sourceImageAvailable", "offerAvailable"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
+for (const contract of ["loadPublicCanonicalSummary", "cv.public_id=$1 OR cv.slug=$1", "canonicalIsPubliclyAllowed", "countPublicTitleDuplicates", "getPublicProductSeoSummary", "getPublicProductSeoInventory", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount", "getPublicProductDetails", "loadPublicOfferAvailability", "sourceImageAvailable", "offerAvailable"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
+if (catalogRuntime.includes("const products = await getPublicCatalogProducts();\n  const entry = products.find")) failures.push("Single-product SEO summary must not hydrate the full public catalogue");
 for (const contract of ["WITH RECURSIVE category_tree", "department_code", "loadCatalogDepartmentCodes"]) requireText(categoryDepartment, contract, `Governed category hierarchy projection is missing ${contract}`);
 requireText(catalogCard, "productPublicPath(product)", "Public catalogue cards must link to the preferred friendly product URL");
 
@@ -384,4 +395,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed index controls, honest sitemap freshness, Model C/product quality gates, canonicalized query space, real read-only crawler offers without fairness writes, internal-link diagnostics, Search Console boundary, private-route headers and hardened diagnostics verified.");
+console.log("Next SEO checks passed: governed index controls, sharded sitemap admission and honest freshness, Model C/product quality gates, canonicalized query space, bounded product detail lookup, real read-only crawler offers without fairness writes, internal-link diagnostics, Search Console boundary, private-route headers and hardened diagnostics verified.");
