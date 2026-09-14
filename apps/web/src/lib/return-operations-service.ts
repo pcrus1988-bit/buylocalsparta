@@ -81,10 +81,10 @@ export async function reconcileRefundedReturnInventory(returnId: string, now = D
     const rows = await tx.query<SqlRow>(`
       SELECT r.id::text AS return_uuid,r.public_id,r.status::text,rl.quantity,rl.order_line_id::text AS order_line_uuid,rl.inspection_result,
              ol.assigned_offer_id::text AS offer_uuid,vo.public_id AS offer_public_id,vo.market_id::text AS market_uuid,vo.vendor_id::text AS vendor_uuid,
-             vo.location_id::text AS location_uuid,vo.vendor_sku,vo.source_gtin,vo.status::text AS offer_status,vo.supplier_unit_price_minor,
+             vo.location_id::text AS location_uuid,vo.vendor_sku,vo.source_gtin,vo.supplier_unit_price_minor,
              vo.currency::text AS offer_currency,vo.supplier_tax_rate_bps,vo.cost_ceiling_minor,vo.lead_time_minutes,vo.fulfilment_modes,vo.advice_capabilities,
-             vo.source_payload,vo.customer_price_minor,vo.delivery_min_business_days_override,vo.delivery_max_business_days_override,vo.msrp_minor,vo.show_msrp,
-             cv.id::text AS canonical_uuid,cv.public_id AS canonical_public_id,cv.family_id::text AS family_uuid,cv.brand_id::text AS brand_uuid,
+             vo.source_payload,vo.customer_price_minor,
+             cv.public_id AS canonical_public_id,cv.family_id::text AS family_uuid,cv.brand_id::text AS brand_uuid,
              cv.category_id::text AS category_uuid,cv.slug AS canonical_slug,cv.gtin,cv.mpn,cv.model,cv.variant_attributes,cv.warranty_basis,
              cv.platform_price_minor,cv.currency::text AS canonical_currency,cv.tax_rate_bps,cv.active AS canonical_active,cv.suppressed AS canonical_suppressed,
              cv.recalled AS canonical_recalled,cv.commerce_channel
@@ -103,8 +103,7 @@ export async function reconcileRefundedReturnInventory(returnId: string, now = D
       const returnUuid = text(row.return_uuid, "return_uuid");
       const orderLineUuid = text(row.order_line_uuid, "order_line_uuid");
       const quantity = integer(row.quantity, "return.quantity");
-      const originalOfferUuid = text(row.offer_uuid, "offer_uuid");
-      let restockOfferUuid = originalOfferUuid;
+      let restockOfferUuid = text(row.offer_uuid, "offer_uuid");
 
       if (text(row.commerce_channel, "canonical.commerce_channel") === "normal") {
         const identitySuffix = `${returnUuid.replaceAll("-", "").slice(0, 12)}_${orderLineUuid.replaceAll("-", "").slice(0, 12)}`;
@@ -143,10 +142,9 @@ export async function reconcileRefundedReturnInventory(returnId: string, now = D
           INSERT INTO vendor_offers(
             public_id,market_id,vendor_id,location_id,canonical_variant_id,vendor_sku,source_gtin,status,supplier_unit_price_minor,currency,
             supplier_tax_rate_bps,cost_ceiling_minor,lead_time_minutes,fulfilment_modes,advice_capabilities,source_payload,approved_at,
-            customer_price_minor,merchant_visible,merchant_pause_active,delivery_min_business_days_override,delivery_max_business_days_override,
-            msrp_minor,show_msrp,updated_at
+            customer_price_minor,merchant_visible,merchant_pause_active,updated_at
           ) VALUES(
-            $1,$2,$3,$4,$5,$6,$7,'approved',$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,$17,true,false,$18,$19,$20,$21,$16
+            $1,$2,$3,$4,$5,$6,$7,'approved',$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,$17,true,false,$16
           )
           ON CONFLICT (public_id) DO NOTHING`, [
           bazaarOfferPublicId,text(row.market_uuid,"market_uuid"),text(row.vendor_uuid,"vendor_uuid"),text(row.location_uuid,"location_uuid"),bazaarCanonicalUuid,
@@ -155,10 +153,7 @@ export async function reconcileRefundedReturnInventory(returnId: string, now = D
           row.lead_time_minutes == null ? null : integer(row.lead_time_minutes,"lead_time_minutes"),row.fulfilment_modes,
           JSON.stringify((row.advice_capabilities ?? {}) as Record<string, unknown>),
           JSON.stringify({ ...((row.source_payload ?? {}) as Record<string, unknown>), bazaarSource: "customer_return", returnId, returnUuid, orderLineId: orderLineUuid, originalOfferId: text(row.offer_public_id,"offer_public_id") }),
-          new Date(now),row.customer_price_minor == null ? null : integer(row.customer_price_minor,"customer_price_minor"),
-          row.delivery_min_business_days_override == null ? null : integer(row.delivery_min_business_days_override,"delivery_min_business_days_override"),
-          row.delivery_max_business_days_override == null ? null : integer(row.delivery_max_business_days_override,"delivery_max_business_days_override"),
-          row.msrp_minor == null ? null : integer(row.msrp_minor,"msrp_minor"),Boolean(row.show_msrp)
+          new Date(now),row.customer_price_minor == null ? null : integer(row.customer_price_minor,"customer_price_minor")
         ]);
 
         const bazaarOffer = await tx.query<SqlRow>(`
