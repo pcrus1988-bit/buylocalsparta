@@ -1,0 +1,217 @@
+/* Full-screen vendor catalogue loading experience.
+   The loader markup and brand assets live in VendorCatalogBrowser; this file
+   only promotes that existing experience from an inline catalogue card to a
+   viewport-level transition overlay. */
+
+html:has(.vendorCatalogueLoader),
+body:has(.vendorCatalogueLoader) {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.vendorCatalogueLoader {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  place-content: center !important;
+  justify-items: center !important;
+  align-items: center !important;
+  gap: clamp(20px, 3.8vh, 36px) !important;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left)) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(178, 150, 97, .17), transparent 34%),
+    radial-gradient(circle at 88% 85%, rgba(24, 48, 39, .10), transparent 37%),
+    linear-gradient(145deg, #fffdf8 0%, #f3f1e9 48%, #eaeee8 100%) !important;
+  isolation: isolate !important;
+  touch-action: none;
+}
+
+.vendorCatalogueLoader::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(24, 48, 39, .025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 48, 39, .025) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black, transparent 76%);
+}
+
+.vendorCatalogueLoader .vendorLoaderGlow {
+  z-index: -1 !important;
+  width: min(70vw, 620px) !important;
+  height: min(70vw, 620px) !important;
+  left: 50% !important;
+  top: 42% !important;
+  transform: translate(-50%, -50%) !important;
+  background: radial-gradient(circle, rgba(178, 150, 97, .19), rgba(178, 150, 97, 0) 70%) !important;
+  filter: blur(14px) !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderOrbit {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: min(320px, 66vw) !important;
+  max-width: 320px !important;
+  justify-self: center !important;
+  margin: 0 !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderCopy {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  width: min(720px, 92vw) !important;
+  max-width: 720px !important;
+  justify-self: center !important;
+  text-align: center !important;
+  margin: 0 !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderEyebrow {
+  display: inline-block !important;
+  margin-bottom: 10px !important;
+  letter-spacing: .16em !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderCopy h3 {
+  margin: 0 !important;
+  font-size: clamp(26px, 3.6vw, 40px) !important;
+  line-height: 1.06 !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderLead {
+  max-width: 620px !important;
+  margin: 12px auto 0 !important;
+  line-height: 1.55 !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderFact {
+  width: min(660px, 90vw) !important;
+  min-height: 112px !important;
+  margin: clamp(18px, 3vh, 28px) auto 0 !important;
+  padding: 18px 22px !important;
+  display: grid !important;
+  align-content: center !important;
+  border: 1px solid rgba(24, 48, 39, .14) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, .58) !important;
+  box-shadow: 0 14px 42px rgba(24, 48, 39, .055) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.vendorCatalogueLoader .vendorLoaderFact > span {
+  display: block !important;
+  margin-bottom: 6px !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: .15em !important;
+  text-transform: uppercase !important;
+  color: #85754f !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderFact p {
+  margin: 0 !important;
+  animation: vendorFullscreenFactFade 3.2s ease-in-out both !important;
+}
+
+@keyframes vendorFullscreenFactFade {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  14%, 78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (max-width: 620px) {
+  .vendorCatalogueLoader {
+    gap: 18px !important;
+    padding:
+      max(18px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      max(18px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left)) !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderOrbit {
+    width: min(260px, 70vw) !important;
+    max-width: 260px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderCopy {
+    width: min(94vw, 540px) !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderCopy h3 {
+    font-size: clamp(24px, 8vw, 32px) !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderLead {
+    margin-top: 9px !important;
+    font-size: 12px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderFact {
+    width: min(92vw, 520px) !important;
+    min-height: 104px !important;
+    margin-top: 16px !important;
+    padding: 15px 17px !important;
+  }
+}
+
+@media (max-height: 680px) {
+  .vendorCatalogueLoader {
+    gap: 12px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderOrbit {
+    width: min(220px, 46vh) !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderEyebrow {
+    margin-bottom: 6px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderLead {
+    display: none !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderFact {
+    min-height: 84px !important;
+    margin-top: 12px !important;
+    padding-block: 12px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vendorCatalogueLoader .vendorLoaderOrbitTrack,
+  .vendorCatalogueLoader .vendorLoaderLogoCard,
+  .vendorCatalogueLoader .vendorLoaderFact p {
+    animation: none !important;
+  }
+}
