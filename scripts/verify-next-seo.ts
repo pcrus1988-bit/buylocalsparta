@@ -48,6 +48,9 @@ const adminSearchConsolePage = read("apps/web/src/app/admin/seo/search-console/p
 const catalogRuntime = read("apps/web/src/lib/catalog-view.ts");
 const categoryDepartment = read("apps/web/src/lib/catalog-category-department.ts");
 const crawlerCatalog = read("apps/web/src/lib/crawler-catalog.ts");
+const crawlerLocalCard = read("apps/web/src/lib/crawler-local-catalog-card.ts");
+const crawlerLocalPage = read("apps/web/src/lib/crawler-local-catalog-page.ts");
+const crawlerReadModel = `${crawlerCatalog}\n${crawlerLocalCard}\n${crawlerLocalPage}`;
 const requestAudience = read("apps/web/src/lib/request-audience.ts");
 const crawlGraph = read("apps/web/src/lib/seo-crawl-graph.ts");
 const searchConsole = read("apps/web/src/lib/seo-search-console.ts");
@@ -247,12 +250,13 @@ if (catalogRuntime.includes("const products = await getPublicCatalogProducts();\
 for (const contract of ["WITH RECURSIVE category_tree", "department_code", "loadCatalogDepartmentCodes"]) requireText(categoryDepartment, contract, `Governed category hierarchy projection is missing ${contract}`);
 requireText(catalogCard, "productPublicPath(product)", "Public catalogue cards must link to the preferred friendly product URL");
 
-// Read-only crawler offer projection must be truthful and mutation-free.
-for (const contract of ["readOnlyOfferPreview", "vo.customer_price_minor", "available_to_sell", "vendor_public_id", "vendor_name", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
-  requireText(crawlerCatalog, contract, `Crawler-safe catalogue is missing ${contract}`);
+// Read-only crawler offer projection must be truthful, bounded and mutation-free.
+for (const contract of ["getCrawlerCatalogCards", "getCrawlerCatalogCard", "getCrawlerLocalCatalogCard", "getCrawlerLocalCatalogPage", "vo.customer_price_minor", "available_to_sell", "vendor_public_id", "vendor_name", "LIMIT $8", "LIMIT 1"]) {
+  requireText(crawlerReadModel, contract, `Crawler-safe catalogue is missing ${contract}`);
 }
-if (crawlerCatalog.includes("publicAssignedCanonical")) failures.push("Crawler catalogue must never call Fair Vendor Assignment");
-if (/\bUPDATE\s+fairness_rotation_state\b/i.test(crawlerCatalog) || /\bINSERT\s+INTO\s+sticky_assignments\b/i.test(crawlerCatalog) || /\bINSERT\s+INTO\s+fairness_assignment_events\b/i.test(crawlerCatalog)) {
+if (!crawlerLocalPage.includes("never calls publicCanonicals()") || !crawlerLocalPage.includes("requestedLimit")) failures.push("Crawler catalogue page must explicitly preserve bounded pre-LIMIT admission");
+if (crawlerReadModel.includes("publicAssignedCanonical")) failures.push("Crawler catalogue must never call Fair Vendor Assignment");
+if (/\bUPDATE\s+fairness_rotation_state\b/i.test(crawlerReadModel) || /\bINSERT\s+INTO\s+sticky_assignments\b/i.test(crawlerReadModel) || /\bINSERT\s+INTO\s+fairness_assignment_events\b/i.test(crawlerReadModel)) {
   failures.push("Crawler catalogue must never write fairness rotation, sticky assignments or fairness events");
 }
 for (const bot of ["googlebot", "bingbot", "google-inspectiontool", "facebookexternalhit", "twitterbot"]) requireText(requestAudience, `"${bot}"`, `Crawler classification is missing ${bot}`);
@@ -281,7 +285,7 @@ for (const forbidden of ["cookie", "password", "credential", "customer"]) if (re
 for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) requireText(settingsAction, contract, `SEO report Server Action is missing ${contract}`);
 for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) requireText(reportRunner, contract, `SEO report runner is missing ${contract}`);
 for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) requireText(reportExportRoute, contract, `Protected SEO report export is missing ${contract}`);
-for (const contract of ["Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO overview is missing ${contract}`);
+for (const contract of ["Indexable products", "productIndexEligible", "Scale-safe mode", "does not scan πλέον όλο το catalogue", "getSeoDiagnosticReportsSnapshot"]) requireText(adminSeoPage, contract, `Admin SEO scale-safe overview is missing ${contract}`);
 for (const contract of ["Unified SEO release report", "AdminSeoReportRunner", "data.regressionSignals", "Changed since the previous saved baseline", "Persisted diagnostic history", "?format=json", "?format=csv"]) requireText(adminSeoReportsPage, contract, `Admin SEO reports workspace is missing ${contract}`);
 for (const contract of ["critical-diagnostic:", "health-score-drop", "product-runtime-loss", "vendor-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change", "routeClassChanges", "comparableCurrentFormat", "materialDrop", "materialWeakGrowth"]) requireText(monitoringRuntime, contract, `SEO regression monitoring is missing ${contract}`);
 
@@ -395,4 +399,4 @@ if (failures.length) {
   console.error("Next SEO checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Next SEO checks passed: governed index controls, sharded sitemap admission and honest freshness, Model C/product quality gates, canonicalized query space, bounded product detail lookup, real read-only crawler offers without fairness writes, internal-link diagnostics, Search Console boundary, private-route headers and hardened diagnostics verified.");
+console.log("Next SEO checks passed: governed index controls, sharded sitemap admission and honest freshness, Model C/product quality gates, canonicalized query space, bounded product/crawler lookups, real read-only crawler offers without fairness writes, scale-safe Admin SEO, internal-link diagnostics, Search Console boundary, private-route headers and hardened diagnostics verified.");
