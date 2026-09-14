@@ -3,7 +3,7 @@
 import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 
-const INTERNAL_ROUTE_PREFIXES = ["/admin", "/vendor", "/driver"] as const;
+const INTERNAL_ROUTE_PREFIXES = ["/admin", "/driver"] as const;
 const PUBLIC_TEXT_ATTRIBUTES = ["aria-label", "title", "placeholder", "alt"] as const;
 
 export function sanitizePublicPartnerTerminology(value: string): string {
@@ -15,7 +15,15 @@ export function sanitizePublicPartnerTerminology(value: string): string {
 }
 
 function isInternalWorkspace(pathname: string): boolean {
-  return INTERNAL_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  if (INTERNAL_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return true;
+
+  // `/vendor/[id]` is the public storefront route (current ids use the vendor_ prefix).
+  // The other `/vendor/*` routes are authenticated merchant workspaces where the
+  // operational term remains useful and should not be rewritten.
+  if (pathname === "/vendor") return true;
+  if (pathname.startsWith("/vendor/") && !/^\/vendor\/vendor_[^/]+(?:\/|$)/.test(pathname)) return true;
+
+  return false;
 }
 
 function sanitizeTextNode(node: Text): void {
@@ -52,8 +60,8 @@ function sanitizeSubtree(root: Node): void {
 
 /**
  * Public-site safety net: internal catalogue terminology must never leak into
- * customer-facing copy. Internal vendor/admin workspaces are intentionally
- * excluded because they use the technical term operationally.
+ * customer-facing copy. Authenticated merchant/admin/driver workspaces are
+ * intentionally excluded because they use the technical term operationally.
  */
 export function PublicTerminologyGuard() {
   const pathname = usePathname();
