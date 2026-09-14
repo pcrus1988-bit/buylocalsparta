@@ -213,9 +213,9 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
     <div style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "10px 0", marginBottom: 12 }}>
       <strong style={{ display: "block", marginBottom: 6 }}>Feed diagnostics</strong>
-      <small style={{ display: "block", marginBottom: 8 }}>Άνοιξε άμεσα τα προϊόντα με καθυστερημένο catalogue sync ή χωρίς availability telemetry. Διατηρούνται ο supplier και τα υπόλοιπα ενεργά φίλτρα· η σελιδοποίηση επιστρέφει στη σελίδα 1.</small>
+      <small style={{ display: "block", marginBottom: 8 }}>Το «χωρίς availability telemetry» είναι actionable. Η ηλικία τελευταίου materialization είναι μόνο πληροφοριακή για delta feeds: αμετάβλητα προϊόντα μπορεί νόμιμα να μη ξαναγραφτούν για πολλές ώρες. Διατηρούνται ο supplier και τα υπόλοιπα ενεργά φίλτρα· η σελιδοποίηση επιστρέφει στη σελίδα 1.</small>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Stale catalogue sync</button>
+        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Χωρίς re-materialization &gt;12h</button>
         <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("missing_telemetry")}>Χωρίς availability telemetry</button>
         <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter(null)}>Καθαρισμός feed diagnostic</button>
       </div>
