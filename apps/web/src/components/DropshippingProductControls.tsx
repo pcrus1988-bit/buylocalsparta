@@ -205,30 +205,36 @@ export function DropshippingProductControls(props: Props) {
     finally { setBusy(false); }
   }
 
-  return <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-    <div className="workspace-compact-list">
-      <div className="workspace-compact-row"><strong>MSRP / Προτεινόμενη λιανική</strong><span>{euro(props.msrpMinor)}</span><small>Supplier τιμή αναφοράς · δεν περιορίζει το auto price</small></div>
-      {props.recommendation ? <>
-        <div className="workspace-compact-row"><strong>Προτεινόμενη τιμή πώλησης</strong><span>{euro(props.recommendation.recommendedSellingPriceMinor)}</span><small>Shipping-aware · Greece Economy · κατάληξη 4,90 / 9,90</small></div>
-        {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Internal flag</strong><span>OVERPRICED</span><small>{euro(props.recommendation.overpricedByMinor)} πάνω από MSRP · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
-        <div className="workspace-compact-row"><strong>Κέρδος €</strong><span>{euro(liveProfit.profitMinor)}</span><small>Στην τρέχουσα τιμή πώλησης</small></div>
-        <div className="workspace-compact-row"><strong>Κέρδος %</strong><span>{percent(liveProfit.profitPercent)}</span><small>Μετά VAT, transaction cost και ενσωματωμένο shipping reserve</small></div>
-        <div className="workspace-compact-row"><strong>Shipping reserve</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
-      </> : null}
+  return <details style={{ marginTop: 12 }}>
+    <summary style={{ cursor: "pointer", fontWeight: 700, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <span>Ρυθμίσεις προϊόντος &amp; actions</span>
+      <small style={{ fontWeight: 500 }}>{visible ? "Public" : "Hidden"} · Markup {percent(markup)} · Discount {percent(discount)}</small>
+    </summary>
+    <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+      <div className="workspace-compact-list">
+        <div className="workspace-compact-row"><strong>MSRP / Προτεινόμενη λιανική</strong><span>{euro(props.msrpMinor)}</span><small>Supplier τιμή αναφοράς · δεν περιορίζει το auto price</small></div>
+        {props.recommendation ? <>
+          <div className="workspace-compact-row"><strong>Προτεινόμενη τιμή πώλησης</strong><span>{euro(props.recommendation.recommendedSellingPriceMinor)}</span><small>Shipping-aware · Greece Economy · κατάληξη 4,90 / 9,90</small></div>
+          {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Internal flag</strong><span>OVERPRICED</span><small>{euro(props.recommendation.overpricedByMinor)} πάνω από MSRP · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
+          <div className="workspace-compact-row"><strong>Κέρδος €</strong><span>{euro(liveProfit.profitMinor)}</span><small>Στην τρέχουσα τιμή πώλησης</small></div>
+          <div className="workspace-compact-row"><strong>Κέρδος %</strong><span>{percent(liveProfit.profitPercent)}</span><small>Μετά VAT, transaction cost και ενσωματωμένο shipping reserve</small></div>
+          <div className="workspace-compact-row"><strong>Shipping reserve</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
+        </> : null}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
+        <label><small>Τιμή πώλησης €</small><input type="text" inputMode="decimal" value={sellingPriceDraft} onFocus={() => setEditingSellingPrice(true)} onChange={(event) => setSellingPriceDraft(event.target.value)} onBlur={commitSellingPrice} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} style={{ width: "100%" }} /></label>
+        <label><small>Markup %</small><input type="number" min="0" max="1000" step="0.01" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
+        <label><small>Έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      </div>
+      {previewMinor != null ? <small>Υπολογισμένη τελική τιμή: <strong>{euro(previewMinor)}</strong>{recommendedDefault ? " · προ-συμπληρωμένη από το pricing engine" : ""}</small> : null}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση manual override</button>
+        <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
+        <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Reset στα supplier defaults</button>
+        <button className="button button-secondary" type="button" onClick={refreshAvailability} disabled={busy}>Ανανέωση availability</button>
+      </div>
+      <DropshippingProductFieldControls offerId={props.offerId} />
+      {message ? <small role="status">{message}</small> : null}
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
-      <label><small>Τιμή πώλησης €</small><input type="text" inputMode="decimal" value={sellingPriceDraft} onFocus={() => setEditingSellingPrice(true)} onChange={(event) => setSellingPriceDraft(event.target.value)} onBlur={commitSellingPrice} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} style={{ width: "100%" }} /></label>
-      <label><small>Markup %</small><input type="number" min="0" max="1000" step="0.01" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
-      <label><small>Έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} style={{ width: "100%" }} /></label>
-    </div>
-    {previewMinor != null ? <small>Υπολογισμένη τελική τιμή: <strong>{euro(previewMinor)}</strong>{recommendedDefault ? " · προ-συμπληρωμένη από το pricing engine" : ""}</small> : null}
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση manual override</button>
-      <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
-      <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Reset στα supplier defaults</button>
-      <button className="button button-secondary" type="button" onClick={refreshAvailability} disabled={busy}>Ανανέωση availability</button>
-    </div>
-    <DropshippingProductFieldControls offerId={props.offerId} />
-    {message ? <small role="status">{message}</small> : null}
-  </div>;
+  </details>;
 }
