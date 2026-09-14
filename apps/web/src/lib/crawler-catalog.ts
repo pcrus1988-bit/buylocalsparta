@@ -2,7 +2,8 @@ import type { CatalogCard, CatalogFilters } from "./catalog-view";
 import { getCrawlerLocalCatalogCard } from "./crawler-local-catalog-card";
 import { getCrawlerLocalCatalogPage } from "./crawler-local-catalog-page";
 import { getPublishedDropshipCatalogPage } from "./published-dropship-catalog-page";
-import { productionDatabaseConfigured } from "./postgres-runtime";
+import { getPublishedDropshipCatalogCards } from "./published-dropship-storefront";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type CrawlerCatalogFilters = CatalogFilters & Readonly<{ fit?: string }>;
 
@@ -51,14 +52,29 @@ export async function getCrawlerCatalogCards(
 /** Exact crawler product projection without a catalogue-wide duplicate/title scan. */
 export async function getCrawlerCatalogCard(routeKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
-  const local = await getCrawlerLocalCatalogCard(routeKey);
+  const key = routeKey.trim();
+  if (!key) return undefined;
+
+  const local = await getCrawlerLocalCatalogCard(key);
   if (local) return local;
 
-  const dropship = await getPublishedDropshipCatalogPage({
-    slugOrId: routeKey.trim(),
-    limit: 1
-  });
-  return dropship.products[0];
+  const resolved = await getProductionPostgresRuntime().nativePool.query<{ id: string }>(`
+    SELECT cv.public_id AS id
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    WHERE (cv.public_id=$1 OR cv.slug=$1)
+      AND m.code='sparta'
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+    LIMIT 1
+  `,[key]);
+  const canonicalId = resolved.rows[0]?.id;
+  if (!canonicalId) return undefined;
+
+  const dropship = await getPublishedDropshipCatalogCards("", "", {}, {}, undefined, canonicalId);
+  return dropship.find((product) => product.available && product.availableToSell > 0);
 }
 
 /** Homepage crawler cards use the same bounded, sellable-only read model. */
