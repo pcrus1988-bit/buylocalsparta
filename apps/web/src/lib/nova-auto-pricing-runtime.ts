@@ -7,6 +7,7 @@ const SUPPLIER_CODE = "nova_brandsgateway";
 const AUTO_PRICING_CURSOR_KEY = "novaAutoPricingCursorV2";
 const DEFAULT_BATCH_SIZE = 1_000;
 const MAX_BATCH_SIZE = 5_000;
+const CATCHUP_BATCH_SIZE = MAX_BATCH_SIZE;
 
 export type NovaAutoPricingSliceResult = Readonly<{
   enabled: boolean;
@@ -76,24 +77,26 @@ export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceRes
   const sourceId = String(supplier.source_id);
   const cursor = optionalText(supplier.cursor);
 
-  const rows = await pool.query<SqlRow>(`
-    SELECT dso.public_id cursor,
-           vo.id::text offer_id,
-           vo.vendor_id::text vendor_id,
-           vo.msrp_minor,
-           vo.source_payload,
-           dso.supplier_cost_minor,
-           csp.normalized_payload->'categoryDetails' category_details,
-           csp.normalized_payload->'categories' categories
-      FROM public.dropship_supplier_offers dso
-      JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
-      LEFT JOIN public.catalog_source_products csp ON csp.id=dso.source_product_id
-     WHERE dso.supplier_id=$1::uuid
-       AND vo.vendor_id=$2::uuid
-       AND ($3::text IS NULL OR dso.public_id>$3)
-     ORDER BY dso.public_id
-     LIMIT $4
-  `, [supplierId, vendorId, cursor, batchSize()]);
+  // Newly materialized/imported offers must not wait for a full cursor rotation.
+  // First drain offers that have never been managed by the V2 pricing engine,
+  // regardless of where their random public_id sorts relative to the cursor.
+  const unmanagedRows = await loadPricingRows({
+    supplierId,
+    vendorId,
+    cursor: null,
+    unmanagedOnly: true,
+    limit: CATCHUP_BATCH_SIZE
+  });
+  const catchingUp = unmanagedRows.rows.length > 0;
+  const rows = catchingUp
+    ? unmanagedRows
+    : await loadPricingRows({
+        supplierId,
+        vendorId,
+        cursor,
+        unmanagedOnly: false,
+        limit: batchSize()
+      });
 
   if (!rows.rows.length) {
     if (cursor) {
@@ -169,7 +172,10 @@ export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceRes
   }
 
   if (updates.length) await applyUpdates(updates);
-  if (lastCursor) await persistCursor(sourceId, lastCursor);
+  // Catch-up rows can sort on either side of the normal cursor. Advancing the
+  // cursor from those rows would skip normal repricing work, so only the regular
+  // cursor pass is allowed to move it.
+  if (lastCursor && !catchingUp) await persistCursor(sourceId, lastCursor);
 
   return {
     enabled: true,
@@ -178,8 +184,42 @@ export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceRes
     overpriced,
     missingCost,
     manualOverrides,
-    cursorWrapped: false
+    cursorWrapped: false,
+    message: catchingUp ? "auto_pricing_unmanaged_catchup" : undefined
   };
+}
+
+async function loadPricingRows(input: Readonly<{
+  supplierId: string;
+  vendorId: string;
+  cursor: string | null;
+  unmanagedOnly: boolean;
+  limit: number;
+}>) {
+  return getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT dso.public_id cursor,
+           vo.id::text offer_id,
+           vo.vendor_id::text vendor_id,
+           vo.msrp_minor,
+           vo.source_payload,
+           dso.supplier_cost_minor,
+           csp.normalized_payload->'categoryDetails' category_details,
+           csp.normalized_payload->'categories' categories
+      FROM public.dropship_supplier_offers dso
+      JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+      LEFT JOIN public.catalog_source_products csp ON csp.id=dso.source_product_id
+     WHERE dso.supplier_id=$1::uuid
+       AND vo.vendor_id=$2::uuid
+       AND (
+         ($3::boolean=true
+           AND COALESCE(vo.source_payload->>'pricingManagedBy','') <> 'nova_auto_v2'
+           AND COALESCE(vo.source_payload->>'pricingManualOverride','false') <> 'true')
+         OR
+         ($3::boolean=false AND ($4::text IS NULL OR dso.public_id>$4))
+       )
+     ORDER BY dso.public_id
+     LIMIT $5
+  `, [input.supplierId, input.vendorId, input.unmanagedOnly, input.cursor, input.limit]);
 }
 
 async function applyUpdates(updates: readonly PricingUpdate[]): Promise<void> {
