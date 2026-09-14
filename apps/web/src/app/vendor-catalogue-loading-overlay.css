@@ -1,7 +1,6 @@
 /* Full-screen vendor catalogue loading experience.
-   The loader markup and brand assets live in VendorCatalogBrowser; this file
-   only promotes that existing experience from an inline catalogue card to a
-   viewport-level transition overlay. */
+   Brand logos now appear one at a time in the centre of the screen and cross-fade
+   while the existing KONTA MOU facts continue beneath them. */
 
 html:has(.vendorCatalogueLoader),
 body:has(.vendorCatalogueLoader) {
@@ -25,7 +24,7 @@ body:has(.vendorCatalogueLoader) {
   place-content: center !important;
   justify-items: center !important;
   align-items: center !important;
-  gap: clamp(20px, 3.8vh, 36px) !important;
+  gap: clamp(24px, 4vh, 40px) !important;
   padding:
     max(24px, env(safe-area-inset-top))
     max(20px, env(safe-area-inset-right))
@@ -66,13 +65,110 @@ body:has(.vendorCatalogueLoader) {
   filter: blur(14px) !important;
 }
 
+/* The old orbit markup is intentionally reused, but visually becomes one
+   fixed logo stage. Every logo occupies exactly the same central position. */
 .vendorCatalogueLoader .vendorLoaderOrbit {
   grid-column: 1 !important;
   grid-row: 1 !important;
-  width: min(320px, 66vw) !important;
-  max-width: 320px !important;
+  position: relative !important;
+  width: min(440px, 82vw) !important;
+  max-width: 440px !important;
+  height: clamp(118px, 18vh, 170px) !important;
+  aspect-ratio: auto !important;
   justify-self: center !important;
   margin: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderOrbitTrack {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderOrbitItem {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0;
+  transform: none !important;
+  pointer-events: none;
+  animation: vendorBrandCentreCrossfade 12s linear infinite both !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderOrbitItem:nth-child(1) { animation-delay: 0s !important; }
+.vendorCatalogueLoader .vendorLoaderOrbitItem:nth-child(2) { animation-delay: 2s !important; }
+.vendorCatalogueLoader .vendorLoaderOrbitItem:nth-child(3) { animation-delay: 4s !important; }
+.vendorCatalogueLoader .vendorLoaderOrbitItem:nth-child(4) { animation-delay: 6s !important; }
+.vendorCatalogueLoader .vendorLoaderOrbitItem:nth-child(5) { animation-delay: 8s !important; }
+.vendorCatalogueLoader .vendorLoaderOrbitItem:nth-child(6) { animation-delay: 10s !important; }
+
+.vendorCatalogueLoader .vendorLoaderLogoCard {
+  position: static !important;
+  inset: auto !important;
+  width: min(330px, 70vw) !important;
+  height: 96px !important;
+  min-width: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 10px 18px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.vendorCatalogueLoader .vendorLoaderLogoCard img {
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 72px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+/* The KONTA MOU core was useful for the orbit, but would sit behind the new
+   one-at-a-time brand sequence. Keep the centre visually clean. */
+.vendorCatalogueLoader .vendorLoaderCore {
+  display: none !important;
+}
+
+@keyframes vendorBrandCentreCrossfade {
+  0% {
+    opacity: 0;
+    filter: blur(3px);
+    scale: .97;
+  }
+  3% {
+    opacity: 1;
+    filter: blur(0);
+    scale: 1;
+  }
+  15% {
+    opacity: 1;
+    filter: blur(0);
+    scale: 1;
+  }
+  17% {
+    opacity: 0;
+    filter: blur(3px);
+    scale: .97;
+  }
+  100% {
+    opacity: 0;
+    filter: blur(3px);
+    scale: .97;
+  }
 }
 
 .vendorCatalogueLoader .vendorLoaderCopy {
@@ -150,7 +246,7 @@ body:has(.vendorCatalogueLoader) {
 
 @media (max-width: 620px) {
   .vendorCatalogueLoader {
-    gap: 18px !important;
+    gap: 20px !important;
     padding:
       max(18px, env(safe-area-inset-top))
       max(16px, env(safe-area-inset-right))
@@ -159,8 +255,18 @@ body:has(.vendorCatalogueLoader) {
   }
 
   .vendorCatalogueLoader .vendorLoaderOrbit {
-    width: min(260px, 70vw) !important;
-    max-width: 260px !important;
+    width: min(360px, 88vw) !important;
+    height: 112px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderLogoCard {
+    width: min(290px, 76vw) !important;
+    height: 82px !important;
+    padding-inline: 12px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderLogoCard img {
+    max-height: 58px !important;
   }
 
   .vendorCatalogueLoader .vendorLoaderCopy {
@@ -190,7 +296,16 @@ body:has(.vendorCatalogueLoader) {
   }
 
   .vendorCatalogueLoader .vendorLoaderOrbit {
-    width: min(220px, 46vh) !important;
+    width: min(330px, 62vw) !important;
+    height: 86px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderLogoCard {
+    height: 70px !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderLogoCard img {
+    max-height: 50px !important;
   }
 
   .vendorCatalogueLoader .vendorLoaderEyebrow {
@@ -209,9 +324,18 @@ body:has(.vendorCatalogueLoader) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vendorCatalogueLoader .vendorLoaderOrbitTrack,
-  .vendorCatalogueLoader .vendorLoaderLogoCard,
+  .vendorCatalogueLoader .vendorLoaderOrbitItem,
   .vendorCatalogueLoader .vendorLoaderFact p {
     animation: none !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderOrbitItem {
+    opacity: 0 !important;
+    filter: none !important;
+    scale: 1 !important;
+  }
+
+  .vendorCatalogueLoader .vendorLoaderOrbitItem:first-child {
+    opacity: 1 !important;
   }
 }
