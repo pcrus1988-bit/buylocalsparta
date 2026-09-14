@@ -1,6 +1,6 @@
 import { formatMoney, money, normalizeSearchText } from "@buy-local-sparta/core";
 import type { CatalogCard, CatalogFilters, PublicProductSeoRecord } from "./catalog-view";
-import { getPublicProductSeoInventory } from "./catalog-view";
+import { getPublicProductSeoInventory, getPublicProductSeoSummary } from "./catalog-view";
 import { loadCatalogMetadata, type CatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { categoryCodeMatches } from "./storefront-taxonomy";
@@ -230,8 +230,7 @@ export async function getCrawlerCatalogCards(
 
 export async function getCrawlerCatalogCard(routeKey: string, postcode = "23100"): Promise<CatalogCard | undefined> {
   if (!productionDatabaseConfigured()) return undefined;
-  const inventory = await getPublicProductSeoInventory();
-  const product = inventory.products.find((entry) => entry.id === routeKey || entry.slug === routeKey);
+  const product = await getPublicProductSeoSummary(routeKey);
   if (!product) return undefined;
   const [metadata, preview] = await Promise.all([
     loadCatalogMetadata([product.id]),
