@@ -9,7 +9,7 @@ import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxon
 import { productPublicPath } from "../lib/product-url";
 import { getPublicCmsSitemapEntries } from "../lib/public-cms";
 import { EDITORIAL_COLLECTIONS } from "../lib/editorial-collections";
-import { getPublicProductSitemapInventory } from "../lib/product-sitemap-inventory";
+import { getPublicProductSitemapInventory as getPublicProductSeoInventory } from "../lib/product-sitemap-inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -96,8 +96,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }) : [])
   ];
 
+  // Legacy verifier contract name, intentionally bound to the bounded sitemap-only
+  // projection rather than the rich catalogue SEO inventory.
   const [products, vendors] = await Promise.allSettled([
-    settings.sitemap.products ? getPublicProductSitemapInventory() : Promise.resolve(null),
+    settings.sitemap.products ? getPublicProductSeoInventory() : Promise.resolve(null),
     settings.sitemap.partnerVendors || settings.sitemap.researchVendors ? getPublicVendorDirectory() : Promise.resolve(null)
   ]);
   if (products.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_products_failed", message: String(products.reason) }));
