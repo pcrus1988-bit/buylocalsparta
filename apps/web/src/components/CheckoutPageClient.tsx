@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { dropshipDeliveryChargeMinor, DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR } from "../lib/dropship-delivery-pricing";
 import { useCart } from "./CartProvider";
 import { BoxNowLockerSelector, type BoxNowLockerSelection } from "./BoxNowLockerSelector";
 
@@ -79,7 +80,7 @@ function billingAddressLabel(address: SavedAddress): string {
 }
 
 export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled }: Props) {
-  const { items, subtotalMinor, hydrated, clear } = useCart();
+  const { items, subtotalMinor, hydrated, detailsReady, clear } = useCart();
   const [postcode, setPostcode] = useState("23100");
   const [checkoutKey, setCheckoutKey] = useState("");
   const [fulfilmentMode, setFulfilmentMode] = useState<"pickup" | "local_delivery" | "shipping">("pickup");
@@ -104,6 +105,14 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const [giftCardCode, setGiftCardCode] = useState("");
   const [giftCardHint, setGiftCardHint] = useState("");
 
+  const partnerItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "partner"), [items]);
+  const localItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "local"), [items]);
+  const partnerSubtotalMinor = useMemo(() => partnerItems.reduce((sum, item) => sum + item.priceMinor * item.quantity, 0), [partnerItems]);
+  const hasPartnerItems = partnerItems.length > 0;
+  const mixedFulfilmentCart = detailsReady && hasPartnerItems && localItems.length > 0;
+  const partnerOnlyCart = detailsReady && hasPartnerItems && localItems.length === 0 && partnerItems.length === items.length;
+  const partnerDeliveryMinor = partnerOnlyCart ? dropshipDeliveryChargeMinor(partnerSubtotalMinor) : 0;
+
   const effectiveDeliveryAddressId = sameAsBilling ? billingAddressId : deliveryAddressId;
   const needsDeliveryAddress = fulfilmentMode === "local_delivery";
   const needsBoxNowRecipient = fulfilmentMode === "shipping";
@@ -127,6 +136,10 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     recipientPhone: needsBoxNowRecipient ? recipientPhone : null,
     giftCardSelected: Boolean(giftCardCode.trim())
   }), [items, fulfilmentMode, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker?.id, boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone, giftCardCode]);
+
+  useEffect(() => {
+    if (partnerOnlyCart && fulfilmentMode !== "local_delivery") setFulfilmentMode("local_delivery");
+  }, [partnerOnlyCart, fulfilmentMode]);
 
   useEffect(() => {
     if (!checkoutEnabled) return;
@@ -180,6 +193,8 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   useEffect(() => {
     const identityReady = checkoutEnabled
       && hydrated
+      && detailsReady
+      && !mixedFulfilmentCart
       && items.length > 0
       && accountState === "authenticated"
       && Boolean(billingAddressId)
@@ -202,7 +217,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     const nextKey = crypto.randomUUID();
     window.sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint: checkoutFingerprint, checkoutKey: nextKey }));
     setCheckoutKey(nextKey);
-  }, [checkoutEnabled, hydrated, items.length, accountState, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker, recipientName, recipientEmail, recipientPhone, checkoutFingerprint]);
+  }, [checkoutEnabled, hydrated, detailsReady, mixedFulfilmentCart, items.length, accountState, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker, recipientName, recipientEmail, recipientPhone, checkoutFingerprint]);
 
   if (!hydrated) return <div className="empty-state"><p>Φόρτωση checkout…</p></div>;
   if (items.length === 0 && !result?.ok) return <div className="empty-state"><h2>Το καλάθι σου είναι άδειο.</h2><a className="button" href="/shop">Βρες προϊόντα</a></div>;
@@ -210,7 +225,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const summary = <aside className="checkout-summary checkout-friendly-summary">
     <div className="eyebrow">Η παραγγελία σου</div>
     {items.map((item) => {
-      const details = [item.size ? `Μέγεθος ${item.size}` : "", item.color ? `Χρώμα ${item.color}` : "", item.sku ? `SKU ${item.sku}` : "", item.gtin ? `GTIN ${item.gtin}` : ""].filter(Boolean).join(" · ");
+      const details = [item.fulfilmentKind === "partner" ? "Αποστολή συνεργαζόμενου προμηθευτή" : "", item.size ? `Μέγεθος ${item.size}` : "", item.color ? `Χρώμα ${item.color}` : "", item.sku ? `SKU ${item.sku}` : "", item.gtin ? `GTIN ${item.gtin}` : ""].filter(Boolean).join(" · ");
       return <div className="checkout-item checkout-item-rich" key={item.canonicalVariantId}>
         <div className={`checkout-item-thumb ${item.imageUrl ? "has-image" : ""}`}>{item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="lazy" /> : <span>{item.title.slice(0, 2).toUpperCase()}</span>}</div>
         <div className="checkout-item-copy"><strong>{item.quantity}× {item.title}</strong>{details ? <small>{details}</small> : null}</div>
@@ -218,8 +233,12 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
       </div>;
     })}
     <div className="checkout-total"><span>Προϊόντα</span><strong>{money(subtotalMinor)}</strong></div>
-    <p>Τυχόν κόστος παράδοσης και το τελικό σύνολο επιβεβαιώνονται πριν από την πληρωμή.</p>
-    <p><strong>Μία παραγγελία · μία ολοκλήρωση αγοράς.</strong></p>
+    {partnerOnlyCart ? <>
+      <div className="checkout-total"><span>Αποστολή συνεργαζόμενου προμηθευτή</span><strong>{partnerDeliveryMinor > 0 ? money(partnerDeliveryMinor) : "Δωρεάν"}</strong></div>
+      <p>Τα προϊόντα αυτά αποστέλλονται ξεχωριστά. Μεταφορικά {money(750)} για αξία dropshipping προϊόντων κάτω από {money(DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR)}. Δωρεάν αποστολή από {money(DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR)}.</p>
+      <div className="checkout-total"><span>Εκτιμώμενο σύνολο</span><strong>{money(subtotalMinor + partnerDeliveryMinor)}</strong></div>
+    </> : <p>Τυχόν κόστος παράδοσης και το τελικό σύνολο επιβεβαιώνονται πριν από την πληρωμή.</p>}
+    {mixedFulfilmentCart ? <p><strong>Τα dropshipping και τα τοπικά προϊόντα δεν μπορούν να ολοκληρωθούν στην ίδια παραγγελία.</strong></p> : <p><strong>{partnerOnlyCart ? "Ξεχωριστή αποστολή συνεργαζόμενου προμηθευτή." : "Μία παραγγελία · μία ολοκλήρωση αγοράς."}</strong></p>}
   </aside>;
 
   if (!checkoutEnabled) return <div className="checkout-layout checkout-layout-gated">
@@ -227,6 +246,17 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
       <div className="eyebrow">Προσωρινά μη διαθέσιμο</div>
       <h2 id="checkout-unavailable-title">Η online πληρωμή δεν είναι διαθέσιμη αυτή τη στιγμή.</h2>
       <p>Δεν θα σου ζητήσουμε στοιχεία κάρτας και δεν θα δημιουργήσουμε παραγγελία. Τα προϊόντα μένουν στο καλάθι σου.</p>
+      <div className="hero-actions"><a className="button" href="/cart">Πίσω στο καλάθι</a><a className="button button-secondary" href="/shop">Συνέχεια αγορών</a></div>
+    </section>
+    {summary}
+  </div>;
+
+  if (mixedFulfilmentCart) return <div className="checkout-layout checkout-layout-gated">
+    <section className="checkout-form checkout-availability-gate" aria-labelledby="mixed-fulfilment-title">
+      <div className="eyebrow">Ξεχωριστές παραγγελίες</div>
+      <h2 id="mixed-fulfilment-title">Τα dropshipping προϊόντα δεν συνδυάζονται με προϊόντα τοπικών καταστημάτων.</h2>
+      <p>Η αποστολή συνεργαζόμενου προμηθευτή είναι ανεξάρτητη από την τοπική παραλαβή ή παράδοση. Χώρισε τα προϊόντα σε ξεχωριστές παραγγελίες ώστε κάθε ομάδα να χρεωθεί και να δεσμευτεί σωστά.</p>
+      <p><strong>Για dropshipping προϊόντα:</strong> {money(750)} μεταφορικά κάτω από {money(DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR)} · δωρεάν από {money(DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR)}.</p>
       <div className="hero-actions"><a className="button" href="/cart">Πίσω στο καλάθι</a><a className="button button-secondary" href="/shop">Συνέχεια αγορών</a></div>
     </section>
     {summary}
@@ -289,7 +319,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!checkoutKey || accountState !== "authenticated" || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId)) return;
+    if (!checkoutKey || accountState !== "authenticated" || mixedFulfilmentCart || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId)) return;
     if (needsBoxNowRecipient && (!boxNowLocker || !recipientName.trim() || !recipientEmail.trim() || !recipientPhone.trim())) return;
     setBusy(true); setResult(null); setGiftCardHint("");
     try {
@@ -331,22 +361,24 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     } finally { setBusy(false); }
   }
 
-  const fulfilmentOptions: FulfilmentOption[] = [
-    ["pickup", "Παραλαβή από κατάστημα", "Δωρεάν όταν διατίθεται"],
-    ["local_delivery", "Τοπική παράδοση", "Στη διεύθυνσή σου, όπου διατίθεται"]
-  ];
-  if (boxNowEnabled) fulfilmentOptions.push(["shipping", "BOX NOW locker", "Παραλαβή από locker"]);
+  const fulfilmentOptions: FulfilmentOption[] = partnerOnlyCart
+    ? [["local_delivery", "Αποστολή συνεργαζόμενου προμηθευτή", partnerDeliveryMinor > 0 ? `${money(partnerDeliveryMinor)} · δωρεάν από ${money(DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR)}` : `Δωρεάν μεταφορικά · καλύφθηκε το όριο των ${money(DROPSHIP_FREE_DELIVERY_THRESHOLD_MINOR)}`]]
+    : [
+      ["pickup", "Παραλαβή από κατάστημα", "Δωρεάν όταν διατίθεται"],
+      ["local_delivery", "Τοπική παράδοση", "Στη διεύθυνσή σου, όπου διατίθεται"]
+    ];
+  if (boxNowEnabled && !partnerOnlyCart) fulfilmentOptions.push(["shipping", "BOX NOW locker", "Παραλαβή από locker"]);
 
   const billingAddress = profile?.addresses.find((address) => address.id === billingAddressId);
   const deliveryAddress = needsDeliveryAddress ? profile?.addresses.find((address) => address.id === effectiveDeliveryAddressId) : undefined;
-  const submitBlocked = busy || !checkoutKey || accountState !== "authenticated" || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId) || (needsBoxNowRecipient && (!boxNowLocker || !recipientName.trim() || !recipientEmail.trim() || !recipientPhone.trim())) || editorOpen;
+  const submitBlocked = busy || !detailsReady || mixedFulfilmentCart || !checkoutKey || accountState !== "authenticated" || !billingAddressId || (needsDeliveryAddress && !effectiveDeliveryAddressId) || (needsBoxNowRecipient && (!boxNowLocker || !recipientName.trim() || !recipientEmail.trim() || !recipientPhone.trim())) || editorOpen;
 
   return <div className="checkout-layout">
     <form className="checkout-form" onSubmit={submit}>
       <div className="checkout-section">
         <div className="eyebrow">01 · Τα στοιχεία σου</div>
         <h2>Η διεύθυνσή σου, χωρίς ταλαιπωρία.</h2>
-        <p>Διάλεξε μια αποθηκευμένη διεύθυνση ή πρόσθεσε καινούρια. Για παραλαβή από κατάστημα δεν ζητάμε διεύθυνση παράδοσης.</p>
+        <p>{partnerOnlyCart ? "Τα dropshipping προϊόντα αποστέλλονται στη διεύθυνσή σου από συνεργαζόμενο προμηθευτή." : "Διάλεξε μια αποθηκευμένη διεύθυνση ή πρόσθεσε καινούρια. Για παραλαβή από κατάστημα δεν ζητάμε διεύθυνση παράδοσης."}</p>
         {accountState === "loading" && <div className="account-gate"><strong>Φόρτωση λογαριασμού…</strong></div>}
         {accountState === "anonymous" && <div className="account-gate"><strong>Συνδέσου για να συνεχίσεις.</strong><p>Έτσι κρατάμε μαζί την παραγγελία, τη διεύθυνση και το παραστατικό σου.</p><div className="hero-actions"><a className="button" href="/login?next=/checkout">Σύνδεση</a><a className="button button-secondary" href="/register?next=/checkout">Νέος λογαριασμός</a></div></div>}
         {accountState === "error" && <div className="account-gate"><strong>Δεν φορτώθηκαν τα στοιχεία σου.</strong><p>Ανανέωσε τη σελίδα ή συνδέσου ξανά.</p></div>}
@@ -392,15 +424,16 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
           </div>}
 
           {billingAddress && fulfilmentMode === "pickup" && <div className="checkout-selection-note"><strong>Έτοιμο για παραλαβή</strong><span>{billingAddressLabel(billingAddress)}</span></div>}
-          {billingAddress && deliveryAddress && fulfilmentMode === "local_delivery" && <div className="checkout-selection-note"><strong>Θα το φέρουμε εδώ</strong><span>{billingAddressLabel(deliveryAddress)}</span></div>}
+          {billingAddress && deliveryAddress && fulfilmentMode === "local_delivery" && <div className="checkout-selection-note"><strong>{partnerOnlyCart ? "Αποστολή συνεργαζόμενου προμηθευτή" : "Θα το φέρουμε εδώ"}</strong><span>{billingAddressLabel(deliveryAddress)}</span></div>}
           {billingAddress && fulfilmentMode === "shipping" && <div className="checkout-selection-note"><strong>BOX NOW</strong><span>Η διεύθυνση χρέωσης μένει στον λογαριασμό σου. Στη μεταφορική στέλνουμε μόνο τα απαραίτητα στοιχεία παραλήπτη και το locker.</span></div>}
         </>}
       </div>
 
       <div className="checkout-section">
         <div className="eyebrow">02 · Παραλαβή</div>
-        <h2>Πώς θέλεις να το παραλάβεις;</h2>
-        <div className="fulfilment-options">{fulfilmentOptions.map(([value,title,note]) => <label className={`fulfilment-option ${fulfilmentMode === value ? "selected" : ""}`} key={value}><input type="radio" name="fulfilment" value={value} checked={fulfilmentMode === value} onChange={() => setFulfilmentMode(value)} /><span><strong>{title}</strong><small>{note}</small></span></label>)}</div>
+        <h2>{partnerOnlyCart ? "Αποστολή συνεργαζόμενου προμηθευτή" : "Πώς θέλεις να το παραλάβεις;"}</h2>
+        {partnerOnlyCart ? <p>Η αποστολή των dropshipping προϊόντων γίνεται ξεχωριστά από τα τοπικά καταστήματα. Η χρέωση υπολογίζεται μόνο από την αξία αυτών των προϊόντων.</p> : null}
+        <div className="fulfilment-options">{fulfilmentOptions.map(([value,title,note]) => <label className={`fulfilment-option ${fulfilmentMode === value ? "selected" : ""}`} key={value}><input type="radio" name="fulfilment" value={value} checked={fulfilmentMode === value} onChange={() => setFulfilmentMode(value)} disabled={partnerOnlyCart} /><span><strong>{title}</strong><small>{note}</small></span></label>)}</div>
         {boxNowEnabled && fulfilmentMode === "shipping" && <div className="shipping-provider-fields"><p>Για locker χρειαζόμαστε μόνο τα στοιχεία παραλήπτη και το locker που θα διαλέξεις.</p><div className="form-grid"><label>Ονοματεπώνυμο<input autoComplete="name" value={recipientName} onChange={(event)=>setRecipientName(event.target.value)} required /></label><label>Email<input autoComplete="email" type="email" value={recipientEmail} onChange={(event)=>setRecipientEmail(event.target.value)} required /></label><label>Κινητό<input autoComplete="tel" inputMode="tel" type="tel" value={recipientPhone} onChange={(event)=>setRecipientPhone(event.target.value)} required /></label></div><BoxNowLockerSelector postcode={postcode} selected={boxNowLocker} onSelect={setBoxNowLocker} /></div>}
       </div>
 
