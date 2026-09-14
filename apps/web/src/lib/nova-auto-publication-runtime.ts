@@ -110,7 +110,8 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
         ),'') <> 'archived'
         AND cv.suppressed=false
         AND cv.recalled=false
-        AND dso.supplier_cost_minor>=0
+        AND dso.supplier_cost_minor>0
+        AND vo.customer_price_minor>0
         AND vo.customer_price_minor>=dso.supplier_cost_minor
         AND NOT (
           cv.active
