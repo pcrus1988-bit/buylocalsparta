@@ -26,6 +26,10 @@ const issueCopy: Record<DropshippingAttentionKind, Readonly<{ label: string; exp
     label: "Missing buying price",
     explanation: "Δεν υπάρχει έγκυρη supplier buying price, άρα δεν μπορεί να υπολογιστεί ασφαλής αυτόματη τιμή."
   },
+  pricing_pending: {
+    label: "Pricing pending",
+    explanation: "Υπάρχει supplier buying price αλλά το προϊόν δεν έχει ακόμη ολοκληρώσει το NOVA V2 auto-pricing pass. Η αυτόματη δημοσίευση παραμένει fail-closed μέχρι να ολοκληρωθεί η τιμολόγηση."
+  },
   stale_availability: {
     label: "Stale availability",
     explanation: "Η διαθεσιμότητα δεν έχει επαληθευτεί τις τελευταίες 24 ώρες. Έλεγξε πρώτα το feed health πριν αλλάξεις χειροκίνητα stock."
@@ -55,7 +59,7 @@ export default async function DropshippingAttentionPage() {
       <div>
         <div className="eyebrow">Dropshipping Control Centre</div>
         <h1>Needs attention</h1>
-        <p className="lead">Μία συγκεντρωτική ουρά για πραγματικά operational προβλήματα: public προϊόντα χωρίς διαθεσιμότητα, missing cost, stale availability, supplier withdrawals και ενεργά OVERPRICED προϊόντα.</p>
+        <p className="lead">Μία συγκεντρωτική ουρά για πραγματικά operational προβλήματα: public προϊόντα χωρίς διαθεσιμότητα, missing cost, εκκρεμή auto-pricing, stale availability, supplier withdrawals και ενεργά OVERPRICED προϊόντα.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
           <Link className="button button-secondary" href="/vendor/dropshipping/health">Feed health</Link>
@@ -67,6 +71,7 @@ export default async function DropshippingAttentionPage() {
     <WorkspaceMetricStrip items={[
       { label: "Public unavailable", value: counts.publishedUnavailable, tone: counts.publishedUnavailable ? "attention" : "positive" },
       { label: "Missing cost", value: counts.missingCost, tone: counts.missingCost ? "attention" : "positive" },
+      { label: "Pricing pending", value: counts.pricingPending, tone: counts.pricingPending ? "attention" : "positive" },
       { label: "Stale availability", value: counts.staleAvailability, tone: counts.staleAvailability ? "attention" : "positive" },
       { label: "Supplier withdrawals", value: counts.withdrawn, tone: counts.withdrawn ? "attention" : "default" },
       { label: "Active OVERPRICED", value: counts.overpriced, tone: counts.overpriced ? "attention" : "positive" }
@@ -76,7 +81,7 @@ export default async function DropshippingAttentionPage() {
       <WorkspaceSectionHeading
         eyebrow="Review queue"
         title="Προϊόντα που χρειάζονται έλεγχο"
-        note="Η σειρά δίνει προτεραιότητα σε public-but-unavailable, missing cost και stale availability. Supplier withdrawals και OVERPRICED diagnostics ακολουθούν."
+        note="Η σειρά δίνει προτεραιότητα σε public-but-unavailable, missing cost, pricing pending και stale availability. Supplier withdrawals και OVERPRICED diagnostics ακολουθούν."
       />
 
       <div style={{ display: "grid", gap: 12 }}>
@@ -102,6 +107,7 @@ export default async function DropshippingAttentionPage() {
               <Link className="button button-secondary" href={`/vendor/dropshipping?q=${encodeURIComponent(item.title)}&supplier=${encodeURIComponent(item.supplierCode)}`}>Άνοιγμα προϊόντος</Link>
               {item.kind === "published_unavailable" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&publication=published&availability=out_of_stock`}>Όλα τα public unavailable</Link> : null}
               {item.kind === "missing_cost" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&cost=missing_cost`}>Όλα τα missing cost</Link> : null}
+              {item.kind === "pricing_pending" ? <span className="vendor-merchant-status">Αναμονή background pricing</span> : null}
               {item.kind === "overpriced" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=OVERPRICED&publication=published`}>Όλα τα ενεργά OVERPRICED</Link> : null}
             </div>
           </article>;
@@ -109,7 +115,7 @@ export default async function DropshippingAttentionPage() {
 
         {!workspace.items.length ? <article className="workspace-queue-card">
           <strong>Δεν υπάρχει κάτι που να χρειάζεται άμεσο έλεγχο.</strong>
-          <p>Τα supplier feeds, buying prices, availability και ενεργά pricing diagnostics δεν έχουν αυτή τη στιγμή actionable exception.</p>
+          <p>Τα supplier feeds, buying prices, auto-pricing, availability και ενεργά pricing diagnostics δεν έχουν αυτή τη στιγμή actionable exception.</p>
         </article> : null}
       </div>
     </section>
