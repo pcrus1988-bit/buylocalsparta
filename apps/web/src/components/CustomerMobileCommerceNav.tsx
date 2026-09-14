@@ -7,6 +7,7 @@ import { isCustomerMobileCommercePath } from "../lib/customer-mobile-commerce";
 import { recordProductAnalyticsEvent } from "../lib/product-analytics-client";
 import { googleAnalyticsItem, trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
 import { useCart } from "./CartProvider";
+import { CartDrawer } from "./CartDrawer";
 import { SearchDiscoveryPanel, useSearchDiscovery } from "./SearchDiscovery";
 
 export type CustomerMobileProductAction = Readonly<{
@@ -50,7 +51,7 @@ function CloseIcon() {
 function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProductAction }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { addItem, count } = useCart();
+  const { addItem, count, openCart, isCartOpen, cartPulseKey } = useCart();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmation, setConfirmation] = useState<string>();
@@ -133,9 +134,9 @@ function CustomerMobileCommerceNav({ product }: { product?: CustomerMobileProduc
             <span className="customer-mobile-commerce-add-icon"><AddIcon /></span><span>{product?.available ? "+1 προϊόν" : "Μη διαθέσιμο"}</span>
           </button>
         ) : null}
-        <Link className={`customer-mobile-commerce-item customer-mobile-commerce-cart${pathname === "/cart" ? " is-active" : ""}`} href="/cart" aria-label={`Καλάθι, ${count} προϊόντα`}>
-          <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span><span>Καλάθι</span>
-        </Link>
+        <button className={`customer-mobile-commerce-item customer-mobile-commerce-cart${isCartOpen ? " is-active" : ""}`} type="button" onClick={openCart} aria-label={`Καλάθι, ${count} προϊόντα`} aria-expanded={isCartOpen} aria-controls="global-cart-drawer">
+          <span className="customer-mobile-commerce-cart-icon"><CartIcon />{count > 0 ? <b key={cartPulseKey} aria-hidden="true">{count > 99 ? "99+" : count}</b> : null}</span><span>Καλάθι</span>
+        </button>
       </nav>
     </>
   );
@@ -148,7 +149,7 @@ export function CustomerMobileCommerceProvider({ children }: { children: ReactNo
   const value = useMemo(() => ({ registerProduct }), [registerProduct]);
   const eligible = isCustomerMobileCommercePath(pathname);
 
-  return <CustomerMobileCommerceContext.Provider value={value}>{children}{eligible ? <><div className="customer-mobile-commerce-spacer" aria-hidden="true" /><CustomerMobileCommerceNav product={product} /></> : null}</CustomerMobileCommerceContext.Provider>;
+  return <CustomerMobileCommerceContext.Provider value={value}>{children}{eligible ? <><div className="customer-mobile-commerce-spacer" aria-hidden="true" /><CustomerMobileCommerceNav product={product} /></> : null}<CartDrawer /></CustomerMobileCommerceContext.Provider>;
 }
 
 export function useCustomerMobileCommerce() {
