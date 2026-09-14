@@ -18,6 +18,7 @@ import {
   vendorDropshippingFilteredWorkspace,
   type DropshippingProductFilters
 } from "../../../lib/vendor-dropshipping-filter-service";
+import { vendorDropshippingPricingBacklogBySupplier } from "../../../lib/vendor-dropshipping-pricing-overview";
 import { vendorProductAnalytics } from "../../../lib/vendor-product-analytics";
 import { getVendorSession } from "../../../lib/vendor-session";
 
@@ -56,6 +57,11 @@ function productUrl(supplier: string, query: string, filters: DropshippingProduc
   return `/vendor/dropshipping?${params.toString()}`;
 }
 
+function pricingPendingUrl(supplier: string): string {
+  const params = new URLSearchParams({ supplier, pricingFlag: "PENDING" });
+  return `/vendor/dropshipping?${params.toString()}`;
+}
+
 function activeFilterCount(filters: DropshippingProductFilters): number {
   return [
     Boolean(filters.categoryId),
@@ -86,7 +92,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const requestedPage = Number(first(queryParams.page));
   const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const [workspace, analytics] = await Promise.all([
+  const [workspace, analytics, pricingBacklogBySupplier] = await Promise.all([
     vendorDropshippingFilteredWorkspace(principal.vendorId ?? "", {
       supplierCode,
       query,
@@ -110,13 +116,15 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
         discountMax: numberParam(queryParams.discountMax)
       }
     }),
-    vendorProductAnalytics(operatingContext, { periodDays: 30 })
+    vendorProductAnalytics(operatingContext, { periodDays: 30 }),
+    vendorDropshippingPricingBacklogBySupplier(principal.vendorId ?? "")
   ]);
 
   const totalSupplierProducts = workspace.suppliers.reduce((sum, supplier) => sum + supplier.totalProducts, 0);
   const totalPublished = workspace.suppliers.reduce((sum, supplier) => sum + supplier.publishedProducts, 0);
   const totalAvailable = workspace.suppliers.reduce((sum, supplier) => sum + supplier.availableProducts, 0);
   const totalMissingCost = workspace.suppliers.reduce((sum, supplier) => sum + Math.max(0, supplier.totalProducts - supplier.productsWithCost), 0);
+  const totalPricingPending = workspace.suppliers.reduce((sum, supplier) => sum + (pricingBacklogBySupplier.get(supplier.code) ?? 0), 0);
   const supplierHealth = new Map(workspace.suppliers.map((supplier) => [supplier.id, dropshippingFeedHealth(supplier)]));
   const t = analytics.totals;
   const pages = Math.max(1, Math.ceil(workspace.totalProducts / workspace.pageSize));
@@ -157,6 +165,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       { label: "Προϊόντα", value: totalSupplierProducts },
       { label: "Δημοσιευμένα", value: totalPublished, tone: totalPublished ? "positive" : "default" },
       { label: "Διαθέσιμα supplier", value: totalAvailable },
+      { label: "Pricing pending", value: totalPricingPending, tone: totalPricingPending ? "attention" : "positive" },
       { label: "Πωλήσεις 30ημ.", value: euro(t.revenueMinor), tone: t.revenueMinor ? "positive" : "default" },
       { label: "Product views 30ημ.", value: t.pageViews },
       { label: "Conversion", value: pct(t.purchases, t.pageViews) },
@@ -168,6 +177,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
         {workspace.suppliers.map((supplier) => {
           const health = supplierHealth.get(supplier.id) ?? dropshippingFeedHealth(supplier);
+          const pricingPending = pricingBacklogBySupplier.get(supplier.code) ?? 0;
           return <article className="workspace-queue-card" key={supplier.id}>
             <div className="workspace-queue-head"><div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div><span className="vendor-merchant-status">{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
@@ -175,10 +185,14 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               <div className="workspace-compact-row"><strong>Δημοσιευμένα</strong><span>{supplier.publishedProducts}</span></div>
               <div className="workspace-compact-row"><strong>Διαθέσιμα</strong><span>{supplier.availableProducts}</span><small>{supplier.outOfStockProducts} μη διαθέσιμα</small></div>
               <div className="workspace-compact-row"><strong>Buying price</strong><span>{supplier.productsWithCost}/{supplier.totalProducts}</span></div>
+              <div className="workspace-compact-row"><strong>Pricing pending</strong><span>{pricingPending}</span><small>{pricingPending ? "Αναμονή αυτόματης τιμολόγησης" : "Η ουρά τιμολόγησης είναι καθαρή"}</small></div>
               <div className="workspace-compact-row"><strong>Health</strong><span>{health.label}</span><small>{date(supplier.lastHealthcheckAt)} · {health.detail}</small></div>
               <div className="workspace-compact-row"><strong>Τελευταίο sync</strong><span>{date(supplier.lastCatalogueSyncAt)}</span></div>
             </div>
-            <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier</Link>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}>Άνοιγμα supplier</Link>
+              {pricingPending ? <Link className="button button-secondary" href={pricingPendingUrl(supplier.code)}>Pricing pending · {pricingPending}</Link> : null}
+            </div>
           </article>;
         })}
         {!workspace.suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει ενεργός Dropshipping supplier.</strong><p>Το vendor account είναι κλειδωμένο σε Dropshipping, αλλά δεν βρέθηκε supplier mapping στη βάση.</p></article> : null}
