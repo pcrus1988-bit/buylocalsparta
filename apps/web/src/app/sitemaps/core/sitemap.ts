@@ -1,15 +1,13 @@
 import type { MetadataRoute } from "next";
-import { INDEXABLE_STATIC_ROUTES } from "../lib/site-navigation";
-import { getPublicVendorDirectory } from "../lib/public-vendor-directory";
-import { productIndexEligibility, researchVendorIndexEligibility } from "../lib/seo-visibility-policy";
-import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
-import { getSeoEntityOverridesSnapshot } from "../lib/seo-entity-overrides";
-import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../lib/seo-entity-policy";
-import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
-import { productPublicPath } from "../lib/product-url";
-import { getPublicCmsSitemapEntries } from "../lib/public-cms";
-import { EDITORIAL_COLLECTIONS } from "../lib/editorial-collections";
-import { getPublicProductSitemapInventory as getPublicProductSeoInventory } from "../lib/product-sitemap-inventory";
+import { INDEXABLE_STATIC_ROUTES } from "../../../lib/site-navigation";
+import { getPublicVendorDirectory } from "../../../lib/public-vendor-directory";
+import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
+import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
+import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { getAvailableStorefrontCategories } from "../../../lib/available-catalog-taxonomy";
+import { getPublicCmsSitemapEntries } from "../../../lib/public-cms";
+import { EDITORIAL_COLLECTIONS } from "../../../lib/editorial-collections";
 
 export const dynamic = "force-dynamic";
 
@@ -96,29 +94,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }) : [])
   ];
 
-  // Legacy verifier contract name, intentionally bound to the bounded sitemap-only
-  // projection rather than the rich catalogue SEO inventory.
-  const [products, vendors] = await Promise.allSettled([
-    settings.sitemap.products ? getPublicProductSeoInventory() : Promise.resolve(null),
-    settings.sitemap.partnerVendors || settings.sitemap.researchVendors ? getPublicVendorDirectory() : Promise.resolve(null)
+  const [vendors] = await Promise.allSettled([
+    settings.sitemap.partnerVendors || settings.sitemap.researchVendors
+      ? getPublicVendorDirectory()
+      : Promise.resolve(null)
   ]);
-  if (products.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_products_failed", message: String(products.reason) }));
-  if (vendors.status === "rejected") console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(vendors.reason) }));
+  if (vendors.status === "rejected") {
+    console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(vendors.reason) }));
+  }
 
   const entries: MetadataRoute.Sitemap = [
     ...fixed,
-    ...(products.status === "fulfilled" && products.value ? products.value.flatMap((product) => {
-      const reference: SeoEntityReference = { kind: "product", id: product.id };
-      const quality = productIndexEligibility(product);
-      const { override, control } = governed(reference, quality.blockingReasons.length === 0, quality.eligible);
-      // Product lastmod is evidence-only: do not manufacture freshness from created, updated, price, or request-time clocks.
-      return control.sitemapAllowed ? [{
-        url: new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString(),
-        changeFrequency: "daily" as const,
-        priority: 0.75,
-        lastModified: safeLastModified(override?.lastReviewedAt)
-      }] : [];
-    }) : []),
     ...(vendors.status === "fulfilled" && vendors.value ? vendors.value.flatMap((vendor) => {
       const isPartner = vendor.directoryStatus === "partner";
       if (isPartner && !settings.sitemap.partnerVendors) return [];

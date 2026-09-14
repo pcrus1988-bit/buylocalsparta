@@ -1,6 +1,8 @@
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
+export const PRODUCT_SITEMAP_SHARD_COUNT = 16;
+
 export type PublicProductSitemapCandidate = Readonly<{
   id: string;
   slug: string;
@@ -64,19 +66,28 @@ function trustedSameSourceImage(sourceWebsite: string | null, sourceImageUrl: st
   }
 }
 
+function assertShard(shard: number): void {
+  if (!Number.isSafeInteger(shard) || shard < 0 || shard >= PRODUCT_SITEMAP_SHARD_COUNT) {
+    throw new RangeError(`Invalid product sitemap shard: ${shard}`);
+  }
+}
+
 /**
  * Lightweight sitemap-only SEO projection.
  *
- * A sitemap request only needs route identities plus the quality signals consumed
- * by productIndexEligibility. Hydrating the rich 50k+ product SEO inventory here
- * caused crawler requests to monopolize PostgreSQL connections for tens of seconds.
+ * The catalogue is intentionally split into deterministic shards. Every canonical
+ * public product is assigned by a stable MD5 byte derived from its public ID, so
+ * adding or removing products does not renumber the rest of the sitemap. The global
+ * duplicate-title count is still calculated before sharding because it is part of
+ * the authoritative product SEO quality gate.
  *
- * Work is deliberately ordered from the selective sellable-offer gate outward.
- * Safety, publication, merchant visibility, category visibility, stock freshness,
- * cost ceiling and governed media/source-image gates remain authoritative.
+ * Work is ordered from the selective sellable-offer gate outward. Safety,
+ * publication, merchant visibility, category visibility, stock freshness, cost
+ * ceiling and governed media/source-image gates remain authoritative.
  */
-async function readPublicProductSitemapInventory(): Promise<readonly PublicProductSitemapCandidate[]> {
+async function readPublicProductSitemapInventory(shard: number | null): Promise<readonly PublicProductSitemapCandidate[]> {
   if (!productionDatabaseConfigured()) return [];
+  if (shard !== null) assertShard(shard);
 
   const result = await getProductionPostgresRuntime().nativePool.query<SitemapCandidateRow>(`
     WITH eligible_offer AS MATERIALIZED (
@@ -156,10 +167,15 @@ async function readPublicProductSitemapInventory(): Promise<readonly PublicProdu
       SELECT lower(BTRIM(title)) AS title_key,COUNT(*)::int AS duplicate_title_count
       FROM public_base
       GROUP BY lower(BTRIM(title))
+    ), selected_base AS MATERIALIZED (
+      SELECT base.*
+      FROM public_base base
+      WHERE $1::integer IS NULL
+         OR mod(get_byte(decode(md5(base.id_public), 'hex'), 0), $2::integer)=$1::integer
     ), approved_media AS MATERIALIZED (
       SELECT DISTINCT ON (pm.canonical_variant_id)
              pm.canonical_variant_id,pm.public_id AS media_id
-      FROM public_base base
+      FROM selected_base base
       JOIN product_media pm ON pm.canonical_variant_id=base.id
       WHERE pm.kind='image'
         AND pm.scan_status='clean'
@@ -171,7 +187,7 @@ async function readPublicProductSitemapInventory(): Promise<readonly PublicProdu
     ), source_media AS MATERIALIZED (
       SELECT DISTINCT ON (csl.canonical_variant_id)
              csl.canonical_variant_id,sp.source_image_url,cs.website AS source_website
-      FROM public_base base
+      FROM selected_base base
       JOIN catalog_source_product_links csl
         ON csl.canonical_variant_id=base.id
        AND csl.link_status='approved'
@@ -196,12 +212,12 @@ async function readPublicProductSitemapInventory(): Promise<readonly PublicProdu
       base.color,
       base.sizes,
       counts.duplicate_title_count
-    FROM public_base base
+    FROM selected_base base
     JOIN title_counts counts ON counts.title_key=lower(BTRIM(base.title))
     LEFT JOIN approved_media media ON media.canonical_variant_id=base.id
     LEFT JOIN source_media source ON source.canonical_variant_id=base.id
     ORDER BY base.id_public
-  `);
+  `, [shard, PRODUCT_SITEMAP_SHARD_COUNT]);
 
   return result.rows.map((row) => ({
     id: row.id,
@@ -222,11 +238,24 @@ async function readPublicProductSitemapInventory(): Promise<readonly PublicProdu
 }
 
 const cachedPublicProductSitemapInventory = unstable_cache(
-  readPublicProductSitemapInventory,
-  ["public-product-sitemap-inventory-v1"],
+  () => readPublicProductSitemapInventory(null),
+  ["public-product-sitemap-inventory-v2"],
   { revalidate: 900 }
 );
 
+const cachedPublicProductSitemapShard = unstable_cache(
+  (shard: number) => readPublicProductSitemapInventory(shard),
+  ["public-product-sitemap-inventory-shard-v1"],
+  { revalidate: 900 }
+);
+
+/** Legacy full projection retained for existing verifier/admin contracts. */
 export function getPublicProductSitemapInventory(): Promise<readonly PublicProductSitemapCandidate[]> {
   return cachedPublicProductSitemapInventory();
+}
+
+/** Scale-safe projection used by the production product sitemap shards. */
+export function getPublicProductSitemapInventoryShard(shard: number): Promise<readonly PublicProductSitemapCandidate[]> {
+  assertShard(shard);
+  return cachedPublicProductSitemapShard(shard);
 }
