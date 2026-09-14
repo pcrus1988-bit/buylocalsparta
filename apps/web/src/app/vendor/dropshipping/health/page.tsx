@@ -73,7 +73,7 @@ export default async function DropshippingFeedHealthPage() {
         { label: "Published αλλά unavailable", value: publishedUnavailableProducts, tone: publishedUnavailableProducts ? "attention" : "positive" },
         { label: "Χωρίς supplier cost", value: productsMissingCost, tone: productsMissingCost ? "attention" : "positive" }
       ]} />
-      <p style={{ marginTop: 12 }}><small>Όπου υπάρχει ακριβής αντιστοίχιση με τα υπάρχοντα φίλτρα καταλόγου, το πρόβλημα ανοίγει κατευθείαν στο αντίστοιχο product subset. Τα stale/telemetry-only diagnostics παραμένουν supplier-level μέχρι να προστεθεί ασφαλές timestamp filter στο κοινό query engine.</small></p>
+      <p style={{ marginTop: 12 }}><small>Κάθε catalogue diagnostic ανοίγει πλέον το ακριβές product subset στο κοινό Dropshipping product manager, ώστε να μπορούν να χρησιμοποιηθούν τα ίδια search, overrides και bulk actions.</small></p>
     </section>
 
     <section className="shell vendor-section">
@@ -86,6 +86,8 @@ export default async function DropshippingFeedHealthPage() {
           const missingCost = Math.max(0, supplier.totalProducts - supplier.productsWithCost);
           const hasCatalogueIssues = staleRows > 0 || missingAvailability > 0 || publishedUnavailable > 0 || missingCost > 0;
           const supplierHref = supplierWorkspaceUrl(supplier.code);
+          const staleRowsHref = supplierWorkspaceUrl(supplier.code, { availability: "stale_sync" });
+          const missingAvailabilityHref = supplierWorkspaceUrl(supplier.code, { availability: "missing_telemetry" });
           const publishedUnavailableHref = supplierWorkspaceUrl(supplier.code, { publication: "published", availability: "out_of_stock" });
           const missingCostHref = supplierWorkspaceUrl(supplier.code, { cost: "missing_cost" });
           return <article className="workspace-queue-card" key={supplier.id}>
@@ -108,8 +110,8 @@ export default async function DropshippingFeedHealthPage() {
               <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
             </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span>{staleRows > 0 ? <Link href={supplierHref}>Άνοιγμα supplier</Link> : null}</div>
-              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span>{missingAvailability > 0 ? <Link href={supplierHref}>Άνοιγμα supplier</Link> : null}</div>
+              <div className="workspace-compact-row"><strong>Stale catalogue rows</strong><span>{staleRows}</span>{staleRows > 0 ? <Link href={staleRowsHref}>Προβολή προϊόντων</Link> : null}</div>
+              <div className="workspace-compact-row"><strong>Χωρίς availability telemetry</strong><span>{missingAvailability}</span>{missingAvailability > 0 ? <Link href={missingAvailabilityHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Published αλλά unavailable</strong><span>{publishedUnavailable}</span>{publishedUnavailable > 0 ? <Link href={publishedUnavailableHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Χωρίς supplier cost</strong><span>{missingCost}</span>{missingCost > 0 ? <Link href={missingCostHref}>Προβολή προϊόντων</Link> : null}</div>
             </div>
