@@ -190,7 +190,7 @@ try {
   await expectFailure(() => vendorReturnIntakeAction({ ...vendor.principal, vendorId: `vendor_wrong_${suffix}` }, { returnId: requested.returnId, action: "receive", now: now + 361 }), /access denied/, "Vendor return tenant isolation was not enforced");
   await runtime.adminGovernance.returnAction(admin.principal, { returnId: requested.returnId, action: "approve_refund", reason: "Inspection passed", now: now + 370 });
 
-  const stockBeforeRefund = await runtime.sqlPool.query<{ on_hand: number } & Record<string, unknown>>(`SELECT on_hand FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)`, [offerId]);
+  const normalStockBeforeRefund = await runtime.sqlPool.query<{ on_hand: number } & Record<string, unknown>>(`SELECT on_hand FROM inventory_balances WHERE offer_id=(SELECT id FROM vendor_offers WHERE public_id=$1)`, [offerId]);
   const refundsBefore = mollieGateway.refundCount;
   const refund = await mollie.executeApprovedReturnRefund({ returnId: requested.returnId, actorUserId: finance.principal.userId, now: now + 380 });
   expect(refund.status === "completed" && mollieGateway.refundCount === refundsBefore + 1, "Approved return did not execute exactly one Mollie refund");
@@ -205,15 +205,27 @@ try {
 
   const finalState = await runtime.sqlPool.query<{
     return_status: string; refunded_quantity: number; line_status: string; order_status: string; payment_status: string;
-    refunded_minor: number; refund_id: string; on_hand: number; receivable_minor: number; restock_count: number; finance_audit_count: number
+    refunded_minor: number; refund_id: string; normal_on_hand: number; bazaar_on_hand: number; bazaar_channel: string; bazaar_source: string;
+    bazaar_condition: string; receivable_minor: number; normal_restock_count: number; bazaar_restock_count: number; finance_audit_count: number
   } & Record<string, unknown>>(`
     SELECT r.status::text AS return_status,ol.refunded_quantity,ol.status::text AS line_status,o.status::text AS order_status,p.status::text AS payment_status,
-           p.refunded_minor,rf.public_id AS refund_id,ib.on_hand,pr.post_settlement_return_receivable_minor AS receivable_minor,
-           (SELECT count(*)::int FROM inventory_movements im WHERE im.offer_id=ol.assigned_offer_id AND im.movement_type='return_restock' AND im.metadata->>'returnId'=r.public_id) AS restock_count,
+           p.refunded_minor,rf.public_id AS refund_id,normal_ib.on_hand AS normal_on_hand,bazaar_ib.on_hand AS bazaar_on_hand,
+           bazaar_cv.commerce_channel AS bazaar_channel,bazaar_cv.bazaar_source,bazaar_cv.condition AS bazaar_condition,
+           pr.post_settlement_return_receivable_minor AS receivable_minor,
+           (SELECT count(*)::int FROM inventory_movements im WHERE im.offer_id=ol.assigned_offer_id AND im.movement_type='return_restock' AND im.metadata->>'returnId'=r.public_id) AS normal_restock_count,
+           (SELECT count(*)::int FROM inventory_movements im WHERE im.offer_id=bazaar_vo.id AND im.movement_type='return_restock' AND im.metadata->>'returnId'=r.public_id) AS bazaar_restock_count,
            (SELECT count(*)::int FROM audit_events ae WHERE ae.action='return.vendor_finance.reconciled' AND ae.entity_type='return' AND ae.entity_id=r.public_id) AS finance_audit_count
-    FROM returns r JOIN return_lines rl ON rl.return_id=r.id JOIN order_lines ol ON ol.id=rl.order_line_id
-    JOIN customer_orders o ON o.id=r.order_id JOIN payments p ON p.order_id=o.id JOIN refunds rf ON rf.id=rl.refund_id
-    JOIN inventory_balances ib ON ib.offer_id=ol.assigned_offer_id JOIN procurements pr ON pr.public_id=$2
+    FROM returns r
+    JOIN return_lines rl ON rl.return_id=r.id
+    JOIN order_lines ol ON ol.id=rl.order_line_id
+    JOIN customer_orders o ON o.id=r.order_id
+    JOIN payments p ON p.order_id=o.id
+    JOIN refunds rf ON rf.id=rl.refund_id
+    JOIN inventory_balances normal_ib ON normal_ib.offer_id=ol.assigned_offer_id
+    JOIN vendor_offers bazaar_vo ON bazaar_vo.source_payload->>'returnId'=r.public_id AND bazaar_vo.source_payload->>'orderLineId'=rl.order_line_id::text
+    JOIN canonical_variants bazaar_cv ON bazaar_cv.id=bazaar_vo.canonical_variant_id
+    JOIN inventory_balances bazaar_ib ON bazaar_ib.offer_id=bazaar_vo.id
+    JOIN procurements pr ON pr.public_id=$2
     WHERE r.public_id=$1
   `, [requested.returnId, procurementId]);
   const state = finalState.rows[0];
@@ -221,8 +233,18 @@ try {
   expect(Number(state?.refunded_quantity) === 1 && state?.line_status === "refunded", "Refund did not reconcile order-line quantity/status");
   expect(state?.order_status === "refunded" && state?.payment_status === "refunded", "Refund did not reconcile customer order/payment status");
   expect(Number(state?.refunded_minor) === refund.amountMinor && String(state?.refund_id ?? "") === refund.id, "Return line was not linked to the completed refund");
-  expect(Number(state?.on_hand) === Number(stockBeforeRefund.rows[0]?.on_hand ?? 0) + 1 && Number(state?.restock_count) === 1, "Sellable return was not restocked exactly once");
+  expect(Number(state?.normal_on_hand) === Number(normalStockBeforeRefund.rows[0]?.on_hand ?? 0) && Number(state?.normal_restock_count) === 0, "Sellable customer return leaked back into normal inventory");
+  expect(Number(state?.bazaar_on_hand) === 1 && Number(state?.bazaar_restock_count) === 1, "Sellable customer return was not restocked into BAZAAR exactly once");
+  expect(state?.bazaar_channel === "bazaar" && state?.bazaar_source === "customer_return" && state?.bazaar_condition === "open_box", "Customer return did not materialize with isolated BAZAAR identity");
   expect(Number(state?.receivable_minor) === vendorRecoveryMinor && Number(state?.finance_audit_count) === 1, "Post-settlement vendor recovery was not reconciled exactly once");
+
+  const crossChannelLeak = await runtime.sqlPool.query<{ leaks: number } & Record<string, unknown>>(`
+    SELECT count(*)::int AS leaks
+    FROM canonical_variants cv
+    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+    WHERE vo.source_payload->>'returnId'=$1 AND cv.commerce_channel<>'bazaar'`, [requested.returnId]);
+  expect(Number(crossChannelLeak.rows[0]?.leaks ?? 0) === 0, "Customer-return offer exists outside the BAZAAR channel");
+
   const audit = await runtime.sqlPool.query<{ action: string } & Record<string, unknown>>(`SELECT action FROM audit_events WHERE entity_type='return' AND entity_id=$1 ORDER BY created_at`, [requested.returnId]);
   const actions = new Set(audit.rows.map((row) => String(row.action)));
   for (const required of ["return.approve", "return.authorize", "return.approve_refund", "return.refund.executed", "return.vendor_finance.reconciled"]) {
@@ -246,7 +268,8 @@ try {
     vendorTenantIsolation: true,
     vendorReceiptAndInspection: true,
     mollieRefundLinkage: true,
-    sellableRestockExactlyOnce: true,
+    normalCatalogueRestockPrevented: true,
+    customerReturnBazaarMaterializationExactlyOnce: true,
     postSettlementVendorRecoveryExactlyOnce: true,
     appendOnlyAuditCoverage: true
   }, null, 2));
