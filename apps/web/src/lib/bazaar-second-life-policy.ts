@@ -206,3 +206,84 @@ export function buildBazaarSecondLifeMaterializationPlan(input: {
     },
   };
 }
+
+export type LegacyCustomerReturnIdentity = {
+  canonicalPublicId: string;
+  offerPublicId: string;
+  slug: string;
+  vendorSku: string;
+};
+
+function customerReturnIdentityPart(value: string, field: string): string {
+  const normalized = value.trim().replaceAll("-", "");
+  if (!normalized) throw new Error(`Customer-return ${field} is required`);
+  return normalized.slice(0, 12);
+}
+
+/**
+ * Canonical provenance reference for customer-return materialization. Keep the
+ * complete return and order-line identifiers here; the shared identity layer
+ * hashes the namespace into compact public IDs without losing source identity.
+ */
+export function customerReturnProvenanceRef(input: {
+  returnUuid: string;
+  orderLineUuid: string;
+}): string {
+  const returnUuid = input.returnUuid.trim();
+  const orderLineUuid = input.orderLineUuid.trim();
+  if (!returnUuid) throw new Error("Customer-return return UUID is required");
+  if (!orderLineUuid) throw new Error("Customer-return order-line UUID is required");
+  return `${returnUuid}:${orderLineUuid}`;
+}
+
+/**
+ * Reproduces the pre-shared-policy identity used by the first BAZAAR customer
+ * return implementation. Materializers should probe this identity before
+ * creating the new shared-policy identity so replays cannot duplicate stock
+ * that was already materialised by an older deployment.
+ */
+export function buildLegacyCustomerReturnIdentity(input: {
+  returnUuid: string;
+  orderLineUuid: string;
+  baseSlug: string;
+  baseVendorSku: string;
+}): LegacyCustomerReturnIdentity {
+  const identitySuffix = `${customerReturnIdentityPart(input.returnUuid, "return UUID")}_${customerReturnIdentityPart(input.orderLineUuid, "order-line UUID")}`;
+  const baseSlug = input.baseSlug.trim().replace(/-+$/g, "");
+  const baseVendorSku = input.baseVendorSku.trim();
+  if (!baseSlug) throw new Error("Customer-return base slug is required");
+  if (!baseVendorSku) throw new Error("Customer-return base vendor SKU is required");
+
+  return {
+    canonicalPublicId: `bazaar_return_${identitySuffix}`,
+    offerPublicId: `offer_bazaar_return_${identitySuffix}`,
+    slug: `${baseSlug}-return-${identitySuffix}`,
+    vendorSku: `${baseVendorSku}-RETURN-${identitySuffix}`,
+  };
+}
+
+/**
+ * Customer-return specialization of the generic second-life plan. This locks
+ * returns to the BAZAAR channel, `customer_return` provenance and `open_box`
+ * condition while leaving SQL/transaction orchestration to the caller.
+ */
+export function buildCustomerReturnMaterializationPlan(input: {
+  returnUuid: string;
+  orderLineUuid: string;
+  baseSlug: string;
+  baseVendorSku: string;
+  originalCanonicalId: string;
+  originalOfferId?: string;
+  metadata?: Record<string, unknown>;
+}): BazaarSecondLifeMaterializationPlan {
+  return buildBazaarSecondLifeMaterializationPlan({
+    source: "customer_return",
+    condition: "open_box",
+    provenanceRef: customerReturnProvenanceRef(input),
+    baseSlug: input.baseSlug,
+    baseVendorSku: input.baseVendorSku,
+    originalCanonicalId: input.originalCanonicalId,
+    originalOfferId: input.originalOfferId,
+    metadata: input.metadata,
+  });
+}
