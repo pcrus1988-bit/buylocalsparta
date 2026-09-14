@@ -1,2 +1,17 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";import { handoverVendorBoxNowShipment } from "../../../../../lib/boxnow-shipping-runtime";
-export async function POST(request:Request){try{const p=await requireVendorSession(request,true);const b=await request.json() as {shipmentId?:unknown};const id=typeof b.shipmentId==='string'?b.shipmentId.trim():'';if(!id)throw new Error('shipmentId is required');return Response.json(await handoverVendorBoxNowShipment(p,id))}catch(e){return Response.json({error:e instanceof Error?e.message:'boxnow_handover_failed'},{status:400})}}
+import { handoverVendorShipment } from "../../../../../lib/vendor-shipping-service";
+import { requireVendorSession } from "../../../../../lib/vendor-session";
+
+export async function POST(request: Request) {
+  try {
+    const principal = await requireVendorSession(request, true);
+    const body = await request.json() as { shipmentId?: unknown };
+    const shipmentId = typeof body.shipmentId === "string" ? body.shipmentId.trim() : "";
+    if (!shipmentId) throw new Error("shipmentId is required");
+    return Response.json(await handoverVendorShipment(principal, shipmentId));
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "boxnow_handover_failed" },
+      { status: 400 }
+    );
+  }
+}
