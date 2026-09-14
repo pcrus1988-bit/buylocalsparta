@@ -35,30 +35,31 @@ async function csrfToken(): Promise<string> {
   return payload.csrfToken;
 }
 
-async function runBounded<T>(items: readonly T[], worker: (item: T) => Promise<void>, concurrency = 4): Promise<readonly unknown[]> {
-  const errors: unknown[] = [];
+function failureError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "Η ενέργεια απέτυχε.";
+  return message.trim().slice(0, 180) || "Η ενέργεια απέτυχε.";
+}
+
+async function runBounded(items: readonly string[], worker: (item: string) => Promise<void>, concurrency = 4): Promise<readonly RecoveryFailure[]> {
+  const failures: RecoveryFailure[] = [];
   let cursor = 0;
   async function lane() {
     while (cursor < items.length) {
       const index = cursor++;
+      const offerId = items[index]!;
       try {
-        await worker(items[index]!);
+        await worker(offerId);
       } catch (error) {
-        errors.push(error);
+        failures.push({ offerId, error: failureError(error) });
       }
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => lane()));
-  return errors;
+  return failures;
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function recoveryError(error: unknown): string {
-  const message = error instanceof Error ? error.message : "Supplier availability refresh failed.";
-  return message.trim().slice(0, 180) || "Supplier availability refresh failed.";
 }
 
 export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, page, activeFilterCount }: Props) {
@@ -68,6 +69,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
   const [message, setMessage] = useState("");
   const [recoveryProgress, setRecoveryProgress] = useState<RecoveryProgress | null>(null);
   const [recoveryFailures, setRecoveryFailures] = useState<readonly RecoveryFailure[]>([]);
+  const [bulkFailures, setBulkFailures] = useState<readonly RecoveryFailure[]>([]);
   const [markupPercent, setMarkupPercent] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [publicFields, setPublicFields] = useState<DropshipPublicFields>(defaultPublicFields);
@@ -111,7 +113,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
           succeeded += 1;
           updatedOffers += typeof payload.updatedOffers === "number" ? payload.updatedOffers : 0;
         } catch (error) {
-          failures.push({ offerId, error: recoveryError(error) });
+          failures.push({ offerId, error: failureError(error) });
         } finally {
           setRecoveryProgress({ current: index + 1, total: targets.length });
         }
@@ -171,6 +173,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
     setBusy(true);
     setMessage("");
+    setBulkFailures([]);
     try {
       const token = await csrfToken();
       const errors = await runBounded(offerIds, async (offerId) => {
@@ -191,9 +194,10 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
         }
       });
 
+      setBulkFailures(errors);
       const succeeded = offerIds.length - errors.length;
       setMessage(errors.length
-        ? `Ολοκληρώθηκαν ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα επειδή απέτυχαν οι υπάρχοντες safety/moderation έλεγχοι.`
+        ? `Ολοκληρώθηκαν ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα. Δες παρακάτω τα ακριβή failed rows και τον υπάρχοντα safety/moderation λόγο.`
         : `Ολοκληρώθηκαν ${succeeded}/${offerIds.length} προϊόντα.`);
       router.refresh();
     } catch (error) {
@@ -224,6 +228,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
     setBusy(true);
     setMessage("");
+    setBulkFailures([]);
     try {
       const token = await csrfToken();
       const errors = await runBounded(offerIds, async (offerId) => {
@@ -245,9 +250,10 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
         }
       });
 
+      setBulkFailures(errors);
       const succeeded = offerIds.length - errors.length;
       setMessage(errors.length
-        ? `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα (π.χ. χωρίς έγκυρη supplier buying price ή λόγω υπάρχοντος pricing safety gate).`
+        ? `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα. Δες παρακάτω ποια rows απέτυχαν και τον ακριβή pricing/supplier λόγο.`
         : `Pricing overrides αποθηκεύτηκαν σε ${succeeded}/${offerIds.length} προϊόντα.`);
       router.refresh();
     } catch (error) {
@@ -266,6 +272,7 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
     setBusy(true);
     setMessage("");
+    setBulkFailures([]);
     try {
       const token = await csrfToken();
       const errors = await runBounded(offerIds, async (offerId) => {
@@ -282,9 +289,10 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
         }
       });
 
+      setBulkFailures(errors);
       const succeeded = offerIds.length - errors.length;
       setMessage(errors.length
-        ? `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα λόγω των υπαρχόντων ownership/presentation ελέγχων.`
+        ? `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${offerIds.length}. ${errors.length} προϊόντα παρέμειναν αμετάβλητα. Δες παρακάτω τα failed rows και τον ownership/presentation λόγο.`
         : `${resetToSupplierDefaults ? "Public-field defaults επανήλθαν" : "Public-field overrides αποθηκεύτηκαν"} σε ${succeeded}/${offerIds.length} προϊόντα.`);
       router.refresh();
     } catch (error) {
@@ -367,5 +375,14 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       <button className="button button-secondary" type="button" disabled={busy || !offerIds.length} onClick={() => execute("reset")}>Reset current page</button>
     </div>
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
+    {bulkFailures.length ? <details open style={{ marginTop: 8 }}>
+      <summary style={{ cursor: "pointer", fontWeight: 700 }}>Failed bulk rows · {bulkFailures.length}</summary>
+      <small style={{ display: "block", marginTop: 6 }}>Τα παρακάτω προϊόντα δεν άλλαξαν. Το μήνυμα προέρχεται από το υπάρχον server-side ownership, supplier, moderation, pricing ή presentation gate.</small>
+      <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+        {bulkFailures.map((failure) => <li key={failure.offerId} style={{ marginBottom: 4, overflowWrap: "anywhere" }}>
+          <code>{failure.offerId}</code> · {failure.error}
+        </li>)}
+      </ul>
+    </details> : null}
   </div>;
 }
