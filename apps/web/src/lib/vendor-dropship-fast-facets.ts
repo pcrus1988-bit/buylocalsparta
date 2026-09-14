@@ -46,21 +46,27 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
   const hiddenCategoryIds = await hiddenVendorCategoryIds(vendorId);
   const pool = getProductionPostgresRuntime().nativePool;
 
-  // Resolve the public vendor and market through scalar InitPlans instead of joining
-  // them into the 50k+ row catalogue. This gives PostgreSQL an accurate vendor-scoped
-  // cardinality estimate and avoids pathological nested-loop plans across lookup tables.
-  // Keep the expensive dynamic-size vocabulary isolated from family-count facets.
+  // Keep this background facet projection deliberately slimmer than product hydration.
+  // Nova currently carries no public color values in product translations, so joining
+  // both translation locales across the full supplier catalogue only adds fan-out and
+  // latency. Canonical variant_attributes remains the normalized color source here;
+  // category labels still use their small taxonomy translation tables.
+  //
+  // Supplier ownership is asserted alongside vendor-offer ownership so a future
+  // mis-bound supplier cannot contribute facets to another vendor storefront.
   const [facetResult, sizeResult] = await Promise.all([
     pool.query<FacetRow>(`
-      WITH base AS MATERIALIZED (
+      WITH vendor AS MATERIALIZED (
+        SELECT id
+        FROM vendor_businesses
+        WHERE public_id=$1 AND status='active'
+      ), base AS MATERIALIZED (
         SELECT
           COALESCE(cv.family_id::text,dso.supplier_id::text||':'||dso.external_product_id) AS family_key,
           c.code AS category_code,
           COALESCE(ctel.name,cten.name,c.code) AS category_label,
           NULLIF(BTRIM(COALESCE(b.name,'')),'') AS brand,
-          NULLIF(BTRIM(COALESCE(
-            el.specifications->>'color',en.specifications->>'color',cv.variant_attributes->>'color',''
-          )),'') AS color
+          NULLIF(BTRIM(COALESCE(cv.variant_attributes->>'color','')),'') AS color
         FROM vendor_offers vo
         JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
         JOIN categories c ON c.id=cv.category_id
@@ -69,13 +75,10 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
         JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
         LEFT JOIN product_families pf ON pf.id=cv.family_id
         LEFT JOIN brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
-        LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-        LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
         LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-        WHERE vo.vendor_id=(
-          SELECT id FROM vendor_businesses WHERE public_id=$1 AND status='active'
-        )
+        WHERE vo.vendor_id=(SELECT id FROM vendor)
+          AND ds.owner_vendor_id=(SELECT id FROM vendor)
           AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
           AND COALESCE(cv.commerce_channel,'normal')='normal'
           AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
@@ -102,6 +105,11 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
         COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'label',value,'count',count) ORDER BY value) FROM color_values),'[]'::jsonb) AS colors
     `, [vendorId, hiddenCategoryIds]),
     pool.query<SizeRow>(`
+      WITH vendor AS MATERIALIZED (
+        SELECT id
+        FROM vendor_businesses
+        WHERE public_id=$1 AND status='active'
+      )
       SELECT DISTINCT BTRIM(size_entry.value) AS value
       FROM vendor_offers vo
       JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
@@ -126,9 +134,8 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
         cv.variant_attributes->>'gloves_size_men',
         cv.variant_attributes->>'size'
       ]) AS size_entry(value)
-      WHERE vo.vendor_id=(
-        SELECT id FROM vendor_businesses WHERE public_id=$1 AND status='active'
-      )
+      WHERE vo.vendor_id=(SELECT id FROM vendor)
+        AND ds.owner_vendor_id=(SELECT id FROM vendor)
         AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
         AND COALESCE(cv.commerce_channel,'normal')='normal'
         AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
@@ -156,7 +163,7 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
 
 const cachedFastVendorDropshipFacets = unstable_cache(
   readFastVendorDropshipFacets,
-  ["vendor-dropship-storefront-fast-facets-v1"],
+  ["vendor-dropship-storefront-fast-facets-v2"],
   { revalidate: 300 }
 );
 
