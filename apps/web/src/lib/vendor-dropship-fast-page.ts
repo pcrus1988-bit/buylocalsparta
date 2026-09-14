@@ -130,7 +130,7 @@ export async function getFastVendorDropshipCatalogPage(
       AND cv.suppressed=false
       AND cv.recalled=false
       AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
-    ORDER BY dso.supplier_id,dso.source_product_id
+    ORDER BY 1,2
     LIMIT $3 OFFSET $4
   `, [vendorId, hiddenCategoryIds, limit + 1, offset]);
 
