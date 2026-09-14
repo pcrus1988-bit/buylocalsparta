@@ -46,14 +46,9 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
   const hiddenCategoryIds = await hiddenVendorCategoryIds(vendorId);
   const pool = getProductionPostgresRuntime().nativePool;
 
-  // Keep this background facet projection deliberately slimmer than product hydration.
-  // Nova currently carries no public color values in product translations, so joining
-  // both translation locales across the full supplier catalogue only adds fan-out and
-  // latency. Canonical variant_attributes remains the normalized color source here;
-  // category labels still use their small taxonomy translation tables.
-  //
-  // Supplier ownership is asserted alongside vendor-offer ownership so a future
-  // mis-bound supplier cannot contribute facets to another vendor storefront.
+  // Facets are storefront data, so they must reflect exactly the same sellable
+  // supplier inventory as product pagination. Dead stock is excluded before family
+  // aggregation rather than being counted and hidden later in the browser.
   const [facetResult, sizeResult] = await Promise.all([
     pool.query<FacetRow>(`
       WITH vendor AS MATERIALIZED (
@@ -85,7 +80,12 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
           AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
           AND vo.customer_price_minor>0
           AND l.active=true
-          AND dso.active=true AND ds.active=true AND ds.api_authoritative_availability=true
+          AND dso.active=true
+          AND dso.cached_available=true
+          AND dso.cached_quantity>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+          AND ds.active=true AND ds.api_authoritative_availability=true
           AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
           AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       ), category_values AS (
@@ -142,7 +142,12 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
         AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
         AND l.active=true
-        AND dso.active=true AND ds.active=true AND ds.api_authoritative_availability=true
+        AND dso.active=true
+        AND dso.cached_available=true
+        AND dso.cached_quantity>=1
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at>now()
+        AND ds.active=true AND ds.api_authoritative_availability=true
         AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
         AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
         AND size_entry.value IS NOT NULL AND BTRIM(size_entry.value)<>''
@@ -163,7 +168,7 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
 
 const cachedFastVendorDropshipFacets = unstable_cache(
   readFastVendorDropshipFacets,
-  ["vendor-dropship-storefront-fast-facets-v2"],
+  ["vendor-dropship-storefront-fast-facets-v3-sellable-only"],
   { revalidate: 300 }
 );
 
