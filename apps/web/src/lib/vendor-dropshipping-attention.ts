@@ -4,6 +4,7 @@ import { assertDropshippingOnlyVendor } from "./vendor-dropshipping-access";
 export type DropshippingAttentionKind =
   | "published_unavailable"
   | "missing_cost"
+  | "pricing_pending"
   | "stale_availability"
   | "withdrawn"
   | "overpriced";
@@ -11,6 +12,7 @@ export type DropshippingAttentionKind =
 export type DropshippingAttentionCounts = Readonly<{
   publishedUnavailable: number;
   missingCost: number;
+  pricingPending: number;
   staleAvailability: number;
   withdrawn: number;
   overpriced: number;
@@ -55,6 +57,7 @@ function iso(value: unknown): string | null {
 function attentionKind(value: unknown): DropshippingAttentionKind {
   return value === "published_unavailable"
     || value === "missing_cost"
+    || value === "pricing_pending"
     || value === "stale_availability"
     || value === "withdrawn"
     || value === "overpriced"
@@ -83,7 +86,7 @@ export async function vendorDropshippingAttention(
   await assertDropshippingOnlyVendor(vendorIdentity);
   if (!productionDatabaseConfigured()) {
     return {
-      counts: { publishedUnavailable: 0, missingCost: 0, staleAvailability: 0, withdrawn: 0, overpriced: 0 },
+      counts: { publishedUnavailable: 0, missingCost: 0, pricingPending: 0, staleAvailability: 0, withdrawn: 0, overpriced: 0 },
       items: []
     };
   }
@@ -105,6 +108,15 @@ export async function vendorDropshippingAttention(
           WHERE dso.active=true
             AND dso.supplier_cost_minor IS NULL
         )::bigint missing_cost,
+        count(*) FILTER (
+          WHERE dso.active=true
+            AND dso.supplier_cost_minor IS NOT NULL
+            AND coalesce(vo.source_payload->>'pricingManualOverride','false')<>'true'
+            AND (
+              coalesce(vo.source_payload->>'pricingManagedBy','')<>'nova_auto_v2'
+              OR coalesce(vo.source_payload->>'pricingPending','false')='true'
+            )
+        )::bigint pricing_pending,
         count(*) FILTER (
           WHERE dso.active=true
             AND (dso.availability_checked_at IS NULL OR dso.availability_checked_at < now()-interval '24 hours')
@@ -133,6 +145,14 @@ export async function vendorDropshippingAttention(
                  THEN 'published_unavailable'
                WHEN dso.active=true AND dso.supplier_cost_minor IS NULL
                  THEN 'missing_cost'
+               WHEN dso.active=true
+                 AND dso.supplier_cost_minor IS NOT NULL
+                 AND coalesce(vo.source_payload->>'pricingManualOverride','false')<>'true'
+                 AND (
+                   coalesce(vo.source_payload->>'pricingManagedBy','')<>'nova_auto_v2'
+                   OR coalesce(vo.source_payload->>'pricingPending','false')='true'
+                 )
+                 THEN 'pricing_pending'
                WHEN dso.active=true AND (dso.availability_checked_at IS NULL OR dso.availability_checked_at < now()-interval '24 hours')
                  THEN 'stale_availability'
                WHEN dso.active=false AND coalesce(dso.availability_payload->>'withdrawnByDeletedFeed','false')='true'
@@ -148,9 +168,16 @@ export async function vendorDropshippingAttention(
              CASE
                WHEN vo.merchant_visible=true AND vo.status='approved' AND dso.active=true AND dso.cached_available=false THEN 1
                WHEN dso.active=true AND dso.supplier_cost_minor IS NULL THEN 2
-               WHEN dso.active=true AND (dso.availability_checked_at IS NULL OR dso.availability_checked_at < now()-interval '24 hours') THEN 3
-               WHEN dso.active=false AND coalesce(dso.availability_payload->>'withdrawnByDeletedFeed','false')='true' THEN 4
-               ELSE 5
+               WHEN dso.active=true
+                 AND dso.supplier_cost_minor IS NOT NULL
+                 AND coalesce(vo.source_payload->>'pricingManualOverride','false')<>'true'
+                 AND (
+                   coalesce(vo.source_payload->>'pricingManagedBy','')<>'nova_auto_v2'
+                   OR coalesce(vo.source_payload->>'pricingPending','false')='true'
+                 ) THEN 3
+               WHEN dso.active=true AND (dso.availability_checked_at IS NULL OR dso.availability_checked_at < now()-interval '24 hours') THEN 4
+               WHEN dso.active=false AND coalesce(dso.availability_payload->>'withdrawnByDeletedFeed','false')='true' THEN 5
+               ELSE 6
              END issue_priority
         FROM dropship_supplier_offers dso
         JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
@@ -162,6 +189,15 @@ export async function vendorDropshippingAttention(
          AND (
            (vo.merchant_visible=true AND vo.status='approved' AND dso.active=true AND dso.cached_available=false)
            OR (dso.active=true AND dso.supplier_cost_minor IS NULL)
+           OR (
+             dso.active=true
+             AND dso.supplier_cost_minor IS NOT NULL
+             AND coalesce(vo.source_payload->>'pricingManualOverride','false')<>'true'
+             AND (
+               coalesce(vo.source_payload->>'pricingManagedBy','')<>'nova_auto_v2'
+               OR coalesce(vo.source_payload->>'pricingPending','false')='true'
+             )
+           )
            OR (dso.active=true AND (dso.availability_checked_at IS NULL OR dso.availability_checked_at < now()-interval '24 hours'))
            OR (dso.active=false AND coalesce(dso.availability_payload->>'withdrawnByDeletedFeed','false')='true')
            OR (dso.active=true AND vo.status='approved' AND vo.source_payload->>'pricingFlag'='OVERPRICED')
@@ -176,6 +212,7 @@ export async function vendorDropshippingAttention(
     counts: {
       publishedUnavailable: count(row.published_unavailable),
       missingCost: count(row.missing_cost),
+      pricingPending: count(row.pricing_pending),
       staleAvailability: count(row.stale_availability),
       withdrawn: count(row.withdrawn),
       overpriced: count(row.overpriced)
