@@ -12,6 +12,7 @@ type Props = Readonly<{
 }>;
 
 type BulkAction = "publish" | "hide" | "reset";
+type FeedDiagnosticFilter = "stale_sync" | "missing_telemetry";
 
 const defaultPublicFields: DropshipPublicFields = {
   model: true,
@@ -56,6 +57,14 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
 
   function setPublicField(key: keyof DropshipPublicFields, checked: boolean) {
     setPublicFields((current) => ({ ...current, [key]: checked }));
+  }
+
+  function applyFeedDiagnosticFilter(filter: FeedDiagnosticFilter | null) {
+    const params = new URLSearchParams(window.location.search);
+    if (filter) params.set("availability", filter);
+    else params.delete("availability");
+    params.delete("page");
+    router.push(`/vendor/dropshipping?${params.toString()}`);
   }
 
   async function execute(action: BulkAction) {
@@ -201,6 +210,16 @@ export function DropshippingFilteredPageBulkActions({ offerIds, resultCount, pag
       <span className="vendor-merchant-status">έως 50 / σελίδα</span>
     </div>
     <p style={{ marginTop: 10 }}>Χρησιμοποίησε πρώτα αναζήτηση/φίλτρα και μετά εφάρμοσε την ενέργεια μόνο στα προϊόντα που βλέπεις τώρα. Δεν αλλάζει ολόκληρο τον supplier κατά λάθος και δεν παρακάμπτει eligibility, moderation, recall/suppression, supplier ή pricing checks.</p>
+
+    <div style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "10px 0", marginBottom: 12 }}>
+      <strong style={{ display: "block", marginBottom: 6 }}>Feed diagnostics</strong>
+      <small style={{ display: "block", marginBottom: 8 }}>Άνοιξε άμεσα τα προϊόντα με καθυστερημένο catalogue sync ή χωρίς availability telemetry. Διατηρούνται ο supplier και τα υπόλοιπα ενεργά φίλτρα· η σελιδοποίηση επιστρέφει στη σελίδα 1.</small>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("stale_sync")}>Stale catalogue sync</button>
+        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter("missing_telemetry")}>Χωρίς availability telemetry</button>
+        <button className="button button-secondary" type="button" onClick={() => applyFeedDiagnosticFilter(null)}>Καθαρισμός feed diagnostic</button>
+      </div>
+    </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 10 }}>
       <label><small>Bulk markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} disabled={busy} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
