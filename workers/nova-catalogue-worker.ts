@@ -121,15 +121,20 @@ try {
         log("info", "nova.sellability_safety_sweep", { workerId, ...sellabilitySafety });
 
         await recordNovaSupplierHealthy();
-        try {
-          const materialization = await runNovaCatalogueMaterializationSlice();
-          log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
-        } catch (error) {
-          log("error", "nova.catalogue_materialization_failed", {
-            workerId,
-            error: safeError(error)
-          });
-        }
+      }
+
+      // Source ingestion and canonical materialization are separate queues. Always give
+      // the materializer a chance to drain already-ingested rows, even when the upstream
+      // supplier cursor is caught up. Keeping this outside result.claimed also repairs a
+      // backlog left behind by a restart/failure without requiring a new supplier page.
+      try {
+        const materialization = await runNovaCatalogueMaterializationSlice();
+        log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
+      } catch (error) {
+        log("error", "nova.catalogue_materialization_failed", {
+          workerId,
+          error: safeError(error)
+        });
       }
 
       // Sync/materialization can introduce fresh offers after the first pricing pass.
