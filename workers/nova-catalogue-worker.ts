@@ -73,35 +73,15 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
-      // Pricing must make bounded progress before any catalogue-wide maintenance.
-      // Newly imported/unmanaged offers are drained in bounded catch-up batches so
-      // they cannot wait for a random public-id cursor rotation. Once catch-up is
-      // clear, the regular cursor pass runs exactly once and normal repricing resumes.
-      try {
-        for (let pass = 1; pass <= pricingCatchupMaxPasses && !stopping; pass += 1) {
-          const pricing = await runNovaAutoPricingSlice();
-          log("info", "nova.auto_pricing_slice", {
-            workerId,
-            phase: pass === 1 ? "pre_publication" : "pre_publication_catchup",
-            catchupPass: pass,
-            ...pricing
-          });
-          if (pricing.message !== "auto_pricing_unmanaged_catchup" || pricing.scanned === 0) break;
-        }
-      } catch (error) {
-        // Pricing is a derived layer. Supplier source ingestion remains durable even
-        // if a pricing pass fails, and the next loop safely retries the same work.
-        log("error", "nova.auto_pricing_failed", {
-          workerId,
-          phase: "pre_publication",
-          error: safeError(error)
-        });
-      }
+      // Pricing is a publication barrier. It runs before any catalogue-wide maintenance,
+      // and publication stays fail-closed until every previously unmanaged offer in the
+      // bounded catch-up window has passed through the V2 pricing engine.
+      const preRefreshPricingReady = await ensurePricingReadyForPublication("pre_refresh");
 
       // Publication must not be starved by a slow supplier availability sweep after
       // a deploy/restart. Public catalogue queries still enforce the supplier TTL,
       // so publishing staged offers here does not invent stock or make stale stock sellable.
-      if (automaticPublicationEnabled) {
+      if (automaticPublicationEnabled && preRefreshPricingReady) {
         try {
           const publication = await runNovaAutoPublicationSweep();
           log("info", "nova.auto_publication_sweep", { workerId, phase: "pre_refresh", ...publication });
@@ -112,6 +92,8 @@ try {
             error: safeError(error)
           });
         }
+      } else if (automaticPublicationEnabled) {
+        log("error", "nova.auto_publication_skipped_unpriced", { workerId, phase: "pre_refresh" });
       }
 
       if (Date.now() >= nextAvailabilityRefreshAt) {
@@ -150,7 +132,11 @@ try {
         }
       }
 
-      if (automaticPublicationEnabled) {
+      // Sync/materialization can introduce fresh offers after the first pricing pass.
+      // Re-run the pricing barrier before the post-materialization publication sweep so
+      // a newly imported NOVA item cannot become visible with only a raw/default price.
+      const postMaterializationPricingReady = await ensurePricingReadyForPublication("post_materialization");
+      if (automaticPublicationEnabled && postMaterializationPricingReady) {
         try {
           const publication = await runNovaAutoPublicationSweep();
           log("info", "nova.auto_publication_sweep", { workerId, phase: "post_materialization", ...publication });
@@ -163,6 +149,8 @@ try {
             error: safeError(error)
           });
         }
+      } else if (automaticPublicationEnabled) {
+        log("error", "nova.auto_publication_skipped_unpriced", { workerId, phase: "post_materialization" });
       }
 
       try {
@@ -206,6 +194,43 @@ try {
 } finally {
   await getProductionPostgresRuntime().close();
   log("info", "nova.worker_stopped", { workerId });
+}
+
+async function ensurePricingReadyForPublication(phase: "pre_refresh" | "post_materialization"): Promise<boolean> {
+  if (!novaAutoPricingEnabled()) {
+    log("error", "nova.auto_pricing_required_for_publication", { workerId, phase, enabled: false });
+    return false;
+  }
+
+  try {
+    for (let pass = 1; pass <= pricingCatchupMaxPasses && !stopping; pass += 1) {
+      const pricing = await runNovaAutoPricingSlice();
+      log("info", "nova.auto_pricing_slice", {
+        workerId,
+        phase,
+        catchupPass: pass,
+        ...pricing
+      });
+      if (!pricing.enabled) return false;
+      if (pricing.message !== "auto_pricing_unmanaged_catchup" || pricing.scanned === 0) return true;
+    }
+    log("error", "nova.auto_pricing_catchup_limit_reached", {
+      workerId,
+      phase,
+      maxPasses: pricingCatchupMaxPasses
+    });
+    return false;
+  } catch (error) {
+    // Supplier source ingestion remains durable even if pricing fails. Publication is
+    // intentionally blocked until a later pass succeeds, preventing raw/default prices
+    // from becoming customer-facing.
+    log("error", "nova.auto_pricing_failed", {
+      workerId,
+      phase,
+      error: safeError(error)
+    });
+    return false;
+  }
 }
 
 async function recordNovaSupplierHealthy(): Promise<void> {
