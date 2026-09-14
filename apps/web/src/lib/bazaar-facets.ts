@@ -65,7 +65,7 @@ async function loadBazaarFacets(): Promise<BazaarFacets> {
             AND ds.active=true
             AND ds.api_authoritative_availability=true
             AND dso.cached_available=true
-            AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+            AND dso.cached_quantity>=1
             AND dso.availability_expires_at IS NOT NULL
             AND dso.availability_expires_at>now()
             AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
@@ -96,6 +96,6 @@ async function loadBazaarFacets(): Promise<BazaarFacets> {
 
 export const getCachedBazaarFacets = unstable_cache(
   loadBazaarFacets,
-  ["bazaar-facets-v1"],
+  ["bazaar-facets-v2-sellable-dropship-only"],
   { revalidate: 300 }
 );
