@@ -1,7 +1,7 @@
 .trigger { display: none; }
 .root { display: none; }
 
-@media (max-width: 620px) {
+@media (max-width: 760px) {
   .trigger {
     width: 100%;
     min-height: 64px;
