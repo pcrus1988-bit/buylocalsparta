@@ -14,6 +14,7 @@ export type CartItem = Readonly<{
   gtin?: string;
   color?: string;
   size?: string;
+  fulfilmentKind?: "local" | "partner";
 }>;
 
 type CartContextValue = Readonly<{
@@ -26,6 +27,10 @@ type CartContextValue = Readonly<{
   clear: () => void;
   hydrated: boolean;
   detailsReady: boolean;
+  isCartOpen: boolean;
+  openCart: () => void;
+  closeCart: () => void;
+  cartPulseKey: number;
 }>;
 
 type CartProductDetails = Readonly<{
@@ -36,6 +41,7 @@ type CartProductDetails = Readonly<{
   gtin?: string;
   color?: string;
   size?: string;
+  fulfilmentKind?: "local" | "partner";
 }>;
 
 const STORAGE_KEY = "buy-local-sparta-cart-v1";
@@ -88,9 +94,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [detailsReady, setDetailsReady] = useState(false);
   const [persistentCsrf, setPersistentCsrf] = useState<string>();
+  const [isCartOpen, setCartOpen] = useState(false);
+  const [cartPulseKey, setCartPulseKey] = useState(0);
   const persistentEnabled = useRef(false);
   const initialMergeDone = useRef(false);
   const itemIdsKey = useMemo(() => items.map((item) => item.canonicalVariantId).sort().join("|"), [items]);
+  const openCart = useCallback(() => setCartOpen(true), []);
+  const closeCart = useCallback(() => setCartOpen(false), []);
 
   useEffect(() => {
     let local: CartItem[] = [];
@@ -122,7 +132,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!itemIdsKey || !/^\/(?:cart|checkout)\/?$/.test(window.location.pathname)) {
+    const richPresentationNeeded = isCartOpen || /^\/(?:cart|checkout)\/?$/.test(window.location.pathname);
+    if (!itemIdsKey || !richPresentationNeeded) {
       setDetailsReady(true);
       return;
     }
@@ -153,7 +164,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) setDetailsReady(true);
       });
     return () => controller.abort();
-  }, [hydrated, itemIdsKey]);
+  }, [hydrated, isCartOpen, itemIdsKey]);
 
   useEffect(() => {
     if (hydrated) localStorageSet(STORAGE_KEY, JSON.stringify(items.map(persistentCartItem)));
@@ -179,6 +190,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!existing) return [...current, { ...item, quantity: safeQuantity }];
       return current.map((entry) => entry.canonicalVariantId === item.canonicalVariantId ? { ...entry, ...item, quantity: Math.min(99, entry.quantity + safeQuantity) } : entry);
     });
+    setCartPulseKey((current) => current + 1);
+    setCartOpen(true);
   }, []);
 
   const setQuantity = useCallback((id: string, quantity: number) => {
@@ -199,8 +212,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     removeItem,
     clear,
     hydrated,
-    detailsReady
-  }), [items, addItem, setQuantity, removeItem, clear, hydrated, detailsReady]);
+    detailsReady,
+    isCartOpen,
+    openCart,
+    closeCart,
+    cartPulseKey
+  }), [items, addItem, setQuantity, removeItem, clear, hydrated, detailsReady, isCartOpen, openCart, closeCart, cartPulseKey]);
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
