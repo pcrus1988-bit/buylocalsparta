@@ -27,6 +27,11 @@ export type NovaAvailabilityRefreshResult = Readonly<{
   updatedOffers: number;
 }>;
 
+export type NovaProductAvailabilityRefreshResult = Readonly<{
+  externalProductId: string;
+  updatedOffers: number;
+}>;
+
 /**
  * Refresh the full set of currently public NOVA/BrandsGateway products.
  *
@@ -40,17 +45,7 @@ export type NovaAvailabilityRefreshResult = Readonly<{
  */
 export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
   const db = getProductionPostgresRuntime().sqlPool;
-  const source = await db.query<SqlRow>(`
-    SELECT COALESCE(
-      metadata #>> '{novaSync,storeId}',
-      metadata ->> 'storeId',
-      '2'
-    ) AS store_id
-    FROM public.catalog_sources
-    WHERE code='nova-brandsgateway'
-    LIMIT 1
-  `);
-  const storeId = text(source.rows[0]?.store_id) || "2";
+  const storeId = await resolveNovaStoreId();
 
   const productResult = await db.query<SqlRow>(`
     SELECT DISTINCT dso.external_product_id
@@ -73,58 +68,15 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
     .map((row) => text(row.external_product_id))
     .filter((value): value is string => Boolean(value));
 
-  const client = new NovaV1Client({
-    apiKey: novaApiKeyFromEnvironment(),
-    requestsPerMinute: novaAvailabilityRequestsPerMinute()
-  });
+  const client = createNovaAvailabilityClient();
   let refreshedProducts = 0;
   let failedProducts = 0;
   let updatedOffers = 0;
 
   for (const externalProductId of productIds) {
     try {
-      const supplierProduct = await getProductWithRateLimitBackoff(client, storeId, externalProductId);
-      const normalized = normalizeNovaProduct(supplierProduct, storeId);
-      const variants = availabilityVariants(normalized.normalizedPayload.variants);
-      if (variants.length === 0) throw new Error("Nova product returned no normalized variants");
-
-      const checkedAt = new Date();
-      for (const variant of variants) {
-        const update = await db.query<SqlRow>(`
-          UPDATE public.dropship_supplier_offers dso
-          SET cached_available=$4,
-              cached_quantity=$5,
-              availability_checked_at=$6,
-              availability_expires_at=$6::timestamptz + interval '${AVAILABILITY_TTL_HOURS} hours',
-              availability_payload=COALESCE(dso.availability_payload, '{}'::jsonb) || jsonb_build_object(
-                'source', 'nova_api_authoritative',
-                'productId', $2,
-                'variantId', $3,
-                'refreshedAt', $6::timestamptz,
-                'refreshPolicy', 'hourly_full_sweep_2h_ttl_rate_limited'
-              ),
-              updated_at=$6
-          FROM public.dropship_suppliers ds
-          WHERE ds.id=dso.supplier_id
-            AND ds.code=$1
-            AND ds.api_authoritative_availability=true
-            AND dso.active=true
-            AND dso.external_product_id=$2
-            AND (
-              dso.external_variant_id=$3
-              OR ($7::text IS NOT NULL AND dso.external_sku=$7)
-            )
-        `, [
-          NOVA_SUPPLIER_CODE,
-          externalProductId,
-          variant.externalVariantId,
-          variant.available,
-          variant.stockQuantity,
-          checkedAt,
-          variant.sku
-        ]);
-        updatedOffers += update.rowCount;
-      }
+      const refreshed = await refreshNovaAvailabilityProductWithClient(client, storeId, externalProductId);
+      updatedOffers += refreshed.updatedOffers;
       refreshedProducts += 1;
     } catch (error) {
       failedProducts += 1;
@@ -146,11 +98,105 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
   };
 }
 
+/**
+ * Refresh one NOVA product through the same authoritative supplier path used by the hourly sweep.
+ * Intended for vendor-initiated recovery of missing/stale availability telemetry without running
+ * a full catalogue sweep inside a web request. This function does not publish products, change
+ * prices, place supplier orders, or touch local inventory.
+ */
+export async function runNovaAvailabilityRefreshForProduct(
+  externalProductId: string
+): Promise<NovaProductAvailabilityRefreshResult> {
+  const normalizedProductId = externalProductId.trim();
+  if (!normalizedProductId) throw new Error("NOVA_EXTERNAL_PRODUCT_ID_REQUIRED");
+  const storeId = await resolveNovaStoreId();
+  return refreshNovaAvailabilityProductWithClient(
+    createNovaAvailabilityClient(),
+    storeId,
+    normalizedProductId
+  );
+}
+
 export function novaAvailabilityRequestsPerMinute(env: NodeJS.ProcessEnv = process.env): number {
   const parsed = Number(env.BLS_NOVA_AVAILABILITY_REQUESTS_PER_MINUTE ?? DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE);
   return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 60
     ? parsed
     : DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE;
+}
+
+async function resolveNovaStoreId(): Promise<string> {
+  const source = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT COALESCE(
+      metadata #>> '{novaSync,storeId}',
+      metadata ->> 'storeId',
+      '2'
+    ) AS store_id
+    FROM public.catalog_sources
+    WHERE code='nova-brandsgateway'
+    LIMIT 1
+  `);
+  return text(source.rows[0]?.store_id) || "2";
+}
+
+function createNovaAvailabilityClient(): NovaV1Client {
+  return new NovaV1Client({
+    apiKey: novaApiKeyFromEnvironment(),
+    requestsPerMinute: novaAvailabilityRequestsPerMinute()
+  });
+}
+
+async function refreshNovaAvailabilityProductWithClient(
+  client: NovaV1Client,
+  storeId: string,
+  externalProductId: string
+): Promise<NovaProductAvailabilityRefreshResult> {
+  const db = getProductionPostgresRuntime().sqlPool;
+  const supplierProduct = await getProductWithRateLimitBackoff(client, storeId, externalProductId);
+  const normalized = normalizeNovaProduct(supplierProduct, storeId);
+  const variants = availabilityVariants(normalized.normalizedPayload.variants);
+  if (variants.length === 0) throw new Error("Nova product returned no normalized variants");
+
+  const checkedAt = new Date();
+  let updatedOffers = 0;
+  for (const variant of variants) {
+    const update = await db.query<SqlRow>(`
+      UPDATE public.dropship_supplier_offers dso
+      SET cached_available=$4,
+          cached_quantity=$5,
+          availability_checked_at=$6,
+          availability_expires_at=$6::timestamptz + interval '${AVAILABILITY_TTL_HOURS} hours',
+          availability_payload=COALESCE(dso.availability_payload, '{}'::jsonb) || jsonb_build_object(
+            'source', 'nova_api_authoritative',
+            'productId', $2,
+            'variantId', $3,
+            'refreshedAt', $6::timestamptz,
+            'refreshPolicy', 'hourly_full_sweep_2h_ttl_rate_limited'
+          ),
+          updated_at=$6
+      FROM public.dropship_suppliers ds
+      WHERE ds.id=dso.supplier_id
+        AND ds.code=$1
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+        AND dso.active=true
+        AND dso.external_product_id=$2
+        AND (
+          dso.external_variant_id=$3
+          OR ($7::text IS NOT NULL AND dso.external_sku=$7)
+        )
+    `, [
+      NOVA_SUPPLIER_CODE,
+      externalProductId,
+      variant.externalVariantId,
+      variant.available,
+      variant.stockQuantity,
+      checkedAt,
+      variant.sku
+    ]);
+    updatedOffers += update.rowCount;
+  }
+
+  return { externalProductId, updatedOffers };
 }
 
 async function getProductWithRateLimitBackoff(
