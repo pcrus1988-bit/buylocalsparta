@@ -101,6 +101,14 @@ type DatabaseCatalogRecord = Readonly<{
 }>;
 
 type PublicOfferAvailabilityRow = Readonly<{ canonical_public_id: string }>;
+type PublicCanonicalSummaryRow = Readonly<{
+  canonical_public_id: string;
+  slug: string;
+  title: string;
+  platform_price_minor: number | string;
+  category_code: string;
+}>;
+type DuplicateCountRow = Readonly<{ duplicate_count: number | string }>;
 
 /**
  * Stable search-admission signal: a public canonical must have at least one
@@ -356,15 +364,113 @@ async function enrichDatabaseRecords(records: readonly DatabaseCatalogRecord[], 
 }
 
 /**
+ * Exact public-canonical projection for product-detail and metadata routes.
+ * Keeping this lookup bounded prevents a single product request from hydrating the
+ * entire catalogue (and its department projection) just to resolve one id/slug.
+ * The visibility predicate mirrors publicCanonicals() but runs only for the matched
+ * canonical and its offers.
+ */
+async function loadPublicCanonicalSummary(routeKey: string): Promise<PublicCatalogProduct | undefined> {
+  const key = routeKey.trim();
+  if (!key || !productionDatabaseConfigured()) return undefined;
+  const result = await getProductionPostgresRuntime().nativePool.query<PublicCanonicalSummaryRow>(`
+    SELECT cv.public_id AS canonical_public_id,
+           cv.slug,
+           COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+           cv.platform_price_minor,
+           c.code AS category_code
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN categories c ON c.id=cv.category_id
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE m.code='sparta'
+      AND (cv.public_id=$1 OR cv.slug=$1)
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND (
+        NOT EXISTS (
+          SELECT 1 FROM vendor_offers vo0
+          WHERE vo0.canonical_variant_id=cv.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM vendor_offers vo
+          WHERE vo.canonical_variant_id=cv.id
+            AND vo.status NOT IN ('archived','suppressed')
+            AND vo.merchant_visible=true
+            AND vo.merchant_pause_active=false
+            AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        )
+      )
+    ORDER BY CASE WHEN cv.public_id=$1 THEN 0 ELSE 1 END
+    LIMIT 1
+  `, [key]);
+  const row = result.rows[0];
+  if (!row) return undefined;
+  const title = String(row.title ?? "");
+  if (!isPublicCatalogueTitle(title)) return undefined;
+  const id = String(row.canonical_public_id);
+  const departmentCodes = await loadCatalogDepartmentCodes([id]);
+  const priceMinor = safeMinor(row.platform_price_minor, "platform_price_minor");
+  return {
+    id,
+    slug: String(row.slug),
+    title,
+    priceMinor,
+    price: formatMoney(money(priceMinor)),
+    categoryCode: String(row.category_code),
+    departmentCode: departmentCodes.get(id)
+  };
+}
+
+async function countPublicTitleDuplicates(title: string): Promise<number> {
+  if (!productionDatabaseConfigured()) return 1;
+  const result = await getProductionPostgresRuntime().nativePool.query<DuplicateCountRow>(`
+    SELECT COUNT(*) AS duplicate_count
+    FROM (
+      SELECT 1
+      FROM canonical_variants cv
+      JOIN markets m ON m.id=cv.market_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND lower(trim(COALESCE(el.title,en.title,cv.model,cv.slug)))=lower(trim($1))
+        AND (
+          NOT EXISTS (
+            SELECT 1 FROM vendor_offers vo0
+            WHERE vo0.canonical_variant_id=cv.id
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM vendor_offers vo
+            WHERE vo.canonical_variant_id=cv.id
+              AND vo.status NOT IN ('archived','suppressed')
+              AND vo.merchant_visible=true
+              AND vo.merchant_pause_active=false
+              AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+          )
+        )
+      LIMIT 2
+    ) matches
+  `, [title]);
+  const count = Number(result.rows[0]?.duplicate_count ?? 1);
+  return Number.isSafeInteger(count) && count > 0 ? count : 1;
+}
+
+/**
  * Authoritative public-admission check used before a direct fairness assignment.
- * `publicCanonicals()` is itself filtered in PostgreSQL to active, non-suppressed,
- * non-recalled canonicals; the customer projection additionally removes obvious
- * fixture/demo titles before any public assignment or detail route can resolve.
+ * Product-detail routes must stay bounded to the requested canonical rather than
+ * loading publicCanonicals() across the whole marketplace.
  */
 async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<boolean> {
-  if (!productionDatabaseConfigured()) return false;
-  return customerVisibleCanonicals(await getProductionPostgresRuntime().customerCommerce.publicCanonicals())
-    .some((product) => product.id === canonicalVariantId);
+  return Boolean(await loadPublicCanonicalSummary(canonicalVariantId));
 }
 
 /**
@@ -372,22 +478,19 @@ async function canonicalIsPubliclyAllowed(canonicalVariantId: string): Promise<b
  * surfaces still resolve their price from an assigned vendor offer.
  */
 export const getCanonicalProductSummary = cache(async (routeKey: string): Promise<Readonly<{ id: string; slug: string; title: string; price: string; priceMinor: number; categoryCode: string; departmentCode?: string }> | undefined> => {
-  const products = await getPublicCatalogProducts();
-  const product = products.find((entry) => entry.id === routeKey) ?? products.find((entry) => entry.slug === routeKey);
-  return product ? { id: product.id, slug: product.slug, title: product.title, priceMinor: product.priceMinor, price: product.price, categoryCode: product.categoryCode, departmentCode: product.departmentCode } : undefined;
+  return loadPublicCanonicalSummary(routeKey);
 });
 
 export const getPublicProductSeoSummary = cache(async (routeKey: string) => {
   const product = await getCanonicalProductSummary(routeKey);
   if (!product) return undefined;
-  const [metadata, detail, availableOfferIds] = await Promise.all([
+  const [metadata, detail, availableOfferIds, duplicateTitleCount] = await Promise.all([
     loadCatalogMetadata([product.id]).then((entries) => entries.get(product.id)),
     getPublicProductDetail(product.id),
-    loadPublicOfferAvailability([product.id])
+    loadPublicOfferAvailability([product.id]),
+    countPublicTitleDuplicates(product.title)
   ]);
   const displayTitle = metadata?.title ?? product.title;
-  const titleKey = product.title.trim().toLocaleLowerCase("el");
-  const duplicateTitleCount = (await getPublicCatalogProducts()).filter((entry) => entry.title.trim().toLocaleLowerCase("el") === titleKey).length;
   let image: ApprovedCatalogImage | undefined;
   try {
     image = (await approvedCatalogImages([{ canonicalVariantId: product.id }]))[0];
