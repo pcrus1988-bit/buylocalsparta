@@ -127,9 +127,9 @@ export async function getLocalStorefrontReadModelWindow(
       AND rm.local_available_until>now()
       ${FILTER_SQL}
     ORDER BY
-      CASE WHEN $10='price-asc' THEN rm.min_price_minor END ASC,
-      CASE WHEN $10='price-desc' THEN rm.min_price_minor END DESC,
-      CASE WHEN $10 NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
+      CASE WHEN $10::text='price-asc' THEN rm.min_price_minor END ASC,
+      CASE WHEN $10::text='price-desc' THEN rm.min_price_minor END DESC,
+      CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
       rm.canonical_public_id
     LIMIT $11 OFFSET $12
   `, parameters(input));
