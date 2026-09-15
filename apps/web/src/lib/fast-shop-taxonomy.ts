@@ -109,6 +109,11 @@ export async function getFastShopTaxonomy(
         SELECT child.id,child.parent_id,child.code,parent.department_code
         FROM categories child
         JOIN category_tree parent ON child.parent_id=parent.id
+      ), search_matches AS MATERIALIZED (
+        SELECT canonical_variant_id
+        FROM storefront_search_documents
+        WHERE $2::text<>''
+          AND document @@ plainto_tsquery('simple',$2)
       ), all_categories AS MATERIALIZED (
         SELECT DISTINCT c.code,tree.department_code
         FROM canonical_variants cv
@@ -173,13 +178,7 @@ export async function getFastShopTaxonomy(
           )
           AND (
             $2::text='' OR
-            to_tsvector('simple',concat_ws(' ',
-              COALESCE(el.title,en.title,cv.model,cv.slug),
-              COALESCE(b.name,''),
-              COALESCE(cv.gtin,''),
-              COALESCE(cv.mpn,''),
-              c.code
-            )) @@ plainto_tsquery('simple',$2)
+            cv.id IN (SELECT canonical_variant_id FROM search_matches)
             OR COALESCE(cv.gtin,'')=$2
             OR lower(COALESCE(cv.mpn,''))=lower($2)
           )
