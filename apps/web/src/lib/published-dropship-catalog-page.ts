@@ -146,10 +146,38 @@ export async function getPublishedDropshipCatalogPage(
         FROM categories child
         JOIN category_tree parent ON child.parent_id=parent.id
       ), search_matches AS MATERIALIZED (
-        SELECT canonical_variant_id
-        FROM storefront_search_documents
+        SELECT pt.canonical_variant_id
+        FROM product_translations pt
         WHERE $9::text<>''
-          AND document @@ plainto_tsquery('simple',$9)
+          AND to_tsvector('simple',COALESCE(pt.title,'')) @@ plainto_tsquery('simple',$9)
+        UNION
+        SELECT cv.id
+        FROM canonical_variants cv
+        WHERE $9::text<>''
+          AND to_tsvector(
+            'simple',
+            COALESCE(cv.model,'') || ' ' || COALESCE(cv.slug,'') || ' ' ||
+            COALESCE(cv.gtin,'') || ' ' || COALESCE(cv.mpn,'')
+          ) @@ plainto_tsquery('simple',$9)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN canonical_variants cv ON cv.brand_id=b.id
+        WHERE $9::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$9)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN product_families pf ON pf.brand_id=b.id
+        JOIN canonical_variants cv ON cv.family_id=pf.id AND cv.brand_id IS NULL
+        WHERE $9::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$9)
+        UNION
+        SELECT cv.id
+        FROM categories c
+        JOIN canonical_variants cv ON cv.category_id=c.id
+        WHERE $9::text<>''
+          AND to_tsvector('simple',COALESCE(c.code,'')) @@ plainto_tsquery('simple',$9)
       ),
       ${HIDDEN_CATEGORY_CLOSURE_SQL},
       eligible AS MATERIALIZED (
