@@ -24,8 +24,6 @@ const PUBLIC_QUERY_NOINDEX_RULES = new Map<string, readonly string[] | "*">([
   ["/shops", ["q", "category", "subcategory", "status"]]
 ]);
 
-const EXPLICIT_NOFOLLOW_UTILITY_ROUTES = new Set(["/choose-location"]);
-
 function normalizePathname(pathname: string): string {
   if (!pathname) return "/";
   const withSlash = pathname.startsWith("/") ? pathname : `/${pathname}`;
@@ -97,14 +95,11 @@ export function seoRequestIndexingDecision(pathname: string, searchParams?: Sear
   }
 
   if (isExplicitlyNonIndexable(normalized)) {
-    const follow = !EXPLICIT_NOFOLLOW_UTILITY_ROUTES.has(normalized);
     return {
       index: false,
-      follow,
+      follow: true,
       routePolicy,
-      reason: follow
-        ? "Route is explicitly present in the non-indexable page inventory."
-        : "Location-selection utility has no independent crawl graph value and must not propagate crawler navigation.",
+      reason: "Public utility route is excluded from search results while remaining crawl-through for linked public content.",
       source: "route-inventory"
     };
   }
