@@ -212,9 +212,8 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
     if (offerPrice !== undefined) priceMinor = offerPrice;
   }
 
-  const [metadataMap, departmentCodes, images] = await Promise.all([
+  const [metadataMap, images] = await Promise.all([
     loadCatalogMetadata([canonical.id]),
-    loadCatalogDepartmentCodes([canonical.id]),
     approvedCatalogImages([{ canonicalVariantId: canonical.id, preferredVendorId: assigned.vendorId }]).catch(() => [])
   ]);
   const metadata = metadataMap.get(canonical.id);
@@ -226,7 +225,7 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
     priceMinor,
     price: formatMoney(money(priceMinor)),
     categoryCode: assigned.categoryCode,
-    departmentCode: departmentCodes.get(canonical.id),
+    departmentCode: canonical.departmentCode,
     categoryLabel: metadata?.categoryLabel,
     gtin: metadata?.gtin,
     mpn: metadata?.mpn,
