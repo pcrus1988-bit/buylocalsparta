@@ -91,52 +91,51 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
 
     {assignedCatalogue.totalAssigned > 0 && <section className="shell vendor-section" id="assigned-catalogue">
       <WorkspaceSectionHeading
-        eyebrow="Ανατεθειμένος Supplier PIM κατάλογος"
-        title="Επιβεβαίωσε τι γνωρίζεις χωρίς να δημιουργηθεί online offer"
-        note="Ο Admin έχει συνδέσει αυτά τα source προϊόντα με το κατάστημά σου. Εδώ επιβεβαιώνεις μόνο πραγματική τιμή προμηθευτή και φυσικό stock. Η επιβεβαίωση παραμένει evidence και δεν δημιουργεί offer, inventory balance ή δημόσια διαθεσιμότητα."
+        eyebrow="Προϊόντα που περιμένουν επιβεβαίωση"
+        title="Επιβεβαίωσε κόστος και πραγματικό απόθεμα"
+        note="Το ΚΟΝΤΑ ΜΟΥ έχει προετοιμάσει αυτά τα προϊόντα για το κατάστημά σου. Συμπλήρωσε μόνο ό,τι γνωρίζεις τώρα: το πραγματικό κόστος ανά τεμάχιο και πόσα τεμάχια έχεις διαθέσιμα στο κατάστημα. Η επιβεβαίωση δεν δημοσιεύει αυτόματα το προϊόν."
       />
       <WorkspaceMetricStrip items={[
-        { label: "Ανατεθειμένα source προϊόντα", value: assignedCatalogue.totalAssigned, tone: "positive" },
-        { label: "Τιμή προμηθευτή σε αναμονή", value: assignedCatalogue.pendingPrice, tone: assignedCatalogue.pendingPrice ? "attention" : "positive" },
-        { label: "Φυσικό stock σε αναμονή", value: assignedCatalogue.pendingStock, tone: assignedCatalogue.pendingStock ? "attention" : "positive" },
-        { label: "Με canonical match", value: assignedCatalogue.canonicalMatched, tone: assignedCatalogue.canonicalMatched ? "positive" : "default" }
+        { label: "Προϊόντα για έλεγχο", value: assignedCatalogue.totalAssigned, tone: "positive" },
+        { label: "Περιμένουν κόστος", value: assignedCatalogue.pendingPrice, tone: assignedCatalogue.pendingPrice ? "attention" : "positive" },
+        { label: "Περιμένουν απόθεμα", value: assignedCatalogue.pendingStock, tone: assignedCatalogue.pendingStock ? "attention" : "positive" },
+        { label: "Έχουν αντιστοιχιστεί", value: assignedCatalogue.canonicalMatched, tone: assignedCatalogue.canonicalMatched ? "positive" : "default" }
       ]} />
       <WorkspaceHowItWorks>
-        <p><strong>Ανάθεση ≠ δημοσίευση:</strong> η παρουσία ενός προϊόντος εδώ δεν το κάνει αγοράσιμο και δεν δημιουργεί τιμή πώλησης.</p>
-        <p><strong>Τιμή προμηθευτή:</strong> γράψε το πραγματικό δικό σου κόστος ανά τεμάχιο. Τυχόν τιμή του source catalogue εμφανίζεται μόνο ως πληροφορία και δεν αντιγράφεται αυτόματα.</p>
-        <p><strong>Φυσικό stock:</strong> είναι η πραγματική ποσότητα που βλέπεις στο κατάστημα αυτή τη στιγμή. Παραμένει evidence μέχρι να δημιουργηθεί ξεχωριστά κανονικό offer/inventory μέσω του governed catalogue workflow.</p>
-        <p><strong>Canonical match:</strong> μπορεί να ολοκληρωθεί από το ΚΟΝΤΑ ΜΟΥ αργότερα. Δεν χρειάζεται να περιμένεις το matching για να μας δώσεις σωστή εμπορική πληροφορία για το source προϊόν.</p>
+        <p><strong>Δεν δημοσιεύεται τίποτα αυτόματα:</strong> η επιβεβαίωση εδώ ενημερώνει μόνο τα στοιχεία που γνωρίζεις για το προϊόν.</p>
+        <p><strong>Κόστος ανά τεμάχιο:</strong> γράψε το πραγματικό ποσό που πληρώνεις εσύ. Αν υπάρχει ήδη μια τιμή αναφοράς, εμφανίζεται μόνο για βοήθεια και δεν αντιγράφεται αυτόματα.</p>
+        <p><strong>Πραγματικό απόθεμα:</strong> γράψε πόσα τεμάχια βλέπεις αυτή τη στιγμή στο κατάστημά σου. Μπορείς να αφήσεις οποιοδήποτε πεδίο για αργότερα.</p>
       </WorkspaceHowItWorks>
 
-      {params.assignedSaved === "1" && <div className="workspace-inline-note" role="status"><strong>Η επιβεβαίωση αποθηκεύτηκε.</strong> Παραμένει εσωτερικό evidence και δεν έκανε το προϊόν διαθέσιμο προς πώληση.</div>}
+      {params.assignedSaved === "1" && <div className="workspace-inline-note" role="status"><strong>Η επιβεβαίωση αποθηκεύτηκε.</strong> Το προϊόν δεν δημοσιεύτηκε αυτόματα.</div>}
       {params.assignedSaved === "0" && <div className="workspace-inline-note" role="alert"><strong>Η επιβεβαίωση δεν αποθηκεύτηκε.</strong> {params.assignedError ?? "Έλεγξε τα στοιχεία και δοκίμασε ξανά."}</div>}
 
       <div className="workspace-queue-list">{assignedCatalogue.products.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head">
-          <div><strong>{item.title}</strong><small>{[item.brand, item.model, item.vendorSku].filter(Boolean).join(" · ") || "Χωρίς supplier code"} · {item.sourceName}</small></div>
-          <span className="status-pill">{item.demoMode ? "DEMO · assigned" : "assigned"}</span>
+          <div><strong>{item.title}</strong><small>{[item.brand, item.model, item.vendorSku].filter(Boolean).join(" · ") || "Χωρίς κωδικό προμηθευτή"} · {item.sourceName}</small></div>
+          <span className="status-pill">{item.demoMode ? "DEMO · προς επιβεβαίωση" : "προς επιβεβαίωση"}</span>
         </div>
         <div className="workspace-queue-primary">
-          <span>Τιμή προμηθευτή: {item.priceCheckStatus === "confirmed" ? item.verifiedSupplierPrice ?? "επιβεβαιωμένη" : "σε αναμονή"}</span>
-          <span>Φυσικό stock: {item.stockCheckStatus === "confirmed" ? String(item.verifiedStockOnHand ?? 0) : item.stockCheckStatus === "unavailable" ? "δεν υπάρχει τώρα" : "σε αναμονή"}</span>
-          <span>{item.canonicalVariantId ? "Canonical match διαθέσιμο" : "Canonical matching εκκρεμεί"}</span>
+          <span>Κόστος ανά τεμάχιο: {item.priceCheckStatus === "confirmed" ? item.verifiedSupplierPrice ?? "επιβεβαιωμένο" : "σε αναμονή"}</span>
+          <span>Πραγματικό απόθεμα: {item.stockCheckStatus === "confirmed" ? String(item.verifiedStockOnHand ?? 0) : item.stockCheckStatus === "unavailable" ? "δεν υπάρχει τώρα" : "σε αναμονή"}</span>
+          <span>{item.canonicalVariantId ? "Το προϊόν έχει αντιστοιχιστεί" : "Η αντιστοίχιση γίνεται από το ΚΟΝΤΑ ΜΟΥ"}</span>
         </div>
-        {item.sourcePrice && <div className="workspace-inline-note">Source catalogue reference: {item.sourcePrice}{item.sourcePriceKind ? ` · ${item.sourcePriceKind}` : ""}. Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή.</div>}
+        {item.sourcePrice && <div className="workspace-inline-note">Τιμή αναφοράς από τον αρχικό κατάλογο: {item.sourcePrice}{item.sourcePriceKind ? ` · ${item.sourcePriceKind}` : ""}. Δεν θεωρείται αυτόματα δικό σου κόστος.</div>}
         {(item.priceCheckStatus === "pending" || item.stockCheckStatus === "pending") && <div className="workspace-action-bar">
           <span>Επιβεβαίωσε μόνο ό,τι γνωρίζεις τώρα. Το υπόλοιπο μπορεί να μείνει σε αναμονή.</span>
           <div className="workspace-action-buttons">
             {item.priceCheckStatus === "pending" && <form action={confirmAssignedCatalogueAction} className="workspace-inline-form">
               <input type="hidden" name="assortmentId" value={item.id} />
               <input type="hidden" name="assignedOffset" value={assignedOffset} />
-              <label><span>Τιμή προμηθευτή €</span><input name="supplierPrice" type="number" min="0" step="0.01" inputMode="decimal" placeholder="0,00" required /></label>
-              <button className="button button-secondary" type="submit">Επιβεβαίωση τιμής</button>
+              <label><span>Κόστος ανά τεμάχιο €</span><input name="supplierPrice" type="number" min="0" step="0.01" inputMode="decimal" placeholder="0,00" required /></label>
+              <button className="button button-secondary" type="submit">Αποθήκευση κόστους</button>
             </form>}
             {item.stockCheckStatus === "pending" && <>
               <form action={confirmAssignedCatalogueAction} className="workspace-inline-form">
                 <input type="hidden" name="assortmentId" value={item.id} />
                 <input type="hidden" name="assignedOffset" value={assignedOffset} />
-                <label><span>Φυσικό stock</span><input name="stockOnHand" type="number" min="0" max="1000000" step="1" inputMode="numeric" placeholder="0" required /></label>
-                <button className="button button-secondary" type="submit">Επιβεβαίωση stock</button>
+                <label><span>Πραγματικό απόθεμα</span><input name="stockOnHand" type="number" min="0" max="1000000" step="1" inputMode="numeric" placeholder="0" required /></label>
+                <button className="button button-secondary" type="submit">Αποθήκευση αποθέματος</button>
               </form>
               <form action={confirmAssignedCatalogueAction}>
                 <input type="hidden" name="assortmentId" value={item.id} />
@@ -147,12 +146,12 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
             </>}
           </div>
         </div>}
-        <WorkspaceRecordDetails label="Evidence & source context"><div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Supplier PIM</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
-          <div className="workspace-compact-row"><strong>Assortment state</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
-          <div className="workspace-compact-row"><strong>Price evidence</strong><span>{item.priceCheckStatus}</span></div>
-          <div className="workspace-compact-row"><strong>Stock evidence</strong><span>{item.stockCheckStatus}</span></div>
-          {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}
+        <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες"><div className="workspace-compact-list">
+          <div className="workspace-compact-row"><strong>Πηγή προϊόντος</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
+          <div className="workspace-compact-row"><strong>Κατάσταση ανάθεσης</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
+          <div className="workspace-compact-row"><strong>Έλεγχος κόστους</strong><span>{item.priceCheckStatus}</span></div>
+          <div className="workspace-compact-row"><strong>Έλεγχος αποθέματος</strong><span>{item.stockCheckStatus}</span></div>
+          {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Εσωτερικό ID προϊόντος</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}
         </div></WorkspaceRecordDetails>
       </article>)}</div>
 
