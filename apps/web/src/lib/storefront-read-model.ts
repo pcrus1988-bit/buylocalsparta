@@ -41,10 +41,10 @@ export type StorefrontSearchCandidate = Readonly<{
   score: number;
 }>;
 
-function parameters(input: StorefrontReadModelWindowInput) {
+function parameters(input: StorefrontReadModelWindowInput): unknown[] {
   const filters = input.filters ?? {};
   return [
-    input.prefixes ?? [],
+    [...(input.prefixes ?? [])],
     filters.subcategory ?? "",
     filters.brand ?? "",
     filters.color ?? "",
@@ -56,7 +56,7 @@ function parameters(input: StorefrontReadModelWindowInput) {
     input.sort ?? "",
     input.limit,
     input.offset
-  ] as const;
+  ];
 }
 
 const FILTER_SQL = `
