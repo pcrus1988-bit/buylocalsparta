@@ -2,173 +2,64 @@ import { unstable_cache } from "next/cache";
 import type { VendorDropshipFacets, VendorDropshipFacetOption } from "./vendor-dropship-catalog-page";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
-type HiddenCategoryRow = Readonly<{ id: string }>;
-type FacetRow = Readonly<{ total: number | string; categories: unknown; brands: unknown; colors: unknown }>;
-type SizeRow = Readonly<{ value: string }>;
+type FacetProjectionRow = Readonly<{
+  facet_type: "total" | "category" | "brand" | "color" | "size";
+  value: string;
+  label: string;
+  count: number | string;
+}>;
 
 function safeInt(value: unknown): number {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-function text(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function facetOptions(value: unknown): readonly VendorDropshipFacetOption[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-    const row = entry as Record<string, unknown>;
-    const option = text(row.value);
-    if (!option) return [];
-    return [{ value: option, label: text(row.label) ?? option, count: safeInt(row.count) }];
-  });
-}
-
-async function hiddenVendorCategoryIds(vendorId: string): Promise<readonly string[]> {
-  const result = await getProductionPostgresRuntime().nativePool.query<HiddenCategoryRow>(`
-    WITH RECURSIVE hidden AS (
-      SELECT vcv.category_id AS id
-      FROM vendor_category_visibility vcv
-      JOIN vendor_businesses v ON v.id=vcv.vendor_id
-      WHERE v.public_id=$1 AND vcv.visible=false
-      UNION
-      SELECT child.id FROM categories child JOIN hidden parent ON child.parent_id=parent.id
-    )
-    SELECT id::text AS id FROM hidden
-  `, [vendorId]);
-  return result.rows.map((row) => row.id);
+function option(row: FacetProjectionRow): VendorDropshipFacetOption {
+  return { value: row.value, label: row.label || row.value, count: safeInt(row.count) };
 }
 
 async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
   if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [] };
-  const hiddenCategoryIds = await hiddenVendorCategoryIds(vendorId);
-  const pool = getProductionPostgresRuntime().nativePool;
 
-  // Facets are storefront data, so they must reflect exactly the same sellable
-  // supplier inventory as product pagination. Dead stock is excluded before family
-  // aggregation rather than being counted and hidden later in the browser.
-  const [facetResult, sizeResult] = await Promise.all([
-    pool.query<FacetRow>(`
-      WITH vendor AS MATERIALIZED (
-        SELECT id
-        FROM vendor_businesses
-        WHERE public_id=$1 AND status='active'
-      ), base AS MATERIALIZED (
-        SELECT
-          COALESCE(cv.family_id::text,dso.supplier_id::text||':'||dso.external_product_id) AS family_key,
-          c.code AS category_code,
-          COALESCE(ctel.name,cten.name,c.code) AS category_label,
-          NULLIF(BTRIM(COALESCE(b.name,'')),'') AS brand,
-          NULLIF(BTRIM(COALESCE(cv.variant_attributes->>'color','')),'') AS color
-        FROM vendor_offers vo
-        JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-        JOIN categories c ON c.id=cv.category_id
-        JOIN vendor_locations l ON l.id=vo.location_id
-        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-        LEFT JOIN product_families pf ON pf.id=cv.family_id
-        LEFT JOIN brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
-        LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-        LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-        WHERE vo.vendor_id=(SELECT id FROM vendor)
-          AND ds.owner_vendor_id=(SELECT id FROM vendor)
-          AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
-          AND COALESCE(cv.commerce_channel,'normal')='normal'
-          AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-          AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
-          AND vo.customer_price_minor>0
-          AND l.active=true
-          AND dso.active=true
-          AND dso.cached_available=true
-          AND dso.cached_quantity>=1
-          AND dso.availability_expires_at IS NOT NULL
-          AND dso.availability_expires_at>now()
-          AND ds.active=true AND ds.api_authoritative_availability=true
-          AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
-          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-      ), category_values AS (
-        SELECT category_code AS value,MIN(category_label) AS label,COUNT(DISTINCT family_key)::int AS count
-        FROM base GROUP BY category_code
-      ), brand_values AS (
-        SELECT brand AS value,COUNT(DISTINCT family_key)::int AS count
-        FROM base WHERE brand IS NOT NULL GROUP BY brand
-      ), color_values AS (
-        SELECT color AS value,COUNT(DISTINCT family_key)::int AS count
-        FROM base WHERE color IS NOT NULL GROUP BY color
-      )
-      SELECT
-        (SELECT COUNT(DISTINCT family_key)::int FROM base) AS total,
-        COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'label',label,'count',count) ORDER BY label,value) FROM category_values),'[]'::jsonb) AS categories,
-        COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'label',value,'count',count) ORDER BY value) FROM brand_values),'[]'::jsonb) AS brands,
-        COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'label',value,'count',count) ORDER BY value) FROM color_values),'[]'::jsonb) AS colors
-    `, [vendorId, hiddenCategoryIds]),
-    pool.query<SizeRow>(`
-      WITH vendor AS MATERIALIZED (
-        SELECT id
-        FROM vendor_businesses
-        WHERE public_id=$1 AND status='active'
-      )
-      SELECT DISTINCT BTRIM(size_entry.value) AS value
-      FROM vendor_offers vo
-      JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      CROSS JOIN LATERAL unnest(ARRAY[
-        cv.variant_attributes->>'italian_size_men',
-        cv.variant_attributes->>'italian_size_women',
-        cv.variant_attributes->>'shoe_size_women',
-        cv.variant_attributes->>'shoe_size_men',
-        cv.variant_attributes->>'waist_size',
-        cv.variant_attributes->>'belt_size',
-        cv.variant_attributes->>'waist_length_size',
-        cv.variant_attributes->>'hat_size',
-        cv.variant_attributes->>'swimwear_sleepwear_size',
-        cv.variant_attributes->>'shoe_size',
-        cv.variant_attributes->>'earrings_size',
-        cv.variant_attributes->>'bracelets_size',
-        cv.variant_attributes->>'gloves_size_women',
-        cv.variant_attributes->>'ring_size',
-        cv.variant_attributes->>'gloves_size_men',
-        cv.variant_attributes->>'size'
-      ]) AS size_entry(value)
-      WHERE vo.vendor_id=(SELECT id FROM vendor)
-        AND ds.owner_vendor_id=(SELECT id FROM vendor)
-        AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-        AND vo.status='approved' AND vo.merchant_visible=true AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND l.active=true
-        AND dso.active=true
-        AND dso.cached_available=true
-        AND dso.cached_quantity>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND ds.active=true AND ds.api_authoritative_availability=true
-        AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND size_entry.value IS NOT NULL AND BTRIM(size_entry.value)<>''
-      ORDER BY value
-      LIMIT 500
-    `, [vendorId, hiddenCategoryIds])
-  ]);
+  const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
+    SELECT facets.facet_type,facets.value,facets.label,facets.count
+    FROM public.storefront_dropship_vendor_facets facets
+    WHERE facets.supplier_id=(
+      SELECT ds.id::text
+      FROM dropship_suppliers ds
+      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+      WHERE v.public_id=$1
+        AND v.status='active'
+        AND ds.active=true
+      LIMIT 1
+    )
+    ORDER BY facets.facet_type,facets.label,facets.value
+  `, [vendorId]);
 
-  const row = facetResult.rows[0];
-  return {
-    total: safeInt(row?.total),
-    categories: facetOptions(row?.categories),
-    brands: facetOptions(row?.brands),
-    colors: facetOptions(row?.colors),
-    sizes: sizeResult.rows.map((entry) => ({ value: entry.value, label: entry.value, count: 0 }))
-  };
+  let total = 0;
+  const categories: VendorDropshipFacetOption[] = [];
+  const brands: VendorDropshipFacetOption[] = [];
+  const colors: VendorDropshipFacetOption[] = [];
+  const sizes: VendorDropshipFacetOption[] = [];
+
+  for (const row of result.rows) {
+    if (row.facet_type === "total") {
+      total = safeInt(row.count);
+      continue;
+    }
+    const entry = option(row);
+    if (row.facet_type === "category") categories.push(entry);
+    else if (row.facet_type === "brand") brands.push(entry);
+    else if (row.facet_type === "color") colors.push(entry);
+    else if (row.facet_type === "size") sizes.push(entry);
+  }
+
+  return { total, categories, brands, colors, sizes };
 }
 
 const cachedFastVendorDropshipFacets = unstable_cache(
   readFastVendorDropshipFacets,
-  ["vendor-dropship-storefront-fast-facets-v3-sellable-only"],
+  ["vendor-dropship-storefront-preaggregated-facets-v4"],
   { revalidate: 300 }
 );
 
