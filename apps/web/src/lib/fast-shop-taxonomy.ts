@@ -110,10 +110,38 @@ export async function getFastShopTaxonomy(
         FROM categories child
         JOIN category_tree parent ON child.parent_id=parent.id
       ), search_matches AS MATERIALIZED (
-        SELECT canonical_variant_id
-        FROM storefront_search_documents
+        SELECT pt.canonical_variant_id
+        FROM product_translations pt
         WHERE $2::text<>''
-          AND document @@ plainto_tsquery('simple',$2)
+          AND to_tsvector('simple',COALESCE(pt.title,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM canonical_variants cv
+        WHERE $2::text<>''
+          AND to_tsvector(
+            'simple',
+            COALESCE(cv.model,'') || ' ' || COALESCE(cv.slug,'') || ' ' ||
+            COALESCE(cv.gtin,'') || ' ' || COALESCE(cv.mpn,'')
+          ) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN canonical_variants cv ON cv.brand_id=b.id
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN product_families pf ON pf.brand_id=b.id
+        JOIN canonical_variants cv ON cv.family_id=pf.id AND cv.brand_id IS NULL
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM categories c
+        JOIN canonical_variants cv ON cv.category_id=c.id
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(c.code,'')) @@ plainto_tsquery('simple',$2)
       ), all_categories AS MATERIALIZED (
         SELECT DISTINCT c.code,tree.department_code
         FROM canonical_variants cv
