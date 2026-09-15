@@ -7,6 +7,7 @@ import { adminSeoCrawlGraph, type SeoCrawlGraphNode } from "./seo-crawl-graph";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const PAGE_LIMIT = 1000;
+const WRITE_BATCH_SIZE = 2000;
 
 export type SeoUrlRegistryRow = Readonly<{
   id: string;
@@ -89,6 +90,15 @@ type RegistryRow = SqlRow & {
   crawl_issue_count?: number | string | null;
   open_issue_count?: number | string | null;
   critical_open_issue_count?: number | string | null;
+  metric_active?: number | string | null;
+  metric_desired_indexable?: number | string | null;
+  metric_desired_sitemap?: number | string | null;
+  metric_actual_sitemap?: number | string | null;
+  metric_expected_missing?: number | string | null;
+  metric_unexpected_actual?: number | string | null;
+  metric_with_open_issues?: number | string | null;
+  metric_with_critical_issues?: number | string | null;
+  metric_unhealthy_latest_crawl?: number | string | null;
 };
 
 function marketCode(): string {
@@ -125,6 +135,12 @@ function inboundSources(value: unknown): readonly string[] {
     try { return inboundSources(JSON.parse(value)); } catch { return []; }
   }
   return [];
+}
+
+function batches<T>(rows: readonly T[], size = WRITE_BATCH_SIZE): readonly T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) result.push(rows.slice(index, index + size));
+  return result;
 }
 
 function completeGraph(graph: Awaited<ReturnType<typeof adminSeoCrawlGraph>>) {
@@ -164,43 +180,50 @@ export async function syncSeoUrlRegistry(principal: SessionPrincipal) {
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 3_000 });
   const result = await uow.withTransaction({ actorUserId: principal.userId, marketId: marketCode(), platformAccess: true }, async (tx) => {
-    await tx.query(`
-      WITH payload AS (
-        SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(
-          public_id text,source_key text,kind text,route text,label text,canonical_url text,
-          desired_indexable boolean,desired_sitemap boolean,inbound_sources jsonb
+    // Large catalogues are deliberately written in bounded batches. A single giant
+    // jsonb_to_recordset payload became fragile once the dropshipping catalogue grew
+    // into tens of thousands of canonical products.
+    for (const batch of batches(payload)) {
+      await tx.query(`
+        WITH payload AS (
+          SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(
+            public_id text,source_key text,kind text,route text,label text,canonical_url text,
+            desired_indexable boolean,desired_sitemap boolean,inbound_sources jsonb
+          )
         )
-      )
-      INSERT INTO seo_urls(
-        public_id,market_id,source_key,kind,route,label,declared_canonical_url,
-        desired_indexable,desired_sitemap,inbound_sources,active,first_seen_at,last_seen_at,deactivated_at,updated_at
-      )
-      SELECT p.public_id,nullif(current_setting('app.market_id',true),'')::uuid,p.source_key,p.kind,p.route,p.label,p.canonical_url,
-             p.desired_indexable,p.desired_sitemap,p.inbound_sources,true,$2,$2,NULL,$2
-      FROM payload p
-      ON CONFLICT(market_id,route) DO UPDATE SET
-        source_key=EXCLUDED.source_key,
-        kind=EXCLUDED.kind,
-        label=EXCLUDED.label,
-        declared_canonical_url=EXCLUDED.declared_canonical_url,
-        desired_indexable=EXCLUDED.desired_indexable,
-        desired_sitemap=EXCLUDED.desired_sitemap,
-        inbound_sources=EXCLUDED.inbound_sources,
-        active=true,
-        last_seen_at=EXCLUDED.last_seen_at,
-        deactivated_at=NULL,
-        updated_at=EXCLUDED.updated_at
-    `, [JSON.stringify(payload), now]);
+        INSERT INTO seo_urls(
+          public_id,market_id,source_key,kind,route,label,declared_canonical_url,
+          desired_indexable,desired_sitemap,inbound_sources,active,first_seen_at,last_seen_at,deactivated_at,updated_at
+        )
+        SELECT p.public_id,nullif(current_setting('app.market_id',true),'')::uuid,p.source_key,p.kind,p.route,p.label,p.canonical_url,
+               p.desired_indexable,p.desired_sitemap,p.inbound_sources,true,$2,$2,NULL,$2
+        FROM payload p
+        ON CONFLICT(market_id,route) DO UPDATE SET
+          source_key=EXCLUDED.source_key,
+          kind=EXCLUDED.kind,
+          label=EXCLUDED.label,
+          declared_canonical_url=EXCLUDED.declared_canonical_url,
+          desired_indexable=EXCLUDED.desired_indexable,
+          desired_sitemap=EXCLUDED.desired_sitemap,
+          inbound_sources=EXCLUDED.inbound_sources,
+          active=true,
+          last_seen_at=EXCLUDED.last_seen_at,
+          deactivated_at=NULL,
+          updated_at=EXCLUDED.updated_at
+      `, [JSON.stringify(batch), now]);
+    }
 
-    const routes = graph.nodes.map((node) => node.route);
+    // Every current node is stamped with the exact same sync timestamp above. This
+    // lets deactivation stay O(stale rows) instead of sending a 30k+ route array back
+    // to PostgreSQL just to express NOT IN current graph.
     const deactivated = await tx.query<{ public_id: string }>(`
       UPDATE seo_urls
-      SET active=false,deactivated_at=$2,updated_at=$2
+      SET active=false,deactivated_at=$1,updated_at=$1
       WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
         AND active=true
-        AND NOT (route=ANY($1::text[]))
+        AND last_seen_at < $1
       RETURNING public_id
-    `, [routes, now]);
+    `, [now]);
     return { synced: graph.nodes.length, deactivated: deactivated.rowCount, generatedAt: graph.generatedAt };
   }, { isolation: "serializable" });
 
@@ -245,24 +268,46 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
         FROM seo_crawl_issues
         WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
         GROUP BY route
+      ),
+      enriched AS (
+        SELECT u.public_id,u.source_key,u.kind,u.route,u.label,u.declared_canonical_url,
+               u.desired_indexable,u.desired_sitemap,u.inbound_sources,u.active,
+               u.first_seen_at,u.last_seen_at,u.deactivated_at,
+               s.public_id AS sitemap_public_id,s.valid AS sitemap_valid,s.captured_at AS sitemap_captured_at,
+               CASE WHEN s.valid=true THEN EXISTS(
+                 SELECT 1 FROM seo_sitemap_snapshot_entries e WHERE e.snapshot_id=s.id AND e.route=u.route
+               ) ELSE NULL END AS actual_sitemap,
+               c.crawl_run_public_id,c.crawl_captured_at,c.http_status,c.response_time_ms,c.final_url,
+               c.crawl_title,c.crawl_canonical,c.crawl_robots,c.h1_count,c.crawl_issue_count,
+               COALESCE(i.open_issue_count,0) AS open_issue_count,
+               COALESCE(i.critical_open_issue_count,0) AS critical_open_issue_count
+        FROM seo_urls u
+        LEFT JOIN latest_sitemap s ON true
+        LEFT JOIN latest_crawl c ON c.route=u.route
+        LEFT JOIN issue_counts i ON i.route=u.route
+        WHERE u.market_id=nullif(current_setting('app.market_id',true),'')::uuid
       )
-      SELECT u.public_id,u.source_key,u.kind,u.route,u.label,u.declared_canonical_url,
-             u.desired_indexable,u.desired_sitemap,u.inbound_sources,u.active,
-             u.first_seen_at,u.last_seen_at,u.deactivated_at,
-             s.public_id AS sitemap_public_id,s.valid AS sitemap_valid,s.captured_at AS sitemap_captured_at,
-             CASE WHEN s.valid=true THEN EXISTS(
-               SELECT 1 FROM seo_sitemap_snapshot_entries e WHERE e.snapshot_id=s.id AND e.route=u.route
-             ) ELSE NULL END AS actual_sitemap,
-             c.crawl_run_public_id,c.crawl_captured_at,c.http_status,c.response_time_ms,c.final_url,
-             c.crawl_title,c.crawl_canonical,c.crawl_robots,c.h1_count,c.crawl_issue_count,
-             COALESCE(i.open_issue_count,0) AS open_issue_count,
-             COALESCE(i.critical_open_issue_count,0) AS critical_open_issue_count
-      FROM seo_urls u
-      LEFT JOIN latest_sitemap s ON true
-      LEFT JOIN latest_crawl c ON c.route=u.route
-      LEFT JOIN issue_counts i ON i.route=u.route
-      WHERE u.market_id=nullif(current_setting('app.market_id',true),'')::uuid
-      ORDER BY u.active DESC,u.desired_indexable DESC,u.desired_sitemap DESC,u.kind,u.route
+      SELECT enriched.*,
+             count(*) FILTER (WHERE active) OVER() AS metric_active,
+             count(*) FILTER (WHERE active AND desired_indexable) OVER() AS metric_desired_indexable,
+             count(*) FILTER (WHERE active AND desired_sitemap) OVER() AS metric_desired_sitemap,
+             count(*) FILTER (WHERE active AND actual_sitemap IS TRUE) OVER() AS metric_actual_sitemap,
+             count(*) FILTER (WHERE active AND desired_sitemap AND actual_sitemap IS FALSE) OVER() AS metric_expected_missing,
+             count(*) FILTER (WHERE active AND NOT desired_sitemap AND actual_sitemap IS TRUE) OVER() AS metric_unexpected_actual,
+             count(*) FILTER (WHERE active AND open_issue_count>0) OVER() AS metric_with_open_issues,
+             count(*) FILTER (WHERE active AND critical_open_issue_count>0) OVER() AS metric_with_critical_issues,
+             count(*) FILTER (
+               WHERE active
+                 AND crawl_run_public_id IS NOT NULL
+                 AND (
+                   COALESCE(crawl_issue_count,0)>0
+                   OR http_status IS NULL
+                   OR http_status<200
+                   OR http_status>=300
+                 )
+             ) OVER() AS metric_unhealthy_latest_crawl
+      FROM enriched
+      ORDER BY active DESC,desired_indexable DESC,desired_sitemap DESC,kind,route
       LIMIT $1
     `, [PAGE_LIMIT]), { readOnly: true });
 
@@ -305,7 +350,6 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
     const first = rows.rows[0];
     const sitemapEvidenceAvailable = Boolean(first?.sitemap_public_id);
     const latestSitemapValid = first?.sitemap_valid == null ? undefined : first.sitemap_valid === true;
-    const active = mapped.filter((row) => row.active);
     return {
       persistenceAvailable: true,
       sitemapEvidenceAvailable,
@@ -314,15 +358,15 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
       latestSitemapId: optionalText(first?.sitemap_public_id),
       rows: mapped,
       metrics: {
-        active: active.length,
-        desiredIndexable: active.filter((row) => row.desiredIndexable).length,
-        desiredSitemap: active.filter((row) => row.desiredSitemap).length,
-        actualSitemap: active.filter((row) => row.actualSitemap === true).length,
-        expectedMissing: active.filter((row) => row.desiredSitemap && row.actualSitemap === false).length,
-        unexpectedActual: active.filter((row) => !row.desiredSitemap && row.actualSitemap === true).length,
-        withOpenIssues: active.filter((row) => row.openIssues > 0).length,
-        withCriticalIssues: active.filter((row) => row.criticalOpenIssues > 0).length,
-        unhealthyLatestCrawl: active.filter((row) => Boolean(row.latestCrawl && (row.latestCrawl.issueCount > 0 || !row.latestCrawl.status || row.latestCrawl.status < 200 || row.latestCrawl.status >= 300))).length
+        active: count(first?.metric_active),
+        desiredIndexable: count(first?.metric_desired_indexable),
+        desiredSitemap: count(first?.metric_desired_sitemap),
+        actualSitemap: count(first?.metric_actual_sitemap),
+        expectedMissing: count(first?.metric_expected_missing),
+        unexpectedActual: count(first?.metric_unexpected_actual),
+        withOpenIssues: count(first?.metric_with_open_issues),
+        withCriticalIssues: count(first?.metric_with_critical_issues),
+        unhealthyLatestCrawl: count(first?.metric_unhealthy_latest_crawl)
       }
     };
   } catch (error) {
