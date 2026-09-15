@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
@@ -8,7 +9,6 @@ import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import { VendorLocationMap } from "../../../components/VendorLocationMap";
 import styles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
-import { getVendorLocalCatalogCards } from "../../../lib/vendor-local-catalog";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -18,6 +18,14 @@ import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
+
+// generateMetadata() and the page render need the same vendor + SEO projections.
+// React cache deduplicates those reads within the request instead of opening the
+// same production DB work twice for every storefront visit.
+const getCachedPublicVendorDirectoryEntry = cache((id: string) => getPublicVendorDirectoryEntry(id));
+const getCachedSeoGlobalSettingsSnapshot = cache(() => getSeoGlobalSettingsSnapshot());
+const getCachedSeoEntityOverridesSnapshot = cache(() => getSeoEntityOverridesSnapshot());
+const getCachedApprovedVendorProfileMedia = cache((id: string) => approvedVendorProfileMedia([id]));
 
 function safeHttpUrl(value?: string): string | undefined {
   if (!value) return undefined;
@@ -62,10 +70,10 @@ function absolutePublicMedia(url: string, origin: string): string {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const [vendor, profileMedia, { settings }, overrides] = await Promise.all([
-    getPublicVendorDirectoryEntry(id),
-    approvedVendorProfileMedia([id]),
-    getSeoGlobalSettingsSnapshot(),
-    getSeoEntityOverridesSnapshot()
+    getCachedPublicVendorDirectoryEntry(id),
+    getCachedApprovedVendorProfileMedia(id),
+    getCachedSeoGlobalSettingsSnapshot(),
+    getCachedSeoEntityOverridesSnapshot()
   ]);
   if (!vendor) return { title: "Κατάστημα" };
   const isResearch = vendor.directoryStatus === "research";
@@ -104,9 +112,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function VendorPage({ params }: Props) {
   const { id } = await params;
   const [vendor, { settings }, overrides] = await Promise.all([
-    getPublicVendorDirectoryEntry(id),
-    getSeoGlobalSettingsSnapshot(),
-    getSeoEntityOverridesSnapshot()
+    getCachedPublicVendorDirectoryEntry(id),
+    getCachedSeoGlobalSettingsSnapshot(),
+    getCachedSeoEntityOverridesSnapshot()
   ]);
   if (!vendor) notFound();
 
@@ -122,9 +130,14 @@ export default async function VendorPage({ params }: Props) {
     defaultSchemaAllowed: true,
     override
   });
-  const [products, principal, profileMedia] = isResearch
-    ? [[], undefined, []] as const
-    : await Promise.all([getVendorLocalCatalogCards(id), getAccountSession(), approvedVendorProfileMedia([id])]);
+
+  // Do not scan the vendor catalogue during SSR. The storefront browser already
+  // uses the bounded /api/catalog/vendor/:id endpoint in 20-item pages, which is
+  // the correct fast path for large supplier catalogues.
+  const products = [] as const;
+  const [principal, profileMedia] = isResearch
+    ? [undefined, []] as const
+    : await Promise.all([getAccountSession(), getCachedApprovedVendorProfileMedia(id)]);
   const location = vendor.location;
   const merchantStoryMedia = vendor.story?.mediaUrl;
   const logoMedia = firstRole(profileMedia, "logo");
@@ -328,7 +341,7 @@ export default async function VendorPage({ params }: Props) {
               <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
           ) : (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} />
+            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} />
           )}
         </div>
       </section>
