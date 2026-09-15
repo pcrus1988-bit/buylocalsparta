@@ -13,6 +13,7 @@ import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
+import { runNovaMediaMaterializationSlice } from "../apps/web/src/lib/nova-media-materialization-runtime.ts";
 import { assertNovaRuntimeInvariants } from "../apps/web/src/lib/nova-runtime-invariants.ts";
 import { runNovaSellabilitySafetySweep } from "../apps/web/src/lib/nova-sellability-safety.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
@@ -33,9 +34,7 @@ const enrichmentGenerationConfigured = enrichmentGenerationScope.enabled
 
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
-if (!readiness.ok) {
-  throw new Error(`Nova catalogue worker refused to start: ${readiness.message}`);
-}
+if (!readiness.ok) throw new Error(`Nova catalogue worker refused to start: ${readiness.message}`);
 await assertNovaRuntimeInvariants();
 
 let stopping = false;
@@ -49,16 +48,9 @@ process.once("SIGTERM", () => requestStop("SIGTERM"));
 process.once("SIGINT", () => requestStop("SIGINT"));
 
 log("info", "nova.worker_started", {
-  workerId,
-  pollMs,
-  availabilityRefreshMs,
-  availabilityTtlHours: 2,
-  supplier: "nova_brandsgateway",
-  writesSupplierOrders: false,
-  materializesPublicOffers: false,
-  automaticPublication: automaticPublicationEnabled,
-  automaticPricing: novaAutoPricingEnabled(),
-  pricingCatchupMaxPasses,
+  workerId, pollMs, availabilityRefreshMs, availabilityTtlHours: 2,
+  supplier: "nova_brandsgateway", writesSupplierOrders: false, materializesPublicOffers: false,
+  automaticPublication: automaticPublicationEnabled, automaticPricing: novaAutoPricingEnabled(), pricingCatchupMaxPasses,
   catalogueEnrichment: {
     enabled: enrichmentGenerationScope.enabled,
     configured: enrichmentGenerationConfigured,
@@ -73,24 +65,13 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
-      // Pricing is a publication barrier. It runs before any catalogue-wide maintenance,
-      // and publication stays fail-closed until every previously unmanaged offer in the
-      // bounded catch-up window has passed through the V2 pricing engine.
       const preRefreshPricingReady = await ensurePricingReadyForPublication("pre_refresh");
-
-      // Publication must not be starved by a slow supplier availability sweep after
-      // a deploy/restart. Public catalogue queries still enforce the supplier TTL,
-      // so publishing staged offers here does not invent stock or make stale stock sellable.
       if (automaticPublicationEnabled && preRefreshPricingReady) {
         try {
           const publication = await runNovaAutoPublicationSweep();
           log("info", "nova.auto_publication_sweep", { workerId, phase: "pre_refresh", ...publication });
         } catch (error) {
-          log("error", "nova.auto_publication_failed", {
-            workerId,
-            phase: "pre_refresh",
-            error: safeError(error)
-          });
+          log("error", "nova.auto_publication_failed", { workerId, phase: "pre_refresh", error: safeError(error) });
         }
       } else if (automaticPublicationEnabled) {
         log("error", "nova.auto_publication_skipped_unpriced", { workerId, phase: "pre_refresh" });
@@ -102,57 +83,44 @@ try {
           const availability = await runNovaAvailabilityRefreshSweep();
           log("info", "nova.availability_full_sweep", { workerId, ...availability });
         } catch (error) {
-          log("error", "nova.availability_full_sweep_failed", {
-            workerId,
-            error: safeError(error)
-          });
+          log("error", "nova.availability_full_sweep_failed", { workerId, error: safeError(error) });
         } finally {
-          // Anchor the next run to the start time. A normal 2-3 minute API sweep therefore
-          // still starts approximately once per hour instead of drifting by its own duration.
           nextAvailabilityRefreshAt = sweepStartedAt + availabilityRefreshMs;
         }
       }
 
       const result = await runNovaCatalogueSyncSlice();
       log("info", "nova.catalogue_sync_slice", { workerId, ...result });
-
       if (result.claimed) {
         const sellabilitySafety = await runNovaSellabilitySafetySweep();
         log("info", "nova.sellability_safety_sweep", { workerId, ...sellabilitySafety });
-
         await recordNovaSupplierHealthy();
       }
 
-      // Source ingestion and canonical materialization are separate queues. Always give
-      // the materializer a chance to drain already-ingested rows, even when the upstream
-      // supplier cursor is caught up. Keeping this outside result.claimed also repairs a
-      // backlog left behind by a restart/failure without requiring a new supplier page.
       try {
         const materialization = await runNovaCatalogueMaterializationSlice();
         log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
       } catch (error) {
-        log("error", "nova.catalogue_materialization_failed", {
-          workerId,
-          error: safeError(error)
-        });
+        log("error", "nova.catalogue_materialization_failed", { workerId, error: safeError(error) });
       }
 
-      // Sync/materialization can introduce fresh offers after the first pricing pass.
-      // Re-run the pricing barrier before the post-materialization publication sweep so
-      // a newly imported NOVA item cannot become visible with only a raw/default price.
+      // Canonical media is a separate derived queue. Drain it independently so already-
+      // materialized NOVA products receive their supplier galleries even when source sync
+      // is caught up. The runtime is idempotent and bounded, so retries are safe.
+      try {
+        const mediaMaterialization = await runNovaMediaMaterializationSlice();
+        log("info", "nova.media_materialization_slice", { workerId, ...mediaMaterialization });
+      } catch (error) {
+        log("error", "nova.media_materialization_failed", { workerId, error: safeError(error) });
+      }
+
       const postMaterializationPricingReady = await ensurePricingReadyForPublication("post_materialization");
       if (automaticPublicationEnabled && postMaterializationPricingReady) {
         try {
           const publication = await runNovaAutoPublicationSweep();
           log("info", "nova.auto_publication_sweep", { workerId, phase: "post_materialization", ...publication });
         } catch (error) {
-          // Publication is an explicit opt-in capability. Any failure remains fail-closed
-          // and cannot make staged supplier catalogue rows public.
-          log("error", "nova.auto_publication_failed", {
-            workerId,
-            phase: "post_materialization",
-            error: safeError(error)
-          });
+          log("error", "nova.auto_publication_failed", { workerId, phase: "post_materialization", error: safeError(error) });
         }
       } else if (automaticPublicationEnabled) {
         log("error", "nova.auto_publication_skipped_unpriced", { workerId, phase: "post_materialization" });
@@ -162,12 +130,7 @@ try {
         const enrichmentPreparation = await runNovaEnrichmentPreparationSlice();
         log("info", "nova.catalogue_enrichment_preparation_slice", { workerId, ...enrichmentPreparation });
       } catch (error) {
-        // Enrichment preparation is derived metadata. It must never block or roll
-        // back durable supplier ingestion/materialization and can safely retry.
-        log("error", "nova.catalogue_enrichment_preparation_failed", {
-          workerId,
-          error: safeError(error)
-        });
+        log("error", "nova.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
       }
 
       if (enrichmentGenerationConfigured) {
@@ -175,23 +138,14 @@ try {
           const enrichmentGeneration = await runCatalogueEnrichmentGenerationSlice();
           log("info", "nova.catalogue_enrichment_generation_slice", { workerId, ...enrichmentGeneration });
         } catch (error) {
-          // Language generation is a derived presentation layer. A provider outage,
-          // invalid candidate or quota error must never interrupt supplier ingestion,
-          // availability, pricing or fulfilment behavior.
-          log("error", "nova.catalogue_enrichment_generation_failed", {
-            workerId,
-            error: safeError(error)
-          });
+          log("error", "nova.catalogue_enrichment_generation_failed", { workerId, error: safeError(error) });
         }
       }
 
       if (stopping) break;
       await delay(result.claimed ? pollMs : Math.max(pollMs, 15_000));
     } catch (error) {
-      log("error", "nova.catalogue_sync_failed", {
-        workerId,
-        error: safeError(error)
-      });
+      log("error", "nova.catalogue_sync_failed", { workerId, error: safeError(error) });
       if (stopping) break;
       await delay(retryMs);
     }
@@ -206,34 +160,17 @@ async function ensurePricingReadyForPublication(phase: "pre_refresh" | "post_mat
     log("error", "nova.auto_pricing_required_for_publication", { workerId, phase, enabled: false });
     return false;
   }
-
   try {
     for (let pass = 1; pass <= pricingCatchupMaxPasses && !stopping; pass += 1) {
       const pricing = await runNovaAutoPricingSlice();
-      log("info", "nova.auto_pricing_slice", {
-        workerId,
-        phase,
-        catchupPass: pass,
-        ...pricing
-      });
+      log("info", "nova.auto_pricing_slice", { workerId, phase, catchupPass: pass, ...pricing });
       if (!pricing.enabled) return false;
       if (pricing.message !== "auto_pricing_unmanaged_catchup" || pricing.scanned === 0) return true;
     }
-    log("error", "nova.auto_pricing_catchup_limit_reached", {
-      workerId,
-      phase,
-      maxPasses: pricingCatchupMaxPasses
-    });
+    log("error", "nova.auto_pricing_catchup_limit_reached", { workerId, phase, maxPasses: pricingCatchupMaxPasses });
     return false;
   } catch (error) {
-    // Supplier source ingestion remains durable even if pricing fails. Publication is
-    // intentionally blocked until a later pass succeeds, preventing raw/default prices
-    // from becoming customer-facing.
-    log("error", "nova.auto_pricing_failed", {
-      workerId,
-      phase,
-      error: safeError(error)
-    });
+    log("error", "nova.auto_pricing_failed", { workerId, phase, error: safeError(error) });
     return false;
   }
 }
@@ -241,11 +178,8 @@ async function ensurePricingReadyForPublication(phase: "pre_refresh" | "post_mat
 async function recordNovaSupplierHealthy(): Promise<void> {
   await getProductionPostgresRuntime().sqlPool.query(`
     UPDATE public.dropship_suppliers
-    SET last_healthcheck_at=now(),
-        last_healthcheck_ok=true,
-        updated_at=now()
-    WHERE code='nova_brandsgateway'
-      AND active=true
+    SET last_healthcheck_at=now(), last_healthcheck_ok=true, updated_at=now()
+    WHERE code='nova_brandsgateway' AND active=true
   `);
 }
 
@@ -255,15 +189,10 @@ function positiveInteger(raw: string | undefined, fallback: number, name: string
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
   return value;
 }
-
 function safeError(error: unknown): string {
   return (error instanceof Error ? `${error.name}:${error.message}` : String(error)).slice(0, 500);
 }
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
+function delay(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function log(level: "info" | "error", event: string, details: Record<string, unknown>) {
   console[level](JSON.stringify({ level, event, at: new Date().toISOString(), ...details }));
 }
