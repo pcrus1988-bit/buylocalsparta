@@ -2,12 +2,6 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getActivePublicCmsRedirect } from "./lib/public-cms-redirects";
 import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing";
-import {
-  HUB_LOCALITY_COOKIE,
-  PRIMARY_LOCATION_GATEWAY_PATH,
-  primaryLocationGatewayEnforcementEnabled,
-  shouldRedirectToPrimaryLocationGateway
-} from "./lib/primary-location-gateway";
 
 const MARKETPLACE_COOKIE = "bls_marketplace";
 const LEGACY_VISITOR_COOKIE = "bls_visitor";
@@ -53,32 +47,6 @@ function needsSessionContinuity(pathname: string): boolean {
   return routeRoots.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
-function isLocationGatewayPrefetch(request: NextRequest): boolean {
-  return request.headers.get("purpose") === "prefetch"
-    || request.headers.get("sec-purpose")?.includes("prefetch") === true
-    || request.headers.has("next-router-prefetch");
-}
-
-function primaryLocationGatewayResponse(request: NextRequest): NextResponse | undefined {
-  if (!primaryLocationGatewayEnforcementEnabled(process.env.BLS_LOCATION_GATEWAY_ENFORCEMENT_ENABLED)) return undefined;
-  if (!shouldRedirectToPrimaryLocationGateway({
-    pathname: request.nextUrl.pathname,
-    method: request.method,
-    localityCookie: request.cookies.get(HUB_LOCALITY_COOKIE)?.value,
-    userAgent: request.headers.get("user-agent"),
-    prefetch: isLocationGatewayPrefetch(request)
-  })) {
-    return undefined;
-  }
-
-  const destination = request.nextUrl.clone();
-  destination.pathname = PRIMARY_LOCATION_GATEWAY_PATH;
-  const response = NextResponse.redirect(destination, 307);
-  response.headers.set("Cache-Control", "private, no-store");
-  response.headers.set("Vary", "Cookie, User-Agent");
-  return response;
-}
-
 function allowsContentRedirect(request: NextRequest): boolean {
   if (request.method !== "GET" && request.method !== "HEAD") return false;
   const pathname = request.nextUrl.pathname;
@@ -107,9 +75,6 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
 }
 
 export async function proxy(request: NextRequest) {
-  const locationRedirect = primaryLocationGatewayResponse(request);
-  if (locationRedirect) return locationRedirect;
-
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
