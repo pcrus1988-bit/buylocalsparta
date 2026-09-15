@@ -15,24 +15,13 @@ on:
       - "scripts/verify-seo-production-metrics.ts"
       - "vercel.json"
       - ".github/workflows/seo-production-crawl.yml"
-  push:
-    branches: [main]
-    paths:
-      - "apps/web/src/app/**"
-      - "apps/web/src/components/**"
-      - "apps/web/src/lib/**"
-      - "apps/web/src/proxy.ts"
-      - "packages/resend-notifications/src/index.ts"
-      - "db/migrations/0156_seo_production_metrics.sql"
-      - "db/migrations/checksums.0156.json"
-      - "scripts/seo-production-crawl.mjs"
-      - "scripts/seo-production-crawl.test.mjs"
-      - "scripts/verify-seo-production-metrics.ts"
-      - "vercel.json"
-      - ".github/workflows/seo-production-crawl.yml"
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: seo-production-crawl
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -55,15 +44,15 @@ jobs:
         run: node --experimental-strip-types scripts/verify-migrations.ts
 
   crawl-production:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       SEO_ORIGIN: https://kontamou.site
-      SEO_CRAWL_CONCURRENCY: "8"
+      SEO_CRAWL_CONCURRENCY: "2"
       SEO_CRAWL_TIMEOUT_MS: "18000"
-      SEO_CRAWL_MAX_URLS: "5000"
+      SEO_CRAWL_MAX_URLS: "1500"
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
