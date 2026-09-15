@@ -4,7 +4,6 @@ import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages } from "./public-media-service";
 import { loadCatalogMetadata } from "./catalog-metadata";
-import { loadCatalogDepartmentCodes } from "./catalog-category-department";
 import { getPublicProductDetail } from "./public-product-detail";
 import { getPublishedDropshipCatalogCards } from "./published-dropship-storefront";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
@@ -17,7 +16,13 @@ type DirectCanonicalRow = Readonly<{
   slug: string;
   title: string;
   category_code: string;
+  department_code: string | null;
   price_minor: number | string;
+}>;
+
+type SeoSignalRow = Readonly<{
+  offer_available: boolean;
+  duplicate_title_count: number | string;
 }>;
 
 function safeMinor(value: unknown): number {
@@ -31,9 +36,8 @@ function visitorHash(visitorKey: string): string {
 }
 
 /**
- * Product detail routes must never materialize the full public catalogue. With
- * 60k+ canonicals that path caused statement timeouts and exhausted the small
- * serverless connection pool. Resolve exactly one public canonical instead.
+ * Product routes resolve exactly one canonical. Department membership is projected
+ * by the storefront read model when available, avoiding a second taxonomy query.
  */
 const directPublicCanonical = cache(async (routeKey: string) => {
   if (!productionDatabaseConfigured()) return undefined;
@@ -42,12 +46,14 @@ const directPublicCanonical = cache(async (routeKey: string) => {
            cv.slug,
            COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
            c.code AS category_code,
+           rm.department_code,
            cv.platform_price_minor AS price_minor
     FROM canonical_variants cv
     JOIN markets m ON m.id=cv.market_id
     JOIN categories c ON c.id=cv.category_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
     WHERE (cv.public_id=$1 OR cv.id::text=$1 OR cv.slug=$1)
       AND m.code='sparta'
       AND COALESCE(cv.commerce_channel,'normal')='normal'
@@ -70,7 +76,6 @@ const directPublicCanonical = cache(async (routeKey: string) => {
   `, [routeKey]);
   const row = result.rows[0];
   if (!row || !isPublicCatalogueTitle(String(row.title))) return undefined;
-  const departmentCodes = await loadCatalogDepartmentCodes([String(row.id)]);
   const priceMinor = safeMinor(row.price_minor);
   return {
     id: String(row.id),
@@ -79,82 +84,52 @@ const directPublicCanonical = cache(async (routeKey: string) => {
     priceMinor,
     price: formatMoney(money(priceMinor)),
     categoryCode: String(row.category_code),
-    departmentCode: departmentCodes.get(String(row.id))
+    departmentCode: row.department_code ? String(row.department_code) : undefined
   } as const;
 });
 
-async function stableOfferAvailable(canonicalVariantId: string): Promise<boolean> {
-  if (!productionDatabaseConfigured()) return false;
-  const result = await getProductionPostgresRuntime().nativePool.query<{ available: boolean }>(`
-    SELECT EXISTS (
-      SELECT 1
-      FROM canonical_variants cv
-      JOIN markets m ON m.id=cv.market_id
-      JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-      JOIN vendor_businesses v ON v.id=vo.vendor_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
-      LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id AND dso.active=true
-      LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id AND ds.active=true
-      WHERE cv.public_id=$1
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND m.code='sparta'
-        AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND v.status='active'
-        AND l.active=true
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND (
-          (dso.id IS NOT NULL
-            AND ds.api_authoritative_availability=true
-            AND dso.cached_available=true
-            AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
-            AND dso.availability_expires_at IS NOT NULL
-            AND dso.availability_expires_at>now())
-          OR
-          (dso.id IS NULL
-            AND ib.offer_id IS NOT NULL
-            AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
-            AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>now())
-        )
-    ) AS available
-  `, [canonicalVariantId]);
-  return Boolean(result.rows[0]?.available);
-}
+const loadSingleCatalogMetadata = cache(async (canonicalVariantId: string) =>
+  (await loadCatalogMetadata([canonicalVariantId])).get(canonicalVariantId)
+);
 
-async function duplicateTitleCount(title: string): Promise<number> {
-  if (!productionDatabaseConfigured()) return 1;
-  const result = await getProductionPostgresRuntime().nativePool.query<{ count: number | string }>(`
-    SELECT COUNT(*)::int AS count
-    FROM canonical_variants cv
-    JOIN markets m ON m.id=cv.market_id
-    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    WHERE m.code='sparta'
-      AND COALESCE(cv.commerce_channel,'normal')='normal'
-      AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
-      AND LOWER(BTRIM(COALESCE(el.title,en.title,cv.model,cv.slug)))=LOWER(BTRIM($1))
-  `, [title]);
-  return Math.max(1, Number(result.rows[0]?.count ?? 1));
-}
+/** SEO-only signals use the storefront projection; checkout/fairness stay authoritative. */
+const loadProductSeoSignals = cache(async (canonicalVariantId: string, title: string): Promise<SeoSignalRow> => {
+  if (!productionDatabaseConfigured()) return { offer_available: false, duplicate_title_count: 1 };
+  const result = await getProductionPostgresRuntime().nativePool.query<SeoSignalRow>(`
+    SELECT
+      EXISTS (
+        SELECT 1
+        FROM public.storefront_catalog_read_model rm
+        WHERE rm.canonical_public_id=$1
+          AND (
+            (rm.local_sellable=true AND rm.local_available_until>now())
+            OR (rm.dropship_sellable=true AND rm.dropship_available_until>now())
+          )
+      ) AS offer_available,
+      GREATEST(1,(
+        SELECT COUNT(*)::int
+        FROM public.storefront_catalog_read_model duplicate
+        WHERE lower(btrim(duplicate.title))=lower(btrim($2))
+      )) AS duplicate_title_count
+  `, [canonicalVariantId, title]);
+  return result.rows[0] ?? { offer_available: false, duplicate_title_count: 1 };
+});
 
 export const getCanonicalProductSummary = cache(async (routeKey: string) => directPublicCanonical(routeKey));
 
 export const getPublicProductSeoSummary = cache(async (routeKey: string): Promise<PublicProductSeoRecord | undefined> => {
   const product = await directPublicCanonical(routeKey);
   if (!product) return undefined;
-  const [metadataMap, detail, offerAvailable, duplicates, images] = await Promise.all([
-    loadCatalogMetadata([product.id]),
+
+  // Cap request-level DB fan-out at three concurrent reads. This matters on the
+  // deliberately small serverless pool and prevents metadata generation from
+  // starving the page render for a connection.
+  const [metadata, detail, signals] = await Promise.all([
+    loadSingleCatalogMetadata(product.id),
     getPublicProductDetail(product.id),
-    stableOfferAvailable(product.id).catch(() => false),
-    duplicateTitleCount(product.title).catch(() => 1),
-    approvedCatalogImages([{ canonicalVariantId: product.id }]).catch(() => [])
+    loadProductSeoSignals(product.id, product.title).catch(() => ({ offer_available: false, duplicate_title_count: 1 }))
   ]);
-  const metadata = metadataMap.get(product.id);
+  const images = await approvedCatalogImages([{ canonicalVariantId: product.id }]).catch(() => []);
   const image = images[0];
   const displayTitle = metadata?.title ?? product.title;
   return {
@@ -170,8 +145,8 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string): Promis
     mediaId: image?.mediaId,
     mediaAlt: image?.altText,
     sourceImageAvailable: Boolean(detail?.sourceImageUrl),
-    offerAvailable,
-    duplicateTitleCount: duplicates
+    offerAvailable: Boolean(signals.offer_available),
+    duplicateTitleCount: Math.max(1, Number(signals.duplicate_title_count) || 1)
   };
 });
 
@@ -212,11 +187,10 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
     if (offerPrice !== undefined) priceMinor = offerPrice;
   }
 
-  const [metadataMap, images] = await Promise.all([
-    loadCatalogMetadata([canonical.id]),
+  const [metadata, images] = await Promise.all([
+    loadSingleCatalogMetadata(canonical.id),
     approvedCatalogImages([{ canonicalVariantId: canonical.id, preferredVendorId: assigned.vendorId }]).catch(() => [])
   ]);
-  const metadata = metadataMap.get(canonical.id);
   const image = images[0];
   const localProduct: CatalogCard = {
     id: canonical.id,
