@@ -175,6 +175,11 @@ export async function getDropshipStorefrontReadModelWindow(
     return result.rows;
   }
 
+  const familyFilterParameters = [
+    ...parameters(input).slice(0, 9),
+    input.limit,
+    input.offset
+  ];
   const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
     SELECT
       fm.dropship_supplier_id AS supplier_id,
@@ -184,8 +189,8 @@ export async function getDropshipStorefrontReadModelWindow(
     WHERE fm.available_until>now()
       ${FAMILY_FILTER_SQL}
     ORDER BY ${orderBy}
-    LIMIT $11 OFFSET $12
-  `, parameters(input));
+    LIMIT $10 OFFSET $11
+  `, familyFilterParameters);
   return result.rows;
 }
 
