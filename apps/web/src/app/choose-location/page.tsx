@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Επίλεξε την πόλη ή περιοχή σου και δες αν η τοπική αγορά ΚΟΝΤΑ ΜΟΥ είναι διαθέσιμη, ετοιμάζεται ή βρίσκεται στο πλάνο.",
   robots: {
     index: false,
-    follow: false,
+    follow: true,
     noarchive: true,
     nosnippet: true
   }
