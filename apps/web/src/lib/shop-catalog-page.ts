@@ -176,6 +176,39 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
       SELECT child.id,child.parent_id,child.code,parent.department_code
       FROM categories child
       JOIN category_tree parent ON child.parent_id=parent.id
+    ), search_matches AS MATERIALIZED (
+      SELECT pt.canonical_variant_id
+      FROM product_translations pt
+      WHERE $7::text<>''
+        AND to_tsvector('simple',COALESCE(pt.title,'')) @@ plainto_tsquery('simple',$7)
+      UNION
+      SELECT cv.id
+      FROM canonical_variants cv
+      WHERE $7::text<>''
+        AND to_tsvector(
+          'simple',
+          COALESCE(cv.model,'') || ' ' || COALESCE(cv.slug,'') || ' ' ||
+          COALESCE(cv.gtin,'') || ' ' || COALESCE(cv.mpn,'')
+        ) @@ plainto_tsquery('simple',$7)
+      UNION
+      SELECT cv.id
+      FROM brands b
+      JOIN canonical_variants cv ON cv.brand_id=b.id
+      WHERE $7::text<>''
+        AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$7)
+      UNION
+      SELECT cv.id
+      FROM brands b
+      JOIN product_families pf ON pf.brand_id=b.id
+      JOIN canonical_variants cv ON cv.family_id=pf.id AND cv.brand_id IS NULL
+      WHERE $7::text<>''
+        AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$7)
+      UNION
+      SELECT cv.id
+      FROM categories c
+      JOIN canonical_variants cv ON cv.category_id=c.id
+      WHERE $7::text<>''
+        AND to_tsvector('simple',COALESCE(c.code,'')) @@ plainto_tsquery('simple',$7)
     ), candidates AS (
       SELECT
         cv.public_id AS canonical_public_id,
@@ -224,14 +257,7 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
         AND ($6::text='' OR lower(COALESCE(el.specifications->>'fit',en.specifications->>'fit',''))=lower($6))
         AND (
           $7::text='' OR
-          to_tsvector('simple',concat_ws(' ',
-            COALESCE(el.title,en.title,cv.model,cv.slug),
-            COALESCE(el.description,en.description,''),
-            COALESCE(b.name,''),
-            COALESCE(cv.gtin,''),
-            COALESCE(cv.mpn,''),
-            c.code
-          )) @@ plainto_tsquery('simple',$7)
+          cv.id IN (SELECT canonical_variant_id FROM search_matches)
           OR COALESCE(cv.gtin,'')=$7
           OR lower(COALESCE(cv.mpn,''))=lower($7)
         )
