@@ -18,6 +18,11 @@ type AvailableCanonical = Readonly<{
   departmentCode?: string;
 }>;
 
+type AvailableCategoryRow = Readonly<{
+  category_code: string;
+  department_code: string | null;
+}>;
+
 export type AvailableCatalogTaxonomy = Readonly<{
   categories: readonly StorefrontCategory[];
   facets: CatalogFacets;
@@ -200,8 +205,21 @@ export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise
     .map((product) => ({ ...product, departmentCode: departmentCodes.get(product.id) }));
 }
 
+/**
+ * Homepage/category navigation needs only the small set of currently projected
+ * category/department pairs. Do not call publicCanonicals() here: that recreates
+ * the full catalogue just to decide which governed top-level links are visible.
+ */
 export async function getAvailableStorefrontCategories(_postcode = "23100"): Promise<readonly StorefrontCategory[]> {
-  return availableCategories(await getDiscoverableCatalogCanonicals());
+  if (!productionDatabaseConfigured()) return [];
+  const result = await getProductionPostgresRuntime().nativePool.query<AvailableCategoryRow>(`
+    SELECT DISTINCT category_code,department_code
+    FROM public.storefront_facet_read_model
+    WHERE available_until>now()
+  `);
+  return STOREFRONT_CATEGORIES.filter((category) =>
+    result.rows.some((row) => categoryCodeMatches(row.category_code, category.slug, row.department_code ?? undefined))
+  );
 }
 
 /**

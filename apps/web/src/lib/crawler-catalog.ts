@@ -1,6 +1,6 @@
 import type { CatalogCard, CatalogFilters } from "./catalog-view";
 import { getCrawlerLocalCatalogCard } from "./crawler-local-catalog-card";
-import { getCrawlerLocalCatalogPage } from "./crawler-local-catalog-page";
+import { getCrawlerLocalCatalogPageFast } from "./crawler-local-catalog-page-fast";
 import { getPublishedDropshipCatalogPage } from "./published-dropship-catalog-page";
 import { getPublishedDropshipCatalogCards } from "./published-dropship-storefront";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -32,7 +32,7 @@ export async function getCrawlerCatalogCards(
   if (!productionDatabaseConfigured() || (limit !== undefined && limit <= 0)) return [];
 
   const pageSize = boundedLimit(limit);
-  const localProducts = [...await getCrawlerLocalCatalogPage(postcode, query, category, filters, pageSize)];
+  const localProducts = [...await getCrawlerLocalCatalogPageFast(postcode, query, category, filters, pageSize)];
   if (localProducts.length >= pageSize) return localProducts.slice(0, pageSize);
 
   const remaining = pageSize - localProducts.length;

@@ -1,6 +1,5 @@
 import { formatMoney, money } from "@buy-local-sparta/core";
 import type { CatalogCard } from "./catalog-view";
-import { loadCatalogDepartmentCodes } from "./catalog-category-department";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { projectDropshipFamilies } from "./dropship-family-projection";
 import { parseDropshipPresentationConfig, resolveDropshipPublicFields } from "./dropship-presentation-policy";
@@ -11,7 +10,6 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 60;
 
-type HiddenCategoryRow = Readonly<{ id: string }>;
 type FastPageRow = Readonly<{
   canonical_public_id: string;
   family_id: string | null;
@@ -21,18 +19,18 @@ type FastPageRow = Readonly<{
   slug: string;
   title: string;
   category_code: string;
+  department_code: string | null;
   customer_price_minor: number | string;
   cached_quantity: number | string | null;
   currently_available: boolean;
   vendor_public_id: string;
   vendor_name: string;
   vendor_presentation: unknown;
-  source_product_id: string;
 }>;
 
 type FastPageMarkerRow = Readonly<{
   supplier_id: string;
-  source_product_id: string;
+  external_product_id: string;
 }>;
 
 export type FastVendorDropshipCatalogPage = Readonly<{
@@ -58,33 +56,11 @@ function safeQuantity(value: unknown): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
-async function hiddenVendorCategoryIds(vendorId: string): Promise<readonly string[]> {
-  const result = await getProductionPostgresRuntime().nativePool.query<HiddenCategoryRow>(`
-    WITH RECURSIVE hidden AS (
-      SELECT vcv.category_id AS id
-      FROM vendor_category_visibility vcv
-      JOIN vendor_businesses v ON v.id=vcv.vendor_id
-      WHERE v.public_id=$1 AND vcv.visible=false
-      UNION
-      SELECT child.id
-      FROM categories child
-      JOIN hidden parent ON child.parent_id=parent.id
-    )
-    SELECT id::text AS id FROM hidden
-  `, [vendorId]);
-  return result.rows.map((row) => row.id);
-}
-
 /**
  * Latency-critical unfiltered dropshipping storefront page.
  *
- * Pagination starts from currently sellable supplier products only. Unavailable,
- * zero-stock or stale supplier rows never consume page slots and are never hydrated.
- * PostgreSQL can therefore stop as soon as it finds limit+1 sellable products;
- * translations, metadata and media are hydrated only for the selected product page.
- *
- * Search/filter requests intentionally remain on the full semantic query so this
- * optimization cannot narrow discovery or change filter behaviour.
+ * Family discovery is served by the supplier-scoped read model index, then only
+ * the selected families are revalidated against authoritative supplier/offer data.
  */
 export async function getFastVendorDropshipCatalogPage(
   vendorId: string,
@@ -94,57 +70,32 @@ export async function getFastVendorDropshipCatalogPage(
   const limit = Math.max(1, safePositiveInt(input.limit, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE));
   if (!productionDatabaseConfigured()) return { products: [], offset, limit };
 
-  const hiddenCategoryIds = await hiddenVendorCategoryIds(vendorId);
   const runtime = getProductionPostgresRuntime();
   const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
-    WITH vendor AS MATERIALIZED (
-      SELECT id
-      FROM vendor_businesses
-      WHERE public_id=$1 AND status='active'
-    ), markers AS (
-      SELECT DISTINCT dso.supplier_id,
-                      dso.source_product_id
-      FROM dropship_supplier_offers dso
-      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      WHERE ds.owner_vendor_id=(SELECT id FROM vendor)
+    SELECT
+      fm.dropship_supplier_id AS supplier_id,
+      fm.dropship_external_product_id AS external_product_id
+    FROM public.storefront_dropship_family_read_model fm
+    WHERE fm.dropship_supplier_id=(
+      SELECT ds.id::text
+      FROM dropship_suppliers ds
+      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+      WHERE v.public_id=$1
+        AND v.status='active'
         AND ds.active=true
-        AND ds.api_authoritative_availability=true
-        AND dso.active=true
-        AND dso.cached_available=true
-        AND dso.cached_quantity>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND dso.source_product_id IS NOT NULL
-        AND vo.vendor_id=(SELECT id FROM vendor)
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND l.active=true
-        AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND (cardinality($2::uuid[])=0 OR NOT (cv.category_id=ANY($2::uuid[])))
-      ORDER BY dso.supplier_id,dso.source_product_id
-      LIMIT $3 OFFSET $4
+      LIMIT 1
     )
-    SELECT supplier_id::text AS supplier_id,
-           source_product_id::text AS source_product_id
-    FROM markers
-  `, [vendorId, hiddenCategoryIds, limit + 1, offset]);
+      AND fm.available_until>now()
+    ORDER BY fm.newest_at DESC,fm.dropship_external_product_id
+    LIMIT $2 OFFSET $3
+  `, [vendorId, limit + 1, offset]);
 
   const hasMore = markerResult.rows.length > limit;
   const selected = markerResult.rows.slice(0, limit);
   if (!selected.length) return { products: [], offset, limit };
 
   const supplierIds = selected.map((row) => row.supplier_id);
-  const sourceProductIds = selected.map((row) => row.source_product_id);
+  const externalProductIds = selected.map((row) => row.external_product_id);
   const result = await runtime.nativePool.query<FastPageRow>(`
     WITH vendor AS MATERIALIZED (
       SELECT id,public_id,trading_name
@@ -152,8 +103,8 @@ export async function getFastVendorDropshipCatalogPage(
       WHERE public_id=$1 AND status='active'
     ), selected AS MATERIALIZED (
       SELECT *
-      FROM unnest($2::uuid[],$3::uuid[]) WITH ORDINALITY
-        AS selected(supplier_id,source_product_id,position)
+      FROM unnest($2::uuid[],$3::text[]) WITH ORDINALITY
+        AS selected(supplier_id,external_product_id,position)
     )
     SELECT
       cv.public_id AS canonical_public_id,
@@ -164,20 +115,21 @@ export async function getFastVendorDropshipCatalogPage(
       cv.slug,
       COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
       c.code AS category_code,
+      rm.department_code,
       vo.customer_price_minor,
       dso.cached_quantity,
       true AS currently_available,
       (SELECT public_id FROM vendor) AS vendor_public_id,
       (SELECT trading_name FROM vendor) AS vendor_name,
-      ds.configuration->'vendorPresentation' AS vendor_presentation,
-      dso.source_product_id::text AS source_product_id
+      ds.configuration->'vendorPresentation' AS vendor_presentation
     FROM selected
     JOIN dropship_supplier_offers dso
       ON dso.supplier_id=selected.supplier_id
-     AND dso.source_product_id=selected.source_product_id
+     AND dso.external_product_id=selected.external_product_id
     JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
     JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+    JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
     JOIN categories c ON c.id=cv.category_id
     JOIN vendor_locations l ON l.id=vo.location_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
@@ -197,18 +149,17 @@ export async function getFastVendorDropshipCatalogPage(
       AND vo.customer_price_minor>0
       AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
       AND l.active=true
-      AND cv.market_id=(SELECT id FROM markets WHERE code='sparta')
       AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
-      AND (cardinality($4::uuid[])=0 OR NOT (cv.category_id=ANY($4::uuid[])))
+      AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
     ORDER BY selected.position,
              vo.customer_price_minor ASC,
              dso.availability_checked_at DESC NULLS LAST,
              vo.updated_at DESC,
              vo.public_id
-  `, [vendorId, supplierIds, sourceProductIds, hiddenCategoryIds]);
+  `, [vendorId, supplierIds, externalProductIds]);
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
@@ -223,10 +174,10 @@ export async function getFastVendorDropshipCatalogPage(
       familyId: row.family_id,
       supplierId: row.supplier_id,
       externalProductId: row.external_product_id,
-      sourceProductId: row.source_product_id,
       slug: row.slug,
       title: row.title,
       categoryCode: row.category_code,
+      departmentCode: row.department_code ?? undefined,
       priceMinor,
       available,
       availableToSell: available ? safeQuantity(row.cached_quantity) : 0,
@@ -246,14 +197,9 @@ export async function getFastVendorDropshipCatalogPage(
     };
   }
 
-  const ids = base.map((record) => record.id);
-  const [departmentCodes, metadata] = await Promise.all([
-    loadCatalogDepartmentCodes(ids),
-    loadCatalogMetadata(ids)
-  ]);
+  const metadata = await loadCatalogMetadata(base.map((record) => record.id));
   const enriched = base.map((record) => ({
     ...record,
-    departmentCode: departmentCodes.get(record.id),
     sizes: metadata.get(record.id)?.sizes ?? []
   }));
   const matchingIds = new Set(enriched.map((record) => record.id));
@@ -285,7 +231,6 @@ export async function getFastVendorDropshipCatalogPage(
       familyId: _familyId,
       supplierId: _supplierId,
       externalProductId: _externalProductId,
-      sourceProductId: _sourceProductId,
       sizes: _childSizes,
       matchesFilter: _matchesFilter,
       ...catalogRecord

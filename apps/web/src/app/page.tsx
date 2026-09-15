@@ -9,7 +9,8 @@ import { HomeLocalMarketScene } from "../components/HomeLocalMarketScene";
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { getHomepageLocalMarketScene } from "../lib/homepage-local-market-runtime";
-import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
+import { getHomepagePublicVendorDirectory } from "../lib/homepage-vendor-directory";
+import type { PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
@@ -78,8 +79,8 @@ const getCachedHomepageCategories = unstable_cache(
 );
 
 const getCachedHomepageVendors = unstable_cache(
-  () => getPublicVendorDirectory(),
-  ["homepage-public-vendor-directory-v1"],
+  () => getHomepagePublicVendorDirectory(),
+  ["homepage-public-vendor-directory-v2"],
   { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
 );
 

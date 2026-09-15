@@ -2,6 +2,10 @@ import { readApprovedPublicMedia } from "../../../../lib/public-media-service";
 
 type Context = { params: Promise<{ id: string }> };
 
+const PUBLIC_MEDIA_BROWSER_CACHE = "public, max-age=300, must-revalidate";
+const PUBLIC_MEDIA_SHARED_CACHE = "public, max-age=900";
+const PUBLIC_MEDIA_VERCEL_CACHE = "public, max-age=3600";
+
 export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
   if (!/^media_[A-Za-z0-9_-]{8,128}$/.test(id)) return new Response(null, { status: 404, headers: noStoreHeaders() });
@@ -13,7 +17,10 @@ export async function GET(_request: Request, context: Context) {
     return new Response(toWebStream(media.stream), {
       status: 200,
       headers: {
-        ...noStoreHeaders(),
+        "Cache-Control": PUBLIC_MEDIA_BROWSER_CACHE,
+        "CDN-Cache-Control": PUBLIC_MEDIA_SHARED_CACHE,
+        "Vercel-CDN-Cache-Control": PUBLIC_MEDIA_VERCEL_CACHE,
+        "Vercel-Cache-Tag": `public-media-${id}`,
         "Content-Type": media.contentType,
         "Content-Length": String(media.byteSize),
         "Content-Disposition": "inline",

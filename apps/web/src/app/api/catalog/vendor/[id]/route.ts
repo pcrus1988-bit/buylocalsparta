@@ -4,6 +4,13 @@ import { getFastVendorDropshipFacets } from "../../../../../lib/vendor-dropship-
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
+const PAGE_BROWSER_CACHE = "public, max-age=5";
+const PAGE_SHARED_CACHE = "public, max-age=15";
+const PAGE_VERCEL_CACHE = "public, max-age=30";
+const FACET_BROWSER_CACHE = "public, max-age=30";
+const FACET_SHARED_CACHE = "public, max-age=120";
+const FACET_VERCEL_CACHE = "public, max-age=300";
+
 function optionalParam(url: URL, key: string, max: number): string {
   return url.searchParams.get(key)?.trim().slice(0, max) ?? "";
 }
@@ -27,10 +34,22 @@ async function optionalFacets(vendorId: string) {
   }
 }
 
+function publicCacheHeaders(facetsOnly = false): HeadersInit {
+  return facetsOnly ? {
+    "Cache-Control": FACET_BROWSER_CACHE,
+    "CDN-Cache-Control": FACET_SHARED_CACHE,
+    "Vercel-CDN-Cache-Control": FACET_VERCEL_CACHE
+  } : {
+    "Cache-Control": PAGE_BROWSER_CACHE,
+    "CDN-Cache-Control": PAGE_SHARED_CACHE,
+    "Vercel-CDN-Cache-Control": PAGE_VERCEL_CACHE
+  };
+}
+
 export async function GET(request: Request, { params }: RouteContext) {
   const { id } = await params;
   if (!/^[A-Za-z0-9_-]{3,128}$/.test(id)) {
-    return Response.json({ error: "invalid_vendor" }, { status: 400 });
+    return Response.json({ error: "invalid_vendor" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
   const url = new URL(request.url);
@@ -58,11 +77,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         limit: 0,
         nextOffset: null,
         facets: facets ?? null
-      }, {
-        headers: {
-          "Cache-Control": "private, max-age=30, stale-while-revalidate=300"
-        }
-      });
+      }, { headers: publicCacheHeaders(true) });
     }
 
     const useFastInitialPath = !includeFacets
@@ -95,11 +110,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       limit: page.limit,
       nextOffset: page.nextOffset ?? null,
       facets: facets ?? null
-    }, {
-      headers: {
-        "Cache-Control": "no-store"
-      }
-    });
+    }, { headers: publicCacheHeaders(false) });
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
@@ -107,6 +118,6 @@ export async function GET(request: Request, { params }: RouteContext) {
       vendorId: id,
       message: error instanceof Error ? error.message : String(error)
     }));
-    return Response.json({ error: "catalogue_unavailable" }, { status: 503 });
+    return Response.json({ error: "catalogue_unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
