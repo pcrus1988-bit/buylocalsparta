@@ -1,13 +1,13 @@
 import type { MetadataRoute } from "next";
 import { INDEXABLE_STATIC_ROUTES } from "../../../lib/site-navigation";
-import { getPublicVendorDirectory } from "../../../lib/public-vendor-directory";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
-import { getAvailableStorefrontCategories } from "../../../lib/available-catalog-taxonomy";
+import { STOREFRONT_CATEGORIES } from "../../../lib/storefront-taxonomy";
 import { getPublicCmsSitemapEntries } from "../../../lib/public-cms";
 import { EDITORIAL_COLLECTIONS } from "../../../lib/editorial-collections";
+import { getPublicVendorSitemapInventory } from "../../../lib/vendor-sitemap-inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -29,21 +29,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]);
   if (!settings.indexingEnabled) return [];
 
-  const [categories, cmsEntries] = await Promise.all([
-    settings.sitemap.categories
-      ? getAvailableStorefrontCategories("23100").catch((error) => {
-          console.error(JSON.stringify({ level: "error", event: "seo.sitemap_categories_failed", message: String(error) }));
-          return [];
-        })
-      : Promise.resolve([]),
-    settings.sitemap.staticPages
-      ? getPublicCmsSitemapEntries().catch((error) => {
-          console.error(JSON.stringify({ level: "error", event: "seo.sitemap_cms_failed", message: String(error) }));
-          return [];
-        })
-      : Promise.resolve([])
-  ]);
+  const cmsEntries = settings.sitemap.staticPages
+    ? await getPublicCmsSitemapEntries().catch((error) => {
+        console.error(JSON.stringify({ level: "error", event: "seo.sitemap_cms_failed", message: String(error) }));
+        return [];
+      })
+    : [];
 
+  const categories = settings.sitemap.categories ? STOREFRONT_CATEGORIES : [];
   const origin = settings.canonicalOrigin;
   const governed = (reference: SeoEntityReference, entityEligible: boolean, defaultIndexAllowed: boolean) => {
     const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
@@ -94,18 +87,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }) : [])
   ];
 
-  const [vendors] = await Promise.allSettled([
-    settings.sitemap.partnerVendors || settings.sitemap.researchVendors
-      ? getPublicVendorDirectory()
-      : Promise.resolve(null)
-  ]);
-  if (vendors.status === "rejected") {
-    console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(vendors.reason) }));
+  let vendors: Awaited<ReturnType<typeof getPublicVendorSitemapInventory>> | null = null;
+  if (settings.sitemap.partnerVendors || settings.sitemap.researchVendors) {
+    try {
+      vendors = await getPublicVendorSitemapInventory();
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "seo.sitemap_vendors_failed",
+        message: String(error)
+      }));
+      // Do not publish an apparently successful sitemap with hundreds of vendor URLs
+      // silently missing. A retryable server error is safer for crawlers than URL churn.
+      throw error;
+    }
   }
 
   const entries: MetadataRoute.Sitemap = [
     ...fixed,
-    ...(vendors.status === "fulfilled" && vendors.value ? vendors.value.flatMap((vendor) => {
+    ...(vendors ? vendors.flatMap((vendor) => {
       const isPartner = vendor.directoryStatus === "partner";
       if (isPartner && !settings.sitemap.partnerVendors) return [];
       if (!isPartner && !settings.sitemap.researchVendors) return [];
