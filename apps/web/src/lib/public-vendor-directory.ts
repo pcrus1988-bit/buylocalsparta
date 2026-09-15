@@ -1,4 +1,5 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
@@ -364,32 +365,64 @@ function directoryPresentation(vendor: PublicVendorDirectoryEntry, profileMedia:
     : { ...vendor, story: effectiveStory };
 }
 
+function isTransientDatabaseError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as Readonly<{ code?: unknown; message?: unknown }>;
+  if (candidate.code === "57014" || candidate.code === "53300" || candidate.code === "08000" || candidate.code === "08006") return true;
+  const message = typeof candidate.message === "string" ? candidate.message.toLocaleLowerCase("en") : "";
+  return message.includes("timeout exceeded when trying to connect")
+    || message.includes("statement timeout")
+    || message.includes("connection terminated")
+    || message.includes("too many clients")
+    || message.includes("remaining connection slots");
+}
+
+async function withTransientDatabaseRetry<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isTransientDatabaseError(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return operation();
+  }
+}
+
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
   if (!productionDatabaseConfigured()) return [];
   const directory = await databaseDirectory();
   const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
-  const [profileMedia, fallbackImages] = await Promise.all([
-    approvedVendorProfileMedia(partnerIds),
-    approvedVendorImages(partnerIds)
-  ]);
+  // Avoid opening two extra pool connections at once after the already-heavy directory read.
+  const profileMedia = await approvedVendorProfileMedia(partnerIds);
+  const fallbackImages = await approvedVendorImages(partnerIds);
   const fallbackByVendor = new Map(fallbackImages.map((image) => [image.vendorId, image]));
   return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
 }
 
-const loadPublicVendorDirectoryEntry = cache(async (vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> => {
-  if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
-  const vendor = (await databaseDirectory(vendorId))[0];
-  if (!vendor) return undefined;
-  if (vendor.directoryStatus !== "partner") return vendor;
-  const [profileMedia, fallbackImages] = await Promise.all([
-    approvedVendorProfileMedia([vendor.id]),
-    approvedVendorImages([vendor.id])
-  ]);
-  const profileImage = preferredProfileMedia(profileMedia, vendor.id);
-  if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
-  const fallback = fallbackImages[0];
-  return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
-});
+const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
+  async (vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> => {
+    if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
+    const vendor = (await withTransientDatabaseRetry(() => databaseDirectory(vendorId)))[0];
+    if (!vendor) return undefined;
+    if (vendor.directoryStatus !== "partner") return vendor;
+
+    // Most storefronts either have approved profile media or a fallback product image.
+    // Resolve them sequentially so one request never consumes multiple DB pool slots here.
+    const profileMedia = await withTransientDatabaseRetry(() => approvedVendorProfileMedia([vendor.id]));
+    const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+    if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
+
+    const fallbackImages = await withTransientDatabaseRetry(() => approvedVendorImages([vendor.id]));
+    const fallback = fallbackImages[0];
+    return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
+  },
+  ["public-vendor-directory-entry-v2"],
+  { revalidate: 60 }
+);
+
+// React cache deduplicates generateMetadata/page consumers inside one render;
+// the Next runtime cache above prevents every request from reopening the same
+// public vendor profile query during normal traffic.
+const loadPublicVendorDirectoryEntry = cache(loadPersistedPublicVendorDirectoryEntry);
 
 export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
   return loadPublicVendorDirectoryEntry(vendorId);
