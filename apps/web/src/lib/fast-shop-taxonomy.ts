@@ -15,7 +15,6 @@ type FastTaxonomyRow = Readonly<{
 }>;
 
 type CategoryRow = Readonly<{ code: string; departmentCode?: string }>;
-
 type FacetRow = Readonly<{ value: string; label: string }>;
 
 function normalizeCategory(value: string): string {
@@ -75,17 +74,9 @@ function fallbackTaxonomy(): AvailableCatalogTaxonomy {
 }
 
 /**
- * Fast standard taxonomy for /shop.
- *
- * The former discovery taxonomy hydrated every public canonical, loaded department
- * codes for the whole catalogue, then loaded metadata for the whole scoped set in
- * Node. That cost grows linearly with supplier catalogue size and eventually made
- * the shop fail while rebuilding the facet cache.
- *
- * This projection keeps the work in PostgreSQL and returns only distinct category,
- * brand, colour and size vocabulary. It intentionally does not build governed
- * leaf-specific attribute facets; callers that require those still use the richer
- * taxonomy path.
+ * Standard /shop taxonomy from the compact storefront filter read model.
+ * Catalogue joins, translations and supplier offer eligibility are resolved by
+ * the background projection; requests aggregate only the small facet vocabulary.
  */
 export async function getFastShopTaxonomy(
   category = "",
@@ -100,88 +91,34 @@ export async function getFastShopTaxonomy(
   const search = query.trim();
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
-      WITH RECURSIVE category_tree AS (
-        SELECT c.id,c.parent_id,c.code,c.code AS department_code
-        FROM categories c
-        JOIN markets m ON m.id=c.market_id
-        WHERE m.code='sparta' AND c.parent_id IS NULL
-        UNION ALL
-        SELECT child.id,child.parent_id,child.code,parent.department_code
-        FROM categories child
-        JOIN category_tree parent ON child.parent_id=parent.id
-      ), all_categories AS MATERIALIZED (
-        SELECT DISTINCT c.code,tree.department_code
-        FROM canonical_variants cv
-        JOIN markets m ON m.id=cv.market_id
-        JOIN categories c ON c.id=cv.category_id
-        JOIN category_tree tree ON tree.id=cv.category_id
-        WHERE m.code='sparta'
-          AND COALESCE(cv.commerce_channel,'normal')='normal'
-          AND cv.active=true
-          AND cv.suppressed=false
-          AND cv.recalled=false
+      WITH all_categories AS MATERIALIZED (
+        SELECT DISTINCT rm.category_code AS code,rm.department_code
+        FROM public.storefront_filter_read_model rm
+        WHERE rm.available_until>now()
       ), base AS MATERIALIZED (
         SELECT
-          c.code AS category_code,
-          tree.department_code,
-          COALESCE(ctel.name,cten.name,c.code) AS category_label,
-          NULLIF(BTRIM(COALESCE(b.name,'')),'') AS brand,
-          NULLIF(BTRIM(COALESCE(
-            el.specifications->>'color',
-            en.specifications->>'color',
-            cv.variant_attributes->>'color',
-            ''
-          )),'') AS color,
-          CASE
-            WHEN jsonb_typeof(COALESCE(
-              el.specifications->'sizes',
-              en.specifications->'sizes',
-              cv.variant_attributes->'sizes_observed',
-              '[]'::jsonb
-            ))='array'
-              THEN COALESCE(
-                el.specifications->'sizes',
-                en.specifications->'sizes',
-                cv.variant_attributes->'sizes_observed',
-                '[]'::jsonb
-              )
-            ELSE '[]'::jsonb
-          END AS sizes
-        FROM canonical_variants cv
-        JOIN markets m ON m.id=cv.market_id
-        JOIN categories c ON c.id=cv.category_id
-        JOIN category_tree tree ON tree.id=cv.category_id
-        LEFT JOIN product_families pf ON pf.id=cv.family_id
-        LEFT JOIN brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
-        LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-        LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-        LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-        LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-        WHERE m.code='sparta'
-          AND COALESCE(cv.commerce_channel,'normal')='normal'
-          AND cv.active=true
-          AND cv.suppressed=false
-          AND cv.recalled=false
+          rm.category_code,
+          rm.department_code,
+          rm.category_label,
+          NULLIF(BTRIM(COALESCE(rm.brand_name,'')),'') AS brand,
+          NULLIF(BTRIM(COALESCE(rm.color,'')),'') AS color,
+          CASE WHEN jsonb_typeof(rm.sizes)='array' THEN rm.sizes ELSE '[]'::jsonb END AS sizes
+        FROM public.storefront_filter_read_model rm
+        WHERE rm.available_until>now()
           AND (
             cardinality($1::text[])=0 OR EXISTS (
               SELECT 1 FROM unnest($1::text[]) prefix
-              WHERE lower(c.code)=prefix
-                 OR lower(c.code) LIKE prefix||'-%'
-                 OR lower(tree.department_code)=prefix
-                 OR lower(tree.department_code) LIKE prefix||'-%'
+              WHERE lower(rm.category_code)=prefix
+                 OR lower(rm.category_code) LIKE prefix||'-%'
+                 OR lower(rm.department_code)=prefix
+                 OR lower(rm.department_code) LIKE prefix||'-%'
             )
           )
           AND (
             $2::text='' OR
-            to_tsvector('simple',concat_ws(' ',
-              COALESCE(el.title,en.title,cv.model,cv.slug),
-              COALESCE(b.name,''),
-              COALESCE(cv.gtin,''),
-              COALESCE(cv.mpn,''),
-              c.code
-            )) @@ plainto_tsquery('simple',$2)
-            OR COALESCE(cv.gtin,'')=$2
-            OR lower(COALESCE(cv.mpn,''))=lower($2)
+            rm.search_vector @@ plainto_tsquery('simple',$2)
+            OR COALESCE(rm.gtin,'')=$2
+            OR lower(COALESCE(rm.mpn,''))=lower($2)
           )
       ), subcategory_values AS (
         SELECT DISTINCT category_code AS value,category_label AS label
