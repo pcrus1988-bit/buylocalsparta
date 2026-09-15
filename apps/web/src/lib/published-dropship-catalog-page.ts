@@ -145,6 +145,11 @@ export async function getPublishedDropshipCatalogPage(
         SELECT child.id,child.parent_id,child.code,parent.department_code
         FROM categories child
         JOIN category_tree parent ON child.parent_id=parent.id
+      ), search_matches AS MATERIALIZED (
+        SELECT canonical_variant_id
+        FROM storefront_search_documents
+        WHERE $9::text<>''
+          AND document @@ plainto_tsquery('simple',$9)
       ),
       ${HIDDEN_CATEGORY_CLOSURE_SQL},
       eligible AS MATERIALIZED (
@@ -195,6 +200,12 @@ export async function getPublishedDropshipCatalogPage(
             WHERE hidden.vendor_id=vo.vendor_id
               AND hidden.category_id=cv.category_id
           )
+          AND (
+            $9::text='' OR
+            cv.id IN (SELECT canonical_variant_id FROM search_matches)
+            OR COALESCE(cv.gtin,'')=$9
+            OR lower(COALESCE(cv.mpn,''))=lower($9)
+          )
       ), matching_children AS (
         SELECT
           eligible.supplier_id,
@@ -224,19 +235,6 @@ export async function getPublishedDropshipCatalogPage(
           AND ($6::text='' OR lower(COALESCE(el.specifications->>'fit',en.specifications->>'fit',''))=lower($6))
           AND ($7::bigint IS NULL OR eligible.customer_price_minor>=$7)
           AND ($8::bigint IS NULL OR eligible.customer_price_minor<=$8)
-          AND (
-            $9::text='' OR
-            to_tsvector('simple',concat_ws(' ',
-              COALESCE(el.title,en.title,eligible.model,eligible.slug),
-              COALESCE(el.description,en.description,''),
-              COALESCE(b.name,''),
-              COALESCE(eligible.gtin,''),
-              COALESCE(eligible.mpn,''),
-              c.code
-            )) @@ plainto_tsquery('simple',$9)
-            OR COALESCE(eligible.gtin,'')=$9
-            OR lower(COALESCE(eligible.mpn,''))=lower($9)
-          )
       ), matching_families AS (
         SELECT
           supplier_id,
