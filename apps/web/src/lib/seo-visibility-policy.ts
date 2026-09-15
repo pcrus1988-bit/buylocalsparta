@@ -187,10 +187,12 @@ function usefulText(value: string | undefined, minimum = 2): boolean {
  * The public directory already enforces public_directory_visible at the database
  * boundary. This function only decides whether a visible research record is strong
  * enough to be actively indexed/sitemapped. It intentionally does not invent data.
- * Production research rows expose their linked source evidence; automatic indexing
- * additionally requires corroboration from at least two distinct source types.
- * That corroboration requirement is intentionally not a hard entity blocker so a
- * deliberate governed admin override can still opt in a reviewed dossier.
+ * Linked source evidence remains an important confidence signal, but independent
+ * source-type count is not an absolute index blocker once the dossier itself passes
+ * the substantive local-business quality gate: meaningful identity, complete local
+ * address, category classification, minimum score and no closed/inactive signal.
+ * This avoids deindexing useful local-business pages merely because research
+ * corroboration has not yet been expanded to a second source type.
  */
 export function researchVendorIndexEligibility(vendor: PublicVendorDirectoryEntry, policy: ResearchVendorIndexPolicy = {}): ResearchVendorIndexEligibility {
   if (vendor.directoryStatus !== "research") {
@@ -240,23 +242,19 @@ export function researchVendorIndexEligibility(vendor: PublicVendorDirectoryEntr
   const statusText = [vendor.research?.storefrontStatus, vendor.research?.marketplaceScope].filter(Boolean).join(" ");
   if (statusText && CLOSED_STATUS_PATTERN.test(statusText)) blockingReasons.push("record indicates closed/inactive/out-of-scope status");
 
-  // Older synthetic fixtures predate evidence metadata. Production DB-backed
-  // research entries always supply sourceTypes/sourceCount through the public
-  // vendor projection, so only those real records are subject to corroboration.
   const hasEvidenceMetadata = Array.isArray(vendor.research?.sourceTypes) || typeof vendor.research?.sourceCount === "number";
   const distinctSourceTypes = new Set(
     (vendor.research?.sourceTypes ?? [])
       .map((value) => value.trim())
       .filter(Boolean)
   );
-  const independentlyCorroborated = !hasEvidenceMetadata || distinctSourceTypes.size >= 2;
   if (hasEvidenceMetadata) {
-    if (independentlyCorroborated) reasons.push("corroborated by multiple independent source types");
-    else reasons.push("requires an additional independent research source before automatic indexing");
+    if (distinctSourceTypes.size >= 2) reasons.push("corroborated by multiple independent source types");
+    else reasons.push("single-source dossier; additional independent corroboration recommended");
   }
 
   return {
-    eligible: blockingReasons.length === 0 && independentlyCorroborated && score >= minimumScore,
+    eligible: blockingReasons.length === 0 && score >= minimumScore,
     score,
     minimumScore,
     reasons,
