@@ -46,19 +46,32 @@ const singleSource = {
   }
 } as const;
 const single = researchVendorIndexEligibility(singleSource as never, { enabled: true, minimumScore: 7 });
-if (single.eligible) failures.push("A single-source research dossier must remain public but default to noindex");
-if (single.blockingReasons.length !== 0) failures.push("Insufficient corroboration must not become a hard entity blocker; governed admin override must remain possible");
-if (!single.reasons.some((reason) => reason.includes("additional independent research source"))) failures.push("Single-source noindex must expose an actionable corroboration reason");
+if (!single.eligible) failures.push(`A strong single-source local-business dossier must remain indexable when it passes the substantive quality gate: ${single.reasons.join(", ")} / ${single.blockingReasons.join(", ")}`);
+if (single.blockingReasons.length !== 0) failures.push("Single-source evidence must remain a confidence signal rather than an entity blocker");
+if (!single.reasons.some((reason) => reason.includes("additional independent corroboration recommended"))) failures.push("Single-source eligibility must retain an actionable corroboration recommendation");
 
 const duplicateTypes = researchVendorIndexEligibility({
   ...singleSource,
   id: "research-duplicate-source-types",
   research: { ...singleSource.research, sourceCount: 3, sourceTypes: ["merchant_census", "merchant_census", "merchant_census"] }
 } as never, { enabled: true, minimumScore: 7 });
-if (duplicateTypes.eligible) failures.push("Repeated records from one source type must not masquerade as independent corroboration");
+if (!duplicateTypes.eligible) failures.push("Repeated records from one source type must not deindex an otherwise strong local-business dossier");
+if (duplicateTypes.reasons.some((reason) => reason.includes("multiple independent source types"))) failures.push("Repeated records from one source type must not masquerade as independent corroboration");
+
+const incomplete = researchVendorIndexEligibility({
+  ...singleSource,
+  id: "research-incomplete",
+  location: {
+    ...singleSource.location,
+    addressLine1: "",
+    postcode: ""
+  }
+} as never, { enabled: true, minimumScore: 5 });
+if (incomplete.eligible) failures.push("Incomplete local-business dossiers must remain noindex even when they have a source record");
+if (!incomplete.blockingReasons.some((reason) => reason.includes("incomplete local address"))) failures.push("Incomplete dossiers must explain their hard local-address blocker");
 
 const partner = { ...multiSource, id: "partner-active", directoryStatus: "partner" } as const;
-if (!vendorIndexEligible(partner as never, { enabled: false, minimumScore: 7 })) failures.push("Active partner indexing must remain independent of the research-only corroboration switch");
+if (!vendorIndexEligible(partner as never, { enabled: false, minimumScore: 7 })) failures.push("Active partner indexing must remain independent of the research-only quality switch");
 
 const legacySynthetic = {
   ...base,
@@ -66,7 +79,7 @@ const legacySynthetic = {
   research: { checkedAt: "2026-08-23", storefrontStatus: "active" }
 } as const;
 if (!researchVendorIndexEligibility(legacySynthetic as never, { enabled: true, minimumScore: 7 }).eligible) {
-  failures.push("Legacy synthetic SEO fixtures without DB evidence metadata must remain compatible; real DB-backed research rows always supply evidence metadata");
+  failures.push("Legacy synthetic SEO fixtures without DB evidence metadata must remain compatible");
 }
 
 const projection = readFileSync(new URL("../apps/web/src/lib/public-vendor-directory.ts", import.meta.url), "utf8");
@@ -85,4 +98,4 @@ if (failures.length) {
   console.error(failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Research-vendor SEO evidence gate OK: public dossiers require two distinct source types for automatic indexing while governed overrides remain possible.");
+console.log("Research-vendor SEO evidence policy OK: strong local-business dossiers remain indexable with single-source evidence while incomplete/closed records stay blocked and multi-source corroboration remains visible as a confidence signal.");
