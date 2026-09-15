@@ -27,12 +27,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS storefront_vendor_assortment_vendor_uidx
 CREATE UNIQUE INDEX IF NOT EXISTS storefront_vendor_assortment_public_uidx
   ON public.storefront_vendor_assortment_read_model(vendor_public_id);
 
--- Run after the heavier storefront projections. Public vendor assortment metadata
--- may be several minutes stale; transactional availability/checkout is independent.
+-- Run last in the hourly storefront projection pipeline. Public vendor assortment
+-- metadata may be up to roughly one hour stale; transactional availability and
+-- checkout remain independent and authoritative.
 SELECT cron.unschedule('refresh-storefront-vendor-assortment-read-model')
 WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname='refresh-storefront-vendor-assortment-read-model');
 SELECT cron.schedule(
   'refresh-storefront-vendor-assortment-read-model',
-  '7-57/10 * * * *',
+  '55 * * * *',
   $$SET statement_timeout='240s'; REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_vendor_assortment_read_model$$
 );
