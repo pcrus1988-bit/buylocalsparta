@@ -2,19 +2,16 @@ import type { CatalogFacetOption, CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { categoryCodeMatches, STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "./storefront-taxonomy";
+import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "./storefront-taxonomy";
 
 const EMPTY_FACETS = { subcategories: [], brands: [], colors: [], sizes: [] } as const;
 
 type FastTaxonomyRow = Readonly<{
-  category_rows: unknown;
   subcategories: unknown;
   brands: unknown;
   colors: unknown;
   sizes: unknown;
 }>;
-
-type CategoryRow = Readonly<{ code: string; departmentCode?: string }>;
 
 type FacetRow = Readonly<{ value: string; label: string }>;
 
@@ -57,15 +54,6 @@ function facetRows(value: unknown): readonly FacetRow[] {
   });
 }
 
-function categoryRows(value: unknown): readonly CategoryRow[] {
-  return arrayValue(value).flatMap((entry) => {
-    const record = recordValue(entry);
-    const code = stringValue(record.code);
-    if (!code) return [];
-    return [{ code, departmentCode: stringValue(record.departmentCode) }];
-  });
-}
-
 function fallbackTaxonomy(): AvailableCatalogTaxonomy {
   return {
     categories: STOREFRONT_CATEGORIES,
@@ -77,15 +65,10 @@ function fallbackTaxonomy(): AvailableCatalogTaxonomy {
 /**
  * Fast standard taxonomy for /shop.
  *
- * The former discovery taxonomy hydrated every public canonical, loaded department
- * codes for the whole catalogue, then loaded metadata for the whole scoped set in
- * Node. That cost grows linearly with supplier catalogue size and eventually made
- * the shop fail while rebuilding the facet cache.
- *
- * This projection keeps the work in PostgreSQL and returns only distinct category,
- * brand, colour and size vocabulary. It intentionally does not build governed
- * leaf-specific attribute facets; callers that require those still use the richer
- * taxonomy path.
+ * Search requests are driven from the small indexed candidate set first. This is
+ * important once the supplier catalogue grows into the tens of thousands: joining
+ * translations/facets for every canonical and filtering afterwards made a simple
+ * search compete for a DB connection for seconds.
  */
 export async function getFastShopTaxonomy(
   category = "",
@@ -98,6 +81,10 @@ export async function getFastShopTaxonomy(
 
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
+  const searchJoin = search
+    ? "JOIN search_matches sm ON sm.canonical_variant_id=cv.id"
+    : "";
+
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
       WITH RECURSIVE category_tree AS (
@@ -109,21 +96,47 @@ export async function getFastShopTaxonomy(
         SELECT child.id,child.parent_id,child.code,parent.department_code
         FROM categories child
         JOIN category_tree parent ON child.parent_id=parent.id
-      ), all_categories AS MATERIALIZED (
-        SELECT DISTINCT c.code,tree.department_code
+      ), search_matches AS MATERIALIZED (
+        SELECT pt.canonical_variant_id
+        FROM product_translations pt
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(pt.title,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
         FROM canonical_variants cv
-        JOIN markets m ON m.id=cv.market_id
-        JOIN categories c ON c.id=cv.category_id
-        JOIN category_tree tree ON tree.id=cv.category_id
-        WHERE m.code='sparta'
-          AND COALESCE(cv.commerce_channel,'normal')='normal'
-          AND cv.active=true
-          AND cv.suppressed=false
-          AND cv.recalled=false
+        WHERE $2::text<>''
+          AND to_tsvector(
+            'simple',
+            COALESCE(cv.model,'') || ' ' || COALESCE(cv.slug,'') || ' ' ||
+            COALESCE(cv.gtin,'') || ' ' || COALESCE(cv.mpn,'')
+          ) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN canonical_variants cv ON cv.brand_id=b.id
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN product_families pf ON pf.brand_id=b.id
+        JOIN canonical_variants cv ON cv.family_id=pf.id AND cv.brand_id IS NULL
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM categories c
+        JOIN canonical_variants cv ON cv.category_id=c.id
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(c.code,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM canonical_variants cv
+        WHERE $2::text<>''
+          AND (COALESCE(cv.gtin,'')=$2 OR lower(COALESCE(cv.mpn,''))=lower($2))
       ), base AS MATERIALIZED (
         SELECT
           c.code AS category_code,
-          tree.department_code,
           COALESCE(ctel.name,cten.name,c.code) AS category_label,
           NULLIF(BTRIM(COALESCE(b.name,'')),'') AS brand,
           NULLIF(BTRIM(COALESCE(
@@ -148,6 +161,7 @@ export async function getFastShopTaxonomy(
             ELSE '[]'::jsonb
           END AS sizes
         FROM canonical_variants cv
+        ${searchJoin}
         JOIN markets m ON m.id=cv.market_id
         JOIN categories c ON c.id=cv.category_id
         JOIN category_tree tree ON tree.id=cv.category_id
@@ -170,18 +184,6 @@ export async function getFastShopTaxonomy(
                  OR lower(tree.department_code)=prefix
                  OR lower(tree.department_code) LIKE prefix||'-%'
             )
-          )
-          AND (
-            $2::text='' OR
-            to_tsvector('simple',concat_ws(' ',
-              COALESCE(el.title,en.title,cv.model,cv.slug),
-              COALESCE(b.name,''),
-              COALESCE(cv.gtin,''),
-              COALESCE(cv.mpn,''),
-              c.code
-            )) @@ plainto_tsquery('simple',$2)
-            OR COALESCE(cv.gtin,'')=$2
-            OR lower(COALESCE(cv.mpn,''))=lower($2)
           )
       ), subcategory_values AS (
         SELECT DISTINCT category_code AS value,category_label AS label
@@ -213,10 +215,6 @@ export async function getFastShopTaxonomy(
       )
       SELECT
         COALESCE((
-          SELECT jsonb_agg(jsonb_build_object('code',code,'departmentCode',department_code) ORDER BY code)
-          FROM all_categories
-        ),'[]'::jsonb) AS category_rows,
-        COALESCE((
           SELECT jsonb_agg(jsonb_build_object('value',value,'label',label) ORDER BY label,value)
           FROM subcategory_values
         ),'[]'::jsonb) AS subcategories,
@@ -234,13 +232,9 @@ export async function getFastShopTaxonomy(
 
     const row = result.rows[0];
     if (!row) return fallbackTaxonomy();
-    const activeCategoryRows = categoryRows(row.category_rows);
-    const categories = STOREFRONT_CATEGORIES.filter((entry) =>
-      activeCategoryRows.some((candidate) => categoryCodeMatches(candidate.code, entry.slug, candidate.departmentCode))
-    );
 
     return {
-      categories: categories.length ? categories : STOREFRONT_CATEGORIES,
+      categories: STOREFRONT_CATEGORIES,
       facets: {
         subcategories: facetRows(row.subcategories),
         brands: textOptions(row.brands),

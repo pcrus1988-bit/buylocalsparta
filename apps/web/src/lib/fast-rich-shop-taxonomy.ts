@@ -45,13 +45,8 @@ function parseAttributeFacets(value: unknown): readonly CatalogAttributeFacet[] 
 
 /**
  * Governed leaf-specific facets without hydrating the public catalogue in Node.
- *
- * The former rich taxonomy path called publicCanonicals(), then loaded department
- * codes and metadata for every discoverable canonical. Once the supplier catalogue
- * passed ~50k variants that request path could time out before /shop rendered.
- * This projection keeps the same governed alias registry but resolves values and
- * selected-attribute filtering inside PostgreSQL and returns only the small facet
- * vocabulary needed by the page.
+ * Search requests enter through the indexed candidate set first, so adding supplier
+ * catalogue volume does not turn a facet lookup into a full-table text scan.
  */
 async function loadFastAttributeFacets(
   category: string,
@@ -65,6 +60,10 @@ async function loadFastAttributeFacets(
   if (!definitions.length) return [];
 
   const prefixes = categoryPrefixes(category);
+  const search = query.trim();
+  const searchJoin = search
+    ? "JOIN search_matches sm ON sm.canonical_variant_id=cv.id"
+    : "";
   const definitionPayload = definitions.map((definition) => ({
     key: definition.key,
     label: definition.label,
@@ -82,6 +81,44 @@ async function loadFastAttributeFacets(
         SELECT child.id,child.parent_id,child.code,parent.department_code
         FROM categories child
         JOIN category_tree parent ON child.parent_id=parent.id
+      ), search_matches AS MATERIALIZED (
+        SELECT pt.canonical_variant_id
+        FROM product_translations pt
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(pt.title,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM canonical_variants cv
+        WHERE $2::text<>''
+          AND to_tsvector(
+            'simple',
+            COALESCE(cv.model,'') || ' ' || COALESCE(cv.slug,'') || ' ' ||
+            COALESCE(cv.gtin,'') || ' ' || COALESCE(cv.mpn,'')
+          ) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN canonical_variants cv ON cv.brand_id=b.id
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM brands b
+        JOIN product_families pf ON pf.brand_id=b.id
+        JOIN canonical_variants cv ON cv.family_id=pf.id AND cv.brand_id IS NULL
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(b.name,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM categories c
+        JOIN canonical_variants cv ON cv.category_id=c.id
+        WHERE $2::text<>''
+          AND to_tsvector('simple',COALESCE(c.code,'')) @@ plainto_tsquery('simple',$2)
+        UNION
+        SELECT cv.id
+        FROM canonical_variants cv
+        WHERE $2::text<>''
+          AND (COALESCE(cv.gtin,'')=$2 OR lower(COALESCE(cv.mpn,''))=lower($2))
       ), definitions AS MATERIALIZED (
         SELECT
           item->>'key' AS key,
@@ -117,6 +154,7 @@ async function loadFastAttributeFacets(
             || COALESCE(en.specifications,'{}'::jsonb)
             || COALESCE(el.specifications,'{}'::jsonb) AS raw_attributes
         FROM canonical_variants cv
+        ${searchJoin}
         JOIN markets m ON m.id=cv.market_id
         JOIN categories c ON c.id=cv.category_id
         JOIN category_tree tree ON tree.id=cv.category_id
@@ -137,19 +175,6 @@ async function loadFastAttributeFacets(
                  OR lower(tree.department_code)=prefix
                  OR lower(tree.department_code) LIKE prefix||'-%'
             )
-          )
-          AND (
-            $2::text='' OR
-            to_tsvector('simple',concat_ws(' ',
-              COALESCE(el.title,en.title,cv.model,cv.slug),
-              COALESCE(el.description,en.description,''),
-              COALESCE(b.name,''),
-              COALESCE(cv.gtin,''),
-              COALESCE(cv.mpn,''),
-              c.code
-            )) @@ plainto_tsquery('simple',$2)
-            OR COALESCE(cv.gtin,'')=$2
-            OR lower(COALESCE(cv.mpn,''))=lower($2)
           )
       ), base AS MATERIALIZED (
         SELECT
@@ -203,7 +228,7 @@ async function loadFastAttributeFacets(
       FROM grouped
     `, [
       prefixes,
-      query.trim(),
+      search,
       filters.subcategory ?? "",
       filters.brand ?? "",
       filters.color ?? "",
