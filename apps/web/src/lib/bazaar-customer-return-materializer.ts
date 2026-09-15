@@ -81,10 +81,13 @@ export async function materializeNewCustomerReturnBazaarInventory(
     throw new Error("Customer-return adapter requires a customer_return BAZAAR plan");
   }
 
+  // The generic materializer owns the canonical `bazaarProvenance` envelope
+  // and intentionally writes the source-specific plan there. Keep the
+  // return-instance audit coordinates in a sibling namespace so they survive
+  // that normalization instead of being silently overwritten.
   const canonicalVariantAttributes = {
     ...object(input.row.variant_attributes),
-    bazaarProvenance: {
-      ...input.plan.canonicalProvenance,
+    bazaarReturnProvenance: {
       returnId: input.returnId,
       returnUuid: input.returnUuid,
       orderLineId: input.orderLineUuid,
