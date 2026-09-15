@@ -41,6 +41,8 @@ type LoaderBrand = Readonly<{ name: string; logoObjectKey: string }>;
 const PAGE_SIZE = 20;
 const PREFETCH_ROOT_MARGIN = "1200px 0px";
 const LOADER_FACT_INTERVAL_MS = 3200;
+const FIRST_PAGE_TIMEOUT_MS = 8000;
+const VENDOR_ID_PATTERN = /^[A-Za-z0-9_-]{3,128}$/;
 const LOADER_BRANDS: readonly LoaderBrand[] = [
   { name: "Tommy Hilfiger", logoObjectKey: "brands/tommy-hilfiger-75862adb/logo.png" },
   { name: "Bottega Veneta", logoObjectKey: "brands/bottega-veneta-48904e38/logo.png" },
@@ -159,10 +161,11 @@ function VendorCatalogueLoadingOverlay({ fact }: { fact: string }) {
   </div>;
 }
 
-export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
+export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
+  vendorId?: string;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -172,7 +175,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   const [availability, setAvailability] = useState<AvailabilityFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryTransitionLoading, setCategoryTransitionLoading] = useState(false);
-  const [publicVendorId, setPublicVendorId] = useState<string>();
+  const [publicVendorId, setPublicVendorId] = useState<string | undefined>(() => vendorId && VENDOR_ID_PATTERN.test(vendorId) ? vendorId : undefined);
   const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>(null);
   const [remoteTotal, setRemoteTotal] = useState<number>();
   const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
@@ -245,17 +248,28 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   }, [demoMode, loadingFacts.length, remoteLoading, visibleProducts.length]);
 
   useEffect(() => {
-    if (demoMode) return;
+    if (demoMode || publicVendorId) return;
     const match = window.location.pathname.match(/^\/vendor\/([^/?#]+)/);
     const raw = match?.[1];
     if (!raw) return;
     try {
       const decoded = decodeURIComponent(raw);
-      if (/^[A-Za-z0-9_-]{3,128}$/.test(decoded)) setPublicVendorId(decoded);
+      if (VENDOR_ID_PATTERN.test(decoded)) setPublicVendorId(decoded);
     } catch {
-      // Keep the SSR catalogue if the route segment is malformed.
+      // The fail-safe below will stop the loader if the route segment is malformed.
     }
-  }, [demoMode]);
+  }, [demoMode, publicVendorId]);
+
+  useEffect(() => {
+    if (demoMode || publicVendorId) return;
+    const timer = window.setTimeout(() => {
+      setRemoteAttempted(true);
+      setRemoteError(true);
+      setRemoteLoading(false);
+      setCategoryTransitionLoading(false);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [demoMode, publicVendorId]);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -279,7 +293,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
   ): Promise<VendorCatalogApiResponse> => {
     const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(vendorId)}?${pageParams(input, offset).toString()}`, {
       signal,
-      cache: "no-store"
+      cache: "default"
     });
     if (!response.ok) throw new Error(`Catalogue request failed with ${response.status}`);
     return response.json() as Promise<VendorCatalogApiResponse>;
@@ -314,6 +328,16 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
     setRemoteLoading(true);
     setRemoteError(false);
     const delay = query.trim() ? 240 : 0;
+    let timedOut = false;
+    const watchdog = window.setTimeout(() => {
+      if (controller.signal.aborted || activeRequestKeyRef.current !== key) return;
+      timedOut = true;
+      controller.abort();
+      setRemoteAttempted(true);
+      setRemoteError(true);
+      setRemoteLoading(false);
+      setCategoryTransitionLoading(false);
+    }, delay + FIRST_PAGE_TIMEOUT_MS);
     const timer = window.setTimeout(async () => {
       try {
         const payload = await fetchPage(publicVendorId, filters, 0, controller.signal);
@@ -324,12 +348,15 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
         setRemoteAttempted(true);
         void prefetchNextPage(publicVendorId, filters, key, payload.nextOffset);
       } catch (error) {
-        if (controller.signal.aborted) return;
-        console.error("Vendor catalogue first page failed", error);
-        setRemoteAttempted(true);
-        setRemoteError(true);
+        if (controller.signal.aborted && !timedOut) return;
+        if (!timedOut) {
+          console.error("Vendor catalogue first page failed", error);
+          setRemoteAttempted(true);
+          setRemoteError(true);
+        }
       } finally {
-        if (!controller.signal.aborted && activeRequestKeyRef.current === key) {
+        window.clearTimeout(watchdog);
+        if ((timedOut || !controller.signal.aborted) && activeRequestKeyRef.current === key) {
           setRemoteLoading(false);
           setCategoryTransitionLoading(false);
         }
@@ -338,6 +365,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId }: {
 
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(watchdog);
       controller.abort();
     };
   }, [demoMode, fetchPage, filters, filtersKey, prefetchNextPage, publicVendorId, query]);
