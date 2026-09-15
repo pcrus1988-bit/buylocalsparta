@@ -85,6 +85,30 @@ const FILTER_SQL = `
   AND ($9::bigint IS NULL OR rm.min_price_minor <= $9)
 `;
 
+const FAMILY_FILTER_SQL = `
+  AND (
+    cardinality($1::text[])=0 OR EXISTS (
+      SELECT 1
+      FROM unnest(fm.category_codes) code
+      CROSS JOIN unnest($1::text[]) prefix
+      WHERE lower(code)=prefix OR lower(code) LIKE prefix||'-%'
+    ) OR EXISTS (
+      SELECT 1
+      FROM unnest(fm.department_codes) code
+      CROSS JOIN unnest($1::text[]) prefix
+      WHERE lower(code)=prefix OR lower(code) LIKE prefix||'-%'
+    )
+  )
+  AND ($2::text='' OR $2=ANY(fm.category_codes))
+  AND ($3::text='' OR lower($3)=ANY(fm.brand_names))
+  AND ($4::text='' OR lower($4)=ANY(fm.colors))
+  AND ($5::text='' OR lower(COALESCE(fm.sizes_text,'')) LIKE '%"'||lower($5)||'"%')
+  AND ($6::text='' OR lower($6)=ANY(fm.fits))
+  AND ($7::text='' OR fm.search_vector @@ plainto_tsquery('simple',$7))
+  AND ($8::bigint IS NULL OR fm.min_price_minor >= $8)
+  AND ($9::bigint IS NULL OR fm.min_price_minor <= $9)
+`;
+
 /**
  * Candidate discovery only. Personalized vendor assignment deliberately happens
  * after this function has reduced the catalogue to a small page-sized window.
@@ -112,41 +136,54 @@ export async function getLocalStorefrontReadModelWindow(
   return result.rows;
 }
 
+function dropshipSort(sort?: string): string {
+  if (sort === "price-asc") return "fm.min_price_minor ASC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  if (sort === "price-desc") return "fm.min_price_minor DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+}
+
 /**
- * Dropship discovery is grouped by supplier product family in the compact read
- * model. Hydration of only the selected families stays in the existing supplier
- * presentation path.
+ * Dropship discovery reads one narrow row per supplier product family. The normal
+ * no-filter browse path can use the precomputed total and a top-N btree lookup;
+ * filtered paths scan only the compact family projection, never the 65k offers.
  */
 export async function getDropshipStorefrontReadModelWindow(
   input: StorefrontReadModelWindowInput
 ): Promise<readonly StorefrontDropshipFamilyCandidate[]> {
   if (!productionDatabaseConfigured()) return [];
-  const result = await getProductionPostgresRuntime().nativePool.query<StorefrontDropshipFamilyCandidate>(`
-    WITH matching AS (
+  const pool = getProductionPostgresRuntime().nativePool;
+  const filters = input.filters ?? {};
+  const cleanQuery = input.query?.trim() ?? "";
+  const hasFilters = Boolean(
+    input.prefixes?.length || filters.subcategory || filters.brand || filters.color ||
+    filters.size || filters.fit || cleanQuery || input.minPriceMinor !== undefined ||
+    input.maxPriceMinor !== undefined
+  );
+  const orderBy = dropshipSort(input.sort);
+
+  if (!hasFilters) {
+    const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
       SELECT
-        rm.dropship_supplier_id,
-        rm.dropship_external_product_id,
-        MAX(rm.created_at) AS newest_at,
-        MIN(rm.min_price_minor) AS sort_price_minor
-      FROM public.storefront_catalog_read_model rm
-      WHERE rm.dropship_sellable=true
-        AND rm.dropship_available_until>now()
-        AND rm.dropship_supplier_id IS NOT NULL
-        AND rm.dropship_external_product_id IS NOT NULL
-        ${FILTER_SQL}
-      GROUP BY rm.dropship_supplier_id,rm.dropship_external_product_id
-    )
+        fm.dropship_supplier_id AS supplier_id,
+        fm.dropship_external_product_id AS external_product_id,
+        fm.total_families
+      FROM public.storefront_dropship_family_read_model fm
+      WHERE fm.available_until>now()
+      ORDER BY ${orderBy}
+      LIMIT $1 OFFSET $2
+    `, [input.limit, input.offset]);
+    return result.rows;
+  }
+
+  const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
     SELECT
-      dropship_supplier_id AS supplier_id,
-      dropship_external_product_id AS external_product_id,
+      fm.dropship_supplier_id AS supplier_id,
+      fm.dropship_external_product_id AS external_product_id,
       COUNT(*) OVER() AS total_families
-    FROM matching
-    ORDER BY
-      CASE WHEN $10='price-asc' THEN sort_price_minor END ASC,
-      CASE WHEN $10='price-desc' THEN sort_price_minor END DESC,
-      CASE WHEN $10 NOT IN ('price-asc','price-desc') THEN newest_at END DESC,
-      dropship_supplier_id,
-      dropship_external_product_id
+    FROM public.storefront_dropship_family_read_model fm
+    WHERE fm.available_until>now()
+      ${FAMILY_FILTER_SQL}
+    ORDER BY ${orderBy}
     LIMIT $11 OFFSET $12
   `, parameters(input));
   return result.rows;
