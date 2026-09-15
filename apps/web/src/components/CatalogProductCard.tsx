@@ -67,8 +67,8 @@ function StaticPublicCatalogPrice({
  *
  * /shop projects MSRP (including an explicit null when no public MSRP exists),
  * so those cards render on the server instead of hydrating copies of the full
- * card component. Supplier images use Next's image pipeline so the browser gets
- * right-sized cached assets instead of full-resolution supplier originals.
+ * card component. Approved KONTA MOY media and supplier images use Next's image
+ * pipeline so mobile browsers receive right-sized cached derivatives.
  */
 export function CatalogProductCard({ product, index = 0, vendorContext, demoVendorId }: {
   product: CatalogProductCardSource;
@@ -136,7 +136,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const governedSourceFallback = !directImageSrc;
   const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const externalImage = governedSourceFallback || imageSrc.startsWith("https://");
-  const useOptimizedSupplierImage = optimizedSupplierImage(imageSrc);
+  const useOptimizedImage = Boolean(product.mediaId) || optimizedSupplierImage(imageSrc);
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
     : productPublicPath(product);
@@ -149,7 +149,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
-        {useOptimizedSupplierImage ? <Image
+        {useOptimizedImage ? <Image
           src={imageSrc}
           alt={product.mediaAlt ?? displayTitle}
           fill
