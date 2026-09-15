@@ -74,9 +74,9 @@ function fallbackTaxonomy(): AvailableCatalogTaxonomy {
 }
 
 /**
- * Standard /shop taxonomy from the compact storefront filter read model.
- * Catalogue joins, translations and supplier offer eligibility are resolved by
- * the background projection; requests aggregate only the small facet vocabulary.
+ * Standard /shop taxonomy from the narrow storefront facet read model.
+ * Supplier eligibility and display vocabulary are projected in the background;
+ * requests aggregate only category/brand/colour/size fields.
  */
 export async function getFastShopTaxonomy(
   category = "",
@@ -93,7 +93,7 @@ export async function getFastShopTaxonomy(
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
       WITH all_categories AS MATERIALIZED (
         SELECT DISTINCT rm.category_code AS code,rm.department_code
-        FROM public.storefront_filter_read_model rm
+        FROM public.storefront_facet_read_model rm
         WHERE rm.available_until>now()
       ), base AS MATERIALIZED (
         SELECT
@@ -102,8 +102,8 @@ export async function getFastShopTaxonomy(
           rm.category_label,
           NULLIF(BTRIM(COALESCE(rm.brand_name,'')),'') AS brand,
           NULLIF(BTRIM(COALESCE(rm.color,'')),'') AS color,
-          CASE WHEN jsonb_typeof(rm.sizes)='array' THEN rm.sizes ELSE '[]'::jsonb END AS sizes
-        FROM public.storefront_filter_read_model rm
+          rm.sizes
+        FROM public.storefront_facet_read_model rm
         WHERE rm.available_until>now()
           AND (
             cardinality($1::text[])=0 OR EXISTS (
