@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const query = (url.searchParams.get("q")?.trim() || "").slice(0, 120);
-  if (!query) return Response.json({ items: [], suggestions: [], hasResults: null, provider: "postgres" });
+  if (!query) return Response.json(
+    { items: [], suggestions: [], hasResults: null, provider: "postgres" },
+    { headers: { "Cache-Control": "public, max-age=15", "Vercel-CDN-Cache-Control": "public, max-age=60" } }
+  );
 
   try {
     const result = await getStorefrontSearchSuggestions(query, 12);
@@ -17,12 +20,18 @@ export async function GET(request: Request) {
         hasResults: result.hasResults,
         provider: "postgres"
       },
-      { headers: { "Cache-Control": "private, max-age=10" } }
+      {
+        headers: {
+          "Cache-Control": "public, max-age=15",
+          "CDN-Cache-Control": "public, max-age=30",
+          "Vercel-CDN-Cache-Control": "public, max-age=60"
+        }
+      }
     );
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Search unavailable" },
-      { status: 503 }
+      { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }
 }
