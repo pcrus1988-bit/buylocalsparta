@@ -2,19 +2,17 @@ import type { CatalogFacetOption, CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { categoryCodeMatches, STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "./storefront-taxonomy";
+import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "./storefront-taxonomy";
 
 const EMPTY_FACETS = { subcategories: [], brands: [], colors: [], sizes: [] } as const;
 
 type FastTaxonomyRow = Readonly<{
-  category_rows: unknown;
   subcategories: unknown;
   brands: unknown;
   colors: unknown;
   sizes: unknown;
 }>;
 
-type CategoryRow = Readonly<{ code: string; departmentCode?: string }>;
 type FacetRow = Readonly<{ value: string; label: string }>;
 
 function normalizeCategory(value: string): string {
@@ -56,15 +54,6 @@ function facetRows(value: unknown): readonly FacetRow[] {
   });
 }
 
-function categoryRows(value: unknown): readonly CategoryRow[] {
-  return arrayValue(value).flatMap((entry) => {
-    const record = recordValue(entry);
-    const code = stringValue(record.code);
-    if (!code) return [];
-    return [{ code, departmentCode: stringValue(record.departmentCode) }];
-  });
-}
-
 function fallbackTaxonomy(): AvailableCatalogTaxonomy {
   return {
     categories: STOREFRONT_CATEGORIES,
@@ -75,8 +64,8 @@ function fallbackTaxonomy(): AvailableCatalogTaxonomy {
 
 /**
  * Standard /shop taxonomy from the narrow storefront facet read model.
- * Supplier eligibility and display vocabulary are projected in the background;
- * requests aggregate only category/brand/colour/size fields.
+ * The governed top-level category registry is static application vocabulary, so
+ * requests no longer rescan the catalogue just to rediscover those categories.
  */
 export async function getFastShopTaxonomy(
   category = "",
@@ -91,14 +80,9 @@ export async function getFastShopTaxonomy(
   const search = query.trim();
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
-      WITH all_categories AS MATERIALIZED (
-        SELECT DISTINCT rm.category_code AS code,rm.department_code
-        FROM public.storefront_facet_read_model rm
-        WHERE rm.available_until>now()
-      ), base AS MATERIALIZED (
+      WITH base AS MATERIALIZED (
         SELECT
           rm.category_code,
-          rm.department_code,
           rm.category_label,
           NULLIF(BTRIM(COALESCE(rm.brand_name,'')),'') AS brand,
           NULLIF(BTRIM(COALESCE(rm.color,'')),'') AS color,
@@ -150,10 +134,6 @@ export async function getFastShopTaxonomy(
       )
       SELECT
         COALESCE((
-          SELECT jsonb_agg(jsonb_build_object('code',code,'departmentCode',department_code) ORDER BY code)
-          FROM all_categories
-        ),'[]'::jsonb) AS category_rows,
-        COALESCE((
           SELECT jsonb_agg(jsonb_build_object('value',value,'label',label) ORDER BY label,value)
           FROM subcategory_values
         ),'[]'::jsonb) AS subcategories,
@@ -171,13 +151,8 @@ export async function getFastShopTaxonomy(
 
     const row = result.rows[0];
     if (!row) return fallbackTaxonomy();
-    const activeCategoryRows = categoryRows(row.category_rows);
-    const categories = STOREFRONT_CATEGORIES.filter((entry) =>
-      activeCategoryRows.some((candidate) => categoryCodeMatches(candidate.code, entry.slug, candidate.departmentCode))
-    );
-
     return {
-      categories: categories.length ? categories : STOREFRONT_CATEGORIES,
+      categories: STOREFRONT_CATEGORIES,
       facets: {
         subcategories: facetRows(row.subcategories),
         brands: textOptions(row.brands),
