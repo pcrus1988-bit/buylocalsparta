@@ -1,9 +1,8 @@
 import { localePath, type SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
-import { getAvailableStorefrontCategories } from "./available-catalog-taxonomy";
-import { getPublicProductSeoInventory } from "./catalog-view";
 import { getPublicCmsPages } from "./public-cms";
-import { getPublicVendorDirectory } from "./public-vendor-directory";
+import { getPublicProductSitemapInventory } from "./product-sitemap-inventory";
+import { getPublicVendorSitemapInventory } from "./vendor-sitemap-inventory";
 import { getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "./seo-entity-policy";
 import { getSeoGlobalSettingsSnapshot } from "./seo-settings";
@@ -38,20 +37,18 @@ function staticInboundSources(href: string): readonly string[] {
 
 export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
   assertAdminPermission(principal, "content.read");
-  const [[productResult, vendorResult, cmsResult, categoryResult], { settings }, overrides] = await Promise.all([
+  const [[productResult, vendorResult, cmsResult], { settings }, overrides] = await Promise.all([
     Promise.allSettled([
-      getPublicProductSeoInventory(),
-      getPublicVendorDirectory(),
-      getPublicCmsPages(),
-      getAvailableStorefrontCategories("23100")
+      getPublicProductSitemapInventory(),
+      getPublicVendorSitemapInventory(),
+      getPublicCmsPages()
     ]),
     getSeoGlobalSettingsSnapshot(),
     getSeoEntityOverridesSnapshot()
   ]);
-  const products = productResult.status === "fulfilled" ? productResult.value.products : [];
+  const products = productResult.status === "fulfilled" ? productResult.value : [];
   const vendors = vendorResult.status === "fulfilled" ? vendorResult.value : [];
   const cmsPages = cmsResult.status === "fulfilled" ? cmsResult.value : [];
-  const availableCategorySlugs = new Set(categoryResult.status === "fulfilled" ? categoryResult.value.map((category) => category.slug) : []);
   const nodes: SeoCrawlGraphNode[] = [];
 
   const controlled = (reference: SeoEntityReference, entityEligible: boolean, defaultIndexAllowed: boolean, defaultSitemapAllowed?: boolean) => {
@@ -95,10 +92,12 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
     }
   }
 
+  // Categories are governed landing pages. Their crawl/index inventory must not
+  // disappear merely because a live catalogue facet aggregation is slow or empty.
+  // This mirrors the production core sitemap and keeps Admin SEO diagnostics stable.
   for (const category of STOREFRONT_CATEGORIES) {
     const reference: SeoEntityReference = { kind: "category", id: category.slug };
-    const available = availableCategorySlugs.has(category.slug);
-    const { override, control } = controlled(reference, true, true, available);
+    const { override, control } = controlled(reference, true, true, true);
     nodes.push({
       key: `category:${category.slug}`,
       kind: "category",
@@ -111,10 +110,14 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
     });
   }
 
+  // Use the same scale-safe, sellable product projection that drives product XML
+  // sitemaps. This keeps the SEO registry representative of the current catalogue
+  // instead of loading the older storefront-heavy projection that stalled after the
+  // dropshipping catalogue expansion.
   for (const product of products) {
     const reference: SeoEntityReference = { kind: "product", id: product.id };
     const quality = productIndexEligibility(product);
-    const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
+    const category = storefrontCategoryForCode(product.categoryCode);
     const { override, control } = controlled(reference, quality.blockingReasons.length === 0, quality.eligible);
     const route = productPublicPath(product);
     nodes.push({
@@ -129,6 +132,8 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
     });
   }
 
+  // Use the dedicated lightweight sitemap/vendor SEO projection rather than the
+  // storefront UI projection with stories, advisers, media and assortment joins.
   for (const vendor of vendors) {
     const isPartner = vendor.directoryStatus === "partner";
     const kind = isPartner ? "partner_vendor" as const : "research_vendor" as const;
@@ -149,8 +154,7 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
       sitemapAllowed: control.sitemapAllowed,
       inboundSources: unique([
         "/shops directory",
-        control.sitemapAllowed ? "/sitemap governed vendor directory" : "",
-        isPartner && vendor.adviser ? "/advice adviser discovery" : ""
+        control.sitemapAllowed ? "/sitemap governed vendor directory" : ""
       ])
     });
   }
@@ -179,7 +183,7 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
       productsAvailable: productResult.status === "fulfilled",
       vendorsAvailable: vendorResult.status === "fulfilled",
       cmsAvailable: cmsResult.status === "fulfilled",
-      categoriesAvailable: categoryResult.status === "fulfilled"
+      categoriesAvailable: true
     }
   } as const;
 }
