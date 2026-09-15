@@ -1,4 +1,5 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
+import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
@@ -322,21 +323,8 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
       ORDER BY ms.published_at DESC,ms.updated_at DESC,ms.public_id
       LIMIT 1
     ) story ON true
-    LEFT JOIN LATERAL (
-      SELECT array_agg(DISTINCT c.code ORDER BY c.code) AS category_codes,
-             count(DISTINCT cv.id)::integer AS canonical_count
-      FROM vendor_offers vo
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN categories c ON c.id=cv.category_id
-      JOIN vendor_locations offer_location ON offer_location.id=vo.location_id
-      WHERE v.status='active'
-        AND vo.vendor_id=v.id
-        AND vo.status='approved'
-        AND offer_location.active=true
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-    ) assortment ON true
+    LEFT JOIN public.storefront_vendor_assortment_read_model assortment
+      ON assortment.vendor_id=v.id
     WHERE (m.code=$1 OR m.id::text=$1)
       AND v.public_directory_visible=true
       AND (
@@ -388,7 +376,7 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
   return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
 }
 
-export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
+const loadPublicVendorDirectoryEntry = cache(async (vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> => {
   if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
   const vendor = (await databaseDirectory(vendorId))[0];
   if (!vendor) return undefined;
@@ -401,4 +389,8 @@ export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<P
   if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
   const fallback = fallbackImages[0];
   return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
+});
+
+export async function getPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
+  return loadPublicVendorDirectoryEntry(vendorId);
 }
