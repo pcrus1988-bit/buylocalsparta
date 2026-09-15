@@ -4,6 +4,8 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 const ROTATION_WINDOW_MS = 30 * 60 * 1000;
 const OPEN_FULFILMENT_STATUSES = ["awaiting_acceptance", "accepted", "picking", "packed", "ready_for_handover", "shipped"] as const;
+const MIN_HOMEPAGE_CANDIDATE_WINDOW = 48;
+const MAX_HOMEPAGE_CANDIDATE_WINDOW = 160;
 
 type HomepageCandidateRow = Readonly<{
   canonical_public_id: string;
@@ -77,7 +79,25 @@ function predictFairVendor(rows: readonly HomepageCandidateRow[], postcode: stri
   })[0]?.vendor_public_id;
 }
 
-async function loadHomepageCandidates(visitorKey: string, postcode: string, now: number): Promise<readonly HomepageCandidate[]> {
+async function loadHomepageCandidateIds(seed: string, limit: number): Promise<readonly string[]> {
+  const result = await getProductionPostgresRuntime().nativePool.query<{ canonical_public_id: string }>(`
+    SELECT rm.canonical_public_id
+    FROM public.storefront_catalog_read_model rm
+    WHERE rm.local_sellable=true
+      AND rm.local_available_until>now()
+    ORDER BY md5(rm.canonical_public_id || $1),rm.canonical_public_id
+    LIMIT $2
+  `, [seed, limit]);
+  return result.rows.map((row) => row.canonical_public_id);
+}
+
+async function loadHomepageCandidates(
+  visitorKey: string,
+  postcode: string,
+  now: number,
+  canonicalIds: readonly string[]
+): Promise<readonly HomepageCandidate[]> {
+  if (!canonicalIds.length) return [];
   const runtime = getProductionPostgresRuntime();
   const result = await runtime.nativePool.query<HomepageCandidateRow>(`
     SELECT cv.public_id AS canonical_public_id,
@@ -127,7 +147,8 @@ async function loadHomepageCandidates(visitorKey: string, postcode: string, now:
      AND sa.postcode_scope=$2
      AND sa.released_at IS NULL
      AND sa.expires_at>$3
-    WHERE m.code='sparta'
+    WHERE cv.public_id=ANY($5::text[])
+      AND m.code='sparta'
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
@@ -141,7 +162,7 @@ async function loadHomepageCandidates(visitorKey: string, postcode: string, now:
       AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds) > $3
       AND (cap.max_open_fulfilments IS NULL OR COALESCE(load.open_count,0)<cap.max_open_fulfilments)
     ORDER BY cv.public_id,ib.stock_confirmed_at DESC,vo.public_id
-  `, [visitorHash(visitorKey), postcode, new Date(now), [...OPEN_FULFILMENT_STATUSES]]);
+  `, [visitorHash(visitorKey), postcode, new Date(now), [...OPEN_FULFILMENT_STATUSES], [...canonicalIds]]);
 
   const byCanonical = new Map<string, HomepageCandidateRow[]>();
   for (const row of result.rows) {
@@ -157,14 +178,11 @@ async function loadHomepageCandidates(visitorKey: string, postcode: string, now:
 }
 
 /**
- * Homepage discovery first predicts the existing fairness engine's next vendor
- * read-only, then uses that prediction only to choose a varied set of product
- * families. It never overrides the vendor selected by Fair Vendor Assignment.
- *
- * Only cards actually selected for the homepage call getCatalogCard(). Unshown
- * candidates therefore receive no sticky assignment and no qualified exposure.
- * Customer-facing homepage candidates also require a real positive customer price,
- * active vendor/location, fresh sellable stock and an approved offer.
+ * Homepage discovery first chooses a bounded rotating window from the precomputed
+ * local storefront read model, then predicts the existing fairness engine's next
+ * vendor read-only only for those candidates. It never overrides the vendor
+ * selected by Fair Vendor Assignment and never mutates assignment state for cards
+ * that are not ultimately shown.
  */
 export async function getHomepageCatalogCards(
   visitorKey: string,
@@ -176,7 +194,14 @@ export async function getHomepageCatalogCards(
   const now = Date.now();
   const rotationSlot = Math.floor(now / ROTATION_WINDOW_MS);
   const seed = `${visitorKey}:${rotationSlot}`;
-  const remaining = [...await loadHomepageCandidates(visitorKey, postcode, now)]
+  const candidateWindow = Math.min(
+    MAX_HOMEPAGE_CANDIDATE_WINDOW,
+    Math.max(MIN_HOMEPAGE_CANDIDATE_WINDOW, limit * 16)
+  );
+  const candidateIds = await loadHomepageCandidateIds(seed, candidateWindow);
+  if (!candidateIds.length) return [];
+
+  const remaining = [...await loadHomepageCandidates(visitorKey, postcode, now, candidateIds)]
     .sort((left, right) => score(seed, left.id).localeCompare(score(seed, right.id)));
   const cards: CatalogCard[] = [];
   const visibleVendorIds = new Set<string>();
