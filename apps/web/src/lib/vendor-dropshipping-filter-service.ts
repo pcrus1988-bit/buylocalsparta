@@ -266,7 +266,9 @@ export async function vendorDropshippingFilteredWorkspace(
   const pool = getProductionPostgresRuntime().nativePool;
   const vendorId = await resolveVendorUuid(vendorIdentity);
   const suppliers = await loadSupplierSummaries(vendorId);
-  const selectedSupplier = suppliers.find((supplier) => supplier.code === options.supplierCode) ?? suppliers[0] ?? null;
+  const selectedSupplier = options.supplierCode
+    ? suppliers.find((supplier) => supplier.code === options.supplierCode) ?? null
+    : null;
   const base: Omit<DropshippingWorkspace, "products"> = { suppliers, selectedSupplier, totalProducts: 0, page, pageSize, query };
   if (!selectedSupplier) return { ...base, products: [], filters, filterOptions: EMPTY_OPTIONS };
 
