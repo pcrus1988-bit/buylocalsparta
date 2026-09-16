@@ -2,6 +2,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 export type StorefrontReadModelFilters = Readonly<{
   subcategory?: string;
+  subcategories?: readonly string[];
   brand?: string;
   color?: string;
   size?: string;
@@ -43,9 +44,12 @@ export type StorefrontSearchCandidate = Readonly<{
 
 function parameters(input: StorefrontReadModelWindowInput): unknown[] {
   const filters = input.filters ?? {};
+  const subcategories = filters.subcategory?.trim()
+    ? [filters.subcategory.trim()]
+    : [...new Set((filters.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
   return [
     [...(input.prefixes ?? [])],
-    filters.subcategory ?? "",
+    subcategories,
     filters.brand ?? "",
     filters.color ?? "",
     filters.size ?? "",
@@ -69,7 +73,7 @@ const FILTER_SQL = `
          OR lower(rm.department_code) LIKE prefix||'-%'
     )
   )
-  AND ($2::text='' OR rm.category_code=$2)
+  AND (cardinality($2::text[])=0 OR rm.category_code=ANY($2::text[]))
   AND ($3::text='' OR lower(COALESCE(rm.brand_name,''))=lower($3))
   AND ($4::text='' OR rm.color=lower($4))
   AND ($5::text='' OR rm.sizes ? $5)
@@ -99,14 +103,14 @@ const FAMILY_FILTER_SQL = `
       WHERE lower(code)=prefix OR lower(code) LIKE prefix||'-%'
     )
   )
-  AND ($2::text='' OR fm.category_codes @> ARRAY[$2]::text[])
+  AND (cardinality($2::text[])=0 OR fm.category_codes && $2::text[])
   AND ($3::text='' OR fm.brand_names @> ARRAY[lower($3)]::text[])
   AND ($4::text='' OR fm.colors @> ARRAY[lower($4)]::text[])
   AND ($5::text='' OR lower(COALESCE(fm.sizes_text,'')) LIKE '%"'||lower($5)||'"%')
   AND ($6::text='' OR fm.fits @> ARRAY[lower($6)]::text[])
   AND ($7::text='' OR fm.search_vector @@ plainto_tsquery('simple',$7))
   AND ($8::bigint IS NULL OR fm.min_price_minor >= $8)
-  AND ($9::bigint IS NULL OR fm.min_price_minor <= $9)
+  AND ($9::bigint IS NULL OR fm.max_price_minor <= $9)
 `;
 
 /**
@@ -155,7 +159,7 @@ export async function getDropshipStorefrontReadModelWindow(
   const filters = input.filters ?? {};
   const cleanQuery = input.query?.trim() ?? "";
   const hasFilters = Boolean(
-    input.prefixes?.length || filters.subcategory || filters.brand || filters.color ||
+    input.prefixes?.length || filters.subcategory || filters.subcategories?.length || filters.brand || filters.color ||
     filters.size || filters.fit || cleanQuery || input.minPriceMinor !== undefined ||
     input.maxPriceMinor !== undefined
   );
