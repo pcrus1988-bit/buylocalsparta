@@ -1,8 +1,7 @@
 import { requireAccountSession } from "../../../lib/account-session";
-import { ensureFreshFlashSalePool } from "../../../lib/flash-sale-availability-runtime";
 import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../lib/flash-sale-runtime";
 
-export const maxDuration = 60;
+export const maxDuration = 15;
 
 type FlashSaleBody = Readonly<{ action?: unknown; itemId?: unknown; decision?: unknown }>;
 
@@ -41,11 +40,7 @@ export async function POST(request: Request) {
 
     let state;
     if (action === "start") {
-      state = await getTodayFlashSale(principal.userId);
-      if (!state) {
-        await ensureFreshFlashSalePool(principal.userId);
-        state = await startFlashSale(principal.userId);
-      }
+      state = await getTodayFlashSale(principal.userId) ?? await startFlashSale(principal.userId);
     } else if (action === "swipe") {
       const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
       const decision = body.decision === "selected" || body.decision === "skipped" ? body.decision : undefined;
