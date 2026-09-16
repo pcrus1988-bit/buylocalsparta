@@ -15,6 +15,10 @@ export type CartItem = Readonly<{
   color?: string;
   size?: string;
   fulfilmentKind?: "local" | "partner";
+  regularPriceMinor?: number;
+  flashSale?: boolean;
+  quantityCap?: number;
+  flashExpiresAt?: string;
 }>;
 
 type CartContextValue = Readonly<{
@@ -44,9 +48,21 @@ type CartProductDetails = Readonly<{
   fulfilmentKind?: "local" | "partner";
 }>;
 
+type ServerCartItem = Readonly<{
+  canonicalVariantId: string;
+  title: string;
+  priceMinor: number;
+  quantity: number;
+  regularPriceMinor?: number;
+  flashSale?: boolean;
+  quantityCap?: number;
+  flashExpiresAt?: string;
+}>;
+
 const STORAGE_KEY = "buy-local-sparta-cart-v1";
 const CartContext = createContext<CartContextValue | null>(null);
 function displayMoney(minor: number) { return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100); }
+function safeQuantityCap(value: unknown): number { return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? Math.min(99, value) : 99; }
 
 function storedCartItem(value: unknown): CartItem | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -58,12 +74,29 @@ function storedCartItem(value: unknown): CartItem | undefined {
     || typeof item.price !== "string" || item.price.length > 64
     || typeof priceMinor !== "number" || !Number.isSafeInteger(priceMinor) || priceMinor < 0
     || typeof quantity !== "number" || !Number.isSafeInteger(quantity) || quantity <= 0) return undefined;
+
+  const flashExpiry = typeof item.flashExpiresAt === "string" ? Date.parse(item.flashExpiresAt) : Number.NaN;
+  const flashActive = item.flashSale === true
+    && Number.isFinite(flashExpiry)
+    && flashExpiry > Date.now()
+    && item.quantityCap === 1
+    && typeof item.regularPriceMinor === "number"
+    && Number.isSafeInteger(item.regularPriceMinor)
+    && item.regularPriceMinor >= priceMinor;
+  const quantityCap = flashActive ? 1 : 99;
+
   return {
     canonicalVariantId: item.canonicalVariantId,
     title: item.title,
     priceMinor,
     price: item.price,
-    quantity: Math.min(99, quantity)
+    quantity: Math.min(quantityCap, quantity),
+    ...(flashActive ? {
+      regularPriceMinor: item.regularPriceMinor,
+      flashSale: true,
+      quantityCap: 1,
+      flashExpiresAt: item.flashExpiresAt
+    } : {})
   };
 }
 
@@ -73,7 +106,13 @@ function persistentCartItem(item: CartItem) {
     title: item.title,
     priceMinor: item.priceMinor,
     price: item.price,
-    quantity: item.quantity
+    quantity: item.quantity,
+    ...(item.flashSale && item.quantityCap === 1 && item.flashExpiresAt ? {
+      regularPriceMinor: item.regularPriceMinor,
+      flashSale: true,
+      quantityCap: 1,
+      flashExpiresAt: item.flashExpiresAt
+    } : {})
   };
 }
 
@@ -115,16 +154,45 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems(local);
     void fetch("/api/account/cart", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) return;
-      const body = await response.json() as { persistent?: boolean; csrfToken?: string; cart?: { items?: readonly { canonicalVariantId: string; title: string; priceMinor: number; quantity: number }[] } | null };
+      const body = await response.json() as { persistent?: boolean; csrfToken?: string; cart?: { items?: readonly ServerCartItem[] } | null };
       if (!body.persistent) return;
       persistentEnabled.current = true;
       setPersistentCsrf(body.csrfToken);
-      const server = (body.cart?.items ?? []).map((item) => ({ canonicalVariantId: item.canonicalVariantId, title: item.title, priceMinor: item.priceMinor, price: displayMoney(item.priceMinor), quantity: Math.min(99, item.quantity) }));
+      const server: CartItem[] = (body.cart?.items ?? []).map((item) => {
+        const quantityCap = safeQuantityCap(item.quantityCap);
+        return {
+          canonicalVariantId: item.canonicalVariantId,
+          title: item.title,
+          priceMinor: item.priceMinor,
+          price: displayMoney(item.priceMinor),
+          quantity: Math.min(quantityCap, item.quantity),
+          regularPriceMinor: item.regularPriceMinor,
+          flashSale: item.flashSale === true,
+          quantityCap: item.quantityCap,
+          flashExpiresAt: item.flashExpiresAt
+        };
+      });
       const merged = new Map<string, CartItem>();
       for (const item of server) merged.set(item.canonicalVariantId, item);
       for (const item of local) {
         const existing = merged.get(item.canonicalVariantId);
-        merged.set(item.canonicalVariantId, existing ? { ...item, quantity: Math.max(existing.quantity, item.quantity), title: existing.title, priceMinor: existing.priceMinor, price: existing.price } : item);
+        if (!existing) {
+          merged.set(item.canonicalVariantId, item);
+          continue;
+        }
+        const cap = safeQuantityCap(existing.quantityCap);
+        merged.set(item.canonicalVariantId, {
+          ...item,
+          ...existing,
+          quantity: Math.min(cap, Math.max(existing.quantity, item.quantity)),
+          title: existing.title,
+          priceMinor: existing.priceMinor,
+          price: displayMoney(existing.priceMinor),
+          regularPriceMinor: existing.regularPriceMinor,
+          flashSale: existing.flashSale,
+          quantityCap: existing.quantityCap,
+          flashExpiresAt: existing.flashExpiresAt
+        });
       }
       setItems([...merged.values()]);
     }).catch(() => undefined).finally(() => { initialMergeDone.current = true; setHydrated(true); });
@@ -184,11 +252,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((item: Omit<CartItem, "quantity">, quantity = 1) => {
     if (!item.canonicalVariantId.trim() || !item.title.trim() || !Number.isSafeInteger(item.priceMinor) || item.priceMinor < 0) return;
-    const safeQuantity = Math.max(1, Math.min(99, Number.isFinite(quantity) ? Math.trunc(quantity) : 1));
+    const incomingCap = safeQuantityCap(item.quantityCap);
+    const safeQuantity = Math.max(1, Math.min(incomingCap, Number.isFinite(quantity) ? Math.trunc(quantity) : 1));
     setItems((current) => {
       const existing = current.find((entry) => entry.canonicalVariantId === item.canonicalVariantId);
       if (!existing) return [...current, { ...item, quantity: safeQuantity }];
-      return current.map((entry) => entry.canonicalVariantId === item.canonicalVariantId ? { ...entry, ...item, quantity: Math.min(99, entry.quantity + safeQuantity) } : entry);
+      return current.map((entry) => {
+        if (entry.canonicalVariantId !== item.canonicalVariantId) return entry;
+        const nextIsFlash = item.flashSale === true || entry.flashSale === true;
+        const cap = nextIsFlash ? 1 : Math.min(99, safeQuantityCap(item.quantityCap ?? entry.quantityCap));
+        const flashSource = item.flashSale === true ? item : entry;
+        return {
+          ...entry,
+          ...item,
+          ...(nextIsFlash ? {
+            priceMinor: flashSource.priceMinor,
+            price: flashSource.price,
+            regularPriceMinor: flashSource.regularPriceMinor,
+            flashSale: true,
+            quantityCap: 1,
+            flashExpiresAt: flashSource.flashExpiresAt
+          } : {}),
+          quantity: Math.min(cap, entry.quantity + safeQuantity)
+        };
+      });
     });
     setCartPulseKey((current) => current + 1);
     setCartOpen(true);
@@ -198,7 +285,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!Number.isFinite(quantity)) return;
     const safe = Math.trunc(quantity);
     if (safe <= 0) return setItems((current) => current.filter((item) => item.canonicalVariantId !== id));
-    setItems((current) => current.map((item) => item.canonicalVariantId === id ? { ...item, quantity: Math.min(99, safe) } : item));
+    setItems((current) => current.map((item) => item.canonicalVariantId === id
+      ? { ...item, quantity: Math.min(safeQuantityCap(item.quantityCap), safe) }
+      : item));
   }, []);
 
   const removeItem = useCallback((id: string) => setItems((current) => current.filter((item) => item.canonicalVariantId !== id)), []);

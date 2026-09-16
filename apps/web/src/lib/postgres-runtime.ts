@@ -27,6 +27,17 @@ const bootstrapDatabaseUrl = resolveDatabaseUrlFromEnv();
 if (!process.env.DATABASE_URL?.trim() && bootstrapDatabaseUrl) process.env.DATABASE_URL = bootstrapDatabaseUrl;
 if (process.env.RESEND_API_KEY?.trim() && !process.env.BLS_EMAIL_DELIVERY_ENABLED?.trim()) process.env.BLS_EMAIL_DELIVERY_ENABLED = "true";
 
+// Preview deployments intentionally do not receive the live Mollie secret. Vercel still
+// inherits the project-level enable flag, so without this guard any read-only server render
+// would eagerly construct the payment adapter and fail the entire preview build. Disable the
+// adapter only for that exact preview/missing-secret combination. Production remains fail-closed:
+// when MOLLIE_PAYMENTS_ENABLED=true there, the PostgreSQL runtime still requires a valid live key.
+if (process.env.VERCEL_ENV === "preview"
+  && process.env.MOLLIE_PAYMENTS_ENABLED === "true"
+  && !process.env.MOLLIE_API_KEY?.trim()) {
+  process.env.MOLLIE_PAYMENTS_ENABLED = "false";
+}
+
 /**
  * Vercel can create multiple warm Node.js instances under concurrent traffic. The shared
  * PostgreSQL runtime is a singleton only inside one instance, so using the package default
