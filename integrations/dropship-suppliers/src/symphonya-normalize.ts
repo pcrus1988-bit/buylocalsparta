@@ -180,11 +180,14 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
  * the final category IDs and can reject this candidate when evidence conflicts.
  */
 export function classifySymphonyaBeauty(product: SymphonyaSourceProduct): SymphonyaBeautyCandidate {
-  const fields = [product.category, product.subcategory, product.subsubcategory, product.type, product.name]
-    .map((value) => normalizeToken(value))
-    .filter(Boolean);
-  const haystack = fields.join(" ");
-  const evidence: string[] = [];
+  const fields = [
+    normalizeToken(product.category),
+    normalizeToken(product.subcategory),
+    normalizeToken(product.subsubcategory),
+    normalizeToken(product.type),
+    normalizeToken(product.name)
+  ];
+  const weights = [5, 4, 3, 2, 1] as const;
 
   const rules: readonly Readonly<{ terms: readonly string[]; path: readonly string[] }>[] = [
     { terms: ["perfume", "parfum", "fragrance", "eau de parfum", "eau de toilette", "cologne"], path: ["Beauty", "Fragrance"] },
@@ -196,20 +199,34 @@ export function classifySymphonyaBeauty(product: SymphonyaSourceProduct): Sympho
     { terms: ["grooming", "shaving", "beard", "aftershave"], path: ["Beauty", "Grooming"] }
   ];
 
-  for (const rule of rules) {
-    const matches = rule.terms.filter((term) => haystack.includes(term));
-    if (!matches.length) continue;
-    evidence.push(...matches);
-    return {
-      matched: true,
-      ancestor: "Beauty",
-      path: rule.path,
-      confidence: matches.length >= 2 || fields.slice(0, 3).some((field) => matches.some((term) => field.includes(term))) ? "high" : "medium",
-      evidence: [...new Set(evidence)]
-    };
-  }
+  const scored = rules.map((rule, ruleIndex) => {
+    let score = 0;
+    const evidence = new Set<string>();
+    fields.forEach((field, fieldIndex) => {
+      if (!field) return;
+      for (const term of rule.terms) {
+        if (!field.includes(term)) continue;
+        evidence.add(term);
+        score += weights[fieldIndex] ?? 1;
+      }
+    });
+    return { rule, ruleIndex, score, evidence: [...evidence] };
+  }).filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.evidence.length - a.evidence.length || a.ruleIndex - b.ruleIndex);
 
-  return { matched: false, ancestor: null, path: [], confidence: "none", evidence: [] };
+  const best = scored[0];
+  if (!best) return { matched: false, ancestor: null, path: [], confidence: "none", evidence: [] };
+
+  const runnerUp = scored[1];
+  const categoryEvidence = fields.slice(0, 3).some((field) => best.rule.terms.some((term) => field.includes(term)));
+  const unambiguous = !runnerUp || best.score >= runnerUp.score + 2;
+  return {
+    matched: true,
+    ancestor: "Beauty",
+    path: best.rule.path,
+    confidence: categoryEvidence && unambiguous ? "high" : "medium",
+    evidence: best.evidence
+  };
 }
 
 export function stableContentHash(value: Readonly<Record<string, unknown>>): string {
