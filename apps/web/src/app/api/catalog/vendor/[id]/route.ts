@@ -15,6 +15,10 @@ function optionalParam(url: URL, key: string, max: number): string {
   return url.searchParams.get(key)?.trim().slice(0, max) ?? "";
 }
 
+function multiParam(url: URL, key: string, max: number, limit = 64): readonly string[] {
+  return [...new Set(url.searchParams.getAll(key).map((value) => value.trim().slice(0, max)).filter(Boolean))].slice(0, limit);
+}
+
 function intParam(url: URL, key: string, fallback: number, max: number): number {
   const parsed = Number(url.searchParams.get(key));
   return Number.isSafeInteger(parsed) && parsed >= 0 ? Math.min(parsed, max) : fallback;
@@ -54,7 +58,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   const url = new URL(request.url);
   const query = optionalParam(url, "q", 160);
-  const category = optionalParam(url, "category", 120);
+  const categories = multiParam(url, "category", 120);
   const brand = optionalParam(url, "brand", 160);
   const color = optionalParam(url, "color", 120);
   const size = optionalParam(url, "size", 120);
@@ -82,7 +86,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const useFastInitialPath = !includeFacets
       && !query
-      && !category
+      && categories.length === 0
       && !brand
       && !color
       && !size;
@@ -91,7 +95,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
       : await getVendorDropshipCatalogPage(id, {
           query,
-          category,
+          categories,
           brand,
           color,
           size,
