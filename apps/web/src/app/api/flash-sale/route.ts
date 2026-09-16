@@ -1,5 +1,5 @@
 import { requireAccountSession } from "../../../lib/account-session";
-import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../lib/flash-sale-runtime";
+import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../lib/flash-sale-runtime-v2";
 
 export const maxDuration = 15;
 
@@ -25,6 +25,7 @@ export async function GET() {
     return Response.json({ state: state ?? null }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     const message = error instanceof Error ? error.message : "FLASH_SALE_FAILED";
+    console.error(JSON.stringify({ level: "error", event: "flash_sale.state_failed", message }));
     return Response.json(
       { error: message },
       { status: message === "AUTH_REQUIRED" ? 401 : 400, headers: NO_STORE_HEADERS }
@@ -33,10 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let action = "";
   try {
     const principal = await requireAccountSession(request, true);
     const body = await request.json() as FlashSaleBody;
-    const action = typeof body.action === "string" ? body.action : "";
+    action = typeof body.action === "string" ? body.action : "";
 
     let state;
     if (action === "start") {
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "FLASH_SALE_FAILED";
+    console.error(JSON.stringify({ level: "error", event: "flash_sale.mutation_failed", action, message }));
     return Response.json(
       { error: message },
       { status: message === "AUTH_REQUIRED" ? 401 : 400, headers: NO_STORE_HEADERS }
