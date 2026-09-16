@@ -24,6 +24,7 @@ type VendorCatalogApiResponse = Readonly<{
 type FilterState = Readonly<{
   query: string;
   category: string;
+  categoryGroup: readonly string[];
   brand: string;
   color: string;
   size: string;
@@ -31,7 +32,6 @@ type FilterState = Readonly<{
 }>;
 type GuideAudience = "women" | "men" | "accessories";
 type GuideFamily = "shoes" | "clothing" | "underwear" | "bags" | "jewellery" | "eyewear" | "accessories" | "other";
-
 type GuideGroup = Readonly<{
   key: GuideFamily;
   label: string;
@@ -46,11 +46,7 @@ const SPECIAL_FASHION_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
 const VENDOR_ID_PATTERN = /^[A-Za-z0-9_-]{3,128}$/;
 
 function normalized(value: string | undefined): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLocaleLowerCase("el");
+  return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");
 }
 
 function unique(values: readonly (string | undefined)[]): readonly string[] {
@@ -81,7 +77,12 @@ function fallbackCategoryOptions(products: readonly CatalogCard[]): readonly Rem
 function pageParams(filters: FilterState, offset: number): URLSearchParams {
   const params = new URLSearchParams({ offset: String(offset), limit: String(PAGE_SIZE) });
   if (filters.query.trim()) params.set("q", filters.query.trim());
-  if (filters.category !== "all") params.set("category", filters.category);
+  const categoryValues = filters.categoryGroup.length
+    ? filters.categoryGroup
+    : filters.category !== "all"
+      ? [filters.category]
+      : [];
+  for (const value of categoryValues) params.append("category", value);
   if (filters.brand !== "all") params.set("brand", filters.brand);
   if (filters.color !== "all") params.set("color", filters.color);
   if (filters.size !== "all") params.set("size", filters.size);
@@ -123,14 +124,13 @@ function buildGroups(entries: readonly RemoteFacetOption[]): readonly GuideGroup
   const order: readonly GuideFamily[] = ["shoes", "clothing", "underwear", "bags", "jewellery", "eyewear", "accessories", "other"];
   return order.flatMap((key) => {
     const children = entries.filter((entry) => familyFor(entry) === key);
-    if (!children.length) return [];
-    return [{
+    return children.length ? [{
       key,
       label: FAMILY_META[key].label,
       helper: FAMILY_META[key].helper,
       entries: children,
       count: children.reduce((sum, entry) => sum + entry.count, 0)
-    }];
+    }] : [];
   });
 }
 
@@ -148,6 +148,8 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [categoryGroup, setCategoryGroup] = useState<readonly string[]>([]);
+  const [categoryGroupLabel, setCategoryGroupLabel] = useState("");
   const [brand, setBrand] = useState("all");
   const [color, setColor] = useState("all");
   const [size, setSize] = useState("all");
@@ -170,7 +172,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
   const demoMode = Boolean(demoVendorId);
   const isGuidedFashionVendor = (publicVendorId ?? vendorId) === SPECIAL_FASHION_VENDOR_ID;
-  const filters = useMemo<FilterState>(() => ({ query, category, brand, color, size, availability }), [availability, brand, category, color, query, size]);
+  const filters = useMemo<FilterState>(() => ({ query, category, categoryGroup, brand, color, size, availability }), [availability, brand, category, categoryGroup, color, query, size]);
 
   useEffect(() => {
     if (demoMode || publicVendorId) return;
@@ -253,9 +255,18 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     if (!isGuidedFashionVendor || initialGuideHandled.current || (!categories.length && facetsLoading)) return;
     initialGuideHandled.current = true;
     const url = new URL(window.location.href);
+    const grouped = (url.searchParams.get("fashionCategories") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+    const validGrouped = grouped.filter((value) => categories.some((entry) => entry.value === value));
+    if (validGrouped.length) {
+      setCategory("all");
+      setCategoryGroup(validGrouped);
+      setCategoryGroupLabel(url.searchParams.get("fashionLabel")?.trim() || "Ομαδοποιημένη επιλογή");
+      return;
+    }
     const requested = url.searchParams.get("fashionCategory");
     if (requested && categories.some((entry) => entry.value === requested)) {
       setCategory(requested);
+      setCategoryGroup([]);
       return;
     }
     setGuideOpen(true);
@@ -284,27 +295,54 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     setAvailability("all");
   };
 
+  const persistFashionSelection = (exactCategory?: string, grouped?: readonly string[], label?: string) => {
+    if (!isGuidedFashionVendor) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("fashionCategory");
+    url.searchParams.delete("fashionCategories");
+    url.searchParams.delete("fashionLabel");
+    if (exactCategory && exactCategory !== "all") url.searchParams.set("fashionCategory", exactCategory);
+    if (grouped?.length) {
+      url.searchParams.set("fashionCategories", grouped.join(","));
+      if (label) url.searchParams.set("fashionLabel", label);
+    }
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
   const selectCategory = (nextCategory: string) => {
     setCategory(nextCategory);
+    setCategoryGroup([]);
+    setCategoryGroupLabel("");
     resetSecondaryFilters();
     setFiltersOpen(false);
     setGuideOpen(false);
-    if (isGuidedFashionVendor) {
-      const url = new URL(window.location.href);
-      if (nextCategory === "all") url.searchParams.delete("fashionCategory");
-      else url.searchParams.set("fashionCategory", nextCategory);
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    }
+    persistFashionSelection(nextCategory);
+    window.requestAnimationFrame(() => catalogResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const selectCategoryGroup = (entries: readonly RemoteFacetOption[], label: string) => {
+    const values = [...new Set(entries.map((entry) => entry.value).filter(Boolean))];
+    if (!values.length) return;
+    setCategory("all");
+    setCategoryGroup(values);
+    setCategoryGroupLabel(label);
+    resetSecondaryFilters();
+    setFiltersOpen(false);
+    setGuideOpen(false);
+    persistFashionSelection(undefined, values, label);
     window.requestAnimationFrame(() => catalogResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   const resetAllFilters = () => {
     setQuery("");
     setCategory("all");
+    setCategoryGroup([]);
+    setCategoryGroupLabel("");
     setBrand("all");
     setColor("all");
     setSize("all");
     setAvailability("all");
+    persistFashionSelection("all");
   };
 
   const reopenGuide = () => {
@@ -332,8 +370,8 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   };
 
   const visibleProducts = remoteProducts ?? products;
-  const total = remoteFacets?.total ?? remoteTotal ?? visibleProducts.length;
-  const activeFilterCount = [category !== "all", brand !== "all", color !== "all", size !== "all", availability !== "all"].filter(Boolean).length;
+  const total = remoteTotal ?? remoteFacets?.total ?? visibleProducts.length;
+  const activeFilterCount = [category !== "all" || categoryGroup.length > 0, brand !== "all", color !== "all", size !== "all", availability !== "all"].filter(Boolean).length;
   const audienceEntries = guideAudience ? categories.filter((entry) => audienceFor(entry) === guideAudience) : [];
   const guideGroups = buildGroups(audienceEntries);
   const selectedGroup = guideFamily ? guideGroups.find((group) => group.key === guideFamily) : undefined;
@@ -342,6 +380,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     men: categories.filter((entry) => audienceFor(entry) === "men").reduce((sum, entry) => sum + entry.count, 0),
     accessories: categories.filter((entry) => audienceFor(entry) === "accessories").reduce((sum, entry) => sum + entry.count, 0)
   }), [categories]);
+  const audienceAllCount = audienceEntries.reduce((sum, entry) => sum + entry.count, 0);
 
   const goGuideBack = () => {
     if (guideFamily) setGuideFamily(null);
@@ -349,16 +388,18 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     else setGuideOpen(false);
   };
 
-  const guideTitle = selectedGroup
-    ? selectedGroup.label
-    : guideAudience
-      ? audienceLabel(guideAudience)
-      : "Τι ψάχνετε σήμερα;";
+  const guideTitle = selectedGroup ? selectedGroup.label : guideAudience ? audienceLabel(guideAudience) : "Τι ψάχνετε σήμερα;";
   const guideSubtitle = selectedGroup
-    ? "Διάλεξε την κατηγορία που σε ενδιαφέρει."
+    ? "Διάλεξε μία ακριβή κατηγορία ή επίλεξε «Όλα» για ολόκληρο αυτό το επίπεδο."
     : guideAudience
-      ? "Ομαδοποιήσαμε τον κατάλογο για να φτάσεις γρήγορα στο σωστό προϊόν."
-      : "Πες μας πρώτα για ποιον ή τι ψάχνεις. Θα σε οδηγήσουμε βήμα-βήμα αντί να σε αφήσουμε μέσα σε χιλιάδες προϊόντα.";
+      ? "Διάλεξε ομάδα ή επίλεξε «Όλα» για να δεις ολόκληρη αυτή την επιλογή."
+      : "Πες μας πρώτα για ποιον ή τι ψάχνεις. Σε κάθε βήμα μπορείς να σταματήσεις την καθοδήγηση και να δεις όλα τα προϊόντα αυτού του επιπέδου.";
+
+  const activeCategoryLabel = categoryGroup.length
+    ? categoryGroupLabel || "Ομαδοποιημένη επιλογή"
+    : category === "all"
+      ? "Όλη η μόδα"
+      : categories.find((entry) => entry.value === category)?.label ?? "Μόδα";
 
   const filterPanel = (mobile = false) => (
     <div className="vc-filter-panel">
@@ -366,16 +407,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         <div><strong>Φίλτρα προϊόντων</strong><span>{facetsLoading ? "Οργανώνουμε τις επιλογές…" : "Τα φίλτρα καλύπτουν ολόκληρο τον κατάλογο."}</span></div>
         {activeFilterCount ? <button type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}
       </div>
-      {isGuidedFashionVendor ? (
-        <button className="vc-guide-trigger" type="button" onClick={reopenGuide}>
-          <span><small>ΟΔΗΓΟΣ ΜΟΔΑΣ</small><strong>Βρες αυτό που ψάχνεις</strong></span><b>→</b>
-        </button>
-      ) : null}
+      {isGuidedFashionVendor ? <button className="vc-guide-trigger" type="button" onClick={reopenGuide}><span><small>ΟΔΗΓΟΣ ΜΟΔΑΣ</small><strong>Βρες αυτό που ψάχνεις</strong></span><b>→</b></button> : null}
+      {categoryGroup.length ? <div className="vc-group-note"><small>ΟΜΑΔΟΠΟΙΗΜΕΝΗ ΕΠΙΛΟΓΗ</small><strong>{activeCategoryLabel}</strong><span>{categoryGroup.length} κατηγορίες μαζί</span></div> : null}
       {categories.length ? <div className="vc-filter-section">
         <span className="vc-label">Κατηγορίες</span>
         <div className="vc-category-list">
-          <button className={category === "all" ? "active" : ""} type="button" onClick={() => selectCategory("all")}><span>Όλα τα προϊόντα</span><em>{remoteFacets?.total ?? total}</em></button>
-          {categories.map((entry) => <button className={category === entry.value ? "active" : ""} type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span>{entry.label}</span><em>{entry.count}</em></button>)}
+          <button className={category === "all" && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory("all")}><span>Όλα τα προϊόντα</span><em>{remoteFacets?.total ?? total}</em></button>
+          {categories.map((entry) => <button className={category === entry.value && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span>{entry.label}</span><em>{entry.count}</em></button>)}
         </div>
       </div> : null}
       <div className="vc-filter-section">
@@ -395,10 +433,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     <div className="vc-layout">
       <aside className="vc-sidebar" aria-label="Κατηγορίες και φίλτρα προϊόντων">{filterPanel()}</aside>
       <div className="vc-results" ref={catalogResultsRef}>
-        {isGuidedFashionVendor ? <div className="vc-active-guide">
-          <div><small>Η επιλογή σου</small><strong>{category === "all" ? "Όλη η μόδα" : categories.find((entry) => entry.value === category)?.label ?? "Μόδα"}</strong></div>
-          <button type="button" onClick={reopenGuide}>Αλλαγή αναζήτησης</button>
-        </div> : null}
+        {isGuidedFashionVendor ? <div className="vc-active-guide"><div><small>Η επιλογή σου</small><strong>{activeCategoryLabel}</strong></div><button type="button" onClick={reopenGuide}>Αλλαγή αναζήτησης</button></div> : null}
         <label className="vc-search"><span>Αναζήτηση στο κατάστημα</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Προϊόν, μάρκα, κωδικός…" /></label>
         <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> επιλογές τώρα · {total} προϊόντα στον κατάλογο.</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
         {remoteLoading && !visibleProducts.length ? <div className="vc-loading"><span className="vc-spinner" /><strong>Ετοιμάζουμε τη βιτρίνα…</strong><p>Φορτώνουμε μόνο ό,τι χρειάζεται για την επιλογή σου.</p></div> : visibleProducts.length ? <>
@@ -414,16 +449,15 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
     {isGuidedFashionVendor && guideOpen ? <div className="fashion-guide" role="dialog" aria-modal="true" aria-labelledby="fashion-guide-title">
       <div className="fashion-guide-shell">
-        <header className="fashion-guide-header">
-          <div className="fashion-guide-brand"><span>ΚΟΝΤΑ ΜΟΥ</span><small>ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΜΟΔΑΣ</small></div>
-          <button className="fashion-guide-close" type="button" onClick={() => setGuideOpen(false)} aria-label="Κλείσιμο">×</button>
-        </header>
+        <header className="fashion-guide-header"><div className="fashion-guide-brand"><span>ΚΟΝΤΑ ΜΟΥ</span><small>ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΜΟΔΑΣ</small></div><button className="fashion-guide-close" type="button" onClick={() => setGuideOpen(false)} aria-label="Κλείσιμο">×</button></header>
         <main className="fashion-guide-main">
           <div className="fashion-guide-breadcrumb">Μόδα{guideAudience ? ` / ${audienceLabel(guideAudience)}` : ""}{selectedGroup ? ` / ${selectedGroup.label}` : ""}</div>
           <div className="fashion-guide-heading"><p>ΛΙΓΟ ΠΙΟ ΕΥΚΟΛΑ</p><h2 id="fashion-guide-title">{guideTitle}</h2><span>{guideSubtitle}</span></div>
-          {!categories.length ? <div className="fashion-guide-wait"><span className="vc-spinner" /><strong>Οργανώνουμε τον κατάλογο…</strong></div> : selectedGroup ? <div className="fashion-guide-options leaf-options">
+          {!categories.length ? <div className="fashion-guide-wait"><span className="vc-spinner" /><strong>Οργανώνουμε τον κατάλογο…</strong></div> : selectedGroup && guideAudience ? <div className="fashion-guide-options leaf-options">
+            <button className="all-current" type="button" onClick={() => selectCategoryGroup(selectedGroup.entries, `${audienceLabel(guideAudience)} · ${selectedGroup.label}`)}><span><strong>Όλα τα {selectedGroup.label.toLocaleLowerCase("el")}</strong><small>Όλα σε {audienceLabel(guideAudience).toLocaleLowerCase("el")} · {selectedGroup.label.toLocaleLowerCase("el")}</small></span><em>{selectedGroup.count}</em><b>→</b></button>
             {selectedGroup.entries.map((entry) => <button type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την κατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
           </div> : guideAudience ? <div className="fashion-guide-options">
+            <button className="all-current" type="button" onClick={() => selectCategoryGroup(audienceEntries, `Όλα τα ${audienceLabel(guideAudience).toLocaleLowerCase("el")}`)}><span><strong>Όλα τα {audienceLabel(guideAudience).toLocaleLowerCase("el")}</strong><small>Μην περιορίσεις άλλο αυτή την επιλογή</small></span><em>{audienceAllCount}</em><b>→</b></button>
             {guideGroups.map((group) => <button type="button" onClick={() => setGuideFamily(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.helper}</small></span><em>{group.count}</em><b>→</b></button>)}
           </div> : <div className="fashion-guide-options audience-options">
             <button type="button" onClick={() => setGuideAudience("women")}><span className="guide-icon">♀</span><span><strong>Γυναικεία</strong><small>Ρούχα, παπούτσια, τσάντες & άλλα</small></span><em>{audienceCounts.women}</em><b>→</b></button>
@@ -432,16 +466,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
             <button className="all-products" type="button" onClick={() => selectCategory("all")}><span className="guide-icon">∞</span><span><strong>Όλα τα προϊόντα</strong><small>Θέλω να εξερευνήσω ολόκληρο τον κατάλογο</small></span><em>{remoteFacets?.total ?? total}</em><b>→</b></button>
           </div>}
         </main>
-        <footer className="fashion-guide-footer">
-          <button type="button" onClick={goGuideBack}>{guideAudience ? "← Πίσω" : "Κλείσιμο"}</button>
-          {(guideAudience || guideFamily) ? <button type="button" onClick={() => { setGuideAudience(null); setGuideFamily(null); }}>Από την αρχή</button> : null}
-          <span>Μπορείς να αλλάξεις αυτή την επιλογή οποιαδήποτε στιγμή.</span>
-        </footer>
+        <footer className="fashion-guide-footer"><button type="button" onClick={goGuideBack}>{guideAudience ? "← Πίσω" : "Κλείσιμο"}</button>{(guideAudience || guideFamily) ? <button type="button" onClick={() => { setGuideAudience(null); setGuideFamily(null); }}>Από την αρχή</button> : null}<span>Σε κάθε επίπεδο υπάρχει επιλογή «Όλα».</span></footer>
       </div>
     </div> : null}
 
     <style jsx>{`
-      .vc-browser{position:relative}.vc-layout{display:grid;grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:28px}.vc-sidebar{min-width:0}.vc-results{min-width:0;scroll-margin-top:88px}.vc-filter-panel{display:flex;flex-direction:column;gap:22px}.vc-filter-head{display:flex;justify-content:space-between;gap:12px}.vc-filter-head div{display:flex;flex-direction:column;gap:5px}.vc-filter-head strong{font-size:18px}.vc-filter-head span{font-size:12px;color:#6e7772;line-height:1.4}.vc-filter-head button,.vc-active-guide button{border:0;background:transparent;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-guide-trigger{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.18);border-radius:18px;padding:16px;background:#14372c;color:#fff;cursor:pointer}.vc-guide-trigger span{display:flex;flex-direction:column;gap:4px}.vc-guide-trigger small{font-size:10px;letter-spacing:.12em;opacity:.72}.vc-guide-trigger strong{font-size:15px}.vc-guide-trigger b{font-size:20px}.vc-filter-section{display:flex;flex-direction:column;gap:9px}.vc-label{font-size:11px;font-weight:800;letter-spacing:.09em;color:#6e7772;text-transform:uppercase}.vc-category-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto}.vc-category-list button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid transparent;border-radius:12px;padding:11px 12px;background:transparent;color:#40514b;font:inherit;cursor:pointer}.vc-category-list button:hover{background:#f4f0e8}.vc-category-list button.active{background:#14372c;color:#fff}.vc-category-list em{font-style:normal;font-size:12px;opacity:.72}.vc-fields{display:grid;gap:10px}.vc-fields label,.vc-search{display:flex;flex-direction:column;gap:6px}.vc-fields label span,.vc-search span{font-size:11px;font-weight:800;letter-spacing:.05em;color:#6e7772}.vc-fields select,.vc-search input{width:100%;min-height:46px;border:1px solid #d8d5cd;border-radius:12px;background:#fff;color:#17342c;padding:0 12px;font:inherit}.vc-search{margin-bottom:14px}.vc-meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:18px;color:#6e7772;font-size:13px}.vc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.vc-more{display:block;margin:26px auto 0;min-height:46px;padding:0 24px;border:1px solid #14372c;border-radius:999px;background:#fff;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-loading,.vc-empty{min-height:360px;display:grid;place-items:center;align-content:center;gap:10px;text-align:center;border:1px solid #e0ddd5;border-radius:22px;background:#f8f6f0;padding:30px}.vc-spinner{width:32px;height:32px;border:3px solid rgba(20,55,44,.15);border-top-color:#14372c;border-radius:50%;animation:spin .8s linear infinite}.vc-active-guide{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-active-guide div{display:flex;flex-direction:column;gap:2px}.vc-active-guide small{font-size:10px;letter-spacing:.1em;color:#6e7772}.vc-active-guide strong{font-size:14px}.vc-mobile-dock,.vc-sheet-layer{display:none}.fashion-guide{position:fixed;inset:0;z-index:10000;background:#f4f0e8;color:#183027;overflow:auto}.fashion-guide-shell{min-height:100dvh;display:grid;grid-template-rows:auto 1fr auto}.fashion-guide-header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;min-height:82px;padding:16px clamp(20px,5vw,70px);background:rgba(244,240,232,.96);border-bottom:1px solid rgba(20,55,44,.12);backdrop-filter:blur(12px)}.fashion-guide-brand{display:flex;flex-direction:column;gap:2px}.fashion-guide-brand span{font-size:19px;font-weight:950;letter-spacing:-.03em}.fashion-guide-brand small{font-size:9px;letter-spacing:.16em;color:#6d756f}.fashion-guide-close{width:48px;height:48px;border:1px solid rgba(20,55,44,.2);border-radius:50%;background:#fffaf1;color:#14372c;font-size:28px;line-height:1;cursor:pointer}.fashion-guide-main{width:min(980px,100%);margin:0 auto;padding:clamp(24px,6vh,64px) 20px 36px}.fashion-guide-breadcrumb{min-height:22px;margin-bottom:18px;font-size:12px;font-weight:800;letter-spacing:.06em;color:#727a75}.fashion-guide-heading{max-width:760px;margin-bottom:28px}.fashion-guide-heading p{margin:0 0 8px;font-size:10px;font-weight:900;letter-spacing:.16em;color:#8a7650}.fashion-guide-heading h2{margin:0 0 10px;font-size:clamp(34px,7vw,64px);line-height:.98;letter-spacing:-.045em;font-weight:500}.fashion-guide-heading span{display:block;max-width:680px;font-size:15px;line-height:1.55;color:#627069}.fashion-guide-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fashion-guide-options button{min-height:112px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.15);border-radius:20px;background:#fffaf1;color:#183027;padding:20px;cursor:pointer;transition:transform .15s ease,border-color .15s ease,background .15s ease}.fashion-guide-options button:hover{transform:translateY(-2px);border-color:#14372c}.fashion-guide-options button>span:not(.guide-icon){display:flex;flex-direction:column;gap:5px;min-width:0}.fashion-guide-options strong{font-size:19px}.fashion-guide-options small{font-size:12px;color:#6d756f;line-height:1.35}.fashion-guide-options em{font-style:normal;font-size:13px;color:#6d756f}.fashion-guide-options b{font-size:20px}.audience-options button{min-height:132px}.audience-options button{grid-template-columns:auto minmax(0,1fr) auto auto}.guide-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#e9e5d9;font-size:23px}.audience-options .all-products{background:#14372c;color:#fff}.audience-options .all-products small,.audience-options .all-products em{color:rgba(255,255,255,.72)}.leaf-options button{min-height:94px}.fashion-guide-wait{min-height:260px;display:grid;place-items:center;align-content:center;gap:12px}.fashion-guide-footer{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;min-height:76px;padding:14px clamp(20px,5vw,70px);border-top:1px solid rgba(20,55,44,.12);background:rgba(244,240,232,.97);backdrop-filter:blur(12px)}.fashion-guide-footer button{min-height:42px;padding:0 15px;border:1px solid rgba(20,55,44,.18);border-radius:999px;background:#fffaf1;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.fashion-guide-footer span{margin-left:auto;font-size:11px;color:#737b76}@keyframes spin{to{transform:rotate(360deg)}}
+      .vc-browser{position:relative}.vc-layout{display:grid;grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:28px}.vc-sidebar{min-width:0}.vc-results{min-width:0;scroll-margin-top:88px}.vc-filter-panel{display:flex;flex-direction:column;gap:22px}.vc-filter-head{display:flex;justify-content:space-between;gap:12px}.vc-filter-head div{display:flex;flex-direction:column;gap:5px}.vc-filter-head strong{font-size:18px}.vc-filter-head span{font-size:12px;color:#6e7772;line-height:1.4}.vc-filter-head button,.vc-active-guide button{border:0;background:transparent;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-guide-trigger{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.18);border-radius:18px;padding:16px;background:#14372c;color:#fff;cursor:pointer}.vc-guide-trigger span{display:flex;flex-direction:column;gap:4px}.vc-guide-trigger small{font-size:10px;letter-spacing:.12em;opacity:.72}.vc-guide-trigger strong{font-size:15px}.vc-guide-trigger b{font-size:20px}.vc-group-note{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-group-note small{font-size:9px;font-weight:900;letter-spacing:.12em;color:#7b735f}.vc-group-note strong{font-size:14px}.vc-group-note span{font-size:11px;color:#6e7772}.vc-filter-section{display:flex;flex-direction:column;gap:9px}.vc-label{font-size:11px;font-weight:800;letter-spacing:.09em;color:#6e7772;text-transform:uppercase}.vc-category-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto}.vc-category-list button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid transparent;border-radius:12px;padding:11px 12px;background:transparent;color:#40514b;font:inherit;cursor:pointer}.vc-category-list button:hover{background:#f4f0e8}.vc-category-list button.active{background:#14372c;color:#fff}.vc-category-list em{font-style:normal;font-size:12px;opacity:.72}.vc-fields{display:grid;gap:10px}.vc-fields label,.vc-search{display:flex;flex-direction:column;gap:6px}.vc-fields label span,.vc-search span{font-size:11px;font-weight:800;letter-spacing:.05em;color:#6e7772}.vc-fields select,.vc-search input{width:100%;min-height:46px;border:1px solid #d8d5cd;border-radius:12px;background:#fff;color:#17342c;padding:0 12px;font:inherit}.vc-search{margin-bottom:14px}.vc-meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:18px;color:#6e7772;font-size:13px}.vc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.vc-more{display:block;margin:26px auto 0;min-height:46px;padding:0 24px;border:1px solid #14372c;border-radius:999px;background:#fff;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-loading,.vc-empty{min-height:360px;display:grid;place-items:center;align-content:center;gap:10px;text-align:center;border:1px solid #e0ddd5;border-radius:22px;background:#f8f6f0;padding:30px}.vc-spinner{width:32px;height:32px;border:3px solid rgba(20,55,44,.15);border-top-color:#14372c;border-radius:50%;animation:spin .8s linear infinite}.vc-active-guide{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-active-guide div{display:flex;flex-direction:column;gap:2px}.vc-active-guide small{font-size:10px;letter-spacing:.1em;color:#6e7772}.vc-active-guide strong{font-size:14px}.vc-mobile-dock,.vc-sheet-layer{display:none}.fashion-guide{position:fixed;inset:0;z-index:10000;background:#f4f0e8;color:#183027;overflow:auto}.fashion-guide-shell{min-height:100dvh;display:grid;grid-template-rows:auto 1fr auto}.fashion-guide-header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;min-height:82px;padding:16px clamp(20px,5vw,70px);background:rgba(244,240,232,.96);border-bottom:1px solid rgba(20,55,44,.12);backdrop-filter:blur(12px)}.fashion-guide-brand{display:flex;flex-direction:column;gap:2px}.fashion-guide-brand span{font-size:19px;font-weight:950;letter-spacing:-.03em}.fashion-guide-brand small{font-size:9px;letter-spacing:.16em;color:#6d756f}.fashion-guide-close{width:48px;height:48px;border:1px solid rgba(20,55,44,.2);border-radius:50%;background:#fffaf1;color:#14372c;font-size:28px;line-height:1;cursor:pointer}.fashion-guide-main{width:min(980px,100%);margin:0 auto;padding:clamp(24px,6vh,64px) 20px 36px}.fashion-guide-breadcrumb{min-height:22px;margin-bottom:18px;font-size:12px;font-weight:800;letter-spacing:.06em;color:#727a75}.fashion-guide-heading{max-width:760px;margin-bottom:28px}.fashion-guide-heading p{margin:0 0 8px;font-size:10px;font-weight:900;letter-spacing:.16em;color:#8a7650}.fashion-guide-heading h2{margin:0 0 10px;font-size:clamp(34px,7vw,64px);line-height:.98;letter-spacing:-.045em;font-weight:500}.fashion-guide-heading span{display:block;max-width:680px;font-size:15px;line-height:1.55;color:#627069}.fashion-guide-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fashion-guide-options button{min-height:112px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.15);border-radius:20px;background:#fffaf1;color:#183027;padding:20px;cursor:pointer;transition:transform .15s ease,border-color .15s ease,background .15s ease}.fashion-guide-options button:hover{transform:translateY(-2px);border-color:#14372c}.fashion-guide-options button>span:not(.guide-icon){display:flex;flex-direction:column;gap:5px;min-width:0}.fashion-guide-options strong{font-size:19px}.fashion-guide-options small{font-size:12px;color:#6d756f;line-height:1.35}.fashion-guide-options em{font-style:normal;font-size:13px;color:#6d756f}.fashion-guide-options b{font-size:20px}.audience-options button{min-height:132px;grid-template-columns:auto minmax(0,1fr) auto auto}.guide-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#e9e5d9;font-size:23px}.audience-options .all-products,.fashion-guide-options .all-current{background:#14372c;color:#fff}.audience-options .all-products small,.audience-options .all-products em,.fashion-guide-options .all-current small,.fashion-guide-options .all-current em{color:rgba(255,255,255,.72)}.leaf-options button{min-height:94px}.fashion-guide-wait{min-height:260px;display:grid;place-items:center;align-content:center;gap:12px}.fashion-guide-footer{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;min-height:76px;padding:14px clamp(20px,5vw,70px);border-top:1px solid rgba(20,55,44,.12);background:rgba(244,240,232,.97);backdrop-filter:blur(12px)}.fashion-guide-footer button{min-height:42px;padding:0 15px;border:1px solid rgba(20,55,44,.18);border-radius:999px;background:#fffaf1;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.fashion-guide-footer span{margin-left:auto;font-size:11px;color:#737b76}@keyframes spin{to{transform:rotate(360deg)}}
       @media(max-width:980px){.vc-layout{grid-template-columns:1fr}.vc-sidebar{display:none}.vc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.vc-mobile-dock{position:sticky;bottom:10px;z-index:30;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;margin-top:20px;padding:8px;border:1px solid rgba(20,55,44,.15);border-radius:16px;background:rgba(255,253,248,.95);box-shadow:0 12px 34px rgba(20,55,44,.14);backdrop-filter:blur(10px)}.vc-mobile-dock input{min-width:0;min-height:44px;border:0;background:transparent;padding:0 8px;font:inherit}.vc-mobile-dock button{min-height:44px;border:0;border-radius:11px;background:#14372c;color:white;padding:0 13px;font:inherit;font-weight:800}.vc-mobile-dock button.guide{background:#e9e5d9;color:#14372c}.vc-sheet-layer{display:block;position:fixed;inset:0;z-index:9000}.vc-backdrop{position:absolute;inset:0;border:0;background:rgba(9,21,17,.48)}.vc-sheet{position:absolute;inset:5vh 0 0;display:grid;grid-template-rows:auto 1fr auto;border-radius:28px 28px 0 0;background:#f4f0e8;overflow:hidden}.vc-sheet header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid #d8d5cd}.vc-sheet header div{display:flex;flex-direction:column}.vc-sheet header span{font-size:11px;letter-spacing:.08em}.vc-sheet header strong{font-size:24px;font-weight:500}.vc-sheet header button{width:46px;height:46px;border:1px solid #d5d1c8;border-radius:50%;background:#fffaf1;font-size:25px}.vc-sheet-body{overflow:auto;padding:18px 28px 110px}.vc-sheet footer{position:absolute;left:0;right:0;bottom:0;padding:14px 28px max(18px,env(safe-area-inset-bottom));border-top:1px solid #d8d5cd;background:#fffdf8}.vc-sheet footer :global(.button){width:100%;min-height:58px;border-radius:16px}.vc-mobile-hint{padding:12px;border-radius:12px;background:#ebe7dd;font-size:12px}.vc-category-list{max-height:none}}
       @media(max-width:640px){.vc-grid{gap:10px}.fashion-guide-header{min-height:72px;padding:12px 16px}.fashion-guide-close{width:44px;height:44px}.fashion-guide-main{padding:24px 16px 26px}.fashion-guide-heading h2{font-size:42px}.fashion-guide-heading span{font-size:14px}.fashion-guide-options{grid-template-columns:1fr}.fashion-guide-options button,.audience-options button{min-height:96px;padding:16px;border-radius:17px}.audience-options button{grid-template-columns:auto minmax(0,1fr) auto auto}.guide-icon{width:42px;height:42px;font-size:20px}.fashion-guide-options strong{font-size:17px}.fashion-guide-footer{min-height:72px;padding:12px 16px max(12px,env(safe-area-inset-bottom));flex-wrap:wrap}.fashion-guide-footer span{display:none}.vc-active-guide{align-items:flex-start}.vc-active-guide button{font-size:12px}.vc-mobile-dock{grid-template-columns:minmax(0,1fr) auto}.vc-mobile-dock button.guide{grid-column:1/-1}.vc-search{display:none}}
     `}</style>
