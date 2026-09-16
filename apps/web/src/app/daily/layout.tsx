@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DailyNotificationFloat, type DailyFloatingNotification } from "../../components/DailyNotificationFloat";
+import { OperationalFullscreenShell } from "../../components/OperationalFullscreenShell";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 import { getDailySession } from "../../lib/daily-session";
 import { vendorAdviceWorkspace } from "../../lib/vendor-backoffice-service";
@@ -62,9 +63,9 @@ export default async function DailyLayout({ children }: Readonly<{ children: Rea
     floatingUnread = sla.notifications.filter((item) => !item.readAt).length + advice.notifications.length;
   }
 
-  return <>
+  return <OperationalFullscreenShell background="#f5f3ed">
     {children}
     {principal && <DailyNotificationFloat events={floatingEvents} unread={floatingUnread} />}
     <ScopedPwaInstallClient appName="Daily" serviceWorkerPath="/daily-sw.js" scope="/daily" placement="daily" />
-  </>;
+  </OperationalFullscreenShell>;
 }
