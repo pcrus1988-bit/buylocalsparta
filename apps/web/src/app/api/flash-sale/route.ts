@@ -2,6 +2,8 @@ import { requireAccountSession } from "../../../lib/account-session";
 import { ensureFreshFlashSalePool } from "../../../lib/flash-sale-availability-runtime";
 import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../lib/flash-sale-runtime";
 
+export const maxDuration = 60;
+
 type FlashSaleBody = Readonly<{ action?: unknown; itemId?: unknown; decision?: unknown }>;
 
 const NO_STORE_HEADERS = { "cache-control": "private, no-store, max-age=0" } as const;
