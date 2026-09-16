@@ -69,14 +69,11 @@ CREATE TABLE public.flash_sale_claims (
 
 CREATE INDEX flash_sale_sessions_user_day_idx
   ON public.flash_sale_sessions(user_id, market_id, sale_date DESC);
-
 CREATE INDEX flash_sale_session_items_session_decision_idx
   ON public.flash_sale_session_items(session_id, decision, position);
-
 CREATE INDEX flash_sale_claims_active_idx
   ON public.flash_sale_claims(user_id, market_id, expires_at)
   WHERE redeemed_order_id IS NULL;
-
 CREATE INDEX flash_sale_claims_variant_history_idx
   ON public.flash_sale_claims(user_id, canonical_variant_id, sale_date DESC);
 
@@ -94,13 +91,15 @@ ALTER TABLE public.flash_sale_claims ENABLE ROW LEVEL SECURITY;
 CREATE POLICY bls_platform_runtime_all ON public.flash_sale_sessions
   FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
-
 CREATE POLICY bls_platform_runtime_all ON public.flash_sale_session_items
   FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
-
 CREATE POLICY bls_platform_runtime_all ON public.flash_sale_claims
   FOR ALL USING ((SELECT bls_private.is_platform_runtime()))
   WITH CHECK ((SELECT bls_private.is_platform_runtime()));
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.flash_sale_sessions TO bls_app_runtime, bls_platform_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.flash_sale_session_items TO bls_app_runtime, bls_platform_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.flash_sale_claims TO bls_app_runtime, bls_platform_runtime;
 
 COMMIT;
