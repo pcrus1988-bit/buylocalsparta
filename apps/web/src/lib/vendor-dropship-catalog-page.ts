@@ -40,6 +40,7 @@ export type VendorDropshipCatalogPageInput = Readonly<{
   brand?: string;
   color?: string;
   size?: string;
+  sizes?: readonly string[];
   availableOnly?: boolean;
   offset?: number;
   limit?: number;
@@ -107,6 +108,11 @@ function categoryValues(input: VendorDropshipCatalogPageInput): readonly string[
   return [...new Set((input.categories ?? []).map((value) => value.trim().slice(0, 120)).filter(Boolean))].slice(0, 64);
 }
 
+function sizeValues(input: VendorDropshipCatalogPageInput): readonly string[] {
+  if (input.size?.trim()) return [input.size.trim().slice(0, 120)];
+  return [...new Set((input.sizes ?? []).map((value) => value.trim().slice(0, 120)).filter(Boolean))].slice(0, 64);
+}
+
 /**
  * Filtered vendor catalogue discovery is family-first. The read model narrows the
  * catalogue to a page of supplier product identities; only those identities are
@@ -122,7 +128,7 @@ export async function getVendorDropshipCatalogPage(
   const categories = categoryValues(input);
   const brand = input.brand?.trim().slice(0, 160) ?? "";
   const color = input.color?.trim().slice(0, 120) ?? "";
-  const size = input.size?.trim().slice(0, 120) ?? "";
+  const sizes = sizeValues(input);
   const offset = safePositiveInt(input.offset, 0, 100_000);
   const limit = Math.max(1, safePositiveInt(input.limit, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE));
   const searchPrefix = prefixTsQuery(query);
@@ -150,14 +156,14 @@ export async function getVendorDropshipCatalogPage(
         SELECT 1 FROM unnest(fm.colors) candidate(value)
         WHERE lower(candidate.value)=lower($5)
       ))
-      AND ($6::text='' OR fm.sizes @> ARRAY[$6]::text[])
+      AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
       AND (
         $2::text='' OR
         ($7::text<>'' AND fm.search_vector @@ to_tsquery('simple',$7))
       )
     ORDER BY fm.newest_at DESC,fm.dropship_external_product_id
     LIMIT $8 OFFSET $9
-  `, [vendorId, query, categories, brand, color, size, searchPrefix, limit, offset]);
+  `, [vendorId, query, categories, brand, color, sizes, searchPrefix, limit, offset]);
 
   if (!familyWindow.rows.length) return { products: [], total: 0, offset, limit };
   const total = safePositiveInt(familyWindow.rows[0]?.total_families, 0);
