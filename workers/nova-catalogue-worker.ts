@@ -8,6 +8,7 @@ import {
   catalogueEnrichmentGenerationScope,
   runCatalogueEnrichmentGenerationSlice
 } from "../apps/web/src/lib/catalogue-enrichment-generation-runtime.ts";
+import { runCatalogueEnrichmentPromotionSlice } from "../apps/web/src/lib/catalogue-enrichment-promotion-runtime.ts";
 import { runNovaAutoPublicationSweep } from "../apps/web/src/lib/nova-auto-publication-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
@@ -140,6 +141,16 @@ try {
         } catch (error) {
           log("error", "nova.catalogue_enrichment_generation_failed", { workerId, error: safeError(error) });
         }
+      }
+
+      // Promotion is independent from generation. It must keep running even if AI is
+      // temporarily disabled so validated family copy reaches newly sellable/reactivated
+      // variants through the governed product_translations serving layer.
+      try {
+        const enrichmentPromotion = await runCatalogueEnrichmentPromotionSlice();
+        log("info", "nova.catalogue_enrichment_promotion_slice", { workerId, ...enrichmentPromotion });
+      } catch (error) {
+        log("error", "nova.catalogue_enrichment_promotion_failed", { workerId, error: safeError(error) });
       }
 
       if (stopping) break;
