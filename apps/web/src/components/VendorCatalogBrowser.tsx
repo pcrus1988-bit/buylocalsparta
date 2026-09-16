@@ -44,6 +44,7 @@ const PAGE_SIZE = 20;
 const FIRST_PAGE_TIMEOUT_MS = 8000;
 const SPECIAL_FASHION_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
 const VENDOR_ID_PATTERN = /^[A-Za-z0-9_-]{3,128}$/;
+const RELATED_CATEGORY_LIMIT = 8;
 
 function normalized(value: string | undefined): string {
   return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");
@@ -52,6 +53,18 @@ function normalized(value: string | undefined): string {
 function unique(values: readonly (string | undefined)[]): readonly string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value?.trim())).map((value) => value.trim()))]
     .sort((left, right) => left.localeCompare(right, "el"));
+}
+
+function fallbackFacetOptions(values: readonly (string | undefined)[]): readonly RemoteFacetOption[] {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    const cleaned = value?.trim();
+    if (!cleaned) continue;
+    counts.set(cleaned, (counts.get(cleaned) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, label: value, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
 }
 
 function dedupeProducts(products: readonly CatalogCard[]): readonly CatalogCard[] {
@@ -71,7 +84,7 @@ function fallbackCategoryOptions(products: readonly CatalogCard[]): readonly Rem
   }
   return [...map.entries()]
     .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
-    .sort((left, right) => left.label.localeCompare(right.label, "el"));
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
 }
 
 function pageParams(filters: FilterState, offset: number): URLSearchParams {
@@ -99,13 +112,13 @@ function audienceFor(entry: RemoteFacetOption): GuideAudience {
 
 function familyFor(entry: RemoteFacetOption): GuideFamily {
   const label = normalized(entry.label);
-  if (["sneaker", "παπουτ", "μποτ", "σανδαλ"].some((word) => label.includes(word))) return "shoes";
+  if (["sneaker", "trainer", "running", "shoe", "παπουτ", "μποτ", "boot", "loafer", "moccas", "sandal", "σανδαλ"].some((word) => label.includes(word))) return "shoes";
   if (["t-shirt", "t shirt", "αθλητικ", "κοστουμ", "μπουφαν", "παλτο", "παντελον", "jeans", "πλεκ", "πουκαμισ", "φουστ", "φορεμ", "top", "τοπ"].some((word) => label.includes(word))) return "clothing";
   if (["εσωρουχ", "μαγιο"].some((word) => label.includes(word))) return "underwear";
   if (["τσαντ", "σακιδ", "πορτοφολ", "αποσκευ", "θηκ"].some((word) => label.includes(word))) return "bags";
   if (["δαχτυλ", "κολιε", "σκουλαρ", "βραχιολ", "κοσμη"].some((word) => label.includes(word))) return "jewellery";
   if (["γυαλ", "σκελετ ορασ"].some((word) => label.includes(word))) return "eyewear";
-  if (["ζων", "κασκολ", "καπελ", "γαντ"].some((word) => label.includes(word))) return "accessories";
+  if (["ζων", "belt", "κασκολ", "καπελ", "γαντ"].some((word) => label.includes(word))) return "accessories";
   return "other";
 }
 
@@ -140,6 +153,37 @@ function audienceLabel(audience: GuideAudience): string {
   return "Αξεσουάρ & τσάντες";
 }
 
+function relatedCategoryOptions(
+  categories: readonly RemoteFacetOption[],
+  category: string,
+  categoryGroup: readonly string[]
+): readonly RemoteFacetOption[] {
+  const selected = categoryGroup.length
+    ? categories.filter((entry) => categoryGroup.includes(entry.value))
+    : category !== "all"
+      ? categories.filter((entry) => entry.value === category)
+      : [];
+
+  if (!selected.length) return categories.slice(0, RELATED_CATEGORY_LIMIT);
+
+  const audiences = new Set(selected.map(audienceFor));
+  const families = new Set(selected.map(familyFor));
+  const selectedValues = new Set(selected.map((entry) => entry.value));
+  const candidates = categories.filter((entry) => {
+    if (audiences.size === 1 && !audiences.has(audienceFor(entry))) return false;
+    if (families.size === 1 && !families.has(familyFor(entry))) return false;
+    return true;
+  });
+
+  return [...candidates]
+    .sort((left, right) => {
+      const leftSelected = selectedValues.has(left.value) ? 1 : 0;
+      const rightSelected = selectedValues.has(right.value) ? 1 : 0;
+      return rightSelected - leftSelected || right.count - left.count || left.label.localeCompare(right.label, "el");
+    })
+    .slice(0, RELATED_CATEGORY_LIMIT);
+}
+
 export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
@@ -168,6 +212,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const [publicVendorId, setPublicVendorId] = useState<string | undefined>(() => vendorId && VENDOR_ID_PATTERN.test(vendorId) ? vendorId : undefined);
   const initialGuideHandled = useRef(false);
   const requestSerial = useRef(0);
+  const facetRequestSerial = useRef(0);
   const catalogResultsRef = useRef<HTMLDivElement | null>(null);
 
   const demoMode = Boolean(demoVendorId);
@@ -224,32 +269,41 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   }, [demoMode, fetchPage, filters, publicVendorId, query]);
 
   useEffect(() => {
-    if (!publicVendorId || demoMode || remoteFacets) return;
-    let cancelled = false;
-    const load = async () => {
+    if (!publicVendorId || demoMode) return;
+    const serial = ++facetRequestSerial.current;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
       setFacetsLoading(true);
       try {
-        const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?facets=1&facetsOnly=1`, { cache: "default" });
+        const params = pageParams(filters, 0);
+        params.delete("offset");
+        params.delete("limit");
+        params.set("facets", "1");
+        params.set("facetsOnly", "1");
+        const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?${params.toString()}`, { signal: controller.signal, cache: "default" });
         if (!response.ok) throw new Error(`Facet request failed with ${response.status}`);
         const payload = await response.json() as VendorCatalogApiResponse;
-        if (!cancelled && payload.facets) {
+        if (serial === facetRequestSerial.current && payload.facets) {
           setRemoteFacets(payload.facets);
           setRemoteTotal(payload.facets.total);
         }
       } catch (error) {
-        if (!cancelled) console.error("Vendor catalogue facets failed", error);
+        if (!controller.signal.aborted) console.error("Vendor catalogue facets failed", error);
       } finally {
-        if (!cancelled) setFacetsLoading(false);
+        if (serial === facetRequestSerial.current) setFacetsLoading(false);
       }
+    }, query.trim() ? 220 : 60);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
     };
-    void load();
-    return () => { cancelled = true; };
-  }, [demoMode, publicVendorId, remoteFacets]);
+  }, [demoMode, filters, publicVendorId, query]);
 
   const categories = useMemo(() => remoteFacets?.categories ?? fallbackCategoryOptions(products), [products, remoteFacets]);
-  const brands = useMemo(() => remoteFacets?.brands.map((entry) => entry.value) ?? unique(products.map((product) => product.brand)), [products, remoteFacets]);
-  const colors = useMemo(() => remoteFacets?.colors.map((entry) => entry.value) ?? unique(products.map((product) => product.color)), [products, remoteFacets]);
-  const sizes = useMemo(() => remoteFacets?.sizes.map((entry) => entry.value) ?? unique(products.flatMap((product) => product.sizes)), [products, remoteFacets]);
+  const brands = useMemo(() => remoteFacets?.brands ?? fallbackFacetOptions(products.map((product) => product.brand)), [products, remoteFacets]);
+  const colors = useMemo(() => remoteFacets?.colors ?? fallbackFacetOptions(products.map((product) => product.color)), [products, remoteFacets]);
+  const sizes = useMemo(() => remoteFacets?.sizes ?? fallbackFacetOptions(products.flatMap((product) => product.sizes)), [products, remoteFacets]);
+  const relatedCategories = useMemo(() => relatedCategoryOptions(categories, category, categoryGroup), [categories, category, categoryGroup]);
 
   useEffect(() => {
     if (!isGuidedFashionVendor || initialGuideHandled.current || (!categories.length && facetsLoading)) return;
@@ -371,7 +425,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
   const visibleProducts = remoteProducts ?? products;
   const total = remoteTotal ?? remoteFacets?.total ?? visibleProducts.length;
-  const activeFilterCount = [category !== "all" || categoryGroup.length > 0, brand !== "all", color !== "all", size !== "all", availability !== "all"].filter(Boolean).length;
+  const activeFilterCount = [category !== "all" || categoryGroup.length > 0, brand !== "all", color !== "all", size !== "all"].filter(Boolean).length;
   const audienceEntries = guideAudience ? categories.filter((entry) => audienceFor(entry) === guideAudience) : [];
   const guideGroups = buildGroups(audienceEntries);
   const selectedGroup = guideFamily ? guideGroups.find((group) => group.key === guideFamily) : undefined;
@@ -404,27 +458,27 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const filterPanel = (mobile = false) => (
     <div className="vc-filter-panel">
       <div className="vc-filter-head">
-        <div><strong>Φίλτρα προϊόντων</strong><span>{facetsLoading ? "Οργανώνουμε τις επιλογές…" : "Τα φίλτρα καλύπτουν ολόκληρο τον κατάλογο."}</span></div>
+        <div><strong>Φίλτρα προϊόντων</strong><span>{facetsLoading ? "Προσαρμόζουμε τις επιλογές…" : "Οι επιλογές βασίζονται μόνο στα προϊόντα που ταιριάζουν τώρα."}</span></div>
         {activeFilterCount ? <button type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}
       </div>
       {isGuidedFashionVendor ? <button className="vc-guide-trigger" type="button" onClick={reopenGuide}><span><small>ΟΔΗΓΟΣ ΜΟΔΑΣ</small><strong>Βρες αυτό που ψάχνεις</strong></span><b>→</b></button> : null}
       {categoryGroup.length ? <div className="vc-group-note"><small>ΟΜΑΔΟΠΟΙΗΜΕΝΗ ΕΠΙΛΟΓΗ</small><strong>{activeCategoryLabel}</strong><span>{categoryGroup.length} κατηγορίες μαζί</span></div> : null}
-      {categories.length ? <div className="vc-filter-section">
-        <span className="vc-label">Κατηγορίες</span>
+      {relatedCategories.length ? <div className="vc-filter-section">
+        <span className="vc-label">{category !== "all" || categoryGroup.length ? "Σχετικές κατηγορίες" : "Δημοφιλείς κατηγορίες"}</span>
         <div className="vc-category-list">
-          <button className={category === "all" && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory("all")}><span>Όλα τα προϊόντα</span><em>{remoteFacets?.total ?? total}</em></button>
-          {categories.map((entry) => <button className={category === entry.value && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span>{entry.label}</span><em>{entry.count}</em></button>)}
+          {category !== "all" || categoryGroup.length ? <button type="button" onClick={() => selectCategory("all")}><span>Όλη η μόδα</span><em>↺</em></button> : null}
+          {relatedCategories.map((entry) => <button className={category === entry.value && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span>{entry.label}</span><em>{entry.count}</em></button>)}
         </div>
       </div> : null}
-      <div className="vc-filter-section">
+      {(brands.length > 1 || colors.length > 1 || sizes.length > 1) ? <div className="vc-filter-section">
         <span className="vc-label">Περισσότερα φίλτρα</span>
         <div className="vc-fields">
-          {brands.length > 1 ? <label><span>Μάρκα</span><select value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((value) => <option value={value} key={value}>{value}</option>)}</select></label> : null}
-          {colors.length > 1 ? <label><span>Χρώμα</span><select value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα</option>{colors.map((value) => <option value={value} key={value}>{value}</option>)}</select></label> : null}
-          {sizes.length > 1 ? <label><span>Μέγεθος</span><select value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα</option>{sizes.map((value) => <option value={value} key={value}>{value}</option>)}</select></label> : null}
-          <label><span>Διαθεσιμότητα</span><select value={availability} onChange={(event) => setAvailability(event.target.value as AvailabilityFilter)}><option value="all">Όλα</option><option value="available">Διαθέσιμα τώρα</option></select></label>
+          {brands.length > 1 ? <label><span>Μάρκα</span><select value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select></label> : null}
+          {colors.length > 1 ? <label><span>Χρώμα</span><select value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα</option>{colors.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select></label> : null}
+          {sizes.length > 1 ? <label><span>Μέγεθος</span><select value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα</option>{sizes.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select></label> : null}
         </div>
-      </div>
+      </div> : null}
+      <div className="vc-availability-note"><span>ΔΙΑΘΕΣΙΜΟΤΗΤΑ</span><strong>Μόνο διαθέσιμα τώρα</strong></div>
       {mobile ? <div className="vc-mobile-hint">{remoteLoading ? "Ετοιμάζουμε τη βιτρίνα…" : `${total} προϊόντα με τα επιλεγμένα φίλτρα`}</div> : null}
     </div>
   );
@@ -435,7 +489,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       <div className="vc-results" ref={catalogResultsRef}>
         {isGuidedFashionVendor ? <div className="vc-active-guide"><div><small>Η επιλογή σου</small><strong>{activeCategoryLabel}</strong></div><button type="button" onClick={reopenGuide}>Αλλαγή αναζήτησης</button></div> : null}
         <label className="vc-search"><span>Αναζήτηση στο κατάστημα</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Προϊόν, μάρκα, κωδικός…" /></label>
-        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> επιλογές τώρα · {total} προϊόντα στον κατάλογο.</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
+        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> επιλογές τώρα · {total} προϊόντα με το τρέχον πλαίσιο.</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
         {remoteLoading && !visibleProducts.length ? <div className="vc-loading"><span className="vc-spinner" /><strong>Ετοιμάζουμε τη βιτρίνα…</strong><p>Φορτώνουμε μόνο ό,τι χρειάζεται για την επιλογή σου.</p></div> : visibleProducts.length ? <>
           <div className="vc-grid">{visibleProducts.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />)}</div>
           {remoteNextOffset !== null && !demoMode ? <button className="vc-more" type="button" onClick={() => void loadMore()} disabled={remoteLoading}>{remoteLoading ? "Φόρτωση…" : "Περισσότερα προϊόντα"}</button> : null}
@@ -471,7 +525,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     </div> : null}
 
     <style jsx>{`
-      .vc-browser{position:relative}.vc-layout{display:grid;grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:28px}.vc-sidebar{min-width:0}.vc-results{min-width:0;scroll-margin-top:88px}.vc-filter-panel{display:flex;flex-direction:column;gap:22px}.vc-filter-head{display:flex;justify-content:space-between;gap:12px}.vc-filter-head div{display:flex;flex-direction:column;gap:5px}.vc-filter-head strong{font-size:18px}.vc-filter-head span{font-size:12px;color:#6e7772;line-height:1.4}.vc-filter-head button,.vc-active-guide button{border:0;background:transparent;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-guide-trigger{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.18);border-radius:18px;padding:16px;background:#14372c;color:#fff;cursor:pointer}.vc-guide-trigger span{display:flex;flex-direction:column;gap:4px}.vc-guide-trigger small{font-size:10px;letter-spacing:.12em;opacity:.72}.vc-guide-trigger strong{font-size:15px}.vc-guide-trigger b{font-size:20px}.vc-group-note{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-group-note small{font-size:9px;font-weight:900;letter-spacing:.12em;color:#7b735f}.vc-group-note strong{font-size:14px}.vc-group-note span{font-size:11px;color:#6e7772}.vc-filter-section{display:flex;flex-direction:column;gap:9px}.vc-label{font-size:11px;font-weight:800;letter-spacing:.09em;color:#6e7772;text-transform:uppercase}.vc-category-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto}.vc-category-list button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid transparent;border-radius:12px;padding:11px 12px;background:transparent;color:#40514b;font:inherit;cursor:pointer}.vc-category-list button:hover{background:#f4f0e8}.vc-category-list button.active{background:#14372c;color:#fff}.vc-category-list em{font-style:normal;font-size:12px;opacity:.72}.vc-fields{display:grid;gap:10px}.vc-fields label,.vc-search{display:flex;flex-direction:column;gap:6px}.vc-fields label span,.vc-search span{font-size:11px;font-weight:800;letter-spacing:.05em;color:#6e7772}.vc-fields select,.vc-search input{width:100%;min-height:46px;border:1px solid #d8d5cd;border-radius:12px;background:#fff;color:#17342c;padding:0 12px;font:inherit}.vc-search{margin-bottom:14px}.vc-meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:18px;color:#6e7772;font-size:13px}.vc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.vc-more{display:block;margin:26px auto 0;min-height:46px;padding:0 24px;border:1px solid #14372c;border-radius:999px;background:#fff;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-loading,.vc-empty{min-height:360px;display:grid;place-items:center;align-content:center;gap:10px;text-align:center;border:1px solid #e0ddd5;border-radius:22px;background:#f8f6f0;padding:30px}.vc-spinner{width:32px;height:32px;border:3px solid rgba(20,55,44,.15);border-top-color:#14372c;border-radius:50%;animation:spin .8s linear infinite}.vc-active-guide{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-active-guide div{display:flex;flex-direction:column;gap:2px}.vc-active-guide small{font-size:10px;letter-spacing:.1em;color:#6e7772}.vc-active-guide strong{font-size:14px}.vc-mobile-dock,.vc-sheet-layer{display:none}.fashion-guide{position:fixed;inset:0;z-index:10000;background:#f4f0e8;color:#183027;overflow:auto}.fashion-guide-shell{min-height:100dvh;display:grid;grid-template-rows:auto 1fr auto}.fashion-guide-header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;min-height:82px;padding:16px clamp(20px,5vw,70px);background:rgba(244,240,232,.96);border-bottom:1px solid rgba(20,55,44,.12);backdrop-filter:blur(12px)}.fashion-guide-brand{display:flex;flex-direction:column;gap:2px}.fashion-guide-brand span{font-size:19px;font-weight:950;letter-spacing:-.03em}.fashion-guide-brand small{font-size:9px;letter-spacing:.16em;color:#6d756f}.fashion-guide-close{width:48px;height:48px;border:1px solid rgba(20,55,44,.2);border-radius:50%;background:#fffaf1;color:#14372c;font-size:28px;line-height:1;cursor:pointer}.fashion-guide-main{width:min(980px,100%);margin:0 auto;padding:clamp(24px,6vh,64px) 20px 36px}.fashion-guide-breadcrumb{min-height:22px;margin-bottom:18px;font-size:12px;font-weight:800;letter-spacing:.06em;color:#727a75}.fashion-guide-heading{max-width:760px;margin-bottom:28px}.fashion-guide-heading p{margin:0 0 8px;font-size:10px;font-weight:900;letter-spacing:.16em;color:#8a7650}.fashion-guide-heading h2{margin:0 0 10px;font-size:clamp(34px,7vw,64px);line-height:.98;letter-spacing:-.045em;font-weight:500}.fashion-guide-heading span{display:block;max-width:680px;font-size:15px;line-height:1.55;color:#627069}.fashion-guide-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fashion-guide-options button{min-height:112px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.15);border-radius:20px;background:#fffaf1;color:#183027;padding:20px;cursor:pointer;transition:transform .15s ease,border-color .15s ease,background .15s ease}.fashion-guide-options button:hover{transform:translateY(-2px);border-color:#14372c}.fashion-guide-options button>span:not(.guide-icon){display:flex;flex-direction:column;gap:5px;min-width:0}.fashion-guide-options strong{font-size:19px}.fashion-guide-options small{font-size:12px;color:#6d756f;line-height:1.35}.fashion-guide-options em{font-style:normal;font-size:13px;color:#6d756f}.fashion-guide-options b{font-size:20px}.audience-options button{min-height:132px;grid-template-columns:auto minmax(0,1fr) auto auto}.guide-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#e9e5d9;font-size:23px}.audience-options .all-products,.fashion-guide-options .all-current{background:#14372c;color:#fff}.audience-options .all-products small,.audience-options .all-products em,.fashion-guide-options .all-current small,.fashion-guide-options .all-current em{color:rgba(255,255,255,.72)}.leaf-options button{min-height:94px}.fashion-guide-wait{min-height:260px;display:grid;place-items:center;align-content:center;gap:12px}.fashion-guide-footer{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;min-height:76px;padding:14px clamp(20px,5vw,70px);border-top:1px solid rgba(20,55,44,.12);background:rgba(244,240,232,.97);backdrop-filter:blur(12px)}.fashion-guide-footer button{min-height:42px;padding:0 15px;border:1px solid rgba(20,55,44,.18);border-radius:999px;background:#fffaf1;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.fashion-guide-footer span{margin-left:auto;font-size:11px;color:#737b76}@keyframes spin{to{transform:rotate(360deg)}}
+      .vc-browser{position:relative}.vc-layout{display:grid;grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:28px}.vc-sidebar{min-width:0}.vc-results{min-width:0;scroll-margin-top:88px}.vc-filter-panel{display:flex;flex-direction:column;gap:22px}.vc-filter-head{display:flex;justify-content:space-between;gap:12px}.vc-filter-head div{display:flex;flex-direction:column;gap:5px}.vc-filter-head strong{font-size:18px}.vc-filter-head span{font-size:12px;color:#6e7772;line-height:1.4}.vc-filter-head button,.vc-active-guide button{border:0;background:transparent;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-guide-trigger{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.18);border-radius:18px;padding:16px;background:#14372c;color:#fff;cursor:pointer}.vc-guide-trigger span{display:flex;flex-direction:column;gap:4px}.vc-guide-trigger small{font-size:10px;letter-spacing:.12em;opacity:.72}.vc-guide-trigger strong{font-size:15px}.vc-guide-trigger b{font-size:20px}.vc-group-note{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-group-note small{font-size:9px;font-weight:900;letter-spacing:.12em;color:#7b735f}.vc-group-note strong{font-size:14px}.vc-group-note span{font-size:11px;color:#6e7772}.vc-filter-section{display:flex;flex-direction:column;gap:9px}.vc-label{font-size:11px;font-weight:800;letter-spacing:.09em;color:#6e7772;text-transform:uppercase}.vc-category-list{display:flex;flex-direction:column;gap:6px;max-height:390px;overflow:auto}.vc-category-list button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid transparent;border-radius:12px;padding:11px 12px;background:transparent;color:#40514b;font:inherit;cursor:pointer}.vc-category-list button:hover{background:#f4f0e8}.vc-category-list button.active{background:#14372c;color:#fff}.vc-category-list em{font-style:normal;font-size:12px;opacity:.72}.vc-fields{display:grid;gap:10px}.vc-fields label,.vc-search{display:flex;flex-direction:column;gap:6px}.vc-fields label span,.vc-search span{font-size:11px;font-weight:800;letter-spacing:.05em;color:#6e7772}.vc-fields select,.vc-search input{width:100%;min-height:46px;border:1px solid #d8d5cd;border-radius:12px;background:#fff;color:#17342c;padding:0 12px;font:inherit}.vc-availability-note{display:flex;flex-direction:column;gap:3px;padding:11px 13px;border:1px solid #d8d5cd;border-radius:12px;background:#fff}.vc-availability-note span{font-size:9px;font-weight:900;letter-spacing:.1em;color:#6e7772}.vc-availability-note strong{font-size:12px;color:#14372c}.vc-search{margin-bottom:14px}.vc-meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:18px;color:#6e7772;font-size:13px}.vc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.vc-more{display:block;margin:26px auto 0;min-height:46px;padding:0 24px;border:1px solid #14372c;border-radius:999px;background:#fff;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.vc-loading,.vc-empty{min-height:360px;display:grid;place-items:center;align-content:center;gap:10px;text-align:center;border:1px solid #e0ddd5;border-radius:22px;background:#f8f6f0;padding:30px}.vc-spinner{width:32px;height:32px;border:3px solid rgba(20,55,44,.15);border-top-color:#14372c;border-radius:50%;animation:spin .8s linear infinite}.vc-active-guide{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border-radius:14px;background:#f4f0e8}.vc-active-guide div{display:flex;flex-direction:column;gap:2px}.vc-active-guide small{font-size:10px;letter-spacing:.1em;color:#6e7772}.vc-active-guide strong{font-size:14px}.vc-mobile-dock,.vc-sheet-layer{display:none}.fashion-guide{position:fixed;inset:0;z-index:10000;background:#f4f0e8;color:#183027;overflow:auto}.fashion-guide-shell{min-height:100dvh;display:grid;grid-template-rows:auto 1fr auto}.fashion-guide-header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;min-height:82px;padding:16px clamp(20px,5vw,70px);background:rgba(244,240,232,.96);border-bottom:1px solid rgba(20,55,44,.12);backdrop-filter:blur(12px)}.fashion-guide-brand{display:flex;flex-direction:column;gap:2px}.fashion-guide-brand span{font-size:19px;font-weight:950;letter-spacing:-.03em}.fashion-guide-brand small{font-size:9px;letter-spacing:.16em;color:#6d756f}.fashion-guide-close{width:48px;height:48px;border:1px solid rgba(20,55,44,.2);border-radius:50%;background:#fffaf1;color:#14372c;font-size:28px;line-height:1;cursor:pointer}.fashion-guide-main{width:min(980px,100%);margin:0 auto;padding:clamp(24px,6vh,64px) 20px 36px}.fashion-guide-breadcrumb{min-height:22px;margin-bottom:18px;font-size:12px;font-weight:800;letter-spacing:.06em;color:#727a75}.fashion-guide-heading{max-width:760px;margin-bottom:28px}.fashion-guide-heading p{margin:0 0 8px;font-size:10px;font-weight:900;letter-spacing:.16em;color:#8a7650}.fashion-guide-heading h2{margin:0 0 10px;font-size:clamp(34px,7vw,64px);line-height:.98;letter-spacing:-.045em;font-weight:500}.fashion-guide-heading span{display:block;max-width:680px;font-size:15px;line-height:1.55;color:#627069}.fashion-guide-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fashion-guide-options button{min-height:112px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;text-align:left;border:1px solid rgba(20,55,44,.15);border-radius:20px;background:#fffaf1;color:#183027;padding:20px;cursor:pointer;transition:transform .15s ease,border-color .15s ease,background .15s ease}.fashion-guide-options button:hover{transform:translateY(-2px);border-color:#14372c}.fashion-guide-options button>span:not(.guide-icon){display:flex;flex-direction:column;gap:5px;min-width:0}.fashion-guide-options strong{font-size:19px}.fashion-guide-options small{font-size:12px;color:#6d756f;line-height:1.35}.fashion-guide-options em{font-style:normal;font-size:13px;color:#6d756f}.fashion-guide-options b{font-size:20px}.audience-options button{min-height:132px;grid-template-columns:auto minmax(0,1fr) auto auto}.guide-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#e9e5d9;font-size:23px}.audience-options .all-products,.fashion-guide-options .all-current{background:#14372c;color:#fff}.audience-options .all-products small,.audience-options .all-products em,.fashion-guide-options .all-current small,.fashion-guide-options .all-current em{color:rgba(255,255,255,.72)}.leaf-options button{min-height:94px}.fashion-guide-wait{min-height:260px;display:grid;place-items:center;align-content:center;gap:12px}.fashion-guide-footer{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;min-height:76px;padding:14px clamp(20px,5vw,70px);border-top:1px solid rgba(20,55,44,.12);background:rgba(244,240,232,.97);backdrop-filter:blur(12px)}.fashion-guide-footer button{min-height:42px;padding:0 15px;border:1px solid rgba(20,55,44,.18);border-radius:999px;background:#fffaf1;color:#14372c;font:inherit;font-weight:800;cursor:pointer}.fashion-guide-footer span{margin-left:auto;font-size:11px;color:#737b76}@keyframes spin{to{transform:rotate(360deg)}}
       @media(max-width:980px){.vc-layout{grid-template-columns:1fr}.vc-sidebar{display:none}.vc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.vc-mobile-dock{position:sticky;bottom:10px;z-index:30;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;margin-top:20px;padding:8px;border:1px solid rgba(20,55,44,.15);border-radius:16px;background:rgba(255,253,248,.95);box-shadow:0 12px 34px rgba(20,55,44,.14);backdrop-filter:blur(10px)}.vc-mobile-dock input{min-width:0;min-height:44px;border:0;background:transparent;padding:0 8px;font:inherit}.vc-mobile-dock button{min-height:44px;border:0;border-radius:11px;background:#14372c;color:white;padding:0 13px;font:inherit;font-weight:800}.vc-mobile-dock button.guide{background:#e9e5d9;color:#14372c}.vc-sheet-layer{display:block;position:fixed;inset:0;z-index:9000}.vc-backdrop{position:absolute;inset:0;border:0;background:rgba(9,21,17,.48)}.vc-sheet{position:absolute;inset:5vh 0 0;display:grid;grid-template-rows:auto 1fr auto;border-radius:28px 28px 0 0;background:#f4f0e8;overflow:hidden}.vc-sheet header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid #d8d5cd}.vc-sheet header div{display:flex;flex-direction:column}.vc-sheet header span{font-size:11px;letter-spacing:.08em}.vc-sheet header strong{font-size:24px;font-weight:500}.vc-sheet header button{width:46px;height:46px;border:1px solid #d5d1c8;border-radius:50%;background:#fffaf1;font-size:25px}.vc-sheet-body{overflow:auto;padding:18px 28px 110px}.vc-sheet footer{position:absolute;left:0;right:0;bottom:0;padding:14px 28px max(18px,env(safe-area-inset-bottom));border-top:1px solid #d8d5cd;background:#fffdf8}.vc-sheet footer :global(.button){width:100%;min-height:58px;border-radius:16px}.vc-mobile-hint{padding:12px;border-radius:12px;background:#ebe7dd;font-size:12px}.vc-category-list{max-height:none}}
       @media(max-width:640px){.vc-grid{gap:10px}.fashion-guide-header{min-height:72px;padding:12px 16px}.fashion-guide-close{width:44px;height:44px}.fashion-guide-main{padding:24px 16px 26px}.fashion-guide-heading h2{font-size:42px}.fashion-guide-heading span{font-size:14px}.fashion-guide-options{grid-template-columns:1fr}.fashion-guide-options button,.audience-options button{min-height:96px;padding:16px;border-radius:17px}.audience-options button{grid-template-columns:auto minmax(0,1fr) auto auto}.guide-icon{width:42px;height:42px;font-size:20px}.fashion-guide-options strong{font-size:17px}.fashion-guide-footer{min-height:72px;padding:12px 16px max(12px,env(safe-area-inset-bottom));flex-wrap:wrap}.fashion-guide-footer span{display:none}.vc-active-guide{align-items:flex-start}.vc-active-guide button{font-size:12px}.vc-mobile-dock{grid-template-columns:minmax(0,1fr) auto}.vc-mobile-dock button.guide{grid-column:1/-1}.vc-search{display:none}}
     `}</style>
