@@ -1,4 +1,5 @@
 import { requireAccountSession } from "../../../lib/account-session";
+import { ensureFreshFlashSalePool } from "../../../lib/flash-sale-availability-runtime";
 import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../lib/flash-sale-runtime";
 
 type FlashSaleBody = Readonly<{ action?: unknown; itemId?: unknown; decision?: unknown }>;
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
 
     let state;
     if (action === "start") {
+      await ensureFreshFlashSalePool(principal.userId);
       state = await startFlashSale(principal.userId);
     } else if (action === "swipe") {
       const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
