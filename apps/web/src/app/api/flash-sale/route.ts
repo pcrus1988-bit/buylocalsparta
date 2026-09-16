@@ -39,8 +39,11 @@ export async function POST(request: Request) {
 
     let state;
     if (action === "start") {
-      await ensureFreshFlashSalePool(principal.userId);
-      state = await startFlashSale(principal.userId);
+      state = await getTodayFlashSale(principal.userId);
+      if (!state) {
+        await ensureFreshFlashSalePool(principal.userId);
+        state = await startFlashSale(principal.userId);
+      }
     } else if (action === "swipe") {
       const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
       const decision = body.decision === "selected" || body.decision === "skipped" ? body.decision : undefined;
