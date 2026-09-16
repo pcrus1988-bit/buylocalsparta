@@ -110,7 +110,7 @@ const FAMILY_FILTER_SQL = `
   AND ($6::text='' OR fm.fits @> ARRAY[lower($6)]::text[])
   AND ($7::text='' OR fm.search_vector @@ plainto_tsquery('simple',$7))
   AND ($8::bigint IS NULL OR fm.min_price_minor >= $8)
-  AND ($9::bigint IS NULL OR fm.max_price_minor <= $9)
+  AND ($9::bigint IS NULL OR fm.min_price_minor <= $9)
 `;
 
 /**
