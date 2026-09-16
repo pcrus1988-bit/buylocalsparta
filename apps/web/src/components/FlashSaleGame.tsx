@@ -44,7 +44,7 @@ export function FlashSaleGame({ initialState }: { initialState?: FlashSaleState 
   const [error, setError] = useState("");
   const [dragX, setDragX] = useState(0);
   const [showHow, setShowHow] = useState(false);
-  const pointerStart = useRef<{ id: number; x: number }>();
+  const pointerStart = useRef<{ id: number; x: number } | undefined>(undefined);
   const { items: cartItems, addItem, openCart, closeCart } = useCart();
 
   const undecided = state?.items.filter((item) => !item.decision) ?? [];
