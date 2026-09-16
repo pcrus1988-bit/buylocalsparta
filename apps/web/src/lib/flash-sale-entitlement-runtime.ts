@@ -68,6 +68,7 @@ export async function activeFlashCartPricing(
       AND vo.customer_price_minor <= vo.msrp_minor * 0.40
       AND dso.active=true
       AND dso.cached_available=true
+      AND dso.cached_quantity IS DISTINCT FROM 0
       AND (dso.availability_expires_at IS NULL OR dso.availability_expires_at > now())
       AND dso.supplier_cost_minor IS NOT NULL
     ORDER BY fc.created_at DESC
@@ -160,6 +161,7 @@ export async function applyFlashSaleClaimsToOrder(customerPublicId: string, orde
         AND vo.customer_price_minor <= vo.msrp_minor * 0.40
         AND dso.active=true
         AND dso.cached_available=true
+        AND dso.cached_quantity IS DISTINCT FROM 0
         AND (dso.availability_expires_at IS NULL OR dso.availability_expires_at > now())
         AND dso.supplier_cost_minor IS NOT NULL
       FOR UPDATE OF fc, ol
