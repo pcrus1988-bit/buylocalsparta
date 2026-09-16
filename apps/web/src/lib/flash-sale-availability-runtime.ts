@@ -88,7 +88,6 @@ async function refreshCandidates(limit: number): Promise<readonly RefreshCandida
       min(dso.availability_expires_at) AS refresh_due_at
     FROM canonical_variants cv
     JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-    JOIN product_translations pt ON pt.canonical_variant_id=cv.id AND pt.locale='el'
     JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
     JOIN dropship_suppliers ds ON ds.id=dso.supplier_id AND ds.code=$1
     WHERE cv.active=true
@@ -106,7 +105,7 @@ async function refreshCandidates(limit: number): Promise<readonly RefreshCandida
       AND dso.external_product_id IS NOT NULL
       AND ds.owner_vendor_id IS NOT NULL
       AND dso.supplier_cost_minor IS NOT NULL
-      AND (vo.customer_price_minor - round(vo.customer_price_minor * $4)::bigint) > dso.supplier_cost_minor
+      AND (vo.customer_price_minor - round(vo.customer_price_minor::numeric * $4::numeric)::bigint) > dso.supplier_cost_minor
       AND (
         dso.availability_expires_at IS NULL
         OR dso.availability_expires_at <= now() + ($5::int * interval '1 minute')
