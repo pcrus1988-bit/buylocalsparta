@@ -19,6 +19,8 @@ export type CanonicalCatalogSizeFacet = Readonly<{
 
 const SIZE_GROUP_PREFIX = "__km_size__:";
 const ALPHA_SIZE = /^(XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|XXXXL)$/i;
+const CLEAR_EU_FOOTWEAR_MIN = 18;
+const CLEAR_EU_FOOTWEAR_MAX = 55;
 
 function clean(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -49,6 +51,14 @@ export function inferCatalogSizeDomain(categoryValues: readonly string[]): Catal
   const domains = new Set(categoryValues.map(domainForCategory).filter((domain) => domain !== "generic"));
   if (domains.size !== 1) return null;
   return [...domains][0] ?? null;
+}
+
+function explicitSystem(raw: string): Readonly<{ system: "EU" | "US" | "UK"; value: string }> | null {
+  const prefix = raw.match(/^\s*(EU|US|UK)(?:\s*[-:/]\s*|\s*)(\d{1,3}(?:[.,]\d+)?)\s*$/i);
+  if (prefix) return { system: prefix[1].toUpperCase() as "EU" | "US" | "UK", value: decimal(prefix[2]) };
+  const suffix = raw.match(/^\s*(\d{1,3}(?:[.,]\d+)?)\s*(EU|US|UK)\s*$/i);
+  if (suffix) return { system: suffix[2].toUpperCase() as "EU" | "US" | "UK", value: decimal(suffix[1]) };
+  return null;
 }
 
 export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDomain): CanonicalCatalogSize {
@@ -84,19 +94,23 @@ export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDom
     return { key: `apparel:${alpha}:eu${numeric}`, label: `${alpha} · EU ${numeric}`, raw };
   }
 
-  const eu = raw.match(/^\s*(?:EU\s*)?(\d{2,3}(?:[.,]\d+)?)\s*(?:EU)?\s*$/i);
-  if (eu && (domain === "footwear" || domain === "apparel")) {
-    const value = decimal(eu[1]);
-    return { key: `${domain}:eu${value}`, label: `EU ${value}`, raw };
+  const explicit = explicitSystem(raw);
+  if (explicit && (domain === "footwear" || domain === "apparel")) {
+    const system = explicit.system.toLocaleLowerCase("en");
+    return { key: `${domain}:${system}${explicit.value}`, label: `${explicit.system} ${explicit.value}`, raw };
   }
 
-  const explicitScale = raw.match(/^\s*(US|UK)\s*(\d{1,2}(?:[.,]\d+)?)\s*$/i)
-    ?? raw.match(/^\s*(\d{1,2}(?:[.,]\d+)?)\s*(US|UK)\s*$/i);
-  if (explicitScale && domain === "footwear") {
-    const firstIsScale = /^(US|UK)$/i.test(explicitScale[1]);
-    const scale = (firstIsScale ? explicitScale[1] : explicitScale[2]).toUpperCase();
-    const value = decimal(firstIsScale ? explicitScale[2] : explicitScale[1]);
-    return { key: `footwear:${scale.toLocaleLowerCase("en")}${value}`, label: `${scale} ${value}`, raw };
+  // A bare footwear number is only treated as EU when it is in a clearly EU-like
+  // range. Values such as 8, 9 or 10 stay raw because they could be US/UK sizes.
+  if (domain === "footwear") {
+    const bare = raw.match(/^\s*(\d{2}(?:[.,]\d+)?)\s*$/);
+    if (bare) {
+      const value = decimal(bare[1]);
+      const numeric = Number(value);
+      if (numeric >= CLEAR_EU_FOOTWEAR_MIN && numeric <= CLEAR_EU_FOOTWEAR_MAX) {
+        return { key: `footwear:eu${value}`, label: `EU ${value}`, raw };
+      }
+    }
   }
 
   if (ALPHA_SIZE.test(raw) && domain === "apparel") {
