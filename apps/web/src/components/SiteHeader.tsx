@@ -49,11 +49,23 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const relocateMobileCommerceActions = isCustomerMobileCommercePath(pathname);
+  const flashSaleActive = pathname === "/flash-sale";
 
   return (
     <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
       <Link className="brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη · αρχική" onClick={() => setMenuOpen(false)}>
         <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={96} height={64} style={{ display: "block", width: "96px", height: "64px", objectFit: "contain" }} />
+      </Link>
+
+      <Link
+        className={`flash-sale-shortcut${flashSaleActive ? " is-active" : ""}`}
+        href="/flash-sale"
+        aria-label="ΚΟΝΤΑ ΜΟΥ Flash Sale"
+        aria-current={flashSaleActive ? "page" : undefined}
+        onClick={() => setMenuOpen(false)}
+      >
+        <span className="flash-sale-bolt" aria-hidden="true">⚡</span>
+        <span className="flash-sale-shortcut-copy" aria-hidden="true"><strong>FLASH</strong><small>SALE</small></span>
       </Link>
 
       <button className="public-menu-toggle" type="button" aria-label={menuOpen ? "Κλείσιμο μενού" : "Άνοιγμα μενού"} aria-expanded={menuOpen} aria-controls="public-site-navigation" onClick={() => setMenuOpen((current) => !current)}>
@@ -94,6 +106,94 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
 
       <style>{`
         .header-actions > button.cart-button { font: inherit; cursor: pointer; }
+        .site-header > .flash-sale-shortcut { display: none; }
+
+        @keyframes konta-header-flash {
+          0%, 68%, 80%, 100% {
+            background: #111;
+            color: #ffd600;
+            border-color: #ffd600;
+            box-shadow: 0 0 0 0 rgba(255, 214, 0, 0);
+          }
+          73% {
+            background: #ffd600;
+            color: #090909;
+            border-color: #ffd600;
+            box-shadow: 0 0 0 6px rgba(255, 214, 0, .14), 0 0 22px rgba(255, 214, 0, .34);
+          }
+        }
+
+        @media (max-width: 1320px) {
+          .site-header { position: relative; }
+          .site-header > .flash-sale-shortcut {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            z-index: 4;
+            transform: translate(-50%, -50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-width: 96px;
+            min-height: 44px;
+            padding: 5px 12px;
+            border: 1.5px solid #ffd600;
+            border-radius: 999px;
+            background: #111;
+            color: #ffd600;
+            text-decoration: none;
+            line-height: 1;
+            box-shadow: 0 7px 18px rgba(0, 0, 0, .16);
+            animation: konta-header-flash 2.6s ease-in-out infinite;
+            isolation: isolate;
+          }
+          .site-header.is-menu-open > .flash-sale-shortcut { top: 39px; }
+          .site-header > .flash-sale-shortcut.is-active {
+            background: #ffd600;
+            color: #090909;
+            animation: none;
+            box-shadow: 0 7px 18px rgba(255, 214, 0, .18);
+          }
+          .flash-sale-bolt {
+            font-size: 1.05rem;
+            line-height: 1;
+            transform: translateY(-1px);
+          }
+          .flash-sale-shortcut-copy {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+            letter-spacing: .08em;
+          }
+          .flash-sale-shortcut-copy strong {
+            font-size: .72rem;
+            font-weight: 950;
+          }
+          .flash-sale-shortcut-copy small {
+            font-size: .56rem;
+            font-weight: 900;
+            letter-spacing: .18em;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .site-header.is-menu-open > .flash-sale-shortcut { top: 34px; }
+        }
+
+        @media (max-width: 370px) {
+          .site-header > .flash-sale-shortcut {
+            min-width: 86px;
+            padding-left: 9px;
+            padding-right: 9px;
+            gap: 5px;
+          }
+          .flash-sale-bolt { font-size: .92rem; }
+          .flash-sale-shortcut-copy strong { font-size: .66rem; }
+          .flash-sale-shortcut-copy small { font-size: .51rem; }
+        }
+
         @media (max-width: 1320px) and (min-width: 1081px) {
           .site-header {
             flex-wrap: wrap;
@@ -130,6 +230,10 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
             padding: 0 14px;
             border-radius: 9px;
           }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .site-header > .flash-sale-shortcut { animation: none; }
         }
       `}</style>
     </header>
