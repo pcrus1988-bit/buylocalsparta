@@ -5,6 +5,7 @@ import { runtime as developmentRuntime } from "./demo-runtime";
 import { canonicalIsPubliclyAllowed } from "./vendor-operations-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { checkoutApiAuthoritativeDropship, freshDropshipCartOffer } from "./dropship-checkout-runtime";
+import { applyFlashSaleClaimsToOrder } from "./flash-sale-runtime";
 
 export function postgresCommerceEnabled(): boolean { return Boolean(process.env.DATABASE_URL?.trim()); }
 
@@ -19,12 +20,21 @@ export async function checkoutCustomer(input: {
   now: number;
 }): Promise<CustomerOrder> {
   if (postgresCommerceEnabled()) {
+    const runtime = getProductionPostgresRuntime();
     const dropshipOrder = await checkoutApiAuthoritativeDropship(input);
-    if (dropshipOrder) return dropshipOrder;
-    return getProductionPostgresRuntime().customerCommerce.checkout({
+    const order = dropshipOrder ?? await runtime.customerCommerce.checkout({
       ...input,
       developmentAuthorisePayment: process.env.NODE_ENV !== "production" && process.env.BLS_ALLOW_DEVELOPMENT_PAYMENT_ADAPTER === "true"
     });
+
+    if (input.customerId) {
+      const appliedDiscountMinor = await applyFlashSaleClaimsToOrder(input.customerId, order.id);
+      if (appliedDiscountMinor > 0) {
+        const refreshed = await runtime.customerCommerce.orderForCustomer(input.customerId, order.id);
+        if (refreshed) return refreshed;
+      }
+    }
+    return order;
   }
   for (const item of input.items) if (!canonicalIsPubliclyAllowed(item.canonicalVariantId)) throw new Error(`Product ${item.canonicalVariantId} is unavailable due to a platform safety or compliance hold`);
   const { shipping: _shipping, ...developmentInput } = input;
