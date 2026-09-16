@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OperationalFullscreenShell } from "../../components/OperationalFullscreenShell";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 
 export const metadata: Metadata = {
@@ -13,8 +14,8 @@ export const metadata: Metadata = {
 };
 
 export default function DriverLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <>
+  return <OperationalFullscreenShell background="#f2f1ec">
     {children}
     <ScopedPwaInstallClient appName="Driver" serviceWorkerPath="/driver-sw.js" scope="/driver" />
-  </>;
+  </OperationalFullscreenShell>;
 }
