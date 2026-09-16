@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./symphonya-v1": "./src/symphonya-v1.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
