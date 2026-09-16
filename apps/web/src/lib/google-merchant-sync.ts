@@ -9,12 +9,15 @@ import {
 } from "./google-merchant-product";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { getPublicCatalogSourcePrimaryImages } from "./public-catalog-source-gallery";
+import { approvedCatalogImages } from "./public-media-service";
 import { publicOrigin } from "./public-origin";
 
 const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1";
 const DEFAULT_ACCOUNT_ID = "5849642952";
 const DEFAULT_DATA_SOURCE_ID = "10734504819";
-const DEFAULT_SHARD_COUNT = 180;
+// One deterministic full refresh per day leaves Merchant write quota headroom for
+// removals while still keeping products far inside Google's 30-day expiry window.
+const DEFAULT_SHARD_COUNT = 1440;
 const MAX_SHARD_COUNT = 1440;
 const IMAGE_BATCH_SIZE = 40;
 const WRITE_CONCURRENCY = 12;
@@ -75,7 +78,7 @@ function merchantConfig(env: NodeJS.ProcessEnv = process.env): MerchantConfig {
   const dataSourceId = env.GOOGLE_MERCHANT_DATA_SOURCE_ID?.trim() || DEFAULT_DATA_SOURCE_ID;
   if (!/^\d+$/.test(accountId) || !/^\d+$/.test(dataSourceId)) throw new Error("Google Merchant account/data-source IDs must be numeric.");
   const requestedShards = Number.parseInt(env.GOOGLE_MERCHANT_SYNC_SHARDS?.trim() || String(DEFAULT_SHARD_COUNT), 10);
-  const shardCount = Number.isSafeInteger(requestedShards) && requestedShards >= 30 && requestedShards <= MAX_SHARD_COUNT
+  const shardCount = Number.isSafeInteger(requestedShards) && requestedShards >= 60 && requestedShards <= MAX_SHARD_COUNT
     ? requestedShards
     : DEFAULT_SHARD_COUNT;
   return {
@@ -194,10 +197,26 @@ function toCandidate(row: CandidateRow): GoogleMerchantCandidate {
   };
 }
 
-async function sourceImages(rows: readonly CandidateRow[]): Promise<ReadonlyMap<string, string>> {
+async function productImages(rows: readonly CandidateRow[]): Promise<ReadonlyMap<string, string>> {
   const images = new Map<string, string>();
-  for (let offset = 0; offset < rows.length; offset += IMAGE_BATCH_SIZE) {
-    const batch = rows.slice(offset, offset + IMAGE_BATCH_SIZE);
+  const origin = publicOrigin();
+
+  // Prefer KONTA MOY governed media. This covers local merchants and any supplier
+  // asset that has completed rights, malware and moderation review.
+  try {
+    const approved = await approvedCatalogImages(rows.map((row) => ({ canonicalVariantId: row.canonical_public_id })));
+    for (const image of approved) {
+      images.set(image.canonicalVariantId, new URL(`/api/media/${encodeURIComponent(image.mediaId)}`, origin).toString());
+    }
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", event: "merchant.approved_media_projection_failed", message: errorText(error) }));
+  }
+
+  // Dropship products can use the already-governed, same-source HTTPS image
+  // projection used by the storefront. Resolve only products still missing media.
+  const unresolved = rows.filter((row) => !images.has(row.canonical_public_id));
+  for (let offset = 0; offset < unresolved.length; offset += IMAGE_BATCH_SIZE) {
+    const batch = unresolved.slice(offset, offset + IMAGE_BATCH_SIZE);
     const resolved = await getPublicCatalogSourcePrimaryImages(batch.map((row) => ({ canonicalVariantId: row.canonical_public_id })));
     for (const [id, image] of resolved) images.set(id, image.src);
   }
@@ -336,7 +355,7 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
 
     const accessToken = await getGoogleMerchantAccessToken();
     const rows = await loadCandidates(shard, config.shardCount);
-    const imageById = await sourceImages(rows);
+    const imageById = await productImages(rows);
     const errors: string[] = [];
     let submitted = 0;
     let failed = 0;
