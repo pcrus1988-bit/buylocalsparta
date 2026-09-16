@@ -39,7 +39,7 @@ export type ShopCatalogPageInput = Readonly<{
   postcode?: string;
   query?: string;
   category?: string;
-  filters?: CatalogFilters & Readonly<{ fit?: string }>;
+  filters?: CatalogFilters & Readonly<{ fit?: string; subcategories?: readonly string[] }>;
   attributeFilters?: CatalogAttributeFilters;
   minPriceMinor?: number;
   maxPriceMinor?: number;
