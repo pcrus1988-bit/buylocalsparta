@@ -25,6 +25,11 @@ const availabilityRefreshMs = positiveInteger(
 );
 const automaticPublicationEnabled = process.env.BLS_NOVA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
 const pricingCatchupMaxPasses = 8;
+const materializationCatchupMaxPasses = positiveInteger(
+  process.env.BLS_NOVA_MATERIALIZATION_CATCHUP_PASSES,
+  8,
+  "BLS_NOVA_MATERIALIZATION_CATCHUP_PASSES"
+);
 
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
@@ -45,6 +50,7 @@ log("info", "nova.worker_started", {
   workerId, pollMs, availabilityRefreshMs, availabilityTtlHours: 2,
   supplier: "nova_brandsgateway", writesSupplierOrders: false, materializesPublicOffers: false,
   automaticPublication: automaticPublicationEnabled, automaticPricing: novaAutoPricingEnabled(), pricingCatchupMaxPasses,
+  materializationCatchupMaxPasses,
   catalogueEnrichment: {
     preparation: "worker",
     generation: "chatgpt_agent",
@@ -90,8 +96,12 @@ try {
       }
 
       try {
-        const materialization = await runNovaCatalogueMaterializationSlice();
-        log("info", "nova.catalogue_materialization_slice", { workerId, ...materialization });
+        for (let pass = 1; pass <= materializationCatchupMaxPasses && !stopping; pass += 1) {
+          const materialization = await runNovaCatalogueMaterializationSlice();
+          log("info", "nova.catalogue_materialization_slice", { workerId, catchupPass: pass, ...materialization });
+          if (!materialization.enabled || materialization.scanned === 0) break;
+          if (materialization.message === "materialization_source_empty" || materialization.message === "materialization_cursor_wrapped") break;
+        }
       } catch (error) {
         log("error", "nova.catalogue_materialization_failed", { workerId, error: safeError(error) });
       }
