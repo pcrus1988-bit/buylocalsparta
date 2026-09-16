@@ -4,10 +4,6 @@ import {
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
 import { runNovaEnrichmentPreparationSlice } from "../apps/web/src/lib/catalogue-enrichment-runtime.ts";
-import {
-  catalogueEnrichmentGenerationScope,
-  runCatalogueEnrichmentGenerationSlice
-} from "../apps/web/src/lib/catalogue-enrichment-generation-runtime.ts";
 import { runCatalogueEnrichmentPromotionSlice } from "../apps/web/src/lib/catalogue-enrichment-promotion-runtime.ts";
 import { runNovaAutoPublicationSweep } from "../apps/web/src/lib/nova-auto-publication-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
@@ -29,9 +25,6 @@ const availabilityRefreshMs = positiveInteger(
 );
 const automaticPublicationEnabled = process.env.BLS_NOVA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
 const pricingCatchupMaxPasses = 8;
-const enrichmentGenerationScope = catalogueEnrichmentGenerationScope();
-const enrichmentGenerationConfigured = enrichmentGenerationScope.enabled
-  && (enrichmentGenerationScope.allowAll || enrichmentGenerationScope.productIds.length > 0);
 
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
@@ -53,12 +46,10 @@ log("info", "nova.worker_started", {
   supplier: "nova_brandsgateway", writesSupplierOrders: false, materializesPublicOffers: false,
   automaticPublication: automaticPublicationEnabled, automaticPricing: novaAutoPricingEnabled(), pricingCatchupMaxPasses,
   catalogueEnrichment: {
-    enabled: enrichmentGenerationScope.enabled,
-    configured: enrichmentGenerationConfigured,
-    scope: enrichmentGenerationScope.allowAll ? "all" : "pilot",
-    pilotProductCount: enrichmentGenerationScope.productIds.length,
-    batchSize: enrichmentGenerationScope.batchSize,
-    maxAttempts: enrichmentGenerationScope.maxAttempts
+    preparation: "worker",
+    generation: "chatgpt_agent",
+    promotion: "worker",
+    applicationSideAiGeneration: false
   },
   runtimeInvariantsVerified: true
 });
@@ -105,9 +96,6 @@ try {
         log("error", "nova.catalogue_materialization_failed", { workerId, error: safeError(error) });
       }
 
-      // Canonical media is a separate derived queue. Drain it independently so already-
-      // materialized NOVA products receive their supplier galleries even when source sync
-      // is caught up. The runtime is idempotent and bounded, so retries are safe.
       try {
         const mediaMaterialization = await runNovaMediaMaterializationSlice();
         log("info", "nova.media_materialization_slice", { workerId, ...mediaMaterialization });
@@ -134,18 +122,9 @@ try {
         log("error", "nova.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
       }
 
-      if (enrichmentGenerationConfigured) {
-        try {
-          const enrichmentGeneration = await runCatalogueEnrichmentGenerationSlice();
-          log("info", "nova.catalogue_enrichment_generation_slice", { workerId, ...enrichmentGeneration });
-        } catch (error) {
-          log("error", "nova.catalogue_enrichment_generation_failed", { workerId, error: safeError(error) });
-        }
-      }
-
-      // Promotion is independent from generation. It must keep running even if AI is
-      // temporarily disabled so validated family copy reaches newly sellable/reactivated
-      // variants through the governed product_translations serving layer.
+      // Greek copy is authored and validated by the ChatGPT Catalogue Agent, not by an
+      // application-side model/API. The production worker only promotes already-validated
+      // agent output into product_translations and reuses it for newly eligible variants.
       try {
         const enrichmentPromotion = await runCatalogueEnrichmentPromotionSlice();
         log("info", "nova.catalogue_enrichment_promotion_slice", { workerId, ...enrichmentPromotion });
