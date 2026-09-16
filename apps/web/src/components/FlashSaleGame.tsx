@@ -36,7 +36,7 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
   const [dragX, setDragX] = useState(0);
   const [showHow, setShowHow] = useState(false);
   const pointerStart = useRef<{ id: number; x: number } | undefined>(undefined);
-  const { items: cartItems, addItem, openCart, closeCart } = useCart();
+  const { addItem, openCart, closeCart } = useCart();
 
   const undecided = state?.items.filter((item) => !item.decision) ?? [];
   const current = undecided[0];
@@ -67,23 +67,20 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
     try {
       const next = await mutateFlashSale({ action: "swipe", itemId: current.id, decision }, csrfToken);
       if (decision === "selected") {
-        const alreadyInCart = cartItems.some((item) => item.canonicalVariantId === current.canonicalVariantId);
-        if (!alreadyInCart) {
-          addItem({
-            canonicalVariantId: current.canonicalVariantId,
-            title: current.title,
-            priceMinor: current.flashPriceMinor,
-            price: money(current.flashPriceMinor),
-            imageUrl: current.imageUrl,
-            imageAlt: current.title,
-            fulfilmentKind: "partner",
-            regularPriceMinor: current.listedPriceMinor,
-            flashSale: true,
-            quantityCap: 1,
-            flashExpiresAt: next.expiresAt
-          }, 1);
-          closeCart();
-        }
+        addItem({
+          canonicalVariantId: current.canonicalVariantId,
+          title: current.title,
+          priceMinor: current.flashPriceMinor,
+          price: money(current.flashPriceMinor),
+          imageUrl: current.imageUrl,
+          imageAlt: current.title,
+          fulfilmentKind: "partner",
+          regularPriceMinor: current.listedPriceMinor,
+          flashSale: true,
+          quantityCap: 1,
+          flashExpiresAt: next.expiresAt
+        }, 1);
+        closeCart();
       }
       window.setTimeout(() => { setState(next); setDragX(0); }, 110);
     } catch (nextError) {
@@ -92,7 +89,7 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
     } finally {
       window.setTimeout(() => setBusy(false), 120);
     }
-  }, [addItem, busy, cartItems, closeCart, csrfToken, current]);
+  }, [addItem, busy, closeCart, csrfToken, current]);
 
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (busy || !current) return;
