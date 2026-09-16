@@ -232,7 +232,7 @@ function candidateSql(withRecentExclusion: boolean): string {
       AND dso.cached_quantity IS DISTINCT FROM 0
       AND (dso.availability_expires_at IS NULL OR dso.availability_expires_at > now())
       AND dso.supplier_cost_minor IS NOT NULL
-      AND (vo.customer_price_minor - round(vo.customer_price_minor * $3)::bigint) > dso.supplier_cost_minor
+      AND (vo.customer_price_minor - round(vo.customer_price_minor::numeric * $3::numeric)::bigint) > dso.supplier_cost_minor
       AND COALESCE(NULLIF(pt_el.title,''), NULLIF(pt_en.title,'')) IS NOT NULL
       ${withRecentExclusion ? `AND NOT EXISTS (
         SELECT 1
