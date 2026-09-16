@@ -170,17 +170,20 @@ export async function applyFlashSaleClaimsToOrder(customerPublicId: string, orde
       const currentUnitMinor = integer(row.retail_unit_price_minor, "order retail price");
       const promisedFlashMinor = integer(row.promised_flash_price_minor, "promised Flash price");
       const supplierCostMinor = integer(row.supplier_cost_minor, "supplier cost");
-      const targetUnitMinor = targetFlashUnitMinor(currentUnitMinor, promisedFlashMinor);
-      const discountMinor = Math.max(0, currentUnitMinor - targetUnitMinor);
-
-      // Never fund a Flash price that would cross below the fresh supplier cost.
-      if (discountMinor <= 0 || targetUnitMinor <= supplierCostMinor) continue;
-
       const quantity = integer(row.quantity, "order quantity");
       const taxRateBps = integer(row.tax_rate_bps, "tax rate");
       const existingDiscountMinor = integer(row.existing_discount_minor, "existing line discount");
+      const targetUnitMinor = targetFlashUnitMinor(currentUnitMinor, promisedFlashMinor);
+      const discountMinor = Math.max(0, currentUnitMinor - targetUnitMinor);
+
+      // The claim discounts one unit only. Keep both the claimed unit and the final line
+      // (after any pre-existing promotion) strictly above the fresh supplier procurement cost.
+      if (discountMinor <= 0 || targetUnitMinor <= supplierCostMinor) continue;
       const lineGrossMinor = currentUnitMinor * quantity;
       const discountedGrossMinor = Math.max(0, lineGrossMinor - existingDiscountMinor - discountMinor);
+      const supplierCostTotalMinor = supplierCostMinor * quantity;
+      if (discountedGrossMinor <= supplierCostTotalMinor) continue;
+
       const taxMinor = taxRateBps > 0
         ? Math.max(0, discountedGrossMinor - Math.round(discountedGrossMinor * 10_000 / (10_000 + taxRateBps)))
         : 0;
