@@ -140,6 +140,8 @@ async function staleRefreshCandidates(customerPublicId: string): Promise<readonl
         AND vo.msrp_minor > 0
         AND vo.customer_price_minor <= vo.msrp_minor * 0.40
         AND dso.active=true
+        AND dso.cached_available=true
+        AND dso.cached_quantity IS DISTINCT FROM 0
         AND dso.external_product_id IS NOT NULL
         AND ds.owner_vendor_id IS NOT NULL
         AND dso.supplier_cost_minor IS NOT NULL
