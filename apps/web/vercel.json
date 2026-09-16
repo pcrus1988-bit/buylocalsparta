@@ -25,6 +25,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/merchant-sync",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/order-sla",
       "schedule": "*/5 * * * *"
     },
