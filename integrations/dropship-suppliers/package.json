@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./symphonya-v1": "./src/symphonya-v1.ts",
-    "./symphonya-http": "./src/symphonya-http.ts"
+    "./symphonya-http": "./src/symphonya-http.ts",
+    "./symphonya-normalize": "./src/symphonya-normalize.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
