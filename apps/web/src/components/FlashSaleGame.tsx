@@ -85,7 +85,11 @@ export function FlashSaleGame({ initialState }: { initialState?: FlashSaleState 
             price: money(current.flashPriceMinor),
             imageUrl: current.imageUrl,
             imageAlt: current.title,
-            fulfilmentKind: "partner"
+            fulfilmentKind: "partner",
+            regularPriceMinor: current.listedPriceMinor,
+            flashSale: true,
+            quantityCap: 1,
+            flashExpiresAt: next.expiresAt
           }, 1);
           closeCart();
         }
