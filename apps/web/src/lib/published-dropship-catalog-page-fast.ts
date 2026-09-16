@@ -54,7 +54,7 @@ export type PublishedDropshipCatalogPage = Readonly<{
 export type PublishedDropshipCatalogPageInput = Readonly<{
   query?: string;
   category?: string;
-  filters?: CatalogFilters & Readonly<{ fit?: string }>;
+  filters?: CatalogFilters & Readonly<{ fit?: string; subcategories?: readonly string[] }>;
   attributeFilters?: CatalogAttributeFilters;
   minPriceMinor?: number;
   maxPriceMinor?: number;
@@ -89,6 +89,11 @@ function categoryPrefixes(category: string): readonly string[] {
   return governed ? governed.aliases.map(normalizeCategory) : [normalized];
 }
 
+function subcategoryValues(filters: CatalogFilters & Readonly<{ fit?: string; subcategories?: readonly string[] }>): readonly string[] {
+  if (filters.subcategory?.trim()) return [filters.subcategory.trim()];
+  return [...new Set((filters.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
+}
+
 const HIDDEN_CATEGORY_CLOSURE_SQL = `
   hidden_categories(vendor_id,category_id) AS (
     SELECT vendor_id,category_id
@@ -113,6 +118,7 @@ export async function getPublishedDropshipCatalogPage(
   const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, input.limit ?? 30));
   const offset = Math.max(0, input.offset ?? 0);
   const filters = input.filters ?? {};
+  const selectedSubcategories = subcategoryValues(filters);
   const attributeFilters = input.attributeFilters ?? {};
   const prefixes = categoryPrefixes(input.category ?? "");
   const query = (input.query ?? "").trim();
@@ -244,7 +250,7 @@ export async function getPublishedDropshipCatalogPage(
              OR lower(department_code)=prefix
              OR lower(department_code) LIKE prefix||'-%'
         ))
-        AND ($4::text='' OR category_code=$4)
+        AND (cardinality($4::text[])=0 OR category_code=ANY($4::text[]))
         AND ($5::text='' OR lower(COALESCE(brand_name,''))=lower($5))
         AND ($6::text='' OR lower(COALESCE(specifications->>'color',variant_attributes->>'color',''))=lower($6))
         AND ($7::text='' OR COALESCE(specifications->'sizes','[]'::jsonb) ? $7 OR COALESCE(variant_attributes->'sizes_observed','[]'::jsonb) ? $7)
@@ -264,7 +270,7 @@ export async function getPublishedDropshipCatalogPage(
     supplierIds,
     externalProductIds,
     prefixes,
-    filters.subcategory ?? "",
+    selectedSubcategories,
     filters.brand ?? "",
     filters.color ?? "",
     filters.size ?? "",
