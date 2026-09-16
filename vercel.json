@@ -17,6 +17,10 @@
     {
       "path": "/api/cron/dropship-order-reconciliation",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/flash-sale-availability",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
