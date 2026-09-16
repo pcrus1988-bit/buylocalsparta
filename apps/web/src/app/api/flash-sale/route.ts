@@ -3,6 +3,8 @@ import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../li
 
 type FlashSaleBody = Readonly<{ action?: unknown; itemId?: unknown; decision?: unknown }>;
 
+const NO_STORE_HEADERS = { "cache-control": "private, no-store, max-age=0" } as const;
+
 function completedCookie(expiresAt: string, saleDate: string): string {
   const expires = new Date(expiresAt);
   return [
@@ -18,10 +20,13 @@ export async function GET() {
   try {
     const principal = await requireAccountSession();
     const state = await getTodayFlashSale(principal.userId);
-    return Response.json({ state: state ?? null }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ state: state ?? null }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     const message = error instanceof Error ? error.message : "FLASH_SALE_FAILED";
-    return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
+    return Response.json(
+      { error: message },
+      { status: message === "AUTH_REQUIRED" ? 401 : 400, headers: NO_STORE_HEADERS }
+    );
   }
 }
 
@@ -43,11 +48,14 @@ export async function POST(request: Request) {
       throw new Error("FLASH_SALE_INVALID_ACTION");
     }
 
-    const response = Response.json({ state }, { headers: { "cache-control": "no-store" } });
+    const response = Response.json({ state }, { headers: NO_STORE_HEADERS });
     if (state.status === "completed") response.headers.append("set-cookie", completedCookie(state.expiresAt, state.saleDate));
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "FLASH_SALE_FAILED";
-    return Response.json({ error: message }, { status: message === "AUTH_REQUIRED" ? 401 : 400 });
+    return Response.json(
+      { error: message },
+      { status: message === "AUTH_REQUIRED" ? 401 : 400, headers: NO_STORE_HEADERS }
+    );
   }
 }
