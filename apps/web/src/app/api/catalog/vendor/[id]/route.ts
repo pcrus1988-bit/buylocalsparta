@@ -1,15 +1,16 @@
+import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
 import { getVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-catalog-page";
+import { getContextualVendorDropshipFacets, type VendorDropshipFacetContext } from "../../../../../lib/vendor-dropship-contextual-facets";
 import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
-import { getFastVendorDropshipFacets } from "../../../../../lib/vendor-dropship-fast-facets";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
 const PAGE_BROWSER_CACHE = "public, max-age=5";
 const PAGE_SHARED_CACHE = "public, max-age=15";
 const PAGE_VERCEL_CACHE = "public, max-age=30";
-const FACET_BROWSER_CACHE = "public, max-age=30";
-const FACET_SHARED_CACHE = "public, max-age=120";
-const FACET_VERCEL_CACHE = "public, max-age=300";
+const FACET_BROWSER_CACHE = "public, max-age=15";
+const FACET_SHARED_CACHE = "public, max-age=60";
+const FACET_VERCEL_CACHE = "public, max-age=120";
 
 function optionalParam(url: URL, key: string, max: number): string {
   return url.searchParams.get(key)?.trim().slice(0, max) ?? "";
@@ -24,9 +25,9 @@ function intParam(url: URL, key: string, fallback: number, max: number): number 
   return Number.isSafeInteger(parsed) && parsed >= 0 ? Math.min(parsed, max) : fallback;
 }
 
-async function optionalFacets(vendorId: string) {
+async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
   try {
-    return await getFastVendorDropshipFacets(vendorId);
+    return await getContextualVendorDropshipFacets(vendorId, context);
   } catch (error) {
     console.error(JSON.stringify({
       level: "warn",
@@ -61,7 +62,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   const categories = multiParam(url, "category", 120);
   const brand = optionalParam(url, "brand", 160);
   const color = optionalParam(url, "color", 120);
-  const size = optionalParam(url, "size", 120);
+  const sizes = [...new Set(multiParam(url, "size", 512).flatMap((value) => decodeCatalogSizeGroup(value)).map((value) => value.slice(0, 120)))].slice(0, 64);
   const offset = intParam(url, "offset", 0, 100_000);
   const limit = Math.max(1, intParam(url, "limit", 20, 60));
   // Customer-facing dropship catalogues must never expose unavailable supplier stock.
@@ -69,10 +70,11 @@ export async function GET(request: Request, { params }: RouteContext) {
   const availableOnly = true;
   const includeFacets = url.searchParams.get("facets") === "1";
   const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
+  const facetContext = { query, categories, brand, color, sizes } satisfies VendorDropshipFacetContext;
 
   try {
     if (facetsOnly) {
-      const facets = await optionalFacets(id);
+      const facets = await optionalFacets(id, facetContext);
       return Response.json({
         vendorId: id,
         products: [],
@@ -89,7 +91,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       && categories.length === 0
       && !brand
       && !color
-      && !size;
+      && sizes.length === 0;
 
     const page = useFastInitialPath
       ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
@@ -98,12 +100,12 @@ export async function GET(request: Request, { params }: RouteContext) {
           categories,
           brand,
           color,
-          size,
+          sizes,
           availableOnly,
           offset,
           limit
         });
-    const facets = includeFacets ? await optionalFacets(id) : undefined;
+    const facets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
     const total = "total" in page ? page.total : undefined;
 
     return Response.json({
