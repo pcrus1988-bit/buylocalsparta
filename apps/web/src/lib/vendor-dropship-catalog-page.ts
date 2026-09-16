@@ -36,6 +36,7 @@ export type VendorDropshipCatalogPage = Readonly<{
 export type VendorDropshipCatalogPageInput = Readonly<{
   query?: string;
   category?: string;
+  categories?: readonly string[];
   brand?: string;
   color?: string;
   size?: string;
@@ -101,6 +102,11 @@ function prefixTsQuery(value: string): string {
     .join(" & ");
 }
 
+function categoryValues(input: VendorDropshipCatalogPageInput): readonly string[] {
+  if (input.category?.trim()) return [input.category.trim().slice(0, 120)];
+  return [...new Set((input.categories ?? []).map((value) => value.trim().slice(0, 120)).filter(Boolean))].slice(0, 64);
+}
+
 /**
  * Filtered vendor catalogue discovery is family-first. The read model narrows the
  * catalogue to a page of supplier product identities; only those identities are
@@ -113,7 +119,7 @@ export async function getVendorDropshipCatalogPage(
   if (!productionDatabaseConfigured()) return { products: [], total: 0, offset: 0, limit: DEFAULT_PAGE_SIZE };
 
   const query = input.query?.trim().slice(0, 160) ?? "";
-  const category = input.category?.trim().slice(0, 120) ?? "";
+  const categories = categoryValues(input);
   const brand = input.brand?.trim().slice(0, 160) ?? "";
   const color = input.color?.trim().slice(0, 120) ?? "";
   const size = input.size?.trim().slice(0, 120) ?? "";
@@ -138,7 +144,7 @@ export async function getVendorDropshipCatalogPage(
       LIMIT 1
     )
       AND fm.available_until>now()
-      AND ($3::text='' OR fm.category_codes @> ARRAY[$3]::text[])
+      AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
       AND ($4::text='' OR fm.brand_names_normalized @> ARRAY[lower($4)]::text[])
       AND ($5::text='' OR EXISTS (
         SELECT 1 FROM unnest(fm.colors) candidate(value)
@@ -151,7 +157,7 @@ export async function getVendorDropshipCatalogPage(
       )
     ORDER BY fm.newest_at DESC,fm.dropship_external_product_id
     LIMIT $8 OFFSET $9
-  `, [vendorId, query, category, brand, color, size, searchPrefix, limit, offset]);
+  `, [vendorId, query, categories, brand, color, size, searchPrefix, limit, offset]);
 
   if (!familyWindow.rows.length) return { products: [], total: 0, offset, limit };
   const total = safePositiveInt(familyWindow.rows[0]?.total_families, 0);
