@@ -7,7 +7,7 @@ import { AccountSectionNavigation } from "../../components/AccountSectionNavigat
 import { CustomerAccountSetupChecklist } from "../../components/CustomerAccountSetupChecklist";
 import styles from "../../components/CustomerAccountExperience.module.css";
 import contrastStyles from "./account-contrast.module.css";
-import { accountDashboard } from "../../lib/account-view";
+import { accountHomeDashboard } from "../../lib/account-home-view";
 import { customerAccountSetup } from "../../lib/customer-account-onboarding";
 import { getAccountSession } from "../../lib/account-session";
 
@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Ο λογαριασμός μου", r
 export default async function AccountPage() {
   const principal = await getAccountSession();
   if (!principal) redirect("/login?next=/account");
-  const [dashboard, setup] = await Promise.all([accountDashboard(principal), customerAccountSetup(principal)]);
+  const [dashboard, setup] = await Promise.all([accountHomeDashboard(principal), customerAccountSetup(principal)]);
 
   return <main className={`account-app ${contrastStyles.accountPage}`}>
     <div className="announcement">Οι αγορές και οι τοπικές υπηρεσίες σου, σε ένα σημείο.</div>
