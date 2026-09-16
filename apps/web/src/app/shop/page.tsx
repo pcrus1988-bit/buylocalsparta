@@ -40,6 +40,11 @@ function valueOf(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+function valuesOf(value: string | string[] | undefined): readonly string[] {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return [...new Set(values.map((entry) => entry.trim()).filter(Boolean))];
+}
+
 function positivePage(value: string): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
@@ -96,6 +101,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
   const requestedSubcategory = valueOf(params.subcategory);
+  const requestedGuideSubcategories = category === "fashion"
+    ? valuesOf(params.subcategory_any).map((entry) => entry.slice(0, 120)).slice(0, 64)
+    : [];
+  const requestedGuideLabel = category === "fashion" ? valueOf(params.guideLabel).trim().slice(0, 120) : "";
   const brand = valueOf(params.brand);
   const color = valueOf(params.color);
   const size = valueOf(params.size);
@@ -117,7 +126,9 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   const readOnlyCrawler = await audiencePromise;
 
-  const inferredSubcategory = requestedSubcategory ? undefined : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
+  const inferredSubcategory = requestedSubcategory || requestedGuideSubcategories.length
+    ? undefined
+    : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
   if (inferredSubcategory) {
     subcategory = inferredSubcategory.value;
     filters = { subcategory, brand, color, size };
@@ -133,6 +144,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
 
+  const groupedSubcategories = subcategory ? [] : requestedGuideSubcategories;
+  const productFilters = { ...filters, fit, subcategories: groupedSubcategories };
   const facets = taxonomy.facets;
   const attributeFacets = taxonomy.attributeFacets;
   const availableCategories = taxonomy.categories;
@@ -150,6 +163,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       { ...filters, fit },
       SHOP_PAGE_SIZE
     )];
+    if (groupedSubcategories.length) {
+      const allowed = new Set(groupedSubcategories);
+      crawlerProducts = crawlerProducts.filter((product) => allowed.has(product.categoryCode));
+    }
     crawlerProducts = [...await filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)];
     products = crawlerProducts;
 
@@ -158,7 +175,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       const dropshipPage = await getPublishedDropshipCatalogPage({
         query: catalogQuery,
         category,
-        filters: { ...filters, fit },
+        filters: productFilters,
         attributeFilters,
         minPriceMinor: searchIntent.minPriceMinor,
         maxPriceMinor: searchIntent.maxPriceMinor,
@@ -175,7 +192,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       postcode: "23100",
       query: catalogQuery,
       category,
-      filters: { ...filters, fit },
+      filters: productFilters,
       attributeFilters,
       minPriceMinor: searchIntent.minPriceMinor,
       maxPriceMinor: searchIntent.maxPriceMinor,
@@ -194,7 +211,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       const dropshipPage = await getPublishedDropshipCatalogPage({
         query: catalogQuery,
         category,
-        filters: { ...filters, fit },
+        filters: productFilters,
         attributeFilters,
         minPriceMinor: searchIntent.minPriceMinor,
         maxPriceMinor: searchIntent.maxPriceMinor,
@@ -231,6 +248,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       categoryCode: subcategory || category || undefined,
       filters: {
         subcategory: subcategory || undefined,
+        subcategoryGroup: groupedSubcategories.length ? groupedSubcategories.join(",") : undefined,
         brand: brand || undefined,
         color: color || undefined,
         size: size || undefined,
@@ -257,8 +275,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     });
   }
 
-  const hasDetailedFilters = Boolean(subcategory || brand || color || size || fit || Object.keys(attributeFilters).length);
-  const activeSubcategoryLabel = facets.subcategories.find((item) => item.value === subcategory)?.label ?? inferredSubcategory?.label;
+  const hasDetailedFilters = Boolean(subcategory || groupedSubcategories.length || brand || color || size || fit || Object.keys(attributeFilters).length);
+  const activeSubcategoryLabel = groupedSubcategories.length
+    ? requestedGuideLabel || "Ομαδοποιημένη επιλογή"
+    : facets.subcategories.find((item) => item.value === subcategory)?.label ?? inferredSubcategory?.label;
   const selectedAttributeLabels = attributeDefinitions.flatMap((definition) => {
     const value = attributeFilters[definition.key];
     return value ? [`${definition.label}: ${value}`] : [];
@@ -272,6 +292,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     inferredCategory ? `Κατηγορία: ${inferredCategory.label}` : undefined,
     activeLeaf ? `Πρόθεση: ${activeLeaf.label}` : undefined,
     inferredSubcategory ? `Υποκατηγορία: ${inferredSubcategory.label}` : undefined,
+    groupedSubcategories.length ? `Επιλογή οδηγού: ${activeSubcategoryLabel}` : undefined,
     ...selectedAttributeLabels,
     ...unresolvedAttributeLabels,
     searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
@@ -305,6 +326,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <aside className="catalog-sidebar">
           <form className="filter-form" action="/shop">
             {availability === "available" ? <input type="hidden" name="availability" value="available" /> : null}
+            {groupedSubcategories.map((value) => <input type="hidden" name="subcategory_any" value={value} key={value} />)}
+            {groupedSubcategories.length && requestedGuideLabel ? <input type="hidden" name="guideLabel" value={requestedGuideLabel} /> : null}
             <label htmlFor="q">Αναζήτηση</label>
             <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Π.χ. Bosch δραπανο μέχρι 100€"} />
 
@@ -322,6 +345,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
                 <option value="">Όλες οι υποκατηγορίες</option>
                 {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
               </select>
+              {groupedSubcategories.length ? <small style={{ display: "block", marginTop: -6, color: "var(--ink-soft)" }}>Τρέχουσα ομαδοποιημένη επιλογή: {activeSubcategoryLabel}</small> : null}
             </> : null}
 
             {showBrand ? <>
@@ -377,7 +401,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         </aside>
 
         <div className="catalog-results">
-          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{subcategory && <span> · {activeSubcategoryLabel}</span>}{page > 1 && <span> · Σελίδα {page}</span>}</div>{(query || availability || category) && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
+          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{(subcategory || groupedSubcategories.length) && <span> · {activeSubcategoryLabel}</span>}{page > 1 && <span> · Σελίδα {page}</span>}</div>{(query || availability || category) && groupedSubcategories.length === 0 && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
           {interpretedLabels.length > 0 ? <div className="category-chip-row" aria-label="Κατανόηση αναζήτησης">{interpretedLabels.map((label) => <span className="category-chip active" key={label}>{label}</span>)}</div> : null}
           {activeLeaf?.attributeHints.length ? <div className="fairness-note"><strong>Χρήσιμα χαρακτηριστικά για {activeLeaf.label.toLocaleLowerCase("el")}</strong><p>{activeLeaf.attributeHints.join(" · ")}</p></div> : null}
           {products.length === 0 ? (
