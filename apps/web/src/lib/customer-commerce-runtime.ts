@@ -5,7 +5,7 @@ import { runtime as developmentRuntime } from "./demo-runtime";
 import { canonicalIsPubliclyAllowed } from "./vendor-operations-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { checkoutApiAuthoritativeDropship, freshDropshipCartOffer } from "./dropship-checkout-runtime";
-import { applyFlashSaleClaimsToOrder } from "./flash-sale-runtime";
+import { applyFlashSaleClaimsToOrder } from "./flash-sale-entitlement-runtime";
 
 export function postgresCommerceEnabled(): boolean { return Boolean(process.env.DATABASE_URL?.trim()); }
 
