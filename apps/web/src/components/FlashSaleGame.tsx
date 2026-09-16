@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { FlashSaleState } from "../lib/flash-sale-runtime";
 import { useCart } from "./CartProvider";
 import styles from "../app/flash-sale/flash-sale.module.css";
@@ -35,6 +35,7 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
   const [error, setError] = useState("");
   const [dragX, setDragX] = useState(0);
   const [showHow, setShowHow] = useState(false);
+  const [immersive, setImmersive] = useState(false);
   const pointerStart = useRef<{ id: number; x: number } | undefined>(undefined);
   const { addItem, openCart, closeCart } = useCart();
 
@@ -43,6 +44,7 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
   const selected = state?.items.filter((item) => item.decision === "selected") ?? [];
   const totalExtraSaving = selected.reduce((sum, item) => sum + item.flashDiscountMinor, 0);
   const flashBasketTotal = selected.reduce((sum, item) => sum + item.flashPriceMinor, 0);
+  const completed = Boolean(state && (state.status === "completed" || !current));
 
   const nextResetLabel = useMemo(() => {
     if (!state) return "";
@@ -51,13 +53,64 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
     return new Intl.DateTimeFormat("el-GR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Athens" }).format(expires);
   }, [state]);
 
+  const requestNativeFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (!document.fullscreenElement && root.requestFullscreen) {
+      void root.requestFullscreen().catch(() => undefined);
+    }
+  }, []);
+
+  const exitNativeFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    if (document.fullscreenElement && document.exitFullscreen) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  }, []);
+
+  const enterImmersive = useCallback(() => {
+    setError("");
+    setImmersive(true);
+    requestNativeFullscreen();
+  }, [requestNativeFullscreen]);
+
+  const leaveImmersive = useCallback(() => {
+    setImmersive(false);
+    setShowHow(false);
+    setDragX(0);
+    pointerStart.current = undefined;
+    exitNativeFullscreen();
+  }, [exitNativeFullscreen]);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [immersive]);
+
+  useEffect(() => {
+    if (immersive && completed) leaveImmersive();
+  }, [completed, immersive, leaveImmersive]);
+
   const start = useCallback(async () => {
+    enterImmersive();
     setBusy(true);
     setError("");
-    try { setState(await mutateFlashSale({ action: "start" }, csrfToken)); }
-    catch (nextError) { setError(friendlyError(nextError instanceof Error ? nextError.message : "FLASH_SALE_FAILED")); }
-    finally { setBusy(false); }
-  }, [csrfToken]);
+    try {
+      setState(await mutateFlashSale({ action: "start" }, csrfToken));
+    } catch (nextError) {
+      leaveImmersive();
+      setError(friendlyError(nextError instanceof Error ? nextError.message : "FLASH_SALE_FAILED"));
+    } finally {
+      setBusy(false);
+    }
+  }, [csrfToken, enterImmersive, leaveImmersive]);
 
   const decide = useCallback(async (decision: "selected" | "skipped") => {
     if (!current || busy) return;
@@ -112,6 +165,17 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
   }
 
   if (!state) {
+    if (immersive && busy) {
+      return <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-label="Προετοιμασία Flash Sale">
+        <div className={styles.fullscreenLoading}>
+          <span className={styles.fullscreenSpinner} aria-hidden="true" />
+          <span className={styles.kicker}>ΚΟΝΤΑ ΜΟΥ FLASH SALE</span>
+          <strong>Ετοιμάζουμε τα 10 σου…</strong>
+          <small>Έλεγχος διαθεσιμότητας και ασφαλούς Flash τιμής.</small>
+        </div>
+      </div>;
+    }
+
     return <section className={styles.startPanel} aria-labelledby="flash-start-title">
       <div className={styles.startCopy}>
         <span className={styles.kicker}>Η σημερινή παρτίδα είναι έτοιμη</span>
@@ -121,6 +185,7 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
           <button className={styles.primaryButton} type="button" onClick={() => void start()} disabled={busy}>{busy ? "Ετοιμάζουμε τα 10 σου…" : "ΠΑΙΞΕ ΤΩΡΑ"}</button>
           <button className={styles.infoButton} type="button" onClick={() => setShowHow(true)} aria-haspopup="dialog"><span aria-hidden="true">i</span> Πώς παίζεται</button>
         </div>
+        <p className={styles.fullscreenNote}>Το παιχνίδι ανοίγει σε πλήρη οθόνη. Μπορείς να βγεις οποιαδήποτε στιγμή χωρίς να χάσεις την πρόοδό σου.</p>
         {error ? <p className={styles.error} role="alert">{error}</p> : null}
       </div>
       <div className={styles.miniDeck} aria-hidden="true"><span>10</span><small>τυχαίες Flash επιλογές</small></div>
@@ -128,7 +193,7 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
     </section>;
   }
 
-  if (state.status === "completed" || !current) {
+  if (completed) {
     return <section className={styles.finishPanel} aria-labelledby="flash-finish-title">
       <span className={styles.kicker}>FLASH COMPLETE</span>
       <h2 id="flash-finish-title">Σήμερα ξεκλείδωσες {money(totalExtraSaving)} extra έκπτωση.</h2>
@@ -150,56 +215,78 @@ export function FlashSaleGame({ initialState, csrfToken }: { initialState?: Flas
     </section>;
   }
 
+  if (!immersive) {
+    return <section className={styles.startPanel} aria-labelledby="flash-resume-title">
+      <div className={styles.startCopy}>
+        <span className={styles.kicker}>Η ΠΑΡΤΙΔΑ ΣΟΥ ΕΙΝΑΙ ΣΕ ΕΞΕΛΙΞΗ</span>
+        <h2 id="flash-resume-title">Έχεις ακόμη {undecided.length} {undecided.length === 1 ? "προϊόν" : "προϊόντα"}.</h2>
+        <p>Η πρόοδός σου έχει αποθηκευτεί. Συνέχισε σε πλήρη οθόνη ακριβώς από εκεί που σταμάτησες.</p>
+        <div className={styles.startActions}>
+          <button className={styles.primaryButton} type="button" onClick={enterImmersive}>ΣΥΝΕΧΙΣΕ ΣΕ FULL SCREEN</button>
+          <button className={styles.infoButton} type="button" onClick={() => setShowHow(true)}><span aria-hidden="true">i</span> Πώς παίζεται</button>
+        </div>
+        {error ? <p className={styles.error} role="alert">{error}</p> : null}
+      </div>
+      <div className={styles.resumeProgress} aria-hidden="true"><strong>{state.decidedCount}</strong><span>/ 10</span><small>swipes ολοκληρώθηκαν</small></div>
+      {showHow ? <HowDialog onClose={() => setShowHow(false)} /> : null}
+    </section>;
+  }
+
   const progress = state.decidedCount + 1;
   const nextCard = undecided[1];
   const rotation = dragX / 24;
   const selectOpacity = Math.max(0, Math.min(1, dragX / 90));
   const skipOpacity = Math.max(0, Math.min(1, -dragX / 90));
 
-  return <section className={styles.gamePanel} aria-labelledby="flash-game-title">
-    <header className={styles.gameHeader}>
-      <div><span className={styles.kicker}>ΚΟΝΤΑ ΜΟΥ FLASH SALE</span><h2 id="flash-game-title">{progress} / 10</h2></div>
-      <button className={styles.circleInfo} type="button" onClick={() => setShowHow(true)} aria-label="Πώς λειτουργεί το Flash Sale">i</button>
-    </header>
-    <div className={styles.progressTrack} aria-label={`${state.decidedCount} από 10 ολοκληρώθηκαν`}><span style={{ width: `${state.decidedCount * 10}%` }} /></div>
-
-    <div className={styles.deck}>
-      {nextCard ? <div className={`${styles.productCard} ${styles.nextCard}`} aria-hidden="true"><img src={nextCard.imageUrl} alt="" /></div> : null}
-      <div
-        className={`${styles.productCard} ${busy ? styles.busyCard : ""}`}
-        style={{ transform: `translateX(${dragX}px) rotate(${rotation}deg)` }}
-        onPointerDown={pointerDown}
-        onPointerMove={pointerMove}
-        onPointerUp={pointerEnd}
-        onPointerCancel={() => { pointerStart.current = undefined; setDragX(0); }}
-      >
-        <div className={styles.skipStamp} style={{ opacity: skipOpacity }}>ΟΧΙ ΓΙΑ ΜΕΝΑ</div>
-        <div className={styles.wantStamp} style={{ opacity: selectOpacity }}>ΤΟ ΘΕΛΩ</div>
-        <div className={styles.imageStage}>
-          <img src={current.imageUrl} alt={current.title} draggable={false} />
-          <span className={styles.discountBadge}>-{current.currentDiscountPct}%</span>
-          <span className={styles.flashBadge}>FLASH<br /><strong>-20% EXTRA</strong></span>
+  return <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-labelledby="flash-game-title">
+    <section className={`${styles.gamePanel} ${styles.fullscreenGamePanel}`}>
+      <header className={styles.gameHeader}>
+        <div><span className={styles.kicker}>ΚΟΝΤΑ ΜΟΥ FLASH SALE</span><h2 id="flash-game-title">{progress} / 10</h2></div>
+        <div className={styles.gameTopActions}>
+          <button className={styles.circleInfo} type="button" onClick={() => setShowHow(true)} aria-label="Πώς λειτουργεί το Flash Sale">i</button>
+          <button className={styles.exitGameButton} type="button" onClick={leaveImmersive} aria-label="Έξοδος από την πλήρη οθόνη">×</button>
         </div>
-        <div className={styles.cardCopy}>
-          {current.brand ? <span className={styles.brand}>{current.brand}</span> : null}
-          <h3>{current.title}</h3>
-          <div className={styles.priceRows}>
-            <span><small>MSRP</small><s>{money(current.msrpMinor)}</s></span>
-            <span><small>ΚΟΝΤΑ ΜΟΥ</small><s>{money(current.listedPriceMinor)}</s></span>
-            <span className={styles.flashPrice}><small>FLASH PRICE</small><strong>{money(current.flashPriceMinor)}</strong></span>
+      </header>
+      <div className={styles.progressTrack} aria-label={`${state.decidedCount} από 10 ολοκληρώθηκαν`}><span style={{ width: `${state.decidedCount * 10}%` }} /></div>
+
+      <div className={styles.deck}>
+        {nextCard ? <div className={`${styles.productCard} ${styles.nextCard}`} aria-hidden="true"><img src={nextCard.imageUrl} alt="" /></div> : null}
+        <div
+          className={`${styles.productCard} ${busy ? styles.busyCard : ""}`}
+          style={{ transform: `translateX(${dragX}px) rotate(${rotation}deg)` }}
+          onPointerDown={pointerDown}
+          onPointerMove={pointerMove}
+          onPointerUp={pointerEnd}
+          onPointerCancel={() => { pointerStart.current = undefined; setDragX(0); }}
+        >
+          <div className={styles.skipStamp} style={{ opacity: skipOpacity }}>ΟΧΙ ΓΙΑ ΜΕΝΑ</div>
+          <div className={styles.wantStamp} style={{ opacity: selectOpacity }}>ΤΟ ΘΕΛΩ</div>
+          <div className={styles.imageStage}>
+            <img src={current.imageUrl} alt={current.title} draggable={false} />
+            <span className={styles.discountBadge}>-{current.currentDiscountPct}%</span>
+            <span className={styles.flashBadge}>FLASH<br /><strong>-20% EXTRA</strong></span>
           </div>
-          <p>Δεξιά για να το κρατήσεις · αριστερά για το επόμενο.</p>
+          <div className={styles.cardCopy}>
+            {current.brand ? <span className={styles.brand}>{current.brand}</span> : null}
+            <h3>{current.title}</h3>
+            <div className={styles.priceRows}>
+              <span><small>MSRP</small><s>{money(current.msrpMinor)}</s></span>
+              <span><small>ΚΟΝΤΑ ΜΟΥ</small><s>{money(current.listedPriceMinor)}</s></span>
+              <span className={styles.flashPrice}><small>FLASH PRICE</small><strong>{money(current.flashPriceMinor)}</strong></span>
+            </div>
+            <p>Δεξιά για να το κρατήσεις · αριστερά για το επόμενο.</p>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div className={styles.swipeActions} aria-label="Επιλογή προϊόντος">
-      <button className={styles.noButton} type="button" onClick={() => void decide("skipped")} disabled={busy}><span aria-hidden="true">←</span><strong>ΟΧΙ ΓΙΑ ΜΕΝΑ</strong></button>
-      <button className={styles.yesButton} type="button" onClick={() => void decide("selected")} disabled={busy}><strong>ΤΟ ΘΕΛΩ</strong><span aria-hidden="true">→</span></button>
-    </div>
-    <p className={styles.liveStatus} aria-live="polite">{busy ? "Κλειδώνουμε την επιλογή σου…" : error}</p>
-    {showHow ? <HowDialog onClose={() => setShowHow(false)} /> : null}
-  </section>;
+      <div className={styles.swipeActions} aria-label="Επιλογή προϊόντος">
+        <button className={styles.noButton} type="button" onClick={() => void decide("skipped")} disabled={busy}><span aria-hidden="true">←</span><strong>ΟΧΙ ΓΙΑ ΜΕΝΑ</strong></button>
+        <button className={styles.yesButton} type="button" onClick={() => void decide("selected")} disabled={busy}><strong>ΤΟ ΘΕΛΩ</strong><span aria-hidden="true">→</span></button>
+      </div>
+      <p className={styles.liveStatus} aria-live="polite">{busy ? "Κλειδώνουμε την επιλογή σου…" : error}</p>
+      {showHow ? <HowDialog onClose={() => setShowHow(false)} /> : null}
+    </section>
+  </div>;
 }
 
 function HowDialog({ onClose }: { onClose: () => void }) {
