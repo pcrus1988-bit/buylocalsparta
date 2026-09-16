@@ -17,19 +17,10 @@ function friendlyError(message: string): string {
   return "Κάτι δεν πήγε καλά. Η επιλογή σου δεν χάθηκε — δοκίμασε ξανά.";
 }
 
-async function csrfToken(): Promise<string> {
-  const response = await fetch("/api/account/session", { cache: "no-store" });
-  if (!response.ok) throw new Error("AUTH_REQUIRED");
-  const body = await response.json() as { csrfToken?: string };
-  if (!body.csrfToken) throw new Error("AUTH_REQUIRED");
-  return body.csrfToken;
-}
-
-async function mutateFlashSale(body: Record<string, unknown>): Promise<FlashSaleState> {
-  const csrf = await csrfToken();
+async function mutateFlashSale(body: Record<string, unknown>, csrfToken: string): Promise<FlashSaleState> {
   const response = await fetch("/api/flash-sale", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-csrf-token": csrf },
+    headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
     body: JSON.stringify(body),
     cache: "no-store"
   });
@@ -38,7 +29,7 @@ async function mutateFlashSale(body: Record<string, unknown>): Promise<FlashSale
   return payload.state;
 }
 
-export function FlashSaleGame({ initialState }: { initialState?: FlashSaleState }) {
+export function FlashSaleGame({ initialState, csrfToken }: { initialState?: FlashSaleState; csrfToken: string }) {
   const [state, setState] = useState<FlashSaleState | undefined>(initialState);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -63,10 +54,10 @@ export function FlashSaleGame({ initialState }: { initialState?: FlashSaleState 
   const start = useCallback(async () => {
     setBusy(true);
     setError("");
-    try { setState(await mutateFlashSale({ action: "start" })); }
+    try { setState(await mutateFlashSale({ action: "start" }, csrfToken)); }
     catch (nextError) { setError(friendlyError(nextError instanceof Error ? nextError.message : "FLASH_SALE_FAILED")); }
     finally { setBusy(false); }
-  }, []);
+  }, [csrfToken]);
 
   const decide = useCallback(async (decision: "selected" | "skipped") => {
     if (!current || busy) return;
@@ -74,7 +65,7 @@ export function FlashSaleGame({ initialState }: { initialState?: FlashSaleState 
     setError("");
     setDragX(decision === "selected" ? 140 : -140);
     try {
-      const next = await mutateFlashSale({ action: "swipe", itemId: current.id, decision });
+      const next = await mutateFlashSale({ action: "swipe", itemId: current.id, decision }, csrfToken);
       if (decision === "selected") {
         const alreadyInCart = cartItems.some((item) => item.canonicalVariantId === current.canonicalVariantId);
         if (!alreadyInCart) {
@@ -101,7 +92,7 @@ export function FlashSaleGame({ initialState }: { initialState?: FlashSaleState 
     } finally {
       window.setTimeout(() => setBusy(false), 120);
     }
-  }, [addItem, busy, cartItems, closeCart, current]);
+  }, [addItem, busy, cartItems, closeCart, csrfToken, current]);
 
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (busy || !current) return;

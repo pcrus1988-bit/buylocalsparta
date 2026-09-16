@@ -41,7 +41,7 @@ export default async function FlashSalePage() {
           </div>
         </section>
 
-        {principal ? <FlashSaleGame initialState={initialState} /> : <section className={styles.guestPanel}>
+        {principal ? <FlashSaleGame initialState={initialState} csrfToken={principal.csrfToken} /> : <section className={styles.guestPanel}>
           <div>
             <span className={styles.kicker}>Η ΣΗΜΕΡΙΝΗ ΠΑΡΤΙΔΑ ΕΙΝΑΙ ΚΛΕΙΔΩΜΕΝΗ</span>
             <h2>Μπες στο παιχνίδι. Ξεκλείδωσε τις δικές σου 10 Flash επιλογές.</h2>
