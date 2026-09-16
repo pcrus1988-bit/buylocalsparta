@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
+import { decodeCatalogSizeGroup, groupCatalogSizeFacets, inferCatalogSizeDomain } from "../lib/catalog-size";
 import { CatalogProductCard } from "./CatalogProductCard";
 
 const SHOWCASE_LIMIT = 10;
@@ -98,7 +99,23 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
 
   const brands = useMemo(() => unique(products.map((product) => product.brand)), [products]);
   const colors = useMemo(() => unique(products.map((product) => product.color)), [products]);
-  const sizes = useMemo(() => unique(products.flatMap((product) => product.sizes)), [products]);
+  const sizeDomain = useMemo(
+    () => inferCatalogSizeDomain(products.flatMap((product) => [product.categoryCode, product.categoryLabel ?? ""])),
+    [products]
+  );
+  const sizes = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of products) {
+      for (const raw of product.sizes) {
+        const value = raw.trim();
+        if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+      }
+    }
+    return groupCatalogSizeFacets(
+      [...counts.entries()].map(([value, count]) => ({ value, count })),
+      sizeDomain
+    );
+  }, [products, sizeDomain]);
 
   useEffect(() => {
     if (!isFashion) return;
@@ -136,10 +153,11 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
 
   const filtered = useMemo(() => {
     const needle = normalized(query);
+    const selectedSizes = size === "all" ? [] : decodeCatalogSizeGroup(size);
     return products.filter((product) => {
       if (brand !== "all" && product.brand !== brand) return false;
       if (color !== "all" && product.color !== color) return false;
-      if (size !== "all" && !product.sizes.includes(size)) return false;
+      if (selectedSizes.length && !product.sizes.some((raw) => selectedSizes.includes(raw.trim()))) return false;
       if (!needle) return true;
       return normalized([product.title, product.description, product.brand, product.color, product.mpn, product.gtin, ...product.sizes].filter(Boolean).join(" ")).includes(needle);
     });
@@ -202,7 +220,7 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
         {isFashion ? <button className="guideInlineButton" type="button" onClick={restartGuide}>Οδηγός κατηγορίας</button> : null}
         {brands.length > 1 && <label><span>Μάρκα</span><select value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
         {colors.length > 1 && <label><span>Χρώμα</span><select value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα</option>{colors.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
-        {sizes.length > 1 && <label><span>Μέγεθος</span><select value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα</option>{sizes.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
+        {sizes.length > 1 && <label><span>Μέγεθος</span><select value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα</option>{sizes.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
       </div>
     </div>
 
