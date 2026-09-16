@@ -31,17 +31,16 @@ export default async function VendorBackofficePage() {
   ]);
 
   const performance = analytics.totals;
+  const overdueOrders = orderNotifications.metrics.breached + orderNotifications.metrics.escalated;
   const attention = [
     orderNotifications.metrics.requiringAction > 0 ? {
-      title: `${orderNotifications.metrics.requiringAction} παραγγελίες χρειάζονται ενέργεια`,
-      note: "Άνοιξε τις παραγγελίες και συνέχισε από το επισημασμένο επόμενο βήμα.",
+      title: overdueOrders > 0
+        ? `${orderNotifications.metrics.requiringAction} παραγγελίες χρειάζονται ενέργεια · ${overdueOrders} εκτός προθεσμίας`
+        : `${orderNotifications.metrics.requiringAction} παραγγελίες χρειάζονται ενέργεια`,
+      note: overdueOrders > 0
+        ? "Ξεκίνα από τις εκπρόθεσμες παραγγελίες και ενημέρωσε την πραγματική τους κατάσταση."
+        : "Άνοιξε τις παραγγελίες και συνέχισε από το επισημασμένο επόμενο βήμα.",
       href: "/vendor/orders",
-      urgent: true
-    } : null,
-    orderNotifications.metrics.breached > 0 ? {
-      title: `${orderNotifications.metrics.breached} προθεσμίες έχουν λήξει`,
-      note: "Δες πρώτα τις εκπρόθεσμες παραγγελίες και ενημέρωσε την πραγματική τους κατάσταση.",
-      href: "/vendor/notifications",
       urgent: true
     } : null,
     catalog.catalogMetrics.lowStockProducts > 0 ? {
