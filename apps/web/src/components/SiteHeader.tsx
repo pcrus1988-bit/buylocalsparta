@@ -148,6 +148,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
             animation: konta-header-flash 2.6s ease-in-out infinite;
             isolation: isolate;
           }
+          .site-header.is-menu-open > .flash-sale-shortcut { top: 39px; }
           .site-header > .flash-sale-shortcut.is-active {
             background: #ffd600;
             color: #090909;
@@ -175,6 +176,10 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
             font-weight: 900;
             letter-spacing: .18em;
           }
+        }
+
+        @media (max-width: 620px) {
+          .site-header.is-menu-open > .flash-sale-shortcut { top: 34px; }
         }
 
         @media (max-width: 370px) {
