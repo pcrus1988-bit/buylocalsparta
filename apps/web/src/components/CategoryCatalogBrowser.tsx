@@ -10,7 +10,6 @@ const FASHION_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
 type FacetOption = Readonly<{ value: string; label: string; count: number }>;
 type FashionAudience = "women" | "men" | "accessories";
 type FashionFamily = "shoes" | "clothing" | "underwear" | "bags" | "jewellery" | "eyewear" | "accessories" | "other";
-
 type FashionGroup = Readonly<{
   key: FashionFamily;
   label: string;
@@ -20,11 +19,7 @@ type FashionGroup = Readonly<{
 }>;
 
 function normalized(value: string | undefined): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLocaleLowerCase("el");
+  return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");
 }
 
 function unique(values: readonly (string | undefined)[]): readonly string[] {
@@ -183,11 +178,19 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
     window.location.assign(`/shop?${params.toString()}`);
   };
 
+  const openGroup = (entries: readonly FacetOption[], label: string) => {
+    const params = new URLSearchParams({ category: "fashion", guideLabel: label });
+    for (const entry of entries) params.append("subcategory_any", entry.value);
+    window.location.assign(`/shop?${params.toString()}`);
+  };
+
   const guideBack = () => {
     if (guideFamily) setGuideFamily(null);
     else if (guideAudience) setGuideAudience(null);
     else setGuideOpen(false);
   };
+
+  const audienceAllCount = audienceEntries.reduce((sum, entry) => sum + entry.count, 0);
 
   return <div className="categoryBrowser">
     {isFashion ? <div className="fashionCategoryGuideBar"><div><small>Προσωπικός οδηγός μόδας</small><strong>Δεν χρειάζεται να ψάξεις μέσα σε χιλιάδες προϊόντα.</strong></div><button type="button" onClick={restartGuide}>Τι ψάχνεις σήμερα; →</button></div> : null}
@@ -212,15 +215,21 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
         <header><div><strong>ΚΟΝΤΑ ΜΟΥ</strong><small>ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΜΟΔΑΣ</small></div><button type="button" onClick={() => setGuideOpen(false)} aria-label="Κλείσιμο">×</button></header>
         <main>
           <div className="crumb">Μόδα{guideAudience ? ` / ${audienceLabel(guideAudience)}` : ""}{selectedGroup ? ` / ${selectedGroup.label}` : ""}</div>
-          <div className="guideHeading"><p>ΛΙΓΟ ΠΙΟ ΕΥΚΟΛΑ</p><h2 id="category-fashion-guide-title">{selectedGroup ? selectedGroup.label : guideAudience ? audienceLabel(guideAudience) : "Τι ψάχνετε σήμερα;"}</h2><span>{selectedGroup ? "Διάλεξε την ακριβή κατηγορία και θα ανοίξουμε μόνο τα σχετικά προϊόντα." : guideAudience ? "Ομαδοποιήσαμε τις επιλογές ώστε να μη χρειάζεται να διαβάζεις μια ατελείωτη λίστα." : "Ξεκίνα με μια απλή επιλογή. Μετά θα σε πάμε σε ρούχα, παπούτσια, τσάντες ή αξεσουάρ και τέλος στην ακριβή κατηγορία."}</span></div>
-          {fashionLoading ? <div className="guideLoading"><span /><strong>Οργανώνουμε τις επιλογές…</strong></div> : selectedGroup ? <div className="guideOptions leaf">{selectedGroup.entries.map((entry) => <button type="button" onClick={() => openLeaf(entry)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες αυτά τα προϊόντα</small></span><em>{entry.count}</em><b>→</b></button>)}</div> : guideAudience ? <div className="guideOptions">{groups.map((group) => <button type="button" onClick={() => setGuideFamily(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.helper}</small></span><em>{group.count}</em><b>→</b></button>)}</div> : <div className="guideOptions audience">
+          <div className="guideHeading"><p>ΛΙΓΟ ΠΙΟ ΕΥΚΟΛΑ</p><h2 id="category-fashion-guide-title">{selectedGroup ? selectedGroup.label : guideAudience ? audienceLabel(guideAudience) : "Τι ψάχνετε σήμερα;"}</h2><span>{selectedGroup ? "Διάλεξε μία ακριβή κατηγορία ή πάρε όλα τα προϊόντα αυτού του επιπέδου." : guideAudience ? "Διάλεξε ομάδα ή πάρε όλα τα προϊόντα αυτής της επιλογής." : "Σε κάθε βήμα μπορείς να σταματήσεις την καθοδήγηση και να δεις όλα όσα ανήκουν στην επιλογή σου."}</span></div>
+          {fashionLoading ? <div className="guideLoading"><span /><strong>Οργανώνουμε τις επιλογές…</strong></div> : selectedGroup && guideAudience ? <div className="guideOptions leaf">
+            <button className="all" type="button" onClick={() => openGroup(selectedGroup.entries, `${audienceLabel(guideAudience)} · ${selectedGroup.label}`)}><span><strong>Όλα τα {selectedGroup.label.toLocaleLowerCase("el")}</strong><small>Όλες οι επιλογές σε {audienceLabel(guideAudience).toLocaleLowerCase("el")} · {selectedGroup.label.toLocaleLowerCase("el")}</small></span><em>{selectedGroup.count}</em><b>→</b></button>
+            {selectedGroup.entries.map((entry) => <button type="button" onClick={() => openLeaf(entry)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την κατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
+          </div> : guideAudience ? <div className="guideOptions">
+            <button className="all" type="button" onClick={() => openGroup(audienceEntries, `Όλα τα ${audienceLabel(guideAudience).toLocaleLowerCase("el")}`)}><span><strong>Όλα τα {audienceLabel(guideAudience).toLocaleLowerCase("el")}</strong><small>Μην περιορίσεις άλλο αυτή την επιλογή</small></span><em>{audienceAllCount}</em><b>→</b></button>
+            {groups.map((group) => <button type="button" onClick={() => setGuideFamily(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.helper}</small></span><em>{group.count}</em><b>→</b></button>)}
+          </div> : <div className="guideOptions audience">
             <button type="button" onClick={() => setGuideAudience("women")}><i>♀</i><span><strong>Γυναικεία</strong><small>Ρούχα, παπούτσια, τσάντες & άλλα</small></span><em>{counts.women}</em><b>→</b></button>
             <button type="button" onClick={() => setGuideAudience("men")}><i>♂</i><span><strong>Ανδρικά</strong><small>Ρούχα, παπούτσια & άλλα</small></span><em>{counts.men}</em><b>→</b></button>
             <button type="button" onClick={() => setGuideAudience("accessories")}><i>◇</i><span><strong>Αξεσουάρ & τσάντες</strong><small>Κοσμήματα, γυαλιά, αποσκευές & αξεσουάρ</small></span><em>{counts.accessories}</em><b>→</b></button>
             <button className="all" type="button" onClick={() => setGuideOpen(false)}><i>∞</i><span><strong>Όλα τα προϊόντα</strong><small>Συνέχισε χωρίς επιπλέον καθοδήγηση</small></span><em>{fashionTotal || products.length}</em><b>→</b></button>
           </div>}
         </main>
-        <footer><button type="button" onClick={guideBack}>{guideAudience ? "← Πίσω" : "Κλείσιμο"}</button>{guideAudience || guideFamily ? <button type="button" onClick={() => { setGuideAudience(null); setGuideFamily(null); }}>Από την αρχή</button> : null}<span>Ο οδηγός είναι πάντα διαθέσιμος ξανά από τα φίλτρα.</span></footer>
+        <footer><button type="button" onClick={guideBack}>{guideAudience ? "← Πίσω" : "Κλείσιμο"}</button>{guideAudience || guideFamily ? <button type="button" onClick={() => { setGuideAudience(null); setGuideFamily(null); }}>Από την αρχή</button> : null}<span>Σε κάθε επίπεδο υπάρχει επιλογή «Όλα».</span></footer>
       </div>
     </div> : null}
 
