@@ -90,7 +90,6 @@ export async function runSymphonyaCatalogueSyncSlice(): Promise<SymphonyaSyncSli
 
   const client = new SymphonyaHttpTransport({
     apiKey: symphonyaApiKeyFromEnvironment(),
-    baseUrl: process.env.SYMPHONYA_API_BASE_URL,
     requestTimeoutMs: positiveInteger(process.env.SYMPHONYA_REQUEST_TIMEOUT_MS, 20_000)
   });
 
@@ -164,8 +163,17 @@ async function enrichWithProductDetails(
   const detailById = new Map<string, SymphonyaSourceProduct>();
   for (let index = 0; index < products.length; index += 50) {
     const ids = products.slice(index, index + 50).map((product) => product.productId);
-    const details = await client.getProductDetails({ productIds: ids, lang: "en" });
-    for (const detail of details) detailById.set(detail.productId, detail);
+    try {
+      const details = await client.getProductDetails({ productIds: ids, lang: "en" });
+      for (const detail of details) detailById.set(detail.productId, detail);
+    } catch (error) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "symphonya.product_details_optional_enrichment_failed",
+        batchSize: ids.length,
+        message: safeError(error)
+      }));
+    }
   }
   return products.map((product) => mergeSymphonyaProductDetail(product, detailById.get(product.productId)));
 }
@@ -210,7 +218,7 @@ async function persistProductPage(input: Readonly<{
       includeOutOfStock: true,
       includeDescription: true,
       pimLanguage: "en",
-      localisationSource: "getProductDetails",
+      localisationSource: "getProducts_description_plus_best_effort_getProductDetails",
       priceMeaning: "wholesale_buying_cost"
     }
   });

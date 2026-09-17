@@ -42,6 +42,12 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
   const stockQuantity = safeQuantity(product.stock);
   const buyingCostMinor = safeMoneyMinor(product.wholesaleCostMinor);
   const beauty = classifySymphonyaBeauty(product);
+  const categoryPath = compactArray([
+    clean(product.category),
+    clean(product.subcategory),
+    clean(product.subsubcategory)
+  ]);
+  const hasStructuredHierarchy = categoryPath.length > 0;
   const sourceProjection = symphonyaMeaningfulContentProjection({ ...product, images });
   const sourceContentHash = stableContentHash(sourceProjection);
   const missingIdentityFields: string[] = [];
@@ -80,13 +86,25 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
       condition: { id: null, name: "new" },
       gender: { id: null, name: normalizeGender(product.gender) },
       type: clean(product.type),
-      categories: compactArray([product.category, product.subcategory, product.subsubcategory]).map((name) => ({ name })),
+      categories: categoryPath.map((name) => ({ name })),
       categoryDetails: compact({
         cat: clean(product.category),
         scat: clean(product.subcategory),
         sscat: clean(product.subsubcategory),
         beautyCandidate: beauty
       }),
+      taxonomyEvidence: {
+        source: "symphonya_structured_hierarchy",
+        path: categoryPath,
+        pathDepth: categoryPath.length,
+        structuredHierarchyAvailable: hasStructuredHierarchy,
+        supplierHierarchyIsPrimaryEvidence: hasStructuredHierarchy,
+        canonicalMappingPolicy: "preserve_levels_then_map",
+        titleInferencePolicy: hasStructuredHierarchy ? "fallback_only" : "allowed_with_review",
+        genderAxis: "separate_facet",
+        typeRole: "leaf_refinement_only",
+        ambiguousHierarchyPolicy: "quarantine_for_review"
+      },
       attributes: compactArray([
         normalizeGender(product.gender) ? { name: "gender", value: normalizeGender(product.gender) } : null,
         clean(product.type) ? { name: "type", value: clean(product.type) } : null
@@ -167,6 +185,11 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
       sourceContentHash,
       supplierGreekCandidateAvailable: Boolean(clean(product.localizedNameEl)),
       pimEnglishContentAvailable: Boolean(clean(product.descriptionEn) || clean(product.howToUseEn)),
+      structuredTaxonomyAvailable: hasStructuredHierarchy,
+      structuredTaxonomyDepth: categoryPath.length,
+      taxonomyReviewRequired: !hasStructuredHierarchy,
+      taxonomyAuthority: hasStructuredHierarchy ? "symphonya_cat_scat_sscat" : "fallback_review",
+      genderIsSeparateFacet: true,
       beautyCandidate: beauty,
       aiRefreshPolicy: "meaningful_content_change_only"
     },
@@ -194,6 +217,7 @@ export function classifySymphonyaBeauty(product: SymphonyaSourceProduct): Sympho
     { terms: ["makeup", "cosmetic", "mascara", "lipstick", "foundation", "eyeshadow", "blush"], path: ["Beauty", "Makeup"] },
     { terms: ["skin care", "skincare", "face cream", "serum", "cleanser", "toner", "sunscreen"], path: ["Beauty", "Skin Care"] },
     { terms: ["hair care", "haircare", "shampoo", "conditioner", "hair mask", "hair oil"], path: ["Beauty", "Hair Care"] },
+    { terms: ["hair colouring", "hair coloring", "hair dye", "hair styling", "hair spray", "hair"], path: ["Beauty", "Hair"] },
     { terms: ["body care", "body lotion", "body cream", "shower gel", "bath"], path: ["Beauty", "Body Care"] },
     { terms: ["personal care", "deodorant", "oral care", "hygiene"], path: ["Beauty", "Personal Care"] },
     { terms: ["grooming", "shaving", "beard", "aftershave"], path: ["Beauty", "Grooming"] }
@@ -264,11 +288,11 @@ function normalizeGtin(value: string | undefined): string | null {
 function normalizeGender(value: string | undefined): string | null {
   const token = normalizeToken(value);
   if (!token) return null;
-  if (["female", "women", "woman", "femme", "donna", "lady", "ladies"].includes(token)) return "female";
-  if (["male", "men", "man", "homme", "uomo", "gentlemen"].includes(token)) return "male";
-  if (["unisex", "unisex adult", "unisex adults"].includes(token)) return "unisex";
-  if (["girl", "girls"].includes(token)) return "girls";
-  if (["boy", "boys"].includes(token)) return "boys";
+  if (["female", "women", "woman", "for women", "femme", "donna", "lady", "ladies"].includes(token)) return "female";
+  if (["male", "men", "man", "for men", "homme", "uomo", "gentlemen"].includes(token)) return "male";
+  if (["unisex", "unisex adult", "unisex adults", "for unisex"].includes(token)) return "unisex";
+  if (["girl", "girls", "for girls"].includes(token)) return "girls";
+  if (["boy", "boys", "for boys"].includes(token)) return "boys";
   return clean(value);
 }
 
