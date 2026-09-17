@@ -150,12 +150,17 @@ function sizeSortValue(label: string): number {
 }
 
 export function groupCatalogSizeFacets(rows: readonly CatalogSizeFacetRow[], domain: CatalogSizeDomain | null): readonly CanonicalCatalogSizeFacet[] {
-  if (!domain) return [];
+  // A broad storefront can legitimately contain apparel, footwear and accessories
+  // at the same time. In that case there is no single safe conversion domain, but
+  // hiding the Size filter entirely is worse than preserving the supplier labels.
+  // Use the generic domain so raw labels remain filterable until the customer narrows
+  // the catalogue to one category family, where domain-specific normalization resumes.
+  const effectiveDomain: CatalogSizeDomain = domain ?? "generic";
   const groups = new Map<string, { label: string; count: number; rawValues: string[] }>();
   for (const row of rows) {
     const count = Number(row.count);
     if (!row.value.trim() || !Number.isFinite(count) || count <= 0) continue;
-    const canonical = canonicalizeCatalogSize(row.value, domain);
+    const canonical = canonicalizeCatalogSize(row.value, effectiveDomain);
     const current = groups.get(canonical.key) ?? { label: canonical.label, count: 0, rawValues: [] };
     current.count += count;
     if (!current.rawValues.includes(canonical.raw)) current.rawValues.push(canonical.raw);
