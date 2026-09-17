@@ -76,17 +76,16 @@ export async function getFastVendorDropshipCatalogPage(
       fm.dropship_supplier_id AS supplier_id,
       fm.dropship_external_product_id AS external_product_id
     FROM public.storefront_dropship_family_read_model fm
-    WHERE fm.dropship_supplier_id=(
+    WHERE fm.dropship_supplier_id IN (
       SELECT ds.id::text
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
-      LIMIT 1
     )
       AND fm.available_until>now()
-    ORDER BY fm.newest_at DESC,fm.dropship_external_product_id
+    ORDER BY fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id
     LIMIT $2 OFFSET $3
   `, [vendorId, limit + 1, offset]);
 
