@@ -33,8 +33,11 @@ case "$role" in
   nova-order-reconciliation)
     exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/nova-order-reconciliation-worker.ts
     ;;
+  symphonya)
+    exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-worker.ts
+    ;;
   "")
-    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|icecat|icecat-detail|nova-catalogue|nova-order-reconciliation)" >&2
+    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|icecat|icecat-detail|nova-catalogue|nova-order-reconciliation|symphonya)" >&2
     exit 64
     ;;
   *)
