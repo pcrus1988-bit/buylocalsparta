@@ -19,7 +19,9 @@ function option(row: FacetProjectionRow): VendorDropshipFacetOption {
 }
 
 async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
-  if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [] };
+  if (!productionDatabaseConfigured()) {
+    return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] };
+  }
 
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
     SELECT facets.facet_type,facets.value,facets.label,facets.count
@@ -54,12 +56,14 @@ async function readFastVendorDropshipFacets(vendorId: string): Promise<VendorDro
     else if (row.facet_type === "size") sizes.push(entry);
   }
 
-  return { total, categories, brands, colors, sizes };
+  // Rich fit/material facets are context-aware and loaded by the richer facet path.
+  // Keep the fast initial projection structurally compatible without making it heavier.
+  return { total, categories, brands, colors, sizes, fits: [], materials: [] };
 }
 
 const cachedFastVendorDropshipFacets = unstable_cache(
   readFastVendorDropshipFacets,
-  ["vendor-dropship-storefront-preaggregated-facets-v4"],
+  ["vendor-dropship-storefront-preaggregated-facets-v5"],
   { revalidate: 300 }
 );
 
