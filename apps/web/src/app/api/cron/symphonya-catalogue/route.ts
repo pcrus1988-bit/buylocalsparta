@@ -31,13 +31,9 @@ export async function GET(request: Request) {
     if (!apiKey) throw new Error("SYMPHONYA_API_KEY is required");
     const client = new SymphonyaHttpTransport({
       apiKey,
-      baseUrl: process.env.SYMPHONYA_API_BASE_URL,
       requestTimeoutMs: positiveInteger(process.env.SYMPHONYA_REQUEST_TIMEOUT_MS, 20_000)
     });
 
-    // Controlled first import: ten currently available products only. getProducts already
-    // carries the English PIM description, so this path intentionally avoids the live
-    // getProductDetails parser incompatibility discovered during the first attempt.
     const page = await client.getProducts({
       page: 1,
       limit: 10,
@@ -73,7 +69,8 @@ export async function GET(request: Request) {
         limit: 10,
         includesOutOfStock: false,
         includeDescription: true,
-        language: "en"
+        language: "en",
+        baseUrl: "https://www.symphonya.eu"
       })
     ]);
     const snapshotId = String(snapshot.rows[0]?.id ?? "");
@@ -139,7 +136,8 @@ export async function GET(request: Request) {
       products: evidence.length,
       sourceHash,
       onlyAvailable: true,
-      descriptions: "en"
+      descriptions: "en",
+      baseUrl: "https://www.symphonya.eu"
     })]);
 
     return Response.json({
