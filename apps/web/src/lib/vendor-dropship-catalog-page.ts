@@ -140,14 +140,13 @@ export async function getVendorDropshipCatalogPage(
       fm.dropship_external_product_id AS external_product_id,
       COUNT(*) OVER()::int AS total_families
     FROM public.storefront_dropship_family_filter_read_model fm
-    WHERE fm.dropship_supplier_id=(
+    WHERE fm.dropship_supplier_id IN (
       SELECT ds.id::text
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
-      LIMIT 1
     )
       AND fm.available_until>now()
       AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
@@ -161,7 +160,7 @@ export async function getVendorDropshipCatalogPage(
         $2::text='' OR
         ($7::text<>'' AND fm.search_vector @@ to_tsquery('simple',$7))
       )
-    ORDER BY fm.newest_at DESC,fm.dropship_external_product_id
+    ORDER BY fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id
     LIMIT $8 OFFSET $9
   `, [vendorId, query, categories, brand, color, sizes, searchPrefix, limit, offset]);
 
