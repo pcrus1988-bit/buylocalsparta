@@ -11,6 +11,8 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
 
+export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
+
 export type VendorDropshipFacetOption = Readonly<{
   value: string;
   label: string;
@@ -23,6 +25,8 @@ export type VendorDropshipFacets = Readonly<{
   brands: readonly VendorDropshipFacetOption[];
   colors: readonly VendorDropshipFacetOption[];
   sizes: readonly VendorDropshipFacetOption[];
+  fits: readonly VendorDropshipFacetOption[];
+  materials: readonly VendorDropshipFacetOption[];
 }>;
 
 export type VendorDropshipCatalogPage = Readonly<{
@@ -41,6 +45,9 @@ export type VendorDropshipCatalogPageInput = Readonly<{
   color?: string;
   size?: string;
   sizes?: readonly string[];
+  fit?: string;
+  material?: string;
+  sort?: VendorDropshipSort;
   availableOnly?: boolean;
   offset?: number;
   limit?: number;
@@ -113,6 +120,17 @@ function sizeValues(input: VendorDropshipCatalogPageInput): readonly string[] {
   return [...new Set((input.sizes ?? []).map((value) => value.trim().slice(0, 120)).filter(Boolean))].slice(0, 64);
 }
 
+function normalizedSort(value: VendorDropshipSort | undefined): VendorDropshipSort {
+  return value === "price_asc" || value === "price_desc" || value === "name_asc" ? value : "recommended";
+}
+
+function familyOrder(sort: VendorDropshipSort): string {
+  if (sort === "price_asc") return "fm.min_price_minor ASC NULLS LAST,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  if (sort === "price_desc") return "fm.min_price_minor DESC NULLS LAST,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  if (sort === "name_asc") return "lower(fm.sort_title) ASC NULLS LAST,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+}
+
 /**
  * Filtered vendor catalogue discovery is family-first. The read model narrows the
  * catalogue to a page of supplier product identities; only those identities are
@@ -129,6 +147,9 @@ export async function getVendorDropshipCatalogPage(
   const brand = input.brand?.trim().slice(0, 160) ?? "";
   const color = input.color?.trim().slice(0, 120) ?? "";
   const sizes = sizeValues(input);
+  const fit = input.fit?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
+  const material = input.material?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
+  const sort = normalizedSort(input.sort);
   const offset = safePositiveInt(input.offset, 0, 100_000);
   const limit = Math.max(1, safePositiveInt(input.limit, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE));
   const searchPrefix = prefixTsQuery(query);
@@ -139,7 +160,7 @@ export async function getVendorDropshipCatalogPage(
       fm.dropship_supplier_id AS supplier_id,
       fm.dropship_external_product_id AS external_product_id,
       COUNT(*) OVER()::int AS total_families
-    FROM public.storefront_dropship_family_filter_read_model fm
+    FROM public.storefront_dropship_family_filter_read_model_v2 fm
     WHERE fm.dropship_supplier_id IN (
       SELECT ds.id::text
       FROM dropship_suppliers ds
@@ -156,13 +177,18 @@ export async function getVendorDropshipCatalogPage(
         WHERE lower(candidate.value)=lower($5)
       ))
       AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
+      AND ($7::text='' OR EXISTS (
+        SELECT 1 FROM unnest(fm.fits) candidate(value)
+        WHERE lower(candidate.value)=lower($7)
+      ))
+      AND ($8::text='' OR fm.materials @> ARRAY[lower($8)]::text[])
       AND (
         $2::text='' OR
-        ($7::text<>'' AND fm.search_vector @@ to_tsquery('simple',$7))
+        ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
       )
-    ORDER BY fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id
-    LIMIT $8 OFFSET $9
-  `, [vendorId, query, categories, brand, color, sizes, searchPrefix, limit, offset]);
+    ORDER BY ${familyOrder(sort)}
+    LIMIT $10 OFFSET $11
+  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, limit, offset]);
 
   if (!familyWindow.rows.length) return { products: [], total: 0, offset, limit };
   const total = safePositiveInt(familyWindow.rows[0]?.total_families, 0);
@@ -332,7 +358,7 @@ export async function getVendorDropshipCatalogPage(
 }
 
 async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
-  if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [] };
+  if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] };
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
     SELECT facets.facet_type,facets.value,facets.label,facets.count
     FROM public.storefront_dropship_vendor_facets facets
@@ -359,12 +385,12 @@ async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshi
     else if (row.facet_type === "color") colors.push(entry);
     else if (row.facet_type === "size") sizes.push(entry);
   }
-  return { total, categories, brands, colors, sizes };
+  return { total, categories, brands, colors, sizes, fits: [], materials: [] };
 }
 
 const cachedVendorDropshipFacets = unstable_cache(
   readVendorDropshipFacets,
-  ["vendor-dropship-storefront-preaggregated-facets-v2"],
+  ["vendor-dropship-storefront-preaggregated-facets-v3"],
   { revalidate: 300 }
 );
 
