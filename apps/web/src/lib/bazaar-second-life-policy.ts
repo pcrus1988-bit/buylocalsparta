@@ -30,9 +30,18 @@ export const BAZAAR_CONDITIONS = [
 
 export type BazaarCondition = (typeof BAZAAR_CONDITIONS)[number];
 
+export const INTERNAL_SECOND_LIFE_CONDITIONS = [
+  "refurbished",
+  "used",
+  "open_box",
+] as const satisfies readonly BazaarCondition[];
+
+export type InternalSecondLifeCondition = (typeof INTERNAL_SECOND_LIFE_CONDITIONS)[number];
+
 const BAZAAR_SOURCE_SET = new Set<string>(BAZAAR_SOURCES);
 const INTERNAL_SECOND_LIFE_SOURCE_SET = new Set<string>(INTERNAL_SECOND_LIFE_SOURCES);
 const BAZAAR_CONDITION_SET = new Set<string>(BAZAAR_CONDITIONS);
+const INTERNAL_SECOND_LIFE_CONDITION_SET = new Set<string>(INTERNAL_SECOND_LIFE_CONDITIONS);
 
 export function isBazaarSource(value: unknown): value is BazaarSource {
   return typeof value === "string" && BAZAAR_SOURCE_SET.has(value);
@@ -46,15 +55,19 @@ export function isBazaarCondition(value: unknown): value is BazaarCondition {
   return typeof value === "string" && BAZAAR_CONDITION_SET.has(value);
 }
 
+export function isInternalSecondLifeCondition(value: unknown): value is InternalSecondLifeCondition {
+  return typeof value === "string" && INTERNAL_SECOND_LIFE_CONDITION_SET.has(value);
+}
+
 export function assertBazaarSecondLifeMaterialization(input: {
   source: unknown;
   condition: unknown;
-}): asserts input is { source: InternalSecondLifeSource; condition: BazaarCondition } {
+}): asserts input is { source: InternalSecondLifeSource; condition: InternalSecondLifeCondition } {
   if (!isInternalSecondLifeSource(input.source)) {
     throw new Error("Invalid internal BAZAAR second-life source");
   }
-  if (!isBazaarCondition(input.condition)) {
-    throw new Error("Invalid BAZAAR second-life condition");
+  if (!isInternalSecondLifeCondition(input.condition)) {
+    throw new Error("Invalid internal BAZAAR second-life condition");
   }
 }
 
@@ -89,7 +102,7 @@ function sourceToken(source: InternalSecondLifeSource): string {
 
 export type BazaarSecondLifeIdentity = {
   source: InternalSecondLifeSource;
-  condition: BazaarCondition;
+  condition: InternalSecondLifeCondition;
   provenanceNamespace: string;
   identityToken: string;
   canonicalPublicId: string;
@@ -139,7 +152,7 @@ export function buildBazaarSecondLifeIdentity(input: {
 export type BazaarSecondLifeMaterializationPlan = {
   commerceChannel: "bazaar";
   source: InternalSecondLifeSource;
-  condition: BazaarCondition;
+  condition: InternalSecondLifeCondition;
   identity: BazaarSecondLifeIdentity;
   canonicalProvenance: {
     source: InternalSecondLifeSource;
@@ -294,7 +307,7 @@ export const INTERNAL_SECOND_LIFE_DEFAULT_CONDITION = {
   display_stock: "open_box",
   damaged_packaging: "open_box",
   admin_curated: "used",
-} as const satisfies Record<InternalSecondLifeSource, BazaarCondition>;
+} as const satisfies Record<InternalSecondLifeSource, InternalSecondLifeCondition>;
 
 export type NonReturnSecondLifeSource = Exclude<InternalSecondLifeSource, "customer_return">;
 
@@ -305,7 +318,7 @@ export type BazaarSecondLifeSourcePlanInput = {
   originalCanonicalId: string;
   originalOfferId?: string;
   metadata?: Record<string, unknown>;
-  condition?: BazaarCondition;
+  condition?: InternalSecondLifeCondition;
 };
 
 /**
