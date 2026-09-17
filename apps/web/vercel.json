@@ -15,6 +15,7 @@
     { "path": "/api/cron/merchant-sync", "schedule": "* * * * *" },
     { "path": "/api/cron/merchant-status", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/order-sla", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/seo-production-metrics", "schedule": "37 4 * * *" }
+    { "path": "/api/cron/seo-production-metrics", "schedule": "37 4 * * *" },
+    { "path": "/api/cron/symphonya-catalogue", "schedule": "*/2 * * * *" }
   ]
 }
