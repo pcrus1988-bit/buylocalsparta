@@ -57,34 +57,33 @@ export async function getContextualVendorDropshipFacets(
   const searchPrefix = prefixTsQuery(query);
 
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
-    WITH supplier AS MATERIALIZED (
+    WITH suppliers AS MATERIALIZED (
       SELECT ds.id::text AS supplier_id
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
-      LIMIT 1
     ), base AS MATERIALIZED (
       SELECT fm.*
       FROM public.storefront_dropship_family_filter_read_model fm
-      JOIN supplier s ON s.supplier_id=fm.dropship_supplier_id
+      JOIN suppliers s ON s.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
         AND (
           $2::text='' OR
           ($7::text<>'' AND fm.search_vector @@ to_tsquery('simple',$7))
         )
     ), label_map AS MATERIALIZED (
-      SELECT facets.facet_type,facets.value,facets.label
+      SELECT DISTINCT facets.facet_type,facets.value,facets.label
       FROM public.storefront_dropship_vendor_facets facets
-      JOIN supplier s ON s.supplier_id=facets.supplier_id
+      JOIN suppliers s ON s.supplier_id=facets.supplier_id
       WHERE facets.facet_type IN ('category','brand','color')
     ), projected AS (
       SELECT
         'total'::text AS facet_type,
         ''::text AS value,
         ''::text AS label,
-        COUNT(DISTINCT b.dropship_external_product_id)::int AS count
+        COUNT(DISTINCT (b.dropship_supplier_id,b.dropship_external_product_id))::int AS count
       FROM base b
       WHERE (cardinality($3::text[])=0 OR b.category_codes && $3::text[])
         AND ($4::text='' OR b.brand_names_normalized @> ARRAY[lower($4)]::text[])
@@ -97,7 +96,7 @@ export async function getContextualVendorDropshipFacets(
         'category'::text,
         candidate.value,
         COALESCE(MAX(labels.label),candidate.value),
-        COUNT(DISTINCT b.dropship_external_product_id)::int
+        COUNT(DISTINCT (b.dropship_supplier_id,b.dropship_external_product_id))::int
       FROM base b
       CROSS JOIN LATERAL unnest(b.category_codes) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='category' AND labels.value=candidate.value
@@ -112,7 +111,7 @@ export async function getContextualVendorDropshipFacets(
         'brand'::text,
         candidate.value,
         COALESCE(MAX(labels.label),candidate.value),
-        COUNT(DISTINCT b.dropship_external_product_id)::int
+        COUNT(DISTINCT (b.dropship_supplier_id,b.dropship_external_product_id))::int
       FROM base b
       CROSS JOIN LATERAL unnest(b.brand_names_normalized) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='brand' AND lower(labels.value)=candidate.value
@@ -127,7 +126,7 @@ export async function getContextualVendorDropshipFacets(
         'color'::text,
         candidate.value,
         COALESCE(MAX(labels.label),candidate.value),
-        COUNT(DISTINCT b.dropship_external_product_id)::int
+        COUNT(DISTINCT (b.dropship_supplier_id,b.dropship_external_product_id))::int
       FROM base b
       CROSS JOIN LATERAL unnest(b.colors) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='color' AND lower(labels.value)=lower(candidate.value)
@@ -142,7 +141,7 @@ export async function getContextualVendorDropshipFacets(
         'size'::text,
         candidate.value,
         candidate.value,
-        COUNT(DISTINCT b.dropship_external_product_id)::int
+        COUNT(DISTINCT (b.dropship_supplier_id,b.dropship_external_product_id))::int
       FROM base b
       CROSS JOIN LATERAL unnest(b.sizes) candidate(value)
       WHERE (cardinality($3::text[])=0 OR b.category_codes && $3::text[])
