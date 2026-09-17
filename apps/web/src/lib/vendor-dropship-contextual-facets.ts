@@ -107,9 +107,9 @@ function cleanMany(values: readonly string[] | undefined, max = 120, limit = 64)
 
 function localizedFacetLabel(type: FacetType, value: string, fallback: string): string {
   const normalized = value.trim().toLocaleLowerCase("en");
-  if (type === "color") return COLOR_LABELS[normalized] ?? fallback || value;
-  if (type === "fit") return FIT_LABELS[normalized] ?? fallback || value;
-  if (type === "material") return MATERIAL_LABELS[normalized] ?? fallback || value;
+  if (type === "color") return COLOR_LABELS[normalized] ?? (fallback || value);
+  if (type === "fit") return FIT_LABELS[normalized] ?? (fallback || value);
+  if (type === "material") return MATERIAL_LABELS[normalized] ?? (fallback || value);
   return fallback || value;
 }
 
