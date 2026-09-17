@@ -15,6 +15,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/symphonya-catalogue",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/dropship-order-reconciliation",
       "schedule": "*/5 * * * *"
     },
