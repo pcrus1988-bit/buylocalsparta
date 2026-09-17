@@ -237,7 +237,10 @@ for (const boundary of ["privacy.manage", "reviews.manage", "returns.manage", "c
   if (!adminGovernance.includes(boundary)) errors.push(`Expanded Admin governance is missing permission boundary ${boundary}`);
 }
 if (!postgresAdminGovernance.includes("suppressed=true,recalled=true") || !postgresAdminGovernance.includes("recall_affected_orders") || !postgresAdminGovernance.includes("product_recall")) errors.push("PostgreSQL Admin recall workflow must suppress the governed product, identify affected fulfilled customers and queue notifications");
-const catalogView = read("apps/web/src/lib/catalog-view.ts");
+const catalogView = [
+  read("apps/web/src/lib/catalog-view.ts"),
+  read("apps/web/src/lib/catalog-view-base.ts")
+].join("\n");
 if (!vendorOperations.includes("canonicalIsPubliclyAllowed") || !vendorOperations.includes("!canonical.suppressed") || !vendorOperations.includes("!canonical.recalled")) errors.push("Production web must centralize canonical recall/compliance admission in Vendor operations governance");
 if (!catalogView.includes("canonicalIsPubliclyAllowed")) errors.push("Public catalog must suppress inactive/recalled/compliance-held canonical products before fairness assignment");
 if (!accountRuntime.includes("canonicalIsPubliclyAllowed")) errors.push("Customer availability and saved-search projections must respect canonical recall/compliance suppression");
@@ -273,7 +276,7 @@ const resendRuntime = read("packages/postgres-runtime/src/notifications.ts");
 const resendProvider = read("packages/resend-notifications/src/index.ts");
 if (!productionSearchRuntime.includes("PostgresUnitOfWork") || !productionSearchRuntime.includes("platformAccess:true") || !productionSearchRuntime.includes("hashSearchDocument") || !productionSearchRuntime.includes("search_index_state")) errors.push("Production search projection must use platform-scoped PostgreSQL state and durable document hashing");
 if (!meiliProvider.includes("MEILISEARCH_SEARCH_KEY") || !meiliProvider.includes("MEILISEARCH_ADMIN_KEY") || !meiliProvider.includes("#adminKey()")) errors.push("Meilisearch must separate search credentials from index-management credentials");
-if (!read("apps/web/src/lib/catalog-view.ts").includes("production.search.search") || !read("apps/web/src/lib/catalog-view.ts").includes('reason: "search_card"')) errors.push("Production customer search must query the external canonical index before Fair Vendor Exposure assignment");
+if (!catalogView.includes("production.search.search") || !catalogView.includes('reason: "search_card"')) errors.push("Production customer search must query the external canonical index before Fair Vendor Exposure assignment");
 if (!read("workers/search-worker.ts").includes("reconcileAll") || !read("workers/search-worker.ts").includes("runtime.search.configure")) errors.push("Production search worker must configure and reconcile the external index");
 if (!resendRuntime.includes("PostgresUnitOfWork") || !resendRuntime.includes("notification_destination_suppressions") || !resendRuntime.includes("notification_provider_events")) errors.push("Resend webhook/suppression state must remain durable and platform-scoped");
 if (!resendProvider.includes('"idempotency-key"') || !resendProvider.includes("svix-signature") || !resendProvider.includes("timingSafeEqual")) errors.push("Resend adapter must retain idempotent sends and signed webhook verification");
