@@ -242,8 +242,10 @@ export class SymphonyaHttpTransport implements SymphonyaTransport {
   async setOrderAwb(input: Readonly<{ orderId: string; pdf: Uint8Array }>): Promise<void> {
     if (!(input.pdf instanceof Uint8Array) || input.pdf.byteLength === 0) throw new Error("Symphonya AWB must contain PDF bytes");
     const form = new FormData();
+    const awbBuffer = new ArrayBuffer(input.pdf.byteLength);
+    new Uint8Array(awbBuffer).set(input.pdf);
     form.set("order", JSON.stringify({ id: toWireId(required(input.orderId, "Symphonya order id")) }));
-    form.set("awb_file", new Blob([input.pdf], { type: "application/pdf" }), "awb.pdf");
+    form.set("awb_file", new Blob([awbBuffer], { type: "application/pdf" }), "awb.pdf");
     await this.#json("POST", "setOrderAwb", { body: form });
   }
 
