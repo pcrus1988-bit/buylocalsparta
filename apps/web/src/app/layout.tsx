@@ -52,6 +52,7 @@ import { AccessibilityPreferences } from "../components/AccessibilityPreferences
 import { SiteUtilityLauncher } from "../components/SiteUtilityLauncher";
 import { MobileCatalogFilters } from "../components/MobileCatalogFilters";
 import { PublicTerminologyGuard } from "../components/PublicTerminologyGuard";
+import { CatalogSortAccessibilityBridge } from "../components/CatalogSortAccessibilityBridge";
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 
@@ -169,6 +170,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       />
     </head>
     <body>
+      <CatalogSortAccessibilityBridge />
       <PublicTerminologyGuard />
       <a className="skip-link" href="#main-content">Μετάβαση στο κύριο περιεχόμενο</a>
       <div id="main-content" className="main-content-scope" tabIndex={-1}>
