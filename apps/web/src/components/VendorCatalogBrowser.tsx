@@ -627,7 +627,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       {(brands.length > 0 || colors.length > 1 || sizes.length > 1 || fits.length > 0 || materials.length > 0) ? <section className="vc-filter-card vc-rich-filters">
         <div className="vc-filter-card-head"><span>Περισσότερα φίλτρα</span><small>{activeFilterCount}</small></div>
 
-        {brands.length > 0 ? <details className="vc-facet-details" defaultOpen>
+        {brands.length > 0 ? <details className="vc-facet-details" open>
           <summary><span>Μάρκα {brand !== "all" ? <em>· {optionLabel(brands, brand)}</em> : null}</span><em>{brands.length}</em></summary>
           <div className="vc-facet-body">
             <div className="vc-brand-search">
@@ -642,22 +642,22 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
           </div>
         </details> : null}
 
-        {colors.length > 1 ? <details className="vc-facet-details" defaultOpen={!mobile || color !== "all"}>
+        {colors.length > 1 ? <details className="vc-facet-details" open={!mobile || color !== "all"}>
           <summary><span>Χρώμα {color !== "all" ? <em>· {optionLabel(colors, color)}</em> : null}</span><em>{colors.length}</em></summary>
           <div className="vc-facet-body"><div className="vc-facet-title"><span>Επιλογή χρώματος</span>{color !== "all" ? <button type="button" onClick={() => setColor("all")}>Καθαρισμός</button> : null}</div>{facetChips(colors, color, setColor, "color")}{colors.length > CHIP_LIMIT ? <select className="vc-more-select" value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα τα χρώματα</option>{colors.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select> : null}</div>
         </details> : null}
 
-        {sizes.length > 1 ? <details className="vc-facet-details" defaultOpen={size !== "all"}>
+        {sizes.length > 1 ? <details className="vc-facet-details" open={size !== "all"}>
           <summary><span>Μέγεθος {size !== "all" ? <em>· {optionLabel(sizes, size)}</em> : null}</span><em>{sizes.length}</em></summary>
           <div className="vc-facet-body"><div className="vc-facet-title"><span>Διαθέσιμα μεγέθη</span>{size !== "all" ? <button type="button" onClick={() => setSize("all")}>Καθαρισμός</button> : null}</div>{facetChips(sizes, size, setSize)}{sizes.length > CHIP_LIMIT ? <select className="vc-more-select" value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα τα μεγέθη</option>{sizes.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select> : null}</div>
         </details> : null}
 
-        {fits.length ? <details className="vc-facet-details" defaultOpen={fit !== "all"}>
+        {fits.length ? <details className="vc-facet-details" open={fit !== "all"}>
           <summary><span>Γραμμή / Fit {fit !== "all" ? <em>· {optionLabel(fits, fit)}</em> : null}</span><em>{fits.length}</em></summary>
           <div className="vc-facet-body"><div className="vc-facet-title"><span>Γραμμή εφαρμογής</span>{fit !== "all" ? <button type="button" onClick={() => setFit("all")}>Καθαρισμός</button> : null}</div>{facetChips(fits, fit, setFit)}</div>
         </details> : null}
 
-        {materials.length ? <details className="vc-facet-details" defaultOpen={material !== "all"}>
+        {materials.length ? <details className="vc-facet-details" open={material !== "all"}>
           <summary><span>Υλικό {material !== "all" ? <em>· {optionLabel(materials, material)}</em> : null}</span><em>{materials.length}</em></summary>
           <div className="vc-facet-body"><div className="vc-facet-title"><span>Κύριο υλικό</span>{material !== "all" ? <button type="button" onClick={() => setMaterial("all")}>Καθαρισμός</button> : null}</div>{facetChips(materials, material, setMaterial)}</div>
         </details> : null}
