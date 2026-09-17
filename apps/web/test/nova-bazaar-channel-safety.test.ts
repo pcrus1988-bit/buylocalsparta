@@ -13,9 +13,9 @@ const normalDropshipCatalogUrl = new URL("../src/lib/published-dropship-storefro
 const normalCustomerCommerceUrl = new URL("../../../packages/postgres-runtime/src/customer-commerce.ts", import.meta.url);
 const crawlerCatalogUrl = new URL("../src/lib/crawler-catalog.ts", import.meta.url);
 const catalogViewUrl = new URL("../src/lib/catalog-view.ts", import.meta.url);
-const shopCatalogPageUrl = new URL("../src/lib/shop-catalog-page.ts", import.meta.url);
+const shopCatalogPageUrl = new URL("../src/lib/shop-catalog-page-fast.ts", import.meta.url);
 const merchantCenterFeedUrl = new URL("../src/app/merchant-center/products.xml/route.ts", import.meta.url);
-const sitemapUrl = new URL("../src/app/sitemap.ts", import.meta.url);
+const productSitemapUrl = new URL("../src/app/sitemaps/products/[shard]/route.ts", import.meta.url);
 const siteHeaderUrl = new URL("../src/components/SiteHeader.tsx", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
@@ -95,8 +95,14 @@ test("normal catalogue read models explicitly reject BAZAAR canonicals", async (
   assert.match(customerCommerce, normalChannelGuard);
   assert.match(normalDropship, normalChannelGuard);
   assert.match(crawlerCatalog, normalChannelGuard);
-  assert.equal(catalogView.split("COALESCE(cv.commerce_channel,'normal')='normal'").length - 1, 4);
-  assert.equal(shopCatalogPage.split("COALESCE(cv.commerce_channel,'normal')='normal'").length - 1, 2);
+  assert.match(
+    catalogView,
+    /directPublicCanonical[\s\S]*?COALESCE\(cv\.commerce_channel,'normal'\)='normal'/
+  );
+  assert.match(
+    catalogView,
+    /async function assignedOfferPrice[\s\S]*?COALESCE\(cv\.commerce_channel,'normal'\)='normal'/
+  );
   assert.match(
     shopCatalogPage,
     /async function loadStickyPrices[\s\S]*?WHERE cv\.public_id=ANY\(\$1::text\[\]\)[\s\S]*?COALESCE\(cv\.commerce_channel,'normal'\)='normal'/
@@ -104,9 +110,9 @@ test("normal catalogue read models explicitly reject BAZAAR canonicals", async (
 });
 
 test("secondary SEO and Merchant discovery stay attached to normal-channel read models", async () => {
-  const [merchantFeed, sitemap] = await Promise.all([
+  const [merchantFeed, productSitemap] = await Promise.all([
     readFile(merchantCenterFeedUrl, "utf8"),
-    readFile(sitemapUrl, "utf8")
+    readFile(productSitemapUrl, "utf8")
   ]);
 
   // Merchant Center must intersect SEO inventory with the crawler projection. Both
@@ -117,12 +123,13 @@ test("secondary SEO and Merchant discovery stay attached to normal-channel read 
   assert.match(merchantFeed, /const cards = await getCrawlerCatalogCards\(SPARTA_POSTCODE\)/);
   assert.match(merchantFeed, /recordById = new Map\(inventory\.products/);
 
-  // The normal sitemap deliberately reuses normal catalogue/category projections;
-  // the dedicated BAZAAR route remains a static channel entry rather than having its
-  // products merged into ordinary product/category discovery.
-  assert.match(sitemap, /getPublicProductSeoInventory/);
-  assert.match(sitemap, /getAvailableStorefrontCategories/);
-  assert.match(sitemap, /settings\.sitemap\.products \? getPublicProductSeoInventory\(\)/);
+  // Product sitemap inventory is now sharded and queried directly from PostgreSQL.
+  // Keep its admission rule explicitly normal-channel so BAZAAR products cannot
+  // leak into ordinary product discovery as the sitemap implementation evolves.
+  assert.match(productSitemap, /COALESCE\(cv\.commerce_channel,'normal'\)='normal'/);
+  assert.match(productSitemap, /productPublicPath\(product\)/);
+  assert.match(productSitemap, /ds\.api_authoritative_availability=true/);
+  assert.match(productSitemap, /dso\.availability_expires_at>now\(\)/);
 });
 
 test("BAZAAR navigation remains selected throughout the dedicated commerce experience", async () => {

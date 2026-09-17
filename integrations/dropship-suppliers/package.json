@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./supplier-registry": "./src/supplier-registry.ts",
+    "./supplier-routing": "./src/supplier-routing.ts",
+    "./symphonya-v1": "./src/symphonya-v1.ts",
+    "./symphonya-http": "./src/symphonya-http.ts",
+    "./symphonya-normalize": "./src/symphonya-normalize.ts",
+    "./symphonya-runtime": "./src/symphonya-runtime.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
