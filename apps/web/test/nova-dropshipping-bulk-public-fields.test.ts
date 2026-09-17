@@ -9,9 +9,9 @@ test("filtered-page Dropshipping bulk actions reuse the existing public presenta
 
   assert.match(source, /Bulk public fields · current page/);
   assert.match(source, /\/api\/vendor\/dropshipping\/presentation/);
-  assert.match(source, /action: "save-product", offerId, fields: publicFields/);
+  assert.match(source, /action: "save-product", offerId, fields/);
   assert.match(source, /action: "reset-product", offerId/);
-  assert.match(source, /runBounded\(offerIds/);
+  assert.match(source, /runPublicFieldTargets\(offerIds, resetToSupplierDefaults, \{ \.\.\.publicFields \}\)/);
   assert.match(source, /setPublicField\("supplierSku"/);
   assert.match(source, /Use supplier field defaults/);
 });
