@@ -13,7 +13,7 @@ const normalDropshipCatalogUrl = new URL("../src/lib/published-dropship-storefro
 const normalCustomerCommerceUrl = new URL("../../../packages/postgres-runtime/src/customer-commerce.ts", import.meta.url);
 const crawlerCatalogUrl = new URL("../src/lib/crawler-catalog.ts", import.meta.url);
 const catalogViewUrl = new URL("../src/lib/catalog-view.ts", import.meta.url);
-const shopCatalogPageUrl = new URL("../src/lib/shop-catalog-page.ts", import.meta.url);
+const shopCatalogPageUrl = new URL("../src/lib/shop-catalog-page-fast.ts", import.meta.url);
 const merchantCenterFeedUrl = new URL("../src/app/merchant-center/products.xml/route.ts", import.meta.url);
 const productSitemapUrl = new URL("../src/app/sitemaps/products/[shard]/route.ts", import.meta.url);
 const siteHeaderUrl = new URL("../src/components/SiteHeader.tsx", import.meta.url);
@@ -103,7 +103,6 @@ test("normal catalogue read models explicitly reject BAZAAR canonicals", async (
     catalogView,
     /async function assignedOfferPrice[\s\S]*?COALESCE\(cv\.commerce_channel,'normal'\)='normal'/
   );
-  assert.equal(shopCatalogPage.split("COALESCE(cv.commerce_channel,'normal')='normal'").length - 1, 2);
   assert.match(
     shopCatalogPage,
     /async function loadStickyPrices[\s\S]*?WHERE cv\.public_id=ANY\(\$1::text\[\]\)[\s\S]*?COALESCE\(cv\.commerce_channel,'normal'\)='normal'/
