@@ -26,6 +26,7 @@ const euro = (minor: number | null) => minor == null
 const date = (value: string | null) => value
   ? new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value))
   : "—";
+const integer = (value: number) => new Intl.NumberFormat("el-GR").format(value);
 
 export default async function VendorDropshippingPage({ searchParams }: { searchParams: SearchParams }) {
   const principal = await getVendorSession();
@@ -37,8 +38,8 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
   const query = first(params.q).trim().slice(0, 120);
   const vendorId = principal.vendorId ?? "";
 
-  // Deliberately lightweight: this query reads supplier configuration only and
-  // never joins or aggregates catalogue rows.
+  // Lightweight supplier metadata + distinct source-product counts only.
+  // Product rows are never loaded until the vendor performs a bounded search.
   const suppliers = await listDropshippingSearchSuppliers(vendorId);
   const selectedSupplier = supplierCode
     ? suppliers.find((supplier) => supplier.code === supplierCode) ?? null
@@ -68,7 +69,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       <WorkspaceSectionHeading
         eyebrow="Προμηθευτές"
         title="Επίλεξε supplier"
-        note="Η σελίδα φορτώνει μόνο τη λίστα προμηθευτών. Κανένα προϊόν δεν ανακτάται μέχρι να κάνεις αναζήτηση."
+        note="Φορτώνονται μόνο supplier metadata και ο συνολικός αριθμός προϊόντων. Τα προϊόντα ανακτώνται αποκλειστικά μέσω αναζήτησης."
       />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14 }}>
         {suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.id}>
@@ -79,8 +80,15 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
             </div>
             <span className="vendor-merchant-status">{supplier.active ? "Ενεργός" : "Ανενεργός"}</span>
           </div>
-          <p style={{ marginTop: 12, marginBottom: 12 }}>
-            Προϊόντα διαθέσιμα μόνο μέσω αναζήτησης — χωρίς preload καταλόγου.
+          <div className="workspace-compact-list" style={{ marginTop: 12, marginBottom: 12 }}>
+            <div className="workspace-compact-row">
+              <strong>Προϊόντα</strong>
+              <span>{integer(supplier.productCount)}</span>
+              <small>μοναδικά source products</small>
+            </div>
+          </div>
+          <p style={{ marginTop: 0, marginBottom: 12 }}>
+            Διαθέσιμα μόνο μέσω server-side αναζήτησης — χωρίς preload καταλόγου.
           </p>
           <Link
             className={selectedSupplier?.code === supplier.code ? "button" : "button button-secondary"}
@@ -100,7 +108,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       <WorkspaceSectionHeading
         eyebrow={selectedSupplier.displayName}
         title="Αναζήτηση προϊόντων"
-        note="Search-only mode · έως 40 αποτελέσματα ανά αναζήτηση · ελάχιστο 3 χαρακτήρες"
+        note={`Search-only mode · ${integer(selectedSupplier.productCount)} source products · έως 40 αποτελέσματα ανά αναζήτηση · ελάχιστο 3 χαρακτήρες`}
       />
 
       <DropshippingSupplierDefaultsControls
@@ -117,7 +125,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               name="q"
               defaultValue={query}
               autoComplete="off"
-              placeholder="π.χ. Michael Kors, 520..., SKU..."
+              placeholder="π.χ. Burberry, 520..., SKU..."
               style={{ width: "100%" }}
             />
           </label>
@@ -138,33 +146,40 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       {searchActive ? <>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <strong>{products.length} αποτελέσματα</strong>
-          <small>Εμφανίζονται έως 40 αποτελέσματα. Κάνε πιο συγκεκριμένη αναζήτηση αν χρειάζεται.</small>
+          <small>Εμφανίζονται έως 40 αποτελέσματα από το source catalogue. Κάνε πιο συγκεκριμένη αναζήτηση αν χρειάζεται.</small>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
-          {products.map((product) => <article className="workspace-queue-card" key={product.supplierOfferId}>
+          {products.map((product) => <article className="workspace-queue-card" key={product.sourceProductId}>
             <div className="workspace-queue-head">
               <div>
                 <strong>{product.title}</strong>
-                <small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || product.canonicalVariantId}</small>
+                <small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || `Supplier product ${product.sourceProductKey}`}</small>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {product.pricingFlag === "OVERPRICED" ? <span className="vendor-merchant-status">OVERPRICED</span> : null}
-                <span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span>
+                {product.offerId
+                  ? <span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span>
+                  : <span className="vendor-merchant-status">Source catalogue</span>}
               </div>
             </div>
 
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
-              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span></div>
+              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span><small>{product.offerId ? "KONTA MOY offer" : "Δεν έχει δημιουργηθεί offer"}</small></div>
               <div className="workspace-compact-row">
                 <strong>Supplier stock</strong>
                 <span>{product.cachedAvailable ? "Διαθέσιμο" : "Μη διαθέσιμο"}</span>
                 <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Qty ${product.cachedQuantity}`} · checked {date(product.availabilityCheckedAt)}</small>
               </div>
+              <div className="workspace-compact-row">
+                <strong>Supplier product ID</strong>
+                <span>{product.sourceProductKey}</span>
+                <small>{product.priceState ? `price state: ${product.priceState}` : "source catalogue"}</small>
+              </div>
             </div>
 
-            <DropshippingProductControls
+            {product.offerId ? <DropshippingProductControls
               offerId={product.offerId}
               supplierCostMinor={product.supplierCostMinor}
               visible={product.visible}
@@ -172,13 +187,16 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               discountValue={product.discountValue}
               msrpMinor={product.msrpMinor}
               showMsrp={product.showMsrp}
-            />
+            /> : <div className="workspace-compact-row" style={{ marginTop: 12 }}>
+              <strong>Search result ready</strong>
+              <small>Το προϊόν υπάρχει στο supplier source catalogue αλλά δεν έχει materialized vendor offer ακόμη.</small>
+            </div>}
           </article>)}
         </div>
 
         {!products.length ? <article className="workspace-queue-card">
           <strong>Δεν βρέθηκαν προϊόντα.</strong>
-          <p>Δοκίμασε τίτλο, brand, SKU ή EAN με διαφορετική γραφή.</p>
+          <p>Δοκίμασε τίτλο, brand, SKU, EAN ή supplier product ID με διαφορετική γραφή.</p>
         </article> : null}
       </> : null}
     </section> : <section className="shell vendor-section">
