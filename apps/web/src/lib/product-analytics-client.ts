@@ -1,6 +1,6 @@
 "use client";
 
-import { hasAnalyticsConsent } from "./privacy-consent";
+import { hasVerifiedClientAnalyticsConsent } from "./privacy-consent";
 
 export type ProductAnalyticsEventType = "page_view" | "engagement" | "add_to_cart";
 
@@ -18,7 +18,7 @@ function randomId(): string {
 }
 
 export function recordProductAnalyticsEvent(payload: ProductAnalyticsPayload): void {
-  if (typeof document === "undefined" || !hasAnalyticsConsent(document.cookie)) return;
+  if (typeof document === "undefined" || !hasVerifiedClientAnalyticsConsent()) return;
   const body = JSON.stringify({ ...payload, eventId: payload.eventId ?? randomId() });
   void fetch("/api/analytics/product", {
     method: "POST",

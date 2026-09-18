@@ -1,6 +1,6 @@
 "use client";
 
-import { hasAnalyticsConsent } from "./privacy-consent";
+import { hasVerifiedClientAnalyticsConsent } from "./privacy-consent";
 
 export const GOOGLE_ANALYTICS_ID = "G-NC8QWH2WTD";
 export const GOOGLE_ANALYTICS_SCRIPT_ID = "kontamou-google-analytics";
@@ -67,9 +67,45 @@ function analyticsWindow(): GoogleAnalyticsWindow {
   return window as GoogleAnalyticsWindow;
 }
 
+
+function expireCookie(name: string, domain?: string): void {
+  const domainPart = domain ? `; Domain=${domain}` : "";
+  document.cookie = `${name}=; Max-Age=0; Path=/${domainPart}; SameSite=Lax`;
+}
+
+function expireGoogleAnalyticsCookies(): void {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const hostname = window.location.hostname;
+  for (const part of document.cookie.split(";")) {
+    const separator = part.indexOf("=");
+    const name = (separator >= 0 ? part.slice(0, separator) : part).trim();
+    if (name !== "_ga" && !name.startsWith("_ga_")) continue;
+    expireCookie(name);
+    expireCookie(name, hostname);
+    if (hostname === "kontamou.site" || hostname.endsWith(".kontamou.site")) expireCookie(name, ".kontamou.site");
+  }
+}
+
+export function revokeGoogleAnalyticsClientState(): void {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const target = analyticsWindow();
+  target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = true;
+  target.gtag?.("consent", "update", {
+    analytics_storage: "denied",
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied"
+  });
+  expireGoogleAnalyticsCookies();
+  document.getElementById(GOOGLE_ANALYTICS_SCRIPT_ID)?.remove();
+  target.__kontamouGaInitialized = false;
+  target.gtag = undefined;
+  target.dataLayer = [];
+}
+
 export function ensureGoogleAnalytics(): GoogleAnalyticsWindow | undefined {
   if (typeof window === "undefined" || typeof document === "undefined") return undefined;
-  if (!hasAnalyticsConsent(document.cookie) || !isGoogleAnalyticsPublicPath(window.location.pathname)) return undefined;
+  if (!hasVerifiedClientAnalyticsConsent() || !isGoogleAnalyticsPublicPath(window.location.pathname)) return undefined;
 
   const target = analyticsWindow();
   target.dataLayer = target.dataLayer ?? [];

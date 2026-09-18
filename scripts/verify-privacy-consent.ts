@@ -23,7 +23,9 @@ const files = {
   googleAnalyticsComponent: read("apps/web/src/components/GoogleAnalytics.tsx"),
   legalTransparency: read("apps/web/src/lib/legal-transparency.ts"),
   cookiesPage: read("apps/web/src/app/cookies/page.tsx"),
-  footer: read("apps/web/src/components/SiteFooter.tsx")
+  footer: read("apps/web/src/components/SiteFooter.tsx"),
+  cookieControl: read("apps/web/src/components/CookieControlCenter.tsx"),
+  packageJson: read("apps/web/package.json")
 };
 
 const failures: string[] = [];
@@ -73,6 +75,8 @@ if (readPrivacyConsent(legacyCookieString)?.analytics !== true) {
   failures.push("consent runtime: legacy browser cookie is not recovered from document.cookie");
 }
 
+expect(files.consentApi, "export async function GET", "consent status endpoint exists for server verification");
+expect(files.consentApi, "readVerifiedPrivacyConsentReceipt(cookieHeader)", "consent status is derived from signed server receipt");
 expect(files.consentApi, "PRIVACY_CONSENT_MAX_AGE_SECONDS", "versioned consent cookie persisted");
 expect(files.consentApi, "cross_origin_consent_update_denied", "consent preference write is same-origin protected");
 expect(files.consentApi, "unsupported_unregistered_consent_category", "server refuses broad consent for technologies not currently registered");
@@ -94,7 +98,7 @@ for (const forbidden of ["ip_address", "user_agent", "device_fingerprint", "reci
   if (consentTableDefinition.includes(forbidden)) failures.push(`consent evidence must not persist ${forbidden}`);
 }
 
-expect(files.analyticsClient, "hasAnalyticsConsent(document.cookie)", "browser analytics blocked before consent");
+expect(files.analyticsClient, "hasVerifiedClientAnalyticsConsent()", "browser analytics requires server-verified consent state");
 expect(files.analyticsApi, "hasVerifiedAnalyticsConsent(cookieHeader)", "server analytics requires tamper-resistant consent");
 expect(files.analyticsApi, "const analyticsHash", "analytics uses separate pseudonymous identity");
 expect(files.analyticsApi, "const marketplaceHash", "fairness attribution keeps essential identity separate");
@@ -103,9 +107,11 @@ expect(files.consentUi, 'persist(OPTIONAL_ON, "banner")', "accept-all banner cho
 expect(files.consentUi, 'persist(OPTIONAL_OFF, "banner")', "reject-optional banner choice records banner source");
 expect(files.consentUi, 'checked={false} disabled aria-label="Marketing trackers, δεν χρησιμοποιούνται"', "inactive marketing consent cannot be toggled");
 expect(files.consentUi, 'checked={false} disabled aria-label="Browser προσωποποίηση, δεν χρησιμοποιείται"', "unregistered browser personalization cannot be toggled");
-expect(files.consentUi, "Αποδοχή όλων", "accept-all choice available");
-expect(files.consentUi, "Απόρριψη προαιρετικών", "reject-optional choice available");
+expect(files.consentUi, "Αποδοχή Analytics", "analytics opt-in choice available");
+expect(files.consentUi, "Μόνο απαραίτητα", "reject-optional choice available");
 expect(files.consentUi, "Ρυθμίσεις", "granular settings choice available");
+expect(files.consentUi, "setVerifiedClientAnalyticsConsent", "client analytics state is unlocked only by the verified consent provider");
+expect(files.consentUi, "refreshVerifiedConsent", "provider refreshes consent from the signed server receipt");
 expect(files.consentUi, "consent?.analytics", "third-party analytics components mount only after Analytics consent");
 expect(files.consentUi, "<GoogleAnalytics />", "registered Google Analytics component is mounted through consent provider");
 expect(files.utilityLauncher, "requestCookieSettings", "withdrawal/settings action remains reachable from the utility launcher");
@@ -113,15 +119,20 @@ expect(files.utilityLauncher, "Ρυθμίσεις cookies", "cookie settings rem
 expect(files.footer, "CookieSettingsButton", "footer consent withdrawal/settings control available");
 expect(files.legalTransparency, "TRACKER_REGISTRY", "non-cookie tracking has a published registry");
 expect(files.legalTransparency, 'name: "bls_consent_receipt"', "signed consent receipt is disclosed in cookie registry");
+expect(files.legalTransparency, 'name: "Vercel Speed Insights"', "Vercel Speed Insights is disclosed in tracker registry");
 expect(files.legalTransparency, 'name: "Google Analytics 4"', "Google Analytics is disclosed in tracker registry");
 expect(files.legalTransparency, 'provider: "Google LLC"', "Google Analytics provider is disclosed in tracker registry");
 expect(files.legalTransparency, 'technology: "Google tag (gtag.js) · Measurement ID G-NC8QWH2WTD"', "Google Analytics implementation is disclosed in tracker registry");
-expect(files.legalTransparency, 'activation: "Δεν φορτώνεται πριν από αποδοχή Analytics.', "Google Analytics activation boundary is disclosed in tracker registry");
+expect(files.legalTransparency, 'activation: "Δεν φορτώνεται πριν από server-verified αποδοχή Analytics.', "Google Analytics activation boundary is disclosed in tracker registry");
 expect(files.cookiesPage, "Μητρώο trackers και event capture", "cookie policy exposes tracking technologies, not only cookies");
 expect(files.cookiesPage, "Δεν συλλέγουμε γενική συγκατάθεση", "cookie policy explicitly rejects generic future marketing consent");
+expect(files.cookieControl, 'method: "POST"', "cookie control center writes choices through the consent API");
+expect(files.cookieControl, 'method: "GET"', "cookie control center reads server-verified consent status");
+expect(files.cookieControl, "PRIVACY_CONSENT_CHANGED_EVENT", "cookie control center synchronizes global consent state");
+expect(files.packageJson, "verify-privacy-consent.ts", "privacy consent verification is enforced during production builds");
 
 for (const contract of [
-  "hasAnalyticsConsent(document.cookie)",
+  "hasVerifiedClientAnalyticsConsent()",
   "isGoogleAnalyticsPublicPath(window.location.pathname)",
   'target[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = false',
   'analytics_storage: "granted"',
@@ -132,9 +143,11 @@ for (const contract of [
   "allow_ad_personalization_signals: false",
   'script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_ID)}`'
 ]) expect(files.googleAnalyticsClient, contract, `Google Analytics client is missing consent/privacy boundary ${contract}`);
+expect(files.googleAnalyticsClient, "expireGoogleAnalyticsCookies", "Google Analytics cookies are explicitly removed on withdrawal");
+expect(files.googleAnalyticsClient, "revokeGoogleAnalyticsClientState", "Google Analytics script/client state is removed on withdrawal");
 for (const contract of [
   "disableGoogleAnalyticsForCurrentRoute",
-  "expireGoogleAnalyticsCookies",
+  "revokeGoogleAnalyticsClientState",
   'analytics_storage: "denied"',
   "ensureGoogleAnalytics()",
   "isGoogleAnalyticsPublicPath(pathname)"

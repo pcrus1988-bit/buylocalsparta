@@ -144,7 +144,16 @@ export const TRACKER_REGISTRY: readonly TrackerRegistryEntry[] = [
     technology: "Vercel Web Analytics",
     purpose: "Συγκεντρωτική μέτρηση επισκεψιμότητας και απόδοσης του web application.",
     data: "Τεχνικά και συγκεντρωτικά δεδομένα επίσκεψης/σελίδας όπως παρέχονται από το Vercel Analytics. Δεν χρησιμοποιείται από το ΚΟΝΤΑ ΜΟΥ για advertising profile.",
-    activation: "Μόνο μετά από αποδοχή Analytics στο consent layer."
+    activation: "Μόνο μετά από server-verified αποδοχή Analytics στο consent layer."
+  },
+  {
+    name: "Vercel Speed Insights",
+    provider: "Vercel",
+    category: "analytics",
+    technology: "Vercel Speed Insights / Web Vitals",
+    purpose: "Μέτρηση τεχνικής απόδοσης και Core Web Vitals ώστε να εντοπίζουμε αργές ή προβληματικές εμπειρίες χρήσης.",
+    data: "Τεχνικά δεδομένα απόδοσης και πλοήγησης της σελίδας. Δεν χρησιμοποιείται από το ΚΟΝΤΑ ΜΟΥ για advertising profile.",
+    activation: "Μόνο μετά από server-verified αποδοχή Analytics στο consent layer."
   },
   {
     name: "Google Analytics 4",
@@ -153,7 +162,7 @@ export const TRACKER_REGISTRY: readonly TrackerRegistryEntry[] = [
     technology: "Google tag (gtag.js) · Measurement ID G-NC8QWH2WTD",
     purpose: "Μέτρηση page views, πλοήγησης, engagement και απόδοσης του δημόσιου marketplace.",
     data: "Ψευδωνυμικά online identifiers και τεχνικά δεδομένα επίσκεψης/συσκευής που απαιτούνται για GA4 reporting. Δεν αποστέλλουμε στοιχεία πληρωμής και έχουμε απενεργοποιήσει Google signals και ad-personalisation signals στον tag configuration.",
-    activation: "Δεν φορτώνεται πριν από αποδοχή Analytics. Δεν καταγράφει τα operational workspaces /admin, /vendor, /driver, /delivery/manage και /daily."
+    activation: "Δεν φορτώνεται πριν από server-verified αποδοχή Analytics. Δεν καταγράφει τα operational workspaces /admin, /vendor, /driver, /delivery/manage και /daily."
   }
 ] as const;
 

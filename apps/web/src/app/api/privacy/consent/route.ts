@@ -54,6 +54,56 @@ function isSameOriginRequest(request: Request, requestUrl: URL): boolean {
   }
 }
 
+
+export async function GET(request: Request) {
+  const requestUrl = new URL(request.url);
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const verified = readVerifiedPrivacyConsentReceipt(cookieHeader);
+  const secure = effectiveRequestOrigin(request, requestUrl).startsWith("https://");
+  const response = NextResponse.json(
+    {
+      consent: verified?.preferences ?? null,
+      expiresAt: verified?.expiresAt ?? null,
+      policyVersion: verified?.policyVersion ?? null
+    },
+    { status: 200, headers: { "cache-control": "no-store", pragma: "no-cache" } }
+  );
+
+  if (!verified) {
+    for (const name of [PRIVACY_CONSENT_COOKIE, PRIVACY_CONSENT_RECEIPT_COOKIE, ANALYTICS_ID_COOKIE]) {
+      response.cookies.set({ name, value: "", httpOnly: name !== PRIVACY_CONSENT_COOKIE, sameSite: "lax", secure, path: "/", maxAge: 0 });
+    }
+    return response;
+  }
+
+  response.cookies.set({
+    name: PRIVACY_CONSENT_COOKIE,
+    value: encodePrivacyConsent(verified.preferences),
+    httpOnly: false,
+    sameSite: "lax",
+    secure,
+    path: "/",
+    maxAge: Math.max(0, Math.floor((verified.expiresAt - Date.now()) / 1000))
+  });
+
+  if (verified.preferences.analytics) {
+    const existing = cookieValue(cookieHeader, ANALYTICS_ID_COOKIE);
+    response.cookies.set({
+      name: ANALYTICS_ID_COOKIE,
+      value: existing && SAFE_ANALYTICS_ID.test(existing) ? existing : randomUUID(),
+      httpOnly: true,
+      sameSite: "lax",
+      secure,
+      path: "/",
+      maxAge: Math.max(0, Math.floor((verified.expiresAt - Date.now()) / 1000))
+    });
+  } else {
+    response.cookies.set({ name: ANALYTICS_ID_COOKIE, value: "", httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: 0 });
+  }
+
+  return response;
+}
+
 export async function POST(request: Request) {
   try {
     const requestUrl = new URL(request.url);
@@ -86,7 +136,7 @@ export async function POST(request: Request) {
 
     const now = new Date(decidedAt).toISOString();
     const response = new NextResponse(null, { status: 204 });
-    const secure = requestUrl.protocol === "https:";
+    const secure = effectiveRequestOrigin(request, requestUrl).startsWith("https://");
     response.headers.set("cache-control", "no-store");
     response.headers.set("pragma", "no-cache");
     response.cookies.set({

@@ -1,10 +1,27 @@
-export const PRIVACY_CONSENT_VERSION = "2026-08-28";
-export const PRIVACY_POLICY_VERSION = "2026-08-28";
+export const PRIVACY_CONSENT_VERSION = "2026-09-18";
+export const PRIVACY_POLICY_VERSION = "2026-09-18";
 export const PRIVACY_CONSENT_COOKIE = "bls_consent_v1";
 export const PRIVACY_CONSENT_RECEIPT_COOKIE = "bls_consent_receipt";
 export const ANALYTICS_ID_COOKIE = "bls_analytics";
 export const PRIVACY_CONSENT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
 export const PRIVACY_CONSENT_EVIDENCE_RETENTION_SECONDS = 730 * 24 * 60 * 60;
+export const PRIVACY_CONSENT_CHANGED_EVENT = "bls:privacy-consent-changed";
+
+type PrivacyConsentClientWindow = Window & typeof globalThis & {
+  __kontamouVerifiedAnalyticsConsent?: boolean;
+};
+
+export function setVerifiedClientAnalyticsConsent(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  (window as PrivacyConsentClientWindow).__kontamouVerifiedAnalyticsConsent = enabled;
+}
+
+export function hasVerifiedClientAnalyticsConsent(cookieString?: string): boolean {
+  if (typeof window === "undefined") return false;
+  const target = window as PrivacyConsentClientWindow;
+  return target.__kontamouVerifiedAnalyticsConsent === true
+    && hasAnalyticsConsent(cookieString ?? document.cookie);
+}
 
 export type PrivacyConsentPreferences = Readonly<{
   version: string;

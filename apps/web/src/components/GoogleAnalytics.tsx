@@ -7,7 +7,8 @@ import {
   ensureGoogleAnalytics,
   googleAnalyticsCartPayload,
   isGoogleAnalyticsPublicPath,
-  readGoogleAnalyticsCart
+  readGoogleAnalyticsCart,
+  revokeGoogleAnalyticsClientState
 } from "../lib/google-analytics-client";
 
 type GoogleAnalyticsWindow = Window & typeof globalThis & {
@@ -17,23 +18,6 @@ type GoogleAnalyticsWindow = Window & typeof globalThis & {
 
 function analyticsWindow(): GoogleAnalyticsWindow {
   return window as GoogleAnalyticsWindow;
-}
-
-function expireCookie(name: string, domain?: string): void {
-  const domainPart = domain ? `; Domain=${domain}` : "";
-  document.cookie = `${name}=; Max-Age=0; Path=/${domainPart}; SameSite=Lax`;
-}
-
-function expireGoogleAnalyticsCookies(): void {
-  const hostname = window.location.hostname;
-  for (const part of document.cookie.split(";")) {
-    const separator = part.indexOf("=");
-    const name = (separator >= 0 ? part.slice(0, separator) : part).trim();
-    if (name !== "_ga" && !name.startsWith("_ga_")) continue;
-    expireCookie(name);
-    expireCookie(name, hostname);
-    if (hostname === "kontamou.site" || hostname.endsWith(".kontamou.site")) expireCookie(name, ".kontamou.site");
-  }
 }
 
 function disableGoogleAnalyticsForCurrentRoute(): void {
@@ -69,12 +53,7 @@ function GoogleAnalyticsInner() {
 
     if (pathname === "/shop") {
       const searchTerm = searchParams.get("q")?.trim();
-      if (searchTerm) {
-        target.gtag("event", "search", {
-          search_term: searchTerm,
-          surface: "shop"
-        });
-      }
+      if (searchTerm) target.gtag("event", "search", { search_term: searchTerm, surface: "shop" });
     }
 
     if (pathname === "/cart" || pathname === "/checkout") {
@@ -87,9 +66,7 @@ function GoogleAnalyticsInner() {
       }
     }
 
-    if (pathname === "/ask-local") {
-      target.gtag("event", "view_ask_local", { surface: "ask_local" });
-    }
+    if (pathname === "/ask-local") target.gtag("event", "view_ask_local", { surface: "ask_local" });
 
     if (pathname.startsWith("/vendor/")) {
       const storeId = pathname.split("/")[2];
@@ -97,10 +74,7 @@ function GoogleAnalyticsInner() {
     }
   }, [pathname, queryString, searchParams]);
 
-  useEffect(() => () => {
-    disableGoogleAnalyticsForCurrentRoute();
-    expireGoogleAnalyticsCookies();
-  }, []);
+  useEffect(() => () => revokeGoogleAnalyticsClientState(), []);
 
   return null;
 }

@@ -5,10 +5,12 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { GoogleAnalytics } from "./GoogleAnalytics";
+import { revokeGoogleAnalyticsClientState } from "../lib/google-analytics-client";
 import {
+  PRIVACY_CONSENT_CHANGED_EVENT,
   PRIVACY_CONSENT_VERSION,
-  hasAnalyticsConsent,
-  readPrivacyConsent,
+  hasVerifiedClientAnalyticsConsent,
+  setVerifiedClientAnalyticsConsent,
   type PrivacyConsentPreferences
 } from "../lib/privacy-consent";
 
@@ -20,6 +22,7 @@ type DraftConsent = Readonly<{
   marketing: boolean;
 }>;
 type ConsentSource = "banner" | "settings";
+type ConsentStatusResponse = Readonly<{ consent?: PrivacyConsentPreferences | null }>;
 
 const OPTIONAL_OFF: DraftConsent = { personalisation: false, analytics: false, marketing: false };
 const OPTIONAL_ON: DraftConsent = { personalisation: false, analytics: true, marketing: false };
@@ -32,28 +35,50 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | undefined>();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
-    const current = readPrivacyConsent(document.cookie);
-    setConsent(current);
-    setDraft(current ? {
-      personalisation: false,
-      analytics: current.analytics,
-      marketing: false
-    } : OPTIONAL_OFF);
-    setHydrated(true);
+  const applyVerifiedConsent = useCallback((value: PrivacyConsentPreferences | undefined) => {
+    setConsent(value);
+    setDraft(value ? { personalisation: false, analytics: value.analytics, marketing: false } : OPTIONAL_OFF);
+    setVerifiedClientAnalyticsConsent(value?.analytics === true);
+    if (!value?.analytics) revokeGoogleAnalyticsClientState();
   }, []);
 
+  const refreshVerifiedConsent = useCallback(async () => {
+    try {
+      const response = await fetch("/api/privacy/consent", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { accept: "application/json" }
+      });
+      if (!response.ok) throw new Error("Consent status unavailable");
+      const payload = await response.json() as ConsentStatusResponse;
+      const verified = payload.consent?.version === PRIVACY_CONSENT_VERSION ? payload.consent : undefined;
+      applyVerifiedConsent(verified);
+      return verified;
+    } catch {
+      applyVerifiedConsent(undefined);
+      return undefined;
+    }
+  }, [applyVerifiedConsent]);
+
+  useEffect(() => {
+    let active = true;
+    void refreshVerifiedConsent().finally(() => { if (active) setHydrated(true); });
+    return () => { active = false; };
+  }, [refreshVerifiedConsent]);
+
+  useEffect(() => {
+    const listener = () => void refreshVerifiedConsent();
+    window.addEventListener(PRIVACY_CONSENT_CHANGED_EVENT, listener);
+    return () => window.removeEventListener(PRIVACY_CONSENT_CHANGED_EVENT, listener);
+  }, [refreshVerifiedConsent]);
+
   const openSettings = useCallback(() => {
-    const current = readPrivacyConsent(document.cookie);
-    setDraft(current ? {
-      personalisation: false,
-      analytics: current.analytics,
-      marketing: false
-    } : OPTIONAL_OFF);
+    setDraft(consent ? { personalisation: false, analytics: consent.analytics, marketing: false } : OPTIONAL_OFF);
     setError(undefined);
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
-  }, []);
+  }, [consent]);
 
   useEffect(() => {
     const listener = () => openSettings();
@@ -73,17 +98,9 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ personalisation: false, analytics: next.analytics, marketing: false, source })
       });
       if (!response.ok) throw new Error("Consent update failed");
-      const updated = readPrivacyConsent(document.cookie) ?? {
-        version: PRIVACY_CONSENT_VERSION,
-        personalisation: false,
-        analytics: next.analytics,
-        marketing: false,
-        decidedAt: new Date().toISOString()
-      };
-      setConsent(updated);
-      setDraft({ personalisation: false, analytics: next.analytics, marketing: false });
+      await refreshVerifiedConsent();
       dialogRef.current?.close();
-      window.dispatchEvent(new CustomEvent("bls:privacy-consent-changed", { detail: updated }));
+      window.dispatchEvent(new Event(PRIVACY_CONSENT_CHANGED_EVENT));
     } catch {
       setError("Δεν ήταν δυνατή η αποθήκευση των επιλογών σου. Δοκίμασε ξανά.");
     } finally {
@@ -93,21 +110,23 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
 
   return <>
     {children}
+
     {consent?.analytics && <>
-      <Analytics beforeSend={(event) => hasAnalyticsConsent(document.cookie) ? event : null} />
+      <Analytics beforeSend={(event) => hasVerifiedClientAnalyticsConsent() ? event : null} />
       <SpeedInsights />
       <GoogleAnalytics />
     </>}
+
     {hydrated && !consent && <aside className="privacy-consent-banner" aria-label="Ρυθμίσεις απορρήτου και cookies">
       <div className="privacy-consent-copy">
-        <strong>Το απόρρητό σου, με καθαρές επιλογές.</strong>
-        <p>Χρησιμοποιούμε τα απολύτως απαραίτητα για ασφάλεια και λειτουργία. Τα προαιρετικά Analytics (Vercel Analytics, Vercel Speed Insights και Google Analytics 4) παραμένουν κλειστά μέχρι να τα επιλέξεις. Δεν υπάρχει ενεργός marketing/remarketing tracker.</p>
+        <strong>Τα προαιρετικά cookies είναι κλειστά μέχρι να επιλέξεις.</strong>
+        <p>Χρησιμοποιούμε απαραίτητα cookies για ασφάλεια, σύνδεση και checkout. Analytics ενεργοποιούνται μόνο μετά από δική σου επιλογή και server-verified consent. Δεν υπάρχει ενεργός marketing ή remarketing tracker.</p>
         <div className="privacy-consent-links"><Link href="/cookies">Πολιτική Cookies</Link><Link href="/privacy">Πολιτική Απορρήτου</Link><Link href="/privacy-controls">Privacy controls</Link></div>
         {error && <p className="privacy-consent-error" role="alert">{error}</p>}
       </div>
       <div className="privacy-consent-actions" aria-label="Επιλογές cookies">
-        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON, "banner")}>Αποδοχή όλων</button>
-        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF, "banner")}>Απόρριψη προαιρετικών</button>
+        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON, "banner")}>Αποδοχή Analytics</button>
+        <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF, "banner")}>Μόνο απαραίτητα</button>
         <button type="button" disabled={busy} onClick={openSettings}>Ρυθμίσεις</button>
       </div>
     </aside>}
@@ -116,34 +135,37 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
       <form method="dialog" onSubmit={(event) => event.preventDefault()}>
         <div className="privacy-consent-dialog-head">
           <div>
-            <div className="eyebrow">Privacy choices</div>
-            <h2 id="privacy-consent-title">Ρυθμίσεις cookies και δεδομένων</h2>
+            <div className="eyebrow">Cookies control</div>
+            <h2 id="privacy-consent-title">Εσύ αποφασίζεις τι είναι ενεργό.</h2>
           </div>
           <button type="button" className="privacy-consent-close" onClick={() => dialogRef.current?.close()} aria-label="Κλείσιμο ρυθμίσεων">×</button>
         </div>
 
         <div className="privacy-consent-option">
-          <div><strong>Απαραίτητα</strong><p>Ασφάλεια, σύνδεση, checkout, βασική συνέχεια υπηρεσίας και απόδειξη της επιλογής cookies.</p></div>
+          <div><strong>Απαραίτητα</strong><p>Ασφάλεια, σύνδεση, checkout, marketplace continuity και αποθήκευση της ίδιας της επιλογής σου. Δεν απενεργοποιούνται γιατί χωρίς αυτά βασικές λειτουργίες δεν δουλεύουν.</p></div>
           <input type="checkbox" checked disabled aria-label="Απαραίτητα cookies, πάντα ενεργά" />
         </div>
-        <div className="privacy-consent-option">
-          <div><strong>Προσωποποίηση browser</strong><p>Δεν υπάρχει σήμερα ξεχωριστός browser tracker προσωποποίησης. Οι επιλογές recommendations/recently viewed του λογαριασμού διαχειρίζονται ξεχωριστά στα Privacy controls.</p></div>
-          <input type="checkbox" checked={false} disabled aria-label="Browser προσωποποίηση, δεν χρησιμοποιείται" />
-        </div>
+
         <label className="privacy-consent-option">
-          <div><strong>Analytics</strong><p>Vercel Analytics, Vercel Speed Insights και Google Analytics 4 για μέτρηση page views, engagement, απόδοσης και Core Web Vitals. Δεν ενεργοποιούνται πριν από τη συγκατάθεσή σου. Η μέτρηση Google δεν χρησιμοποιείται για advertising ή remarketing.</p></div>
+          <div><strong>Analytics</strong><p>First-party product analytics, Vercel Analytics, Vercel Speed Insights και Google Analytics 4. Ενεργοποιούνται μόνο αφού η επιλογή επιβεβαιωθεί από τον server.</p></div>
           <input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ personalisation: false, analytics: event.target.checked, marketing: false })} />
         </label>
+
         <div className="privacy-consent-option">
-          <div><strong>Marketing</strong><p>Δεν υπάρχει ενεργός advertising ή remarketing tracker. Αν προστεθεί συγκεκριμένη τεχνολογία στο μέλλον, θα απαιτεί νέα ενημέρωση και κατάλληλη επιλογή πριν ενεργοποιηθεί.</p></div>
+          <div><strong>Προσωποποίηση browser</strong><p>Δεν υπάρχει σήμερα ξεχωριστός browser tracker προσωποποίησης. Saved/recent και recommendations είναι ρυθμίσεις λογαριασμού και διαχειρίζονται ξεχωριστά.</p></div>
+          <input type="checkbox" checked={false} disabled aria-label="Browser προσωποποίηση, δεν χρησιμοποιείται" />
+        </div>
+
+        <div className="privacy-consent-option">
+          <div><strong>Marketing</strong><p>Δεν υπάρχει ενεργός advertising/remarketing tracker. Δεν ζητάμε συγκατάθεση από τώρα για υποθετικές μελλοντικές τεχνολογίες.</p></div>
           <input type="checkbox" checked={false} disabled aria-label="Marketing trackers, δεν χρησιμοποιούνται" />
         </div>
 
         {error && <p className="privacy-consent-error privacy-consent-dialog-error" role="alert">{error}</p>}
         <div className="privacy-consent-dialog-actions">
-          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF, "settings")}>Απόρριψη προαιρετικών</button>
+          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_OFF, "settings")}>Μόνο απαραίτητα</button>
           <button type="button" disabled={busy} onClick={() => void persist(draft, "settings")}>Αποθήκευση επιλογών</button>
-          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON, "settings")}>Αποδοχή όλων</button>
+          <button type="button" disabled={busy} onClick={() => void persist(OPTIONAL_ON, "settings")}>Ενεργοποίηση Analytics</button>
         </div>
       </form>
     </dialog>
