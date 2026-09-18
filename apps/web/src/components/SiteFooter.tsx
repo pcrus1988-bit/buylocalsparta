@@ -28,8 +28,7 @@ export function SiteFooter() {
             <small>Μία ανθρώπινη ψηφιακή αγορά για τη Σπάρτη και τη γύρω περιοχή.</small>
           </section>
 
-          <div className="site-footer-company-row">
-            <section className="site-footer-business" aria-labelledby="footer-business-title">
+          <section className="site-footer-business" aria-labelledby="footer-business-title">
             <span className="site-footer-business-eyebrow">Νομικά & επικοινωνία</span>
             <span className="site-footer-business-name" id="footer-business-title">{BUSINESS_NAME}</span>
             <dl>
@@ -62,19 +61,18 @@ export function SiteFooter() {
                 <dd><a href={`tel:+30${KONTA_MOY_EMAIL_COMPANY.phone}`}>693 699 9686</a></dd>
               </div>
             </dl>
-              <Link href="/help">Κέντρο βοήθειας & επικοινωνία</Link>
-            </section>
+            <Link href="/help">Κέντρο βοήθειας & επικοινωνία</Link>
+          </section>
 
-            <div className="site-footer-locality-mark" aria-label="Developed in Sparta for Greece">
-              <img
-                src={DEVELOPED_IN_SPARTA_BADGE}
-                alt="Developed in Sparta for Greece"
-                width={360}
-                height={270}
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
+          <div className="site-footer-locality-mark site-footer-locality-mark-mobile" aria-label="Developed in Sparta for Greece">
+            <img
+              src={DEVELOPED_IN_SPARTA_BADGE}
+              alt="Developed in Sparta for Greece"
+              width={360}
+              height={270}
+              loading="lazy"
+              decoding="async"
+            />
           </div>
         </div>
 
@@ -88,6 +86,19 @@ export function SiteFooter() {
             </section>
           ))}
         </nav>
+      </div>
+
+      <div className="shell site-footer-locality-strip">
+        <div className="site-footer-locality-mark site-footer-locality-mark-desktop" aria-label="Developed in Sparta for Greece">
+          <img
+            src={DEVELOPED_IN_SPARTA_BADGE}
+            alt="Developed in Sparta for Greece"
+            width={360}
+            height={270}
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
       </div>
 
       <div className="shell site-footer-payments" aria-label="Τρόποι πληρωμής">
