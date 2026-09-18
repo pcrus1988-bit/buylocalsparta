@@ -33,6 +33,7 @@ export const SITE_LINKS = {
   about: { label: "Η ιδέα και η αποστολή", href: "/about", description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ Σπάρτη και ποιο πρόβλημα λύνει." },
   help: { label: "Κέντρο βοήθειας", href: "/help", description: "Καθοδήγηση για αγορές, αιτήματα και υποστήριξη." },
   join: { label: "Γίνε συνεργάτης", href: "/join", description: "Η πρόταση συνεργασίας για τοπικές επιχειρήσεις." },
+  joinSparta: { label: "Συνεργασία καταστημάτων · Σπάρτη", href: "/join/sparta", description: "Τα προγράμματα συνεργασίας για επιχειρήσεις του ενεργού HUB Σπάρτης." },
   joinRequirements: { label: "Προϋποθέσεις συνεργασίας", href: "/join/requirements", description: "Readiness checklist πριν από την αίτηση εμπόρου." },
   hubExpansionJoin: { label: "Συνεργασία στα νέα HUB", href: "/hubs/join", description: "AFM-first ένταξη επιχειρήσεων στα 130 HUB επέκτασης του ΚΟΝΤΑ ΜΟΥ." },
   sitemap: { label: "Χάρτης ιστοτόπου", href: "/sitemap", description: "Όλες οι πραγματικές δημόσιες διαδρομές σε ένα σημείο." },
@@ -62,6 +63,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.about, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.help, changeFrequency: "monthly", priority: 0.65 },
   { ...SITE_LINKS.join, changeFrequency: "monthly", priority: 0.6 },
+  { ...SITE_LINKS.joinSparta, changeFrequency: "monthly", priority: 0.58 },
   { ...SITE_LINKS.joinRequirements, changeFrequency: "monthly", priority: 0.55 },
   { ...SITE_LINKS.hubExpansionJoin, changeFrequency: "monthly", priority: 0.6 },
   { ...SITE_LINKS.sitemap, changeFrequency: "monthly", priority: 0.4 }
