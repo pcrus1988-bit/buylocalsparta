@@ -9,6 +9,7 @@ const CURSOR_KEY = "symphonyaMaterializationCursor";
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 250;
 const DEFAULT_TAX_RATE_BPS = 2400;
+const MATERIALIZATION_LEASE_SECONDS = 70;
 
 type SupplierContext = Readonly<{
   supplierId: string;
@@ -96,58 +97,97 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
     throw new Error(`Symphonya supplier owner mismatch: ${context.vendorPublicId}`);
   }
 
-  const candidates = await pool.query<SqlRow>(`
-    SELECT DISTINCT ON (p.source_product_key)
-           p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload,p.created_at
-      FROM public.catalog_source_products p
-     WHERE p.source_id=$1::uuid
-       AND ($2::text IS NULL OR p.source_product_key>$2)
-     ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
-     LIMIT $3
-  `, [context.sourceId, context.cursor, batchSize()]);
+  const leaseClaimed = await claimMaterializationLease(context.sourceId);
+  if (!leaseClaimed) return emptyResult(true, "materialization_busy");
 
-  if (!candidates.rows.length) {
-    if (context.cursor) {
-      await persistCursor(context.sourceId, null);
-      return emptyResult(true, "materialization_cursor_wrapped");
+  try {
+    const candidates = await pool.query<SqlRow>(`
+      SELECT DISTINCT ON (p.source_product_key)
+             p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload,p.created_at
+        FROM public.catalog_source_products p
+       WHERE p.source_id=$1::uuid
+         AND ($2::text IS NULL OR p.source_product_key>$2)
+       ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
+       LIMIT $3
+    `, [context.sourceId, context.cursor, batchSize()]);
+
+    if (!candidates.rows.length) {
+      if (context.cursor) {
+        await persistCursor(context.sourceId, null);
+        return emptyResult(true, "materialization_cursor_wrapped");
+      }
+      return emptyResult(true, "materialization_source_empty");
     }
-    return emptyResult(true, "materialization_source_empty");
-  }
 
-  const totals = {
-    enabled: true,
-    scanned: candidates.rowCount ?? candidates.rows.length,
-    variants: 0,
-    canonicalsCreated: 0,
-    familiesCreated: 0,
-    offersCreated: 0,
-    reusedCanonicals: 0,
-    blockedAmbiguous: 0,
-    blockedUnmapped: 0
-  };
-
-  let lastKey: string | null = null;
-  for (const raw of candidates.rows) {
-    const source: SourceProduct = {
-      id: requiredText(raw.id, "source product id"),
-      snapshotId: requiredText(raw.snapshot_id, "snapshot id"),
-      sourceProductKey: requiredText(raw.source_product_key, "source product key"),
-      title: requiredText(raw.title, "source title"),
-      normalizedPayload: record(raw.normalized_payload)
+    const totals = {
+      enabled: true,
+      scanned: candidates.rowCount ?? candidates.rows.length,
+      variants: 0,
+      canonicalsCreated: 0,
+      familiesCreated: 0,
+      offersCreated: 0,
+      reusedCanonicals: 0,
+      blockedAmbiguous: 0,
+      blockedUnmapped: 0
     };
-    lastKey = source.sourceProductKey;
-    const outcome = await materializeProduct(context, source);
-    totals.variants += outcome.variants;
-    totals.canonicalsCreated += outcome.canonicalsCreated;
-    totals.familiesCreated += outcome.familiesCreated;
-    totals.offersCreated += outcome.offersCreated;
-    totals.reusedCanonicals += outcome.reusedCanonicals;
-    totals.blockedAmbiguous += outcome.blockedAmbiguous;
-    totals.blockedUnmapped += outcome.blockedUnmapped;
-  }
 
-  if (lastKey) await persistCursor(context.sourceId, lastKey);
-  return totals;
+    let lastKey: string | null = null;
+    for (const raw of candidates.rows) {
+      const source: SourceProduct = {
+        id: requiredText(raw.id, "source product id"),
+        snapshotId: requiredText(raw.snapshot_id, "snapshot id"),
+        sourceProductKey: requiredText(raw.source_product_key, "source product key"),
+        title: requiredText(raw.title, "source title"),
+        normalizedPayload: record(raw.normalized_payload)
+      };
+      lastKey = source.sourceProductKey;
+      const outcome = await materializeProduct(context, source);
+      totals.variants += outcome.variants;
+      totals.canonicalsCreated += outcome.canonicalsCreated;
+      totals.familiesCreated += outcome.familiesCreated;
+      totals.offersCreated += outcome.offersCreated;
+      totals.reusedCanonicals += outcome.reusedCanonicals;
+      totals.blockedAmbiguous += outcome.blockedAmbiguous;
+      totals.blockedUnmapped += outcome.blockedUnmapped;
+    }
+
+    if (lastKey) await persistCursor(context.sourceId, lastKey);
+    return totals;
+  } finally {
+    await releaseMaterializationLease(context.sourceId).catch(() => undefined);
+  }
+}
+
+async function claimMaterializationLease(sourceId: string): Promise<boolean> {
+  const claimed = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    UPDATE public.catalog_sources
+       SET metadata=jsonb_set(
+             COALESCE(metadata,'{}'::jsonb),
+             '{symphonyaMaterializationLease}',
+             jsonb_build_object(
+               'leaseUntil',now()+make_interval(secs => $2::int),
+               'claimedAt',now()
+             ),
+             true
+           ),
+           updated_at=now()
+     WHERE id=$1::uuid
+       AND (
+         NULLIF(metadata #>> '{symphonyaMaterializationLease,leaseUntil}','') IS NULL
+         OR (metadata #>> '{symphonyaMaterializationLease,leaseUntil}')::timestamptz < now()
+       )
+    RETURNING id
+  `, [sourceId, MATERIALIZATION_LEASE_SECONDS]);
+  return Boolean(claimed.rows[0]?.id);
+}
+
+async function releaseMaterializationLease(sourceId: string): Promise<void> {
+  await getProductionPostgresRuntime().sqlPool.query(`
+    UPDATE public.catalog_sources
+       SET metadata=COALESCE(metadata,'{}'::jsonb)-'symphonyaMaterializationLease',
+           updated_at=now()
+     WHERE id=$1::uuid
+  `, [sourceId]);
 }
 
 async function materializeProduct(context: SupplierContext, source: SourceProduct) {
@@ -178,13 +218,27 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
     let matchMethod: "exact_gtin" | "enrichment" = "enrichment";
 
     const approvedLink = await pool.query<SqlRow>(`
-      SELECT canonical_variant_id::text canonical_variant_id,match_method
-        FROM public.catalog_source_product_links
-       WHERE source_product_id=$1::uuid
-         AND link_status='approved'
-       ORDER BY updated_at DESC,id DESC
-       LIMIT 1
-    `, [source.id]);
+      SELECT l.canonical_variant_id::text canonical_variant_id,
+             (array_agg(l.match_method ORDER BY l.updated_at DESC,l.id DESC))[1] match_method
+        FROM public.catalog_source_product_links l
+        JOIN public.catalog_source_products linked_source
+          ON linked_source.id=l.source_product_id
+       WHERE linked_source.source_id=$1::uuid
+         AND linked_source.source_product_key=$2
+         AND l.link_status='approved'
+         AND l.canonical_variant_id IS NOT NULL
+       GROUP BY l.canonical_variant_id
+       ORDER BY max(l.updated_at) DESC,l.canonical_variant_id::text
+       LIMIT 2
+    `, [context.sourceId, source.sourceProductKey]);
+    if (!canonicalVariantId && approvedLink.rows.length > 1) {
+      blockedAmbiguous += 1;
+      await upsertReview(context, source, null, {
+        reason: "historical_source_link_collision",
+        externalVariantId: variant.externalVariantId
+      });
+      continue;
+    }
     if (!canonicalVariantId && approvedLink.rows[0]) {
       canonicalVariantId = requiredText(approvedLink.rows[0].canonical_variant_id, "linked canonical id");
       matchMethod = approvedLink.rows[0].match_method === "exact_gtin" ? "exact_gtin" : "enrichment";
