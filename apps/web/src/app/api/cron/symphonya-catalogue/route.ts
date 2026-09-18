@@ -16,22 +16,31 @@ export async function GET(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401, headers: { "cache-control": "no-store" } });
   }
 
-  // Scheduled cron runs stay deliberately small and fully enriched. A one-time
-  // manually authorized completion run may scan multiple source pages while
-  // deferring optional getProductDetails enrichment to the downstream content
-  // stage. The supplier-scoped lease still prevents overlap in both modes.
-  const mode = cronAuthorized ? "cron" : "manual_once";
-  const resultOptions = cronAuthorized
-    ? { maxPages: 1, enrichProductDetails: true, includeDescription: true }
-    : { maxPages: 25, enrichProductDetails: false, includeDescription: false };
+  // Complete the first full supplier cycle as quickly and safely as possible.
+  // Until Symphonya has produced a genuine terminal page, scheduled runs use
+  // the same bounded fast-catchup mode as manual completion. Once a completed
+  // cycle marker exists, normal cron runs return to fully enriched pages.
+  const completion = await getProductionPostgresRuntime().sqlPool.query(`
+    SELECT (metadata ? 'symphonyaLastCompletedCycle') AS completed
+      FROM public.catalog_sources
+     WHERE code='symphonya'
+       AND active=true
+     LIMIT 1
+  `);
+  const initialCatchup = cronAuthorized && completion.rows[0]?.completed !== true;
+  const mode = cronAuthorized ? (initialCatchup ? "cron_initial_catchup" : "cron") : "manual_once";
+  const deferredEnrichment = initialCatchup || manualAuthorized;
+  const resultOptions = deferredEnrichment
+    ? { maxPages: 25, enrichProductDetails: false, includeDescription: false }
+    : { maxPages: 1, enrichProductDetails: true, includeDescription: true };
 
   try {
     const result = await runSymphonyaCatalogueSyncSlice(resultOptions);
     return Response.json({
       ok: true,
       mode,
-      detailEnrichment: cronAuthorized ? "full" : "deferred",
-      descriptionEnrichment: cronAuthorized ? "full" : "deferred",
+      detailEnrichment: deferredEnrichment ? "deferred" : "full",
+      descriptionEnrichment: deferredEnrichment ? "deferred" : "full",
       ...result
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
