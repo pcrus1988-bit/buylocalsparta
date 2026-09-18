@@ -43,8 +43,8 @@ test("Symphonya canonical matching only accepts checksum-valid GTINs", () => {
 
 test("Symphonya materialization uses latest immutable evidence with a supplier-scoped lease", () => {
   const source = readFileSync(new URL("../src/lib/symphonya-catalogue-materializer.ts", import.meta.url), "utf8");
-  assert.match(source, /SELECT DISTINCT ON \(p\.source_product_key\)/);
-  assert.match(source, /ORDER BY p\.source_product_key,p\.created_at DESC,p\.id DESC/);
+  assert.match(source, /FROM public\.catalog_source_product_latest p/);
+  assert.match(source, /ORDER BY p\.source_product_key/);
   assert.match(source, /symphonyaMaterializationLease/);
   assert.match(source, /linked_source\.source_product_key=\$2/);
   assert.match(source, /historical_source_link_collision/);
