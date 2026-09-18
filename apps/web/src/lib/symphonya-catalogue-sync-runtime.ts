@@ -44,6 +44,7 @@ export type SymphonyaSyncSliceResult = Readonly<{
 export type SymphonyaSyncSliceOptions = Readonly<{
   maxPages?: number;
   enrichProductDetails?: boolean;
+  includeDescription?: boolean;
 }>;
 
 export function symphonyaApiKeyFromEnvironment(): string {
@@ -105,6 +106,7 @@ export async function runSymphonyaCatalogueSyncSlice(
     ? maxPagesPerSlice()
     : Math.min(25, positiveIntegerValue(options.maxPages, 1));
   const includeProductDetails = options.enrichProductDetails !== false;
+  const includeDescription = options.includeDescription !== false;
   let pages = 0;
   let products = 0;
   let cycleComplete = false;
@@ -117,7 +119,7 @@ export async function runSymphonyaCatalogueSyncSlice(
         limit: state.perPage,
         lang: "en",
         includeOutOfStock: true,
-        includeDescription: true
+        includeDescription
       });
 
       const enrichedProducts = includeProductDetails
