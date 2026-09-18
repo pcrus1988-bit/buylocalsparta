@@ -14,8 +14,9 @@ export async function GET(request:Request,{params}:{params:Promise<{requestId:st
     if(!item)return Response.json({error:"privacy_request_not_found"},{status:404,headers:{"cache-control":"no-store"}});
     if(!["access","export"].includes(item.type))return Response.json({error:"privacy_report_not_available_for_request_type"},{status:400,headers:{"cache-control":"no-store"}});
     const automation=item.outcome&&typeof item.outcome==="object"&&!Array.isArray(item.outcome)?(item.outcome as Record<string,unknown>).automation:undefined;
-    const reportReady=automation&&typeof automation==="object"&&!Array.isArray(automation)&&Boolean((automation as Record<string,unknown>).reportReady);
-    if(!reportReady)return Response.json({error:"privacy_report_not_ready"},{status:409,headers:{"cache-control":"no-store"}});
+    const explicitlyReady=automation&&typeof automation==="object"&&!Array.isArray(automation)&&Boolean((automation as Record<string,unknown>).reportReady);
+    const legacyTerminalReport=["completed","partially_completed"].includes(item.status);
+    if(!explicitlyReady&&!legacyTerminalReport)return Response.json({error:"privacy_report_not_ready"},{status:409,headers:{"cache-control":"no-store"}});
     const url=new URL(request.url);
     const format=url.searchParams.get("format")==="json"?"json":"pdf";
     const snapshot=await buildPrivacyReportSnapshot(principal.userId,principal.userId);

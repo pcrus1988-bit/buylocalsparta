@@ -87,6 +87,21 @@ const SEARCH_EXCLUDED_SOURCES = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: MONOREPO_ROOT,
+  // pdfmake -> @foliojs-fork/pdfkit/fontkit reads shaping tables from disk at
+  // runtime. Next's static tracer cannot discover those dynamic fs reads, so
+  // include the small runtime assets explicitly in both GDPR report functions.
+  outputFileTracingIncludes: {
+    "/api/admin/privacy/report": [
+      "../../node_modules/@foliojs-fork/fontkit/*.trie",
+      "../../node_modules/@foliojs-fork/linebreak/**/*.trie",
+      "../../node_modules/@foliojs-fork/pdfkit/js/data/**/*"
+    ],
+    "/api/account/privacy/report/*": [
+      "../../node_modules/@foliojs-fork/fontkit/*.trie",
+      "../../node_modules/@foliojs-fork/linebreak/**/*.trie",
+      "../../node_modules/@foliojs-fork/pdfkit/js/data/**/*"
+    ]
+  },
   transpilePackages: ["@buy-local-sparta/core", "@buy-local-sparta/postgres-runtime", "@buy-local-sparta/mollie-payments", "@buy-local-sparta/aade-mydata", "@buy-local-sparta/object-storage", "@buy-local-sparta/media-processing", "@buy-local-sparta/meilisearch-search", "@buy-local-sparta/resend-notifications", "@buy-local-sparta/boxnow-shipping"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,

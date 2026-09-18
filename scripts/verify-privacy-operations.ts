@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 const files = {
+  nextConfig: read("apps/web/next.config.ts"),
   privacyControls: read("apps/web/src/app/privacy-controls/page.tsx"),
   accountPrivacyClient: read("apps/web/src/components/AccountPrivacyRightsClient.tsx"),
   accountPrivacyRequest: read("apps/web/src/app/api/account/privacy/request/route.ts"),
@@ -37,6 +38,10 @@ expect(files.adminPrivacyAutomation,"window.confirm","destructive/final privacy 
 expect(files.adminPrivacyAutomation,"Send response & close request","final customer response is a manual Admin action");
 expect(files.adminPrivacyAutomation,"PDF report","Admin can generate/download a PDF report");
 expect(files.adminPrivacyAutomation,"JSON export","Admin can generate/download a structured export");
+expect(files.adminPrivacyAutomation,"reportAvailable","Admin report links remain available after request completion");
+expect(files.nextConfig,"@foliojs-fork/fontkit/*.trie","fontkit shaping tables are traced into GDPR report functions");
+expect(files.nextConfig,"@foliojs-fork/linebreak/**/*.trie","linebreak runtime trie assets are traced into GDPR report functions");
+expect(files.nextConfig,"@foliojs-fork/pdfkit/js/data/**/*","pdfkit runtime data files are traced into GDPR report functions");
 
 expect(files.adminExecuteRoute,'permission:"privacy.manage"',"privacy execution requires privacy.manage");
 expect(files.adminExecuteRoute,"executeAdminPrivacyRequest","privacy execution route runs request-specific operation");
@@ -59,7 +64,8 @@ expect(files.adminReportRoute,'permission:"privacy.read"',"Admin report download
 expect(files.accountReportRoute,"requireAccountSession","customer report download requires authenticated account");
 expect(files.accountReportRoute,"state.privacyRequests.find","customer report download verifies request ownership");
 expect(files.accountReportRoute,'["access","export"].includes(item.type)',"customer report is limited to access/export request types");
-expect(files.accountReportRoute,"privacy_report_not_ready","customer cannot download before Admin prepares the report");
+expect(files.accountReportRoute,"privacy_report_not_ready","customer cannot download a live request before Admin prepares the report");
+expect(files.accountReportRoute,"legacyTerminalReport","completed legacy access/export requests remain downloadable");
 
 if(files.accountPrivacyRequest.includes("sendTransactionalEmail")) failures.push("customer privacy request submission must never email a final GDPR response automatically");
 if(files.adminExecuteRoute.includes("sendTransactionalEmail")) failures.push("privacy execute route must not send the customer response automatically");

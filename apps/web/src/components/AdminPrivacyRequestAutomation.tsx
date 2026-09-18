@@ -29,8 +29,10 @@ export function AdminPrivacyRequestAutomation({csrfToken,requestId,requestType,s
     preferredLocale:typeof requestedCorrection.preferredLocale==="string"?requestedCorrection.preferredLocale:""
   });
   const terminal=["completed","partially_completed","cancelled"].includes(status);
+  const completedTerminal=["completed","partially_completed"].includes(status);
   const hasExecution=Object.keys(automation).length>0;
   const responseSent=Object.keys(response).length>0;
+  const reportAvailable=["access","export"].includes(requestType)&&(hasExecution||completedTerminal);
 
   const executeLabel=useMemo(()=>{
     switch(requestType){
@@ -83,14 +85,14 @@ export function AdminPrivacyRequestAutomation({csrfToken,requestId,requestType,s
       <small>Το email δεν αλλάζει από GDPR correction εδώ· χρησιμοποιείται η ασφαλής verified-email flow του λογαριασμού.</small>
     </div>}
 
-    {!terminal&&<div className="admin-privacy-action-row">
-      <button type="button" className="button" disabled={Boolean(busy)||hasExecution} onClick={execute}>{busy==="execute"?"Processing…":hasExecution?"Operation prepared / executed":executeLabel}</button>
+    <div className="admin-privacy-action-row">
+      {!terminal&&<button type="button" className="button" disabled={Boolean(busy)||hasExecution} onClick={execute}>{busy==="execute"?"Processing…":hasExecution?"Operation prepared / executed":executeLabel}</button>}
       <a className="button button-secondary" href={`/admin/customers/${encodeURIComponent(customerId)}`}>Customer 360</a>
-      {["access","export"].includes(requestType)&&hasExecution&&<>
+      {reportAvailable&&<>
         <a className="button button-secondary" href={`/api/admin/privacy/report?requestId=${encodeURIComponent(requestId)}&format=pdf`}>PDF report</a>
         <a className="button button-secondary" href={`/api/admin/privacy/report?requestId=${encodeURIComponent(requestId)}&format=json`}>JSON export</a>
       </>}
-    </div>}
+    </div>
 
     {hasExecution&&!terminal&&!responseSent&&<div className="admin-privacy-response">
       <div><strong>Manual customer response</strong><small>Το email δεν αποστέλλεται αυτόματα. Έλεγξε/τροποποίησε το κείμενο και επιβεβαίωσε την αποστολή.</small></div>

@@ -29,7 +29,8 @@ export default async function AccountPrivacyPage() {
         const outcome = request.outcome && typeof request.outcome === "object" && !Array.isArray(request.outcome) ? request.outcome as Record<string, unknown> : {};
         const automation = outcome.automation && typeof outcome.automation === "object" && !Array.isArray(outcome.automation) ? outcome.automation as Record<string, unknown> : {};
         const response = outcome.response && typeof outcome.response === "object" && !Array.isArray(outcome.response) ? outcome.response as Record<string, unknown> : {};
-        return { id: request.id, type: request.type, status: request.status, submittedAt: request.submittedAt, targetAt: request.targetAt, reportReady: Boolean(automation.reportReady), responseSent: Boolean(response.sentAt) };
+        const legacyTerminalReport = ["completed","partially_completed"].includes(request.status) && ["access","export"].includes(request.type);
+        return { id: request.id, type: request.type, status: request.status, submittedAt: request.submittedAt, targetAt: request.targetAt, reportReady: Boolean(automation.reportReady) || legacyTerminalReport, responseSent: Boolean(response.sentAt) };
       })}
     />
   </main>;
