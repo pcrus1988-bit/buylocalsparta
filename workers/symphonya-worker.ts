@@ -3,6 +3,7 @@ import {
   getProductionPostgresRuntime,
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
+import { runCatalogueEnrichmentGenerationSlice } from "../apps/web/src/lib/catalogue-enrichment-generation-runtime.ts";
 import { runCatalogueEnrichmentPromotionSlice } from "../apps/web/src/lib/catalogue-enrichment-promotion-runtime.ts";
 import { runSymphonyaAutoPricingSlice } from "../apps/web/src/lib/symphonya-auto-pricing-runtime.ts";
 import { runSymphonyaAutoPublicationSweep } from "../apps/web/src/lib/symphonya-auto-publication-runtime.ts";
@@ -64,7 +65,7 @@ log("info", "symphonya.worker_started", {
   catalogueServingLayer: "product_translations",
   materialization: true,
   automaticPricing: true,
-  automaticPublication: process.env.BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED === "true",
+  automaticPublication: process.env.BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() !== "false",
   automaticSupplierPriceConfirmation: false,
   catalogueEnabled,
   stockEnabled,
@@ -109,6 +110,13 @@ try {
         log("info", "symphonya.catalogue_enrichment_preparation_slice", { workerId, ...enrichment });
       } catch (error) {
         log("error", "symphonya.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
+      }
+
+      try {
+        const generated = await runCatalogueEnrichmentGenerationSlice(process.env, { supplierCode: "symphonya" });
+        log("info", "symphonya.catalogue_enrichment_generation_slice", { workerId, ...generated });
+      } catch (error) {
+        log("error", "symphonya.catalogue_enrichment_generation_failed", { workerId, error: safeError(error) });
       }
 
       try {
