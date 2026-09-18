@@ -33,7 +33,7 @@ export type NovaAutoPublicationResult = Readonly<{
  */
 export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublicationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
-  const repaired = await repairMisclassifiedNovaClothing();
+  const repaired = await runNovaCategoryRepairSweep();
   const candidates = await pool.query<CategoryCandidate>(`
     SELECT
       cv.id::text AS canonical_id,
@@ -194,7 +194,7 @@ type CategoryRepairCandidate = Readonly<{
  * Work is family-scoped and bounded so category invariants remain valid while
  * the continuously running NOVA worker drains the backlog.
  */
-async function repairMisclassifiedNovaClothing(): Promise<number> {
+export async function runNovaCategoryRepairSweep(): Promise<number> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const candidates = await pool.query<CategoryRepairCandidate>(`
     SELECT DISTINCT ON (cv.family_id)
