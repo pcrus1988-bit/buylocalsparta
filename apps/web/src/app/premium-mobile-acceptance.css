@@ -88,7 +88,7 @@
     padding-bottom: 46px !important;
   }
   #top > :first-child,
-  #top > :last-child {
+  #top > :nth-child(2) {
     width: 100%;
     max-width: 780px;
     justify-self: center;
@@ -135,25 +135,37 @@
     line-height: 1.58 !important;
   }
 
-  /* Keep the real-local-market visual, but make it a compact landscape scene instead of a tall side column. */
-  #top > :last-child {
+  /* Only style the optional second hero child as the local-market visual.
+     Never let these scene rules fall through onto the hero copy/location control. */
+  #top > :nth-child(2) {
     min-height: 0 !important;
     display: block !important;
     padding-top: 8px;
   }
-  #top > :last-child > :first-child {
+  #top > :nth-child(2) > :first-child {
     width: 100% !important;
     max-width: none !important;
     aspect-ratio: 4 / 3 !important;
     border-radius: 20px !important;
   }
-  #top > :last-child > :last-child {
+  #top > :nth-child(2) > :last-child {
     position: relative !important;
     inset: auto !important;
     right: auto !important;
     bottom: auto !important;
     max-width: none !important;
     margin: -18px 12px 0 !important;
+  }
+
+  #top .header-location,
+  #top [class*="locationPill"] {
+    width: auto !important;
+    max-width: max-content !important;
+    min-height: 36px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
   }
 
   #featured-title,
@@ -277,11 +289,11 @@
     font-size: 36px !important;
     line-height: .94 !important;
   }
-  #top > :last-child > :first-child {
+  #top > :nth-child(2) > :first-child {
     aspect-ratio: 1.22 / 1 !important;
     border-radius: 16px !important;
   }
-  #top > :last-child > :last-child {
+  #top > :nth-child(2) > :last-child {
     margin: -14px 8px 0 !important;
     padding: 12px 13px !important;
     font-size: 11px !important;
