@@ -399,8 +399,32 @@ function serializeAddress(address: MollieAddress, label: string): Record<string,
   for (const [key, value] of Object.entries(required)) if (!value) throw new Error(`${label}.${key} is required`);
   const result: Record<string, string> = required;
   if (address.email?.trim()) result.email = bounded(address.email, 254);
-  if (address.phone?.trim()) result.phone = bounded(address.phone, 32);
+  const phone = normalizeMolliePhone(address.phone, required.country);
+  if (phone) result.phone = phone;
   return result;
+}
+
+function normalizeMolliePhone(value: string | undefined, country: string): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+
+  // Mollie/Klarna expects an international phone number. Customer addresses may
+  // legitimately be stored in the familiar Greek national format (69XXXXXXXX
+  // or 2XXXXXXXXX), so normalize at the payment-provider boundary instead of
+  // mutating the customer's saved address.
+  const compact = raw.replace(/[\s().-]/g, "");
+  if (/^\+\d{8,15}$/.test(compact)) return compact;
+  if (/^00\d{8,15}$/.test(compact)) return `+${compact.slice(2)}`;
+
+  const digits = compact.replace(/\D/g, "");
+  if (country === "GR") {
+    if (/^30\d{10}$/.test(digits)) return `+${digits}`;
+    if (/^\d{10}$/.test(digits)) return `+30${digits}`;
+  }
+
+  // An optional invalid phone is safer to omit than to send malformed billing
+  // metadata and have Mollie reject the entire checkout.
+  return undefined;
 }
 
 function serializeLine(line: MolliePaymentLine): Record<string, unknown> {
