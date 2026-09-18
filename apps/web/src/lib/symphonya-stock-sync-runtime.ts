@@ -9,7 +9,7 @@ const DEFAULT_LIMIT = 500;
 const DEFAULT_MAX_PAGES_PER_SLICE = 20;
 const LEASE_MS = 55_000;
 const SLICE_MS = 47_000;
-const AVAILABILITY_TTL_MINUTES = 10;
+const AVAILABILITY_TTL_MINUTES = 120;
 
 type StockSyncState = {
   version: 1;
