@@ -102,12 +102,11 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
 
   try {
     const candidates = await pool.query<SqlRow>(`
-      SELECT DISTINCT ON (p.source_product_key)
-             p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload,p.created_at
-        FROM public.catalog_source_products p
+      SELECT p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload
+        FROM public.catalog_source_product_latest p
        WHERE p.source_id=$1::uuid
          AND ($2::text IS NULL OR p.source_product_key>$2)
-       ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
+       ORDER BY p.source_product_key
        LIMIT $3
     `, [context.sourceId, context.cursor, batchSize()]);
 
