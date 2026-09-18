@@ -132,11 +132,11 @@ export function AskLocalRichCapture() {
     }
   }
 
-  return <fieldset className="ask-local-full workspace-tool-panel">
-    <legend><strong>Δείξε μας τι ψάχνεις</strong></legend>
-    <p className="workspace-inline-note">Προαιρετικά: μίλησε, φωτογράφισε το αντικείμενο/ανταλλακτικό ή σκάναρε τον κωδικό. Η φωνητική σημείωση μετατρέπεται σε κείμενο και η φωτογραφία μένει μέσα στο ιδιωτικό Ask Local αίτημα.</p>
-    <div className="workspace-inline-actions">
-      <button className="button button-secondary" type="button" onClick={listening ? stopVoice : startVoice}>{listening ? "■ Σταμάτημα" : "🎤 Φωνητική εισαγωγή"}</button>
+  return <fieldset className="ask-local-full workspace-tool-panel ask-local-capture-panel">
+    <legend><strong>Δεν περιγράφεται εύκολα; Δείξ’ το.</strong></legend>
+    <p className="workspace-inline-note">Μίλησε, φωτογράφισε το αντικείμενο ή σκάναρε τον κωδικό. Μπορείς να χρησιμοποιήσεις ένα ή περισσότερα μαζί.</p>
+    <div className="workspace-inline-actions ask-local-capture-actions">
+      <button className="button button-secondary" type="button" onClick={listening ? stopVoice : startVoice}>{listening ? "■ Σταμάτημα" : "🎤 Μίλησε"}</button>
       <label className="button button-secondary" htmlFor="ask-local-reference-photo">📷 Φωτογραφία / barcode</label>
       <input id="ask-local-reference-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => void capturePhoto(event.target.files?.[0])} hidden />
     </div>

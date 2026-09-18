@@ -22,6 +22,7 @@ import "./customer-account-ux.css";
 import "./customer-engagement-actions.css";
 import "./customer-account-onboarding.css";
 import "./ask-local-clarifications.css";
+import "./ask-local-premium.css";
 import "./customer-profile-security.css";
 import "./customer-support.css";
 import "./customer-returns-lifecycle.css";

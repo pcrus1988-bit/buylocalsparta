@@ -71,38 +71,38 @@ export function AskLocalCustomerActions({ csrfToken, initial }: { csrfToken: str
     }
   }
 
-  return <section className="shell" style={{ paddingTop: 18, paddingBottom: 4 }} aria-labelledby="ask-local-actions-title">
-    <div style={{ border: "1px solid rgba(23,25,20,.1)", borderRadius: 22, background: "#fff", padding: "18px", display: "grid", gap: 14 }}>
+  return <section className="shell ask-local-action-center" aria-labelledby="ask-local-actions-title">
+    <div className="ask-local-action-panel">
       <div>
         <div className="eyebrow">Χρειάζεται η απόφασή σου</div>
-        <h2 id="ask-local-actions-title" style={{ margin: "4px 0 6px" }}>Ask Local · ενεργά αιτήματα</h2>
-        <p style={{ margin: 0, opacity: .68 }}>Αποδέξου ή απόρριψε μία προσφορά, συνέχισε στο checkout ή ακύρωσε ένα αίτημα που δεν χρειάζεσαι πλέον.</p>
+        <h2 id="ask-local-actions-title">Έχεις ενεργά Ask Local.</h2>
+        <p>Ό,τι χρειάζεται τη δική σου απόφαση εμφανίζεται εδώ πρώτο.</p>
       </div>
       {error ? <div className="form-error" role="alert">{error}</div> : null}
       {message ? <div className="checkout-result success" role="status">{message}</div> : null}
-      <div style={{ display: "grid", gap: 10 }}>
+      <div className="ask-local-action-list">
         {visible.map((request) => {
           const activeOffer = request.privateOffers.find((offer) => offer.status === "active" && offer.expiresAt > Date.now());
           const acceptedOffer = request.privateOffers.find((offer) => offer.status === "accepted");
-          return <article key={request.referenceNumber} style={{ border: "1px solid rgba(23,25,20,.09)", borderRadius: 16, padding: 14, background: "#f8f7f2" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-              <div><strong>{request.referenceNumber}</strong><div style={{ marginTop: 5, opacity: .72 }}>{request.need}</div></div>
+          return <article key={request.referenceNumber} className="ask-local-action-card">
+            <div className="ask-local-action-head">
+              <div><strong>{request.referenceNumber}</strong><p>{request.need}</p></div>
               <span className="status-pill">{request.status === "accepted" ? "Αποδεκτή" : activeOffer ? "Νέα προσφορά" : "Ενεργό αίτημα"}</span>
             </div>
-            {activeOffer ? <div style={{ marginTop: 12, borderRadius: 14, background: "#fff", padding: 13 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong style={{ fontSize: 20 }}>{money(activeOffer.priceMinor)}</strong><small>Ισχύει έως {when(activeOffer.expiresAt)}</small></div>
-              {activeOffer.fulfilmentPromise ? <p style={{ margin: "8px 0 0" }}>{activeOffer.fulfilmentPromise}</p> : null}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            {activeOffer ? <div className="ask-local-action-offer">
+              <div className="ask-local-offer-price"><strong>{money(activeOffer.priceMinor)}</strong><small>Ισχύει έως {when(activeOffer.expiresAt)}</small></div>
+              {activeOffer.fulfilmentPromise ? <p>{activeOffer.fulfilmentPromise}</p> : null}
+              <div className="ask-local-offer-actions">
                 <button className="button" type="button" disabled={Boolean(busy)} onClick={() => void decide(request, activeOffer.actionReference, "accept")}>{busy === `accept:${activeOffer.actionReference}` ? "Αποδοχή…" : "Αποδοχή & checkout"}</button>
                 <button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => void decide(request, activeOffer.actionReference, "decline")}>{busy === `decline:${activeOffer.actionReference}` ? "Απόρριψη…" : "Απόρριψη"}</button>
               </div>
             </div> : null}
-            {request.status === "accepted" && acceptedOffer ? <div style={{ marginTop: 12, borderRadius: 14, background: "#fff", padding: 13 }}>
+            {request.status === "accepted" && acceptedOffer ? <div className="ask-local-action-offer">
               <strong>Η προσφορά σου είναι αποδεκτή.</strong>
-              <p style={{ margin: "7px 0 10px", opacity: .72 }}>{money(acceptedOffer.priceMinor)} · ολοκλήρωσε την αγορά με τη συμφωνημένη τιμή και το συγκεκριμένο κατάστημα.</p>
+              <p>{money(acceptedOffer.priceMinor)} · ολοκλήρωσε την αγορά με τη συμφωνημένη τιμή και το συγκεκριμένο κατάστημα.</p>
               {request.canonicalVariantId ? <a className="button" href={`/checkout/private-offer/${encodeURIComponent(acceptedOffer.actionReference)}`}>Συνέχεια στο checkout</a> : <p className="form-error">Η παλαιότερη αυτή προσφορά δεν είχε συνδεθεί με συγκεκριμένο προϊόν. Το κατάστημα πρέπει να την ανανεώσει πριν γίνει online αγορά.</p>}
             </div> : null}
-            {cancellable.has(request.status) ? <div style={{ marginTop: 10 }}><button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void cancel(request.referenceNumber)}>{busy === `cancel:${request.referenceNumber}` ? "Ακύρωση…" : "Ακύρωση αιτήματος"}</button></div> : null}
+            {cancellable.has(request.status) ? <div className="ask-local-cancel"><button className="text-button" type="button" disabled={Boolean(busy)} onClick={() => void cancel(request.referenceNumber)}>{busy === `cancel:${request.referenceNumber}` ? "Ακύρωση…" : "Ακύρωση αιτήματος"}</button></div> : null}
           </article>;
         })}
       </div>
