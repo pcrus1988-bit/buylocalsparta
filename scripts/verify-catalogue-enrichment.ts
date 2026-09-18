@@ -16,7 +16,7 @@ const adminPage=await readFile(join(root,"apps/web/src/app/admin/catalogue/enric
 const catalogMetadata=await readFile(join(root,"apps/web/src/lib/catalog-metadata.ts"),"utf8");
 const catalogView=await readFile(join(root,"apps/web/src/lib/catalog-view.ts"),"utf8");
 const dropshipStorefront=await readFile(join(root,"apps/web/src/lib/published-dropship-storefront.ts"),"utf8");
-const dropshipCatalogPage=await readFile(join(root,"apps/web/src/lib/published-dropship-catalog-page.ts"),"utf8");
+const dropshipCatalogPage=await readFile(join(root,"apps/web/src/lib/published-dropship-catalog-page-fast.ts"),"utf8");
 
 if (!foundation.includes("BLS_CATALOGUE_AI_ENRICHMENT_ENABLED")) throw new Error("Catalogue enrichment must remain explicitly feature-gated");
 
