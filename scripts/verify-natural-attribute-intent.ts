@@ -122,6 +122,8 @@ if (tied.connection) failures.push("Natural attribute intent must not hard-filte
 
 const shopPage = readFileSync(new URL("../apps/web/src/app/shop/page.tsx", import.meta.url), "utf8");
 const catalogView = readFileSync(new URL("../apps/web/src/lib/catalog-view.ts", import.meta.url), "utf8");
+const catalogViewBase = readFileSync(new URL("../apps/web/src/lib/catalog-view-base.ts", import.meta.url), "utf8");
+const catalogSources = `${catalogView}\n${catalogViewBase}`;
 for (const contract of [
   "getShopCatalogPage({",
   "getPublishedDropshipCatalogPage({",
@@ -137,7 +139,7 @@ for (const contract of [
   "production.search.search({ marketId: \"sparta\", q: query, type: \"product\", limit: 100, attributeFilters })",
   "matchesCatalogAttributeFilters(metadata.get(id)?.attributes, attributeFilters)"
 ]) {
-  if (!catalogView.includes(contract)) failures.push(`Catalog search must apply structured filters before the result cap: ${contract}`);
+  if (!catalogSources.includes(contract)) failures.push(`Catalog search must apply structured filters before the result cap: ${contract}`);
 }
 
 if (failures.length) {

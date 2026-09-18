@@ -8,6 +8,7 @@ import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
 import { getFastShopTaxonomy } from "./fast-shop-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { storefrontCategoryBySlug } from "./storefront-taxonomy";
+import { decodeCatalogSizeGroup } from "./catalog-size";
 
 type AttributeFacetRow = Readonly<{ attribute_facets: unknown }>;
 type AttributeFacetJson = Readonly<{ key?: unknown; label?: unknown; options?: unknown }>;
@@ -56,6 +57,7 @@ async function loadFastAttributeFacets(
   if (!definitions.length) return [];
 
   const prefixes = categoryPrefixes(category);
+  const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
   const definitionPayload = definitions.map((definition) => ({
     key: definition.key,
     label: definition.label,
@@ -119,7 +121,10 @@ async function loadFastAttributeFacets(
           AND ($3::text='' OR base.category_code=$3)
           AND ($4::text='' OR lower(COALESCE(base.brand,''))=lower($4))
           AND ($5::text='' OR lower(COALESCE(base.color,''))=lower($5))
-          AND ($6::text='' OR base.sizes ? $6)
+          AND (cardinality($6::text[])=0 OR EXISTS (
+            SELECT 1 FROM unnest($6::text[]) selected_size(value)
+            WHERE COALESCE(base.sizes,'[]'::jsonb) ? selected_size.value
+          ))
           AND NOT EXISTS (
             SELECT 1
             FROM jsonb_each_text($8::jsonb) selected(key,value)
@@ -150,7 +155,7 @@ async function loadFastAttributeFacets(
       filters.subcategory ?? "",
       filters.brand ?? "",
       filters.color ?? "",
-      filters.size ?? "",
+      selectedSizes,
       JSON.stringify(definitionPayload),
       JSON.stringify(attributeFilters)
     ]);

@@ -6,6 +6,9 @@ const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
 const failures: string[] = [];
 
 const directory = read("apps/web/src/lib/public-vendor-directory.ts");
+const assortmentProjection = read("db/migrations/20260915_storefront_vendor_assortment_read_model.sql");
+const vendorCatalogBrowser = read("apps/web/src/components/VendorCatalogBrowser.tsx");
+const vendorCatalogApi = read("apps/web/src/app/api/catalog/vendor/[id]/route.ts");
 const publicMedia = read("apps/web/src/lib/public-media-service.ts");
 const adminStoryMedia = read("apps/web/src/lib/admin-merchant-story-media.ts");
 const adminStoryMediaRoute = read("apps/web/src/app/api/admin/content/story-media/route.ts");
@@ -21,12 +24,13 @@ for (const boundary of [
   "v.status='active'",
   "ms.status='published'",
   "ms.vendor_approved_at IS NOT NULL",
-  "ms.published_at <= now()",
-  "vo.status='approved'",
-  "cv.suppressed=false",
-  "cv.recalled=false"
+  "ms.published_at <= now()"
 ]) {
   if (!directory.includes(boundary)) failures.push(`Merchant directory projection is missing governance boundary: ${boundary}`);
+}
+if (!directory.includes("storefront_vendor_assortment_read_model")) failures.push("Merchant directory must consume the governed preaggregated public assortment projection");
+for (const boundary of ["vo.status='approved'", "cv.suppressed=false", "cv.recalled=false"]) {
+  if (!assortmentProjection.includes(boundary)) failures.push(`Merchant assortment projection is missing governance boundary: ${boundary}`);
 }
 if (!directory.includes("new PostgresUnitOfWork(runtime.sqlPool") || !directory.includes("platformAccess: true")) failures.push("Merchant directory PostgreSQL reads must use the scoped unit-of-work boundary");
 for (const boundary of ["pm.scan_status='clean'", "pm.rights_status='approved'", "pm.moderation_status='approved'", "v.status='active'", "vo.status='approved'"]) {
@@ -88,7 +92,7 @@ if (!shopsPage.includes("getPublicVendorDirectory()")) failures.push("/shops mus
 if (!shopsPage.includes('role="search"') || !shopsPage.includes('name="category"') || !shopsPage.includes("normalizedSearch")) failures.push("/shops must provide server-rendered merchant name and category discovery controls");
 if (!shopsPage.includes('href="/fairness"') || !shopsPage.includes("δίκαιη συμμετοχή")) failures.push("/shops must explain directory visibility in the context of fair assignment");
 if (!vendorPage.includes("getPublicVendorDirectoryEntry(id)")) failures.push("Public vendor profile must consume the governed merchant directory projection");
-if (!vendorPage.includes("getVendorLocalCatalogCards(id)")) failures.push("Public vendor profile products must retain the bounded non-fairness local vendor catalog projection");
+if (!vendorPage.includes("<VendorCatalogBrowser") || !vendorPage.includes("bounded /api/catalog/vendor/:id endpoint in 20-item pages") || !vendorCatalogBrowser.includes("const PAGE_SIZE = 20") || !vendorCatalogBrowser.includes("/api/catalog/vendor/") || !vendorCatalogApi.includes("Math.max(1, intParam(url, \"limit\", 20, 60))")) failures.push("Public vendor profile products must retain the bounded non-fairness vendor catalog projection");
 if (!vendorPage.includes("vendor.profileStory ?? vendor.story?.excerpt ??") || !vendorPage.includes("Δεν έχει δημοσιευθεί ακόμη ιστορία από το κατάστημα") || !vendorPage.includes("Κείμενο βιτρίνας διαχειριζόμενο από Admin με καταγεγραμμένο ιστορικό ενεργειών.") || !vendorPage.includes("Ιστορία καταστήματος δημοσιευμένη με καταγεγραμμένη έγκριση του συνεργάτη.")) failures.push("Public vendor profile must distinguish Admin-managed, vendor-approved and no-story storytelling states");
 if (!PRIMARY_NAVIGATION.some((link) => link.href === "/shops")) failures.push("Primary navigation registry must link directly to /shops");
 if (!home.includes('href="/shops"') && !home.includes('href="/shops?status=partner"')) failures.push("Homepage merchant discovery must link to /shops");
