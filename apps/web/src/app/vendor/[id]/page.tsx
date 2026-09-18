@@ -19,6 +19,8 @@ import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-poli
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
+export const dynamic = "force-dynamic";
+
 // generateMetadata() and the page render need the same vendor + SEO projections.
 // React cache deduplicates those reads within the request instead of opening the
 // same production DB work twice for every storefront visit.
