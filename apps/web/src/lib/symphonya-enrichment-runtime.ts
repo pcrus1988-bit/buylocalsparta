@@ -23,12 +23,10 @@ export async function runSymphonyaEnrichmentPreparationSlice(): Promise<Symphony
   const pool = getProductionPostgresRuntime().sqlPool;
   const candidates = await pool.query<SqlRow>(`
     WITH latest AS (
-      SELECT DISTINCT ON (p.source_product_key)
-             p.id,p.source_id,p.source_product_key,p.normalized_payload,p.created_at
-        FROM public.catalog_source_products p
+      SELECT p.id,p.source_id,p.source_product_key,p.normalized_payload,p.created_at
+        FROM public.catalog_source_product_latest p
         JOIN public.catalog_sources cs ON cs.id=p.source_id
        WHERE cs.code=$1 AND cs.active=true
-       ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
     )
     SELECT ds.id::text supplier_id,
            latest.id::text source_product_id,
@@ -56,7 +54,18 @@ export async function runSymphonyaEnrichmentPreparationSlice(): Promise<Symphony
        OR ce.source_product_id IS DISTINCT FROM latest.id
        OR ce.family_id IS NULL
      )
-     ORDER BY latest.source_product_key
+     ORDER BY (
+       EXISTS (
+         SELECT 1
+           FROM public.dropship_supplier_offers dso
+          WHERE dso.supplier_id=ds.id
+            AND dso.external_product_id=latest.source_product_key
+            AND dso.cached_available=true
+            AND COALESCE(dso.cached_quantity,0)>0
+            AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+       )
+     ) DESC,
+     latest.source_product_key
      LIMIT $3
   `, [SOURCE_CODE, SUPPLIER_CODE, batchSize()]);
 
