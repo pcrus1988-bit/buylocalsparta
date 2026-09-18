@@ -56,13 +56,16 @@ test("Symphonya pipeline refreshes targeted stock after translation promotion an
   assert.ok(promotion >= 0 && stock > promotion && publication > stock);
 });
 
-test("Symphonya enrichment prioritizes latest in-stock supplier evidence", () => {
+test("Symphonya enrichment prioritizes latest, fresh, untranslated in-stock evidence", () => {
   const preparation = readFileSync(new URL("../src/lib/symphonya-enrichment-runtime.ts", import.meta.url), "utf8");
   const generation = readFileSync(new URL("../src/lib/catalogue-enrichment-generation-runtime.ts", import.meta.url), "utf8");
   assert.match(preparation, /catalog_source_product_latest/);
   assert.match(preparation, /dso\.cached_available=true/);
   assert.match(generation, /\$4::text='symphonya'/);
   assert.match(generation, /dso\.cached_available=true/);
+  assert.match(generation, /dso\.availability_expires_at>now\(\)/);
+  assert.match(generation, /JOIN public\.product_translations pt/);
+  assert.match(generation, /pt\.locale='el'/);
 });
 
 test("Symphonya structured Beauty taxonomy maps to existing KONTA MOY product classes", () => {
