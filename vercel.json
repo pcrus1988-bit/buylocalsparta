@@ -19,6 +19,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/symphonya-pipeline",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/dropship-order-reconciliation",
       "schedule": "*/5 * * * *"
     },
