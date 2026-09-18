@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   }
 
   const previousBatchSize = process.env.BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE;
-  process.env.BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = "25";
+  process.env.BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = "5";
 
   try {
     const materialization = await runSymphonyaCatalogueMaterializationSlice();
