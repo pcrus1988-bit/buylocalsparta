@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-const PUBLISHED_REFRESH_LIMIT = 300;
+const PUBLISHED_REFRESH_LIMIT = 100;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
