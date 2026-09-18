@@ -108,6 +108,36 @@ Recommended runtime controls:
 
 This role consumes completed index evidence and writes governed source-product, EL localization and unmapped-attribute evidence. It does **not** create canonical products, offers, prices or stock. The content token belongs only here unless another separately reviewed server-side process explicitly needs it.
 
+## `symphonya` worker
+
+Required for catalogue/stock operation:
+
+- `DATABASE_URL`
+- `BLS_WORKER_ROLE=symphonya`
+- `BLS_SYMPHONYA_WORKER_ENABLED=true`
+- `SYMPHONYA_API_KEY`
+
+Recommended safe rollout:
+
+- `SYMPHONYA_ENABLED=false` until the controlled supplier-order smoke test succeeds
+- `BLS_SYMPHONYA_CATALOGUE_ENABLED=true`
+- `BLS_SYMPHONYA_STOCK_ENABLED=true`
+- `BLS_SYMPHONYA_MATERIALIZATION_ENABLED=true`
+- `BLS_SYMPHONYA_AUTO_PRICING_ENABLED=true`
+- `BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED=true` only when storefront visibility is intended
+- `BLS_SYMPHONYA_MATERIALIZATION_CATCHUP_PASSES=4`
+- `BLS_SYMPHONYA_PRICING_CATCHUP_PASSES=4`
+- `BLS_SYMPHONYA_STOCK_INTERVAL_MS=300000`
+
+Optional automatic Greek copy generation:
+
+- `BLS_CATALOGUE_AI_ENRICHMENT_ENABLED=true`
+- `BLS_CATALOGUE_AI_ENRICHMENT_ALLOW_ALL=true`
+- `OPENAI_API_KEY`
+- `BLS_CATALOGUE_AI_ENRICHMENT_BATCH_SIZE=2` (raise gradually after observing throughput/cost)
+
+The worker can synchronize, materialize, price, localize, refresh stock and publish without supplier-order forwarding. Customer payment for Symphonya remains blocked until both `SYMPHONYA_ENABLED=true` and the production `dropship_suppliers.order_forwarding_enabled` flag are true. Do not enable those order-mutation gates merely to accelerate catalogue visibility.
+
 ## `search` worker
 
 Required:
