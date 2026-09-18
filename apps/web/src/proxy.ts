@@ -8,7 +8,7 @@ const LEGACY_VISITOR_COOKIE = "bls_visitor";
 const VISITOR_HEADER = "x-bls-visitor";
 const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
-const DATABASE_RECOVERY_MODE = true;
+const DATABASE_RECOVERY_MODE = process.env.BLS_DATABASE_RECOVERY_MODE === "true";
 const DATABASE_RECOVERY_CRON_PATHS = [
   "/api/cron/symphonya-",
   "/api/cron/catalogue-crawler",
