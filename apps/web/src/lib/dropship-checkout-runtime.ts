@@ -37,6 +37,8 @@ type DropshipOfferRow = Readonly<{
   location_public_id: string;
   supplier_uuid: string;
   supplier_code: string;
+  order_forwarding_enabled: boolean;
+  minimum_procurement_minor: number | string | null;
   store_id: string | null;
   supplier_offer_uuid: string;
   external_product_id: string;
@@ -118,6 +120,8 @@ export async function checkoutApiAuthoritativeDropship(
       l.public_id AS location_public_id,
       ds.id::text AS supplier_uuid,
       ds.code AS supplier_code,
+      ds.order_forwarding_enabled,
+      COALESCE(NULLIF(ds.configuration->>'minimumProcurementMinor','')::bigint,9900) AS minimum_procurement_minor,
       COALESCE(ds.configuration->>'storeId','2') AS store_id,
       dso.id::text AS supplier_offer_uuid,
       dso.external_product_id,
@@ -203,6 +207,9 @@ export async function checkoutApiAuthoritativeDropship(
       supplierCostMinor = evidence.supplierCostMinor;
       revalidatedAt = evidence.checkedAt;
     } else if (row.supplier_code === SYMPHONYA_SUPPLIER_CODE) {
+      if (!row.order_forwarding_enabled) {
+        throw new Error("Τα προϊόντα Symphonya είναι διαθέσιμα για προβολή, αλλά οι αγορές τους δεν έχουν ενεργοποιηθεί ακόμη μέχρι να ολοκληρωθεί ο έλεγχος αυτόματης προώθησης παραγγελίας στον προμηθευτή.");
+      }
       symphonyaClient ??= new SymphonyaHttpTransport({
         apiKey: symphonyaApiKeyFromEnvironment(),
         baseUrl: process.env.SYMPHONYA_API_BASE_URL,
@@ -228,6 +235,22 @@ export async function checkoutApiAuthoritativeDropship(
       throw new Error("Η τιμή του προμηθευτή άλλαξε και η πώληση δεν περνά πλέον τον κανόνα κερδοφορίας. Η παραγγελία δεν δημιουργήθηκε.");
     }
     validated.push({ row, quantity: item.quantity, supplierCostMinor, revalidatedAt });
+  }
+
+  const symphonyaLines = validated.filter((line) => line.row.supplier_code === SYMPHONYA_SUPPLIER_CODE);
+  if (symphonyaLines.length) {
+    const minimumProcurementMinor = Math.max(
+      ...symphonyaLines.map((line) => safeInt(line.row.minimum_procurement_minor ?? 9900, "Symphonya minimum procurement"))
+    );
+    const supplierProcurementMinor = symphonyaLines.reduce(
+      (sum, line) => sum + line.supplierCostMinor * line.quantity,
+      0
+    );
+    if (supplierProcurementMinor < minimumProcurementMinor) {
+      throw new Error(
+        `Η συγκεκριμένη παραγγελία Symphonya δεν φτάνει το ελάχιστο όριο προμήθειας του προμηθευτή (${(minimumProcurementMinor / 100).toFixed(2)} € σε τιμές προμήθειας). Πρόσθεσε ακόμη ένα προϊόν Symphonya και δοκίμασε ξανά.`
+      );
+    }
   }
 
   const db = await runtime.nativePool.connect();
