@@ -3,7 +3,12 @@ import {
   getProductionPostgresRuntime,
   productionDatabaseReadiness
 } from "../apps/web/src/lib/postgres-runtime.ts";
+import { runCatalogueEnrichmentPromotionSlice } from "../apps/web/src/lib/catalogue-enrichment-promotion-runtime.ts";
+import { runSymphonyaAutoPricingSlice } from "../apps/web/src/lib/symphonya-auto-pricing-runtime.ts";
+import { runSymphonyaAutoPublicationSweep } from "../apps/web/src/lib/symphonya-auto-publication-runtime.ts";
+import { runSymphonyaCatalogueMaterializationSlice } from "../apps/web/src/lib/symphonya-catalogue-materializer.ts";
 import { runSymphonyaCatalogueSyncSlice } from "../apps/web/src/lib/symphonya-catalogue-sync-runtime.ts";
+import { runSymphonyaEnrichmentPreparationSlice } from "../apps/web/src/lib/symphonya-enrichment-runtime.ts";
 import { runSymphonyaPriceAlertSweep } from "../apps/web/src/lib/symphonya-price-alert-runtime.ts";
 import { runSymphonyaStockSyncSlice } from "../apps/web/src/lib/symphonya-stock-sync-runtime.ts";
 
@@ -23,6 +28,16 @@ const pollMs = positiveInteger(process.env.BLS_SYMPHONYA_POLL_MS, 15_000, "BLS_S
 const retryMs = positiveInteger(process.env.BLS_SYMPHONYA_RETRY_MS, 30_000, "BLS_SYMPHONYA_RETRY_MS");
 const stockIntervalMs = positiveInteger(process.env.BLS_SYMPHONYA_STOCK_INTERVAL_MS, 5 * 60_000, "BLS_SYMPHONYA_STOCK_INTERVAL_MS");
 const priceAlertIntervalMs = positiveInteger(process.env.BLS_SYMPHONYA_PRICE_ALERT_INTERVAL_MS, 60_000, "BLS_SYMPHONYA_PRICE_ALERT_INTERVAL_MS");
+const materializationCatchupPasses = positiveInteger(
+  process.env.BLS_SYMPHONYA_MATERIALIZATION_CATCHUP_PASSES,
+  4,
+  "BLS_SYMPHONYA_MATERIALIZATION_CATCHUP_PASSES"
+);
+const pricingCatchupPasses = positiveInteger(
+  process.env.BLS_SYMPHONYA_PRICING_CATCHUP_PASSES,
+  4,
+  "BLS_SYMPHONYA_PRICING_CATCHUP_PASSES"
+);
 
 const readiness = await productionDatabaseReadiness();
 if (!readiness.ok) throw new Error(`Symphonya worker refused to start: ${readiness.message}`);
@@ -45,6 +60,9 @@ log("info", "symphonya.worker_started", {
   priceAlertIntervalMs,
   supplier: "symphonya",
   catalogueServingLayer: "product_translations",
+  materialization: true,
+  automaticPricing: true,
+  automaticPublication: process.env.BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED === "true",
   automaticSupplierPriceConfirmation: false,
   writesSupplierOrders: false,
   partialOrdersAllowed: false
@@ -55,6 +73,49 @@ try {
     try {
       const catalogue = await runSymphonyaCatalogueSyncSlice();
       log("info", "symphonya.catalogue_sync_slice", { workerId, ...catalogue });
+
+      for (let pass = 1; pass <= materializationCatchupPasses && !stopping; pass += 1) {
+        try {
+          const materialization = await runSymphonyaCatalogueMaterializationSlice();
+          log("info", "symphonya.catalogue_materialization_slice", { workerId, pass, ...materialization });
+          if (!materialization.enabled || materialization.scanned === 0 || materialization.message) break;
+        } catch (error) {
+          log("error", "symphonya.catalogue_materialization_failed", { workerId, pass, error: safeError(error) });
+          break;
+        }
+      }
+
+      for (let pass = 1; pass <= pricingCatchupPasses && !stopping; pass += 1) {
+        try {
+          const pricing = await runSymphonyaAutoPricingSlice();
+          log("info", "symphonya.auto_pricing_slice", { workerId, pass, ...pricing });
+          if (!pricing.enabled || pricing.scanned === 0 || pricing.message !== "auto_pricing_unmanaged_catchup") break;
+        } catch (error) {
+          log("error", "symphonya.auto_pricing_failed", { workerId, pass, error: safeError(error) });
+          break;
+        }
+      }
+
+      try {
+        const enrichment = await runSymphonyaEnrichmentPreparationSlice();
+        log("info", "symphonya.catalogue_enrichment_preparation_slice", { workerId, ...enrichment });
+      } catch (error) {
+        log("error", "symphonya.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
+      }
+
+      try {
+        const promoted = await runCatalogueEnrichmentPromotionSlice();
+        log("info", "symphonya.catalogue_enrichment_promotion_slice", { workerId, ...promoted });
+      } catch (error) {
+        log("error", "symphonya.catalogue_enrichment_promotion_failed", { workerId, error: safeError(error) });
+      }
+
+      try {
+        const publication = await runSymphonyaAutoPublicationSweep();
+        log("info", "symphonya.auto_publication_sweep", { workerId, ...publication });
+      } catch (error) {
+        log("error", "symphonya.auto_publication_failed", { workerId, error: safeError(error) });
+      }
 
       if (Date.now() >= nextStockSyncAt) {
         const startedAt = Date.now();
