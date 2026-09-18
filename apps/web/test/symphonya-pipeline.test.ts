@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { symphonyaAutoPricingEnabled } from "../src/lib/symphonya-auto-pricing-runtime.ts";
-import { resolveSymphonyaCategoryCode } from "../src/lib/symphonya-auto-publication-runtime.ts";
+import { resolveSymphonyaCategoryCode } from "../src/lib/symphonya-category-mapping.ts";
 import { normalizeSymphonyaGlobalIdentifier } from "../src/lib/symphonya-catalogue-materializer.ts";
 
 test("Symphonya automatic pricing is on by default but can be explicitly disabled", () => {
