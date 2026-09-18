@@ -283,3 +283,151 @@
     gap: 10px 16px;
   }
 }
+
+
+/* Consumer payment trust strip. */
+.site-footer-payments {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: center;
+  gap: 22px;
+  padding-block: 19px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+}
+
+.site-footer-payment-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.site-footer-payment-copy strong {
+  color: #fff;
+  font-size: .8rem;
+  line-height: 1.4;
+}
+
+.site-footer-payment-copy span,
+.site-footer-powered > span {
+  color: rgba(248, 251, 249, .56);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.site-footer-payment-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.payment-brand {
+  height: 31px;
+  min-width: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: #fff;
+  color: #111;
+  box-shadow: inset 0 0 0 1px rgba(12, 36, 28, .08);
+  font-style: normal;
+  line-height: 1;
+}
+
+.payment-brand-visa {
+  color: #1434cb;
+  font-size: .83rem;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -.03em;
+}
+
+.payment-brand-mastercard {
+  gap: 6px;
+  min-width: 88px;
+  padding-inline: 8px 10px;
+}
+
+.payment-brand-mastercard i {
+  position: relative;
+  width: 25px;
+  height: 16px;
+  display: inline-block;
+}
+
+.payment-brand-mastercard i b {
+  position: absolute;
+  top: 1px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+}
+
+.payment-brand-mastercard i b:first-child {
+  left: 0;
+  background: #eb001b;
+}
+
+.payment-brand-mastercard i b:last-child {
+  right: 0;
+  background: #f79e1b;
+  opacity: .9;
+}
+
+.payment-brand-mastercard em {
+  color: #222;
+  font-size: .56rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.payment-brand-klarna {
+  background: #ffb3c7;
+  color: #111;
+  font-size: .74rem;
+  font-weight: 900;
+}
+
+.site-footer-powered {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.site-footer-powered strong {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: -.04em;
+}
+
+@media (max-width: 900px) {
+  .site-footer-payments {
+    grid-template-columns: 1fr auto;
+  }
+
+  .site-footer-powered {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 680px) {
+  .site-footer-payments {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding-block: 17px;
+  }
+
+  .site-footer-powered {
+    grid-column: auto;
+  }
+
+  .payment-brand {
+    height: 30px;
+  }
+}
