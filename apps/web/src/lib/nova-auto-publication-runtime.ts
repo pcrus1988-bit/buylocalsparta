@@ -3,6 +3,7 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const SUPPLIER_CODE = "nova_brandsgateway";
 const CATEGORY_BATCH_SIZE = 500;
+const CATEGORY_REPAIR_BATCH_SIZE = 250;
 const PUBLICATION_BATCH_SIZE = 2_000;
 
 type CategoryCandidate = Readonly<{
@@ -14,6 +15,7 @@ type CategoryCandidate = Readonly<{
 export type NovaAutoPublicationResult = Readonly<{
   categoryCandidates: number;
   categorized: number;
+  repaired: number;
   unmapped: number;
   published: number;
 }>;
@@ -31,6 +33,7 @@ export type NovaAutoPublicationResult = Readonly<{
  */
 export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublicationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
+  const repaired = await repairMisclassifiedNovaClothing();
   const candidates = await pool.query<CategoryCandidate>(`
     SELECT
       cv.id::text AS canonical_id,
@@ -173,9 +176,97 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
   return {
     categoryCandidates: candidates.rowCount ?? candidates.rows.length,
     categorized,
+    repaired,
     unmapped: Math.max(0,(candidates.rowCount ?? candidates.rows.length)-categorized),
     published: publishedCount
   };
+}
+
+type CategoryRepairCandidate = Readonly<{
+  family_id: string;
+  title: string;
+  normalized_payload: unknown;
+}>;
+
+/**
+ * Repair the historical NOVA false-positive classification that could place
+ * ordinary clothing under underwear when attribute evidence contained "Brand".
+ * Work is family-scoped and bounded so category invariants remain valid while
+ * the continuously running NOVA worker drains the backlog.
+ */
+async function repairMisclassifiedNovaClothing(): Promise<number> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const candidates = await pool.query<CategoryRepairCandidate>(`
+    SELECT DISTINCT ON (cv.family_id)
+      cv.family_id::text AS family_id,
+      csp.title,
+      csp.normalized_payload
+    FROM public.dropship_supplier_offers dso
+    JOIN public.dropship_suppliers ds
+      ON ds.id=dso.supplier_id
+     AND ds.code=$1
+     AND ds.active=true
+    JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+    JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+    JOIN public.categories current_category ON current_category.id=cv.category_id
+    JOIN public.catalog_source_products csp ON csp.id=dso.source_product_id
+    WHERE cv.family_id IS NOT NULL
+      AND current_category.slug IN ('womens-underwear','mens-underwear')
+      AND lower(COALESCE(csp.normalized_payload #>> '{categoryDetails,0,name}',''))='clothing'
+      AND lower(COALESCE(csp.normalized_payload #>> '{categoryDetails,1,name}','')) NOT IN ('underwear','sleepwear')
+    ORDER BY cv.family_id,dso.updated_at DESC,dso.id DESC
+    LIMIT $2
+  `,[SUPPLIER_CODE,CATEGORY_REPAIR_BATCH_SIZE]);
+
+  const familyIdsByCategory = new Map<string,string[]>();
+  for (const row of candidates.rows) {
+    const code = resolveNovaCategoryCode(row.normalized_payload,row.title);
+    if (!code || code === "womens-underwear" || code === "mens-underwear") continue;
+    const familyIds = familyIdsByCategory.get(code);
+    if (familyIds) familyIds.push(row.family_id);
+    else familyIdsByCategory.set(code,[row.family_id]);
+  }
+  if (!familyIdsByCategory.size) return 0;
+
+  const client = await pool.connect();
+  let repaired = 0;
+  try {
+    await client.query("BEGIN");
+    for (const [code,familyIds] of familyIdsByCategory) {
+      await client.query(`
+        UPDATE public.product_families pf
+        SET category_id=c.id,
+            updated_at=now()
+        FROM public.categories c
+        WHERE pf.id=ANY($1::uuid[])
+          AND c.market_id=pf.market_id
+          AND c.code=$2
+          AND c.active=true
+          AND c.assignable=true
+          AND c.taxonomy_role='product_class'
+          AND pf.category_id IS DISTINCT FROM c.id
+      `,[familyIds,code]);
+
+      const variants = await client.query(`
+        UPDATE public.canonical_variants cv
+        SET category_id=pf.category_id,
+            updated_at=now()
+        FROM public.product_families pf
+        WHERE cv.family_id=pf.id
+          AND pf.id=ANY($1::uuid[])
+          AND cv.category_id IS DISTINCT FROM pf.category_id
+        RETURNING cv.id
+      `,[familyIds]);
+      repaired += variants.rowCount;
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+  return repaired;
 }
 
 export function resolveNovaCategoryCode(payloadValue: unknown, sourceTitle: string): string | null {
