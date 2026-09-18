@@ -106,6 +106,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/confirm-email-change",
   "/forgot-password",
   "/reset-password",
+  "/flash-sale",
   "/terms",
   "/join/apply",
   "/hubs/join/apply",
