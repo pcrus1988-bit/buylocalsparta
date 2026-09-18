@@ -15,6 +15,7 @@ const stagingActivation = await readFile(new URL("../.github/workflows/staging-a
 const stagingEvidence = await readFile(new URL("../.github/workflows/staging-scenario-evidence.yml", import.meta.url), "utf8");
 const productionSchemaGate = await readFile(new URL("./verify-production-schema-head.ts", import.meta.url), "utf8");
 const productionSchemaHealth = await readFile(new URL("../apps/web/src/app/api/health/schema/route.ts", import.meta.url), "utf8");
+const symphonyaPipelineCron = await readFile(new URL("../apps/web/src/app/api/cron/symphonya-pipeline/route.ts", import.meta.url), "utf8");
 
 assert(root.packageManager === "npm@10.9.2", "root packageManager must stay pinned for Vercel workspace detection");
 assert(root.engines?.node === ">=24 <25", "root must require Node 24");
@@ -29,6 +30,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/delivery-dispatch", "* * * * *"],
   ["/api/cron/nova-canonical-media", "* * * * *"],
   ["/api/cron/symphonya-catalogue", "* * * * *"],
+  ["/api/cron/symphonya-pipeline", "* * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
 ]);
@@ -38,7 +40,7 @@ assert(
     && typeof cron.schedule === "string"
     && allowedVercelCrons.get(cron.path) === cron.schedule
   ),
-  "Vercel cron jobs are limited to bounded delivery, catalogue/media refresh, flash-sale availability, and dropship reconciliation routes; long-running BLS workers must remain isolated",
+  "Vercel cron jobs are limited to bounded delivery, catalogue/media/Symphonya pipeline refresh, flash-sale availability, and dropship reconciliation routes; long-running BLS workers must remain isolated",
 );
 for (const [path, schedule] of allowedVercelCrons) {
   assert(
@@ -46,6 +48,8 @@ for (const [path, schedule] of allowedVercelCrons) {
     `${path} cron must exist exactly once with schedule ${schedule}`,
   );
 }
+assert(symphonyaPipelineCron.includes("export const maxDuration = 55"), "Symphonya pipeline cron must remain bounded to one Vercel invocation");
+assert(symphonyaPipelineCron.includes('BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = "25"'), "Symphonya pipeline cron must retain bounded materialization batches");
 assert(
   web.scripts?.prebuild?.includes("verify-production-schema-head.ts --vercel-production-only"),
   "production Vercel prebuild must enforce the repository/production migration head gate",
@@ -110,6 +114,6 @@ for (const path of [
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery/catalogue-media/flash-sale/dropship reconciliation crons, web build and eight isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery/catalogue-media/Symphonya-pipeline/flash-sale/dropship reconciliation crons, web build and eight isolated Node 24 worker roles verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
