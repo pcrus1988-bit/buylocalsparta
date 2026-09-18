@@ -93,7 +93,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         throw new Error(data.error ?? "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       }
       if (data.hub.isSpartaLegacy) {
-        window.location.assign(data.redirectTo ?? "/join/apply");
+        window.location.assign(data.redirectTo ?? "/join/sparta");
         return;
       }
       setCompany(data.company);
@@ -136,7 +136,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
       const result = await response.json() as Partial<Receipt> & { error?: string; code?: string; redirectTo?: string };
       if (!response.ok) {
         if (result.code === "sparta_uses_existing_join") {
-          window.location.assign(result.redirectTo ?? "/join/apply");
+          window.location.assign(result.redirectTo ?? "/join/sparta");
           return;
         }
         throw new Error(result.error ?? "Η αίτηση δεν καταχωρίστηκε.");

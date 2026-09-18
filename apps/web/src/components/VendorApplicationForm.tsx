@@ -160,8 +160,12 @@ export function VendorApplicationForm({
         },
         body: JSON.stringify(payload)
       });
-      const data = await response.json() as Partial<Receipt> & { error?: string; code?: string };
+      const data = await response.json() as Partial<Receipt> & { error?: string; code?: string; redirectTo?: string };
       if (!response.ok) {
+        if (data.code === "hub_pricing_required") {
+          window.location.assign(data.redirectTo ?? "/hubs/join");
+          return;
+        }
         setErrorCode(data.code ?? "");
         throw new Error(data.error ?? "Η αίτηση δεν καταχωρίστηκε.");
       }

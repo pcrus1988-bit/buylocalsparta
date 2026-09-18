@@ -45,7 +45,7 @@ export default function HubExpansionJoinPage() {
         <a className="button" href="/hubs/join/apply?plan=claim#application-form">Ξεκίνα δωρεάν με ΑΦΜ</a>
         <a className="button button-secondary" href="#plans">Σύγκρινε προγράμματα</a>
       </div>
-      <p className="section-note">Αν η τοποθεσία Γ.Ε.ΜΗ. ανήκει στο ενεργό HUB Σπάρτης, σε μεταφέρουμε αυτόματα στην υπάρχουσα διαδικασία <a href="/join">/join</a>.</p>
+      <p className="section-note">Αν η τοποθεσία Γ.Ε.ΜΗ. ανήκει στο ενεργό HUB Σπάρτης, σε μεταφέρουμε αυτόματα στα προγράμματα που ισχύουν αποκλειστικά για τη Σπάρτη.</p>
     </section>
 
     <section className={styles.autoBand} aria-label="Αυτόματη αντιστοίχιση HUB">
@@ -119,7 +119,7 @@ export default function HubExpansionJoinPage() {
         <div className={styles.trustPoints}>
           <p><strong>Registry first.</strong> Νομική ταυτότητα, διεύθυνση και Τ.Κ. προέρχονται από τα δημόσια στοιχεία Γ.Ε.ΜΗ.</p>
           <p><strong>Server-side επανέλεγχος.</strong> Στην υποβολή επαναλαμβάνεται ΑΦΜ → Γ.Ε.ΜΗ. → τοποθεσία → HUB ώστε το browser να μην μπορεί να αλλάξει την αντιστοίχιση.</p>
-          <p><strong>Σπάρτη παραμένει ξεχωριστή.</strong> Αν η επαληθευμένη τοποθεσία ανήκει στο HUB Σπάρτης, η αίτηση συνεχίζει στο υπάρχον /join.</p>
+          <p><strong>Σπάρτη παραμένει ξεχωριστή.</strong> Αν η επαληθευμένη τοποθεσία ανήκει στο HUB Σπάρτης, η αίτηση συνεχίζει στη διαδρομή συνεργασίας της Σπάρτης.</p>
         </div>
       </div>
     </section>

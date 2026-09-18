@@ -8,6 +8,7 @@ import {
 } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { normalizeGreekAfm, resolveGemiCompanyByAfm, type GemiLookupResult } from "./gemi-runtime";
+import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 
@@ -81,6 +82,12 @@ export async function submitVendorApplication(input: {
 }): Promise<VendorApplicationReceipt> {
   const taxNumber = normalizeGreekAfm(input.application.taxNumber);
   const registry = await resolveGemiCompanyByAfm(taxNumber, input.now);
+  if (registry.lookupStatus === "matched") {
+    const marketResolution = await resolveExpansionHubForGemiCompany(registry);
+    if (marketResolution.status === "matched" && !marketResolution.hub.isSpartaLegacy) {
+      throw new Error("HUB_PRICING_REQUIRED");
+    }
+  }
   const application = normalizeApplication({ ...input.application, taxNumber }, registry);
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);

@@ -104,6 +104,16 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const code = error instanceof Error ? error.message : "APPLICATION_FAILED";
+    if (code === "HUB_PRICING_REQUIRED") {
+      return Response.json(
+        {
+          code: "hub_pricing_required",
+          error: "Η επαληθευμένη τοποθεσία δεν ανήκει στο ενεργό HUB Σπάρτης. Θα συνεχίσεις με τα προγράμματα HUB που ισχύουν για την περιοχή σου.",
+          redirectTo: "/hubs/join"
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } }
+      );
+    }
     if (code === "EXISTING_ACCOUNT_LOGIN_REQUIRED") {
       return Response.json({ code: "login_required", error: "Υπάρχει ήδη λογαριασμός με αυτό το email. Συνδέσου πρώτα ώστε η αίτηση να συνδεθεί με τον σωστό ιδιοκτήτη." }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }

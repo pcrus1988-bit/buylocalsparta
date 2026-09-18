@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         sourcePostcode: resolution.sourcePostcode,
         distanceKm: resolution.distanceKm
       },
-      redirectTo: resolution.hub.isSpartaLegacy ? "/join/apply" : undefined
+      redirectTo: resolution.hub.isSpartaLegacy ? "/join/sparta" : undefined
     }, { status: 200, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Μη έγκυρο ΑΦΜ.";

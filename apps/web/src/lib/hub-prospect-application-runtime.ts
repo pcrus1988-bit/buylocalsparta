@@ -82,7 +82,7 @@ export async function submitHubProspectApplication(input: {
   }
   const hub = resolution.hub;
   if (hub.isSpartaLegacy) {
-    throw new HubProspectApplicationError(409, "sparta_uses_existing_join", "Η επαληθευμένη τοποθεσία ανήκει στο HUB Σπάρτης. Συνέχισε από την ενεργή διαδικασία /join.");
+    throw new HubProspectApplicationError(409, "sparta_uses_existing_join", "Η επαληθευμένη τοποθεσία ανήκει στο HUB Σπάρτης. Συνέχισε από την ενεργή διαδικασία συνεργασίας της Σπάρτης.");
   }
 
   const registryPostcode = registry.postcode?.replace(/\D/g, "") ?? "";

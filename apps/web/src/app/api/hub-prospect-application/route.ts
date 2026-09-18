@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         {
           code: error.code,
           error: error.message,
-          redirectTo: error.code === "sparta_uses_existing_join" ? "/join/apply" : undefined
+          redirectTo: error.code === "sparta_uses_existing_join" ? "/join/sparta" : undefined
         },
         { status: error.status, headers: { "Cache-Control": "no-store" } }
       );
