@@ -64,7 +64,7 @@ for (const marker of ["title: details?.title ?? record.title","details?.shortDes
 for (const marker of ["title: details?.title ?? record.title","description: details?.description"]) {
   if (!dropshipCatalogPage.includes(marker)) throw new Error(`Catalogue enrichment paginated-storefront projection missing: ${marker}`);
 }
-for (const marker of ["title: metadata?.title ?? record.title","metadata?.shortDescription","title: displayTitle","const displayTitle = details?.title ?? product.title"]) {
+for (const marker of ["const displayTitle = metadata?.title ?? product.title","title: displayTitle","description: metadata?.description ?? detail?.description","title: metadata?.title ?? assigned.title"]) {
   if (!catalogView.includes(marker)) throw new Error(`Catalogue enrichment product-detail/SEO projection missing: ${marker}`);
 }
 
