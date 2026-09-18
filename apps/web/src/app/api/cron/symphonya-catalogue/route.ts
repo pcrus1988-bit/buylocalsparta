@@ -22,8 +22,8 @@ export async function GET(request: Request) {
   // stage. The supplier-scoped lease still prevents overlap in both modes.
   const mode = cronAuthorized ? "cron" : "manual_once";
   const resultOptions = cronAuthorized
-    ? { maxPages: 1, enrichProductDetails: true }
-    : { maxPages: 25, enrichProductDetails: false };
+    ? { maxPages: 1, enrichProductDetails: true, includeDescription: true }
+    : { maxPages: 25, enrichProductDetails: false, includeDescription: false };
 
   try {
     const result = await runSymphonyaCatalogueSyncSlice(resultOptions);
@@ -31,6 +31,7 @@ export async function GET(request: Request) {
       ok: true,
       mode,
       detailEnrichment: cronAuthorized ? "full" : "deferred",
+      descriptionEnrichment: cronAuthorized ? "full" : "deferred",
       ...result
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
