@@ -235,7 +235,7 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
                AND bls_private.catalog_normalize_gtin(cv.gtin)=$2)
              OR pi.normalized_value=$2
            )
-         ORDER BY cv.id
+         ORDER BY cv.id::text
          LIMIT 2
       `, [context.marketId, gtin.value]);
 
