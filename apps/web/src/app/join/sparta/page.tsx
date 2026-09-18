@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { SiteHeader } from "../../components/SiteHeader";
-import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
-import { SiteFooter } from "../../components/SiteFooter";
+import { SiteHeader } from "../../../components/SiteHeader";
+import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
+import { SiteFooter } from "../../../components/SiteFooter";
 import styles from "../page.module.css";
 
 export function generateMetadata(): Promise<Metadata> {
