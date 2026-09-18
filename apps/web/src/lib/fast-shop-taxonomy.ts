@@ -3,6 +3,7 @@ import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "./storefront-taxonomy";
+import { decodeCatalogSizeGroup, groupCatalogSizeFacets, inferCatalogSizeDomain } from "./catalog-size";
 
 const EMPTY_FACETS = { subcategories: [], brands: [], colors: [], sizes: [] } as const;
 
@@ -14,6 +15,7 @@ type FastTaxonomyRow = Readonly<{
 }>;
 
 type FacetRow = Readonly<{ value: string; label: string }>;
+type SizeFacetRow = Readonly<{ value: string; count: number }>;
 
 function normalizeCategory(value: string): string {
   return value.trim().toLowerCase().replaceAll("_", "-");
@@ -54,6 +56,16 @@ function facetRows(value: unknown): readonly FacetRow[] {
   });
 }
 
+function sizeFacetRows(value: unknown): readonly SizeFacetRow[] {
+  return arrayValue(value).flatMap((entry) => {
+    const record = recordValue(entry);
+    const option = stringValue(record.value);
+    const count = Number(record.count);
+    if (!option || !Number.isFinite(count) || count <= 0) return [];
+    return [{ value: option, count }];
+  });
+}
+
 function fallbackTaxonomy(): AvailableCatalogTaxonomy {
   return {
     categories: STOREFRONT_CATEGORIES,
@@ -78,6 +90,7 @@ export async function getFastShopTaxonomy(
 
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
+  const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
       WITH base AS MATERIALIZED (
@@ -109,28 +122,38 @@ export async function getFastShopTaxonomy(
         FROM base
         WHERE ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
           AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
-          AND ($6::text='' OR sizes ? $6)
+          AND (cardinality($6::text[])=0 OR EXISTS (
+            SELECT 1 FROM unnest($6::text[]) selected_size(value)
+            WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
+          ))
       ), brand_values AS (
         SELECT DISTINCT brand AS value
         FROM base
         WHERE brand IS NOT NULL
           AND ($3::text='' OR category_code=$3)
           AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
-          AND ($6::text='' OR sizes ? $6)
+          AND (cardinality($6::text[])=0 OR EXISTS (
+            SELECT 1 FROM unnest($6::text[]) selected_size(value)
+            WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
+          ))
       ), color_values AS (
         SELECT DISTINCT color AS value
         FROM base
         WHERE color IS NOT NULL
           AND ($3::text='' OR category_code=$3)
           AND ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
-          AND ($6::text='' OR sizes ? $6)
+          AND (cardinality($6::text[])=0 OR EXISTS (
+            SELECT 1 FROM unnest($6::text[]) selected_size(value)
+            WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
+          ))
       ), size_values AS (
-        SELECT DISTINCT size_entry.value
+        SELECT size_entry.value,COUNT(*)::int AS count
         FROM base
-        CROSS JOIN LATERAL jsonb_array_elements_text(base.sizes) AS size_entry(value)
+        CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(base.sizes,'[]'::jsonb)) AS size_entry(value)
         WHERE ($3::text='' OR category_code=$3)
           AND ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
           AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
+        GROUP BY size_entry.value
       )
       SELECT
         COALESCE((
@@ -139,25 +162,36 @@ export async function getFastShopTaxonomy(
         ),'[]'::jsonb) AS subcategories,
         COALESCE((SELECT jsonb_agg(value ORDER BY value) FROM brand_values),'[]'::jsonb) AS brands,
         COALESCE((SELECT jsonb_agg(value ORDER BY value) FROM color_values),'[]'::jsonb) AS colors,
-        COALESCE((SELECT jsonb_agg(value ORDER BY value) FROM size_values),'[]'::jsonb) AS sizes
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'count',count) ORDER BY value) FROM size_values),'[]'::jsonb) AS sizes
     `, [
       prefixes,
       search,
       filters.subcategory ?? "",
       filters.brand ?? "",
       filters.color ?? "",
-      filters.size ?? ""
+      selectedSizes
     ]);
 
     const row = result.rows[0];
     if (!row) return fallbackTaxonomy();
+    const subcategories = facetRows(row.subcategories);
+    const selectedSubcategory = filters.subcategory
+      ? subcategories.find((entry) => entry.value === filters.subcategory)
+      : undefined;
+    const sizeContext = filters.subcategory
+      ? [filters.subcategory, selectedSubcategory?.label ?? ""]
+      : [category, ...subcategories.flatMap((entry) => [entry.value, entry.label])];
+    const sizeDomain = inferCatalogSizeDomain(sizeContext);
+    const sizes = groupCatalogSizeFacets(sizeFacetRows(row.sizes), sizeDomain)
+      .map((entry) => ({ value: entry.value, label: entry.label }));
+
     return {
       categories: STOREFRONT_CATEGORIES,
       facets: {
-        subcategories: facetRows(row.subcategories),
+        subcategories,
         brands: textOptions(row.brands),
         colors: textOptions(row.colors),
-        sizes: textOptions(row.sizes)
+        sizes
       },
       attributeFacets: []
     };
