@@ -119,7 +119,7 @@ export class SymphonyaHttpTransport implements SymphonyaTransport {
     const payload = await this.#json("POST", "getProductDetails", {
       query: input.lang ? { lang: input.lang } : undefined,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: ids.map(toWireId) })
+      body: JSON.stringify(ids.map(toWireId))
     });
     return extractResults(payload).map((row) => normalizeProduct(row, this.#currency));
   }
