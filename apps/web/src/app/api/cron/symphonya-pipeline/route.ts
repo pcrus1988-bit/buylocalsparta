@@ -13,7 +13,11 @@ export const maxDuration = 55;
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const cronAuthorized = Boolean(cronSecret) && request.headers.get("authorization") === `Bearer ${cronSecret}`;
-  const token = new URL(request.url).searchParams.get("token")?.trim();
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token")?.trim();
+  const requestedPhase = url.searchParams.get("phase")?.trim() ?? "all";
+  const allowedPhases = new Set(["all","materialization","pricing","enrichment","promotion","publication"]);
+  const phase = allowedPhases.has(requestedPhase) ? requestedPhase : "all";
   const manualAuthorized = cronAuthorized ? false : await consumeManualToken(token);
 
   if (!cronAuthorized && !manualAuthorized) {
@@ -32,15 +36,17 @@ export async function GET(request: Request) {
   process.env.BLS_CATALOGUE_ENRICHMENT_PROMOTION_BATCH_SIZE = "50";
 
   try {
-    const materialization = await runSymphonyaCatalogueMaterializationSlice();
-    const pricing = await runSymphonyaAutoPricingSlice();
-    const enrichment = await runSymphonyaEnrichmentPreparationSlice();
-    const translationPromotion = await runCatalogueEnrichmentPromotionSlice();
-    const publication = await runSymphonyaAutoPublicationSweep();
+    const runAll = phase === "all";
+    const materialization = runAll || phase === "materialization" ? await runSymphonyaCatalogueMaterializationSlice() : null;
+    const pricing = runAll || phase === "pricing" ? await runSymphonyaAutoPricingSlice() : null;
+    const enrichment = runAll || phase === "enrichment" ? await runSymphonyaEnrichmentPreparationSlice() : null;
+    const translationPromotion = runAll || phase === "promotion" ? await runCatalogueEnrichmentPromotionSlice() : null;
+    const publication = runAll || phase === "publication" ? await runSymphonyaAutoPublicationSweep() : null;
 
     return Response.json({
       ok: true,
       mode: cronAuthorized ? "cron" : "manual_once",
+      phase,
       materialization,
       pricing,
       enrichment,
