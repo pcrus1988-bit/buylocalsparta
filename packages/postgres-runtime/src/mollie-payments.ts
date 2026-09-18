@@ -113,7 +113,19 @@ export class PostgresMolliePaymentsService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const providerRejected = error instanceof MollieApiError && error.status >= 400 && error.status < 500;
       await this.#uow.withTransaction({ actorUserId: input.customerId, marketId: "sparta", platformAccess: true }, async (tx) => {
+        if (providerRejected) {
+          await tx.query(`UPDATE payments
+            SET status='created',provider_correlation_id=NULL,
+                provider_payload=provider_payload||$3::jsonb,updated_at=$4
+            WHERE id=$1 AND provider_correlation_id=$2 AND provider_payment_id IS NULL`, [
+            prepared.paymentUuid, prepared.attemptId,
+            JSON.stringify({ paymentCreationState: "retry_ready", paymentCreationError: message.slice(0, 500), paymentCreationFailedAt: new Date(now).toISOString() }), new Date(now)
+          ]);
+          await this.#paymentEvent(tx, prepared.paymentUuid, `payment-attempt-rejected:${prepared.attemptId}`, "payment_creation_rejected", { attemptId: prepared.attemptId, error: message.slice(0, 500) }, now);
+          return;
+        }
         await tx.query(`UPDATE payments SET provider_payload=provider_payload||$3::jsonb,updated_at=$4
           WHERE id=$1 AND provider_correlation_id=$2 AND provider_payment_id IS NULL`, [
           prepared.paymentUuid, prepared.attemptId,
@@ -121,6 +133,7 @@ export class PostgresMolliePaymentsService {
         ]);
         await this.#paymentEvent(tx, prepared.paymentUuid, `payment-attempt-unknown:${prepared.attemptId}`, "payment_creation_unknown", { attemptId: prepared.attemptId, error: message.slice(0, 500) }, now);
       });
+      if (providerRejected) throw error;
       throw new Error("Mollie payment creation outcome requires reconciliation; automatic retry is blocked");
     }
 
