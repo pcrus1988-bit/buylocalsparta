@@ -13,6 +13,7 @@ type BrandMarketplaceLinkProps = Readonly<{
   href?: string;
   ariaLabel?: string;
   linkTitle?: string;
+  prefetch?: boolean;
 }>;
 
 export function BrandMarketplaceLink({
@@ -22,7 +23,8 @@ export function BrandMarketplaceLink({
   eager = false,
   href,
   ariaLabel,
-  linkTitle
+  linkTitle,
+  prefetch
 }: BrandMarketplaceLinkProps) {
   const logoUrl = publicBrandLogoUrl(logoObjectKey);
   const [logoFailed, setLogoFailed] = useState(false);
@@ -32,6 +34,7 @@ export function BrandMarketplaceLink({
 
   return <Link
     href={targetHref}
+    prefetch={prefetch}
     className={`${styles.root} ${variant === "card" ? styles.card : styles.detail}`}
     aria-label={ariaLabel ?? defaultLabel}
     title={linkTitle ?? defaultLabel}
