@@ -103,10 +103,24 @@ test("Symphonya materialization uses latest immutable evidence with a supplier-s
   assert.match(source, /historical_source_link_collision/);
 });
 
-test("Symphonya isolated materialization cron is scheduled without enabling ordering", () => {
+test("Symphonya Vercel crons stay bounded while full catch-up belongs to the long-running worker", () => {
   const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
   const catalogue = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-catalogue");
+  const stock = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-stock");
+  const pipeline = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-pipeline");
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
-  assert.equal(catalogue?.schedule, "* * * * *");
-  assert.equal(materialization?.schedule, "* * * * *");
+  assert.equal(catalogue?.schedule, "2 * * * *");
+  assert.equal(stock?.schedule, "7,17,27,37,47,57 * * * *");
+  assert.equal(pipeline?.schedule, "28 * * * *");
+  assert.equal(materialization, undefined);
+});
+
+test("Symphonya long-running worker generates Greek copy before promotion and publication", () => {
+  const source = readFileSync(new URL("../../../workers/symphonya-worker.ts", import.meta.url), "utf8");
+  const preparation = source.indexOf("runSymphonyaEnrichmentPreparationSlice");
+  const generation = source.indexOf("runCatalogueEnrichmentGenerationSlice", preparation);
+  const promotion = source.indexOf("runCatalogueEnrichmentPromotionSlice", generation);
+  const publication = source.indexOf("runSymphonyaAutoPublicationSweep", promotion);
+  assert.ok(preparation >= 0 && generation > preparation && promotion > generation && publication > promotion);
+  assert.match(source, /supplierCode: "symphonya"/);
 });
