@@ -23,6 +23,8 @@ if (!workerEnabled) {
   process.exit(0);
 }
 
+const catalogueEnabled = process.env.BLS_SYMPHONYA_CATALOGUE_ENABLED?.trim().toLowerCase() !== "false";
+const stockEnabled = process.env.BLS_SYMPHONYA_STOCK_ENABLED?.trim().toLowerCase() !== "false";
 const workerId = process.env.BLS_SYMPHONYA_WORKER_ID?.trim() || `symphonya-worker:${hostname()}:${process.pid}`;
 const pollMs = positiveInteger(process.env.BLS_SYMPHONYA_POLL_MS, 15_000, "BLS_SYMPHONYA_POLL_MS");
 const retryMs = positiveInteger(process.env.BLS_SYMPHONYA_RETRY_MS, 30_000, "BLS_SYMPHONYA_RETRY_MS");
@@ -64,6 +66,8 @@ log("info", "symphonya.worker_started", {
   automaticPricing: true,
   automaticPublication: process.env.BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED === "true",
   automaticSupplierPriceConfirmation: false,
+  catalogueEnabled,
+  stockEnabled,
   writesSupplierOrders: false,
   partialOrdersAllowed: false
 });
@@ -71,8 +75,12 @@ log("info", "symphonya.worker_started", {
 try {
   while (!stopping) {
     try {
-      const catalogue = await runSymphonyaCatalogueSyncSlice();
-      log("info", "symphonya.catalogue_sync_slice", { workerId, ...catalogue });
+      let catalogueClaimed = false;
+      if (catalogueEnabled) {
+        const catalogue = await runSymphonyaCatalogueSyncSlice();
+        catalogueClaimed = catalogue.claimed;
+        log("info", "symphonya.catalogue_sync_slice", { workerId, ...catalogue });
+      }
 
       for (let pass = 1; pass <= materializationCatchupPasses && !stopping; pass += 1) {
         try {
@@ -117,7 +125,7 @@ try {
         log("error", "symphonya.auto_publication_failed", { workerId, error: safeError(error) });
       }
 
-      if (Date.now() >= nextStockSyncAt) {
+      if (stockEnabled && Date.now() >= nextStockSyncAt) {
         const startedAt = Date.now();
         try {
           const stock = await runSymphonyaStockSyncSlice();
@@ -142,7 +150,7 @@ try {
       }
 
       if (stopping) break;
-      await delay(catalogue.claimed ? pollMs : Math.max(pollMs, 30_000));
+      await delay(catalogueEnabled ? (catalogueClaimed ? pollMs : Math.max(pollMs, 30_000)) : pollMs);
     } catch (error) {
       log("error", "symphonya.worker_iteration_failed", { workerId, error: safeError(error) });
       if (stopping) break;
