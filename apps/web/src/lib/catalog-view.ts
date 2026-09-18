@@ -179,7 +179,9 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   if (!canonical) return undefined;
   const runtime = getProductionPostgresRuntime();
   const assigned = await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: canonical.id, visitorKey, postcode, reason: "product_view" });
-  if (!assigned || !isPublicCatalogueTitle(assigned.title)) return undefined;
+  if (!assigned || !isPublicCatalogueTitle(assigned.title)) {
+    return (await getPublishedDropshipCatalogCards("", "", {}, {}, undefined, canonical.id))[0];
+  }
 
   let priceMinor = assigned.priceMinor;
   if (assigned.available && assigned.vendorId) {
