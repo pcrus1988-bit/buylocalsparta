@@ -125,3 +125,14 @@ test("Symphonya long-running worker generates Greek copy before promotion and pu
   assert.ok(preparation >= 0 && generation > preparation && promotion > generation && publication > promotion);
   assert.match(source, /supplierCode: "symphonya"/);
 });
+
+
+test("vendor storefront surfaces newly published Symphonya families before the hourly read-model refresh", () => {
+  const source = readFileSync(new URL("../src/lib/vendor-dropship-fast-page.ts", import.meta.url), "utf8");
+  assert.match(source, /hot_symphonya AS MATERIALIZED/);
+  assert.match(source, /supplier\.code='symphonya'/);
+  assert.match(source, /NOT EXISTS \([\s\S]*storefront_dropship_family_read_model projected/);
+  assert.match(source, /LEFT JOIN public\.storefront_catalog_read_model rm/);
+  assert.match(source, /vo\.status='approved'/);
+  assert.match(source, /dso\.availability_expires_at>now\(\)/);
+});
