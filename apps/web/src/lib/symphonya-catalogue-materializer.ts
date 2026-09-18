@@ -1,5 +1,6 @@
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { resolveSymphonyaCategoryCode } from "./symphonya-category-mapping";
 
 const SUPPLIER_CODE = "symphonya";
 const EXPECTED_OWNER_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
@@ -48,6 +49,7 @@ export type SymphonyaMaterializationSliceResult = Readonly<{
   offersCreated: number;
   reusedCanonicals: number;
   blockedAmbiguous: number;
+  blockedUnmapped: number;
   message?: string;
 }>;
 
@@ -120,7 +122,8 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
     familiesCreated: 0,
     offersCreated: 0,
     reusedCanonicals: 0,
-    blockedAmbiguous: 0
+    blockedAmbiguous: 0,
+    blockedUnmapped: 0
   };
 
   let lastKey: string | null = null;
@@ -140,6 +143,7 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
     totals.offersCreated += outcome.offersCreated;
     totals.reusedCanonicals += outcome.reusedCanonicals;
     totals.blockedAmbiguous += outcome.blockedAmbiguous;
+    totals.blockedUnmapped += outcome.blockedUnmapped;
   }
 
   if (lastKey) await persistCursor(context.sourceId, lastKey);
@@ -151,11 +155,13 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
   const payload = source.normalizedPayload;
   const variants = normalizedVariants(payload);
   const brandId = await resolveOrCreateBrand(payload);
+  const sourceCategoryId = await resolveSourceCategoryId(context, source);
   let canonicalsCreated = 0;
   let familiesCreated = 0;
   let offersCreated = 0;
   let reusedCanonicals = 0;
   let blockedAmbiguous = 0;
+  let blockedUnmapped = 0;
 
   for (const variant of variants) {
     const existingSupplierOffer = await pool.query<SqlRow>(`
@@ -258,7 +264,16 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
       familyId = optionalText(canonical.rows[0]?.family_id);
     }
     if (!familyId) {
-      const family = await ensureSourceFamily(context, source, brandId);
+      if (!sourceCategoryId) {
+        blockedUnmapped += 1;
+        await upsertReview(context, source, null, {
+          reason: "symphonya_taxonomy_unmapped",
+          externalVariantId: variant.externalVariantId,
+          categoryDetails: record(payload.categoryDetails)
+        }, "taxonomy_missing");
+        continue;
+      }
+      const family = await ensureSourceFamily(context, source, brandId, sourceCategoryId);
       familyId = family.id;
       familiesCreated += family.created ? 1 : 0;
     }
@@ -271,14 +286,15 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
           commerce_channel,bazaar_source,variant_attributes,platform_price_minor,
           currency,tax_rate_bps,active,suppressed,recalled
         ) VALUES(
-          $1::uuid,$2::uuid,$3::uuid,NULL,$4,$5,NULL,$6,'new',
-          'normal',NULL,$7::jsonb,NULL,'EUR',$8,false,false,false
+          $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,NULL,$7,'new',
+          'normal',NULL,$8::jsonb,NULL,'EUR',$9,false,false,false
         )
         RETURNING id::text id
       `, [
         context.marketId,
         familyId,
         brandId,
+        sourceCategoryId,
         slug,
         gtin?.value ?? null,
         productModel(payload),
@@ -297,9 +313,14 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
         UPDATE public.canonical_variants
            SET family_id=COALESCE(family_id,$2::uuid),
                brand_id=COALESCE(brand_id,$3::uuid),
-               updated_at=CASE WHEN family_id IS NULL OR (brand_id IS NULL AND $3::uuid IS NOT NULL) THEN now() ELSE updated_at END
+               category_id=COALESCE(category_id,$4::uuid),
+               updated_at=CASE
+                 WHEN family_id IS NULL
+                   OR (brand_id IS NULL AND $3::uuid IS NOT NULL)
+                   OR (category_id IS NULL AND $4::uuid IS NOT NULL)
+                 THEN now() ELSE updated_at END
          WHERE id=$1::uuid
-      `, [canonicalVariantId, familyId, brandId]);
+      `, [canonicalVariantId, familyId, brandId, sourceCategoryId]);
     }
 
     await pool.query(`
@@ -462,14 +483,16 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
     familiesCreated,
     offersCreated,
     reusedCanonicals,
-    blockedAmbiguous
+    blockedAmbiguous,
+    blockedUnmapped
   };
 }
 
 async function ensureSourceFamily(
   context: SupplierContext,
   source: SourceProduct,
-  brandId: string | null
+  brandId: string | null,
+  categoryId: string
 ): Promise<Readonly<{ id: string; created: boolean }>> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const existing = await pool.query<SqlRow>(`
@@ -484,7 +507,7 @@ async function ensureSourceFamily(
   const inserted = await pool.query<SqlRow>(`
     INSERT INTO public.product_families(
       market_id,brand_id,category_id,model,active,source_supplier_id,source_external_product_id
-    ) VALUES($1::uuid,$2::uuid,NULL,$3,false,$4::uuid,$5)
+    ) VALUES($1::uuid,$2::uuid,$3::uuid,$4,false,$5::uuid,$6)
     ON CONFLICT (source_supplier_id,source_external_product_id)
       WHERE source_supplier_id IS NOT NULL AND source_external_product_id IS NOT NULL
     DO UPDATE SET
@@ -494,6 +517,7 @@ async function ensureSourceFamily(
   `, [
     context.marketId,
     brandId,
+    categoryId,
     productModel(source.normalizedPayload) ?? source.title,
     context.supplierId,
     source.sourceProductKey
@@ -502,6 +526,22 @@ async function ensureSourceFamily(
     id: requiredText(inserted.rows[0]?.id, "family id"),
     created: inserted.rows[0]?.inserted === true
   };
+}
+
+async function resolveSourceCategoryId(context: SupplierContext, source: SourceProduct): Promise<string | null> {
+  const code = resolveSymphonyaCategoryCode(source.normalizedPayload, source.title);
+  if (!code) return null;
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT id::text id
+      FROM public.categories
+     WHERE market_id=$1::uuid
+       AND code=$2
+       AND active=true
+       AND assignable=true
+       AND taxonomy_role='product_class'
+     LIMIT 1
+  `, [context.marketId, code]);
+  return optionalText(result.rows[0]?.id);
 }
 
 async function resolveOrCreateBrand(payload: Readonly<Record<string, unknown>>): Promise<string | null> {
@@ -537,7 +577,8 @@ async function upsertReview(
   context: SupplierContext,
   source: SourceProduct,
   candidateVariantId: string | null,
-  details: Readonly<Record<string, unknown>>
+  details: Readonly<Record<string, unknown>>,
+  reasonCode = "canonical_identity_ambiguous"
 ): Promise<void> {
   await getProductionPostgresRuntime().sqlPool.query(`
     INSERT INTO public.catalog_canonicalization_reviews(
@@ -545,7 +586,7 @@ async function upsertReview(
       reason_code,status,details
     ) VALUES(
       $1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,$5::uuid,
-      'canonical_identity_ambiguous','open',$6::jsonb
+      $6,'open',$7::jsonb
     )
     ON CONFLICT(source_product_id) DO UPDATE SET
       candidate_variant_id=EXCLUDED.candidate_variant_id,
@@ -560,6 +601,7 @@ async function upsertReview(
     context.marketId,
     source.snapshotId,
     candidateVariantId,
+    reasonCode,
     JSON.stringify(details)
   ]);
 }
@@ -697,6 +739,7 @@ function emptyResult(enabled: boolean, message?: string): SymphonyaMaterializati
     offersCreated: 0,
     reusedCanonicals: 0,
     blockedAmbiguous: 0,
+    blockedUnmapped: 0,
     message
   };
 }
