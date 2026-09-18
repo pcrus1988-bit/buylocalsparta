@@ -2,21 +2,36 @@ import { requireAccountSession } from "../../../../../lib/account-session";
 import { createCustomerNotification } from "../../../../../lib/customer-state-runtime";
 import { isCustomerPrivacyRequestType, submitCustomerPrivacyRequest } from "../../../../../lib/customer-privacy-request-service";
 import { customerBrowserPrivacyRequest } from "../../../../../lib/customer-account-browser-view";
+import { ensureCustomerPrivacySupportCase } from "../../../../../lib/customer-support-runtime";
 
 export async function POST(request: Request) {
   try {
     const principal = await requireAccountSession(request, true);
-    const raw = await request.json().catch(() => null) as { type?: unknown; note?: unknown } | null;
+    const raw = await request.json().catch(() => null) as { type?: unknown; note?: unknown; correction?: unknown } | null;
     if (!raw || !isCustomerPrivacyRequestType(raw.type)) {
       return Response.json({ error: "invalid_privacy_request_type" }, { status: 400 });
     }
     const note = typeof raw.note === "string" ? raw.note.trim().slice(0, 2000) : "";
+    const correctionRaw = raw.correction && typeof raw.correction === "object" && !Array.isArray(raw.correction) ? raw.correction as Record<string, unknown> : {};
+    const correction = raw.type === "correction" ? {
+      firstName: typeof correctionRaw.firstName === "string" ? correctionRaw.firstName.trim().slice(0, 120) : undefined,
+      lastName: typeof correctionRaw.lastName === "string" ? correctionRaw.lastName.trim().slice(0, 120) : undefined,
+      phone: typeof correctionRaw.phone === "string" ? correctionRaw.phone.trim().slice(0, 40) : undefined,
+      preferredLocale: correctionRaw.preferredLocale === "el" || correctionRaw.preferredLocale === "en" ? correctionRaw.preferredLocale : undefined
+    } : undefined;
+    const hasCorrection = Boolean(correction && Object.values(correction).some((value) => typeof value === "string" && value.length > 0));
     const now = Date.now();
     const item = await submitCustomerPrivacyRequest({
       userId: principal.userId,
       type: raw.type,
       now,
-      details: note ? { note } : undefined
+      details: note || hasCorrection ? { ...(note ? { note } : {}), ...(hasCorrection ? { correction } : {}) } : undefined
+    });
+    await ensureCustomerPrivacySupportCase(principal, {
+      privacyRequestId: item.id,
+      privacyRequestType: raw.type,
+      note: note || undefined,
+      now
     });
     await createCustomerNotification({
       userId: principal.userId,

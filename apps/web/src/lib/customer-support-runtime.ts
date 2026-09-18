@@ -221,6 +221,87 @@ export async function replyCustomerSupportCase(principal: SessionPrincipal, inpu
   return customerSupportCases(principal);
 }
 
+
+export async function ensureCustomerPrivacySupportCase(principal: SessionPrincipal, input: { privacyRequestId: string; privacyRequestType: string; note?: string; now?: number }): Promise<{ id: string; referenceNumber: string }> {
+  requireCustomer(principal);
+  if (!productionDatabaseConfigured()) throw new Error("Η υποστήριξη απαιτεί την παραγωγική υπηρεσία λογαριασμών.");
+  const requestId = input.privacyRequestId.trim();
+  if (!requestId || requestId.length > 200) throw new Error("Το privacy request δεν είναι έγκυρο.");
+  const now = new Date(input.now ?? Date.now());
+
+  return uow().withTransaction(platformScope(principal.userId), async (tx) => {
+    const customer = await customerUuid(tx, principal.userId);
+    const privacy = await tx.query<SqlRow>(`
+      SELECT public_id,COALESCE(reference_number,public_id) AS reference_number,request_type
+      FROM privacy_requests
+      WHERE user_id=$1::uuid AND public_id=$2
+      LIMIT 1
+    `, [customer, requestId]);
+    if (!privacy.rowCount) throw new Error("Το privacy request δεν βρέθηκε.");
+    const privacyReference = text(privacy.rows[0].reference_number);
+
+    const existing = await tx.query<SqlRow>(`
+      SELECT public_id,reference_number
+      FROM customer_support_cases
+      WHERE customer_user_id=$1::uuid AND context_type='privacy' AND context_public_id=$2
+      ORDER BY created_at DESC LIMIT 1
+    `, [customer, privacyReference]);
+    if (existing.rowCount) return { id:text(existing.rows[0].public_id), referenceNumber:text(existing.rows[0].reference_number) };
+
+    const market = await tx.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code='sparta' LIMIT 1");
+    if (!market.rowCount) throw new Error("Η αγορά της Σπάρτης δεν είναι διαθέσιμη.");
+    const casePublicId = id("case");
+    const subject = `GDPR · ${privacyRequestGreekLabel(input.privacyRequestType)}`.slice(0, 240);
+    const message = (input.note?.trim() || `Αίτημα ιδιωτικότητας ${privacyReference} · ${privacyRequestGreekLabel(input.privacyRequestType)}`).slice(0, 4000);
+
+    const created = await tx.query<SqlRow>(`
+      INSERT INTO customer_support_cases(
+        public_id,customer_user_id,market_id,subject,category,priority,status,
+        created_by_user_id,created_by_public_id,context_type,context_public_id,created_at,updated_at
+      ) VALUES($1,$2::uuid,$3::uuid,$4,'privacy','high','open',$2::uuid,$5,'privacy',$6,$7,$7)
+      RETURNING id::text AS case_uuid,reference_number
+    `, [casePublicId, customer, text(market.rows[0].id), subject, principal.userId, privacyReference, now]);
+    const caseUuid = text(created.rows[0].case_uuid);
+    const referenceNumber = text(created.rows[0].reference_number);
+
+    await tx.query(`
+      INSERT INTO customer_support_case_events(
+        public_id,case_id,actor_user_id,actor_public_id,event_type,note,before_state,after_state,customer_visible,created_at
+      ) VALUES($1,$2::uuid,$3::uuid,$4,'created',$5,'{}'::jsonb,$6::jsonb,true,$7)
+    `, [id("caseevt"), caseUuid, customer, principal.userId, message, JSON.stringify({ status:"open", category:"privacy", contextType:"privacy", contextReference:privacyReference }), now]);
+
+    await tx.query(`
+      INSERT INTO audit_events(actor_role,action,entity_type,entity_id,reason,before_state,after_state,actor_public_id,actor_user_id)
+      VALUES('customer','privacy.support_case_linked','customer_support_case',$1,'GDPR request created linked support case','{}'::jsonb,$2::jsonb,$3,$4::uuid)
+    `, [casePublicId, JSON.stringify({ referenceNumber, privacyRequestId:requestId, privacyReference, category:"privacy" }), principal.userId, customer]);
+
+    await notifySupportTeam(tx, {
+      eventType:"privacy.request_submitted",
+      title:"Νέο GDPR αίτημα πελάτη",
+      body:`${referenceNumber} · ${subject}`,
+      payload:{ caseId:casePublicId, referenceNumber, privacyRequestId:requestId, privacyReference },
+      dedupePrefix:`privacy-support:${requestId}`,
+      now
+    });
+
+    return { id:casePublicId, referenceNumber };
+  }, { isolation:"serializable" });
+}
+
+function privacyRequestGreekLabel(type: string): string {
+  switch(type){
+    case "access": return "Πρόσβαση δεδομένων";
+    case "export": return "Εξαγωγή / φορητότητα";
+    case "correction": return "Διόρθωση";
+    case "deletion": return "Διαγραφή";
+    case "restriction": return "Περιορισμός επεξεργασίας";
+    case "objection": return "Εναντίωση";
+    case "marketing_withdrawal": return "Ανάκληση marketing";
+    case "account_closure": return "Κλείσιμο λογαριασμού";
+    default: return "Αίτημα ιδιωτικότητας";
+  }
+}
+
 async function customerUuid(tx: SqlExecutor, userId: string): Promise<string> {
   const result = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE public_id=$1 AND status='active' LIMIT 1", [userId]);
   if (!result.rowCount) throw new Error("Ο λογαριασμός πελάτη δεν βρέθηκε.");

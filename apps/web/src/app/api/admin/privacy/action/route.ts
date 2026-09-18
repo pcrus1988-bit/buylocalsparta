@@ -1,1 +1,21 @@
-import{requireAdminSession}from"../../../../../lib/admin-session";import{adminPrivacyAction,adminPrivacyWorkspace}from"../../../../../lib/admin-governance-runtime";export async function POST(r:Request){try{const p=await requireAdminSession(r,{csrf:true,permission:"privacy.manage"});const b=await r.json() as Record<string,unknown>;const action=b.action==="start"?"start":b.action==="complete"?"complete":b.action==="partial"?"partial":undefined;if(!action)throw new Error("Unsupported privacy action");await adminPrivacyAction(p,{requestId:String(b.requestId??""),action});return Response.json(await adminPrivacyWorkspace(p))}catch(e){return Response.json({error:e instanceof Error?e.message:"privacy_action_failed"},{status:400})}}
+import { requireAdminSession } from "../../../../../lib/admin-session";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(request: Request) {
+  try {
+    await requireAdminSession(request, { csrf: true, permission: "privacy.manage" });
+    return Response.json(
+      {
+        error: "legacy_privacy_action_disabled",
+        message: "Use the governed GDPR execute/review/respond workflow in /admin/privacy."
+      },
+      { status: 410, headers: { "cache-control": "no-store" } }
+    );
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "privacy_action_failed" },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
+}

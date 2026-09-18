@@ -8,26 +8,98 @@ import { DATA_ACCESS_EXAMPLES } from "../../lib/legal-transparency";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/privacy-controls", {
-  title: "Έλεγχοι ιδιωτικότητας λογαριασμού",
-  description: "Ρυθμίσεις προσωποποίησης, cookies, δικαιώματα δεδομένων και σαφής εικόνα για το ποιος βλέπει τι στο ΚΟΝΤΑ ΜΟΥ Σπάρτη."
+    title: "Privacy controls & δικαιώματα δεδομένων",
+    description: "Έλεγξε cookies και προσωποποίηση, υπέβαλε GDPR αίτημα και παρακολούθησε την πορεία του μέσα από τον λογαριασμό σου."
   });
 }
 
+const rights = [
+  ["Πρόσβαση", "Δες ποια βασικά δεδομένα έχουμε για τον λογαριασμό σου και ζήτησε αναφορά."],
+  ["Εξαγωγή", "Ζήτησε φορητή εξαγωγή. Όταν ετοιμαστεί, PDF και JSON εμφανίζονται μέσα στον λογαριασμό σου."],
+  ["Διόρθωση", "Δώσε τα σωστά στοιχεία για όνομα, επώνυμο, τηλέφωνο ή γλώσσα. Για αλλαγή email χρησιμοποιείται η ασφαλής verified-email διαδικασία."],
+  ["Διαγραφή", "Ζήτησε διαγραφή των δεδομένων που δεν χρειάζεται να διατηρούνται για νόμιμο ή συμβατικό σκοπό."],
+  ["Περιορισμός", "Ζήτησε να περιοριστεί η επεξεργασία όσο εξετάζεται το σχετικό δικαίωμα."],
+  ["Εναντίωση", "Εξήγησε σε ποια προαιρετική ή legitimate-interest επεξεργασία εναντιώνεσαι."],
+  ["Marketing", "Ανάκλησε marketing σε επίπεδο λογαριασμού. Τα cookies/analytics ελέγχονται ξεχωριστά."],
+  ["Κλείσιμο λογαριασμού", "Ζήτησε κλείσιμο και ανωνυμοποίηση μη απαραίτητων στοιχείων, με διατήρηση μόνο όσων πρέπει νόμιμα να παραμείνουν."]
+] as const;
+
 export default function PrivacyControlsPage() {
-  return <main>
-    <div className="announcement">Ρυθμίσεις που αλλάζουν πραγματική συμπεριφορά — όχι απλώς κείμενο πολιτικής.</div>
+  return <main className="legal-page">
+    <div className="announcement">Privacy controls που κάνουν πραγματικά κάτι · όχι απλώς μια σελίδα ενημέρωσης.</div>
     <SiteHeader compact />
-    <section className="content-hero content-hero-privacy"><div className="shell content-hero-grid"><div><div className="eyebrow light">Privacy & data centre</div><h1>Δες, περιόρισε και ζήτησε τα δεδομένα σου.</h1><p>Εδώ συνδέονται οι πραγματικές ρυθμίσεις λογαριασμού με τη νομική ενημέρωση, τα cookies και το μοντέλο πρόσβασης στα προσωπικά δεδομένα.</p><div className="hero-actions"><Link className="button button-light" href="/account">Άνοιξε τα account controls</Link><CookieSettingsButton className="button content-outline" label="Ρυθμίσεις cookies" /></div></div><div className="privacy-dial" aria-hidden="true"><span>YOU</span><i>CONTROL</i><strong>DATA</strong></div></div></section>
 
-    <section className="shell content-section"><div className="content-heading"><div><div className="eyebrow">Οι διαθέσιμες επιλογές</div><h2>Κάθε control έχει συγκεκριμένο αποτέλεσμα.</h2></div><p>Οι account ρυθμίσεις αφορούν τον authenticated λογαριασμό. Οι επιλογές cookies λειτουργούν ξεχωριστά και μπορούν να αλλάξουν οποιαδήποτε στιγμή.</p></div><div className="mode-grid"><article><span>01</span><h3>Προσωποποιημένες προτάσεις</h3><p>Όταν είναι ενεργές, οι προτάσεις μπορούν να χρησιμοποιούν μόνο δικά σου saved και recent signals. Όταν είναι ανενεργές, ο λογαριασμός δεν δημιουργεί προσωποποιημένη λίστα.</p><strong>Account → Privacy controls</strong></article><article><span>02</span><h3>Πρόσφατα προβεβλημένα</h3><p>Η απενεργοποίηση σταματά την καταγραφή για αυτή τη λειτουργία και διαγράφει το σχετικό πρόσφατο ιστορικό που μπορεί να διαγραφεί άμεσα.</p><strong>Η αλλαγή έχει άμεση λειτουργική επίδραση.</strong></article><article><span>03</span><h3>Cookies & analytics</h3><p>Analytics και marketing είναι προαιρετικά. Η ανάκληση Analytics διαγράφει το ξεχωριστό analytics identifier και σταματά νέα product analytics events.</p><CookieSettingsButton /></article><article><span>04</span><h3>Αίτημα δεδομένων</h3><p>Η πλατφόρμα καταγράφει privacy requests ώστε να μπορούν να ελεγχθούν, να επεξεργαστούν με retention-aware τρόπο και να έχουν ορατή κατάσταση.</p><strong>Account → Privacy controls / export</strong></article></div></section>
+    <section className="content-hero content-hero-privacy">
+      <div className="shell content-hero-grid">
+        <div>
+          <div className="eyebrow light">Privacy & data centre</div>
+          <h1>Τα δεδομένα σου, με πρακτικό έλεγχο.</h1>
+          <p>Άλλαξε cookies και προσωποποίηση άμεσα ή υπέβαλε επίσημο GDPR αίτημα από τον λογαριασμό σου. Κάθε αίτημα μπαίνει σε πραγματικό workflow, με Admin χειρισμό, ορατή κατάσταση και τελική απάντηση.</p>
+          <div className="hero-actions">
+            <Link className="button button-light" href="/account/privacy">Ιδιωτικότητα & δεδομένα</Link>
+            <CookieSettingsButton className="button content-outline" label="Ρυθμίσεις cookies" />
+          </div>
+        </div>
+        <div className="privacy-dial" aria-hidden="true"><span>YOU</span><i>CONTROL</i><strong>DATA</strong></div>
+      </div>
+    </section>
 
-    <section className="content-band"><div className="shell legal-section legal-section-on-dark"><div className="eyebrow light">Ποιος βλέπει τι</div><h2>Η πρόσβαση ακολουθεί τον σκοπό.</h2><div className="legal-card-grid">{DATA_ACCESS_EXAMPLES.map(([title,body])=><article key={title}><h3>{title}</h3><p>{body}</p></article>)}</div><p>Το ΚΟΝΤΑ ΜΟΥ δεν σχεδιάζει την πρόσβαση με λογική «όποιος είναι συνεργάτης βλέπει όλο τον πελάτη». Κάθε workflow πρέπει να λαμβάνει μόνο την προβολή δεδομένων που χρειάζεται.</p></div></section>
+    <section className="shell legal-section">
+      <div className="eyebrow">Τι μπορείς να αλλάξεις αμέσως</div>
+      <h2>Κάποιες επιλογές δεν χρειάζονται καν αίτημα.</h2>
+      <div className="legal-card-grid">
+        <article><h3>Cookies & Analytics</h3><p>Analytics είναι προαιρετικά και μπορούν να ενεργοποιηθούν ή να ανακληθούν οποιαδήποτε στιγμή. Η αλλαγή εφαρμόζεται τεχνικά, όχι μόνο στο UI.</p><CookieSettingsButton /></article>
+        <article><h3>Προσωποποιημένες προτάσεις</h3><p>Μέσα στον λογαριασμό μπορείς να κλείσεις recommendations χωρίς να περιμένεις υποστήριξη.</p><Link className="text-link" href="/account/privacy">Account privacy →</Link></article>
+        <article><h3>Πρόσφατα προβεβλημένα</h3><p>Η απενεργοποίηση σταματά τη νέα καταγραφή για αυτή τη λειτουργία και καθαρίζει το σχετικό ιστορικό όπου επιτρέπεται άμεσα.</p><Link className="text-link" href="/account/privacy">Account privacy →</Link></article>
+        <article><h3>Ασφαλής αλλαγή email</h3><p>Η αλλαγή email δεν γίνεται μέσω απλού GDPR note. Χρησιμοποιεί ξεχωριστή διαδικασία επαλήθευσης ώστε να μην μπορεί κάποιος τρίτος να αλλάξει τη διεύθυνση λογαριασμού.</p><Link className="text-link" href="/account/security">Account security →</Link></article>
+      </div>
+    </section>
 
-    <section className="shell content-section"><div className="content-heading"><div><div className="eyebrow">Διατήρηση με σκοπό</div><h2>Δεν διαγράφονται όλα με ένα toggle.</h2></div><p>Ορισμένα στοιχεία μπορεί να απαιτούνται για ενεργή παραγγελία, λογιστικό/φορολογικό ίχνος, ασφάλεια, επίλυση διαφοράς ή άλλη νόμιμη υποχρέωση.</p></div><div className="content-fact-list"><div><strong>Preference data</strong><span>Προτιμήσεις, recent signals και προαιρετική προσωποποίηση μπορούν να έχουν σύντομο και αναστρέψιμο lifecycle.</span></div><div><strong>Commerce records</strong><span>Παραγγελίες, πληρωμές και φορολογικά ίχνη ακολουθούν τον αντίστοιχο νόμιμο σκοπό και χρόνο διατήρησης.</span></div><div><strong>Security & audit</strong><span>Τα security/audit records περιορίζονται στον σκοπό ασφάλειας και λογοδοσίας και δεν πρέπει να μετατρέπονται σε γενικό customer profile.</span></div></div></section>
+    <section className="content-band">
+      <div className="shell legal-section legal-section-on-dark">
+        <div className="eyebrow light">Τι γίνεται όταν υποβάλεις GDPR αίτημα</div>
+        <h2>Από το αίτημα στην απάντηση, με ανθρώπινο έλεγχο.</h2>
+        <div className="legal-card-grid">
+          <article><h3>1 · Καταχώρηση</h3><p>Το αίτημα αποθηκεύεται με τύπο, ημερομηνία και στόχο επεξεργασίας και εμφανίζεται στο ιστορικό του λογαριασμού σου.</p></article>
+          <article><h3>2 · Linked support case</h3><p>Δημιουργείται αυτόματα αντίστοιχο privacy case στην Admin Support Queue ώστε να μη μείνει ένα αίτημα «κρυμμένο» μόνο σε νομικό registry.</p></article>
+          <article><h3>3 · Ενέργεια & report</h3><p>Ανάλογα με το αίτημα, ο Admin μπορεί να δημιουργήσει report, να εφαρμόσει correction, διαγραφή μη απαραίτητων δεδομένων, περιορισμό, ανάκληση marketing ή προετοιμασία κλεισίματος.</p></article>
+          <article><h3>4 · Ανθρώπινη επιβεβαίωση</h3><p>Η τελική απάντηση email δεν φεύγει αυτόματα. Admin ελέγχει το αποτέλεσμα και επιβεβαιώνει χειροκίνητα την αποστολή και ολοκλήρωση.</p></article>
+        </div>
+      </div>
+    </section>
 
-    <section className="shell content-section"><div className="content-heading"><div><div className="eyebrow">Νομική ενημέρωση</div><h2>Δες τις πλήρεις πληροφορίες.</h2></div><p>Τα operational controls συμπληρώνουν — δεν αντικαθιστούν — την Πολιτική Απορρήτου και την Πολιτική Cookies.</p></div><div className="legal-choice-grid"><article><h3>Πολιτική Απορρήτου</h3><p>Σκοποί, νομικές βάσεις, αποδέκτες, retention, δικαιώματα και στοιχεία υπευθύνου επεξεργασίας.</p><Link className="text-link" href="/privacy">Άνοιγμα →</Link></article><article><h3>Πολιτική Cookies</h3><p>Τρέχον first-party registry, διάρκεια, κατηγορίες consent και ανάκληση.</p><Link className="text-link" href="/cookies">Άνοιγμα →</Link></article><article><h3>Προσβασιμότητα</h3><p>WCAG 2.2 AA baseline, γνωστές περιοχές υπό έλεγχο και τρόπος αναφοράς εμποδίου.</p><Link className="text-link" href="/accessibility">Άνοιγμα →</Link></article><article><h3>Κέντρο βοήθειας</h3><p>Πρακτικές διαδρομές για παραγγελίες, υποστήριξη, returns και άλλες ανάγκες.</p><Link className="text-link" href="/help">Άνοιγμα →</Link></article></div></section>
+    <section className="shell legal-section">
+      <div className="eyebrow">GDPR αιτήματα</div>
+      <h2>Διάλεξε ακριβώς τι χρειάζεσαι.</h2>
+      <div className="legal-card-grid">{rights.map(([title,body])=><article key={title}><h3>{title}</h3><p>{body}</p></article>)}</div>
+      <div className="hero-actions"><Link className="button" href="/account/privacy">Υποβολή αιτήματος</Link><Link className="button button-secondary" href="/privacy">Πολιτική Απορρήτου</Link></div>
+    </section>
 
-    <section className="shell content-cta"><div><div className="eyebrow">Πρακτικός έλεγχος</div><h2>Ρύθμισε λογαριασμό και cookies από ένα ξεκάθαρο σημείο.</h2></div><div className="hero-actions"><Link className="button" href="/account">Άνοιξε τον λογαριασμό</Link><CookieSettingsButton className="button button-secondary" label="Ρυθμίσεις cookies" /></div></section>
+    <section className="shell legal-section">
+      <div className="eyebrow">Access & export</div>
+      <h2>Όταν το report είναι έτοιμο, το παίρνεις από τον δικό σου λογαριασμό.</h2>
+      <p>Για αιτήματα πρόσβασης ή εξαγωγής, ο Admin μπορεί να δημιουργήσει αναφορά από τα κύρια account, address, order, privacy και customer-visible support δεδομένα. Όταν η αναφορά ετοιμαστεί, εμφανίζονται ασφαλή links λήψης <strong>PDF</strong> και <strong>JSON</strong> μόνο μέσα στο authenticated account του ίδιου πελάτη.</p>
+    </section>
+
+    <section className="content-band">
+      <div className="shell legal-section legal-section-on-dark">
+        <div className="eyebrow light">Ποιος βλέπει τι</div>
+        <h2>Η πρόσβαση ακολουθεί τον σκοπό.</h2>
+        <div className="legal-card-grid">{DATA_ACCESS_EXAMPLES.map(([title,body])=><article key={title}><h3>{title}</h3><p>{body}</p></article>)}</div>
+      </div>
+    </section>
+
+    <section className="shell legal-section">
+      <div className="eyebrow">Τι δεν σημαίνει «διαγραφή»</div>
+      <h2>Δεν μπορούμε να σβήσουμε αρχεία που πρέπει νόμιμα να διατηρηθούν.</h2>
+      <p>Μη απαραίτητα saved/recent/personalisation δεδομένα μπορούν να διαγραφούν ή να απενεργοποιηθούν. Όμως παραγγελίες, φορολογικά/λογιστικά στοιχεία, στοιχεία επιστροφών, ασφάλειας ή επίλυσης διαφοράς μπορεί να χρειάζεται να παραμείνουν για συγκεκριμένο νόμιμο σκοπό. Σε τέτοια περίπτωση το αίτημα μπορεί να ολοκληρωθεί με νόμιμη διατήρηση και σχετική εξήγηση.</p>
+    </section>
+
+    <section className="shell content-cta">
+      <div><div className="eyebrow">Έτοιμος;</div><h2>Όλα τα επίσημα αιτήματα ξεκινούν από τον λογαριασμό σου.</h2><p>Έτσι γνωρίζουμε ότι το αίτημα ανήκει στον σωστό χρήστη και μπορείς να παρακολουθείς την πορεία του.</p></div>
+      <div className="hero-actions"><Link className="button" href="/account/privacy">Privacy & Data Centre</Link><Link className="button button-secondary" href="/help">Χρειάζομαι βοήθεια</Link></div>
+    </section>
+
     <SiteFooter />
   </main>;
 }

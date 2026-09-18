@@ -14,6 +14,8 @@ export type AdminCustomerSupportQueueItem = Readonly<{
   category: string;
   priority: CustomerSupportPriority;
   status: CustomerSupportStatus;
+  contextType?: string;
+  contextReference?: string;
   assignedTo?: string;
   followUpAt?: number;
   createdAt: number;
@@ -28,11 +30,12 @@ function status(value: unknown): CustomerSupportStatus { const item = text(value
 function priority(value: unknown): CustomerSupportPriority { const item = text(value) as CustomerSupportPriority; if (!CUSTOMER_SUPPORT_PRIORITIES.includes(item)) throw new Error("Invalid customer support priority"); return item; }
 function uow() { return new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool); }
 
-export async function adminCustomerSupportQueue(principal: SessionPrincipal, input: { query?: string; status?: string; priority?: string } = {}) {
+export async function adminCustomerSupportQueue(principal: SessionPrincipal, input: { query?: string; status?: string; priority?: string; category?: string } = {}) {
   assertAdminPermission(principal, "customer.read");
   const query = (input.query ?? "").trim().slice(0, 120);
   const selectedStatus = CUSTOMER_SUPPORT_STATUSES.includes(input.status as CustomerSupportStatus) ? input.status as CustomerSupportStatus : undefined;
   const selectedPriority = CUSTOMER_SUPPORT_PRIORITIES.includes(input.priority as CustomerSupportPriority) ? input.priority as CustomerSupportPriority : undefined;
+  const selectedCategory = ["account","order","payment","return","delivery","privacy","technical","other"].includes(input.category ?? "") ? input.category : undefined;
   if (!productionDatabaseConfigured()) {
     return { csrfToken: principal.csrfToken, databaseConfigured: false, metrics: { open:0, urgent:0, unassigned:0, overdue:0 }, cases: [] as AdminCustomerSupportQueueItem[] };
   }
@@ -44,7 +47,7 @@ export async function adminCustomerSupportQueue(principal: SessionPrincipal, inp
       count(*) FILTER (WHERE status NOT IN ('resolved','closed') AND follow_up_at IS NOT NULL AND follow_up_at < now())::int AS overdue
       FROM customer_support_cases`);
     const casesResult = await tx.query<SqlRow>(`SELECT
-      sc.public_id,sc.reference_number,sc.subject,sc.category,sc.priority,sc.status,sc.assigned_to_public_id,sc.follow_up_at,sc.created_at,sc.updated_at,
+      sc.public_id,sc.reference_number,sc.subject,sc.category,sc.priority,sc.status,sc.context_type,sc.context_public_id,sc.assigned_to_public_id,sc.follow_up_at,sc.created_at,sc.updated_at,
       u.public_id AS customer_public_id,u.email::text AS customer_email,cp.first_name,cp.last_name
       FROM customer_support_cases sc
       JOIN users u ON u.id=sc.customer_user_id
@@ -52,11 +55,12 @@ export async function adminCustomerSupportQueue(principal: SessionPrincipal, inp
       WHERE ($1='' OR sc.subject ILIKE '%'||$1||'%' OR sc.reference_number ILIKE '%'||$1||'%' OR sc.public_id ILIKE '%'||$1||'%' OR u.public_id ILIKE '%'||$1||'%' OR u.email::text ILIKE '%'||$1||'%' OR COALESCE(cp.first_name,'') ILIKE '%'||$1||'%' OR COALESCE(cp.last_name,'') ILIKE '%'||$1||'%')
         AND ($2::text IS NULL OR sc.status=$2)
         AND ($3::text IS NULL OR sc.priority=$3)
+        AND ($4::text IS NULL OR sc.category=$4)
       ORDER BY CASE WHEN sc.status IN ('resolved','closed') THEN 1 ELSE 0 END,
         CASE sc.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
         CASE WHEN sc.follow_up_at IS NOT NULL AND sc.follow_up_at < now() THEN 0 ELSE 1 END,
         COALESCE(sc.follow_up_at,sc.updated_at) ASC,sc.updated_at DESC
-      LIMIT 150`, [query, selectedStatus ?? null, selectedPriority ?? null]);
+      LIMIT 150`, [query, selectedStatus ?? null, selectedPriority ?? null, selectedCategory ?? null]);
     const m = metricsResult.rows[0] ?? {};
     return {
       csrfToken: principal.csrfToken,
@@ -66,7 +70,7 @@ export async function adminCustomerSupportQueue(principal: SessionPrincipal, inp
         const name = [optionalText(row.first_name), optionalText(row.last_name)].filter(Boolean).join(" ");
         return {
           id:text(row.public_id), referenceNumber:optionalText(row.reference_number) ?? text(row.public_id), customerId:text(row.customer_public_id), customerName:name || optionalText(row.customer_email) || text(row.customer_public_id), customerEmail:optionalText(row.customer_email),
-          subject:text(row.subject), category:text(row.category), priority:priority(row.priority), status:status(row.status), assignedTo:optionalText(row.assigned_to_public_id),
+          subject:text(row.subject), category:text(row.category), priority:priority(row.priority), status:status(row.status), contextType:optionalText(row.context_type), contextReference:optionalText(row.context_public_id), assignedTo:optionalText(row.assigned_to_public_id),
           followUpAt:epoch(row.follow_up_at), createdAt:epoch(row.created_at) ?? 0, updatedAt:epoch(row.updated_at) ?? 0
         };
       })

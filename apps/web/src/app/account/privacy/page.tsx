@@ -25,7 +25,12 @@ export default async function AccountPrivacyPage() {
       csrfToken={principal.csrfToken}
       email={principal.email}
       preferences={{ recommendationsEnabled: state.preferences.recommendationsEnabled, recentlyViewedEnabled: state.preferences.recentlyViewedEnabled }}
-      requests={state.privacyRequests.map((request) => ({ id: request.id, type: request.type, status: request.status, submittedAt: request.submittedAt, targetAt: request.targetAt }))}
+      requests={state.privacyRequests.map((request) => {
+        const outcome = request.outcome && typeof request.outcome === "object" && !Array.isArray(request.outcome) ? request.outcome as Record<string, unknown> : {};
+        const automation = outcome.automation && typeof outcome.automation === "object" && !Array.isArray(outcome.automation) ? outcome.automation as Record<string, unknown> : {};
+        const response = outcome.response && typeof outcome.response === "object" && !Array.isArray(outcome.response) ? outcome.response as Record<string, unknown> : {};
+        return { id: request.id, type: request.type, status: request.status, submittedAt: request.submittedAt, targetAt: request.targetAt, reportReady: Boolean(automation.reportReady), responseSent: Boolean(response.sentAt) };
+      })}
     />
   </main>;
 }

@@ -1,0 +1,19 @@
+.admin-privacy-ops .dashboard-health-card{min-width:min(100%,320px)}
+.admin-privacy-request-card{gap:16px}
+.admin-privacy-request-card.is-overdue{border-color:rgba(158,54,39,.34);box-shadow:0 14px 40px rgba(125,47,36,.08)}
+.admin-privacy-customer-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:13px;border-radius:16px;background:rgba(22,60,45,.055)}
+.admin-privacy-customer-strip>div{display:grid;gap:3px;min-width:0}.admin-privacy-customer-strip span{font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft)}
+.admin-privacy-customer-strip strong{font-size:13px;overflow-wrap:anywhere}.admin-privacy-customer-strip small{color:var(--ink-soft);overflow-wrap:anywhere}
+.admin-privacy-automation{display:grid;gap:14px;padding-top:4px}
+.admin-privacy-action-row{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.admin-privacy-correction,.admin-privacy-response{display:grid;gap:12px;padding:16px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.72)}
+.admin-privacy-correction>strong,.admin-privacy-response strong{font-size:14px}.admin-privacy-correction small,.admin-privacy-response small{display:block;margin-top:3px;color:var(--ink-soft);line-height:1.45}
+.admin-privacy-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.admin-privacy-fields label{display:grid;gap:5px}.admin-privacy-fields label>span{font-size:10px;font-weight:850;color:var(--ink-soft)}
+.admin-privacy-fields input,.admin-privacy-fields select,.admin-privacy-response textarea{width:100%;min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff;color:inherit;font:inherit}
+.admin-privacy-fields input,.admin-privacy-fields select{min-height:42px;padding:8px 10px}.admin-privacy-response textarea{padding:12px;resize:vertical;line-height:1.55}
+.admin-privacy-response .button{justify-self:start}
+.privacy-request-downloads{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}.privacy-request-downloads .button{min-height:34px;padding:6px 11px;font-size:11px}
+.privacy-correction-request{margin-top:13px;padding:14px;border:1px solid var(--line);border-radius:15px;background:rgba(27,78,58,.035)}
+@media(max-width:900px){.admin-privacy-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.admin-privacy-customer-strip{grid-template-columns:1fr}.admin-privacy-fields{grid-template-columns:1fr}.admin-privacy-action-row{display:grid;grid-template-columns:1fr}.admin-privacy-action-row .button{width:100%;justify-content:center}.admin-privacy-response .button{width:100%;justify-content:center}.privacy-request-downloads{justify-content:flex-start}}

@@ -36,7 +36,7 @@ export default async function Page() {
   const governanceLanes = [
     { href: "/admin/recalls", label: "Product Safety", eyebrow: "Urgent safety", note: "Open notices, recalls, affected customers and explicit restore decisions.", visible: hasAdminPermission(principal, "returns.read") },
     { href: "/admin/reviews", label: "Reviews", eyebrow: "Marketplace content", note: "Verified-review moderation and vendor report resolution.", visible: hasAdminPermission(principal, "reviews.read") },
-    { href: "/admin/privacy", label: "Privacy", eyebrow: "GDPR", note: "Data-subject requests, retention, ROPA and provider governance.", visible: hasAdminPermission(principal, "privacy.read") },
+    { href: "/admin/privacy", label: "Privacy", eyebrow: "GDPR", note: "Operational GDPR queue: linked support cases, one-click actions, PDF/JSON reports, retention and manually confirmed customer responses.", visible: hasAdminPermission(principal, "privacy.read") },
     { href: "/admin/accessibility", label: "Accessibility", eyebrow: "WCAG 2.2 AA", note: "Evidence-backed assessments, remediation findings and barrier reports.", visible: hasAdminPermission(principal, "accessibility.read") },
     { href: "/admin/fairness", label: "Fairness", eyebrow: "Exposure governance", note: "Vendor appeals and assignment/exposure evidence.", visible: hasAdminPermission(principal, "fairness.read") }
   ].filter((lane) => lane.visible);

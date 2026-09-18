@@ -14,20 +14,21 @@ const statusLabel: Record<CustomerSupportStatus,string> = { open:"Open", waiting
 const priorityLabel: Record<CustomerSupportPriority,string> = { low:"Low", normal:"Normal", high:"High", urgent:"Urgent" };
 function dateTime(value?: number) { return value ? new Date(value).toLocaleString("el-GR") : "—"; }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ q?:string; status?:string; priority?:string; case?:string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ q?:string; status?:string; priority?:string; category?:string; case?:string }> }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   const params = await searchParams;
   let data;
   try { data = await adminCustomerSupportQueue(principal, params); } catch { redirect("/admin"); }
   const canManage = hasAdminPermission(principal,"customer.manage");
-  const filtered = Boolean(params.q?.trim() || params.status || params.priority);
+  const filtered = Boolean(params.q?.trim() || params.status || params.priority || params.category);
   const selected = data.cases.find((item) => item.id === params.case || item.referenceNumber === params.case) ?? data.cases[0];
   const hrefFor = (caseId: string) => {
     const search = new URLSearchParams();
     if (params.q) search.set("q", params.q);
     if (params.status) search.set("status", params.status);
     if (params.priority) search.set("priority", params.priority);
+    if (params.category) search.set("category", params.category);
     search.set("case", caseId);
     return `/admin/customers/support?${search.toString()}`;
   };
@@ -39,7 +40,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       <div>
         <div className="eyebrow">Customer operations · service</div>
         <h1>Υποστήριξη πελατών</h1>
-        <p className="lead">Η Support Queue είναι το μοναδικό operational workspace για case ownership, customer replies, internal notes, waiting states, priority, follow-up και resolution. Το Customer 360 δίνει μόνο customer context και case creation.</p>
+        <p className="lead">Η Support Queue είναι το operational inbox για case ownership και επικοινωνία. Τα GDPR requests δημιουργούν αυτόματα linked Privacy cases εδώ και εκτελούνται από το GDPR workspace, όπου υπάρχουν τα one-click actions, reports και η τελική χειροκίνητα επιβεβαιωμένη απάντηση email.</p>
       </div>
       <aside className="dashboard-health-card">
         <span>Queue health</span>
@@ -61,7 +62,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
         <label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Customer, email, TKT-10001, subject" /></label>
         <label><span>Status</span><select name="status" defaultValue={params.status ?? ""}><option value="">All statuses</option>{CUSTOMER_SUPPORT_STATUSES.map((item) => <option key={item} value={item}>{statusLabel[item]}</option>)}</select></label>
         <label><span>Priority</span><select name="priority" defaultValue={params.priority ?? ""}><option value="">All priorities</option>{CUSTOMER_SUPPORT_PRIORITIES.map((item) => <option key={item} value={item}>{priorityLabel[item]}</option>)}</select></label>
-        <div><button className="button button-secondary" type="submit">Filter</button>{filtered && <Link className="text-link" href="/admin/customers/support">Clear</Link>}</div>
+        <label><span>Category</span><select name="category" defaultValue={params.category ?? ""}><option value="">All categories</option><option value="privacy">GDPR / Privacy</option><option value="account">Account</option><option value="order">Order</option><option value="payment">Payment</option><option value="return">Return</option><option value="delivery">Delivery</option><option value="technical">Technical</option><option value="other">Other</option></select></label>
+        <div><button className="button button-secondary" type="submit">Filter</button>{filtered && <Link className="text-link" href="/admin/customers/support">Clear</Link>}<Link className="text-link" href="/admin/customers/support?category=privacy">GDPR only</Link></div>
       </form>
 
       {!data.databaseConfigured && <div className="workspace-inline-note">Η production βάση δεν είναι διαθέσιμη σε αυτό το preview.</div>}
@@ -84,10 +86,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
           <div className="workspace-compact-list">
             <div className="workspace-compact-row"><strong>Customer</strong><span>{selected.customerName}</span><small>{selected.customerEmail ?? selected.customerId}</small></div>
             <div className="workspace-compact-row"><strong>Case</strong><span>{selected.referenceNumber}</span><small>{selected.id}</small></div>
+            {selected.contextType && <div className="workspace-compact-row"><strong>Context</strong><span>{selected.contextType}</span><small>{selected.contextReference ?? "—"}</small></div>}
             <div className="workspace-compact-row"><strong>Created</strong><span>{dateTime(selected.createdAt)}</span><small>Updated {dateTime(selected.updatedAt)}</small></div>
           </div>
 
-          <div className="workspace-action-bar"><span>Customer context</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(selected.customerId)}`}>Customer 360</Link><Link className="button button-secondary" href={`/admin/orders?customer=${encodeURIComponent(selected.customerId)}`}>Customer orders</Link></div></div>
+          <div className="workspace-action-bar"><span>Customer context</span><div className="workspace-action-buttons"><Link className="button button-secondary" href={`/admin/customers/${encodeURIComponent(selected.customerId)}`}>Customer 360</Link><Link className="button button-secondary" href={`/admin/orders?customer=${encodeURIComponent(selected.customerId)}`}>Customer orders</Link>{selected.contextType === "privacy" && <Link className="button" href={`/admin/privacy?customer=${encodeURIComponent(selected.customerId)}`}>Open GDPR workspace</Link>}</div></div>
 
           {canManage && <>
             <div className="workspace-inline-note"><strong>Reply to customer</strong> writes to the customer-visible support thread. <strong>Add internal note</strong> remains an operational case record and is not shown as a customer reply.</div>

@@ -8,6 +8,7 @@ import "./storefront-merchant-media.css";
 import "./vendor-catalogue-loading-overlay.css";
 import "./vendor-catalog-browser.css";
 import "./dashboard-ux.css";
+import "./admin-privacy-operations.css";
 import "./dashboard-premium.css";
 import "./site-polish.css";
 import "./footer-polish.css";

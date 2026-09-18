@@ -11,6 +11,8 @@ type PrivacyRequest = Readonly<{
   status: string;
   submittedAt: number;
   targetAt: number;
+  reportReady?: boolean;
+  responseSent?: boolean;
 }>;
 
 type Preferences = Readonly<{ recommendationsEnabled: boolean; recentlyViewedEnabled: boolean }>;
@@ -46,6 +48,7 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
   const [preferenceState, setPreferenceState] = useState<Preferences>(preferences);
   const [type, setType] = useState<(typeof REQUEST_OPTIONS)[number]["value"]>("access");
   const [note, setNote] = useState("");
+  const [correction, setCorrection] = useState({ firstName:"", lastName:"", phone:"", preferredLocale:"" });
   const [requestBusy, setRequestBusy] = useState(false);
   const [preferenceBusy, setPreferenceBusy] = useState(false);
   const [error, setError] = useState("");
@@ -82,14 +85,15 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({ type, note })
+        body: JSON.stringify({ type, note, correction: type === "correction" ? correction : undefined })
       });
       const payload = await response.json().catch(() => ({})) as { request?: PrivacyRequest; error?: string };
       if (!response.ok || !payload.request) throw new Error(payload.error || "Το αίτημα δεν καταχωρήθηκε.");
       const item = payload.request;
       setRequests((current) => [item, ...current.filter((existing) => existing.id !== item.id)].sort((a, b) => b.submittedAt - a.submittedAt));
       setNote("");
-      setSuccess("Το αίτημα καταχωρήθηκε. Μπορείς να παρακολουθείς την κατάστασή του παρακάτω.");
+      setCorrection({ firstName:"", lastName:"", phone:"", preferredLocale:"" });
+      setSuccess("Το αίτημα καταχωρήθηκε και δημιουργήθηκε αντίστοιχο GDPR case για την ομάδα υποστήριξης. Μπορείς να παρακολουθείς την κατάστασή του παρακάτω.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Το αίτημα δεν καταχωρήθηκε.");
     } finally {
@@ -122,11 +126,18 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
           <label><span>Τύπος αιτήματος</span><select value={type} onChange={(event) => setType(event.target.value as typeof type)}>{REQUEST_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label><span>Σημείωση / τι χρειάζεσαι</span><textarea rows={4} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Προαιρετικά: δώσε μόνο τις πληροφορίες που χρειάζονται για να καταλάβουμε το αίτημα." /></label>
         </div>
+        {type === "correction" && <div className="workspace-form-grid privacy-correction-request">
+          <label><span>Σωστό όνομα</span><input value={correction.firstName} maxLength={120} onChange={(event)=>setCorrection({...correction,firstName:event.target.value})} placeholder="Άφησέ το κενό αν δεν αλλάζει" /></label>
+          <label><span>Σωστό επώνυμο</span><input value={correction.lastName} maxLength={120} onChange={(event)=>setCorrection({...correction,lastName:event.target.value})} placeholder="Άφησέ το κενό αν δεν αλλάζει" /></label>
+          <label><span>Σωστό τηλέφωνο</span><input value={correction.phone} maxLength={40} onChange={(event)=>setCorrection({...correction,phone:event.target.value})} placeholder="Άφησέ το κενό αν δεν αλλάζει" /></label>
+          <label><span>Γλώσσα λογαριασμού</span><select value={correction.preferredLocale} onChange={(event)=>setCorrection({...correction,preferredLocale:event.target.value})}><option value="">Δεν αλλάζει</option><option value="el">Ελληνικά</option><option value="en">English</option></select></label>
+          <p className="account-muted" style={{gridColumn:"1/-1"}}>Για αλλαγή email χρησιμοποιείται η ξεχωριστή ασφαλής διαδικασία επαλήθευσης email και όχι το GDPR correction form.</p>
+        </div>}
         <p className="account-muted" id="privacy-request-help">{selected.help}</p>
         {error && <p className="account-action-error" role="alert">{error}</p>}
         {success && <p className="privacy-status" role="status">{success}</p>}
         <div className="hero-actions"><button className="button" type="button" disabled={requestBusy} onClick={() => void submit()}>{requestBusy ? "Καταχώρηση…" : "Καταχώρηση αιτήματος"}</button><Link className="button button-secondary" href="/privacy">Τι προβλέπει η Πολιτική Απορρήτου</Link></div>
-        <CustomerHowItWorks title="Τι γίνεται μετά την υποβολή;"><p>Το αίτημα αποκτά ορατή κατάσταση και στόχο επεξεργασίας. Αν χρειάζεται να διατηρηθούν συγκεκριμένα στοιχεία για νόμιμο σκοπό, το αποτέλεσμα μπορεί να είναι μερική ολοκλήρωση με αιτιολόγηση διατήρησης.</p></CustomerHowItWorks>
+        <CustomerHowItWorks title="Τι γίνεται μετά την υποβολή;"><p>Το αίτημα αποκτά ορατή κατάσταση και δημιουργεί linked GDPR case στην ομάδα υποστήριξης. Ο Admin εκτελεί την κατάλληλη ενέργεια, ελέγχει το αποτέλεσμα και η τελική απάντηση με email αποστέλλεται μόνο μετά από χειροκίνητη επιβεβαίωση. Για access/export, όταν ετοιμαστεί η αναφορά, εμφανίζονται εδώ ασφαλή κουμπιά λήψης.</p></CustomerHowItWorks>
       </article>
 
       <article className="account-live-card account-wide">
@@ -135,6 +146,10 @@ export function AccountPrivacyRightsClient({ csrfToken, email, preferences, requ
           <div><strong>{requestLabel(request.type)}</strong><small>Υποβλήθηκε {formatDate(request.submittedAt)}</small></div>
           <div><span>Στόχος επεξεργασίας: {formatDate(request.targetAt)}</span></div>
           <div className="order-total"><strong>{requestStatus(request.status)}</strong></div>
+          {request.reportReady && ["access","export"].includes(request.type) && <div className="privacy-request-downloads">
+            <a className="button button-secondary" href={`/api/account/privacy/report/${encodeURIComponent(request.id)}?format=pdf`}>PDF</a>
+            <a className="button button-secondary" href={`/api/account/privacy/report/${encodeURIComponent(request.id)}?format=json`}>JSON</a>
+          </div>}
           <div style={{gridColumn:"1/-1"}}><CustomerLifecycle label={`Πορεία αιτήματος ${requestLabel(request.type)}`} stages={privacyLifecycle(request.status)} /></div>
         </div>)}</div> : <p className="account-muted">Δεν υπάρχουν ακόμη αιτήματα ιδιωτικότητας.</p>}
       </article>

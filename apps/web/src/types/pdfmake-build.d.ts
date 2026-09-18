@@ -1,10 +1,8 @@
-declare module "pdfmake/build/pdfmake.js" {
-  const pdfMake: any;
-  export default pdfMake;
+declare module "pdfmake" {
+  const PdfPrinter: any;
+  export default PdfPrinter;
 }
-
-declare module "pdfmake/build/vfs_fonts.js" {
+declare module "pdfmake/build/vfs_fonts" {
   const fonts: any;
   export default fonts;
-  export const pdfMake: any;
 }
