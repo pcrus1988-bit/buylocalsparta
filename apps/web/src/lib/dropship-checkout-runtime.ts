@@ -2,10 +2,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { id, money, splitGrossTax, type CustomerOrder, type FulfilmentMode } from "@buy-local-sparta/core";
 import { revalidateNovaCheckoutStock } from "../../../../integrations/dropship-suppliers/src/nova-checkout-revalidation.ts";
 import { NovaV1Client, novaApiKeyFromEnvironment } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
+import { SymphonyaHttpTransport } from "../../../../integrations/dropship-suppliers/src/symphonya-http.ts";
 import { dropshipDeliveryChargeMinor } from "./dropship-delivery-pricing";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
+const SYMPHONYA_SUPPLIER_CODE = "symphonya";
 
 type DropshipCheckoutInput = Readonly<{
   checkoutKey: string;
@@ -40,6 +42,7 @@ type DropshipOfferRow = Readonly<{
   external_product_id: string;
   external_variant_id: string;
   supplier_cost_minor: number | string | null;
+  ean: string | null;
   cached_quantity: number | string | null;
 }>;
 
@@ -79,10 +82,11 @@ function orderNumber(now: number): string {
 }
 
 /**
- * Checkout authority for carts made entirely from API-authoritative NOVA offers.
+ * Checkout authority for carts made entirely from supported API-authoritative
+ * dropshipping offers (NOVA/BrandsGateway and Symphonya).
  *
  * Supplier cache is only used to discover the exact published offer. The exact
- * NOVA variation is then revalidated live before an order is created. This path
+ * supplier item is then revalidated live before an order is created. This path
  * deliberately does not manufacture inventory_balances or local stock reservations.
  * Local-only carts return undefined and continue through the normal commerce service.
  * Mixed local+dropship carts fail closed until one atomic mixed reservation protocol
@@ -119,6 +123,7 @@ export async function checkoutApiAuthoritativeDropship(
       dso.external_product_id,
       dso.external_variant_id,
       dso.supplier_cost_minor,
+      dso.ean,
       dso.cached_quantity
     FROM vendor_offers vo
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
@@ -156,7 +161,8 @@ export async function checkoutApiAuthoritativeDropship(
   }
 
   const byCanonical = new Map(discovery.rows.map((row) => [row.canonical_public_id, row] as const));
-  const client = new NovaV1Client({ apiKey: novaApiKeyFromEnvironment() });
+  let novaClient: NovaV1Client | null = null;
+  let symphonyaClient: SymphonyaHttpTransport | null = null;
   const validated: ValidatedLine[] = [];
   // The checkout UI uses local_delivery to mean "deliver to my saved address".
   // Dropship offers, however, are supplier/courier shipments and are catalogued as
@@ -177,27 +183,51 @@ export async function checkoutApiAuthoritativeDropship(
     if (!row.fulfilment_modes.includes(supplierFulfilmentMode)) {
       throw new Error("Ο συνεργαζόμενος προμηθευτής δεν υποστηρίζει αποστολή στη διεύθυνσή σου για αυτό το προϊόν.");
     }
-    if (row.supplier_code !== NOVA_SUPPLIER_CODE) {
+    let supplierCostMinor: number;
+    let revalidatedAt: number;
+
+    if (row.supplier_code === NOVA_SUPPLIER_CODE) {
+      novaClient ??= new NovaV1Client({ apiKey: novaApiKeyFromEnvironment() });
+      const evidence = await revalidateNovaCheckoutStock(novaClient, {
+        storeId: row.store_id?.trim() || "2",
+        externalProductId: row.external_product_id,
+        externalVariantId: row.external_variant_id,
+        quantity: item.quantity
+      });
+      if (!evidence.eligible || evidence.availableQuantity === null || evidence.availableQuantity < item.quantity) {
+        throw new Error("Η διαθεσιμότητα του προμηθευτή άλλαξε. Ανανέωσε το προϊόν και δοκίμασε ξανά.");
+      }
+      if (evidence.supplierCostMinor === null) {
+        throw new Error("Ο προμηθευτής δεν επέστρεψε έγκυρη τιμή αγοράς. Η παραγγελία δεν δημιουργήθηκε.");
+      }
+      supplierCostMinor = evidence.supplierCostMinor;
+      revalidatedAt = evidence.checkedAt;
+    } else if (row.supplier_code === SYMPHONYA_SUPPLIER_CODE) {
+      symphonyaClient ??= new SymphonyaHttpTransport({
+        apiKey: symphonyaApiKeyFromEnvironment(),
+        baseUrl: process.env.SYMPHONYA_API_BASE_URL,
+        requestTimeoutMs: symphonyaRequestTimeoutMs()
+      });
+      const stockRows = await symphonyaClient.getStock({ productIds: [row.external_product_id] });
+      const stock = stockRows.find((candidate) => Boolean(row.ean) && candidate.ean === row.ean)
+        ?? stockRows.find((candidate) => candidate.productId === row.external_product_id);
+      if (!stock || !stock.permitted || stock.priceHeld === true || stock.quantity < item.quantity) {
+        throw new Error("Η διαθεσιμότητα του προμηθευτή άλλαξε. Ανανέωσε το προϊόν και δοκίμασε ξανά.");
+      }
+      if (stock.wholesaleCostMinor == null || !Number.isSafeInteger(stock.wholesaleCostMinor) || stock.wholesaleCostMinor <= 0) {
+        throw new Error("Ο προμηθευτής δεν επέστρεψε έγκυρη τιμή αγοράς. Η παραγγελία δεν δημιουργήθηκε.");
+      }
+      supplierCostMinor = stock.wholesaleCostMinor;
+      revalidatedAt = Date.now();
+    } else {
       throw new Error(`Unsupported API-authoritative dropship supplier ${row.supplier_code}`);
     }
 
-    const evidence = await revalidateNovaCheckoutStock(client, {
-      storeId: row.store_id?.trim() || "2",
-      externalProductId: row.external_product_id,
-      externalVariantId: row.external_variant_id,
-      quantity: item.quantity
-    });
-    if (!evidence.eligible || evidence.availableQuantity === null || evidence.availableQuantity < item.quantity) {
-      throw new Error("Η διαθεσιμότητα του προμηθευτή άλλαξε. Ανανέωσε το προϊόν και δοκίμασε ξανά.");
-    }
-    if (evidence.supplierCostMinor === null) {
-      throw new Error("Ο προμηθευτής δεν επέστρεψε έγκυρη τιμή αγοράς. Η παραγγελία δεν δημιουργήθηκε.");
-    }
     const ceiling = row.cost_ceiling_minor == null ? null : safeInt(row.cost_ceiling_minor, "dropship cost ceiling");
-    if (ceiling !== null && evidence.supplierCostMinor > ceiling) {
+    if (ceiling !== null && supplierCostMinor > ceiling) {
       throw new Error("Η τιμή του προμηθευτή άλλαξε και η πώληση δεν περνά πλέον τον κανόνα κερδοφορίας. Η παραγγελία δεν δημιουργήθηκε.");
     }
-    validated.push({ row, quantity: item.quantity, supplierCostMinor: evidence.supplierCostMinor, revalidatedAt: evidence.checkedAt });
+    validated.push({ row, quantity: item.quantity, supplierCostMinor, revalidatedAt });
   }
 
   const db = await runtime.nativePool.connect();
@@ -397,4 +427,16 @@ export async function freshDropshipCartOffer(
     priceMinor: safeInt(result.rows[0]!.customer_price_minor, "dropship customer price"),
     available: result.rows[0]!.cached_quantity == null || safeInt(result.rows[0]!.cached_quantity, "dropship quantity") >= quantity
   };
+}
+
+
+function symphonyaApiKeyFromEnvironment(): string {
+  const value = process.env.SYMPHONYA_API_KEY?.trim();
+  if (!value) throw new Error("SYMPHONYA_API_KEY is required for Symphonya checkout revalidation");
+  return value;
+}
+
+function symphonyaRequestTimeoutMs(): number {
+  const value = Number(process.env.SYMPHONYA_REQUEST_TIMEOUT_MS ?? 20_000);
+  return Number.isSafeInteger(value) && value > 0 ? value : 20_000;
 }
