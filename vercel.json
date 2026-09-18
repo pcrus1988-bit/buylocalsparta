@@ -8,23 +8,23 @@
   "crons": [
     {
       "path": "/api/cron/delivery-dispatch",
-      "schedule": "* * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/nova-canonical-media",
-      "schedule": "* * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/symphonya-catalogue",
-      "schedule": "* * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/symphonya-stock",
-      "schedule": "* * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/symphonya-pipeline",
-      "schedule": "* * * * *"
+      "schedule": "5,20,35,50 * * * *"
     },
     {
       "path": "/api/cron/dropship-order-reconciliation",
