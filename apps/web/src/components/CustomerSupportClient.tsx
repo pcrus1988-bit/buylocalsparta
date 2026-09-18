@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CustomerHowItWorks, CustomerLifecycle } from "./CustomerAccountPrimitives";
 
 type SupportStatus = "open" | "waiting_customer" | "waiting_internal" | "resolved" | "closed";
@@ -28,6 +28,16 @@ type Props = Readonly<{
   ready: boolean;
   readinessMessage: string;
   initialContext: InitialContext;
+  restoreHelpDraft?: boolean;
+}>;
+
+type HelpSupportDraft = Readonly<{
+  category?: SupportCategory;
+  subject?: string;
+  message?: string;
+  contextType?: SupportContextType;
+  contextId?: string;
+  contextLabel?: string;
 }>;
 
 const STATUS_LABELS: Record<SupportStatus, string> = {
@@ -82,11 +92,14 @@ function defaultCategory(contextType?: SupportContextType): SupportCategory {
   return "other";
 }
 
-export function CustomerSupportClient({ csrfToken, initialCases, ready, readinessMessage, initialContext }: Props) {
+export function CustomerSupportClient({ csrfToken, initialCases, ready, readinessMessage, initialContext, restoreHelpDraft = false }: Props) {
   const [cases, setCases] = useState<readonly SupportCase[]>(initialCases);
   const [subject, setSubject] = useState(initialContext.subject ?? "");
   const [category, setCategory] = useState<SupportCategory>(defaultCategory(initialContext.type));
   const [message, setMessage] = useState("");
+  const [contextType, setContextType] = useState<SupportContextType | undefined>(initialContext.type);
+  const [contextId, setContextId] = useState<string | undefined>(initialContext.id);
+  const [contextLabel, setContextLabel] = useState<string | undefined>(initialContext.label);
   const [busy, setBusy] = useState(false);
   const [replyDraftCaseId, setReplyDraftCaseId] = useState("");
   const [replyBusyCaseId, setReplyBusyCaseId] = useState("");
@@ -96,6 +109,24 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
 
   const activeCount = useMemo(() => cases.filter((item) => !["resolved", "closed"].includes(item.status)).length, [cases]);
 
+  useEffect(() => {
+    if (!restoreHelpDraft) return;
+    try {
+      const raw = sessionStorage.getItem("kontamou:help-support-draft");
+      if (!raw) return;
+      const draft = JSON.parse(raw) as HelpSupportDraft;
+      if (draft.category && draft.category in CATEGORY_LABELS) setCategory(draft.category);
+      if (typeof draft.subject === "string") setSubject(draft.subject.slice(0, 240));
+      if (typeof draft.message === "string") setMessage(draft.message.slice(0, 4000));
+      if (draft.contextType && draft.contextType in CONTEXT_LABELS) setContextType(draft.contextType);
+      if (typeof draft.contextId === "string") setContextId(draft.contextId.slice(0, 200));
+      if (typeof draft.contextLabel === "string") setContextLabel(draft.contextLabel.slice(0, 120));
+      sessionStorage.removeItem("kontamou:help-support-draft");
+    } catch {
+      sessionStorage.removeItem("kontamou:help-support-draft");
+    }
+  }, [restoreHelpDraft]);
+
   async function createCase(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(""); setStatus(""); setBusy(true);
@@ -103,7 +134,7 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
       const response = await fetch("/api/account/support", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({ subject, category, message, contextType: initialContext.type, contextId: initialContext.id })
+        body: JSON.stringify({ subject, category, message, contextType, contextId })
       });
       const body = await response.json() as { cases?: SupportCase[]; error?: string };
       if (!response.ok || !body.cases) throw new Error(body.error ?? "Το αίτημα δεν δημιουργήθηκε.");
@@ -135,8 +166,8 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
 
   return <section className="shell customer-account-page customer-support-page">
     <div className="customer-page-heading">
-      <div><div className="eyebrow">Υποστήριξη</div><h1>Βοήθεια με πραγματικό πλαίσιο</h1></div>
-      <p>Σύνδεσε το αίτημά σου με την παραγγελία, το Ask Local ή την επιστροφή που αφορά. Η ομάδα βλέπει το σωστό πλαίσιο χωρίς να χρειάζεται να αντιγράφεις τεχνικά IDs.</p>
+      <div><div className="eyebrow">Υποστήριξη</div><h1>Η βοήθειά σου σε ένα σημείο</h1></div>
+      <p>Δημιούργησε αίτημα, παρακολούθησε την πορεία του και απάντησε στην ίδια συνομιλία μέχρι να λυθεί το θέμα.</p>
     </div>
 
     {!ready && <div className="customer-action-card is-progress" role="status"><span className="customer-action-icon" aria-hidden="true">●</span><div className="customer-action-copy"><strong>Η υποστήριξη δεν είναι διαθέσιμη σε αυτό το preview</strong><p>{readinessMessage}</p></div></div>}
@@ -144,14 +175,14 @@ export function CustomerSupportClient({ csrfToken, initialCases, ready, readines
     <div className="customer-support-layout">
       <article className="customer-account-panel customer-support-new-case">
         <div className="eyebrow">Νέο αίτημα</div><h2>Τι χρειάζεσαι;</h2>
-        {initialContext.type && <div className="customer-support-context"><strong>{initialContext.label ?? CONTEXT_LABELS[initialContext.type]}</strong>{initialContext.id && <span>{initialContext.id}</span>}<small>Η συσχέτιση ελέγχεται με τον λογαριασμό σου πριν αποθηκευτεί.</small></div>}
+        {contextType && <div className="customer-support-context"><strong>{contextLabel ?? CONTEXT_LABELS[contextType]}</strong>{contextId && <span>{contextId}</span>}<small>Αυτό βοηθά την ομάδα να βρει γρηγορότερα τη σχετική αγορά ή ενέργεια.</small></div>}
         <form className="customer-security-form" onSubmit={createCase}>
           <label><span>Κατηγορία</span><select value={category} onChange={(event) => setCategory(event.target.value as SupportCategory)} disabled={!ready}>{Object.entries(CATEGORY_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
           <label><span>Θέμα</span><input value={subject} onChange={(event) => setSubject(event.target.value)} minLength={3} maxLength={240} required disabled={!ready} placeholder="π.χ. Χρειάζομαι βοήθεια με την παραλαβή" /></label>
           <label><span>Μήνυμα</span><textarea value={message} onChange={(event) => setMessage(event.target.value)} minLength={10} maxLength={4000} required disabled={!ready} rows={6} placeholder="Πες μας τι συνέβη και τι χρειάζεσαι από εμάς." /></label>
           <button className="button" type="submit" disabled={!ready || busy}>{busy ? "Καταχώριση…" : "Δημιουργία αιτήματος"}</button>
         </form>
-        <CustomerHowItWorks title="Τι βλέπει η υποστήριξη;"><p>Η ομάδα βλέπει το ticket και μόνο το marketplace πλαίσιο που επέλεξες. Οι εσωτερικές σημειώσεις της ομάδας παραμένουν εσωτερικές· στη συνομιλία σου εμφανίζονται μόνο απαντήσεις που έχουν δηλωθεί ρητά ως ορατές σε εσένα.</p></CustomerHowItWorks>
+        <CustomerHowItWorks title="Πώς λειτουργεί;"><p>Μόλις στείλεις το αίτημα, παίρνει αριθμό ticket. Η ομάδα μπορεί να σου ζητήσει επιπλέον πληροφορίες και όλες οι απαντήσεις παραμένουν συγκεντρωμένες εδώ μέχρι να ολοκληρωθεί η υπόθεση.</p></CustomerHowItWorks>
       </article>
 
       <div className="customer-support-cases">

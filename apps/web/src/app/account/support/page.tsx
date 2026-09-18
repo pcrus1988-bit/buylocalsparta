@@ -8,7 +8,7 @@ import { customerSupportCases, customerSupportReadiness, CUSTOMER_SUPPORT_CONTEX
 
 export const metadata: Metadata = { title: "Υποστήριξη λογαριασμού", robots: { index: false, follow: false } };
 
-type Props = Readonly<{ searchParams: Promise<{ context?: string; id?: string; label?: string; subject?: string }> }>;
+type Props = Readonly<{ searchParams: Promise<{ context?: string; id?: string; label?: string; subject?: string; from?: string }> }>;
 
 export default async function AccountSupportPage({ searchParams }: Props) {
   const principal = await getAccountSession();
@@ -27,6 +27,7 @@ export default async function AccountSupportPage({ searchParams }: Props) {
       initialCases={cases}
       ready={readiness.ready}
       readinessMessage={readiness.message}
+      restoreHelpDraft={params.from === "help"}
       initialContext={{
         type: contextType,
         id: typeof params.id === "string" ? params.id.slice(0, 200) : undefined,
