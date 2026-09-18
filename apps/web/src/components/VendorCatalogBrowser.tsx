@@ -137,12 +137,6 @@ function fallbackMaterialOptions(products: readonly CatalogCard[]): readonly Rem
   }).sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
 }
 
-function dedupeProducts(products: readonly CatalogCard[]): readonly CatalogCard[] {
-  const byId = new Map<string, CatalogCard>();
-  for (const product of products) byId.set(product.id, product);
-  return [...byId.values()];
-}
-
 function fallbackCategoryOptions(products: readonly CatalogCard[]): readonly RemoteFacetOption[] {
   const map = new Map<string, { label: string; count: number }>();
   for (const product of products) {
@@ -301,6 +295,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const [guideFamily, setGuideFamily] = useState<GuideFamily | null>(null);
   const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>(demoVendorId ? products : null);
   const [remoteTotal, setRemoteTotal] = useState<number | undefined>(demoVendorId ? products.length : undefined);
+  const [remoteOffset, setRemoteOffset] = useState(0);
   const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
   const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
   const [remoteLoading, setRemoteLoading] = useState(!demoVendorId);
@@ -347,6 +342,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         if (serial !== requestSerial.current) return;
         setRemoteProducts(payload.products);
         setRemoteTotal(typeof payload.total === "number" ? payload.total : payload.products.length);
+        setRemoteOffset(payload.offset);
         setRemoteNextOffset(payload.nextOffset);
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -545,16 +541,19 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     setGuideOpen(true);
   };
 
-  const loadMore = async () => {
-    if (!publicVendorId || remoteNextOffset === null || remoteLoading || demoMode) return;
+  const loadPage = async (offset: number) => {
+    if (!publicVendorId || remoteLoading || demoMode) return;
     setRemoteLoading(true);
+    setRemoteError(false);
     try {
-      const payload = await fetchPage(publicVendorId, filters, remoteNextOffset);
-      setRemoteProducts((current) => dedupeProducts([...(current ?? []), ...payload.products]));
+      const payload = await fetchPage(publicVendorId, filters, Math.max(0, offset));
+      setRemoteProducts(payload.products);
       if (typeof payload.total === "number") setRemoteTotal(payload.total);
+      setRemoteOffset(payload.offset);
       setRemoteNextOffset(payload.nextOffset);
+      window.requestAnimationFrame(() => catalogResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch (error) {
-      console.error("Vendor catalogue next page failed", error);
+      console.error("Vendor catalogue page request failed", error);
       setRemoteError(true);
     } finally {
       setRemoteLoading(false);
@@ -563,6 +562,8 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
   const visibleProducts = remoteProducts ?? products;
   const total = remoteTotal ?? remoteFacets?.total ?? visibleProducts.length;
+  const currentPage = Math.floor(remoteOffset / PAGE_SIZE) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilterCount = [category !== "all" || categoryGroup.length > 0, brand !== "all", color !== "all", size !== "all", fit !== "all", material !== "all"].filter(Boolean).length;
   const audienceEntries = guideAudience ? categories.filter((entry) => audienceFor(entry) === guideAudience) : [];
   const guideGroups = buildGroups(audienceEntries);
@@ -699,10 +700,14 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
           <SortSelect value={sort} onChange={setSort} />
         </div>
         {activeChips.length ? <div className="vc-result-chips">{activeChips.map((chip) => <button type="button" onClick={chip.clear} key={chip.key}>{chip.label}<span>×</span></button>)}</div> : null}
-        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> επιλογές τώρα · {total} προϊόντα με το τρέχον πλαίσιο.</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
+        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> προϊόντα στη σελίδα {currentPage} · {total} προϊόντα με το τρέχον πλαίσιο.</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
         {remoteLoading && !visibleProducts.length ? <div className="vc-loading"><span className="vc-spinner" /><strong>Ετοιμάζουμε τη βιτρίνα…</strong><p>Φορτώνουμε μόνο ό,τι χρειάζεται για την επιλογή σου.</p></div> : visibleProducts.length ? <>
           <div className="vc-grid">{visibleProducts.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />)}</div>
-          {remoteNextOffset !== null && !demoMode ? <button className="vc-more" type="button" onClick={() => void loadMore()} disabled={remoteLoading}>{remoteLoading ? "Φόρτωση…" : "Περισσότερα προϊόντα"}</button> : null}
+          {!demoMode && total > PAGE_SIZE ? <nav className="vc-pagination" aria-label="Σελιδοποίηση προϊόντων">
+            <button type="button" onClick={() => void loadPage(remoteOffset - PAGE_SIZE)} disabled={remoteLoading || remoteOffset === 0}>← Προηγούμενη</button>
+            <span><strong>Σελίδα {currentPage}</strong><small>από {totalPages}</small></span>
+            <button type="button" onClick={() => remoteNextOffset !== null && void loadPage(remoteNextOffset)} disabled={remoteLoading || remoteNextOffset === null}>{remoteLoading ? "Φόρτωση…" : "Επόμενη →"}</button>
+          </nav> : null}
         </> : <div className="vc-empty"><h3>Δεν βρέθηκε προϊόν.</h3><p>Δοκίμασε διαφορετική επιλογή ή επέστρεψε στον οδηγό.</p><button className="button" type="button" onClick={isGuidedFashionVendor ? reopenGuide : resetAllFilters}>{isGuidedFashionVendor ? "Από την αρχή" : "Καθαρισμός φίλτρων"}</button></div>}
       </div>
     </div>
