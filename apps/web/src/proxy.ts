@@ -163,7 +163,28 @@ function databaseRecoveryResponse(request: NextRequest): NextResponse | undefine
   });
 }
 
+function productPrefetchResponse(request: NextRequest): NextResponse | undefined {
+  const pathname = request.nextUrl.pathname;
+  if (!pathname.startsWith("/product/")) return undefined;
+  const purpose = [
+    request.headers.get("purpose"),
+    request.headers.get("sec-purpose")
+  ].filter(Boolean).join(" ").toLowerCase();
+  const nextPrefetch = request.headers.get("next-router-prefetch");
+  if (nextPrefetch !== "1" && !purpose.includes("prefetch")) return undefined;
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "cache-control": "private, no-store",
+      "x-km-prefetch-shed": "1"
+    }
+  });
+}
+
 export async function proxy(request: NextRequest) {
+  const prefetch = productPrefetchResponse(request);
+  if (prefetch) return prefetch;
+
   const recovery = databaseRecoveryResponse(request);
   if (recovery) return recovery;
   const redirected = await contentRedirectResponse(request);
