@@ -136,3 +136,14 @@ test("vendor storefront surfaces newly published Symphonya families before the h
   assert.match(source, /vo\.status='approved'/);
   assert.match(source, /dso\.availability_expires_at>now\(\)/);
 });
+
+test("general storefront surfaces newly published Symphonya families before the hourly read-model refresh", () => {
+  const source = readFileSync(new URL("../src/lib/storefront-read-model.ts", import.meta.url), "utf8");
+  assert.match(source, /hot_symphonya AS MATERIALIZED/);
+  assert.match(source, /ds\.code='symphonya'/);
+  assert.match(source, /NOT EXISTS \([\s\S]*stable projected/);
+  assert.match(source, /vo\.status='approved'/);
+  assert.match(source, /vo\.merchant_visible=true/);
+  assert.match(source, /dso\.availability_expires_at>now\(\)/);
+  assert.match(source, /bls_private\.vendor_category_effectively_visible/);
+});
