@@ -15,6 +15,7 @@ type Props = Readonly<{
 
 type FulfilmentOption = readonly ["pickup" | "local_delivery" | "shipping", string, string];
 type AddressTarget = "billing" | "delivery";
+type PaymentMethod = "hosted" | "klarna";
 
 type SavedAddress = Readonly<{
   id: string;
@@ -104,6 +105,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const [addressError, setAddressError] = useState("");
   const [giftCardCode, setGiftCardCode] = useState("");
   const [giftCardHint, setGiftCardHint] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("hosted");
 
   const partnerItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "partner"), [items]);
   const localItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "local"), [items]);
@@ -134,8 +136,9 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
     recipientName: needsBoxNowRecipient ? recipientName : null,
     recipientEmail: needsBoxNowRecipient ? recipientEmail : null,
     recipientPhone: needsBoxNowRecipient ? recipientPhone : null,
-    giftCardSelected: Boolean(giftCardCode.trim())
-  }), [items, fulfilmentMode, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker?.id, boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone, giftCardCode]);
+    giftCardSelected: Boolean(giftCardCode.trim()),
+    paymentMethod: paymentMode === "mollie" ? paymentMethod : "development"
+  }), [items, fulfilmentMode, billingAddressId, needsDeliveryAddress, effectiveDeliveryAddressId, needsBoxNowRecipient, boxNowLocker?.id, boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone, giftCardCode, paymentMode, paymentMethod]);
 
   useEffect(() => {
     if (partnerOnlyCart && fulfilmentMode !== "local_delivery") setFulfilmentMode("local_delivery");
@@ -333,7 +336,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         setGiftCardHint(`Δωροκάρτα •••${giftCard.suffix} · διαθέσιμο ${money(giftCard.balanceMinor)}`);
       }
       const shipping = fulfilmentMode === "shipping" ? { provider: boxNowLocker ? "boxnow" : undefined, providerDestinationId: boxNowLocker?.id, providerDestinationLabel: boxNowLocker ? `${boxNowLocker.address} · ${boxNowLocker.postcode}` : undefined, providerDestinationPostcode: boxNowLocker?.postcode, recipientName, recipientEmail, recipientPhone } : undefined;
-      const response = await fetch("/api/checkout", { method: "POST", headers, body: JSON.stringify({ checkoutKey, postcode, fulfilmentMode, billingAddressId, deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : undefined, shipping, giftCardId: giftCard?.id, items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) }) });
+      const response = await fetch("/api/checkout", { method: "POST", headers, body: JSON.stringify({ checkoutKey, postcode, fulfilmentMode, billingAddressId, deliveryAddressId: needsDeliveryAddress ? effectiveDeliveryAddressId : undefined, shipping, giftCardId: giftCard?.id, paymentMethod: paymentMode === "mollie" && paymentMethod === "klarna" ? "klarna" : undefined, items: items.map((item) => ({ canonicalVariantId: item.canonicalVariantId, quantity: item.quantity })) }) });
       const body = await response.json() as CheckoutResponse;
       if (!response.ok && body.code === "PAYMENT_REMAINDER_BELOW_MINIMUM") {
         const remainingMinor = Number.isSafeInteger(body.remainingMinor) ? body.remainingMinor! : 0;
@@ -440,7 +443,11 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
       <div className="checkout-section">
         <div className="eyebrow">03 · Πληρωμή</div>
         <h2>{paymentMode === "mollie" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2>
-        <div className="payment-placeholder"><strong>{paymentMode === "mollie" ? "Mollie Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "mollie" ? "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Mollie μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
+        {paymentMode === "mollie" ? <div className="fulfilment-options" aria-label="Τρόπος πληρωμής">
+          <label className={`fulfilment-option ${paymentMethod === "hosted" ? "selected" : ""}`}><input type="radio" name="payment-method" value="hosted" checked={paymentMethod === "hosted"} onChange={() => setPaymentMethod("hosted")} /><span><strong>Κάρτα & διαθέσιμες μέθοδοι</strong><small>Η Mollie θα εμφανίσει τις ενεργές μεθόδους που είναι διαθέσιμες για την παραγγελία σου.</small></span></label>
+          <label className={`fulfilment-option ${paymentMethod === "klarna" ? "selected" : ""}`}><input type="radio" name="payment-method" value="klarna" checked={paymentMethod === "klarna"} onChange={() => setPaymentMethod("klarna")} /><span><strong>Klarna</strong><small>Αγορά τώρα, πληρωμή αργότερα. Η τελική έγκριση και οι διαθέσιμες επιλογές καθορίζονται από την Klarna.</small></span></label>
+        </div> : null}
+        <div className="payment-placeholder"><strong>{paymentMode === "mollie" ? paymentMethod === "klarna" ? "Klarna μέσω Mollie" : "Mollie Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "mollie" ? paymentMethod === "klarna" ? "Θα μεταφερθείς απευθείας στη ροή Klarna μέσω Mollie. Το ΚΟΝΤΑ ΜΟΥ στέλνει μόνο τα στοιχεία παραγγελίας που απαιτούνται για την αξιολόγηση και την πληρωμή." : "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Mollie μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
         <details className="checkout-gift-card" open={Boolean(giftCardCode.trim() || giftCardHint)}>
           <summary><span>Έχεις δωροκάρτα ΚΟΝΤΑ ΜΟΥ;</span><small>Προαιρετικό · πάτησε για εισαγωγή κωδικού</small></summary>
           <div className="checkout-gift-card-content">
@@ -450,7 +457,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
           </div>
         </details>
       </div>
-      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εφαρμογή δωροκάρτας & συνέχεια" : paymentMode === "mollie" ? "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
+      <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εφαρμογή δωροκάρτας & συνέχεια" : paymentMode === "mollie" ? paymentMethod === "klarna" ? "Συνέχεια με Klarna" : "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
       {result && <div className={`checkout-result ${result.ok ? "success" : "error"}`} role="status"><strong>{result.ok ? "Έτοιμο" : "Δεν ολοκληρώθηκε"}</strong><p>{result.message}</p>{result.totalMinor !== undefined && <p><strong>Σύνολο: {money(result.totalMinor)}</strong></p>}{result.orderId && <code>Order: {result.orderId}</code>}</div>}
     </form>
     {summary}
