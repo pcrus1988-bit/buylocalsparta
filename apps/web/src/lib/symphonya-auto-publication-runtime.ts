@@ -22,12 +22,15 @@ export function symphonyaAutoPublicationEnabled(env: NodeJS.ProcessEnv = process
 /**
  * Category organization is always allowed because it does not make an offer public.
  *
- * Storefront publication is independent from automatic supplier-order forwarding.
- * This mirrors the existing NOVA operating model: a product may be browseable and
- * purchasable while supplier-order forwarding remains an explicit operational gate.
- * Checkout must still revalidate exact supplier stock/cost live before creating the
- * customer order. Operators can stop automatic publication explicitly with
- * BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED=false.
+ * Storefront publication is intentionally separate from automatic supplier-order
+ * forwarding so catalogue discovery can recover before live order forwarding is
+ * enabled. Checkout is the hard payment boundary: Symphonya carts must not create
+ * a payable customer order while order_forwarding_enabled=false. Operators can stop
+ * automatic publication explicitly with BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED=false.
+ *
+ * Previously auto-published offers may be system-archived by downstream visibility
+ * enforcement. The sweep may recover only those exact auto-managed rows, never a
+ * marketplace-moderated archive or an arbitrary merchant archive.
  */
 export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoPublicationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -130,7 +133,14 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND cv.family_id IS NOT NULL
            AND cv.suppressed=false
            AND cv.recalled=false
-           AND vo.status::text IN ('draft','approved')
+           AND (
+             vo.status::text IN ('draft','approved')
+             OR (
+               vo.status::text='archived'
+               AND COALESCE(vo.source_payload->>'publishedBy','')='symphonya_auto_publication'
+               AND COALESCE(vo.source_payload->>'publicationState','')='PUBLISHED'
+             )
+           )
            AND COALESCE(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
            AND COALESCE(vo.source_payload->>'pricingPending','true')='false'
            AND dso.supplier_cost_minor>0
@@ -144,7 +154,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND EXISTS (
              SELECT 1 FROM public.product_translations pt
               WHERE pt.canonical_variant_id=cv.id
-                AND pt.locale IN ('el','en')
+                AND pt.locale='el'
                 AND NULLIF(btrim(pt.title),'') IS NOT NULL
            )
            AND COALESCE((
@@ -180,7 +190,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
         RETURNING dso.id
       ), offer_changed AS (
         UPDATE public.vendor_offers vo
-           SET status=CASE WHEN vo.status='draft' THEN 'approved'::public.offer_status ELSE vo.status END,
+           SET status=CASE WHEN vo.status IN ('draft','archived') THEN 'approved'::public.offer_status ELSE vo.status END,
                merchant_visible=true,
                merchant_pause_active=false,
                merchant_visibility_updated_by=NULL,
