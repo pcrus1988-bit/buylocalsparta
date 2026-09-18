@@ -86,7 +86,9 @@ test("getProductDetails enforces official maximum and posts product IDs", async 
   const rows = await transport.getProductDetails({ productIds: ["12345"], lang: "en" });
   assert.equal(rows[0]?.descriptionEn, "Text");
   assert.equal(rows[0]?.howToUseEn, "How");
-  assert.equal(calls[0]?.init?.body, "ids=[12345]");
+  const body = new URLSearchParams(String(calls[0]?.init?.body));
+  assert.equal(body.get("ids"), "[12345]");
+  assert.equal((calls[0]?.init?.headers as Record<string, string>)["Content-Type"], "application/x-www-form-urlencoded");
   assert.match(calls[0]!.url, /getProductDetails\/TEST_SECRET\?lang=en$/);
 
   await assert.rejects(
