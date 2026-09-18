@@ -85,7 +85,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
               <div className="workspace-compact-row"><strong>Customer</strong><span>{request.customerName}</span><small><Link className="text-link" href={`/admin/customers/${encodeURIComponent(request.userId)}`}>Customer 360 →</Link></small></div>
               {request.supportCaseId && <div className="workspace-compact-row"><strong>Linked support</strong><span>{request.supportCaseReference}</span><small><Link className="text-link" href={`/admin/customers/support?case=${encodeURIComponent(request.supportCaseId)}`}>Open support case →</Link></small></div>}
               {note && <div className="workspace-compact-row"><strong>Customer note</strong><span>{note}</span></div>}
-              {request.details.correction && <div className="workspace-compact-row"><strong>Requested correction</strong><span>{value(request.details.correction)}</span></div>}
+              {request.details.correction !== undefined && <div className="workspace-compact-row"><strong>Requested correction</strong><span>{value(request.details.correction)}</span></div>}
             </div>
           </WorkspaceRecordDetails>
 

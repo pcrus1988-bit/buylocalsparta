@@ -21,7 +21,7 @@ export type AdminPrivacyOperationalRequest = Readonly<{
   customerEmail?: string;
   accountStatus: string;
   type: PrivacyRequestType;
-  status: string;
+  status: PrivacyRequest["status"];
   submittedAt: number;
   targetAt: number;
   processingStartedAt?: number;
@@ -109,7 +109,7 @@ export async function adminPrivacyOperationalWorkspace(principal: SessionPrincip
         customerEmail:optionalText(row.customer_email),
         accountStatus:text(row.account_status),
         type:text(row.request_type) as PrivacyRequestType,
-        status:text(row.status),
+        status:text(row.status) as PrivacyRequest["status"],
         submittedAt:epoch(row.created_at) ?? 0,
         targetAt:epoch(row.due_at) ?? 0,
         processingStartedAt:epoch(row.processing_started_at),
