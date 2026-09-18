@@ -136,6 +136,7 @@ const categoryPage = readFileSync(`${root}/apps/web/src/app/category/[slug]/page
 const shopPage = readFileSync(`${root}/apps/web/src/app/shop/page.tsx`, "utf8");
 const homePage = readFileSync(`${root}/apps/web/src/app/page.tsx`, "utf8");
 const catalogView = readFileSync(`${root}/apps/web/src/lib/catalog-view.ts`, "utf8");
+const catalogViewBase = readFileSync(`${root}/apps/web/src/lib/catalog-view-base.ts`, "utf8");
 const catalogMetadata = readFileSync(`${root}/apps/web/src/lib/catalog-metadata.ts`, "utf8");
 const attributeRegistry = readFileSync(`${root}/apps/web/src/lib/catalog-attribute-facets.ts`, "utf8");
 const attributeFilter = readFileSync(`${root}/apps/web/src/lib/catalog-attribute-filter.ts`, "utf8");
@@ -147,6 +148,7 @@ const homeQuickSearch = readFileSync(`${root}/apps/web/src/components/HomeQuickS
 const mobileCommerceSearch = readFileSync(`${root}/apps/web/src/components/CustomerMobileCommerceNav.tsx`, "utf8");
 const searchDiscovery = readFileSync(`${root}/apps/web/src/components/SearchDiscovery.tsx`, "utf8");
 const searchSuggestions = readFileSync(`${root}/apps/web/src/lib/storefront-search-suggestions.ts`, "utf8");
+const searchSuggestionsFast = readFileSync(`${root}/apps/web/src/lib/storefront-search-suggestions-fast.ts`, "utf8");
 
 if (!categoryPage.includes("getShopCatalogPage({") || !categoryPage.includes("category: categorySlug") || !categoryPage.includes("getPublishedDropshipCatalogPage({")) failures.push("Category landing pages must use bounded page-first local and dropship catalogue projections");
 if (!categoryPage.includes("storefrontCategoryBySlug(slug)")) failures.push("Canonical category routes must resolve from the governed static storefront taxonomy, not transient inventory availability");
@@ -163,8 +165,8 @@ if (!shopPage.includes("attributeFacets.map")) failures.push("Shop must render l
 if (!shopPage.includes("attributeFilters,") || !shopPage.includes("filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)")) failures.push("Selected and resolved structured attributes must feed bounded catalogue projections and crawler filtering");
 if (!shopPage.includes("unresolvedAttributeLabels")) failures.push("Understood but unavailable structured attributes must remain advisory instead of silently hard-filtering");
 if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must retain attribute guidance for sparse catalogues");
-if (!catalogView.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)')) failures.push("PostgreSQL catalog projection must filter category codes through the governed department hierarchy before fairness assignment");
-if (!catalogView.includes('reason: "search_card"')) failures.push("Category browsing must retain search-card fairness assignment semantics");
+if (!(catalogView.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)') || catalogViewBase.includes('categoryCodeMatches(product.categoryCode, category, product.departmentCode)'))) failures.push("PostgreSQL catalog projection must filter category codes through the governed department hierarchy before fairness assignment");
+if (!(catalogView.includes('reason: "search_card"') || catalogViewBase.includes('reason: "search_card"'))) failures.push("Category browsing must retain search-card fairness assignment semantics");
 if (!catalogMetadata.includes("attributes: { ...scalarAttributes(attributes), ...scalarAttributes(specifications) }")) failures.push("Catalog metadata must project scalar structured attributes from canonical and localized metadata");
 if (!catalogMetadata.includes("typeof value === \"boolean\"")) failures.push("Structured attribute projection must normalize boolean scalar values");
 if (!attributeRegistry.includes("const BY_LEAF")) failures.push("Structured attribute definitions must stay explicitly governed by leaf");
@@ -182,8 +184,9 @@ if (!searchDiscovery.includes("/api/search/suggest") || !searchDiscovery.include
 if (!catalogSearchInput.includes("maxLength={120}") || !homeQuickSearch.includes("maxLength={120}") || !mobileCommerceSearch.includes("maxLength={120}")) failures.push("Every customer search surface must retain the bounded search contract");
 const discoveryKeyboardSources = `${catalogSearchInput}\n${homeQuickSearch}\n${mobileCommerceSearch}\n${searchDiscovery}`;
 if (discoveryKeyboardSources.includes("onKeyDown") || discoveryKeyboardSources.includes("ArrowDown") || discoveryKeyboardSources.includes("ArrowUp")) failures.push("Discovery surfaces must not add custom keyboard navigation");
-for (const kind of ["query", "category", "leaf", "brand", "product"]) if (!searchSuggestions.includes(`\"${kind}\"`)) failures.push(`Structured suggestions must support ${kind} destinations`);
-if (!searchSuggestions.includes("Σχολικές τσάντες δημοτικού") || !searchSuggestions.includes("sxolikes tsantes")) failures.push("Structured suggestions must include school-bag Greek and Greeklish intent seeds");
+const searchSuggestionSources = `${searchSuggestions}\n${searchSuggestionsFast}`;
+for (const kind of ["query", "category", "leaf", "brand", "product"]) if (!searchSuggestionSources.includes(`\"${kind}\"`)) failures.push(`Structured suggestions must support ${kind} destinations`);
+if (!searchSuggestionSources.includes("Σχολικές τσάντες δημοτικού") || !searchSuggestionSources.includes("sxolikes tsantes")) failures.push("Structured suggestions must include school-bag Greek and Greeklish intent seeds");
 
 if (failures.length) {
   console.error("Storefront category checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
