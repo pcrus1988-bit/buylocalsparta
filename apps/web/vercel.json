@@ -45,12 +45,12 @@
       "schedule": "2 * * * *"
     },
     {
-      "path": "/api/cron/symphonya-materialization",
-      "schedule": "22 * * * *"
+      "path": "/api/cron/symphonya-stock",
+      "schedule": "7,17,27,37,47,57 * * * *"
     },
     {
-      "path": "/api/cron/symphonya-stock",
-      "schedule": "*/5 * * * *"
+      "path": "/api/cron/symphonya-pipeline",
+      "schedule": "28 * * * *"
     }
   ]
 }
