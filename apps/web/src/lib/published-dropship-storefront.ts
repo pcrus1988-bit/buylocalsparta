@@ -10,6 +10,7 @@ import { approvedCatalogImages } from "./public-media-service";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { decodeCatalogSizeGroup } from "./catalog-size";
 
 const VENDOR_STOREFRONT_VARIANT_CAP = 480;
 
@@ -252,6 +253,7 @@ export async function getPublishedDropshipCatalogCards(
   const departmentCodes = await loadCatalogDepartmentCodes(ids);
   const metadata = await loadCatalogMetadata(ids);
   const normalizedQuery = normalizeSearchText(query);
+  const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
 
   // Accepted V4 enrichment is projected only after its V4 validator has passed.
   // Supplier/translation content remains the fallback for non-V4 products.
@@ -272,7 +274,7 @@ export async function getPublishedDropshipCatalogCards(
       if (filters.subcategory && record.categoryCode !== filters.subcategory) return false;
       if (!sameFilterValue(details?.brand, filters.brand)) return false;
       if (!sameFilterValue(details?.color, filters.color)) return false;
-      if (filters.size && !record.sizes.some((size) => sameFilterValue(size, filters.size))) return false;
+      if (selectedSizes.length && !record.sizes.some((size) => selectedSizes.some((selected) => sameFilterValue(size, selected)))) return false;
       if (Object.keys(attributeFilters).length > 0) {
         if (record.publicFields.technicalAttributes === false) return false;
         if (!matchesCatalogAttributeFilters(details?.attributes, attributeFilters)) return false;
