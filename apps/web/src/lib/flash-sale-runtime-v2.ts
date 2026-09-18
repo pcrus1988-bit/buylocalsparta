@@ -197,52 +197,81 @@ async function identity(client: QueryClient, customerPublicId: string) {
 
 function candidateSql(withRecentExclusion: boolean): string {
   return `
+    WITH candidate_core AS MATERIALIZED (
+      SELECT
+        cv.id AS variant_uuid_raw,
+        cv.public_id AS canonical_variant_id,
+        vo.id AS offer_uuid_raw,
+        vo.public_id AS offer_public_id,
+        cv.family_id AS family_uuid_raw,
+        cv.category_id AS category_uuid_raw,
+        cv.brand_id AS brand_uuid_raw,
+        vo.customer_price_minor AS listed_price_minor,
+        vo.msrp_minor,
+        COALESCE(cv.variant_attributes, '{}'::jsonb) AS variant_attributes,
+        random() AS random_key
+      FROM dropship_supplier_offers dso
+      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      WHERE cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor BETWEEN $1 AND $2
+        AND vo.msrp_minor > 0
+        AND vo.customer_price_minor <= vo.msrp_minor * 0.40
+        AND dso.active=true
+        AND dso.cached_available=true
+        AND dso.cached_quantity IS DISTINCT FROM 0
+        AND (dso.availability_expires_at IS NULL OR dso.availability_expires_at > now())
+        AND dso.supplier_cost_minor IS NOT NULL
+        AND (vo.customer_price_minor - round(vo.customer_price_minor::numeric * $3::numeric)::bigint) > dso.supplier_cost_minor
+        ${withRecentExclusion ? `AND NOT EXISTS (
+          SELECT 1
+          FROM flash_sale_session_items old_item
+          JOIN flash_sale_sessions old_session ON old_session.id=old_item.session_id
+          WHERE old_session.user_id=$4
+            AND old_item.canonical_variant_id=cv.id
+            AND old_session.sale_date >= ((now() AT TIME ZONE $5)::date - $6::int)
+        )` : ""}
+      ORDER BY random_key
+      LIMIT 800
+    )
     SELECT
-      cv.id::text AS variant_uuid,
-      cv.public_id AS canonical_variant_id,
-      vo.id::text AS offer_uuid,
-      vo.public_id AS offer_public_id,
-      cv.family_id::text AS family_uuid,
-      cv.category_id::text AS category_uuid,
+      core.variant_uuid_raw::text AS variant_uuid,
+      core.canonical_variant_id,
+      core.offer_uuid_raw::text AS offer_uuid,
+      core.offer_public_id,
+      core.family_uuid_raw::text AS family_uuid,
+      core.category_uuid_raw::text AS category_uuid,
       c.code AS category_code,
-      vo.customer_price_minor AS listed_price_minor,
-      vo.msrp_minor,
-      ${DISPLAY_FIELDS},
+      core.listed_price_minor,
+      core.msrp_minor,
+      COALESCE(NULLIF(pt_el.title,''), NULLIF(pt_en.title,''), core.canonical_variant_id) AS title,
+      NULLIF(b.name,'') AS brand,
       pm.source_url AS image_url,
-      COALESCE(cv.variant_attributes, '{}'::jsonb) AS variant_attributes
-    FROM canonical_variants cv
-    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-    LEFT JOIN product_translations pt_el ON pt_el.canonical_variant_id=cv.id AND pt_el.locale='el'
-    LEFT JOIN product_translations pt_en ON pt_en.canonical_variant_id=cv.id AND pt_en.locale='en'
-    JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-    LEFT JOIN brands b ON b.id=cv.brand_id
-    LEFT JOIN categories c ON c.id=cv.category_id
-    JOIN LATERAL (${PRIMARY_MEDIA_LATERAL}) pm ON true
-    WHERE cv.active=true
-      AND cv.suppressed=false
-      AND cv.recalled=false
-      AND vo.status='approved'
-      AND vo.merchant_visible=true
-      AND vo.merchant_pause_active=false
-      AND vo.customer_price_minor BETWEEN $1 AND $2
-      AND vo.msrp_minor > 0
-      AND vo.customer_price_minor <= vo.msrp_minor * 0.40
-      AND dso.active=true
-      AND dso.cached_available=true
-      AND dso.cached_quantity IS DISTINCT FROM 0
-      AND (dso.availability_expires_at IS NULL OR dso.availability_expires_at > now())
-      AND dso.supplier_cost_minor IS NOT NULL
-      AND (vo.customer_price_minor - round(vo.customer_price_minor::numeric * $3::numeric)::bigint) > dso.supplier_cost_minor
-      AND COALESCE(NULLIF(pt_el.title,''), NULLIF(pt_en.title,'')) IS NOT NULL
-      ${withRecentExclusion ? `AND NOT EXISTS (
-        SELECT 1
-        FROM flash_sale_session_items old_item
-        JOIN flash_sale_sessions old_session ON old_session.id=old_item.session_id
-        WHERE old_session.user_id=$4
-          AND old_item.canonical_variant_id=cv.id
-          AND old_session.sale_date >= ((now() AT TIME ZONE $5)::date - $6::int)
-      )` : ""}
-    ORDER BY random()
+      core.variant_attributes
+    FROM candidate_core core
+    LEFT JOIN product_translations pt_el ON pt_el.canonical_variant_id=core.variant_uuid_raw AND pt_el.locale='el'
+    LEFT JOIN product_translations pt_en ON pt_en.canonical_variant_id=core.variant_uuid_raw AND pt_en.locale='en'
+    LEFT JOIN brands b ON b.id=core.brand_uuid_raw
+    LEFT JOIN categories c ON c.id=core.category_uuid_raw
+    JOIN LATERAL (
+      SELECT source_url
+      FROM product_media
+      WHERE canonical_variant_id=core.variant_uuid_raw
+        AND kind='image'
+        AND moderation_status='approved'
+        AND rights_status='approved'
+        AND scan_status='clean'
+        AND source_url IS NOT NULL
+      ORDER BY sort_order ASC NULLS LAST, created_at ASC
+      LIMIT 1
+    ) pm ON true
+    WHERE COALESCE(NULLIF(pt_el.title,''), NULLIF(pt_en.title,'')) IS NOT NULL
+    ORDER BY core.random_key
     LIMIT 240
   `;
 }
