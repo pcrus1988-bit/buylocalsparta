@@ -26,11 +26,28 @@ type NumericSizeToken = Readonly<{
   integerPart: number;
 }>;
 
+type ApparelBand = Readonly<{
+  alpha: string;
+  euValues: readonly number[];
+  label: string;
+}>;
+
 const SIZE_GROUP_PREFIX = "__km_size__:";
 const CLEAR_EU_FOOTWEAR_MIN = 18;
 const CLEAR_EU_FOOTWEAR_MAX = 55;
 const SIZE_SYSTEMS = ["EU", "US", "UK", "IT", "FR", "DE", "ES"] as const;
-const ALPHA_ORDER = ["XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL"] as const;
+const ALPHA_ORDER = [
+  "XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL",
+  "XXXL", "XXXXL", "XXXXXL", "XXXXXXL", "XXXXXXXL", "XXXXXXXXL"
+] as const;
+const APPAREL_BANDS: readonly ApparelBand[] = [
+  { alpha: "XS", euValues: [34], label: "XS · EU 34" },
+  { alpha: "S", euValues: [36, 38], label: "S · EU 36–38" },
+  { alpha: "M", euValues: [40, 42], label: "M · EU 40–42" },
+  { alpha: "L", euValues: [44, 46], label: "L · EU 44–46" },
+  { alpha: "XL", euValues: [48, 50], label: "XL · EU 48–50" },
+  { alpha: "XXL", euValues: [52, 54], label: "XXL · EU 52–54" }
+];
 const ONE_SIZE_ALIASES = new Set([
   "ONESIZE",
   "ONESIZEFITSALL",
@@ -59,7 +76,10 @@ function domainForCategory(value: string): CatalogSizeDomain {
   const text = normalizedCategory(value);
   if (["belt", "ζων"].some((token) => text.includes(token))) return "belt";
   if (["sneaker", "trainer", "running", "shoe", "footwear", "boot", "loafer", "moccas", "sandal", "παπουτ", "μποτ", "σανδαλ"].some((token) => text.includes(token))) return "footwear";
-  if (["jean", "trouser", "pants", "bottom", "denim", "παντελον"].some((token) => text.includes(token))) return "bottoms";
+  if ([
+    "jean", "trouser", "pants", "bottom", "denim", "short", "skirt", "legging", "chino", "jogger",
+    "παντελον", "βερμουδ", "σορτ", "φουστ", "κολαν"
+  ].some((token) => text.includes(token))) return "bottoms";
   if (["dress", "shirt", "t-shirt", "t shirt", "top", "jacket", "coat", "knit", "suit", "swim", "underwear", "clothing", "apparel", "φορεμ", "πουκαμισ", "μπλουζ", "μπουφαν", "παλτο", "πλεκ", "κοστουμ", "εσωρουχ", "μαγιο"].some((token) => text.includes(token))) return "apparel";
   return "generic";
 }
@@ -107,7 +127,19 @@ function canonicalAlphaSize(value: string): string | null {
     XXXLARGE: "XXXL",
     XXXXL: "XXXXL",
     "4XL": "XXXXL",
-    XXXXLARGE: "XXXXL"
+    XXXXLARGE: "XXXXL",
+    XXXXXL: "XXXXXL",
+    "5XL": "XXXXXL",
+    XXXXXLARGE: "XXXXXL",
+    XXXXXXL: "XXXXXXL",
+    "6XL": "XXXXXXL",
+    XXXXXXLARGE: "XXXXXXL",
+    XXXXXXXL: "XXXXXXXL",
+    "7XL": "XXXXXXXL",
+    XXXXXXXLARGE: "XXXXXXXL",
+    XXXXXXXXL: "XXXXXXXXL",
+    "8XL": "XXXXXXXXL",
+    XXXXXXXXLARGE: "XXXXXXXXL"
   };
   return aliases[compactToken(value)] ?? null;
 }
@@ -115,6 +147,15 @@ function canonicalAlphaSize(value: string): string | null {
 function mixedAlphaSize(raw: string): string | null {
   const values = raw
     .split(/[|,;/·()]+/)
+    .map((part) => canonicalAlphaSize(part))
+    .filter((value): value is string => Boolean(value));
+  const unique = [...new Set(values)];
+  return unique.length === 1 ? unique[0] : null;
+}
+
+function bottomEquivalenceAlphaSize(raw: string): string | null {
+  const values = raw
+    .split(/[|,;·()]+/)
     .map((part) => canonicalAlphaSize(part))
     .filter((value): value is string => Boolean(value));
   const unique = [...new Set(values)];
@@ -166,6 +207,20 @@ function systemSize(
   };
 }
 
+function apparelAlphaSize(alpha: string, raw: string): CanonicalCatalogSize {
+  const band = APPAREL_BANDS.find((entry) => entry.alpha === alpha);
+  if (band) return { key: "apparel:bundle:" + alpha, label: band.label, raw };
+  return { key: "apparel:alpha:" + alpha, label: alpha, raw };
+}
+
+function apparelEuSize(token: NumericSizeToken, raw: string): CanonicalCatalogSize {
+  if (Number.isInteger(token.numeric)) {
+    const band = APPAREL_BANDS.find((entry) => entry.euValues.includes(token.numeric));
+    if (band) return { key: "apparel:bundle:" + band.alpha, label: band.label, raw };
+  }
+  return systemSize("EU", token, "apparel", raw);
+}
+
 function explicitSystem(raw: string): Readonly<{ system: CatalogSizeSystem; token: NumericSizeToken }> | null {
   const systems = SIZE_SYSTEMS.join("|");
   const prefix = raw.match(new RegExp("^\\s*(" + systems + ")\\s*[-:/]?\\s*(.+?)\\s*$", "i"));
@@ -215,6 +270,21 @@ function waistInseamSize(raw: string): Readonly<{ waist: number; inseam: number 
   return { waist: Number(match[1]), inseam: Number(match[2]) };
 }
 
+function alphaInseamSize(raw: string): Readonly<{ alpha: string; inseam: number }> | null {
+  const forward = raw.match(/^\s*([^/]+?)\s*\/\s*(\d{2})\s*$/i);
+  if (forward) {
+    const alpha = canonicalAlphaSize(forward[1]);
+    if (alpha) return { alpha, inseam: Number(forward[2]) };
+  }
+
+  const reverse = raw.match(/^\s*(\d{2})\s*\/\s*([^/]+?)\s*$/i);
+  if (reverse) {
+    const alpha = canonicalAlphaSize(reverse[2]);
+    if (alpha) return { alpha, inseam: Number(reverse[1]) };
+  }
+  return null;
+}
+
 export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDomain): CanonicalCatalogSize {
   const raw = clean(rawValue);
   if (!raw) return { key: "empty", label: raw, raw };
@@ -231,6 +301,17 @@ export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDom
     };
   }
 
+  if (domain === "bottoms") {
+    const alphaInseam = alphaInseamSize(raw);
+    if (alphaInseam) {
+      return {
+        key: "bottoms:alpha:" + alphaInseam.alpha + ":l" + String(alphaInseam.inseam),
+        label: alphaInseam.alpha + " / L" + String(alphaInseam.inseam),
+        raw
+      };
+    }
+  }
+
   if (domain === "belt") {
     const centimetres = raw.match(/^(\d{2,3}(?:[.,]\d+)?)\s*cm$/i);
     const token = numericSizeToken(centimetres?.[1] ?? raw);
@@ -239,9 +320,30 @@ export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDom
     }
   }
 
-  if (domain === "apparel" || domain === "bottoms") {
+  if (domain === "apparel") {
     const alpha = mixedAlphaSize(raw) ?? canonicalAlphaSize(raw);
-    if (alpha) return { key: "apparel:" + alpha, label: alpha, raw };
+    if (alpha) return apparelAlphaSize(alpha, raw);
+
+    const explicitValues = explicitSystemValues(raw);
+    const explicitEu = explicitValues.find((entry) => entry.system === "EU");
+    if (explicitEu) return apparelEuSize(explicitEu.token, raw);
+
+    const explicit = explicitValues.length === 1 ? explicitValues[0] : explicitSystem(raw);
+    if (explicit) {
+      return explicit.system === "EU"
+        ? apparelEuSize(explicit.token, raw)
+        : systemSize(explicit.system, explicit.token, "apparel", raw);
+    }
+
+    const bare = numericSizeToken(raw);
+    if (bare && Number.isInteger(bare.numeric) && APPAREL_BANDS.some((entry) => entry.euValues.includes(bare.numeric))) {
+      return apparelEuSize(bare, raw);
+    }
+  }
+
+  if (domain === "bottoms") {
+    const alpha = bottomEquivalenceAlphaSize(raw) ?? canonicalAlphaSize(raw);
+    if (alpha) return { key: "bottoms:alpha:" + alpha, label: alpha, raw };
   }
 
   if (domain === "generic") {
@@ -263,9 +365,9 @@ export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDom
     }
   }
 
-  if (domain === "apparel" || domain === "bottoms") {
+  if (domain === "bottoms") {
     const explicit = explicitSystem(raw);
-    if (explicit) return systemSize(explicit.system, explicit.token, domain, raw);
+    if (explicit) return systemSize(explicit.system, explicit.token, "bottoms", raw);
   }
 
   return { key: "raw:" + raw.toLocaleLowerCase("en"), label: raw, raw };
@@ -308,22 +410,36 @@ function alphaSortValue(label: string): number | null {
   return index >= 0 ? index : null;
 }
 
+function alphaOrderValue(alpha: string): number {
+  const index = ALPHA_ORDER.indexOf(alpha as typeof ALPHA_ORDER[number]);
+  return index >= 0 ? index : Number.POSITIVE_INFINITY;
+}
+
 function sizeSortTuple(key: string, label: string): readonly [number, number, number, string] {
   if (key === "one-size") return [9, 0, 0, label];
 
   const waistInseam = key.match(/^bottoms:w(\d+):l(\d+)$/);
   if (waistInseam) return [1, Number(waistInseam[1]), Number(waistInseam[2]), label];
 
+  const bottomAlphaInseam = key.match(/^bottoms:alpha:([^:]+):l(\d+)$/);
+  if (bottomAlphaInseam) return [1, alphaOrderValue(bottomAlphaInseam[1]), Number(bottomAlphaInseam[2]), label];
+
+  const apparelBundle = key.match(/^apparel:bundle:([^:]+)$/);
+  if (apparelBundle) return [2, alphaOrderValue(apparelBundle[1]), 0, label];
+
+  const apparelAlpha = key.match(/^(?:apparel|bottoms):alpha:([^:]+)$/);
+  if (apparelAlpha) return [2, alphaOrderValue(apparelAlpha[1]), 0, label];
+
   const numeric = numericSortValue(label);
-  if (numeric !== null) return [2, numeric, 0, label];
+  if (numeric !== null) return [3, numeric, 0, label];
 
   const alpha = alphaSortValue(label);
-  if (alpha !== null) return [3, alpha, 0, label];
+  if (alpha !== null) return [4, alpha, 0, label];
 
   const leadingNumber = label.match(/^(\d+(?:[.,]\d+)?)/);
-  if (leadingNumber) return [4, Number(leadingNumber[1].replace(",", ".")), 0, label];
+  if (leadingNumber) return [5, Number(leadingNumber[1].replace(",", ".")), 0, label];
 
-  return [5, 0, 0, label];
+  return [6, 0, 0, label];
 }
 
 export function groupCatalogSizeFacets(
