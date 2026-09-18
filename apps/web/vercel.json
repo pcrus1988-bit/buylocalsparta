@@ -8,14 +8,45 @@
     "MOLLIE_PROFILE_ID": "pfl_M24SSJoWCE"
   },
   "crons": [
-    { "path": "/api/cron/catalogue-crawler", "schedule": "* * * * *" },
-    { "path": "/api/cron/delivery-dispatch", "schedule": "* * * * *" },
-    { "path": "/api/cron/pending-payments", "schedule": "* * * * *" },
-    { "path": "/api/cron/nova-canonical-media", "schedule": "* * * * *" },
-    { "path": "/api/cron/merchant-sync", "schedule": "* * * * *" },
-    { "path": "/api/cron/merchant-status", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/order-sla", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/seo-production-metrics", "schedule": "37 4 * * *" },
-    { "path": "/api/cron/symphonya-catalogue", "schedule": "*/2 * * * *" }
+    {
+      "path": "/api/cron/catalogue-crawler",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/delivery-dispatch",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/pending-payments",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/nova-canonical-media",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/merchant-sync",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/merchant-status",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/order-sla",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/seo-production-metrics",
+      "schedule": "37 4 * * *"
+    },
+    {
+      "path": "/api/cron/symphonya-catalogue",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/symphonya-materialization",
+      "schedule": "* * * * *"
+    }
   ]
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { symphonyaAutoPricingEnabled } from "../src/lib/symphonya-auto-pricing-runtime.ts";
 import { resolveSymphonyaCategoryCode } from "../src/lib/symphonya-category-mapping.ts";
@@ -37,4 +38,22 @@ test("Symphonya canonical matching only accepts checksum-valid GTINs", () => {
   });
   assert.equal(normalizeSymphonyaGlobalIdentifier("1234567890123"), null);
   assert.equal(normalizeSymphonyaGlobalIdentifier("ABC-123"), null);
+});
+
+
+test("Symphonya materialization uses latest immutable evidence with a supplier-scoped lease", () => {
+  const source = readFileSync(new URL("../src/lib/symphonya-catalogue-materializer.ts", import.meta.url), "utf8");
+  assert.match(source, /SELECT DISTINCT ON \(p\.source_product_key\)/);
+  assert.match(source, /ORDER BY p\.source_product_key,p\.created_at DESC,p\.id DESC/);
+  assert.match(source, /symphonyaMaterializationLease/);
+  assert.match(source, /linked_source\.source_product_key=\$2/);
+  assert.match(source, /historical_source_link_collision/);
+});
+
+test("Symphonya isolated materialization cron is scheduled without enabling ordering", () => {
+  const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  const catalogue = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-catalogue");
+  const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
+  assert.equal(catalogue?.schedule, "* * * * *");
+  assert.equal(materialization?.schedule, "* * * * *");
 });
