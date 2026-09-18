@@ -83,7 +83,8 @@ type ResearchContext = Readonly<{
 }>;
 
 export async function runCatalogueEnrichmentGenerationSlice(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  options: Readonly<{ supplierCode?: string }> = {}
 ): Promise<CatalogueEnrichmentGenerationSliceResult> {
   const scope = generationScope(env);
   if (!scope.enabled) return emptyResult(false,"disabled","ai_enrichment_disabled");
@@ -95,7 +96,7 @@ export async function runCatalogueEnrichmentGenerationSlice(
   const mutable = { enabled: true,scope: scope.allowAll ? "all" as const : "pilot" as const,claimed: 0,enriched: 0,needsReview: 0,failed: 0 };
 
   for (let index=0; index<scope.batchSize; index += 1) {
-    const claimed = await claimNext(scope);
+    const claimed = await claimNext(scope, options.supplierCode);
     if (!claimed) break;
     mutable.claimed += 1;
     try {
@@ -245,12 +246,14 @@ async function persistResearch(claimed: ClaimedEnrichment,identifiers: Catalogue
   ]);
 }
 
-async function claimNext(scope: GenerationScope): Promise<ClaimedEnrichment | null> {
+async function claimNext(scope: GenerationScope, supplierCode?: string): Promise<ClaimedEnrichment | null> {
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     WITH candidate AS (
       SELECT ce.id
       FROM public.catalogue_enrichments ce
+      JOIN public.dropship_suppliers ds ON ds.id=ce.supplier_id
       WHERE ce.status='pending'
+        AND ($4::text IS NULL OR ds.code=$4)
         AND ce.source_product_id IS NOT NULL
         AND ce.generation_attempt_count < $1
         AND (ce.processing_lease_until IS NULL OR ce.processing_lease_until < now())
@@ -266,7 +269,7 @@ async function claimNext(scope: GenerationScope): Promise<ClaimedEnrichment | nu
     RETURNING ce.id,ce.external_product_id,ce.source_product_id,ce.source_hash,ce.family_id,
       ce.verified_facts,ce.fact_provenance,ce.generation_attempt_count,
       ce.research_status,ce.research_source_hash,ce.research_evidence,ce.research_identity,ce.research_sources
-  `,[scope.maxAttempts,scope.allowAll,[...scope.productIds]]);
+  `,[scope.maxAttempts,scope.allowAll,[...scope.productIds],supplierCode?.trim() || null]);
   const row = result.rows[0];
   if (!row) return null;
   return {
