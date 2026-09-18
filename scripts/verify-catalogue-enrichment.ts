@@ -44,7 +44,7 @@ for (const marker of ["research_status","research_identity","research_evidence",
   if (!migration.includes(marker)) throw new Error(`Catalogue enrichment V4 migration marker missing: ${marker}`);
 }
 
-if (!worker.includes("enrichmentGenerationConfigured")||!worker.includes("catalogue_enrichment_generation_failed")) throw new Error("NOVA worker must keep catalogue enrichment explicitly gated and failure-isolated");
+for (const marker of ['generation: "chatgpt_agent"', "applicationSideAiGeneration: false", "nova.catalogue_enrichment_promotion_failed"]) {\n  if (!worker.includes(marker)) throw new Error(`NOVA worker catalogue-enrichment boundary missing: ${marker}`);\n}
 
 for (const marker of ["assertAdminPermission(principal, \"catalog.write\")","validateLuxuryCatalogueDraft","recordAdminAudit","generation_candidate","'needs_review'","'pending'","enrichment_version+1"]) {
   if (!adminRuntime.includes(marker)) throw new Error(`Admin enrichment QA safety marker missing: ${marker}`);
