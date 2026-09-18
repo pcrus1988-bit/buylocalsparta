@@ -1,4 +1,5 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { decodeCatalogSizeGroup } from "./catalog-size";
 
 export type StorefrontReadModelFilters = Readonly<{
   subcategory?: string;
@@ -47,12 +48,13 @@ function parameters(input: StorefrontReadModelWindowInput): unknown[] {
   const subcategories = filters.subcategory?.trim()
     ? [filters.subcategory.trim()]
     : [...new Set((filters.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
+  const sizes = [...new Set(decodeCatalogSizeGroup(filters.size ?? ""))].slice(0, 64);
   return [
     [...(input.prefixes ?? [])],
     subcategories,
     filters.brand ?? "",
     filters.color ?? "",
-    filters.size ?? "",
+    sizes,
     filters.fit ?? "",
     input.query?.trim() ?? "",
     input.minPriceMinor ?? null,
@@ -76,7 +78,10 @@ const FILTER_SQL = `
   AND (cardinality($2::text[])=0 OR rm.category_code=ANY($2::text[]))
   AND ($3::text='' OR lower(COALESCE(rm.brand_name,''))=lower($3))
   AND ($4::text='' OR rm.color=lower($4))
-  AND ($5::text='' OR rm.sizes ? $5)
+  AND (cardinality($5::text[])=0 OR EXISTS (
+    SELECT 1 FROM unnest($5::text[]) selected_size(value)
+    WHERE COALESCE(rm.sizes,'[]'::jsonb) ? selected_size.value
+  ))
   AND ($6::text='' OR rm.fit=lower($6))
   AND (
     $7::text='' OR
@@ -106,7 +111,10 @@ const FAMILY_FILTER_SQL = `
   AND (cardinality($2::text[])=0 OR fm.category_codes && $2::text[])
   AND ($3::text='' OR fm.brand_names @> ARRAY[lower($3)]::text[])
   AND ($4::text='' OR fm.colors @> ARRAY[lower($4)]::text[])
-  AND ($5::text='' OR lower(COALESCE(fm.sizes_text,'')) LIKE '%"'||lower($5)||'"%')
+  AND (cardinality($5::text[])=0 OR EXISTS (
+    SELECT 1 FROM unnest($5::text[]) selected_size(value)
+    WHERE position('"'||lower(selected_size.value)||'"' in lower(COALESCE(fm.sizes_text,'')))>0
+  ))
   AND ($6::text='' OR fm.fits @> ARRAY[lower($6)]::text[])
   AND ($7::text='' OR fm.search_vector @@ plainto_tsquery('simple',$7))
   AND ($8::bigint IS NULL OR fm.min_price_minor >= $8)
