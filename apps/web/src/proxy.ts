@@ -8,6 +8,17 @@ const LEGACY_VISITOR_COOKIE = "bls_visitor";
 const VISITOR_HEADER = "x-bls-visitor";
 const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
+const DATABASE_RECOVERY_MODE = true;
+const DATABASE_RECOVERY_CRON_PATHS = [
+  "/api/cron/symphonya-",
+  "/api/cron/catalogue-crawler",
+  "/api/cron/nova-canonical-media",
+  "/api/cron/merchant-sync",
+  "/api/cron/merchant-status",
+  "/api/cron/pending-payments",
+  "/api/cron/order-sla",
+  "/api/cron/delivery-dispatch"
+] as const;
 
 const REDIRECT_PROTECTED_ROOTS = [
   "/api", "/admin", "/account", "/daily", "/checkout", "/cart", "/choose-location",
@@ -74,7 +85,27 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
   return response;
 }
 
+function databaseRecoveryResponse(request: NextRequest): NextResponse | undefined {
+  if (!DATABASE_RECOVERY_MODE) return undefined;
+  const pathname = request.nextUrl.pathname;
+  if (pathname.startsWith("/product/") || pathname.startsWith("/sitemaps/products/")) {
+    return new NextResponse("KONTA MOY catalogue is recovering. Please retry shortly.", {
+      status: 503,
+      headers: { "cache-control": "no-store", "retry-after": "120", "x-robots-tag": "noindex, follow" }
+    });
+  }
+  if (DATABASE_RECOVERY_CRON_PATHS.some((path) => pathname === path || pathname.startsWith(path))) {
+    return NextResponse.json(
+      { ok: true, skipped: "database_recovery_mode" },
+      { status: 200, headers: { "cache-control": "no-store" } }
+    );
+  }
+  return undefined;
+}
+
 export async function proxy(request: NextRequest) {
+  const recovery = databaseRecoveryResponse(request);
+  if (recovery) return recovery;
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
 
