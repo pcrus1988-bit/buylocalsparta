@@ -260,6 +260,39 @@ async function claimNext(scope: GenerationScope, supplierCode?: string): Promise
         AND ($2::boolean OR ce.external_product_id = ANY($3::text[]))
       ORDER BY (
         $4::text='symphonya'
+        AND ce.family_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+            FROM public.canonical_variants cv
+            JOIN public.product_translations pt
+              ON pt.canonical_variant_id=cv.id
+             AND pt.locale='el'
+             AND NULLIF(btrim(pt.title),'') IS NOT NULL
+           WHERE cv.family_id=ce.family_id
+        )
+        AND EXISTS (
+          SELECT 1
+            FROM public.dropship_supplier_offers dso
+           WHERE dso.supplier_id=ce.supplier_id
+             AND dso.external_product_id=ce.external_product_id
+             AND dso.cached_available=true
+             AND COALESCE(dso.cached_quantity,0)>0
+             AND dso.availability_expires_at>now()
+             AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+        )
+      ) DESC,
+      (
+        $4::text='symphonya'
+        AND ce.family_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+            FROM public.canonical_variants cv
+            JOIN public.product_translations pt
+              ON pt.canonical_variant_id=cv.id
+             AND pt.locale='el'
+             AND NULLIF(btrim(pt.title),'') IS NOT NULL
+           WHERE cv.family_id=ce.family_id
+        )
         AND EXISTS (
           SELECT 1
             FROM public.dropship_supplier_offers dso
@@ -268,6 +301,19 @@ async function claimNext(scope: GenerationScope, supplierCode?: string): Promise
              AND dso.cached_available=true
              AND COALESCE(dso.cached_quantity,0)>0
              AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+        )
+      ) DESC,
+      (
+        $4::text='symphonya'
+        AND ce.family_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+            FROM public.canonical_variants cv
+            JOIN public.product_translations pt
+              ON pt.canonical_variant_id=cv.id
+             AND pt.locale='el'
+             AND NULLIF(btrim(pt.title),'') IS NOT NULL
+           WHERE cv.family_id=ce.family_id
         )
       ) DESC,
       (ce.family_id IS NULL),ce.updated_at,ce.id
