@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/symphonya-materialization",
       "schedule": "22 * * * *"
+    },
+    {
+      "path": "/api/cron/symphonya-stock",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
