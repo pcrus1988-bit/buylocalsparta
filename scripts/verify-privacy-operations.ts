@@ -20,8 +20,8 @@ const files = {
 };
 
 const failures:string[]=[];
-expect(files.privacyControls,"linked support case","public privacy controls explain the linked operational workflow");
-expect(files.privacyControls,"χειροκίνητη επιβεβαίωση","public privacy controls disclose manual response confirmation");
+expect(files.privacyControls,"Linked support case","public privacy controls explain the linked operational workflow");
+expect(files.privacyControls,"επιβεβαιώνει χειροκίνητα","public privacy controls disclose manual response confirmation");
 expect(files.accountPrivacyRequest,"ensureCustomerPrivacySupportCase","customer GDPR request creates/links a support case");
 expect(files.customerSupportRuntime,'category:\"privacy\"',"privacy support notification payload is present");
 expect(files.customerSupportRuntime,"privacy.support_case_linked","privacy support case creation is audited");
