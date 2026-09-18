@@ -258,7 +258,19 @@ async function claimNext(scope: GenerationScope, supplierCode?: string): Promise
         AND ce.generation_attempt_count < $1
         AND (ce.processing_lease_until IS NULL OR ce.processing_lease_until < now())
         AND ($2::boolean OR ce.external_product_id = ANY($3::text[]))
-      ORDER BY (ce.family_id IS NULL),ce.updated_at,ce.id
+      ORDER BY (
+        $4::text='symphonya'
+        AND EXISTS (
+          SELECT 1
+            FROM public.dropship_supplier_offers dso
+           WHERE dso.supplier_id=ce.supplier_id
+             AND dso.external_product_id=ce.external_product_id
+             AND dso.cached_available=true
+             AND COALESCE(dso.cached_quantity,0)>0
+             AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+        )
+      ) DESC,
+      (ce.family_id IS NULL),ce.updated_at,ce.id
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     )

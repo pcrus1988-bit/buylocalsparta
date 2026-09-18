@@ -10,6 +10,7 @@ import {
   novaApiKeyFromEnvironment,
   type NovaOrder
 } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
+import { fulfilPaidSymphonyaOrder } from "./symphonya-paid-fulfilment";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type PaidDropshipFinalization = Readonly<{
@@ -82,7 +83,9 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
     return { orderId, prepared: groups.length, forwardingEnabled: 0, submitted: 0, blocked: 0, uncertain: 0 };
   }
 
-  const unsupported = forwardingGroups.filter((group) => group.providerKind !== "brandsgateway_shopwoo");
+  const unsupported = forwardingGroups.filter(
+    (group) => group.providerKind !== "brandsgateway_shopwoo" && group.providerKind !== "symphonya"
+  );
   for (const group of unsupported) {
     await runtime.nativePool.query(`
       UPDATE dropship_fulfilments
@@ -90,6 +93,11 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
        WHERE supplier_id=$1 AND order_id=$2 AND warehouse_key=$3 AND status='queued'
     `, [group.supplierUuid, rows[0]!.order_uuid, group.warehouseKey, `Unsupported dropship provider ${group.providerKind}`, new Date(now)]);
   }
+
+  // Symphonya has a concrete, documented createOrder mapper. Submit its paid
+  // fulfilments through the supplier-specific at-most-once bridge before the
+  // legacy Nova provider-payload gate below.
+  const symphonya = await fulfilPaidSymphonyaOrder(orderId, now);
 
   // A validated provider payload is intentionally a separate rollout gate. NovaV1Client does
   // not invent the provider's POST /orders body. Until a validated mapper writes
@@ -108,7 +116,14 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
        AND jsonb_typeof(df.request_payload->'providerPayload')='object'
   `, [rows[0]!.order_uuid]);
   if (Number(readyPayloads.rows[0]?.count ?? 0) === 0) {
-    return { orderId, prepared: groups.length, forwardingEnabled: forwardingGroups.length, submitted: 0, blocked: 0, uncertain: 0 };
+    return {
+      orderId,
+      prepared: groups.length,
+      forwardingEnabled: forwardingGroups.length,
+      submitted: symphonya.submitted,
+      blocked: unsupported.length + symphonya.blocked,
+      uncertain: symphonya.uncertain
+    };
   }
 
   const repository = new PostgresPaidDropshipRepository(orderId);
@@ -118,9 +133,9 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
     orderId,
     prepared: groups.length,
     forwardingEnabled: forwardingGroups.length,
-    submitted: outcomes.filter((outcome) => outcome.status === "submitted").length,
-    blocked: outcomes.filter((outcome) => ["out_of_stock", "supplier_action_required", "supplier_rejected"].includes(outcome.status)).length,
-    uncertain: outcomes.filter((outcome) => outcome.status === "submission_uncertain").length
+    submitted: symphonya.submitted + outcomes.filter((outcome) => outcome.status === "submitted").length,
+    blocked: unsupported.length + symphonya.blocked + outcomes.filter((outcome) => ["out_of_stock", "supplier_action_required", "supplier_rejected"].includes(outcome.status)).length,
+    uncertain: symphonya.uncertain + outcomes.filter((outcome) => outcome.status === "submission_uncertain").length
   };
 }
 

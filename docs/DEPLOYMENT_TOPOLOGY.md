@@ -48,6 +48,9 @@ The following are deliberately **not Vercel Functions**:
 - `crawler` — governed external catalogue crawling with bounded leases and request controls
 - `icecat` — Open Icecat EL bulk-index bootstrap and daily index synchronization
 - `icecat-detail` — governed Open Icecat product-detail enrichment from completed index evidence
+- `nova-catalogue` — long-running NOVA catalogue/materialization/pricing pipeline
+- `nova-order-reconciliation` — NOVA supplier-order status reconciliation
+- `symphonya` — long-running Symphonya catalogue → materialization → pricing → Greek enrichment → stock → publication pipeline
 
 Build the shared worker image:
 
@@ -68,9 +71,20 @@ docker run --env-file worker.env -e BLS_WORKER_ROLE=reports buy-local-sparta-wor
 docker run --env-file worker.env -e BLS_WORKER_ROLE=crawler buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=icecat buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=icecat-detail buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-catalogue buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-order-reconciliation buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=symphonya buy-local-sparta-worker
 ```
 
-Do not combine the eight roles into one process. Separate roles reduce blast radius, allow different network/provider access, and allow independent restart/scaling. In particular, `icecat` and `icecat-detail` must remain separate: bulk index ingestion is a slow source-sync workload, while detail enrichment owns a separately leased/rate-limited queue. Neither role is allowed to create canonical products, vendor offers, prices or stock directly.
+Do not combine these roles into one process. Separate roles reduce blast radius, allow different network/provider access, and allow independent restart/scaling. In particular, `icecat` and `icecat-detail` must remain separate: bulk index ingestion is a slow source-sync workload, while detail enrichment owns a separately leased/rate-limited queue. Neither role is allowed to create canonical products, vendor offers, prices or stock directly.
+
+### Symphonya execution boundary
+
+The full Symphonya catalogue is a long-running supplier workload and belongs on a dedicated container service with `BLS_WORKER_ROLE=symphonya` and `BLS_SYMPHONYA_WORKER_ENABLED=true`. Vercel keeps only bounded fallback/priority crons; do not increase serverless cron frequency to compensate for catalogue catch-up.
+
+The worker advances the pipeline in order: catalogue sync → materialization → pricing → enrichment preparation → optional Greek generation → translation promotion → supplier stock refresh → safe storefront publication. Greek generation is optional and remains disabled unless `BLS_CATALOGUE_AI_ENRICHMENT_ENABLED=true` and `OPENAI_API_KEY` are configured on that worker.
+
+Catalogue publication and supplier-order mutation are intentionally separate. A Symphonya offer may become visible once the publication gates pass, but checkout must fail closed until **both** the database supplier flag `dropship_suppliers.order_forwarding_enabled=true` and the runtime kill switch `SYMPHONYA_ENABLED=true` are active. Keep both order gates off until one controlled `createOrder` test succeeds. The catalogue worker itself never creates supplier orders.
 
 ### Open Icecat execution boundary
 

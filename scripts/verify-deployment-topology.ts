@@ -27,10 +27,11 @@ assert(vercel.buildCommand === "npm ci --ignore-scripts && npm --workspace @buy-
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
 const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
 const allowedVercelCrons = new Map([
-  ["/api/cron/delivery-dispatch", "* * * * *"],
-  ["/api/cron/nova-canonical-media", "* * * * *"],
-  ["/api/cron/symphonya-catalogue", "* * * * *"],
-  ["/api/cron/symphonya-pipeline", "* * * * *"],
+  ["/api/cron/delivery-dispatch", "*/5 * * * *"],
+  ["/api/cron/nova-canonical-media", "*/10 * * * *"],
+  ["/api/cron/symphonya-catalogue", "2 * * * *"],
+  ["/api/cron/symphonya-stock", "7,17,27,37,47,57 * * * *"],
+  ["/api/cron/symphonya-pipeline", "28 * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
 ]);
@@ -49,7 +50,7 @@ for (const [path, schedule] of allowedVercelCrons) {
   );
 }
 assert(symphonyaPipelineCron.includes("export const maxDuration = 55"), "Symphonya pipeline cron must remain bounded to one Vercel invocation");
-assert(symphonyaPipelineCron.includes('BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = "25"'), "Symphonya pipeline cron must retain bounded materialization batches");
+assert(symphonyaPipelineCron.includes('BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = "10"'), "Symphonya pipeline cron must retain bounded materialization batches");
 assert(
   web.scripts?.prebuild?.includes("verify-production-schema-head.ts --vercel-production-only"),
   "production Vercel prebuild must enforce the repository/production migration head gate",
@@ -67,7 +68,7 @@ for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
   assert(workflow.includes("npm ci --ignore-scripts"), "release/staging workflows must consume the committed npm lockfile");
   assert(!workflow.includes("npm install --ignore-scripts"), "release/staging workflows must not re-resolve dependencies with npm install");
 }
-for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "icecat", "icecat-detail"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
+for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "icecat", "icecat-detail", "nova-catalogue", "nova-order-reconciliation", "symphonya"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
 assert(entrypoint.includes("Unsupported BLS_WORKER_ROLE"), "worker entrypoint must fail closed on unknown roles");
 assert(dockerfile.includes("FROM node:24-"), "worker container must run Node 24");
 assert(dockerfile.includes("COPY package.json package-lock.json ./"), "worker image must copy the committed root lockfile before installing dependencies");
@@ -110,10 +111,13 @@ for (const path of [
   "../workers/report-worker.ts",
   "../workers/catalog-crawler-worker.ts",
   "../workers/open-icecat-worker.ts",
-  "../workers/open-icecat-detail-worker.ts"
+  "../workers/open-icecat-detail-worker.ts",
+  "../workers/nova-catalogue-worker.ts",
+  "../workers/nova-order-reconciliation-worker.ts",
+  "../workers/symphonya-worker.ts"
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded delivery/catalogue-media/Symphonya-pipeline/flash-sale/dropship reconciliation crons, web build and eight isolated Node 24 worker roles verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded web crons, and eleven isolated Node 24 worker roles including Nova and Symphonya verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }

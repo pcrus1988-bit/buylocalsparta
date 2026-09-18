@@ -16,7 +16,7 @@ const adminPage=await readFile(join(root,"apps/web/src/app/admin/catalogue/enric
 const catalogMetadata=await readFile(join(root,"apps/web/src/lib/catalog-metadata.ts"),"utf8");
 const catalogView=await readFile(join(root,"apps/web/src/lib/catalog-view.ts"),"utf8");
 const dropshipStorefront=await readFile(join(root,"apps/web/src/lib/published-dropship-storefront.ts"),"utf8");
-const dropshipCatalogPage=await readFile(join(root,"apps/web/src/lib/published-dropship-catalog-page.ts"),"utf8");
+const dropshipCatalogPage=await readFile(join(root,"apps/web/src/lib/published-dropship-catalog-page-fast.ts"),"utf8");
 
 if (!foundation.includes("BLS_CATALOGUE_AI_ENRICHMENT_ENABLED")) throw new Error("Catalogue enrichment must remain explicitly feature-gated");
 
@@ -44,7 +44,9 @@ for (const marker of ["research_status","research_identity","research_evidence",
   if (!migration.includes(marker)) throw new Error(`Catalogue enrichment V4 migration marker missing: ${marker}`);
 }
 
-if (!worker.includes("enrichmentGenerationConfigured")||!worker.includes("catalogue_enrichment_generation_failed")) throw new Error("NOVA worker must keep catalogue enrichment explicitly gated and failure-isolated");
+for (const marker of ['generation: "chatgpt_agent"', "applicationSideAiGeneration: false", "nova.catalogue_enrichment_promotion_failed"]) {
+  if (!worker.includes(marker)) throw new Error(`NOVA worker catalogue-enrichment boundary missing: ${marker}`);
+}
 
 for (const marker of ["assertAdminPermission(principal, \"catalog.write\")","validateLuxuryCatalogueDraft","recordAdminAudit","generation_candidate","'needs_review'","'pending'","enrichment_version+1"]) {
   if (!adminRuntime.includes(marker)) throw new Error(`Admin enrichment QA safety marker missing: ${marker}`);
@@ -62,7 +64,7 @@ for (const marker of ["title: details?.title ?? record.title","details?.shortDes
 for (const marker of ["title: details?.title ?? record.title","description: details?.description"]) {
   if (!dropshipCatalogPage.includes(marker)) throw new Error(`Catalogue enrichment paginated-storefront projection missing: ${marker}`);
 }
-for (const marker of ["title: metadata?.title ?? record.title","metadata?.shortDescription","title: displayTitle","const displayTitle = details?.title ?? product.title"]) {
+for (const marker of ["const displayTitle = metadata?.title ?? product.title","title: displayTitle","description: metadata?.description ?? detail?.description","title: metadata?.title ?? assigned.title"]) {
   if (!catalogView.includes(marker)) throw new Error(`Catalogue enrichment product-detail/SEO projection missing: ${marker}`);
 }
 
