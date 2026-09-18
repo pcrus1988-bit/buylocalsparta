@@ -147,3 +147,15 @@ test("general storefront surfaces newly published Symphonya families before the 
   assert.match(source, /dso\.availability_expires_at>now\(\)/);
   assert.match(source, /bls_private\.vendor_category_effectively_visible/);
 });
+
+
+test("Symphonya priority stock refresh cannot starve the full stock cursor", () => {
+  const route = readFileSync(new URL("../src/app/api/cron/symphonya-stock/route.ts", import.meta.url), "utf8");
+  const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
+  assert.match(route, /PRIORITY_REFRESH_WINDOW_MINUTES/);
+  assert.match(route, /runSymphonyaStockSyncSlice\(\{/);
+  assert.match(route, /maxDurationMs: fullCursorBudgetMs/);
+  assert.doesNotMatch(route, /publishedIds\.length === 0 && publicationCandidateIds\.length === 0/);
+  assert.match(runtime, /SymphonyaStockSyncSliceOptions/);
+  assert.match(runtime, /pages < pageLimit/);
+});
