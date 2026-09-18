@@ -207,7 +207,8 @@ export async function checkoutApiAuthoritativeDropship(
       supplierCostMinor = evidence.supplierCostMinor;
       revalidatedAt = evidence.checkedAt;
     } else if (row.supplier_code === SYMPHONYA_SUPPLIER_CODE) {
-      if (!row.order_forwarding_enabled) {
+      const symphonyaRuntimeEnabled = process.env.SYMPHONYA_ENABLED?.trim().toLowerCase() === "true";
+      if (!row.order_forwarding_enabled || !symphonyaRuntimeEnabled) {
         throw new Error("Τα προϊόντα Symphonya είναι διαθέσιμα για προβολή, αλλά οι αγορές τους δεν έχουν ενεργοποιηθεί ακόμη μέχρι να ολοκληρωθεί ο έλεγχος αυτόματης προώθησης παραγγελίας στον προμηθευτή.");
       }
       symphonyaClient ??= new SymphonyaHttpTransport({
