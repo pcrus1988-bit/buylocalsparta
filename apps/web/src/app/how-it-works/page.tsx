@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { Metadata } from "next";
+import { RoleAccessButton } from "../../components/RoleAccessButton";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
@@ -7,160 +9,218 @@ import styles from "./page.module.css";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/how-it-works", {
     title: "Πώς λειτουργεί το ΚΟΝΤΑ ΜΟΥ",
-    description: "Δες ξεχωριστά πώς λειτουργεί το ΚΟΝΤΑ ΜΟΥ για πελάτες και τοπικές επιχειρήσεις: απλή αγορά, Ask Local, ένα checkout, live tracking, τοπική παράδοση και σύγχρονα εργαλεία καταστήματος."
+    description: "Δες πώς λειτουργεί το ΚΟΝΤΑ ΜΟΥ για πελάτες, τοπικές επιχειρήσεις και συνεργάτες τοπικής παράδοσης: αγορά, Ask Local, Flash Sales, Gift Cards, παραγγελίες, pickup, delivery και live tracking."
   });
 }
 
 const customerJourney = [
-  ["01", "Βρίσκεις τοπικά", "Αναζήτησε προϊόν, κατηγορία ή κατάστημα και δες την τοπική αγορά μέσα από έναν καθαρό, οργανωμένο κατάλογο."],
-  ["02", "Ρωτάς άνθρωπο που γνωρίζει", "Αν χρειάζεσαι βοήθεια, χρησιμοποίησε τη συμβουλή καταστήματος ή το Ask Local. Δεν χρειάζεται να ψάχνεις μόνος σου από κατάστημα σε κατάστημα."],
-  ["03", "Αγοράζεις απλά", "Βάζεις όσα χρειάζεσαι στο καλάθι και ολοκληρώνεις μία καθαρή διαδικασία checkout, ακόμη κι όταν η αγορά σου περιλαμβάνει περισσότερα τοπικά καταστήματα."],
-  ["04", "Επιλέγεις τον τρόπο που σε βολεύει", "Στο checkout εμφανίζονται οι διαθέσιμες επιλογές για παραλαβή, τοπική παράδοση ή αποστολή, ανάλογα με το προϊόν και την περιοχή."],
-  ["05", "Παρακολουθείς ζωντανά", "Από τον λογαριασμό σου βλέπεις την κατάσταση της παραγγελίας, το επόμενο βήμα και την εξέλιξη της παραλαβής ή της παράδοσης χωρίς τηλεφωνήματα."]
+  ["01", "Διαλέγεις την περιοχή σου", "Το ΚΟΝΤΑ ΜΟΥ προσαρμόζει την εμπειρία στην ενεργή τοπική αγορά, ώστε να βλέπεις προϊόντα, καταστήματα και επιλογές εξυπηρέτησης που έχουν πραγματικό νόημα για εσένα."],
+  ["02", "Βρίσκεις προϊόντα, κατηγορίες και καταστήματα", "Αναζήτησε απευθείας αυτό που χρειάζεσαι ή ξεκίνα από κατηγορία, ιδέα ή κατάστημα. Η εμπειρία συνδυάζει προϊόντα και πραγματικές τοπικές επιχειρήσεις."],
+  ["03", "Ρωτάς την τοπική αγορά όταν η αναζήτηση δεν αρκεί", "Με Ask Local μπορείς να περιγράψεις τι χρειάζεσαι, να λάβεις διευκρινίσεις ή προσφορές και, όπου υποστηρίζεται, να προγραμματίσεις επαφή ή ραντεβού με κατάστημα."],
+  ["04", "Ανακαλύπτεις περισσότερους τρόπους να κερδίσεις αξία", "Flash Sales, Gift Cards και BAZAAR δημιουργούν διαφορετικούς τρόπους αγοράς. Στο BAZAAR η κατάσταση του προϊόντος δηλώνεται ξεκάθαρα πριν αγοράσεις."],
+  ["05", "Βάζεις προϊόντα από διαφορετικά καταστήματα σε ένα καλάθι", "Δεν χρειάζεται να επαναλαμβάνεις checkout σε κάθε κατάστημα. Η εμπειρία παραμένει ενιαία ακόμη κι όταν η παραγγελία εκτελείται από περισσότερους συνεργάτες."],
+  ["06", "Πληρώνεις με ασφάλεια και βλέπεις το τελικό κόστος", "Στο checkout εμφανίζονται η παραγγελία, τα έξοδα παράδοσης όπου υπάρχουν και οι διαθέσιμες μέθοδοι πληρωμής, όπως κάρτα ή Klarna όταν είναι διαθέσιμη."],
+  ["07", "Παραλαμβάνεις όπως σε εξυπηρετεί και παρακολουθείς την πορεία", "Ανάλογα με το κατάστημα μπορεί να υπάρχει pickup, τοπική παράδοση ή αποστολή. Για αποστολές εμφανίζονται tracking στοιχεία και, όπου υποστηρίζεται, live ενημέρωση."],
+  ["08", "Ο λογαριασμός σου κρατά όλη την εικόνα", "Παραγγελίες, Gift Cards, ειδοποιήσεις, αποθηκευμένα, Ask Local, επιστροφές και υποστήριξη συγκεντρώνονται σε ένα σημείο."]
 ] as const;
 
-const customerBenefits = [
-  ["01", "Ένα καλάθι", "Δεν χρειάζεται να ολοκληρώνεις διαφορετικές αγορές σε διαφορετικά sites."],
-  ["02", "Ask Local", "Αν δεν βρίσκεις κάτι, περιγράφεις τι χρειάζεσαι και η τοπική αγορά μπορεί να σε βοηθήσει."],
-  ["03", "Live tracking", "Η παραγγελία δεν εξαφανίζεται μετά το checkout. Βλέπεις καθαρά τι συμβαίνει και ποιο είναι το επόμενο βήμα."],
-  ["04", "Κοντά σημαίνει πρακτικά", "Όταν υπάρχει τοπική διαθεσιμότητα και τοπική παράδοση, η μικρή απόσταση μπορεί να κάνει την εξυπηρέτηση πιο άμεση."]
+const vendorJourney = [
+  ["01", "Γίνε συνεργάτης και στήσε το δημόσιο προφίλ σου", "Μετά την ένταξη οργανώνεις την εικόνα του καταστήματος, τα στοιχεία επικοινωνίας, τις φωτογραφίες και τις λειτουργίες που θέλεις να προσφέρεις."],
+  ["02", "Φέρε τον κατάλογό σου στο ΚΟΝΤΑ ΜΟΥ", "Διαχειρίζεσαι προϊόντα, τιμές, stock, φωτογραφίες και κατηγορίες. Όπου είναι ενεργοποιημένο, μπορείς επίσης να χρησιμοποιείς διαθέσιμες dropshipping πηγές μέσα από ξεχωριστή ροή."],
+  ["03", "Δούλεψε καθημερινά από Vendor Workspace ή Daily", "Οι παραγγελίες που χρειάζονται ενέργεια εμφανίζονται πρώτες. Από κινητό μπορείς να χρησιμοποιείς Daily για προετοιμασία, QR, ειδοποιήσεις, Quick Add και άλλες γρήγορες εργασίες."],
+  ["04", "Εξυπηρέτησε πελάτες, όχι απλώς παραγγελίες", "Ask Local, μηνύματα, ραντεβού και ιδιωτικές προσφορές επιτρέπουν στο κατάστημα να αξιοποιεί τη γνώση και την ανθρώπινη εξυπηρέτηση που ήδη έχει offline."],
+  ["05", "Διάλεξε πώς παραδίδεις", "Μπορείς να ενεργοποιείς pickup, τοπική παράδοση ή αποστολή όπου υποστηρίζεται. Το ΚΟΝΤΑ ΜΟΥ κρατά την παραγγελία και τις επιμέρους καταστάσεις οργανωμένες."],
+  ["06", "Χρησιμοποίησε QR και σαφή επόμενα βήματα", "Pickup, handover και επιλεγμένες λειτουργίες ολοκληρώνονται με ασφαλείς επιβεβαιώσεις ώστε το κατάστημα να ξέρει τι έχει παραδοθεί και τι απομένει."],
+  ["07", "Παρακολούθησε οικονομικά και απόδοση", "Ο χώρος συνεργάτη συγκεντρώνει παραστατικά, πληρωμές, πωλήσεις, αποθέματα, analytics και αναφορές ώστε να μην χρειάζεται ξεχωριστό σύστημα για κάθε λειτουργία."],
+  ["08", "Χτίσε μεγαλύτερη ψηφιακή παρουσία", "Το κατάστημα παραμένει αναγνωρίσιμο μέσα στο marketplace, ενώ η οργανωμένη δομή προϊόντων, καταστήματος και τοπικής αγοράς βοηθά την online ανακάλυψη."]
 ] as const;
 
-const modernFeatures = [
-  ["↗", "Live order tracking", "Κατάσταση, επόμενο βήμα, παραλαβή ή παράδοση συγκεντρωμένα στον λογαριασμό σου."],
-  ["◎", "Τοπική παράδοση & pickup", "Βλέπεις τις διαθέσιμες επιλογές εκπλήρωσης και επιλέγεις αυτή που ταιριάζει καλύτερα στην παραγγελία σου."],
-  ["1", "Ένα checkout", "Μία ενιαία εμπειρία αγοράς αντί για διαφορετικές διαδικασίες σε κάθε κατάστημα."],
-  ["?", "Ask Local", "Το ηλεκτρονικό εμπόριο αποκτά ξανά ανθρώπινη επαφή: ρωτάς την τοπική αγορά όταν η αναζήτηση δεν αρκεί."]
+const deliveryJourney = [
+  ["01", "Συνδέεσαι από το κινητό και ξεκινάς βάρδια", "Η εφαρμογή οδηγού είναι mobile-first. Με το clock in δηλώνεις διαθεσιμότητα και ενεργοποιείται η λειτουργική παρουσία που χρειάζεται για τις αναθέσεις."],
+  ["02", "Λαμβάνεις προτάσεις εργασίας", "Ο dispatcher μπορεί να εμφανίζει διαθέσιμες παραδόσεις ή επιστροφές. Αποδέχεσαι την εργασία ή δηλώνεις συγκεκριμένο λόγο αν δεν μπορείς να την αναλάβεις."],
+  ["03", "Βλέπεις τη σωστή σειρά στάσεων", "Μετά την ανάθεση εμφανίζονται τα επόμενα σημεία της διαδρομής. Οι διευθύνσεις πελάτη παραμένουν προστατευμένες μέχρι να υπάρχει πραγματική ανάγκη πρόσβασης."],
+  ["04", "Παραλαμβάνεις από τα καταστήματα με επιβεβαίωση", "Στα pickup σημεία χρησιμοποιείται QR όπου προβλέπεται, ώστε κάθε παραλαβή να συνδέεται με τη σωστή εργασία και το σωστό κατάστημα."],
+  ["05", "Ενεργοποιείς το τελικό σκέλος προς τον πελάτη", "Όταν ολοκληρωθούν οι παραλαβές, το Final leg δηλώνει ότι ξεκινάς πραγματικά προς τον πελάτη και ενεργοποιεί το αντίστοιχο live tracking όπου υποστηρίζεται."],
+  ["06", "Ολοκληρώνεις την παράδοση με QR", "Στον προορισμό, η παράδοση ή η επιστροφή επιβεβαιώνεται από τη σωστή ροή QR ώστε η κατάσταση να ενημερώνεται άμεσα."],
+  ["07", "Βλέπεις ώρες, ιστορικό και απόδοση", "Ο οδηγός έχει πρόσβαση σε βάρδιες, χρόνο εργασίας, ιστορικό εργασιών και βασικά στατιστικά για τις παραδόσεις του."]
 ] as const;
 
-const vendorBenefits = [
-  ["Χωρίς να χρειάζεσαι δικό σου e-shop", "Το κατάστημα μπορεί να αποκτήσει οργανωμένη online παρουσία, προϊόντα και λειτουργίες πώλησης χωρίς να συντηρεί μόνο του ολόκληρη υποδομή ηλεκτρονικού εμπορίου."],
-  ["Το κατάστημα παραμένει ορατό", "Η ταυτότητα, οι άνθρωποι, η τεχνογνωσία και η τοποθεσία του καταστήματος παραμένουν μέρος της εμπειρίας — δεν μετατρέπεται σε ένα ανώνυμο κουτάκι προϊόντος."],
-  ["Ένα σύγχρονο vendor workspace", "Κατάλογος, stock, παραγγελίες, αιτήματα πελατών και βασική λειτουργική εικόνα συγκεντρώνονται σε ένα περιβάλλον σχεδιασμένο για καθημερινή χρήση."],
-  ["Περισσότερη τοπική και online ορατότητα", "Το κατάστημα γίνεται ευκολότερο να ανακαλυφθεί από κατοίκους της περιοχής και, όπου υποστηρίζεται αποστολή, μπορεί να εξυπηρετεί και πελάτες πέρα από τη Σπάρτη."],
-  ["Λιγότερη τεχνική πολυπλοκότητα", "Το ΚΟΝΤΑ ΜΟΥ αναλαμβάνει την κοινή εμπειρία marketplace ώστε ο επαγγελματίας να επικεντρώνεται στο προϊόν, στον πελάτη και στην εκτέλεση της παραγγελίας."],
-  ["Συμβουλή που δημιουργεί σχέση", "Μέσω Ask Local και συμβουλής καταστήματος, η γνώση του επαγγελματία γίνεται πραγματικό πλεονέκτημα και όχι κάτι που χάνεται online."]
+const platformUpgrades = [
+  ["ASK LOCAL", "Συμβουλή πριν την αγορά", "Ο πελάτης μπορεί να ζητήσει βοήθεια από πραγματικά καταστήματα, αντί να περιορίζεται σε φίλτρα και αναζήτηση."],
+  ["ONE CHECKOUT", "Ένα καλάθι, πολλές επιχειρήσεις", "Η εμπειρία αγοράς παραμένει ενιαία ακόμη όταν διαφορετικά προϊόντα εκτελούνται από διαφορετικούς συνεργάτες."],
+  ["FLASH SALES", "Προσφορές με πραγματικό χρονικό όριο", "Οι εγγεγραμμένοι χρήστες μπορούν να βλέπουν ενεργές Flash Sales και την πραγματική διαθεσιμότητα της προσφοράς."],
+  ["BAZAAR", "Δεύτερη ζωή σε προϊόντα", "Pre-owned, open-box, returns, testers ή προϊόντα με δηλωμένες ατέλειες παρουσιάζονται με ξεκάθαρη κατάσταση πριν την αγορά."],
+  ["GIFT CARDS", "Online και «Στο μαγαζί»", "Η αξία μπορεί να χρησιμοποιείται σε επιλέξιμες αγορές και, όπου υποστηρίζεται, σε συμμετέχοντα φυσικά καταστήματα."],
+  ["TRACKING", "Από το κατάστημα μέχρι εσένα", "Pickup, τοπική παράδοση, courier tracking και live ενημέρωση συνδέονται με τη συγκεκριμένη παραγγελία."],
+  ["PAYMENTS", "Ασφαλές checkout", "Οι online πληρωμές περνούν από Mollie και εμφανίζονται οι διαθέσιμες επιλογές, όπως κάρτα ή Klarna όπου υποστηρίζεται."],
+  ["RETURNS", "Επιστροφές και εγγύηση με σαφή διαδρομή", "Ο πελάτης ξεκινά από την παραγγελία του και το ΚΟΝΤΑ ΜΟΥ κρατά συγκεντρωμένη την υπόθεση επιστροφής, ελαττώματος ή εγγύησης."]
 ] as const;
 
 const customerFaq = [
-  ["Χρειάζεται να κάνω ξεχωριστή αγορά σε κάθε κατάστημα;", "Όχι. Η εμπειρία του πελάτη είναι σχεδιασμένη ώστε να παραμένει ενιαία, με ένα καλάθι και μία καθαρή διαδικασία checkout."],
-  ["Μπορώ να δω πού βρίσκεται η παραγγελία μου;", "Ναι. Από τον λογαριασμό σου βλέπεις την τρέχουσα κατάσταση, το επόμενο βήμα και την εξέλιξη της παραλαβής ή της παράδοσης."],
-  ["Τι κάνω αν δεν βρίσκω αυτό που θέλω;", "Χρησιμοποίησε το Ask Local. Περιγράφεις τι ψάχνεις και το ΚΟΝΤΑ ΜΟΥ σε βοηθά να συνδεθείς με την κατάλληλη τοπική επιχείρηση."],
-  ["Η τοπική παράδοση είναι πάντα άμεση;", "Η ταχύτητα εξαρτάται από τη διαθεσιμότητα, τον χρόνο προετοιμασίας και τον διαθέσιμο τρόπο παράδοσης. Όπου υπάρχει τοπική εκπλήρωση, η μικρή απόσταση μπορεί να κάνει τη διαδικασία σημαντικά πιο άμεση."],
-  ["Μπορώ να παραλάβω από κατάστημα;", "Όταν το συγκεκριμένο προϊόν και κατάστημα υποστηρίζουν παραλαβή, η διαθέσιμη επιλογή εμφανίζεται στη ροή της παραγγελίας σου."]
+  ["Χρειάζεται να αγοράζω ξεχωριστά από κάθε κατάστημα;", "Όχι. Το ΚΟΝΤΑ ΜΟΥ έχει σχεδιαστεί για ένα καλάθι και μία ενιαία εμπειρία checkout, ακόμη όταν η παραγγελία περιλαμβάνει περισσότερους συνεργάτες."],
+  ["Πώς βλέπω πού βρίσκεται η παραγγελία μου;", "Από τον λογαριασμό σου βλέπεις την κατάσταση της παραγγελίας και τα διαθέσιμα tracking στοιχεία. Για επιλεγμένες τοπικές παραδόσεις μπορεί να υπάρχει και live ενημέρωση."],
+  ["Τι κάνω αν δεν βρίσκω αυτό που θέλω;", "Χρησιμοποίησε Ask Local και περιέγραψε τι χρειάζεσαι. Η τοπική αγορά μπορεί να απαντήσει με διευκρινίσεις, προτάσεις ή ιδιωτικές προσφορές."],
+  ["Μπορώ να παραλάβω από κατάστημα;", "Ναι, όταν ο συγκεκριμένος συνεργάτης και η παραγγελία υποστηρίζουν local pickup. Η επιλογή εμφανίζεται στη ροή αγοράς και λαμβάνεις επιβεβαίωση όταν είναι έτοιμη."]
 ] as const;
 
 const vendorFaq = [
-  ["Χρειάζομαι ήδη ηλεκτρονικό κατάστημα;", "Όχι. Το ΚΟΝΤΑ ΜΟΥ έχει σχεδιαστεί ώστε ένα τοπικό κατάστημα να μπορεί να αποκτήσει ουσιαστική online παρουσία και εργαλεία πώλησης χωρίς να χρειάζεται να λειτουργεί μόνο του πλήρες e-shop."],
-  ["Χάνεται η ταυτότητα του καταστήματός μου μέσα στο marketplace;", "Όχι. Η φιλοσοφία του ΚΟΝΤΑ ΜΟΥ είναι να παραμένουν ορατά το κατάστημα, οι άνθρωποι και η γνώση τους, ώστε ο πελάτης να ξέρει ότι αγοράζει από πραγματική τοπική επιχείρηση."],
-  ["Τι μπορώ να διαχειρίζομαι;", "Το vendor workspace συγκεντρώνει βασικές καθημερινές λειτουργίες όπως προϊόντα, stock, παραγγελίες και σχετικά αιτήματα πελατών, με στόχο να μειώνει την πολυπλοκότητα."],
-  ["Μπορώ να απευθυνθώ και σε πελάτες εκτός Σπάρτης;", "Ναι, όπου το προϊόν και ο τρόπος εκπλήρωσης υποστηρίζουν αποστολή. Έτσι η τοπική επιχείρηση μπορεί να αποκτήσει μεγαλύτερη online ορατότητα χωρίς να χάνει την τοπική της ταυτότητα."],
-  ["Πώς μπορώ να γίνω συνεργάτης;", "Από τη σελίδα συνεργασίας μπορείς να δεις τα διαθέσιμα προγράμματα, τα κριτήρια συμμετοχής και να ξεκινήσεις την αίτηση ένταξης."]
+  ["Χρειάζομαι δικό μου e-shop;", "Όχι. Το ΚΟΝΤΑ ΜΟΥ παρέχει κοινή υποδομή marketplace, ενώ εσύ διαχειρίζεσαι την επιχείρηση, τον κατάλογο, το stock και την εξυπηρέτηση."],
+  ["Τι είναι το KONTA MOY Daily;", "Είναι η γρήγορη mobile εμπειρία για καθημερινές εργασίες όπως παραγγελίες, pickup, QR, ειδοποιήσεις, Quick Add και άλλες λειτουργίες καταστήματος."],
+  ["Μπορώ να προσφέρω pickup ή τοπική παράδοση;", "Ναι, όπου η λειτουργία είναι διαθέσιμη και έχει ενεργοποιηθεί για το κατάστημά σου. Οι επιλογές εμφανίζονται στον πελάτη όταν ταιριάζουν στην παραγγελία."],
+  ["Πώς μπαίνω στον χώρο συνεργάτη;", "Η είσοδος γίνεται από τον ιδιωτικό χώρο συνεργάτη. Η σελίδα πρόσβασης δεν προβάλλεται ως δημόσιος προορισμός αναζήτησης."]
+] as const;
+
+const deliveryFaq = [
+  ["Η εφαρμογή οδηγού λειτουργεί σε desktop;", "Η βασική εφαρμογή οδηγού είναι σχεδιασμένη για κινητό, επειδή χρειάζεται χρήση εν κινήσει, GPS, QR και γρήγορη πρόσβαση στις ενεργές εργασίες."],
+  ["Πότε εμφανίζεται η διεύθυνση πελάτη;", "Η εφαρμογή περιορίζει την πρόσβαση στα στοιχεία προορισμού μέχρι να υπάρχει πραγματική λειτουργική ανάγκη, όπως μετά την αποδοχή της εργασίας."],
+  ["Πώς επιβεβαιώνεται η παράδοση;", "Η ροή χρησιμοποιεί QR όπου προβλέπεται, ώστε pickup, final leg και παράδοση να συνδέονται με τη σωστή εργασία."],
+  ["Βλέπω το ιστορικό των βαρδιών μου;", "Ναι. Η εφαρμογή διαθέτει στοιχεία βάρδιας, ώρες, ιστορικό εργασιών και βασικά operational statistics."]
 ] as const;
 
 const faqStructuredData = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: [...customerFaq, ...vendorFaq].map(([question, answer]) => ({
+  mainEntity: [...customerFaq, ...vendorFaq, ...deliveryFaq].map(([question, answer]) => ({
     "@type": "Question",
     name: question,
     acceptedAnswer: { "@type": "Answer", text: answer }
   }))
 };
 
+function Journey({ items }: { items: readonly (readonly [string, string, string])[] }) {
+  return <div className={styles.journeyGrid}>
+    {items.map(([number, title, body]) => <article className={styles.journeyCard} key={number}>
+      <span className={styles.journeyNumber}>{number}</span>
+      <div><h3>{title}</h3><p>{body}</p></div>
+    </article>)}
+  </div>;
+}
+
 export default function HowItWorksPage() {
   return <main>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData).replaceAll("<", "\\u003c") }} />
-    <div className="announcement">Αγοράζεις τοπικά, online, χωρίς περιττή πολυπλοκότητα.</div>
+    <div className="announcement">Τρεις διαδρομές · μία κοινή τοπική αγορά.</div>
     <SiteHeader />
 
     <section className="content-hero content-hero-process">
       <div className="shell content-hero-grid">
         <div>
-          <div className="eyebrow light">Για πελάτες & τοπικές επιχειρήσεις</div>
-          <h1>Η τοπική αγορά, τόσο απλή όσο ένα σύγχρονο e-shop.</h1>
-          <p>Βρίσκεις, ρωτάς, αγοράζεις και παρακολουθείς. Τα καταστήματα κρατούν την ταυτότητα και τη γνώση τους· ο πελάτης κερδίζει μία καθαρή, σύγχρονη εμπειρία αγοράς.</p>
+          <div className="eyebrow light">Πώς λειτουργεί σήμερα το ΚΟΝΤΑ ΜΟΥ</div>
+          <h1>Άλλη εμπειρία για τον πελάτη. Άλλη για το κατάστημα. Άλλη για την τοπική παράδοση.</h1>
+          <p>Το ΚΟΝΤΑ ΜΟΥ δεν είναι μόνο ένα storefront. Είναι ένα συνδεδεμένο σύστημα αγοράς, εξυπηρέτησης και παράδοσης, με ξεχωριστό χώρο για κάθε ρόλο.</p>
           <div className="hero-actions">
-            <a className="button button-light" href="#customers">Είμαι πελάτης</a>
-            <a className="button content-outline" href="#vendors">Έχω κατάστημα</a>
+            <a className="button button-light" href="#customers">Πελάτης</a>
+            <a className="button content-outline" href="#vendors">Κατάστημα</a>
+            <a className="button content-outline" href="#delivery-partners">Delivery Partner</a>
           </div>
         </div>
         <div className={styles.heroSignal} aria-hidden="true">
           <div className={styles.signalCore}>
-            <strong>Κοντά σου. Απλά. Σύγχρονα.</strong>
-            <span>FIND</span><span>ASK</span><span>BUY</span><span>TRACK</span>
+            <strong>DISCOVER · SELL · DELIVER</strong>
+            <span>ASK</span><span>BUY</span><span>PACK</span><span>TRACK</span><span>DELIVER</span><span>RETURN</span>
           </div>
         </div>
       </div>
     </section>
 
-    <section className={`shell ${styles.audienceNav}`} aria-label="Επίλεξε πώς θέλεις να μάθεις περισσότερα">
+    <section className={`shell ${styles.audienceNav}`} aria-label="Επίλεξε τον ρόλο σου">
       <a className={styles.audienceCard} href="#customers">
-        <span className={styles.audienceKicker}>Για καταναλωτές</span>
+        <span className={styles.audienceKicker}>Customer</span>
         <h2>Θέλω να αγοράσω.</h2>
-        <p>Δες πώς το ΚΟΝΤΑ ΜΟΥ κάνει την αναζήτηση, τη συμβουλή, την αγορά και την παρακολούθηση μιας τοπικής παραγγελίας απλές.</p>
-        <span className={styles.audienceLink}>Πώς λειτουργεί για εμένα →</span>
+        <p>Ανακάλυψη, Ask Local, Flash Sales, Gift Cards, ένα checkout, pickup, delivery και tracking.</p>
+        <span className={styles.audienceLink}>Δες τη διαδρομή πελάτη →</span>
       </a>
       <a className={styles.audienceCard} href="#vendors">
-        <span className={styles.audienceKicker}>Για επιχειρήσεις</span>
+        <span className={styles.audienceKicker}>Vendor</span>
         <h2>Θέλω να πουλάω.</h2>
-        <p>Δες πώς ένα φυσικό κατάστημα αποκτά σύγχρονη online παρουσία, εργαλεία και μεγαλύτερη ορατότητα χωρίς να χάνει την ταυτότητά του.</p>
-        <span className={styles.audienceLink}>Πώς λειτουργεί για το κατάστημά μου →</span>
+        <p>Κατάλογος, stock, παραγγελίες, Daily, εξυπηρέτηση, fulfilment, οικονομικά και analytics.</p>
+        <span className={styles.audienceLink}>Δες τη διαδρομή καταστήματος →</span>
+      </a>
+      <a className={styles.audienceCard} href="#delivery-partners">
+        <span className={styles.audienceKicker}>Local Delivery</span>
+        <h2>Θέλω να παραδίδω.</h2>
+        <p>Mobile driver app, shifts, dispatcher, pickup QR, GPS, final leg, delivery confirmation και history.</p>
+        <span className={styles.audienceLink}>Δες τη διαδρομή delivery →</span>
       </a>
     </section>
 
-    <section className="shell content-section" id="customers" aria-labelledby="customer-journey-title">
+    <section className="shell content-section" aria-labelledby="upgrades-title">
       <div className="content-heading">
-        <div><div className="eyebrow">Για τον πελάτη</div><h2 id="customer-journey-title">Πέντε βήματα. Χωρίς να σκέφτεσαι τι συμβαίνει στο παρασκήνιο.</h2></div>
-        <p>Ο πελάτης χρειάζεται να βλέπει μόνο ό,τι τον βοηθά να πάρει απόφαση, να αγοράσει με σιγουριά και να ξέρει τι συμβαίνει μετά την αγορά.</p>
+        <div><div className="eyebrow">Τι έχει εξελιχθεί</div><h2 id="upgrades-title">Περισσότερο από marketplace προϊόντων.</h2></div>
+        <p>Οι τελευταίες αναβαθμίσεις συνδέουν πλέον την ανακάλυψη, τη συμβουλή, την πληρωμή, την τοπική λειτουργία και την παράδοση σε μία συνεχή εμπειρία.</p>
       </div>
-      <div className="process-list">{customerJourney.map(([number, title, body]) => <article key={number}><span>{number}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div>
-    </section>
-
-    <section className="shell content-section" aria-labelledby="customer-benefits-title">
-      <div className="content-heading">
-        <div><div className="eyebrow">Τι κερδίζεις</div><h2 id="customer-benefits-title">Το online γίνεται πιο ανθρώπινο και πιο κοντινό.</h2></div>
-        <p>Η αξία δεν είναι μόνο ότι μπορείς να αγοράσεις online. Είναι ότι μπορείς να αγοράσεις από την πόλη σου με εργαλεία που περιμένεις από μια σύγχρονη πλατφόρμα.</p>
-      </div>
-      <div className={styles.benefitGrid}>{customerBenefits.map(([number, title, body]) => <article className={styles.benefitCard} key={number}><span className={styles.benefitIndex}>{number}</span><h3>{title}</h3><p>{body}</p></article>)}</div>
-    </section>
-
-    <section className={styles.modernBand} aria-labelledby="modern-title">
-      <div className={`shell ${styles.modernBandInner}`}>
-        <div className={styles.modernHeading}>
-          <div><div className="eyebrow light">Σύγχρονοι μηχανισμοί</div><h2 id="modern-title">Η ευκολία ενός μεγάλου e-commerce, με την εγγύτητα της τοπικής αγοράς.</h2></div>
-          <p>Το ΚΟΝΤΑ ΜΟΥ σχεδιάζεται γύρω από πραγματικές καθημερινές ανάγκες: να μη χάνεσαι σε διαφορετικά sites, να μη χρειάζεται να τηλεφωνείς για κάθε ενημέρωση και να ξέρεις τι γίνεται με την παραγγελία σου.</p>
-        </div>
-        <div className={styles.modernGrid}>{modernFeatures.map(([icon, title, body]) => <article className={styles.modernCard} key={title}><span className={styles.modernIcon}>{icon}</span><h3>{title}</h3><p>{body}</p></article>)}</div>
+      <div className={styles.upgradeGrid}>
+        {platformUpgrades.map(([kicker, title, body]) => <article className={styles.upgradeCard} key={kicker}>
+          <span>{kicker}</span><h3>{title}</h3><p>{body}</p>
+        </article>)}
       </div>
     </section>
 
-    <section className="shell content-section" aria-labelledby="local-title">
-      <div className={styles.localSection}>
-        <div className={styles.localVisual} aria-hidden="true"><strong>Λιγότερη απόσταση. Περισσότερη επαφή.</strong></div>
-        <div className={styles.localCopy}>
-          <span className={styles.localKicker}>Γιατί τοπικά</span>
-          <h2 id="local-title">Η Σπάρτη δεν είναι απλώς φίλτρο τοποθεσίας. Είναι μέρος της εμπειρίας.</h2>
-          <p>Όταν το προϊόν βρίσκεται κοντά, ανοίγουν δυνατότητες που ένα μακρινό fulfillment δεν προσφέρει εύκολα: άμεση επικοινωνία, παραλαβή από κατάστημα και — όπου είναι διαθέσιμη — γρήγορη τοπική παράδοση.</p>
-          <div className={styles.localPoints}>
-            <div className={styles.localPoint}><b>1</b><div><strong>Παραλαβή από κοντά</strong><span>Παίρνεις το προϊόν από πραγματικό τοπικό κατάστημα όταν υποστηρίζεται pickup.</span></div></div>
-            <div className={styles.localPoint}><b>2</b><div><strong>Μικρότερη διαδρομή</strong><span>Η τοπική εκπλήρωση μπορεί να μειώσει την απόσταση και να κάνει την εξυπηρέτηση πιο άμεση.</span></div></div>
-            <div className={styles.localPoint}><b>3</b><div><strong>Πραγματικοί άνθρωποι</strong><span>Πίσω από το προϊόν υπάρχει κατάστημα της περιοχής που γνωρίζει την κατηγορία και μπορεί να βοηθήσει.</span></div></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section className={styles.vendorSection} id="vendors" aria-labelledby="vendors-title">
-      <div className={`shell ${styles.vendorInner}`}>
-        <div className={styles.vendorIntro}>
+    <section className={styles.roleSection} id="customers" aria-labelledby="customers-title">
+      <div className="shell">
+        <div className={styles.roleHeader}>
           <div>
-            <span className={styles.vendorKicker}>Για τοπικές επιχειρήσεις</span>
-            <h2 id="vendors-title">Δεν χρειάζεται να γίνεις εταιρεία τεχνολογίας για να πουλάς σύγχρονα.</h2>
-            <p>Το ΚΟΝΤΑ ΜΟΥ δημιουργεί την κοινή ψηφιακή υποδομή που δύσκολα συντηρεί μόνο του ένα μικρό ή μεσαίο κατάστημα. Εσύ κρατάς την επιχείρηση, τη γνώση και τη σχέση με τον πελάτη.</p>
-            <div className={styles.vendorActions}><a className="button" href="/join">Δες τη συνεργασία</a><a className="button button-secondary" href="/join/requirements">Έλεγξε αν μπορείς να συμμετέχεις</a></div>
+            <span className={styles.roleBadge}>01 · CUSTOMER</span>
+            <h2 id="customers-title">Από την ανάγκη μέχρι την παραλαβή — χωρίς να κυνηγάς διαφορετικά συστήματα.</h2>
+            <p>Ο πελάτης βλέπει μία ενιαία εμπειρία, ενώ το ΚΟΝΤΑ ΜΟΥ οργανώνει στο παρασκήνιο τα διαφορετικά καταστήματα, τις επιλογές παράδοσης και τις ενημερώσεις.</p>
           </div>
-          <div className={styles.vendorBenefits}>{vendorBenefits.map(([title, body]) => <article className={styles.vendorBenefit} key={title}><strong>{title}</strong><span>{body}</span></article>)}</div>
+          <div className={styles.roleActions}>
+            <RoleAccessButton destination="/login" className="button">Σύνδεση πελάτη</RoleAccessButton>
+            <Link className="button button-secondary" href="/shop">Δες προϊόντα</Link>
+          </div>
+        </div>
+        <Journey items={customerJourney} />
+      </div>
+    </section>
+
+    <section className={styles.roleSectionAlt} id="vendors" aria-labelledby="vendors-title">
+      <div className="shell">
+        <div className={styles.roleHeader}>
+          <div>
+            <span className={styles.roleBadge}>02 · VENDOR</span>
+            <h2 id="vendors-title">Το φυσικό κατάστημα αποκτά ένα πλήρες ψηφιακό λειτουργικό περιβάλλον.</h2>
+            <p>Η δημόσια παρουσία και η καθημερινή λειτουργία είναι ξεχωριστές: οι πελάτες βλέπουν το κατάστημά σου, ενώ εσύ δουλεύεις μέσα σε ιδιωτικό workspace που εμφανίζει μόνο ό,τι αφορά την επιχείρησή σου.</p>
+          </div>
+          <div className={styles.roleActions}>
+            <RoleAccessButton destination="/vendor/login" className="button">Σύνδεση συνεργάτη</RoleAccessButton>
+            <Link className="button button-secondary" href="/join">Γίνε συνεργάτης</Link>
+          </div>
+        </div>
+        <Journey items={vendorJourney} />
+      </div>
+    </section>
+
+    <section className={styles.deliverySection} id="delivery-partners" aria-labelledby="delivery-title">
+      <div className="shell">
+        <div className={styles.roleHeader}>
+          <div>
+            <span className={styles.roleBadgeLight}>03 · LOCAL DELIVERY PARTNER</span>
+            <h2 id="delivery-title">Μία mobile εφαρμογή για τη βάρδια, τις αναθέσεις και την απόδειξη κάθε βήματος.</h2>
+            <p>Η εφαρμογή οδηγού είναι σχεδιασμένη για πραγματική χρήση στον δρόμο: διαθέσιμες εργασίες, σειρά στάσεων, GPS, QR, live tracking και ιστορικό χωρίς περιττό back-office.</p>
+          </div>
+          <div className={styles.roleActions}>
+            <RoleAccessButton destination="/driver/login" className="button button-light">Σύνδεση Delivery Partner</RoleAccessButton>
+          </div>
+        </div>
+        <Journey items={deliveryJourney} />
+      </div>
+    </section>
+
+    <section className="shell content-section" aria-labelledby="together-title">
+      <div className={styles.ecosystem}>
+        <div>
+          <div className="eyebrow">Πώς συνδέονται οι τρεις ρόλοι</div>
+          <h2 id="together-title">Μία παραγγελία περνά από διαφορετικά χέρια — αλλά παραμένει μία εμπειρία.</h2>
+          <p>Ο πελάτης αγοράζει. Το κατάστημα προετοιμάζει. Ο delivery partner παραλαμβάνει και παραδίδει. Το ΚΟΝΤΑ ΜΟΥ κρατά την κοινή κατάσταση ώστε κάθε πλευρά να βλέπει μόνο ό,τι χρειάζεται τη σωστή στιγμή.</p>
+        </div>
+        <div className={styles.ecosystemFlow} aria-label="Customer to vendor to delivery flow">
+          <div><span>1</span><strong>Customer</strong><small>Αγορά & επιλογή παράδοσης</small></div>
+          <i>→</i>
+          <div><span>2</span><strong>Vendor</strong><small>Προετοιμασία & handover</small></div>
+          <i>→</i>
+          <div><span>3</span><strong>Delivery</strong><small>Pickup, final leg & QR</small></div>
+          <i>→</i>
+          <div><span>4</span><strong>Customer</strong><small>Tracking & παραλαβή</small></div>
         </div>
       </div>
     </section>
@@ -168,29 +228,36 @@ export default function HowItWorksPage() {
     <section className={styles.faqSection} aria-labelledby="faq-title">
       <div className={`shell ${styles.faqInner}`}>
         <div className={styles.faqHeader}>
-          <div><div className="eyebrow light">Q&A</div><h2 id="faq-title">Οι ερωτήσεις που έχουν πραγματική σημασία.</h2></div>
-          <p>Χωρίσαμε τις απαντήσεις για πελάτες και επιχειρήσεις, ώστε να βρίσκεις γρήγορα αυτό που σε αφορά χωρίς τεχνική ή εσωτερική πληροφορία που δεν χρειάζεσαι.</p>
+          <div><div className="eyebrow light">Q&A ανά ρόλο</div><h2 id="faq-title">Βρες γρήγορα αυτό που σε αφορά.</h2></div>
+          <p>Οι ιδιωτικές περιοχές πρόσβασης είναι ξεχωριστές από το δημόσιο site. Τα κουμπιά σύνδεσης παραπάνω δεν αποδίδονται ως κανονικοί crawlable σύνδεσμοι.</p>
         </div>
         <div className={styles.faqColumns}>
-          <div className={styles.faqColumn}><span className={styles.faqColumnTitle}>Για πελάτες</span>{customerFaq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div>
-          <div className={styles.faqColumn}><span className={styles.faqColumnTitle}>Για επιχειρήσεις</span>{vendorFaq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div>
+          <div className={styles.faqColumn}><span className={styles.faqColumnTitle}>Customer</span>{customerFaq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div>
+          <div className={styles.faqColumn}><span className={styles.faqColumnTitle}>Vendor</span>{vendorFaq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div>
+          <div className={styles.faqColumn}><span className={styles.faqColumnTitle}>Local Delivery</span>{deliveryFaq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div>
         </div>
       </div>
     </section>
 
     <section className="shell content-section" aria-label="Επόμενο βήμα">
-      <div className={styles.dualCta}>
+      <div className={styles.tripleCta}>
         <article className={styles.ctaCard}>
-          <span className={styles.featureKicker}>Θέλω να αγοράσω</span>
-          <h2>Ξεκίνα από κάτι που χρειάζεσαι σήμερα.</h2>
-          <p>Αναζήτησε προϊόντα και τοπικά καταστήματα ή χρησιμοποίησε το Ask Local όταν δεν βρίσκεις ακριβώς αυτό που ψάχνεις.</p>
-          <div className={styles.ctaActions}><a className="button" href="/shop">Δες προϊόντα</a><a className="button button-secondary" href="/ask-local">Ask Local</a></div>
+          <span className={styles.featureKicker}>Customer</span>
+          <h2>Βρες κάτι που χρειάζεσαι.</h2>
+          <p>Αναζήτησε προϊόντα, καταστήματα και ιδέες ή ζήτησε βοήθεια από την τοπική αγορά.</p>
+          <div className={styles.ctaActions}><Link className="button" href="/shop">Shop</Link><Link className="button button-secondary" href="/ask-local">Ask Local</Link></div>
         </article>
         <article className={styles.ctaCard}>
-          <span className={styles.featureKicker}>Έχω κατάστημα</span>
-          <h2>Βάλε την επιχείρησή σου στην κοινή τοπική ψηφιακή αγορά.</h2>
-          <p>Δες τι περιλαμβάνει η συνεργασία, ποια καταστήματα μπορούν να συμμετέχουν και πώς ξεκινά η διαδικασία ένταξης.</p>
-          <div className={styles.ctaActions}><a className="button button-light" href="/join">Γίνε συνεργάτης</a><a className={`button ${styles.ctaSecondary}`} href="/help">Έχω ερώτηση</a></div>
+          <span className={styles.featureKicker}>Vendor</span>
+          <h2>Βάλε το κατάστημά σου στην πλατφόρμα.</h2>
+          <p>Δες τις επιλογές συνεργασίας και ξεκίνα την ένταξη της επιχείρησής σου.</p>
+          <div className={styles.ctaActions}><Link className="button" href="/join">Συνεργασία</Link><Link className="button button-secondary" href="/join/requirements">Προϋποθέσεις</Link></div>
+        </article>
+        <article className={styles.ctaCardDark}>
+          <span className={styles.featureKickerLight}>Delivery</span>
+          <h2>Είσαι ήδη συνεργάτης παράδοσης;</h2>
+          <p>Η είσοδος στην driver εφαρμογή γίνεται από τον ιδιωτικό χώρο πρόσβασης στο κινητό σου.</p>
+          <div className={styles.ctaActions}><RoleAccessButton destination="/driver/login" className="button button-light">Άνοιγμα Driver Login</RoleAccessButton></div>
         </article>
       </div>
     </section>
