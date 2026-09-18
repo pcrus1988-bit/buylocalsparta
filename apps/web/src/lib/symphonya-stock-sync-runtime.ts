@@ -127,10 +127,22 @@ export async function refreshSymphonyaOfferStockByExternalIds(productIds: readon
     baseUrl: process.env.SYMPHONYA_API_BASE_URL,
     requestTimeoutMs: timeoutMs()
   });
-  const rows: SymphonyaStockRow[] = [];
+  const requestBatches: string[][] = [];
   for (let index = 0; index < ids.length; index += 200) {
-    const requestedIds = ids.slice(index, index + 200);
-    const returned = await transport.getStock({ productIds: requestedIds });
+    requestBatches.push(ids.slice(index, index + 200));
+  }
+
+  // Two 200-ID getStock requests for the storefront-priority slice can run in
+  // parallel. Sequential calls were exceeding the 55-second serverless budget
+  // even though each individual supplier request completed successfully.
+  const returnedBatches = await Promise.all(
+    requestBatches.map((requestedIds) => transport.getStock({ productIds: requestedIds }))
+  );
+
+  const rows: SymphonyaStockRow[] = [];
+  for (let index = 0; index < requestBatches.length; index += 1) {
+    const requestedIds = requestBatches[index] ?? [];
+    const returned = returnedBatches[index] ?? [];
     const returnedIds = new Set(returned.map((row) => row.productId));
     rows.push(...returned);
     // A targeted getStock miss is authoritative unavailability for this check.
