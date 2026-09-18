@@ -178,7 +178,7 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
   };
 }
 
-function resolveNovaCategoryCode(payloadValue: unknown, sourceTitle: string): string | null {
+export function resolveNovaCategoryCode(payloadValue: unknown, sourceTitle: string): string | null {
   const payload = record(payloadValue);
   const path = categoryPath(payload).map(normalize);
   const root = path[0] ?? "";
@@ -225,16 +225,44 @@ function resolveNovaCategoryCode(payloadValue: unknown, sourceTitle: string): st
   if (root === "clothing" || containsAny(haystack,["shirt","sweater","sweatshirt","jacket","dress","skirt","trouser","jeans","shorts","polo","hoodie","blazer","cardigan","swimwear","bikini","underwear"])) {
     if (!gender) return null;
     const men = gender === "men";
+
+    // NOVA categoryDetails is authoritative supplier taxonomy. Prefer its
+    // second-level clothing class before fuzzy title/attribute evidence so
+    // generic attribute labels such as "Brand" cannot turn clothing into
+    // underwear (the substring "bra" previously matched "brand").
+    if (root === "clothing") {
+      if (level2 === "underwear" || level2 === "sleepwear") return men ? "mens-underwear" : "womens-underwear";
+      if (level2 === "skirts") return men ? "fashion-mens-skirts" : "fashion-womens-skirts";
+      if (level2 === "pants" || level2 === "jeans denim") return men ? "fashion-mens-trousers-jeans" : "fashion-womens-trousers-jeans";
+      if (level2 === "shorts") return men ? "fashion-mens-shorts" : "fashion-womens-shorts";
+      if (level2 === "dresses") return men ? "fashion-mens-dresses" : "fashion-womens-dresses";
+      if (level2 === "sweaters") return men ? "fashion-mens-knitwear" : "fashion-womens-knitwear";
+      if (level2 === "shirts") return men ? "fashion-mens-shirts" : "fashion-womens-shirts";
+      if (level2 === "t shirts") return men ? "fashion-mens-tshirts-tops" : "fashion-womens-tops";
+      if (level2 === "jackets" || level2 === "blazers" || level2 === "coats" || level2 === "trench coats") {
+        return men ? "fashion-mens-jackets-coats" : "fashion-womens-jackets-coats";
+      }
+      if (level2 === "sportswear") return men ? "fashion-mens-activewear" : "fashion-womens-activewear";
+      if (level2 === "jumpsuits") return men ? null : "fashion-womens-jumpsuits";
+      if (level2 === "suits") return men ? "fashion-mens-suits-formal" : "fashion-womens-sets";
+    }
+
     const clothing = `${level2} ${level3} ${haystack}`;
     if (containsAny(clothing,["swimwear","bikini","swim shorts","swim brief","one piece swimsuit"])) return men ? "fashion-mens-swimwear" : "fashion-womens-swimwear";
-    if (containsAny(clothing,["underwear","boxer","briefs","panties","bra","sleepwear"])) return men ? "mens-underwear" : "womens-underwear";
+    if (
+      containsAny(clothing,["underwear","boxer","briefs","panties","sleepwear","bralette"])
+      || containsWholePhrase(clothing,"bra")
+      || containsWholePhrase(clothing,"bras")
+    ) return men ? "mens-underwear" : "womens-underwear";
     if (containsAny(clothing,["sportswear","activewear","workout","legging"])) return men ? "fashion-mens-activewear" : "fashion-womens-activewear";
     if (containsAny(clothing,["jacket","coat","blazer","trench","bomber","parka","waistcoat","cloak"])) return men ? "fashion-mens-jackets-coats" : "fashion-womens-jackets-coats";
     if (containsAny(clothing,["sweater","sweatshirt","cardigan","hoodie","cashmere","knitwear","turtleneck"])) return men ? "fashion-mens-knitwear" : "fashion-womens-knitwear";
-    if (containsAny(clothing,["jeans","pants","trouser","shorts","bermuda","jogger","chino","cargo"])) return men ? "fashion-mens-trousers-jeans" : "fashion-womens-trousers-jeans";
-    if (containsAny(clothing,["dress"])) return men ? null : "fashion-womens-dresses";
-    if (containsAny(clothing,["skirt"])) return men ? null : "fashion-womens-skirts";
-    if (containsAny(clothing,["jumpsuit","two piece suit","suit"]) || level2 === "sets") return men ? "fashion-mens-suits-formal" : "fashion-womens-sets";
+    if (containsAny(clothing,["shorts","bermuda"])) return men ? "fashion-mens-shorts" : "fashion-womens-shorts";
+    if (containsAny(clothing,["jeans","pants","trouser","jogger","chino","cargo"])) return men ? "fashion-mens-trousers-jeans" : "fashion-womens-trousers-jeans";
+    if (containsAny(clothing,["dress"])) return men ? "fashion-mens-dresses" : "fashion-womens-dresses";
+    if (containsAny(clothing,["skirt"])) return men ? "fashion-mens-skirts" : "fashion-womens-skirts";
+    if (containsAny(clothing,["jumpsuit"])) return men ? null : "fashion-womens-jumpsuits";
+    if (containsAny(clothing,["two piece suit","suit"]) || level2 === "sets") return men ? "fashion-mens-suits-formal" : "fashion-womens-sets";
     if (containsAny(clothing,["dress shirt","shirt","blouse"])) return men ? "fashion-mens-shirts" : "fashion-womens-shirts";
     if (containsAny(clothing,["t shirt","tshirt","polo","tank top","top","tee shirt"])) return men ? "fashion-mens-tshirts-tops" : "fashion-womens-tops";
   }
@@ -291,6 +319,12 @@ function inferGender(payload: Readonly<Record<string,unknown>>, evidence: string
 
 function containsAny(value: string, needles: readonly string[]): boolean {
   return needles.some((needle) => value.includes(needle));
+}
+
+function containsWholePhrase(value: string, phrase: string): boolean {
+  const normalizedPhrase = normalize(phrase);
+  if (!normalizedPhrase) return false;
+  return ` ${normalize(value)} `.includes(` ${normalizedPhrase} `);
 }
 
 function normalize(value: string): string {
