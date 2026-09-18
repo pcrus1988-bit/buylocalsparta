@@ -6,6 +6,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { getPublicProductDetails } from "./public-product-detail";
 import { approvedCatalogImages } from "./public-media-service";
 import { storefrontCategoryBySlug } from "./storefront-taxonomy";
+import { decodeCatalogSizeGroup } from "./catalog-size";
 
 const MAX_CRAWLER_PAGE_SIZE = 36;
 
@@ -57,6 +58,7 @@ export async function getCrawlerLocalCatalogPage(
 
   const limit = Math.max(1, Math.min(MAX_CRAWLER_PAGE_SIZE, requestedLimit));
   const prefixes = categoryPrefixes(category);
+  const selectedSizes = [...new Set(decodeCatalogSizeGroup(filters.size ?? ""))].slice(0, 64);
   const result = await getProductionPostgresRuntime().nativePool.query<CrawlerLocalRow>(`
     WITH RECURSIVE category_tree AS (
       SELECT c.id,c.parent_id,c.code,c.code AS department_code
@@ -122,7 +124,11 @@ export async function getCrawlerLocalCatalogPage(
         AND ($2::text='' OR c.code=$2)
         AND ($3::text='' OR lower(COALESCE(b.name,''))=lower($3))
         AND ($4::text='' OR lower(COALESCE(el.specifications->>'color',en.specifications->>'color',cv.variant_attributes->>'color',''))=lower($4))
-        AND ($5::text='' OR COALESCE(el.specifications->'sizes',en.specifications->'sizes','[]'::jsonb) ? $5 OR COALESCE(cv.variant_attributes->'sizes_observed','[]'::jsonb) ? $5)
+        AND (cardinality($5::text[])=0 OR EXISTS (
+          SELECT 1 FROM unnest($5::text[]) selected_size(value)
+          WHERE COALESCE(el.specifications->'sizes',en.specifications->'sizes','[]'::jsonb) ? selected_size.value
+             OR COALESCE(cv.variant_attributes->'sizes_observed','[]'::jsonb) ? selected_size.value
+        ))
         AND ($6::text='' OR lower(COALESCE(el.specifications->>'fit',en.specifications->>'fit',''))=lower($6))
         AND (
           $7::text='' OR
@@ -163,7 +169,7 @@ export async function getCrawlerLocalCatalogPage(
     filters.subcategory ?? "",
     filters.brand ?? "",
     filters.color ?? "",
-    filters.size ?? "",
+    selectedSizes,
     filters.fit ?? "",
     query.trim(),
     limit
