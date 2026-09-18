@@ -16,17 +16,18 @@ export type SymphonyaAutoPublicationResult = Readonly<{
 }>;
 
 export function symphonyaAutoPublicationEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
+  return env.BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() !== "false";
 }
 
 /**
  * Category organization is always allowed because it does not make an offer public.
- * Publication is deliberately double-gated:
- * - explicit BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED=true
- * - supplier order_forwarding_enabled=true
  *
- * This prevents a browseable product from becoming purchasable before the supplier
- * order path has been operationally enabled.
+ * Storefront publication is independent from automatic supplier-order forwarding.
+ * This mirrors the existing NOVA operating model: a product may be browseable and
+ * purchasable while supplier-order forwarding remains an explicit operational gate.
+ * Checkout must still revalidate exact supplier stock/cost live before creating the
+ * customer order. Operators can stop automatic publication explicitly with
+ * BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED=false.
  */
 export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoPublicationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -37,7 +38,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
      LIMIT 1
   `, [SUPPLIER_CODE]);
   const orderForwardingEnabled = supplier.rows[0]?.order_forwarding_enabled === true;
-  const publicationEnabled = symphonyaAutoPublicationEnabled() && orderForwardingEnabled;
+  const publicationEnabled = symphonyaAutoPublicationEnabled();
 
   const candidates = await pool.query<SqlRow>(`
     SELECT cv.id::text canonical_id,
@@ -123,7 +124,6 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
             ON ds.id=dso.supplier_id
            AND ds.code=$1
            AND ds.active=true
-           AND ds.order_forwarding_enabled=true
           JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
           JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
          WHERE cv.category_id IS NOT NULL
@@ -144,7 +144,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND EXISTS (
              SELECT 1 FROM public.product_translations pt
               WHERE pt.canonical_variant_id=cv.id
-                AND pt.locale='el'
+                AND pt.locale IN ('el','en')
                 AND NULLIF(btrim(pt.title),'') IS NOT NULL
            )
            AND COALESCE((
