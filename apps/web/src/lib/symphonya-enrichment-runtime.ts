@@ -21,53 +21,75 @@ export type SymphonyaEnrichmentPreparationSliceResult = Readonly<{
 
 export async function runSymphonyaEnrichmentPreparationSlice(): Promise<SymphonyaEnrichmentPreparationSliceResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
+  // Start from already-materialized supplier offers instead of expanding the
+  // full immutable source-history projection. For each materialized product we
+  // resolve only its latest source row through the indexed source/product key.
+  // This keeps the preparation slice bounded as source snapshots accumulate.
   const candidates = await pool.query<SqlRow>(`
-    WITH latest AS (
-      SELECT p.id,p.source_id,p.source_product_key,p.normalized_payload,p.created_at
-        FROM public.catalog_source_product_latest p
-        JOIN public.catalog_sources cs ON cs.id=p.source_id
-       WHERE cs.code=$1 AND cs.active=true
+    WITH candidates AS MATERIALIZED (
+      SELECT DISTINCT ON (dso.external_product_id)
+             ds.id supplier_id,
+             dso.external_product_id,
+             latest.id source_product_id,
+             latest.normalized_payload,
+             pf.id family_id,
+             ce.id enrichment_id,
+             ce.source_product_id enrichment_source_product_id,
+             (
+               dso.cached_available=true
+               AND COALESCE(dso.cached_quantity,0)>0
+               AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+             ) in_stock
+        FROM public.dropship_supplier_offers dso
+        JOIN public.dropship_suppliers ds
+          ON ds.id=dso.supplier_id
+         AND ds.code=$1
+         AND ds.active=true
+         AND ds.catalogue_sync_enabled=true
+        JOIN public.product_families pf
+          ON pf.source_supplier_id=ds.id
+         AND pf.source_external_product_id=dso.external_product_id
+        JOIN LATERAL (
+          SELECT p.id,p.normalized_payload
+            FROM public.catalog_source_products p
+           WHERE p.source_id=ds.catalog_source_id
+             AND p.source_product_key=dso.external_product_id
+           ORDER BY p.created_at DESC,p.id DESC
+           LIMIT 1
+        ) latest ON true
+        LEFT JOIN public.catalogue_enrichments ce
+          ON ce.supplier_id=ds.id
+         AND ce.external_product_id=dso.external_product_id
+       WHERE dso.external_product_id IS NOT NULL
+         AND (
+           ce.id IS NULL
+           OR ce.source_product_id IS DISTINCT FROM latest.id
+           OR ce.family_id IS NULL
+         )
+       ORDER BY dso.external_product_id,
+                (
+                  dso.cached_available=true
+                  AND COALESCE(dso.cached_quantity,0)>0
+                  AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+                ) DESC,
+                dso.updated_at DESC,
+                dso.id DESC
     )
-    SELECT ds.id::text supplier_id,
-           latest.id::text source_product_id,
-           latest.source_product_key external_product_id,
-           latest.normalized_payload,
-           pf.id::text family_id,
-           existing_family_enrichment.id::text existing_family_enrichment_id
-      FROM latest
-      JOIN public.dropship_suppliers ds
-        ON ds.catalog_source_id=latest.source_id
-       AND ds.code=$2
-       AND ds.active=true
-       AND ds.catalogue_sync_enabled=true
-      JOIN public.product_families pf
-        ON pf.source_supplier_id=ds.id
-       AND pf.source_external_product_id=latest.source_product_key
-      LEFT JOIN public.catalogue_enrichments ce
-        ON ce.supplier_id=ds.id
-       AND ce.external_product_id=latest.source_product_key
-      LEFT JOIN public.catalogue_enrichments existing_family_enrichment
-        ON existing_family_enrichment.family_id=pf.id
-       AND existing_family_enrichment.id IS DISTINCT FROM ce.id
-     WHERE (
-       ce.id IS NULL
-       OR ce.source_product_id IS DISTINCT FROM latest.id
-       OR ce.family_id IS NULL
-     )
-     ORDER BY (
-       EXISTS (
-         SELECT 1
-           FROM public.dropship_supplier_offers dso
-          WHERE dso.supplier_id=ds.id
-            AND dso.external_product_id=latest.source_product_key
-            AND dso.cached_available=true
-            AND COALESCE(dso.cached_quantity,0)>0
-            AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
-       )
-     ) DESC,
-     latest.source_product_key
-     LIMIT $3
-  `, [SOURCE_CODE, SUPPLIER_CODE, batchSize()]);
+    SELECT supplier_id::text supplier_id,
+           source_product_id::text source_product_id,
+           external_product_id,
+           normalized_payload,
+           family_id::text family_id,
+           CASE WHEN EXISTS (
+             SELECT 1
+               FROM public.catalogue_enrichments other
+              WHERE other.family_id=candidates.family_id
+                AND other.id IS DISTINCT FROM candidates.enrichment_id
+           ) THEN family_id::text ELSE NULL END existing_family_enrichment_id
+      FROM candidates
+     ORDER BY in_stock DESC,external_product_id
+     LIMIT $2
+  `, [SUPPLIER_CODE, batchSize()]);
 
   let prepared = 0;
   let skippedSharedFamily = 0;
