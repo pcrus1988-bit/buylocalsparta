@@ -88,19 +88,31 @@ function applySeoDocumentHeaders(request: NextRequest, response: NextResponse): 
 function databaseRecoveryResponse(request: NextRequest): NextResponse | undefined {
   if (!DATABASE_RECOVERY_MODE) return undefined;
   const pathname = request.nextUrl.pathname;
-  if (pathname.startsWith("/product/") || pathname.startsWith("/sitemaps/products/")) {
-    return new NextResponse("KONTA MOY catalogue is recovering. Please retry shortly.", {
-      status: 503,
-      headers: { "cache-control": "no-store", "retry-after": "120", "x-robots-tag": "noindex, follow" }
-    });
-  }
+
+  // Never involve PostgreSQL for scheduler traffic while the connection pool is
+  // recovering. Return success so schedulers do not create retry storms.
   if (DATABASE_RECOVERY_CRON_PATHS.some((path) => pathname === path || pathname.startsWith(path))) {
     return NextResponse.json(
       { ok: true, skipped: "database_recovery_mode" },
       { status: 200, headers: { "cache-control": "no-store" } }
     );
   }
-  return undefined;
+
+  // Health probes and immutable/static files do not need the commerce database.
+  if (pathname.startsWith("/api/health") || /\.[A-Za-z0-9]{2,8}$/.test(pathname)) return undefined;
+
+  // Emergency circuit breaker: while PostgreSQL cannot accept even SELECT 1,
+  // do not let public/account/catalogue requests continuously open new database
+  // connections. This is intentionally temporary and must be disabled after
+  // connectivity is restored.
+  return new NextResponse("KONTA MOY is recovering catalogue access. Please retry shortly.", {
+    status: 503,
+    headers: {
+      "cache-control": "no-store",
+      "retry-after": "120",
+      "x-robots-tag": "noindex, follow"
+    }
+  });
 }
 
 export async function proxy(request: NextRequest) {
