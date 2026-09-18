@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import type { FlashSaleState } from "../lib/flash-sale-runtime";
+import type { FlashSaleState } from "../lib/flash-sale-runtime-v2";
 import { useCart } from "./CartProvider";
 import styles from "../app/flash-sale/flash-sale.module.css";
 
