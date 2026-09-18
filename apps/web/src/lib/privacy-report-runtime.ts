@@ -225,13 +225,19 @@ function short(value:unknown,max=80):string{
 }
 
 export async function renderPrivacyReportPdf(snapshot:PrivacyReportSnapshot,requestReference:string):Promise<Buffer>{
-  const printerModule=await import("pdfmake");
+  // Use pdfmake's self-contained browser/VFS build even on the server.
+  // The Node printer path pulls pdfkit/fontkit assets through dynamic fs reads
+  // (notably @foliojs-fork/fontkit/data.trie), which is brittle in serverless
+  // bundles. The browser build keeps its font VFS inside the JS bundle.
+  const pdfMakeModule=await import("pdfmake/build/pdfmake");
   const fontsModule=await import("pdfmake/build/vfs_fonts");
-  const PdfPrinter=(printerModule.default??printerModule) as any;
-  const raw=(fontsModule.default??fontsModule) as any;
-  const vfs=(raw.pdfMake?.vfs??raw) as Record<string,string>;
-  const font=(name:string)=>{const value=vfs[name];if(typeof value!=="string")throw new Error(`Embedded PDF font missing: ${name}`);return Buffer.from(value,"base64");};
-  const printer=new PdfPrinter({Roboto:{normal:font("Roboto-Regular.ttf"),bold:font("Roboto-Medium.ttf"),italics:font("Roboto-Italic.ttf"),bolditalics:font("Roboto-MediumItalic.ttf")}});
+  const pdfMake=(pdfMakeModule.default??pdfMakeModule) as any;
+  const rawFonts=(fontsModule.default??fontsModule) as any;
+  const vfs=(rawFonts.pdfMake?.vfs??rawFonts) as Record<string,string>;
+  if(!vfs["Roboto-Regular.ttf"]) throw new Error("Embedded PDF VFS is missing Roboto-Regular.ttf");
+  if(typeof pdfMake.addVirtualFileSystem==="function") pdfMake.addVirtualFileSystem(vfs);
+  else pdfMake.vfs=vfs;
+
   const money=(minor:unknown,currency:unknown)=>{const n=Number(minor);return Number.isFinite(n)?new Intl.NumberFormat("el-GR",{style:"currency",currency:typeof currency==="string"?currency:"EUR"}).format(n/100):"—";};
   const countRows=Object.entries(snapshot.counts).map(([key,value])=>[key,String(value)]);
   const doc={
@@ -293,9 +299,12 @@ export async function renderPrivacyReportPdf(snapshot:PrivacyReportSnapshot,requ
       {text:"Το PDF είναι αναγνώσιμη αναφορά των βασικών δεδομένων και κατηγοριών. Η συνοδευτική JSON εξαγωγή είναι το πλήρες δομημένο πακέτο των records που ανακτήθηκαν από τα ενεργά customer-facing συστήματα για αυτόν τον λογαριασμό. Εσωτερικά μυστικά ασφαλείας, password/session hashes και μη customer-facing στοιχεία τρίτων δεν περιλαμβάνονται. Υποχρεωτικά φορολογικά, λογιστικά, ασφάλειας ή dispute records μπορεί να υπόκεινται σε διαφορετικούς χρόνους διατήρησης.",style:"muted"}
     ].filter(Boolean)
   } as any;
-  const pdf=printer.createPdfKitDocument(doc);
-  const chunks:Buffer[]=[];
-  return await new Promise<Buffer>((resolve,reject)=>{pdf.on("data",(chunk:Buffer)=>chunks.push(Buffer.from(chunk)));pdf.on("end",()=>resolve(Buffer.concat(chunks)));pdf.on("error",reject);pdf.end();});
+
+  return await new Promise<Buffer>((resolve,reject)=>{
+    try{
+      pdfMake.createPdf(doc).getBuffer((buffer:Uint8Array|Buffer)=>resolve(Buffer.from(buffer)));
+    }catch(error){reject(error);}
+  });
 }
 
 export function privacyReportJson(snapshot:PrivacyReportSnapshot):string{return JSON.stringify(snapshot,null,2);}

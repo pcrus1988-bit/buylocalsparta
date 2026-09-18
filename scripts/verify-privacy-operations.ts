@@ -39,9 +39,6 @@ expect(files.adminPrivacyAutomation,"Send response & close request","final custo
 expect(files.adminPrivacyAutomation,"PDF report","Admin can generate/download a PDF report");
 expect(files.adminPrivacyAutomation,"JSON export","Admin can generate/download a structured export");
 expect(files.adminPrivacyAutomation,"reportAvailable","Admin report links remain available after request completion");
-expect(files.nextConfig,"@foliojs-fork/fontkit/*.trie","fontkit shaping tables are traced into GDPR report functions");
-expect(files.nextConfig,"@foliojs-fork/linebreak/**/*.trie","linebreak runtime trie assets are traced into GDPR report functions");
-expect(files.nextConfig,"@foliojs-fork/pdfkit/js/data/**/*","pdfkit runtime data files are traced into GDPR report functions");
 
 expect(files.adminExecuteRoute,'permission:"privacy.manage"',"privacy execution requires privacy.manage");
 expect(files.adminExecuteRoute,"executeAdminPrivacyRequest","privacy execution route runs request-specific operation");
@@ -56,6 +53,8 @@ expect(files.adminPrivacyOperations,"adminUpdateCustomerProfile","correction use
 
 expect(files.privacyReportRuntime,'exportVersion:"2.0"',"privacy report uses a versioned export format");
 expect(files.privacyReportRuntime,"renderPrivacyReportPdf","PDF report generation is implemented");
+expect(files.privacyReportRuntime,'import("pdfmake/build/pdfmake")',"GDPR PDF uses the self-contained pdfmake browser/VFS build");
+if(files.privacyReportRuntime.includes('import("pdfmake")')) failures.push("GDPR PDF must not use the Node pdfmake printer/fontkit filesystem path");
 expect(files.privacyReportRuntime,"privacyReportJson","JSON portability export is implemented");
 for(const marker of ["orders","payments","returns","askLocalRequests","messages","giftCards","savedSearches","notifications","deliveryJobs","privacyRequests","supportCases"]){
   expect(files.privacyReportRuntime,marker,`privacy export is missing data surface: ${marker}`);
