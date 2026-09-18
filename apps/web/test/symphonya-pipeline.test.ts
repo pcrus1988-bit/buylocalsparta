@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { symphonyaAutoPricingEnabled } from "../src/lib/symphonya-auto-pricing-runtime.ts";
+import { symphonyaAutoPublicationEnabled } from "../src/lib/symphonya-auto-publication-runtime.ts";
 import { resolveSymphonyaCategoryCode } from "../src/lib/symphonya-category-mapping.ts";
 import { normalizeSymphonyaGlobalIdentifier } from "../src/lib/symphonya-catalogue-materializer.ts";
 
@@ -9,6 +10,28 @@ test("Symphonya automatic pricing is on by default but can be explicitly disable
   assert.equal(symphonyaAutoPricingEnabled({} as NodeJS.ProcessEnv), true);
   assert.equal(symphonyaAutoPricingEnabled({ BLS_SYMPHONYA_AUTO_PRICING_ENABLED: "false" } as NodeJS.ProcessEnv), false);
   assert.equal(symphonyaAutoPricingEnabled({ BLS_SYMPHONYA_AUTO_PRICING_ENABLED: "TRUE" } as NodeJS.ProcessEnv), true);
+});
+
+
+test("Symphonya automatic publication is on by default but can be explicitly disabled", () => {
+  assert.equal(symphonyaAutoPublicationEnabled({} as NodeJS.ProcessEnv), true);
+  assert.equal(symphonyaAutoPublicationEnabled({ BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED: "false" } as NodeJS.ProcessEnv), false);
+  assert.equal(symphonyaAutoPublicationEnabled({ BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED: "TRUE" } as NodeJS.ProcessEnv), true);
+});
+
+test("Symphonya publication does not depend on automatic supplier-order forwarding", () => {
+  const source = readFileSync(new URL("../src/lib/symphonya-auto-publication-runtime.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /publicationEnabled\s*=\s*symphonyaAutoPublicationEnabled\(\)\s*&&\s*orderForwardingEnabled/);
+  assert.doesNotMatch(source, /AND ds\.order_forwarding_enabled=true/);
+  assert.match(source, /pt\.locale IN \('el','en'\)/);
+});
+
+test("API-authoritative checkout live-revalidates Symphonya stock and buying cost", () => {
+  const source = readFileSync(new URL("../src/lib/dropship-checkout-runtime.ts", import.meta.url), "utf8");
+  assert.match(source, /SYMPHONYA_SUPPLIER_CODE = "symphonya"/);
+  assert.match(source, /new SymphonyaHttpTransport/);
+  assert.match(source, /getStock\(\{ productIds: \[row\.external_product_id\] \}\)/);
+  assert.match(source, /stock\.wholesaleCostMinor/);
 });
 
 test("Symphonya structured Beauty taxonomy maps to existing KONTA MOY product classes", () => {
