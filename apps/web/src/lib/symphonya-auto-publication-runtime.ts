@@ -28,9 +28,10 @@ export function symphonyaAutoPublicationEnabled(env: NodeJS.ProcessEnv = process
  * a payable customer order while order_forwarding_enabled=false. Operators can stop
  * automatic publication explicitly with BLS_SYMPHONYA_AUTO_PUBLICATION_ENABLED=false.
  *
- * Previously auto-published offers may be system-archived by downstream visibility
- * enforcement. The sweep may recover only those exact auto-managed rows, never a
- * marketplace-moderated archive or an arbitrary merchant archive.
+ * Archived Symphonya offers may be recovered only when the authoritative
+ * vendor_product_submissions ledger is not archived and there is no pending
+ * activation request. Admin archive authority therefore remains fail-closed while
+ * historical/system-staged dropshipping rows can re-enter the automatic conveyor.
  */
 export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoPublicationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -133,14 +134,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND cv.family_id IS NOT NULL
            AND cv.suppressed=false
            AND cv.recalled=false
-           AND (
-             vo.status::text IN ('draft','approved')
-             OR (
-               vo.status::text='archived'
-               AND COALESCE(vo.source_payload->>'publishedBy','')='symphonya_auto_publication'
-               AND COALESCE(vo.source_payload->>'publicationState','')='PUBLISHED'
-             )
-           )
+           AND vo.status::text IN ('draft','approved','archived')
            AND COALESCE(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
            AND COALESCE(vo.source_payload->>'pricingPending','true')='false'
            AND dso.supplier_cost_minor>0
@@ -165,6 +159,12 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
               ORDER BY s.updated_at DESC,s.id DESC
               LIMIT 1
            ),'') <> 'archived'
+           AND NOT EXISTS (
+             SELECT 1
+               FROM public.vendor_product_activation_requests ar
+              WHERE ar.offer_id=vo.id
+                AND ar.status='pending'
+           )
          ORDER BY vo.id
          LIMIT $2
       ), family_changed AS (
