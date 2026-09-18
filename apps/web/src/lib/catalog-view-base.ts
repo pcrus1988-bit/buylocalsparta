@@ -10,6 +10,7 @@ import { categoryCodeMatches } from "./storefront-taxonomy";
 import { getPublicProductDetail, getPublicProductDetails } from "./public-product-detail";
 import { loadCatalogDepartmentCodes } from "./catalog-category-department";
 import { getPublishedDropshipCatalogCards } from "./published-dropship-storefront";
+import { decodeCatalogSizeGroup, groupCatalogSizeFacets, inferCatalogSizeDomain } from "./catalog-size";
 
 export type CatalogCard = Readonly<{
   id: string;
@@ -234,7 +235,8 @@ function matchesCatalogFilters(record: DatabaseCatalogRecord, metadata: CatalogM
   if (filters.subcategory && record.categoryCode !== filters.subcategory) return false;
   if (!sameFilterValue(metadata?.brand, filters.brand)) return false;
   if (!sameFilterValue(metadata?.color, filters.color)) return false;
-  if (filters.size && !(metadata?.sizes ?? []).some((size) => sameFilterValue(size, filters.size))) return false;
+  const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
+  if (selectedSizes.length && !(metadata?.sizes ?? []).some((size) => selectedSizes.some((selected) => sameFilterValue(size, selected)))) return false;
   return true;
 }
 
@@ -425,19 +427,34 @@ export async function getCatalogFacets(category = "", query = ""): Promise<Catal
   const subcategoryMap = new Map<string, string>();
   const brands: string[] = [];
   const colors: string[] = [];
-  const sizes: string[] = [];
+  const sizeCounts = new Map<string, number>();
   for (const product of visible) {
     const details = metadata.get(product.id);
     subcategoryMap.set(product.categoryCode, details?.categoryLabel ?? product.categoryCode);
     if (details?.brand) brands.push(details.brand);
     if (details?.color) colors.push(details.color);
-    sizes.push(...(details?.sizes ?? []));
+    for (const rawSize of details?.sizes ?? []) {
+      const value = rawSize.trim();
+      if (value) sizeCounts.set(value, (sizeCounts.get(value) ?? 0) + 1);
+    }
   }
+  const subcategories = [...subcategoryMap.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "el"));
+  const sizeDomain = inferCatalogSizeDomain([
+    category,
+    ...subcategories.flatMap((entry) => [entry.value, entry.label])
+  ]);
+  const sizes = groupCatalogSizeFacets(
+    [...sizeCounts.entries()].map(([value, count]) => ({ value, count })),
+    sizeDomain
+  ).map((entry) => ({ value: entry.value, label: entry.label }));
+
   return {
-    subcategories: [...subcategoryMap.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "el")),
+    subcategories,
     brands: facetOptions(brands),
     colors: facetOptions(colors),
-    sizes: facetOptions(sizes)
+    sizes
   };
 }
 
