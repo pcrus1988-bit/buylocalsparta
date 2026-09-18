@@ -247,7 +247,7 @@ export async function checkoutApiAuthoritativeDropship(
         id,public_id,order_number,market_id,user_id,visitor_hash,checkout_key,checkout_fingerprint,status,currency,
         subtotal_minor,shipping_minor,discount_minor,tax_minor,total_minor,billing_address_snapshot,shipping_address_snapshot,
         fulfilment_preference,partial_fulfilment_allowed,terms_version,created_at,updated_at
-      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending_payment','EUR',$9,$10,0,$11,($9+$10),'{}'::jsonb,'{}'::jsonb,$12,false,'terms-v1',$13,$13)
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending_payment','EUR',$9,$10,0,$11,($9::bigint+$10::bigint),'{}'::jsonb,'{}'::jsonb,$12,false,'terms-v1',$13,$13)
     `, [
       orderUuid,
       orderPublicId,
