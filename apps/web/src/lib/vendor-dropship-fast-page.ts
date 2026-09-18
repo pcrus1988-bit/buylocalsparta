@@ -9,6 +9,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 60;
+const HOT_SYMPHONYA_FAMILY_CAP = 240;
 
 type FastPageRow = Readonly<{
   canonical_public_id: string;
@@ -72,22 +73,75 @@ export async function getFastVendorDropshipCatalogPage(
 
   const runtime = getProductionPostgresRuntime();
   const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
-    SELECT
-      fm.dropship_supplier_id AS supplier_id,
-      fm.dropship_external_product_id AS external_product_id
-    FROM public.storefront_dropship_family_read_model fm
-    WHERE fm.dropship_supplier_id IN (
-      SELECT ds.id::text
+    WITH vendor_suppliers AS MATERIALIZED (
+      SELECT ds.id,ds.id::text AS supplier_id,ds.code
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
+        AND ds.api_authoritative_availability=true
+    ), stable AS (
+      SELECT
+        fm.dropship_supplier_id AS supplier_id,
+        fm.dropship_external_product_id AS external_product_id,
+        fm.newest_at
+      FROM public.storefront_dropship_family_read_model fm
+      JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
+      WHERE fm.available_until>now()
+    ), hot_symphonya AS MATERIALIZED (
+      SELECT
+        dso.supplier_id::text AS supplier_id,
+        dso.external_product_id,
+        MAX(vo.updated_at) AS newest_at
+      FROM dropship_supplier_offers dso
+      JOIN vendor_suppliers supplier
+        ON supplier.id=dso.supplier_id
+       AND supplier.code='symphonya'
+      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      WHERE dso.active=true
+        AND dso.cached_available=true
+        AND COALESCE(dso.cached_quantity,0)>=1
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at>now()
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND l.active=true
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.storefront_dropship_family_read_model projected
+          WHERE projected.dropship_supplier_id=dso.supplier_id::text
+            AND projected.dropship_external_product_id=dso.external_product_id
+            AND projected.available_until>now()
+        )
+      GROUP BY dso.supplier_id,dso.external_product_id
+      ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
+      LIMIT $4
+    ), combined AS (
+      SELECT supplier_id,external_product_id,newest_at FROM stable
+      UNION ALL
+      SELECT supplier_id,external_product_id,newest_at FROM hot_symphonya
+    ), deduplicated AS (
+      SELECT DISTINCT ON (supplier_id,external_product_id)
+        supplier_id,external_product_id,newest_at
+      FROM combined
+      ORDER BY supplier_id,external_product_id,newest_at DESC
     )
-      AND fm.available_until>now()
-    ORDER BY fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id
+    SELECT supplier_id,external_product_id
+    FROM deduplicated
+    ORDER BY newest_at DESC,supplier_id,external_product_id
     LIMIT $2 OFFSET $3
-  `, [vendorId, limit + 1, offset]);
+  `, [vendorId, limit + 1, offset, HOT_SYMPHONYA_FAMILY_CAP]);
 
   const hasMore = markerResult.rows.length > limit;
   const selected = markerResult.rows.slice(0, limit);
@@ -128,7 +182,7 @@ export async function getFastVendorDropshipCatalogPage(
     JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
     JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-    JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
+    LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
     JOIN categories c ON c.id=cv.category_id
     JOIN vendor_locations l ON l.id=vo.location_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
