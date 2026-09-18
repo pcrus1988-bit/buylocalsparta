@@ -79,10 +79,8 @@ export async function runCatalogueEnrichmentPromotionSlice(): Promise<CatalogueE
           JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
           JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
           WHERE vo.canonical_variant_id=cv.id
-            AND vo.status='approved'
             AND vo.merchant_pause_active=false
             AND vo.customer_price_minor>0
-            AND dso.active=true
             AND ds.active=true
             AND ds.code='symphonya'
             AND coalesce(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
