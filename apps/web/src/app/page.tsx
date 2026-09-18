@@ -5,6 +5,7 @@ import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
+import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { getHomepagePublicVendorDirectory } from "../lib/homepage-vendor-directory";
 import type { PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
@@ -69,6 +70,12 @@ const getCachedHomepageVendors = unstable_cache(
   { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
 );
 
+const getCachedHomepageCategories = unstable_cache(
+  () => getAvailableStorefrontCategories("23100"),
+  ["homepage-available-storefront-categories-23100-v3"],
+  { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
+);
+
 const getCachedCrawlerHomepageCards = unstable_cache(
   () => getCrawlerHomepageCatalogCards("23100", FEATURED_PRODUCT_LIMIT),
   ["homepage-crawler-featured-products-23100-v2"],
@@ -116,15 +123,26 @@ export default async function Home() {
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
 
-  const [featuredProducts, heroSlides, vendorDirectory] = await Promise.all([
+  const [featuredProducts, heroSlides, visibleCategories, vendorDirectory] = await Promise.all([
     homepageSectionOrFallback(
       "featured-products",
-      () => readOnlyCrawler
-        ? getCachedCrawlerHomepageCards()
-        : getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT),
+      async () => {
+        if (readOnlyCrawler) return getCachedCrawlerHomepageCards();
+
+        const localCards = await getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT);
+        if (localCards.length >= FEATURED_PRODUCT_LIMIT) return localCards;
+
+        const publicCards = await getCachedCrawlerHomepageCards();
+        const seen = new Set(localCards.map((product) => product.id));
+        return [
+          ...localCards,
+          ...publicCards.filter((product) => !seen.has(product.id))
+        ].slice(0, FEATURED_PRODUCT_LIMIT);
+      },
       []
     ),
     homepageSectionOrFallback("hero-slides", getCachedHomepageHeroSlides, []),
+    homepageSectionOrFallback("visible-categories", getCachedHomepageCategories, []),
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])
   ]);
 
@@ -194,16 +212,42 @@ export default async function Home() {
 
       <section className={`${styles.discoverySection} shell`} aria-labelledby="featured-title">
         <div className={styles.sectionHeading}>
-          <div><span className={styles.kicker}>Διαθέσιμα τώρα στη Σπάρτη</span><h2 id="featured-title">Προϊόντα που μπορείς να ανακαλύψεις τώρα.</h2></div>
-          <p>Η επιλογή ανανεώνεται και προβάλλει πραγματικά διαθέσιμα προϊόντα χωρίς να γεμίζει την αρχική με εσωτερικούς κανόνες του marketplace.</p>
+          <div><span className={styles.kicker}>Διαθέσιμα τώρα στη Σπάρτη</span><h2 id="featured-title">Ανακάλυψε τι υπάρχει τώρα.</h2></div>
+          <p>Ξεκίνα από μία κατηγορία ή δες προϊόντα που είναι διαθέσιμα αυτή τη στιγμή στην αγορά.</p>
         </div>
-        {featuredProducts.length ? (
-          <div className={styles.productRail}>
-            {featuredProducts.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
+
+        {visibleCategories.length ? (
+          <div className={styles.discoveryCategories}>
+            <div className={styles.discoverySubheading}>
+              <strong>Κατηγορίες</strong>
+              <a href="/shop">Όλες οι κατηγορίες →</a>
+            </div>
+            <div className={styles.categoryRail}>
+              {visibleCategories.slice(0, 4).map((category) => (
+                <a className={styles.categoryCard} href={`/category/${category.slug}`} key={category.slug}>
+                  <span className={styles.categoryMark}>{category.symbol}</span>
+                  <span><strong>{category.label}</strong><small>{category.name}</small></span>
+                  <b aria-hidden="true">↗</b>
+                </a>
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className={styles.emptyDiscovery}><strong>Η βιτρίνα ενημερώνεται.</strong><a href="/shop">Δες τον πλήρη κατάλογο →</a></div>
-        )}
+        ) : null}
+
+        <div className={styles.discoveryProducts}>
+          <div className={styles.discoverySubheading}>
+            <strong>Προϊόντα</strong>
+            <a href="/shop">Πλήρης κατάλογος →</a>
+          </div>
+          {featuredProducts.length ? (
+            <div className={styles.productRail}>
+              {featuredProducts.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
+            </div>
+          ) : (
+            <div className={styles.emptyDiscovery}><strong>Ο κατάλογος φορτώνεται.</strong><a href="/shop">Δες τον πλήρη κατάλογο →</a></div>
+          )}
+        </div>
+
         <div className={styles.centerAction}><a className="button" href="/shop">Μπες στην αγορά</a></div>
       </section>
 
