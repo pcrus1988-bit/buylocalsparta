@@ -344,7 +344,7 @@ for (const route of [
   "apps/web/src/app/api/admin/maintenance/run/route.ts"
 ]) {
   const source = read(route);
-  if (!source.includes("requireAdminSession") || !source.includes("csrf:true")) errors.push(`Admin mutation route ${route} must require authenticated CSRF protection`);
+  if (!source.includes("requireAdminSession") || !/csrf\s*:\s*true/.test(source)) errors.push(`Admin mutation route ${route} must require authenticated CSRF protection`);
 }
 
 function walk(dir: string): string[] {
