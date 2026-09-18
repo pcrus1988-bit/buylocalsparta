@@ -206,6 +206,27 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     getSeoEntityOverridesSnapshot()
   ]);
   if (!product) return { title: "Προϊόν" };
+  const metadataCrawler = await isReadOnlyPublicCrawlerRequest();
+  if (metadataCrawler) {
+    const displayTitle = publicCatalogueTitleLabel(product.title);
+    const quality = productIndexEligibility(product);
+    const description = productSeoDescription({ title: displayTitle, description: product.description });
+    const reference: SeoEntityReference = { kind: "product", id: product.id };
+    return buildGovernedSeoMetadata({
+      reference,
+      settings,
+      override: findSeoEntityOverride(overrides.entries, reference),
+      defaults: {
+        title: displayTitle,
+        description,
+        canonicalPath: productPublicPath(product),
+        keywords: [displayTitle, product.brand, product.categoryLabel],
+        openGraphImage: product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined
+      },
+      entityEligible: quality.blockingReasons.length === 0,
+      defaultIndexAllowed: quality.eligible
+    });
+  }
   const [detail, dropshipPresentation] = await Promise.all([
     getPublicProductDetail(product.id),
     getPublicDropshipPresentation(product.id, null)
@@ -270,6 +291,77 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
 
   const displayTitle = publicCatalogueTitleLabel(product.title);
+
+  if (readOnlyCrawler) {
+    const category = storefrontCategoryForCode(product.categoryCode, product.departmentCode);
+    const reference: SeoEntityReference = { kind: "product", id: product.id };
+    const override = findSeoEntityOverride(overrides.entries, reference);
+    const quality = productIndexEligibility(summary);
+    const seoControl = resolveSeoEntityControl({
+      settings,
+      kind: reference.kind,
+      entityEligible: quality.blockingReasons.length === 0,
+      defaultIndexAllowed: quality.eligible,
+      defaultSchemaAllowed: true,
+      override
+    });
+    const origin = settings.canonicalOrigin;
+    const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
+    const displayPrice = publicCatalogPriceLabel(product);
+    const crawlerStructuredData = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "@id": `${productUrl}#product`,
+      url: productUrl,
+      name: displayTitle,
+      description: productSeoDescription({ title: displayTitle, description: product.description }),
+      brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+      image: product.mediaId ? [`${origin}/api/media/${encodeURIComponent(product.mediaId)}`] : undefined,
+      category: product.categoryLabel ?? category.label,
+      itemCondition: "https://schema.org/NewCondition",
+      offers: publicCatalogHasOfferPrice(product) ? {
+        "@type": "Offer",
+        url: productUrl,
+        priceCurrency: "EUR",
+        price: (product.priceMinor / 100).toFixed(2),
+        availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        seller: { "@type": "Organization", name: "ΚΟΝΤΑ ΜΟΥ", url: origin }
+      } : undefined
+    };
+    return (
+      <main>
+        {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(crawlerStructuredData).replaceAll("<", "\\u003c") }} /> : null}
+        <div className="announcement">ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</div>
+        <SiteHeader compact />
+        <section className="shell product-detail">
+          <div className={`product-detail-art ${category.artClass}`}>
+            {product.mediaId ? <Image src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? displayTitle} fill sizes="50vw" style={productImageStyle} /> : <>
+              <span className="detail-category">{category.name}</span>
+              <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
+            </>}
+            <span className="product-badge">{product.available ? "Διαθέσιμο" : "Προσωρινά μη διαθέσιμο"}</span>
+          </div>
+          <div className="product-detail-copy">
+            <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a></div>
+            <ProductBrandTitle title={displayTitle} brand={product.brand} logoObjectKey={product.brandLogoObjectKey} />
+            <div className="purchase-card" style={{ marginTop: 18 }}>
+              <div>
+                <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
+                <strong>{publicCatalogHasOfferPrice(product) ? displayPrice : "Τιμή μη διαθέσιμη"}</strong>
+                <span>{product.available ? "Διαθέσιμο για αγορά." : "Προσωρινά μη διαθέσιμο."}</span>
+              </div>
+            </div>
+            {product.description ? <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
+              <div className="eyebrow">Περιγραφή προϊόντος</div>
+              <p style={{ whiteSpace: "pre-line", marginTop: 10 }}>{product.description}</p>
+            </section> : null}
+          </div>
+        </section>
+        <SiteFooter />
+      </main>
+    );
+  }
+
   const [detail, approvedGallery, variantOptions, dropshipPresentation] = await Promise.all([
     getPublicProductDetail(product.id),
     approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId }),
