@@ -112,7 +112,7 @@ test("Symphonya Vercel crons stay bounded while full catch-up belongs to the lon
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
   assert.equal(catalogue?.schedule, "2 * * * *");
   assert.equal(stock?.schedule, "7,17,27,37,47,57 * * * *");
-  assert.equal(pipeline?.schedule, "28 * * * *");
+  assert.equal(pipeline?.schedule, "9 * * * *");
   assert.equal(materialization, undefined);
 });
 
