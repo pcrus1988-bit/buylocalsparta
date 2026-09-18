@@ -277,25 +277,29 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
     const gtin = normalizeGlobalIdentifier(variant.barcode);
     if (!canonicalVariantId && gtin) {
       const matches = await pool.query<SqlRow>(`
-        SELECT DISTINCT cv.id::text id
-          FROM public.canonical_variants cv
-          LEFT JOIN public.product_identifiers pi
-            ON pi.canonical_variant_id=cv.id
-           AND pi.active=true
-           AND pi.identifier_scope='trade_item'
-           AND pi.identifier_type IN ('gtin8','gtin12','gtin13','gtin14','isbn10','isbn13')
-         WHERE cv.market_id=$1::uuid
-           AND COALESCE(cv.commerce_channel,'normal')='normal'
-           AND cv.recalled=false
-           AND (
-             (cv.gtin IS NOT NULL
-               AND bls_private.catalog_gtin_is_valid(cv.gtin)
-               AND bls_private.catalog_normalize_gtin(cv.gtin)=$2)
-             OR pi.normalized_value=$2
-           )
-         ORDER BY cv.id::text
+        SELECT DISTINCT q.id::text id
+          FROM (
+            SELECT cv.id
+              FROM public.canonical_variants cv
+             WHERE cv.market_id=$1::uuid
+               AND cv.commerce_channel='normal'
+               AND cv.recalled=false
+               AND cv.gtin=$2
+            UNION ALL
+            SELECT cv.id
+              FROM public.product_identifiers pi
+              JOIN public.canonical_variants cv ON cv.id=pi.canonical_variant_id
+             WHERE pi.active=true
+               AND pi.identifier_scope='trade_item'
+               AND pi.identifier_type=$3
+               AND pi.normalized_value=$2
+               AND cv.market_id=$1::uuid
+               AND cv.commerce_channel='normal'
+               AND cv.recalled=false
+          ) q
+         ORDER BY q.id::text
          LIMIT 2
-      `, [context.marketId, gtin.value]);
+      `, [context.marketId, gtin.value, gtin.type]);
 
       if (matches.rows.length > 1) {
         blockedAmbiguous += 1;
