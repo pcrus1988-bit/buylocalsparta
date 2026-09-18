@@ -135,7 +135,7 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
 
   return (
     <article className="product-card">
-      <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={`Δες ${displayTitle}`}>
+      <Link href={productHref} prefetch={false} className={`product-art ${category.artClass}`} aria-label={`Δες ${displayTitle}`}>
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
@@ -192,8 +192,9 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
             href={productHref}
             ariaLabel={`Δες ${displayTitle}`}
             linkTitle={`Δες ${displayTitle}`}
+            prefetch={false}
           /> : null}
-          <h3><Link href={productHref}>{displayTitle}</Link></h3>
+          <h3><Link href={productHref} prefetch={false}>{displayTitle}</Link></h3>
         </div>
         <div className="product-bottom">
           <PublicCatalogPrice msrpMinor={msrpMinor} retailPriceMinor={product.priceMinor} priceLabel={priceLabel} savingLabel={savingLabel} prominentSavings={prominentSavings} />
