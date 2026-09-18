@@ -129,7 +129,23 @@ export async function refreshSymphonyaOfferStockByExternalIds(productIds: readon
   });
   const rows: SymphonyaStockRow[] = [];
   for (let index = 0; index < ids.length; index += 200) {
-    rows.push(...await transport.getStock({ productIds: ids.slice(index, index + 200) }));
+    const requestedIds = ids.slice(index, index + 200);
+    const returned = await transport.getStock({ productIds: requestedIds });
+    const returnedIds = new Set(returned.map((row) => row.productId));
+    rows.push(...returned);
+    // A targeted getStock miss is authoritative unavailability for this check.
+    // Persist it as fresh unavailable state so missing IDs cannot stay stale at
+    // the front of the refresh queue and starve the remaining published offers.
+    for (const productId of requestedIds) {
+      if (returnedIds.has(productId)) continue;
+      rows.push({
+        productId,
+        quantity: 0,
+        permitted: false,
+        priceHeld: false,
+        raw: { reason: "not_returned_by_getStock" }
+      });
+    }
   }
   return persistStockRows(rows);
 }
