@@ -160,7 +160,169 @@ function systemSize(system: CatalogSizeSystem, token: NumericSizeToken, domain: 
 
 function explicitSystem(raw: string): Readonly<{ system: CatalogSizeSystem; token: NumericSizeToken }> | null {
   const systems = SIZE_SYSTEMS.join("|");
-  const prefix = raw.match(new RegExp(`^\\s*(${systems})(?:\\s*[-:/]\\s*|\\s+)(.+?)\\s*$`, "i"));
+  const prefix = raw.match(new RegExp(`^\\s*(${systems})\\s*[-:/]?\\s*(.+?)\\s*export type CatalogSizeDomain = "footwear" | "belt" | "bottoms" | "apparel" | "generic";
+
+export type CanonicalCatalogSize = Readonly<{
+  key: string;
+  label: string;
+  raw: string;
+}>;
+
+export type CatalogSizeFacetRow = Readonly<{
+  value: string;
+  count: number;
+}>;
+
+export type CanonicalCatalogSizeFacet = Readonly<{
+  value: string;
+  label: string;
+  count: number;
+}>;
+
+type CatalogSizeSystem = "EU" | "US" | "UK" | "IT" | "FR" | "DE" | "ES";
+type NumericSizeToken = Readonly<{
+  key: string;
+  label: string;
+  numeric: number;
+  integerPart: number;
+}>;
+
+const SIZE_GROUP_PREFIX = "__km_size__:";
+const CLEAR_EU_FOOTWEAR_MIN = 18;
+const CLEAR_EU_FOOTWEAR_MAX = 55;
+const SIZE_SYSTEMS = ["EU", "US", "UK", "IT", "FR", "DE", "ES"] as const;
+const ALPHA_ORDER = ["XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL"] as const;
+const ONE_SIZE_ALIASES = new Set([
+  "ONESIZE",
+  "ONESIZEFITSALL",
+  "OS",
+  "OSFA",
+  "OSFM",
+  "UNI",
+  "UNISIZE",
+  "UNIVERSAL",
+  "TU"
+]);
+
+function clean(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizedCategory(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("el");
+}
+
+function domainForCategory(value: string): CatalogSizeDomain {
+  const text = normalizedCategory(value);
+  if (["belt", "ζων"].some((token) => text.includes(token))) return "belt";
+  if (["sneaker", "trainer", "running", "shoe", "footwear", "boot", "loafer", "moccas", "sandal", "παπουτ", "μποτ", "σανδαλ"].some((token) => text.includes(token))) return "footwear";
+  if (["jean", "trouser", "pants", "bottom", "denim", "παντελον"].some((token) => text.includes(token))) return "bottoms";
+  if (["dress", "shirt", "t-shirt", "t shirt", "top", "jacket", "coat", "knit", "suit", "swim", "underwear", "clothing", "apparel", "φορεμ", "πουκαμισ", "μπλουζ", "μπουφαν", "παλτο", "πλεκ", "κοστουμ", "εσωρουχ", "μαγιο"].some((token) => text.includes(token))) return "apparel";
+  return "generic";
+}
+
+export function inferCatalogSizeDomain(categoryValues: readonly string[]): CatalogSizeDomain | null {
+  const domains = new Set(categoryValues.map(domainForCategory).filter((domain) => domain !== "generic"));
+  if (domains.size !== 1) return null;
+  return [...domains][0] ?? null;
+}
+
+function compactToken(value: string): string {
+  return clean(value).toUpperCase().replace(/^SIZE\s*[:=-]?\s*/, "").replace(/[^A-Z0-9]/g, "");
+}
+
+function canonicalOneSize(value: string): boolean {
+  return ONE_SIZE_ALIASES.has(compactToken(value));
+}
+
+function canonicalAlphaSize(value: string): string | null {
+  const compact = compactToken(value);
+  const aliases: Readonly<Record<string, string>> = {
+    XXXS: "XXXS",
+    XXXSMALL: "XXXS",
+    XXS: "XXS",
+    XXSMALL: "XXS",
+    XS: "XS",
+    XSMALL: "XS",
+    EXTRASMALL: "XS",
+    S: "S",
+    SMALL: "S",
+    M: "M",
+    MEDIUM: "M",
+    L: "L",
+    LARGE: "L",
+    XL: "XL",
+    XLARGE: "XL",
+    EXTRALARGE: "XL",
+    XXL: "XXL",
+    "2XL": "XXL",
+    XXLARGE: "XXL",
+    XXXL: "XXXL",
+    "3XL": "XXXL",
+    XXXLARGE: "XXXL",
+    XXXXL: "XXXXL",
+    "4XL": "XXXXL",
+    XXXXLARGE: "XXXXL"
+  };
+  return aliases[compact] ?? null;
+}
+
+function mixedAlphaSize(raw: string): string | null {
+  const values = raw
+    .split(/[|,;/·()]+/)
+    .map((part) => canonicalAlphaSize(part))
+    .filter((value): value is string => Boolean(value));
+  const unique = [...new Set(values)];
+  return unique.length === 1 ? unique[0] : null;
+}
+
+function fractionDetails(value: string): Readonly<{ numerator: number; denominator: number; glyph: string }> | null {
+  const normalized = value.trim();
+  if (normalized === "½" || normalized === "1/2") return { numerator: 1, denominator: 2, glyph: "½" };
+  if (normalized === "⅓" || normalized === "1/3") return { numerator: 1, denominator: 3, glyph: "⅓" };
+  if (normalized === "⅔" || normalized === "2/3") return { numerator: 2, denominator: 3, glyph: "⅔" };
+  if (normalized === "¼" || normalized === "1/4") return { numerator: 1, denominator: 4, glyph: "¼" };
+  if (normalized === "¾" || normalized === "3/4") return { numerator: 3, denominator: 4, glyph: "¾" };
+  return null;
+}
+
+function numericSizeToken(value: string): NumericSizeToken | null {
+  const normalized = clean(value).replace(",", ".");
+  const fractional = normalized.match(/^(\d{1,3})(?:\s*[-+]?\s*)(½|⅓|⅔|¼|¾|1\/2|1\/3|2\/3|1\/4|3\/4)$/);
+  if (fractional) {
+    const integerPart = Number(fractional[1]);
+    const fraction = fractionDetails(fractional[2]);
+    if (!fraction) return null;
+    return {
+      key: `${integerPart}+${fraction.numerator}/${fraction.denominator}`,
+      label: `${integerPart}${fraction.glyph}`,
+      numeric: integerPart + fraction.numerator / fraction.denominator,
+      integerPart
+    };
+  }
+
+  if (!/^\d{1,3}(?:\.\d+)?$/.test(normalized)) return null;
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) return null;
+  const label = String(numeric);
+  return { key: label, label, numeric, integerPart: Math.trunc(numeric) };
+}
+
+function systemSize(system: CatalogSizeSystem, token: NumericSizeToken, domain: "footwear" | "apparel" | "bottoms"): CanonicalCatalogSize {
+  return {
+    key: `${domain}:${system.toLocaleLowerCase("en")}${token.key}`,
+    label: `${system} ${token.label}`,
+    raw: ""
+  };
+}
+
+function explicitSystem(raw: string): Readonly<{ system: CatalogSizeSystem; token: NumericSizeToken }> | null {
+  const systems = SIZE_SYSTEMS.join("|");
+  , "i"));
   if (prefix) {
     const token = numericSizeToken(prefix[2]);
     if (token) return { system: prefix[1].toUpperCase() as CatalogSizeSystem, token };
