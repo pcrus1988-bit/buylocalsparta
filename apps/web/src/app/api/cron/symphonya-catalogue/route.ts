@@ -16,17 +16,21 @@ export async function GET(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401, headers: { "cache-control": "no-store" } });
   }
 
-  // Keep each Vercel invocation bounded to one supplier page. The production
-  // state uses 100 products/page, so a cron run advances at most 100 products
-  // while the lease in runSymphonyaCatalogueSyncSlice prevents overlap.
-  const previousMaxPages = process.env.SYMPHONYA_SYNC_MAX_PAGES_PER_SLICE;
-  process.env.SYMPHONYA_SYNC_MAX_PAGES_PER_SLICE = "1";
+  // Scheduled cron runs stay deliberately small and fully enriched. A one-time
+  // manually authorized completion run may scan multiple source pages while
+  // deferring optional getProductDetails enrichment to the downstream content
+  // stage. The supplier-scoped lease still prevents overlap in both modes.
+  const mode = cronAuthorized ? "cron" : "manual_once";
+  const resultOptions = cronAuthorized
+    ? { maxPages: 1, enrichProductDetails: true }
+    : { maxPages: 25, enrichProductDetails: false };
 
   try {
-    const result = await runSymphonyaCatalogueSyncSlice();
+    const result = await runSymphonyaCatalogueSyncSlice(resultOptions);
     return Response.json({
       ok: true,
-      mode: cronAuthorized ? "cron" : "manual_once",
+      mode,
+      detailEnrichment: cronAuthorized ? "full" : "deferred",
       ...result
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
@@ -38,9 +42,6 @@ export async function GET(request: Request) {
       at: new Date().toISOString()
     }));
     return Response.json({ error: message }, { status: 500, headers: { "cache-control": "no-store" } });
-  } finally {
-    if (previousMaxPages === undefined) delete process.env.SYMPHONYA_SYNC_MAX_PAGES_PER_SLICE;
-    else process.env.SYMPHONYA_SYNC_MAX_PAGES_PER_SLICE = previousMaxPages;
   }
 }
 
