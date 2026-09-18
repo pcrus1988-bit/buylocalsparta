@@ -149,9 +149,13 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
       totals.reusedCanonicals += outcome.reusedCanonicals;
       totals.blockedAmbiguous += outcome.blockedAmbiguous;
       totals.blockedUnmapped += outcome.blockedUnmapped;
+
+      // Checkpoint each fully processed source product. If Vercel terminates a
+      // later product, the next run resumes after the last completed immutable
+      // source key instead of repeating the whole batch.
+      await persistCursor(context.sourceId, source.sourceProductKey);
     }
 
-    if (lastKey) await persistCursor(context.sourceId, lastKey);
     return totals;
   } finally {
     await releaseMaterializationLease(context.sourceId).catch(() => undefined);
