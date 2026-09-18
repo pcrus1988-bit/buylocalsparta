@@ -76,6 +76,22 @@ export function SiteFooter() {
         </nav>
       </div>
 
+      <div className="shell site-footer-payments" aria-label="Τρόποι πληρωμής">
+        <div className="site-footer-payment-copy">
+          <strong>Ασφαλείς online πληρωμές</strong>
+          <span>Οι διαθέσιμες μέθοδοι εμφανίζονται στο checkout.</span>
+        </div>
+        <div className="site-footer-payment-marks" aria-label="Visa, Mastercard και Klarna">
+          <span className="payment-brand payment-brand-visa" aria-label="Visa">VISA</span>
+          <span className="payment-brand payment-brand-mastercard" aria-label="Mastercard"><i aria-hidden="true"><b /><b /></i><em>mastercard</em></span>
+          <span className="payment-brand payment-brand-klarna" aria-label="Klarna">Klarna.</span>
+        </div>
+        <div className="site-footer-powered">
+          <span>Payments powered by</span>
+          <strong aria-label="Mollie">mollie</strong>
+        </div>
+      </div>
+
       <div className="shell site-footer-bottom">
         <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Σπάρτη · {BUSINESS_NAME}</span>
         <nav className="site-footer-legal-links" aria-label={LEGAL_FOOTER_NAVIGATION.title}>
