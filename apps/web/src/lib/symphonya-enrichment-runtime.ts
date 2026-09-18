@@ -110,6 +110,17 @@ export async function runSymphonyaEnrichmentPreparationSlice(): Promise<Symphony
       });
       prepared += 1;
     } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "23505" &&
+        "constraint" in error &&
+        error.constraint === "catalogue_enrichments_family_uidx"
+      ) {
+        skippedSharedFamily += 1;
+        continue;
+      }
       failed += 1;
       console.error(JSON.stringify({
         level: "error",
