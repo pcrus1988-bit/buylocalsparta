@@ -196,9 +196,29 @@ export class PostgresAdminOperationsService {
 
   async trustWorkspace(principal: SessionPrincipal) {
     return this.#uow.withTransaction(platformScope(principal.userId),async(tx)=>{
-      const assets=await tx.query<SqlRow>(`SELECT pm.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,pm.kind,pm.object_key,pm.original_filename,pm.content_type,pm.byte_size,pm.sha256,pm.alt_text,pm.rights_owner,pm.rights_status,pm.moderation_status,pm.scan_status,pm.rejection_reason,u.public_id AS reviewed_by,pm.reviewed_at,pm.created_at FROM product_media pm LEFT JOIN canonical_variants cv ON cv.id=pm.canonical_variant_id LEFT JOIN vendor_businesses v ON v.id=pm.vendor_id LEFT JOIN users u ON u.id=pm.reviewed_by ORDER BY pm.created_at DESC`);
-      const docs=await tx.query<SqlRow>(`SELECT d.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,d.type,d.issuer,d.identifier,d.valid_from,d.valid_to,d.status,u.public_id AS verified_by,d.verified_at,d.rejection_reason,d.created_at FROM product_compliance_documents d JOIN canonical_variants cv ON cv.id=d.canonical_variant_id LEFT JOIN vendor_businesses v ON v.id=d.vendor_id LEFT JOIN users u ON u.id=d.verified_by ORDER BY d.created_at DESC`);
-      return{csrfToken:principal.csrfToken,assets:assets.rows.map(r=>({id:text(r.public_id,"media.public_id"),canonicalVariantId:optionalText(r.canonical_public_id),vendorId:optionalText(r.vendor_public_id),kind:text(r.kind,"kind"),objectKey:text(r.object_key,"object_key"),originalFilename:optionalText(r.original_filename)??"media",contentType:optionalText(r.content_type)??"application/octet-stream",byteSize:int(r.byte_size??0,"byte_size"),sha256:optionalText(r.sha256),altText:optionalText(r.alt_text),rightsOwner:optionalText(r.rights_owner),rightsStatus:text(r.rights_status,"rights_status"),moderationStatus:text(r.moderation_status,"moderation_status"),scanStatus:text(r.scan_status,"scan_status"),rejectionReason:optionalText(r.rejection_reason),reviewedBy:optionalText(r.reviewed_by),reviewedAt:r.reviewed_at?epoch(r.reviewed_at,"reviewed_at"):undefined,createdAt:epoch(r.created_at,"created_at")})),documents:docs.rows.map(r=>({id:text(r.public_id,"doc.public_id"),canonicalVariantId:text(r.canonical_public_id,"canonical_public_id"),vendorId:optionalText(r.vendor_public_id),type:text(r.type,"type"),issuer:optionalText(r.issuer),identifier:optionalText(r.identifier),validFrom:r.valid_from?epoch(r.valid_from,"valid_from"):undefined,validTo:r.valid_to?epoch(r.valid_to,"valid_to"):undefined,status:text(r.status,"status"),verifiedBy:optionalText(r.verified_by),verifiedAt:r.verified_at?epoch(r.verified_at,"verified_at"):undefined,rejectionReason:optionalText(r.rejection_reason),createdAt:epoch(r.created_at,"created_at")}))};
+      // Trust only manages media that is stored by KONTA MOY. Supplier/external catalogue
+      // images can legitimately have no object_key and must not make the admin workspace fail.
+      // Keep the result bounded as supplier catalogues can add tens of thousands of media rows.
+      const assets=await tx.query<SqlRow>(`SELECT pm.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,pm.kind,pm.object_key,pm.original_filename,pm.content_type,pm.byte_size,pm.sha256,pm.alt_text,pm.rights_owner,pm.rights_status,pm.moderation_status,pm.scan_status,pm.rejection_reason,u.public_id AS reviewed_by,pm.reviewed_at,pm.created_at
+        FROM product_media pm
+        LEFT JOIN canonical_variants cv ON cv.id=pm.canonical_variant_id
+        LEFT JOIN vendor_businesses v ON v.id=pm.vendor_id
+        LEFT JOIN users u ON u.id=pm.reviewed_by
+        WHERE NULLIF(BTRIM(pm.object_key),'') IS NOT NULL
+        ORDER BY CASE
+          WHEN pm.scan_status='pending' THEN 0
+          WHEN pm.scan_status='clean' AND (pm.rights_status<>'approved' OR pm.moderation_status<>'approved') THEN 1
+          ELSE 2
+        END, pm.created_at DESC
+        LIMIT 500`);
+      const docs=await tx.query<SqlRow>(`SELECT d.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,d.type,d.issuer,d.identifier,d.valid_from,d.valid_to,d.status,u.public_id AS verified_by,d.verified_at,d.rejection_reason,d.created_at
+        FROM product_compliance_documents d
+        JOIN canonical_variants cv ON cv.id=d.canonical_variant_id
+        LEFT JOIN vendor_businesses v ON v.id=d.vendor_id
+        LEFT JOIN users u ON u.id=d.verified_by
+        ORDER BY CASE WHEN d.status='pending' THEN 0 ELSE 1 END,d.created_at DESC
+        LIMIT 500`);
+      return{csrfToken:principal.csrfToken,assets:assets.rows.map(r=>({id:text(r.public_id,"media.public_id"),canonicalVariantId:optionalText(r.canonical_public_id),vendorId:optionalText(r.vendor_public_id),kind:text(r.kind,"kind"),objectKey:optionalText(r.object_key)??"",originalFilename:optionalText(r.original_filename)??"media",contentType:optionalText(r.content_type)??"application/octet-stream",byteSize:int(r.byte_size??0,"byte_size"),sha256:optionalText(r.sha256),altText:optionalText(r.alt_text),rightsOwner:optionalText(r.rights_owner),rightsStatus:text(r.rights_status,"rights_status"),moderationStatus:text(r.moderation_status,"moderation_status"),scanStatus:text(r.scan_status,"scan_status"),rejectionReason:optionalText(r.rejection_reason),reviewedBy:optionalText(r.reviewed_by),reviewedAt:r.reviewed_at?epoch(r.reviewed_at,"reviewed_at"):undefined,createdAt:epoch(r.created_at,"created_at")})),documents:docs.rows.map(r=>({id:text(r.public_id,"doc.public_id"),canonicalVariantId:text(r.canonical_public_id,"canonical_public_id"),vendorId:optionalText(r.vendor_public_id),type:text(r.type,"type"),issuer:optionalText(r.issuer),identifier:optionalText(r.identifier),validFrom:r.valid_from?epoch(r.valid_from,"valid_from"):undefined,validTo:r.valid_to?epoch(r.valid_to,"valid_to"):undefined,status:text(r.status,"status"),verifiedBy:optionalText(r.verified_by),verifiedAt:r.verified_at?epoch(r.verified_at,"verified_at"):undefined,rejectionReason:optionalText(r.rejection_reason),createdAt:epoch(r.created_at,"created_at")}))};
     },{readOnly:true});
   }
 
