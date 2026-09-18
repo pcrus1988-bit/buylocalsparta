@@ -47,7 +47,7 @@ type GuideGroup = Readonly<{
 }>;
 
 const PAGE_SIZE = 20;
-const FIRST_PAGE_TIMEOUT_MS = 8000;
+const FIRST_PAGE_TIMEOUT_MS = 20000;
 const SPECIAL_FASHION_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
 const VENDOR_ID_PATTERN = /^[A-Za-z0-9_-]{3,128}$/;
 const RELATED_CATEGORY_LIMIT = 8;
@@ -397,12 +397,31 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     };
   }, [demoMode, filters, publicVendorId, query]);
 
-  const categories = useMemo(() => remoteFacets?.categories ?? fallbackCategoryOptions(products), [products, remoteFacets]);
-  const brands = useMemo(() => remoteFacets?.brands ?? fallbackFacetOptions(products.map((product) => product.brand)), [products, remoteFacets]);
-  const colors = useMemo(() => remoteFacets?.colors ?? fallbackFacetOptions(products.map((product) => product.color)), [products, remoteFacets]);
-  const sizes = useMemo(() => remoteFacets?.sizes ?? fallbackFacetOptions(products.flatMap((product) => product.sizes)), [products, remoteFacets]);
-  const fits = useMemo(() => remoteFacets?.fits ?? fallbackFacetOptions(products.map((product) => product.fit)), [products, remoteFacets]);
-  const materials = useMemo(() => remoteFacets?.materials ?? fallbackMaterialOptions(products), [products, remoteFacets]);
+  const facetFallbackProducts = remoteProducts ?? products;
+  const categories = useMemo(
+    () => remoteFacets?.categories.length ? remoteFacets.categories : fallbackCategoryOptions(facetFallbackProducts),
+    [facetFallbackProducts, remoteFacets]
+  );
+  const brands = useMemo(
+    () => remoteFacets?.brands.length ? remoteFacets.brands : fallbackFacetOptions(facetFallbackProducts.map((product) => product.brand)),
+    [facetFallbackProducts, remoteFacets]
+  );
+  const colors = useMemo(
+    () => remoteFacets?.colors.length ? remoteFacets.colors : fallbackFacetOptions(facetFallbackProducts.map((product) => product.color)),
+    [facetFallbackProducts, remoteFacets]
+  );
+  const sizes = useMemo(
+    () => remoteFacets?.sizes.length ? remoteFacets.sizes : fallbackFacetOptions(facetFallbackProducts.flatMap((product) => product.sizes)),
+    [facetFallbackProducts, remoteFacets]
+  );
+  const fits = useMemo(
+    () => remoteFacets?.fits.length ? remoteFacets.fits : fallbackFacetOptions(facetFallbackProducts.map((product) => product.fit)),
+    [facetFallbackProducts, remoteFacets]
+  );
+  const materials = useMemo(
+    () => remoteFacets?.materials.length ? remoteFacets.materials : fallbackMaterialOptions(facetFallbackProducts),
+    [facetFallbackProducts, remoteFacets]
+  );
   const relatedCategories = useMemo(() => relatedCategoryOptions(categories, category, categoryGroup), [categories, category, categoryGroup]);
   const visibleBrands = useMemo(() => {
     const needle = normalized(brandSearch);

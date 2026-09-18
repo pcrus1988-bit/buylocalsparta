@@ -360,16 +360,23 @@ export async function getVendorDropshipCatalogPage(
 async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
   if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] };
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
-    SELECT facets.facet_type,facets.value,facets.label,facets.count
-    FROM public.storefront_dropship_vendor_facets facets
-    WHERE facets.supplier_id=(
-      SELECT ds.id::text
+    WITH suppliers AS MATERIALIZED (
+      SELECT ds.id::text AS supplier_id
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
-      WHERE v.public_id=$1 AND v.status='active' AND ds.active=true
-      LIMIT 1
+      WHERE v.public_id=$1
+        AND v.status='active'
+        AND ds.active=true
     )
-    ORDER BY facets.facet_type,facets.label,facets.value
+    SELECT
+      facets.facet_type,
+      facets.value,
+      COALESCE(MAX(NULLIF(facets.label,'')),facets.value) AS label,
+      SUM(facets.count)::bigint AS count
+    FROM public.storefront_dropship_vendor_facets facets
+    JOIN suppliers s ON s.supplier_id=facets.supplier_id
+    GROUP BY facets.facet_type,facets.value
+    ORDER BY facets.facet_type,label,facets.value
   `, [vendorId]);
 
   let total = 0;
