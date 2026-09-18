@@ -200,6 +200,13 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
                updated_at=now()
           FROM eligible e
          WHERE vo.id=e.offer_id
+           AND (
+             vo.status::text<>'approved'
+             OR vo.merchant_visible IS DISTINCT FROM true
+             OR vo.merchant_pause_active IS DISTINCT FROM false
+             OR COALESCE(vo.source_payload->>'publicationState','')<>'PUBLISHED'
+             OR COALESCE(vo.source_payload->>'publishedBy','')<>'symphonya_auto_publication'
+           )
         RETURNING vo.id,vo.vendor_id,vo.public_id
       ), audit_events AS (
         INSERT INTO public.vendor_catalog_visibility_events(
@@ -215,7 +222,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
           FROM offer_changed
         RETURNING id
       )
-      SELECT count(*)::int published FROM eligible
+      SELECT count(*)::int published FROM offer_changed
     `, [SUPPLIER_CODE, PUBLICATION_BATCH_SIZE]);
     published = Number(result.rows[0]?.published ?? 0);
   }
