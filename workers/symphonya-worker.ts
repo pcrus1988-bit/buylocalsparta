@@ -118,13 +118,9 @@ try {
         log("error", "symphonya.catalogue_enrichment_promotion_failed", { workerId, error: safeError(error) });
       }
 
-      try {
-        const publication = await runSymphonyaAutoPublicationSweep();
-        log("info", "symphonya.auto_publication_sweep", { workerId, ...publication });
-      } catch (error) {
-        log("error", "symphonya.auto_publication_failed", { workerId, error: safeError(error) });
-      }
-
+      // Fresh supplier availability is a publication prerequisite. Run stock
+      // before publication when its interval is due so newly-localised products
+      // can enter the storefront in the same worker iteration.
       if (stockEnabled && Date.now() >= nextStockSyncAt) {
         const startedAt = Date.now();
         try {
@@ -135,6 +131,13 @@ try {
         } finally {
           nextStockSyncAt = startedAt + stockIntervalMs;
         }
+      }
+
+      try {
+        const publication = await runSymphonyaAutoPublicationSweep();
+        log("info", "symphonya.auto_publication_sweep", { workerId, ...publication });
+      } catch (error) {
+        log("error", "symphonya.auto_publication_failed", { workerId, error: safeError(error) });
       }
 
       if (Date.now() >= nextPriceAlertAt) {
