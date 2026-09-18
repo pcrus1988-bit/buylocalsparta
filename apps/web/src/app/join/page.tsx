@@ -32,6 +32,6 @@ export default function JoinGatewayPage(){
   <section className="shell section"><div className={styles.gatewayPrinciples}>{principles.map(([t,b],i)=><article key={t}><span>{String(i+1).padStart(2,"0")}</span><h3>{t}</h3><p>{b}</p></article>)}</div></section>
   <section className={styles.gatewayBand}><div className="shell"><div className={styles.gatewayBandGrid}><div><div className="eyebrow light">Γιατί το κάνουμε έτσι</div><h2>Η περιοχή αποφασίζει ποια εμπορική πρόταση ισχύει — όχι ένα dropdown.</h2></div><div><p>Η Σπάρτη είναι η ενεργή αρχική αγορά και έχει δικούς της όρους συνεργασίας. Τα νέα HUB έχουν διαφορετική δομή πακέτων. Ο διαχωρισμός γίνεται πριν από την εμφάνιση τιμών ώστε να μη δημιουργείται σύγχυση ή λάθος αίτηση.</p><p>Αν η αυτόματη αντιστοίχιση δεν μπορεί να γίνει με ασφάλεια, δεν μαντεύουμε. Η περίπτωση περνά σε έλεγχο.</p></div></div></div></section>
   <section className="shell content-cta"><div><div className="eyebrow">Χρειάζεσαι βοήθεια;</div><h2>Αν το Γ.Ε.ΜΗ. δεν επιστρέφει σωστά την επιχείρησή σου, μην επιλέξεις αυθαίρετα άλλη περιοχή.</h2></div><div className="hero-actions"><Link className="button" href="/help">Κέντρο βοήθειας</Link><Link className="button button-secondary" href="/join/requirements">Τι χρειάζεται για συνεργασία</Link></div></section>
-  <SiteFooter/>
+  <SiteFooter />
  </main>;
 }
