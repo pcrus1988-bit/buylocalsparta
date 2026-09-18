@@ -58,6 +58,8 @@ import { VendorCatalogProgressiveLoader } from "../components/VendorCatalogProgr
 import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
 import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 
+export const dynamic = "force-dynamic";
+
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 const notoSans = Noto_Sans({ subsets: ["greek", "latin"], display: "swap", variable: "--font-km-sans" });
 
