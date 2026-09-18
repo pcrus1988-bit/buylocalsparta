@@ -1,7 +1,7 @@
 import { requireAccountSession } from "../../../lib/account-session";
 import { getTodayFlashSale, recordFlashSwipe, startFlashSale } from "../../../lib/flash-sale-runtime-v2";
 
-export const maxDuration = 15;
+export const maxDuration = 30;
 
 type FlashSaleBody = Readonly<{ action?: unknown; itemId?: unknown; decision?: unknown }>;
 
