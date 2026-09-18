@@ -123,13 +123,13 @@ test("secondary SEO and Merchant discovery stay attached to normal-channel read 
   assert.match(merchantFeed, /const cards = await getCrawlerCatalogCards\(SPARTA_POSTCODE\)/);
   assert.match(merchantFeed, /recordById = new Map\(inventory\.products/);
 
-  // Product sitemap inventory is now sharded and queried directly from PostgreSQL.
-  // Keep its admission rule explicitly normal-channel so BAZAAR products cannot
-  // leak into ordinary product discovery as the sitemap implementation evolves.
-  assert.match(productSitemap, /COALESCE\(cv\.commerce_channel,'normal'\)='normal'/);
+  // Product sitemap inventory now reads the governed storefront projection.
+  // That projection is normal-channel only; the route must also re-check that at
+  // least one local or dropship offer remains fresh before emitting a URL.
+  assert.match(productSitemap, /FROM public\.storefront_catalog_read_model rm/);
+  assert.match(productSitemap, /rm\.eligible_offer_count>0/);
+  assert.match(productSitemap, /rm\.dropship_sellable=true AND rm\.dropship_available_until>now\(\)/);
   assert.match(productSitemap, /productPublicPath\(product\)/);
-  assert.match(productSitemap, /ds\.api_authoritative_availability=true/);
-  assert.match(productSitemap, /dso\.availability_expires_at>now\(\)/);
 });
 
 test("BAZAAR navigation remains selected throughout the dedicated commerce experience", async () => {
