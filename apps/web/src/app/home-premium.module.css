@@ -119,6 +119,19 @@
 
 .discoverySection { padding-top: 78px; padding-bottom: 92px; }
 .sectionHeading { margin-bottom: 30px; }
+.discoveryCategories { margin-bottom: 34px; }
+.discoveryProducts { margin-top: 8px; }
+.discoverySubheading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--home-line);
+}
+.discoverySubheading strong { color: var(--home-ink); font-size: 13px; letter-spacing: .02em; }
+.discoverySubheading a { color: var(--home-muted); font-size: 11px; font-weight: 900; }
 .sectionHeading h2 { max-width: 760px; margin: 9px 0 0; font-size: clamp(38px, 4.8vw, 66px); line-height: .98; }
 .sectionHeading > p { max-width: 390px; margin: 0; color: var(--home-muted); font-size: 13px; line-height: 1.65; }
 .productRail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
@@ -198,6 +211,8 @@
   .quickSearchForm { grid-template-columns: 40px minmax(0,1fr); border-radius: 14px; }
   .quickSearchForm button { grid-column: 1 / -1; width: 100%; }
   .zeroResult { align-items: flex-start; flex-direction: column; }
+  .discoveryCategories { margin-bottom: 28px; }
+  .discoverySubheading { margin-bottom: 10px; }
   .categoryRail { grid-template-columns: 1fr 1fr; gap: 8px; }.categoryCard { min-height: 98px; grid-template-columns: 34px minmax(0,1fr); padding: 12px; }.categoryCard b { display: none; }.categoryMark { width: 34px; height: 34px; }
   .productRail { grid-template-columns: 1fr 1fr; gap: 8px; }.productRail :global(.product-art) { height: 155px; }.productRail :global(.product-body) { padding: 11px; }.productRail :global(.product-body .eyebrow), .productRail :global(.partner), .productRail :global(.local-commerce-proof) { display: none; }.productRail :global(.product-body h3) { font-size: 13px; margin: 3px 0 8px; }.productRail :global(.price) { font-size: 18px; }.productRail :global(.round-add) { width: 34px; height: 34px; }
   .collectionGrid { grid-template-columns: 1fr; }.collectionCard, .collectionCard:first-child { grid-column: auto; min-height: 350px; padding: 22px; }.collectionCard h3 { font-size: 38px; }
