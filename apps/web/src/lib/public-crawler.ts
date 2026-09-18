@@ -18,7 +18,19 @@ const READ_ONLY_PUBLIC_CRAWLER_TOKENS = [
   "discordbot",
   "telegrambot",
   "whatsapp",
-  "konta-mou-seo-monitor"
+  "konta-mou-seo-monitor",
+  "ahrefsbot",
+  "semrushbot",
+  "mj12bot",
+  "dotbot",
+  "bytespider",
+  "amazonbot",
+  "ccbot",
+  "gptbot",
+  "chatgpt-user",
+  "claudebot",
+  "claude-web",
+  "perplexitybot"
 ] as const;
 
 /**
