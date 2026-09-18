@@ -66,6 +66,10 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
   const startValidation = validateCrawlUrl(startUrl, fetchPolicy);
   if (startValidation.decision !== "allow" || !startValidation.normalizedUrl) throw new CrawlJobError(`Seed URL rejected: ${startValidation.reason ?? "invalid seed URL"}`, true);
   const normalizedSeed = startValidation.normalizedUrl;
+  const seedHost = new URL(normalizedSeed).hostname.toLowerCase();
+  if (isKontaMouOwnHost(seedHost)) {
+    throw new CrawlJobError(`Refusing self-crawl of KONTA MOY storefront host ${seedHost}`, true);
+  }
   const fetcher = options.fetcher ?? secureCrawlFetch;
   const intervalMs = Math.ceil(1000 / policy.requestsPerSecond);
   let lastRequestAt = 0;
@@ -578,3 +582,14 @@ function boundedInteger(value: unknown, fallback: number, min: number, max: numb
 function boundedNumber(value: unknown, fallback: number, min: number, max: number, name: string): number { const n=value == null ? fallback : Number(value); if (!Number.isFinite(n) || n<min || n>max) throw new CrawlJobError(`Crawl policy ${name} is out of range`, true); return n; }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function delay(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+
+function isKontaMouOwnHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
+  return host === "kontamou.site"
+    || host.endsWith(".kontamou.site")
+    || host === "kontamou.info"
+    || host.endsWith(".kontamou.info")
+    || host === "buylocalsparta-web.vercel.app"
+    || host.endsWith(".buylocalsparta-web.vercel.app");
+}
