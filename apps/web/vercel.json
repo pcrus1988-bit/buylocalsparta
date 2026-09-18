@@ -43,10 +43,6 @@
     {
       "path": "/api/cron/symphonya-catalogue",
       "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/symphonya-materialization",
-      "schedule": "* * * * *"
     }
   ]
 }
