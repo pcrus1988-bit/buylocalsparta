@@ -99,15 +99,63 @@ function databaseRecoveryResponse(request: NextRequest): NextResponse | undefine
   }
 
   // Health probes and immutable/static files do not need the commerce database.
-  if (pathname.startsWith("/api/health") || /\.[A-Za-z0-9]{2,8}$/.test(pathname)) return undefined;
+  // Return immediately so they also bypass the CMS redirect lookup while the DB is down.
+  if (pathname.startsWith("/api/health") || /\.[A-Za-z0-9]{2,8}$/.test(pathname)) {
+    return NextResponse.next();
+  }
 
   // Emergency circuit breaker: while PostgreSQL cannot accept even SELECT 1,
   // do not let public/account/catalogue requests continuously open new database
   // connections. This is intentionally temporary and must be disabled after
   // connectivity is restored.
-  return new NextResponse("KONTA MOY is recovering catalogue access. Please retry shortly.", {
+  const html = `<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex,follow" />
+<meta http-equiv="refresh" content="90" />
+<title>ΚΟΝΤΑ ΜΟΥ · Προσωρινή αποκατάσταση</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 20%, #2d251f 0, #15120f 42%, #0b0a09 100%);
+    color: #f7f2eb; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  main {
+    width: min(92vw, 620px); padding: 36px 28px; border: 1px solid rgba(255,255,255,.12);
+    border-radius: 28px; background: rgba(255,255,255,.045); backdrop-filter: blur(12px);
+    box-shadow: 0 24px 70px rgba(0,0,0,.35); text-align: center;
+  }
+  .brand { font-size: clamp(28px,7vw,46px); font-weight: 900; letter-spacing: .06em; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; margin: 22px auto; background: #d9b48f; box-shadow: 0 0 0 9px rgba(217,180,143,.12); }
+  h1 { margin: 0 0 14px; font-size: clamp(24px,5vw,36px); line-height: 1.15; }
+  p { margin: 0 auto; max-width: 48ch; color: #d7cec5; line-height: 1.6; font-size: 16px; }
+  .small { margin-top: 18px; font-size: 13px; color: #9f958b; }
+  button {
+    margin-top: 26px; border: 0; border-radius: 999px; padding: 13px 22px;
+    font: inherit; font-weight: 800; cursor: pointer; background: #f7f2eb; color: #15120f;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">ΚΟΝΤΑ ΜΟΥ</div>
+  <div class="dot" aria-hidden="true"></div>
+  <h1>Επιστρέφουμε σε λίγο.</h1>
+  <p>Γίνεται προσωρινή τεχνική αποκατάσταση της πρόσβασης στον κατάλογο. Οι αγορές και τα δεδομένα παραμένουν προστατευμένα.</p>
+  <button onclick="location.reload()">Δοκίμασε ξανά</button>
+  <div class="small">Η σελίδα θα δοκιμάσει ξανά αυτόματα σε 90″.</div>
+</main>
+</body>
+</html>`;
+
+  return new NextResponse(html, {
     status: 503,
     headers: {
+      "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
       "retry-after": "120",
       "x-robots-tag": "noindex, follow"
