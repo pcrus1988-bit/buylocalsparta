@@ -23,7 +23,9 @@ test("Symphonya publication does not depend on automatic supplier-order forwardi
   const source = readFileSync(new URL("../src/lib/symphonya-auto-publication-runtime.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /publicationEnabled\s*=\s*symphonyaAutoPublicationEnabled\(\)\s*&&\s*orderForwardingEnabled/);
   assert.doesNotMatch(source, /AND ds\.order_forwarding_enabled=true/);
-  assert.match(source, /pt\.locale IN \('el','en'\)/);
+  assert.match(source, /pt\.locale='el'/);
+  assert.match(source, /vo\.status::text='archived'/);
+  assert.match(source, /publishedBy',''\)='symphonya_auto_publication'/);
 });
 
 test("API-authoritative checkout live-revalidates Symphonya stock and buying cost", () => {
@@ -32,6 +34,34 @@ test("API-authoritative checkout live-revalidates Symphonya stock and buying cos
   assert.match(source, /new SymphonyaHttpTransport/);
   assert.match(source, /getStock\(\{ productIds: \[row\.external_product_id\] \}\)/);
   assert.match(source, /stock\.wholesaleCostMinor/);
+  assert.match(source, /row\.order_forwarding_enabled/);
+  assert.match(source, /SYMPHONYA_ENABLED/);
+  assert.match(source, /minimum_procurement_minor/);
+});
+
+test("paid Symphonya fulfilment uses an at-most-once supplier submission bridge", () => {
+  const source = readFileSync(new URL("../src/lib/symphonya-paid-fulfilment.ts", import.meta.url), "utf8");
+  assert.match(source, /status='creating'/);
+  assert.match(source, /submission_started_at/);
+  assert.match(source, /adapter\.createOrder\(request\)/);
+  assert.match(source, /status='submission_uncertain'/);
+});
+
+test("Symphonya pipeline refreshes targeted stock after translation promotion and before publication", () => {
+  const source = readFileSync(new URL("../src/app/api/cron/symphonya-pipeline/route.ts", import.meta.url), "utf8");
+  const promotion = source.indexOf("runCatalogueEnrichmentPromotionSlice");
+  const stock = source.indexOf("refreshSymphonyaOfferStockByExternalIds", promotion);
+  const publication = source.indexOf("runSymphonyaAutoPublicationSweep", stock);
+  assert.ok(promotion >= 0 && stock > promotion && publication > stock);
+});
+
+test("Symphonya enrichment prioritizes latest in-stock supplier evidence", () => {
+  const preparation = readFileSync(new URL("../src/lib/symphonya-enrichment-runtime.ts", import.meta.url), "utf8");
+  const generation = readFileSync(new URL("../src/lib/catalogue-enrichment-generation-runtime.ts", import.meta.url), "utf8");
+  assert.match(preparation, /catalog_source_product_latest/);
+  assert.match(preparation, /dso\.cached_available=true/);
+  assert.match(generation, /\$4::text='symphonya'/);
+  assert.match(generation, /dso\.cached_available=true/);
 });
 
 test("Symphonya structured Beauty taxonomy maps to existing KONTA MOY product classes", () => {
