@@ -24,8 +24,9 @@ test("Symphonya publication does not depend on automatic supplier-order forwardi
   assert.doesNotMatch(source, /publicationEnabled\s*=\s*symphonyaAutoPublicationEnabled\(\)\s*&&\s*orderForwardingEnabled/);
   assert.doesNotMatch(source, /AND ds\.order_forwarding_enabled=true/);
   assert.match(source, /pt\.locale='el'/);
-  assert.match(source, /vo\.status::text='archived'/);
-  assert.match(source, /publishedBy',''\)='symphonya_auto_publication'/);
+  assert.match(source, /vo\.status::text IN \('draft','approved','archived'\)/);
+  assert.match(source, /vendor_product_submissions/);
+  assert.match(source, /vendor_product_activation_requests ar/);
 });
 
 test("API-authoritative checkout live-revalidates Symphonya stock and buying cost", () => {
