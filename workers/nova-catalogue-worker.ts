@@ -5,7 +5,7 @@ import {
 } from "../apps/web/src/lib/postgres-runtime.ts";
 import { runNovaEnrichmentPreparationSlice } from "../apps/web/src/lib/catalogue-enrichment-runtime.ts";
 import { runCatalogueEnrichmentPromotionSlice } from "../apps/web/src/lib/catalogue-enrichment-promotion-runtime.ts";
-import { runNovaAutoPublicationSweep } from "../apps/web/src/lib/nova-auto-publication-runtime.ts";
+import { runNovaAutoPublicationSweep, runNovaCategoryRepairSweep } from "../apps/web/src/lib/nova-auto-publication-runtime.ts";
 import { novaAutoPricingEnabled, runNovaAutoPricingSlice } from "../apps/web/src/lib/nova-auto-pricing-runtime.ts";
 import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availability-refresh-runtime.ts";
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
@@ -63,6 +63,13 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
+      try {
+        const repaired = await runNovaCategoryRepairSweep();
+        log("info", "nova.category_repair_sweep", { workerId, repaired });
+      } catch (error) {
+        log("error", "nova.category_repair_failed", { workerId, error: safeError(error) });
+      }
+
       const preRefreshPricingReady = await ensurePricingReadyForPublication("pre_refresh");
       if (automaticPublicationEnabled && preRefreshPricingReady) {
         try {
