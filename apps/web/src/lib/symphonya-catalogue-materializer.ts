@@ -250,27 +250,45 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
     }
 
     if (!canonicalVariantId) {
-      const scoped = await pool.query<SqlRow>(`
+      // Source-scoped canonical recovery is only required after a partial prior
+      // materialization. New source products have no source family yet, so use
+      // the indexed family identity as a cheap guard instead of scanning the
+      // entire canonical catalogue on every first-pass product.
+      const recoveryFamily = await pool.query<SqlRow>(`
         SELECT id::text id
-          FROM public.canonical_variants
-         WHERE market_id=$1::uuid
-           AND COALESCE(commerce_channel,'normal')='normal'
-           AND variant_attributes->>'source'=$2
-           AND variant_attributes->>'externalVariantId'=$3
-         ORDER BY created_at,id
-         LIMIT 2
-      `, [context.marketId, SOURCE_MARKER, variant.externalVariantId]);
-      if (scoped.rows.length > 1) {
-        blockedAmbiguous += 1;
-        await upsertReview(context, source, null, {
-          reason: "source_scoped_collision",
-          externalVariantId: variant.externalVariantId
-        });
-        continue;
-      }
-      if (scoped.rows[0]) {
-        canonicalVariantId = requiredText(scoped.rows[0].id, "source canonical id");
-        reusedCanonicals += 1;
+          FROM public.product_families
+         WHERE source_supplier_id=$1::uuid
+           AND source_external_product_id=$2
+         LIMIT 1
+      `, [context.supplierId, source.sourceProductKey]);
+
+      if (recoveryFamily.rows[0]) {
+        const scoped = await pool.query<SqlRow>(`
+          SELECT id::text id
+            FROM public.canonical_variants
+           WHERE family_id=$1::uuid
+             AND commerce_channel='normal'
+             AND variant_attributes->>'source'=$2
+             AND variant_attributes->>'externalVariantId'=$3
+           ORDER BY created_at,id
+           LIMIT 2
+        `, [
+          requiredText(recoveryFamily.rows[0].id, "recovery family id"),
+          SOURCE_MARKER,
+          variant.externalVariantId
+        ]);
+        if (scoped.rows.length > 1) {
+          blockedAmbiguous += 1;
+          await upsertReview(context, source, null, {
+            reason: "source_scoped_collision",
+            externalVariantId: variant.externalVariantId
+          });
+          continue;
+        }
+        if (scoped.rows[0]) {
+          canonicalVariantId = requiredText(scoped.rows[0].id, "source canonical id");
+          reusedCanonicals += 1;
+        }
       }
     }
 
