@@ -34,7 +34,14 @@ export type SymphonyaStockSyncResult = Readonly<{
   message?: string;
 }>;
 
-export async function runSymphonyaStockSyncSlice(): Promise<SymphonyaStockSyncResult> {
+export type SymphonyaStockSyncSliceOptions = Readonly<{
+  maxDurationMs?: number;
+  maxPages?: number;
+}>;
+
+export async function runSymphonyaStockSyncSlice(
+  options: SymphonyaStockSyncSliceOptions = {}
+): Promise<SymphonyaStockSyncResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const claimed = await pool.query<SqlRow>(`
     UPDATE public.catalog_sources cs
@@ -75,14 +82,16 @@ export async function runSymphonyaStockSyncSlice(): Promise<SymphonyaStockSyncRe
     baseUrl: process.env.SYMPHONYA_API_BASE_URL,
     requestTimeoutMs: timeoutMs()
   });
-  const deadline = Date.now() + SLICE_MS;
+  const sliceMs = Math.min(SLICE_MS, positiveIntegerValue(options.maxDurationMs, SLICE_MS));
+  const pageLimit = Math.min(maxPagesPerSlice(), positiveIntegerValue(options.maxPages, maxPagesPerSlice()));
+  const deadline = Date.now() + sliceMs;
   let pages = 0;
   let rows = 0;
   let offersUpdated = 0;
   let cycleComplete = false;
 
   try {
-    while (Date.now() < deadline && pages < maxPagesPerSlice()) {
+    while (Date.now() < deadline && pages < pageLimit) {
       const pageNumber = state.nextPage;
       const page = await transport.getStock({ page: pageNumber, limit: state.limit });
       const updated = await persistStockRows(page);
