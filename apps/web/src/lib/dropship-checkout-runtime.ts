@@ -158,18 +158,24 @@ export async function checkoutApiAuthoritativeDropship(
   const byCanonical = new Map(discovery.rows.map((row) => [row.canonical_public_id, row] as const));
   const client = new NovaV1Client({ apiKey: novaApiKeyFromEnvironment() });
   const validated: ValidatedLine[] = [];
+  // The checkout UI uses local_delivery to mean "deliver to my saved address".
+  // Dropship offers, however, are supplier/courier shipments and are catalogued as
+  // shipping. Keep the customer-facing mode for address collection/idempotency,
+  // but validate and persist the actual supplier fulfilment mode as shipping.
+  const supplierFulfilmentMode: FulfilmentMode =
+    input.fulfilmentMode === "local_delivery" ? "shipping" : input.fulfilmentMode;
 
   for (const item of input.items) {
     const row = byCanonical.get(item.canonicalVariantId);
     if (!row) throw new Error(`Dropshipping offer missing for ${item.canonicalVariantId}`);
-    if (!row.fulfilment_modes.includes(input.fulfilmentMode)) {
-      throw new Error("Ο επιλεγμένος τρόπος παράδοσης δεν υποστηρίζεται για ένα dropshipping προϊόν.");
-    }
     if (input.fulfilmentMode === "pickup") {
       throw new Error("Τα dropshipping προϊόντα αποστέλλονται στη διεύθυνσή σου και δεν υποστηρίζουν παραλαβή από τοπικό κατάστημα.");
     }
     if (input.fulfilmentMode === "shipping") {
       throw new Error("Για dropshipping προϊόντα επίλεξε «Παράδοση στη διεύθυνσή σου» αντί για BOX NOW locker.");
+    }
+    if (!row.fulfilment_modes.includes(supplierFulfilmentMode)) {
+      throw new Error("Ο συνεργαζόμενος προμηθευτής δεν υποστηρίζει αποστολή στη διεύθυνσή σου για αυτό το προϊόν.");
     }
     if (row.supplier_code !== NOVA_SUPPLIER_CODE) {
       throw new Error(`Unsupported API-authoritative dropship supplier ${row.supplier_code}`);
@@ -254,7 +260,7 @@ export async function checkoutApiAuthoritativeDropship(
       subtotalMinor,
       deliveryChargeMinor,
       taxMinor,
-      input.fulfilmentMode,
+      supplierFulfilmentMode,
       createdAt
     ]);
 
@@ -289,7 +295,7 @@ export async function checkoutApiAuthoritativeDropship(
         taxRateBps,
         lineTax,
         line.supplierCostMinor,
-        JSON.stringify({ postcode: input.postcode, mode: input.fulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString() }),
+        JSON.stringify({ postcode: input.postcode, mode: supplierFulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString() }),
         JSON.stringify({ assignedOfferId: row.offer_public_id, vendorId: row.vendor_public_id, fairness: "api_authoritative_dropship" }),
         createdAt
       ]);
@@ -319,7 +325,7 @@ export async function checkoutApiAuthoritativeDropship(
         orderUuid,
         group.vendorUuid,
         group.locationUuid,
-        input.fulfilmentMode,
+        supplierFulfilmentMode,
         group.merchandiseMinor,
         groupDeliveryChargeMinor,
         createdAt
