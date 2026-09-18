@@ -9,7 +9,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-const PUBLISHED_REFRESH_LIMIT = 100;
+// Keep the storefront-priority refresh comfortably below the serverless timeout.
+// Symphonya's targeted supplier calls can be slow, so prefer smaller resumable
+// slices over a large batch that repeatedly times out and updates nothing.
+const PUBLISHED_REFRESH_LIMIT = 25;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
