@@ -216,6 +216,16 @@ export async function checkoutApiAuthoritativeDropship(
         throw new Error("Checkout idempotency key was already used with different order data");
       }
       orderPublicId = row.public_id;
+      // Repair orders created by the former dropship mode mapping. The customer-level
+      // preference must remain local_delivery so a normal saved street address is
+      // attached. Supplier fulfilments themselves stay shipping (DHL/DPD/etc.).
+      if (input.fulfilmentMode === "local_delivery") {
+        await db.query(`
+          UPDATE customer_orders
+          SET fulfilment_preference='local_delivery',updated_at=$2
+          WHERE public_id=$1 AND status='pending_payment' AND checkout_address_locked_at IS NULL
+        `, [orderPublicId, new Date(input.now)]);
+      }
       await db.query("COMMIT");
       const prior = await runtime.customerCommerce.orderForCustomer(input.customerId, orderPublicId);
       if (!prior) throw new Error("Existing dropshipping order could not be loaded");
@@ -260,7 +270,7 @@ export async function checkoutApiAuthoritativeDropship(
       subtotalMinor,
       deliveryChargeMinor,
       taxMinor,
-      supplierFulfilmentMode,
+      input.fulfilmentMode,
       createdAt
     ]);
 
