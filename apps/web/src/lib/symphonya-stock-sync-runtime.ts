@@ -85,6 +85,11 @@ export async function runSymphonyaStockSyncSlice(
   const sliceMs = Math.min(SLICE_MS, positiveIntegerValue(options.maxDurationMs, SLICE_MS));
   const pageLimit = Math.min(maxPagesPerSlice(), positiveIntegerValue(options.maxPages, maxPagesPerSlice()));
   const deadline = Date.now() + sliceMs;
+  // Never start a supplier page when the remaining slice cannot absorb one
+  // complete provider request. Without this guard a fast early page could
+  // start a later slow page just before the deadline and push the Vercel cron
+  // beyond its 55-second hard limit.
+  const pageStartSafetyMs = timeoutMs() + 1_000;
   let pages = 0;
   let rows = 0;
   let offersUpdated = 0;
@@ -92,6 +97,8 @@ export async function runSymphonyaStockSyncSlice(
 
   try {
     while (Date.now() < deadline && pages < pageLimit) {
+      const remainingSliceMs = deadline - Date.now();
+      if (remainingSliceMs < pageStartSafetyMs) break;
       const pageNumber = state.nextPage;
       const page = await transport.getStock({ page: pageNumber, limit: state.limit });
       const updated = await persistStockRows(page);
