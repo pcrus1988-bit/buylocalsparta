@@ -24,7 +24,7 @@
     },
     {
       "path": "/api/cron/symphonya-pipeline",
-      "schedule": "5,20,35,50 * * * *"
+      "schedule": "20 * * * *"
     },
     {
       "path": "/api/cron/dropship-order-reconciliation",
