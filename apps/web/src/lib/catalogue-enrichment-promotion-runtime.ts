@@ -31,44 +31,62 @@ export async function runCatalogueEnrichmentPromotionSlice(): Promise<CatalogueE
       AND ce.family_id IS NOT NULL
       AND coalesce(jsonb_array_length(ce.validation_errors),0)=0
       AND nullif(btrim(ce.display_title_el),'') IS NOT NULL
-      AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
-      AND EXISTS (
-        SELECT 1
-        FROM public.vendor_offers vo
-        JOIN public.vendor_businesses v ON v.id=vo.vendor_id
-        JOIN public.vendor_locations l ON l.id=vo.location_id
-        LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-        LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
-        LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
-        WHERE vo.canonical_variant_id=cv.id
-          AND vo.status='approved'
-          AND vo.merchant_visible=true
-          AND vo.merchant_pause_active=false
-          AND vo.customer_price_minor>0
-          AND v.status='active'
-          AND l.active=true
-          AND (
-            (
-              dso.id IS NOT NULL
-              AND dso.active=true
-              AND ds.active=true
-              AND ds.api_authoritative_availability=true
-              AND dso.cached_available=true
-              AND dso.cached_quantity>=1
-              AND dso.availability_expires_at IS NOT NULL
-              AND dso.availability_expires_at>now()
-              AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-            )
-            OR (
-              dso.id IS NULL
-              AND GREATEST(
-                0,
-                COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0)
-              )>0
-            )
+      AND (
+        (
+          cv.active=true
+          AND EXISTS (
+            SELECT 1
+            FROM public.vendor_offers vo
+            JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+            JOIN public.vendor_locations l ON l.id=vo.location_id
+            LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+            LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+            LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+            WHERE vo.canonical_variant_id=cv.id
+              AND vo.status='approved'
+              AND vo.merchant_visible=true
+              AND vo.merchant_pause_active=false
+              AND vo.customer_price_minor>0
+              AND v.status='active'
+              AND l.active=true
+              AND (
+                (
+                  dso.id IS NOT NULL
+                  AND dso.active=true
+                  AND ds.active=true
+                  AND ds.api_authoritative_availability=true
+                  AND dso.cached_available=true
+                  AND dso.cached_quantity>=1
+                  AND dso.availability_expires_at IS NOT NULL
+                  AND dso.availability_expires_at>now()
+                  AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+                )
+                OR (
+                  dso.id IS NULL
+                  AND GREATEST(
+                    0,
+                    COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0)
+                  )>0
+                )
+              )
           )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.vendor_offers vo
+          JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+          JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+          WHERE vo.canonical_variant_id=cv.id
+            AND vo.status='approved'
+            AND vo.merchant_pause_active=false
+            AND vo.customer_price_minor>0
+            AND dso.active=true
+            AND ds.active=true
+            AND ds.code='symphonya'
+            AND coalesce(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
+        )
       )
       AND (
         pt.canonical_variant_id IS NULL
