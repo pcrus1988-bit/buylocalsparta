@@ -1,5 +1,5 @@
 import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
-import { getVendorDropshipCatalogPage, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
+import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
 import { getContextualVendorDropshipFacets, type VendorDropshipFacetContext } from "../../../../../lib/vendor-dropship-contextual-facets";
 import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
 
@@ -31,7 +31,34 @@ function sortParam(url: URL): VendorDropshipSort {
   return "recommended";
 }
 
+function emptyFacetContext(context: VendorDropshipFacetContext): boolean {
+  return !(context.query?.trim()
+    || context.categories?.length
+    || context.brand?.trim()
+    || context.color?.trim()
+    || context.sizes?.length
+    || context.fit?.trim()
+    || context.material?.trim());
+}
+
 async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
+  // The Fashion Guide opens before the customer has selected any filters. Its
+  // first facet request must use the small pre-aggregated projection instead of
+  // scanning the contextual family filter model for the whole supplier catalogue.
+  // Contextual facets are still used once the customer narrows the catalogue.
+  if (emptyFacetContext(context)) {
+    try {
+      return await getVendorDropshipFacets(vendorId);
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "warn",
+        event: "storefront.vendor_catalog_facets_preaggregated_failed",
+        vendorId,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  }
+
   try {
     return await getContextualVendorDropshipFacets(vendorId, context);
   } catch (error) {
