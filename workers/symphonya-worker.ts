@@ -26,6 +26,7 @@ if (!workerEnabled) {
 
 const catalogueEnabled = process.env.BLS_SYMPHONYA_CATALOGUE_ENABLED?.trim().toLowerCase() !== "false";
 const stockEnabled = process.env.BLS_SYMPHONYA_STOCK_ENABLED?.trim().toLowerCase() !== "false";
+const aiEnrichmentEnabled = process.env.BLS_SYMPHONYA_AI_ENRICHMENT_ENABLED?.trim().toLowerCase() === "true";
 const workerId = process.env.BLS_SYMPHONYA_WORKER_ID?.trim() || `symphonya-worker:${hostname()}:${process.pid}`;
 const pollMs = positiveInteger(process.env.BLS_SYMPHONYA_POLL_MS, 15_000, "BLS_SYMPHONYA_POLL_MS");
 const retryMs = positiveInteger(process.env.BLS_SYMPHONYA_RETRY_MS, 30_000, "BLS_SYMPHONYA_RETRY_MS");
@@ -69,6 +70,7 @@ log("info", "symphonya.worker_started", {
   automaticSupplierPriceConfirmation: false,
   catalogueEnabled,
   stockEnabled,
+  aiEnrichmentEnabled,
   writesSupplierOrders: false,
   partialOrdersAllowed: false
 });
@@ -112,11 +114,13 @@ try {
         log("error", "symphonya.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
       }
 
-      try {
-        const generated = await runCatalogueEnrichmentGenerationSlice(process.env, { supplierCode: "symphonya" });
-        log("info", "symphonya.catalogue_enrichment_generation_slice", { workerId, ...generated });
-      } catch (error) {
-        log("error", "symphonya.catalogue_enrichment_generation_failed", { workerId, error: safeError(error) });
+      if (aiEnrichmentEnabled) {
+        try {
+          const generated = await runCatalogueEnrichmentGenerationSlice(process.env, { supplierCode: "symphonya" });
+          log("info", "symphonya.catalogue_enrichment_generation_slice", { workerId, ...generated });
+        } catch (error) {
+          log("error", "symphonya.catalogue_enrichment_generation_failed", { workerId, error: safeError(error) });
+        }
       }
 
       try {
