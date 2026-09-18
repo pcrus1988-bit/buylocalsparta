@@ -28,6 +28,9 @@ case "$role" in
     exec node --experimental-strip-types workers/open-icecat-detail-worker.ts
     ;;
   nova-catalogue)
+    if [ "${BLS_SYMPHONYA_SIDECAR_ENABLED:-false}" = "true" ]; then
+      exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/catalogue-supplier-supervisor.ts
+    fi
     exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/nova-catalogue-worker.ts
     ;;
   nova-order-reconciliation)
