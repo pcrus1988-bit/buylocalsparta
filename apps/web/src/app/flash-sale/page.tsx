@@ -4,7 +4,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
 import { FlashSaleGame } from "../../components/FlashSaleGame";
 import { getAccountSession } from "../../lib/account-session";
-import { getTodayFlashSale } from "../../lib/flash-sale-runtime";
+import { getTodayFlashSale } from "../../lib/flash-sale-runtime-v2";
 import styles from "./flash-sale.module.css";
 
 export const dynamic = "force-dynamic";
