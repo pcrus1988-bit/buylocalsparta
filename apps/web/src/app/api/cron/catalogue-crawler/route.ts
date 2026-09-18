@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 700;
 
-const CRON_SCHEDULE = "* * * * *";
+const CRON_SCHEDULE = "*/30 * * * *";
 const SLICE_MS = 10 * 60 * 1000;
 const LEASE_SECONDS = 720;
 const REQUEST_TIMEOUT_MS = 15_000;
