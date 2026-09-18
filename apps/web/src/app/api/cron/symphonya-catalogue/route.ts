@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const mode = cronAuthorized ? (initialCatchup ? "cron_initial_catchup" : "cron") : "manual_once";
   const deferredEnrichment = initialCatchup || manualAuthorized;
   const resultOptions = deferredEnrichment
-    ? { maxPages: 25, enrichProductDetails: false, includeDescription: false }
+    ? { maxPages: 2, enrichProductDetails: false, includeDescription: false }
     : { maxPages: 1, enrichProductDetails: true, includeDescription: true };
 
   try {
