@@ -5,10 +5,7 @@ import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
-import { HomeLocalMarketScene } from "../components/HomeLocalMarketScene";
-import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
-import { getHomepageLocalMarketScene } from "../lib/homepage-local-market-runtime";
 import { getHomepagePublicVendorDirectory } from "../lib/homepage-vendor-directory";
 import type { PublicVendorDirectoryEntry } from "../lib/public-vendor-directory";
 import { SiteFooter } from "../components/SiteFooter";
@@ -66,18 +63,6 @@ const getCachedHomepageHeroSlides = unstable_cache(
   { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
 );
 
-const getCachedHomepageLocalMarketScene = unstable_cache(
-  () => getHomepageLocalMarketScene(),
-  ["homepage-local-market-scene-v1"],
-  { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
-);
-
-const getCachedHomepageCategories = unstable_cache(
-  () => getAvailableStorefrontCategories("23100"),
-  ["homepage-available-storefront-categories-23100-v2"],
-  { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
-);
-
 const getCachedHomepageVendors = unstable_cache(
   () => getHomepagePublicVendorDirectory(),
   ["homepage-public-vendor-directory-v2"],
@@ -131,7 +116,7 @@ export default async function Home() {
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
 
-  const [featuredProducts, heroSlides, localMarketScene, visibleCategories, vendorDirectory] = await Promise.all([
+  const [featuredProducts, heroSlides, vendorDirectory] = await Promise.all([
     homepageSectionOrFallback(
       "featured-products",
       () => readOnlyCrawler
@@ -140,8 +125,6 @@ export default async function Home() {
       []
     ),
     homepageSectionOrFallback("hero-slides", getCachedHomepageHeroSlides, []),
-    homepageSectionOrFallback("local-market-scene", getCachedHomepageLocalMarketScene, null),
-    homepageSectionOrFallback("visible-categories", getCachedHomepageCategories, []),
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])
   ]);
 
@@ -185,7 +168,7 @@ export default async function Home() {
         <section
           className={`${styles.hero} shell`}
           id="top"
-          style={localMarketScene?.isVisible ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}
+          style={{ gridTemplateColumns: "minmax(0, 1fr)" }}
         >
           <div className={styles.heroCopy}>
             <a className={styles.locationPill} href="/choose-location" aria-label="Αλλαγή περιοχής">
@@ -206,27 +189,8 @@ export default async function Home() {
               <a href="/ask-local">Ask Local <span aria-hidden="true">↗</span></a>
             </div>
           </div>
-          {localMarketScene?.isVisible ? <HomeLocalMarketScene scene={localMarketScene} /> : null}
         </section>
       </HomeHeroCarousel>
-
-      {visibleCategories.length ? (
-        <section className={`${styles.categorySection} shell`} aria-labelledby="home-categories-title">
-          <div className={styles.sectionHeadingCompact}>
-            <div><span className={styles.kicker}>Ξεκίνα από εδώ</span><h2 id="home-categories-title">Τι ψάχνεις σήμερα;</h2></div>
-            <a href="/shop">Όλες οι κατηγορίες →</a>
-          </div>
-          <div className={styles.categoryRail}>
-            {visibleCategories.map((category) => (
-              <a className={styles.categoryCard} href={`/category/${category.slug}`} key={category.slug}>
-                <span className={styles.categoryMark}>{category.symbol}</span>
-                <span><strong>{category.label}</strong><small>{category.name}</small></span>
-                <b aria-hidden="true">↗</b>
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <section className={`${styles.discoverySection} shell`} aria-labelledby="featured-title">
         <div className={styles.sectionHeading}>
@@ -337,12 +301,6 @@ export default async function Home() {
             <div className={styles.humanActions}><a className="button" href="/ask-local">Ρώτησε τοπικά</a><a href="/advice">Βρες συμβουλή από κατάστημα →</a></div>
           </div>
         </div>
-      </section>
-
-      <section className={`${styles.serviceStrip} shell`} aria-label="Βασικά οφέλη">
-        <div><span>01</span><strong>Μία αναζήτηση</strong><small>για την τοπική αγορά</small></div>
-        <div><span>02</span><strong>Πραγματική συμβουλή</strong><small>όταν τη χρειάζεσαι</small></div>
-        <div><span>03</span><strong>Μία αγορά</strong><small>χωρίς περιττή πολυπλοκότητα</small></div>
       </section>
 
       <section className={`${styles.faqSection} shell`} aria-labelledby="faq-title">
