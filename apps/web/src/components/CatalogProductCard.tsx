@@ -145,7 +145,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
 
   return (
     <article className={`product-card${index >= 6 ? ` ${styles.deferredCard}` : ""}`}>
-      <Link href={productHref} className={`product-art ${category.artClass}`} aria-label={brandLabel}>
+      <Link href={productHref} prefetch={false} className={`product-art ${category.artClass}`} aria-label={brandLabel}>
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
@@ -193,13 +193,15 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
             href={productHref}
             ariaLabel={brandLabel}
             linkTitle={brandLabel}
+            prefetch={false}
           /> : <Link
             href={productHref}
+            prefetch={false}
             className={`${brandStyles.root} ${brandStyles.card}`}
             aria-label={brandLabel}
             title={brandLabel}
           ><span>{product.brand}</span></Link> : null}
-          <h3><Link href={productHref}>{displayTitle}</Link></h3>
+          <h3><Link href={productHref} prefetch={false}>{displayTitle}</Link></h3>
         </div>
         <div className={`product-bottom ${styles.productBottom}`}>
           <StaticPublicCatalogPrice
