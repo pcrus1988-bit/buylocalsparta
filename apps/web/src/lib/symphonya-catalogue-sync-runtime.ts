@@ -41,13 +41,20 @@ export type SymphonyaSyncSliceResult = Readonly<{
   message?: string;
 }>;
 
+export type SymphonyaSyncSliceOptions = Readonly<{
+  maxPages?: number;
+  enrichProductDetails?: boolean;
+}>;
+
 export function symphonyaApiKeyFromEnvironment(): string {
   const value = process.env.SYMPHONYA_API_KEY?.trim();
   if (!value) throw new Error("SYMPHONYA_API_KEY is required for Symphonya catalogue sync");
   return value;
 }
 
-export async function runSymphonyaCatalogueSyncSlice(): Promise<SymphonyaSyncSliceResult> {
+export async function runSymphonyaCatalogueSyncSlice(
+  options: SymphonyaSyncSliceOptions = {}
+): Promise<SymphonyaSyncSliceResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const claimed = await pool.query<SqlRow>(`
     UPDATE public.catalog_sources cs
@@ -94,12 +101,16 @@ export async function runSymphonyaCatalogueSyncSlice(): Promise<SymphonyaSyncSli
   });
 
   const deadline = Date.now() + SLICE_MS;
+  const pageLimit = options.maxPages === undefined
+    ? maxPagesPerSlice()
+    : Math.min(25, positiveIntegerValue(options.maxPages, 1));
+  const includeProductDetails = options.enrichProductDetails !== false;
   let pages = 0;
   let products = 0;
   let cycleComplete = false;
 
   try {
-    while (Date.now() < deadline && pages < maxPagesPerSlice()) {
+    while (Date.now() < deadline && pages < pageLimit) {
       const pageNumber = state.nextPage;
       const page = await client.getProducts({
         page: pageNumber,
@@ -109,7 +120,9 @@ export async function runSymphonyaCatalogueSyncSlice(): Promise<SymphonyaSyncSli
         includeDescription: true
       });
 
-      const enrichedProducts = await enrichWithProductDetails(client, page.products);
+      const enrichedProducts = includeProductDetails
+        ? await enrichWithProductDetails(client, page.products)
+        : page.products;
       await persistProductPage({
         sourceId,
         state,
