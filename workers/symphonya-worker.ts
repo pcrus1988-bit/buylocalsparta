@@ -27,6 +27,7 @@ if (!workerEnabled) {
 const catalogueEnabled = process.env.BLS_SYMPHONYA_CATALOGUE_ENABLED?.trim().toLowerCase() !== "false";
 const stockEnabled = process.env.BLS_SYMPHONYA_STOCK_ENABLED?.trim().toLowerCase() !== "false";
 const aiEnrichmentEnabled = process.env.BLS_SYMPHONYA_AI_ENRICHMENT_ENABLED?.trim().toLowerCase() === "true";
+const priceAlertsEnabled = process.env.BLS_SYMPHONYA_PRICE_ALERTS_ENABLED?.trim().toLowerCase() !== "false";
 const workerId = process.env.BLS_SYMPHONYA_WORKER_ID?.trim() || `symphonya-worker:${hostname()}:${process.pid}`;
 const pollMs = positiveInteger(process.env.BLS_SYMPHONYA_POLL_MS, 15_000, "BLS_SYMPHONYA_POLL_MS");
 const retryMs = positiveInteger(process.env.BLS_SYMPHONYA_RETRY_MS, 30_000, "BLS_SYMPHONYA_RETRY_MS");
@@ -71,6 +72,7 @@ log("info", "symphonya.worker_started", {
   catalogueEnabled,
   stockEnabled,
   aiEnrichmentEnabled,
+  priceAlertsEnabled,
   writesSupplierOrders: false,
   partialOrdersAllowed: false
 });
@@ -152,7 +154,7 @@ try {
         log("error", "symphonya.auto_publication_failed", { workerId, error: safeError(error) });
       }
 
-      if (Date.now() >= nextPriceAlertAt) {
+      if (priceAlertsEnabled && Date.now() >= nextPriceAlertAt) {
         const startedAt = Date.now();
         try {
           const alerts = await runSymphonyaPriceAlertSweep();
