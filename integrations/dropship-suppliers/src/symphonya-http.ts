@@ -116,12 +116,10 @@ export class SymphonyaHttpTransport implements SymphonyaTransport {
   async getProductDetails(input: Readonly<{ productIds: readonly string[]; lang?: "el" | "en" }>): Promise<readonly SymphonyaSourceProduct[]> {
     const ids = validateSymphonyaDetailBatch(input.productIds);
     if (!ids.length) return [];
-    const form = new URLSearchParams();
-    form.set("ids", JSON.stringify(ids.map(toWireId)));
     const payload = await this.#json("POST", "getProductDetails", {
       query: input.lang ? { lang: input.lang } : undefined,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString()
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ids.map(toWireId) })
     });
     return extractResults(payload).map((row) => normalizeProduct(row, this.#currency));
   }
