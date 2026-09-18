@@ -8,8 +8,8 @@
 
 .site-footer-main {
   display: grid;
-  grid-template-columns: minmax(250px, .9fr) minmax(0, 2.1fr);
-  gap: clamp(40px, 6vw, 82px);
+  grid-template-columns: minmax(320px, 1.05fr) minmax(0, 1.95fr);
+  gap: clamp(36px, 5vw, 72px);
   padding-block: 46px 34px;
 }
 
