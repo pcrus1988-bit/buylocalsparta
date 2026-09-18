@@ -14,6 +14,11 @@ export const maxDuration = 55;
 // slices over a large batch that repeatedly times out and updates nothing.
 const PUBLISHED_REFRESH_LIMIT = 25;
 const PUBLICATION_CANDIDATE_REFRESH_LIMIT = 25;
+const PRIORITY_REFRESH_WINDOW_MINUTES = 30;
+const ROUTE_WORK_BUDGET_MS = 50_000;
+const FULL_CURSOR_MIN_BUDGET_MS = 20_000;
+const FULL_CURSOR_MAX_BUDGET_MS = 24_000;
+const FULL_CURSOR_MAX_PAGES = 4;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -26,6 +31,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    const startedAt = Date.now();
     // Storefront visibility depends on a short-lived supplier availability TTL.
     // Refresh published/visible offers first so bulk publication becomes visible
     // promptly instead of waiting for a full 70k+ supplier stock traversal.
@@ -46,11 +52,17 @@ export async function GET(request: Request) {
       ? await refreshSymphonyaOfferStockByExternalIds(publicationCandidateIds)
       : 0;
 
-    // Keep the full stock cursor moving whenever no storefront/candidate work
-    // consumed this invocation. The worker also advances the full cursor on its
-    // own interval, so priority refreshes do not abandon catalogue coverage.
-    const stock = publishedIds.length === 0 && publicationCandidateIds.length === 0
-      ? await runSymphonyaStockSyncSlice()
+    // Priority refreshes must never starve the full catalogue cursor. Use the
+    // serverless budget left after targeted calls for a small resumable cursor
+    // slice. If targeted supplier calls were unusually slow, fail safe and let
+    // the next cron invocation continue rather than overrunning maxDuration.
+    const remainingMs = ROUTE_WORK_BUDGET_MS - (Date.now() - startedAt);
+    const fullCursorBudgetMs = Math.min(FULL_CURSOR_MAX_BUDGET_MS, Math.max(0, remainingMs - 2_000));
+    const stock = fullCursorBudgetMs >= FULL_CURSOR_MIN_BUDGET_MS
+      ? await runSymphonyaStockSyncSlice({
+          maxDurationMs: fullCursorBudgetMs,
+          maxPages: FULL_CURSOR_MAX_PAGES
+        })
       : null;
 
     return Response.json({
@@ -60,6 +72,7 @@ export async function GET(request: Request) {
       publishedOffersUpdated,
       publicationCandidatesSelected: publicationCandidateIds.length,
       publicationCandidateOffersUpdated,
+      fullCursorBudgetMs,
       stock
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
@@ -87,12 +100,16 @@ async function oldestPublishedExternalIds(limit: number): Promise<string[]> {
        AND vo.status='approved'
        AND vo.merchant_visible=true
        AND vo.merchant_pause_active=false
+       AND (
+         dso.availability_expires_at IS NULL
+         OR dso.availability_expires_at<=now()+make_interval(mins=>$2::int)
+       )
      GROUP BY dso.external_product_id
      ORDER BY min(dso.availability_expires_at) ASC NULLS FIRST,
               min(dso.availability_checked_at) ASC NULLS FIRST,
               dso.external_product_id
      LIMIT $1
-  `, [limit]);
+  `, [limit, PRIORITY_REFRESH_WINDOW_MINUTES]);
   return result.rows
     .map((row) => String(row.external_product_id ?? "").trim())
     .filter(Boolean);
@@ -127,6 +144,10 @@ async function oldestPublicationCandidateExternalIds(limit: number, excluded: Re
        AND dso.cached_available=true
        AND COALESCE(dso.cached_quantity,0)>0
        AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+       AND (
+         dso.availability_expires_at IS NULL
+         OR dso.availability_expires_at<=now()+make_interval(mins=>$2::int)
+       )
        AND EXISTS (
          SELECT 1
            FROM public.product_translations pt
@@ -147,7 +168,7 @@ async function oldestPublicationCandidateExternalIds(limit: number, excluded: Re
               min(dso.availability_checked_at) ASC NULLS FIRST,
               dso.external_product_id
      LIMIT $1
-  `, [limit + excluded.size]);
+  `, [limit + excluded.size, PRIORITY_REFRESH_WINDOW_MINUTES]);
 
   return result.rows
     .map((row) => String(row.external_product_id ?? "").trim())
