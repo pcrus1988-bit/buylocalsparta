@@ -266,6 +266,7 @@ export async function deleteCustomerStyleLook(userPublicId: string, lookId: stri
 }
 
 export async function createSharedStyleLook(input: {
+  shareToken?: unknown;
   name: unknown;
   audience: unknown;
   source: unknown;
@@ -275,15 +276,19 @@ export async function createSharedStyleLook(input: {
   const audience = safeAudience(input.audience);
   const name = safeText(input.name, 120) || "Shared Look";
   const source: StyleLookSource = input.source === "konta" ? "konta" : "user";
+  const requestedToken = safeText(input.shareToken, 36);
+  if (requestedToken && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedToken)) {
+    throw new Error("invalid_share_token");
+  }
   const composition = safeComposition(input.composition);
   if (!composition.length) throw new Error("Διάλεξε τουλάχιστον ένα προϊόν για το look.");
   const totalMinor = composition.reduce((sum, item) => sum + item.priceMinor, 0);
 
   const result = await getProductionPostgresRuntime().nativePool.query<SharedStyleLookRow>(`
-    INSERT INTO public.shared_style_looks(name,audience,source,composition,total_minor)
-    VALUES ($1,$2,$3,$4::jsonb,$5)
+    INSERT INTO public.shared_style_looks(share_token,name,audience,source,composition,total_minor)
+    VALUES (COALESCE($1::uuid, gen_random_uuid()),$2,$3,$4,$5::jsonb,$6)
     RETURNING share_token,name,audience,source,composition,total_minor,created_at
-  `, [name, audience, source, JSON.stringify(composition), totalMinor]);
+  `, [requestedToken || null, name, audience, source, JSON.stringify(composition), totalMinor]);
   const row = result.rows[0];
   if (!row) throw new Error("shared_style_look_failed");
   return {
