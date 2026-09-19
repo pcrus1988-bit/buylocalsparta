@@ -88,15 +88,20 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const pickerDragRef = useRef(false);
   const photoSpotDragRef = useRef(false);
 
+  const indexedProducts = useMemo(
+    () => products.map((product) => ({ product, lab: hexToLab(product.colorHex) })),
+    [products]
+  );
+
   const scoredProducts = useMemo(() => {
     const targetLab = hexToLab(selectedHex);
-    return products
-      .map((product) => {
-        const deltaE = deltaE2000(targetLab, hexToLab(product.colorHex));
+    return indexedProducts
+      .map(({ product, lab }) => {
+        const deltaE = deltaE2000(targetLab, lab);
         return { ...product, deltaE, match: colorMatchPercent(deltaE) };
       })
       .sort((left, right) => left.deltaE - right.deltaE || left.priceMinor - right.priceMinor);
-  }, [products, selectedHex]);
+  }, [indexedProducts, selectedHex]);
 
   const eligibleProducts = useMemo(
     () => scoredProducts.filter((product) => product.match >= MIN_MATCH_PERCENT),
@@ -936,7 +941,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           <div>
             <span className={styles.eyebrow}>CURATED BY COLOR</span>
             <h2 id="color-finder-results">Your closest matches</h2>
-            <p>
+            <p aria-live="polite">
               {visibleMatches.length
                 ? `${visibleMatches.length} από ${matches.length} αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
                 : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία για αυτόν τον συνδυασμό φίλτρων.`}
