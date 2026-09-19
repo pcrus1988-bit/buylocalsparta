@@ -10,7 +10,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
-const HOT_SYMPHONYA_FAMILY_CAP = 240;
+const HOT_SYMPHONYA_FAMILY_CAP = 2_000;
 
 export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
 
