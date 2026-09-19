@@ -730,14 +730,20 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 <button
                   type="button"
                   className={photoPickMode === "spot" ? styles.activePhotoPickMode : undefined}
-                  onClick={() => setPhotoPickMode("spot")}
+                  onClick={() => {
+                    setPhotoPickMode("spot");
+                    setPhotoSampleHex(photoSpot?.hex);
+                  }}
                 >
                   TAP / SPOT
                 </button>
                 <button
                   type="button"
                   className={photoPickMode === "area" ? styles.activePhotoPickMode : undefined}
-                  onClick={() => setPhotoPickMode("area")}
+                  onClick={() => {
+                    setPhotoPickMode("area");
+                    setPhotoSampleHex(undefined);
+                  }}
                 >
                   AREA
                 </button>
