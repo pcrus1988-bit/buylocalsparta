@@ -50,23 +50,14 @@ async function loadColorFinderProductsUncached(
 ): Promise<readonly ColorFinderProduct[]> {
   if (!productionDatabaseConfigured()) return [];
 
+  const vendorPredicate = vendorPublicId ? "AND v.public_id=$2" : "";
+  const limitPlaceholder = vendorPublicId ? "$3" : "$2";
+  const queryParams = vendorPublicId
+    ? [categoryCode, vendorPublicId, MAX_CANDIDATES]
+    : [categoryCode, MAX_CANDIDATES];
+
   const result = await getProductionPostgresRuntime().nativePool.query<ColorFinderCandidateRow>(`
-    WITH RECURSIVE selected_categories AS MATERIALIZED (
-      SELECT c.id
-      FROM public.categories c
-      JOIN public.markets m ON m.id=c.market_id
-      WHERE m.code='sparta'
-        AND c.active=true
-        AND (c.code=$1 OR c.slug=$1)
-
-      UNION ALL
-
-      SELECT child.id
-      FROM public.categories child
-      JOIN selected_categories parent ON child.parent_id=parent.id
-      WHERE child.active=true
-    ),
-    live_color_variants AS MATERIALIZED (
+    WITH live_color_variants AS MATERIALIZED (
       SELECT DISTINCT ON (cv.id)
         cv.id AS canonical_variant_id,
         cv.public_id AS canonical_public_id,
@@ -91,7 +82,8 @@ async function loadColorFinderProductsUncached(
        AND ds.api_authoritative_availability=true
       JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN selected_categories selected ON selected.id=cv.category_id
+      JOIN public.categories c ON c.id=cv.category_id AND c.code=$1
+      JOIN public.markets m ON m.id=cv.market_id AND m.code='sparta'
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
       JOIN public.vendor_locations l ON l.id=vo.location_id AND l.active=true
       LEFT JOIN public.product_families pf ON pf.id=cv.family_id
@@ -109,7 +101,7 @@ async function loadColorFinderProductsUncached(
         AND COALESCE(dso.cached_quantity,0)>=1
         AND dso.availability_expires_at IS NOT NULL
         AND dso.availability_expires_at>now()
-        AND ($2::text='' OR v.public_id=$2)
+        ${vendorPredicate}
         AND vo.status='approved'
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
@@ -126,7 +118,7 @@ async function loadColorFinderProductsUncached(
         dso.availability_checked_at DESC NULLS LAST,
         vo.updated_at DESC,
         vo.public_id
-      LIMIT $3
+      LIMIT ${limitPlaceholder}
     )
     SELECT
       candidate.canonical_public_id,
@@ -152,7 +144,7 @@ async function loadColorFinderProductsUncached(
     LEFT JOIN public.product_color_profiles pcp
       ON pcp.canonical_variant_id=candidate.canonical_variant_id
     ORDER BY candidate.customer_price_minor,candidate.canonical_public_id
-  `, [categoryCode, vendorPublicId, MAX_CANDIDATES]);
+  `, queryParams);
 
   return result.rows.flatMap((row) => {
     const id = optionalText(row.canonical_public_id);
@@ -218,7 +210,7 @@ async function loadColorFinderProductsUncached(
 
 const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-contextual-catalogue-v1"],
+  ["color-finder-contextual-catalogue-v2"],
   { revalidate: CACHE_SECONDS }
 );
 
