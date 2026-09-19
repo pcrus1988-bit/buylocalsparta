@@ -11,7 +11,6 @@ import { runSymphonyaCatalogueMaterializationSlice } from "../apps/web/src/lib/s
 import { runSymphonyaCatalogueSyncSlice } from "../apps/web/src/lib/symphonya-catalogue-sync-runtime.ts";
 import { runSymphonyaDeterministicTranslationPromotionSlice, runSymphonyaEnrichmentPreparationSlice } from "../apps/web/src/lib/symphonya-enrichment-runtime.ts";
 import { runSymphonyaPriceAlertSweep } from "../apps/web/src/lib/symphonya-price-alert-runtime.ts";
-import { runProductColorProfileSyncSlice } from "../apps/web/src/lib/product-color-profile-runtime.ts";
 import { runSymphonyaStockSyncSlice } from "../apps/web/src/lib/symphonya-stock-sync-runtime.ts";
 
 const workerEnabled = process.env.BLS_SYMPHONYA_WORKER_ENABLED?.trim().toLowerCase() === "true";
@@ -34,7 +33,6 @@ const pollMs = positiveInteger(process.env.BLS_SYMPHONYA_POLL_MS, 15_000, "BLS_S
 const retryMs = positiveInteger(process.env.BLS_SYMPHONYA_RETRY_MS, 30_000, "BLS_SYMPHONYA_RETRY_MS");
 const stockIntervalMs = positiveInteger(process.env.BLS_SYMPHONYA_STOCK_INTERVAL_MS, 5 * 60_000, "BLS_SYMPHONYA_STOCK_INTERVAL_MS");
 const priceAlertIntervalMs = positiveInteger(process.env.BLS_SYMPHONYA_PRICE_ALERT_INTERVAL_MS, 60_000, "BLS_SYMPHONYA_PRICE_ALERT_INTERVAL_MS");
-const colorProfileIntervalMs = positiveInteger(process.env.BLS_COLOR_PROFILE_INTERVAL_MS, 60 * 60_000, "BLS_COLOR_PROFILE_INTERVAL_MS");
 const materializationCatchupPasses = positiveInteger(
   process.env.BLS_SYMPHONYA_MATERIALIZATION_CATCHUP_PASSES,
   4,
@@ -52,7 +50,6 @@ if (!readiness.ok) throw new Error(`Symphonya worker refused to start: ${readine
 let stopping = false;
 let nextStockSyncAt = 0;
 let nextPriceAlertAt = 0;
-let nextColorProfileAt = 0;
 const requestStop = (signal: string) => {
   if (stopping) return;
   stopping = true;
@@ -66,7 +63,6 @@ log("info", "symphonya.worker_started", {
   pollMs,
   stockIntervalMs,
   priceAlertIntervalMs,
-  colorProfileIntervalMs,
   supplier: "symphonya",
   catalogueServingLayer: "product_translations",
   materialization: true,
@@ -118,18 +114,6 @@ try {
         log("info", "symphonya.catalogue_enrichment_preparation_slice", { workerId, ...enrichment });
       } catch (error) {
         log("error", "symphonya.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
-      }
-
-      if (Date.now() >= nextColorProfileAt) {
-        const startedAt = Date.now();
-        try {
-          const colorProfiles = await runProductColorProfileSyncSlice();
-          log("info", "symphonya.product_color_profile_sync_slice", { workerId, ...colorProfiles });
-        } catch (error) {
-          log("error", "symphonya.product_color_profile_sync_failed", { workerId, error: safeError(error) });
-        } finally {
-          nextColorProfileAt = startedAt + colorProfileIntervalMs;
-        }
       }
 
       try {
