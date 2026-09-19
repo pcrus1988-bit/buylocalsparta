@@ -10,7 +10,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
-const HOT_SYMPHONYA_FAMILY_CAP = 2_000;
+const LIVE_FALLBACK_FAMILY_CAP = 50_000;
 
 export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
 
@@ -198,7 +198,7 @@ export async function getVendorDropshipCatalogPage(
               AND bls_private.vendor_category_effectively_visible(live_vo.vendor_id,live_cv.category_id)
           )
         )
-    ), hot_symphonya AS MATERIALIZED (
+    ), live_fallback AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS dropship_supplier_id,
         dso.external_product_id AS dropship_external_product_id,
@@ -242,7 +242,6 @@ export async function getVendorDropshipCatalogPage(
       FROM dropship_supplier_offers dso
       JOIN vendor_suppliers supplier
         ON supplier.id=dso.supplier_id
-       AND supplier.code='symphonya'
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN categories c ON c.id=cv.category_id
@@ -304,7 +303,7 @@ export async function getVendorDropshipCatalogPage(
       SELECT
         dropship_supplier_id,dropship_external_product_id,available_until,newest_at,min_price_minor,
         category_codes,brand_names_normalized,colors,sizes,fits,materials,sort_title,search_vector
-      FROM hot_symphonya
+      FROM live_fallback
     )
     SELECT
       fm.dropship_supplier_id AS supplier_id,
@@ -330,7 +329,7 @@ export async function getVendorDropshipCatalogPage(
       )
     ORDER BY ${familyOrder(sort)}
     LIMIT $10 OFFSET $11
-  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, limit, offset, HOT_SYMPHONYA_FAMILY_CAP]);
+  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, limit, offset, LIVE_FALLBACK_FAMILY_CAP]);
 
   if (!familyWindow.rows.length) return { products: [], total: 0, offset, limit };
   const total = safePositiveInt(familyWindow.rows[0]?.total_families, 0);

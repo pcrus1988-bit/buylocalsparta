@@ -9,7 +9,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 60;
-const HOT_SYMPHONYA_FAMILY_CAP = 240;
+const MAX_LIVE_FALLBACK_WINDOW = 100_100;
 
 type FastPageRow = Readonly<{
   canonical_public_id: string;
@@ -72,6 +72,7 @@ export async function getFastVendorDropshipCatalogPage(
   if (!productionDatabaseConfigured()) return { products: [], offset, limit };
 
   const runtime = getProductionPostgresRuntime();
+  const liveFallbackWindow = Math.min(MAX_LIVE_FALLBACK_WINDOW, offset + limit + 1);
   const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id,ds.id::text AS supplier_id,ds.code
@@ -89,7 +90,7 @@ export async function getFastVendorDropshipCatalogPage(
       FROM public.storefront_dropship_family_read_model fm
       JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
-    ), hot_symphonya AS MATERIALIZED (
+    ), live_fallback AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS supplier_id,
         dso.external_product_id,
@@ -97,7 +98,6 @@ export async function getFastVendorDropshipCatalogPage(
       FROM dropship_supplier_offers dso
       JOIN vendor_suppliers supplier
         ON supplier.id=dso.supplier_id
-       AND supplier.code='symphonya'
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN vendor_locations l ON l.id=vo.location_id
@@ -130,7 +130,7 @@ export async function getFastVendorDropshipCatalogPage(
     ), combined AS (
       SELECT supplier_id,external_product_id,newest_at FROM stable
       UNION ALL
-      SELECT supplier_id,external_product_id,newest_at FROM hot_symphonya
+      SELECT supplier_id,external_product_id,newest_at FROM live_fallback
     ), deduplicated AS (
       SELECT DISTINCT ON (supplier_id,external_product_id)
         supplier_id,external_product_id,newest_at
@@ -141,7 +141,7 @@ export async function getFastVendorDropshipCatalogPage(
     FROM deduplicated
     ORDER BY newest_at DESC,supplier_id,external_product_id
     LIMIT $2 OFFSET $3
-  `, [vendorId, limit + 1, offset, HOT_SYMPHONYA_FAMILY_CAP]);
+  `, [vendorId, limit + 1, offset, liveFallbackWindow]);
 
   const hasMore = markerResult.rows.length > limit;
   const selected = markerResult.rows.slice(0, limit);
