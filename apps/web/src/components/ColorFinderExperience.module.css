@@ -689,7 +689,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 28px;
   padding: 28px 0 34px;
 }
@@ -720,6 +720,22 @@
 }
 .filterGroup button:hover,
 .filterGroup button.activeFilter { color: #15130f; background: var(--cf-gold); border-color: var(--cf-gold); }
+.filterSelect {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--cf-line);
+  border-radius: 999px;
+  background: #15151a;
+  color: #d7d0c8;
+  padding: 0 38px 0 14px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.filterSelect:focus-visible {
+  outline: 2px solid var(--cf-gold);
+  outline-offset: 2px;
+}
 
 .grid {
   display: grid;
