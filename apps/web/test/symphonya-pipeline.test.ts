@@ -5,6 +5,7 @@ import { symphonyaAutoPricingEnabled } from "../src/lib/symphonya-auto-pricing-r
 import { symphonyaAutoPublicationEnabled } from "../src/lib/symphonya-auto-publication-runtime.ts";
 import { resolveSymphonyaCategoryCode } from "../src/lib/symphonya-category-mapping.ts";
 import { normalizeSymphonyaGlobalIdentifier } from "../src/lib/symphonya-catalogue-materializer.ts";
+import { categoryCodeMatches, storefrontLeafForSubcategory } from "../src/lib/storefront-taxonomy.ts";
 
 test("Symphonya automatic pricing is on by default but can be explicitly disabled", () => {
   assert.equal(symphonyaAutoPricingEnabled({} as NodeJS.ProcessEnv), true);
@@ -92,7 +93,8 @@ test("Symphonya all-phase pipeline leaves automatic supplier stock I/O to the de
 test("Symphonya enrichment prioritizes latest, fresh, untranslated in-stock evidence", () => {
   const preparation = readFileSync(new URL("../src/lib/symphonya-enrichment-runtime.ts", import.meta.url), "utf8");
   const generation = readFileSync(new URL("../src/lib/catalogue-enrichment-generation-runtime.ts", import.meta.url), "utf8");
-  assert.match(preparation, /catalog_source_product_latest/);
+  assert.match(preparation, /FROM public\.catalog_source_products p/);
+  assert.match(preparation, /ORDER BY p\.created_at DESC,p\.id DESC/);
   assert.match(preparation, /dso\.cached_available=true/);
   assert.match(generation, /\$4::text='symphonya'/);
   assert.match(generation, /dso\.cached_available=true/);
@@ -114,6 +116,44 @@ test("Symphonya structured Beauty taxonomy maps to existing KONTA MOY product cl
   assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Hair", scat: "Hair Styling", sscat: "Hair Spray" } }), "hair-styling-products");
   assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Body", scat: "Shower & Bath", sscat: "Shower Gel" } }), "bath-body-care");
   assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Room Scents", scat: "Candles", sscat: "Scented Candle" } }), "candles-home-fragrance");
+});
+
+test("Symphonya secondary structured branches use existing governed product classes", () => {
+  assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Room Scents", scat: "Air Fresheners", sscat: "Room Air Freshener" } }), "candles-home-fragrance");
+  assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Makeup", scat: "Tools & Accessories", sscat: "Eyelash Curler" } }), "beauty-tools-accessories");
+  assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Hair", scat: "Beard Grooming", sscat: "Beard Oil" } }), "grooming-care");
+  assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Fashion", scat: "Fashion Accessories", sscat: "Sunglasses" } }), "sunglasses");
+  assert.equal(resolveSymphonyaCategoryCode({
+    categoryDetails: { cat: "Fashion", scat: "Bags & Backpacks", sscat: "Textile Bag" },
+    gender: { name: "female" }
+  }), "handbags");
+  assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Home", scat: "Kitchen", sscat: "Crystal Glass" } }), "tableware-glassware");
+  assert.equal(resolveSymphonyaCategoryCode({ categoryDetails: { cat: "Toys", scat: "Creative Toys", sscat: "Construction Set" } }), "construction-toys");
+});
+
+test("storefront Beauty taxonomy recognizes canonical Symphonya branches and leaf filters", () => {
+  assert.equal(categoryCodeMatches("face-makeup", "beauty", "beauty-health-retail"), true);
+  assert.equal(categoryCodeMatches("fragrance", "beauty", "beauty-health-retail"), true);
+  assert.equal(categoryCodeMatches("hair-treatments", "beauty", "beauty-health-retail"), true);
+  assert.equal(storefrontLeafForSubcategory("beauty", "face-makeup")?.key, "makeup");
+  assert.equal(storefrontLeafForSubcategory("beauty", "fragrance")?.key, "fragrance");
+  assert.equal(storefrontLeafForSubcategory("beauty", "hair-treatments")?.key, "haircare");
+});
+
+test("shop taxonomy facets overlay fresh Symphonya stock instead of waiting for materialized views", () => {
+  const fast = readFileSync(new URL("../src/lib/fast-shop-taxonomy.ts", import.meta.url), "utf8");
+  const rich = readFileSync(new URL("../src/lib/fast-rich-shop-taxonomy.ts", import.meta.url), "utf8");
+  const navigation = readFileSync(new URL("../src/lib/available-catalog-taxonomy.ts", import.meta.url), "utf8");
+
+  for (const source of [fast, rich, navigation]) {
+    assert.match(source, /ds\.code='symphonya'/);
+    assert.match(source, /dso\.cached_available=true/);
+    assert.match(source, /dso\.availability_expires_at>now\(\)/);
+    assert.match(source, /bls_private\.vendor_category_effectively_visible/);
+  }
+  assert.match(fast, /hot_symphonya AS MATERIALIZED/);
+  assert.match(rich, /hot_symphonya AS MATERIALIZED/);
+  assert.match(rich, /cv\.variant_attributes/);
 });
 
 test("unknown Symphonya taxonomy fails closed instead of inventing a category", () => {
@@ -148,7 +188,7 @@ test("Symphonya Vercel crons stay bounded while full catch-up belongs to the lon
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
   assert.equal(catalogue?.schedule, "2 * * * *");
   assert.equal(stock?.schedule, "7,17,27,37,47,57 * * * *");
-  assert.equal(pipeline?.schedule, "9 * * * *");
+  assert.equal(pipeline?.schedule, "28 * * * *");
   assert.equal(materialization, undefined);
 });
 
@@ -206,5 +246,5 @@ test("Symphonya stock cron alternates full-cursor and priority supplier workload
   assert.match(route, /publication = await runSymphonyaAutoPublicationSweep\(\)/);
   assert.match(runtime, /const SLICE_MS = 28_000/);
   assert.match(runtime, /pageStartSafetyMs = timeoutMs\(\)\+6_000/);
-  assert.match(runtime, /pages < pageLimit/);
+  assert.match(runtime, /pages\s*<\s*pageLimit/);
 });
