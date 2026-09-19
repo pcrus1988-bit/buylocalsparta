@@ -1,6 +1,11 @@
 import { cookies } from "next/headers";
 import { authenticateVendor, consumeVendorLoginLimit, VENDOR_SESSION_COOKIE } from "../../../../lib/vendor-runtime";
 
+function isAuthInfrastructureError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /timeout exceeded when trying to connect|max client connections|too many clients|remaining connection slots|canceling statement due to statement timeout|ECONNREFUSED|ETIMEDOUT|connection terminated unexpectedly/i.test(message);
+}
+
 export async function POST(request: Request) {
   try {
     const visitorKey = request.headers.get("x-bls-visitor")?.trim();
@@ -16,6 +21,10 @@ export async function POST(request: Request) {
     (await cookies()).set({ name: VENDOR_SESSION_COOKIE, value: result.token, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || request.url.startsWith("https://"), path: "/", expires: new Date(result.expiresAt) });
     return Response.json({ vendorId: result.principal.vendorId, email: result.principal.email, csrfToken: result.principal.csrfToken });
   } catch (error) {
+    if (isAuthInfrastructureError(error)) {
+      console.error(JSON.stringify({ level: "error", event: "vendor.login_infrastructure_unavailable", message: error instanceof Error ? error.message : String(error) }));
+      return Response.json({ error: "vendor_auth_temporarily_unavailable" }, { status: 503, headers: { "retry-after": "5" } });
+    }
     return Response.json({ error: error instanceof Error ? error.message : "vendor_login_failed" }, { status: 401 });
   }
 }
