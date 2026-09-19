@@ -224,6 +224,16 @@ export function colorMatchPercent(deltaE: number): number {
 }
 
 
+const shadeLabCache = new Map<string, LabColor>();
+
+function cachedShadeLab(hex: string): LabColor {
+  const cached = shadeLabCache.get(hex);
+  if (cached) return cached;
+  const lab = hexToLab(hex);
+  shadeLabCache.set(hex, lab);
+  return lab;
+}
+
 export function nearestColorName(hex: string): Readonly<{ label: string; referenceHex: string; deltaE: number }> {
   const normalized = normalizeHex(hex);
   if (!normalized) throw new Error("Invalid HEX color");
@@ -232,7 +242,7 @@ export function nearestColorName(hex: string): Readonly<{ label: string; referen
   let best: Readonly<{ label: string; referenceHex: string; deltaE: number }> | undefined;
 
   for (const [, referenceHex, label] of SHADE_DICTIONARY) {
-    const distance = deltaE2000(target, hexToLab(referenceHex));
+    const distance = deltaE2000(target, cachedShadeLab(referenceHex));
     if (!best || distance < best.deltaE) {
       best = { label, referenceHex, deltaE: distance };
     }
