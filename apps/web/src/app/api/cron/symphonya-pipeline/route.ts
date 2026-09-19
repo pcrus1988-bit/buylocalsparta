@@ -42,10 +42,16 @@ export async function GET(request: Request) {
     const pricing = runAll || phase === "pricing" ? await runSymphonyaAutoPricingSlice() : null;
     const enrichment = runAll || phase === "enrichment" ? await runSymphonyaEnrichmentPreparationSlice() : null;
     const translationPromotion = runAll || phase === "promotion" ? await runCatalogueEnrichmentPromotionSlice() : null;
-    const stockIds = runAll || phase === "stock" ? await publicationCandidateExternalIds(15) : [];
-    const stock = stockIds.length
-      ? { selected: stockIds.length, offersUpdated: await refreshSymphonyaOfferStockByExternalIds(stockIds) }
-      : { selected: 0, offersUpdated: 0 };
+    // Dedicated stock cron owns automatic supplier I/O. Keeping getStock out of
+    // the normal all-phase run prevents the bounded pipeline from spending its
+    // remaining 55s budget on a second network workload. Manual phase=stock is
+    // retained for operator diagnostics.
+    const stockIds = phase === "stock" ? await publicationCandidateExternalIds(15) : [];
+    const stock = phase === "stock"
+      ? (stockIds.length
+          ? { selected: stockIds.length, offersUpdated: await refreshSymphonyaOfferStockByExternalIds(stockIds) }
+          : { selected: 0, offersUpdated: 0 })
+      : null;
     const publication = runAll || phase === "publication" ? await runSymphonyaAutoPublicationSweep() : null;
 
     return Response.json({
