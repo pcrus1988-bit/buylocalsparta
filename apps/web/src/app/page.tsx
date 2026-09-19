@@ -17,7 +17,7 @@ import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
 const FEATURED_PRODUCT_LIMIT = 8;
-const HOMEPAGE_REVALIDATE_SECONDS = 60;
+const HOMEPAGE_REVALIDATE_SECONDS = 300; // Protect the public homepage from synchronized DB revalidation storms.
 
 const FAQ_ITEMS = [
   {
