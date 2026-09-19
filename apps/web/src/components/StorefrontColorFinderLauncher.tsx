@@ -53,10 +53,11 @@ const CONTEXT_PRIORITY: Readonly<Record<ColorFinderContext["key"], number>> = {
   lips: 1,
   eyes: 2,
   makeup: 3,
-  footwear: 4,
-  bags: 5,
-  fashion: 6,
-  home: 7,
+  hair: 4,
+  footwear: 5,
+  bags: 6,
+  fashion: 7,
+  home: 8,
   generic: 99
 };
 
