@@ -4,13 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import styles from "./AccountSavedLooksPanel.module.css";
 
+type SavedLookItem = Readonly<{
+  id: string;
+  title: string;
+  price?: string;
+  imageSrc?: string;
+}>;
+
 type SavedLook = Readonly<{
   id: string;
   name: string;
-  composition: Readonly<{
-    mood?: string;
-    slots?: Readonly<Record<string, Readonly<{ id?: string; title?: string; price?: string; mediaId?: string; sourceImageAvailable?: boolean }> | undefined>>;
-  }>;
+  source?: "user" | "konta";
+  composition: readonly SavedLookItem[];
   createdAt: string;
   updatedAt: string;
 }>;
@@ -22,11 +27,8 @@ function dateLabel(value: string): string {
     : new Intl.DateTimeFormat("el-GR", { day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 
-function imageFor(product: NonNullable<SavedLook["composition"]["slots"]>[string]): string | undefined {
-  if (!product) return undefined;
-  if (product.mediaId) return `/api/media/${encodeURIComponent(product.mediaId)}`;
-  if (product.sourceImageAvailable && product.id) return `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
-  return undefined;
+function imageFor(product: SavedLookItem): string | undefined {
+  return product.imageSrc;
 }
 
 export function AccountSavedLooksPanel({ csrfToken }: { csrfToken: string }) {
@@ -37,7 +39,7 @@ export function AccountSavedLooksPanel({ csrfToken }: { csrfToken: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/account/saved-looks", { signal: controller.signal, cache: "no-store" })
+    void fetch("/api/account/style-looks", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json() as { looks?: SavedLook[]; error?: string };
         if (!response.ok) throw new Error(payload.error || "Δεν ήταν δυνατή η φόρτωση των looks.");
@@ -57,7 +59,7 @@ export function AccountSavedLooksPanel({ csrfToken }: { csrfToken: string }) {
     setBusy(id);
     setError("");
     try {
-      const response = await fetch(`/api/account/saved-looks/${encodeURIComponent(id)}`, {
+      const response = await fetch(`/api/account/style-looks/${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers: { "x-csrf-token": csrfToken }
       });
@@ -88,21 +90,21 @@ export function AccountSavedLooksPanel({ csrfToken }: { csrfToken: string }) {
       {!loading && looks.length ? (
         <div className={styles.grid}>
           {looks.map((look) => {
-            const products = Object.values(look.composition.slots ?? {}).filter(Boolean);
+            const products = look.composition ?? [];
             return (
               <article className={styles.card} key={look.id}>
                 <div className={styles.preview}>
                   {products.slice(0, 4).map((product, index) => {
                     const src = imageFor(product);
-                    return <div className={styles.previewCell} key={product?.id ?? index}>
-                      {src ? <img src={src} alt="" loading="lazy" /> : <span>{product?.title?.slice(0, 1) || "K"}</span>}
+                    return <div className={styles.previewCell} key={product.id || index}>
+                      {src ? <img src={src} alt="" loading="lazy" /> : <span>{product.title?.slice(0, 1) || "K"}</span>}
                     </div>;
                   })}
                 </div>
                 <div className={styles.copy}>
                   <small>{dateLabel(look.updatedAt)} · {products.length} κομμάτια</small>
                   <h3>{look.name}</h3>
-                  {look.composition.mood ? <p>{look.composition.mood}</p> : null}
+                  <p>{look.source === "konta" ? "KONTA MOY πρόταση" : "Το δικό σου look"}</p>
                   <div className={styles.actions}>
                     <Link href={`/fitting-room?saved=${encodeURIComponent(look.id)}`}>Άνοιξε το look →</Link>
                     <button type="button" disabled={Boolean(busy)} onClick={() => void removeLook(look.id)}>
