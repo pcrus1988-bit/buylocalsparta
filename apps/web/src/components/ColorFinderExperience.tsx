@@ -201,6 +201,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       setCrop(undefined);
       setPhotoReady(false);
       setPhotoSampleHex(undefined);
+      setPhotoSpot(undefined);
       setPhotoError(undefined);
     };
 
@@ -631,9 +632,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 role="slider"
                 tabIndex={0}
                 aria-label="Διάλεξε απόχρωση και ένταση"
-                aria-valuetext={selectedHex}
+                aria-valuetext={`${selectedShade.label} ${selectedHex}`}
                 aria-valuemin={0}
                 aria-valuemax={100}
+                aria-valuenow={Math.round(pickerHsv.s * 100)}
                 onKeyDown={handlePickerKeyDown}
                 onPointerDown={handlePickerPointerDown}
                 onPointerMove={handlePickerPointerMove}
@@ -724,12 +726,14 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
               <div
                 className={styles.photoCanvasWrap}
                 tabIndex={0}
-                aria-label="Μετακίνησε το πλαίσιο πάνω στο χρώμα που θέλεις. Μπορείς επίσης να χρησιμοποιήσεις τα βελάκια."
+                aria-label={photoPickMode === "spot"
+                  ? "Πάτησε ή σύρε πάνω στο ακριβές χρώμα που θέλεις."
+                  : "Μετακίνησε το πλαίσιο πάνω στην περιοχή χρώματος που θέλεις. Μπορείς επίσης να χρησιμοποιήσεις τα βελάκια."}
                 onPointerDown={handlePhotoPointerDown}
                 onPointerMove={handlePhotoPointerMove}
                 onPointerUp={handlePhotoPointerEnd}
                 onPointerCancel={handlePhotoPointerEnd}
-                onKeyDown={handleCropKeyDown}
+                onKeyDown={photoPickMode === "area" ? handleCropKeyDown : undefined}
               >
                 <canvas ref={canvasRef} width={PHOTO_CANVAS_WIDTH} height={PHOTO_CANVAS_HEIGHT} />
                 {photoReady && photoPickMode === "area" && cropStyle ? (
@@ -906,7 +910,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <h2 id="color-finder-results">Your closest matches</h2>
             <p>
               {visibleMatches.length
-                ? `${visibleMatches.length} από ${matches.length} διαθέσιμες αντιστοιχίες, ταξινομημένες με βάση την οπτική απόσταση από ${selectedHex}.`
+                ? `${visibleMatches.length} από ${matches.length} αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ταξινομημένα από το κοντινότερο χρώμα.`
                 : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία για αυτόν τον συνδυασμό φίλτρων.`}
             </p>
           </div>
@@ -1004,6 +1008,18 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <span className={styles.emptySwatch} style={{ backgroundColor: selectedHex }} />
             <h3>We are still learning this shade.</h3>
             <p>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</p>
+            {finish !== "all" || productType !== "all" ? (
+              <button
+                type="button"
+                className={styles.emptyReset}
+                onClick={() => {
+                  setFinish("all");
+                  setProductType("all");
+                }}
+              >
+                RESET FILTERS
+              </button>
+            ) : null}
           </div>
         )}
       </section>
