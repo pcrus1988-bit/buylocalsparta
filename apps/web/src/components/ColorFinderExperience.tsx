@@ -22,6 +22,7 @@ import {
   type ColorFinish,
   type ColorProductType
 } from "../lib/color-finder";
+import type { ColorFinderContext } from "../lib/color-finder-context";
 import styles from "./ColorFinderExperience.module.css";
 
 type FinishFilter = "all" | ColorFinish;
@@ -61,7 +62,17 @@ const TYPE_LABELS: Readonly<Record<ColorProductType, string>> = {
   other: "Other"
 };
 
-export function ColorFinderExperience({ products }: { products: readonly ColorFinderProduct[] }) {
+export function ColorFinderExperience({
+  products,
+  context,
+  categoryCode,
+  vendorId
+}: {
+  products: readonly ColorFinderProduct[];
+  context: ColorFinderContext;
+  categoryCode: string;
+  vendorId?: string;
+}) {
   const [catalogProducts, setCatalogProducts] = useState<readonly ColorFinderProduct[]>(products);
   const [catalogueState, setCatalogueState] = useState<"loading" | "ready" | "degraded">(
     products.length ? "ready" : "loading"
@@ -214,9 +225,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
 
     const controller = new AbortController();
     setCatalogueState("loading");
-    const endpoint = catalogReloadKey
-      ? `/api/color-finder/catalog?retry=${catalogReloadKey}`
-      : "/api/color-finder/catalog";
+    const endpointParams = new URLSearchParams({ category: categoryCode });
+    if (vendorId) endpointParams.set("vendor", vendorId);
+    if (catalogReloadKey) endpointParams.set("retry", String(catalogReloadKey));
+    const endpoint = `/api/color-finder/catalog?${endpointParams.toString()}`;
 
     void fetch(endpoint, {
       method: "GET",
@@ -241,7 +253,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       });
 
     return () => controller.abort();
-  }, [catalogReloadKey, products]);
+  }, [catalogReloadKey, categoryCode, products, vendorId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -255,8 +267,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       setSelectedHex(color);
       setHexDraft(color);
     }
-    if (finishParam && finishParam in FINISH_LABELS) setFinish(finishParam as ColorFinish);
-    if (typeParam && typeParam in TYPE_LABELS) setProductType(typeParam as ColorProductType);
+    if (context.showFinishFilter && finishParam && finishParam in FINISH_LABELS) setFinish(finishParam as ColorFinish);
+    if (context.showTypeFilter && typeParam && typeParam in TYPE_LABELS) setProductType(typeParam as ColorProductType);
     if (brandParam?.trim()) setBrand(brandParam.trim());
     if (sortParam === "price-asc" || sortParam === "price-desc") setSortMode(sortParam);
     setUrlReady(true);
@@ -266,16 +278,16 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     if (!urlReady) return;
     const url = new URL(window.location.href);
     url.searchParams.set("color", selectedHex.slice(1).toLowerCase());
-    if (finish === "all") url.searchParams.delete("finish");
+    if (!context.showFinishFilter || finish === "all") url.searchParams.delete("finish");
     else url.searchParams.set("finish", finish);
-    if (productType === "all") url.searchParams.delete("type");
+    if (!context.showTypeFilter || productType === "all") url.searchParams.delete("type");
     else url.searchParams.set("type", productType);
     if (brand === "all") url.searchParams.delete("brand");
     else url.searchParams.set("brand", brand);
     if (sortMode === "match") url.searchParams.delete("sort");
     else url.searchParams.set("sort", sortMode);
     window.history.replaceState(window.history.state, "", url);
-  }, [brand, finish, productType, selectedHex, sortMode, urlReady]);
+  }, [brand, context.showFinishFilter, context.showTypeFilter, finish, productType, selectedHex, sortMode, urlReady]);
 
   useEffect(() => {
     setPickerHsv(hexToHsv(selectedHex));
@@ -722,11 +734,9 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     <div className={styles.experience}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}>COLOR FINDER · NAIL EDITION</span>
-          <h1>Find the shade<br /><em>you imagined.</em></h1>
-          <p>
-            Διάλεξε ένα χρώμα ή πάρε το από μια φωτογραφία και ανακάλυψε τα πιο κοντινά βερνίκια που μπορείς να αγοράσεις απευθείας στο ΚΟΝΤΑ ΜΟΥ.
-          </p>
+          <span className={styles.eyebrow}>COLOR FINDER · {context.editionLabel}</span>
+          <h1>{context.heroLead}<br /><em>{context.heroEmphasis}</em></h1>
+          <p>{context.heroBody}</p>
           <div className={styles.signature}>
             <span>Perceptual matching</span>
             <span aria-hidden="true">·</span>
@@ -982,11 +992,9 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             </div>
           ) : (
             <div className={styles.photoEmpty}>
-              <span className={styles.photoKicker}>PHOTO TO COLOR · PRIVATE</span>
-              <h3>Capture the shade around you.</h3>
-              <p>
-                Τράβηξε ή ανέβασε μια φωτογραφία και πάτησε απευθείας πάνω στο χρώμα που θέλεις. Για υφές ή επιφάνειες με μικρές διακυμάνσεις, χρησιμοποίησε το AREA για πιο σταθερό μέσο χρώμα.
-              </p>
+              <span className={styles.photoKicker}>{context.photoKicker}</span>
+              <h3>{context.photoTitle}</h3>
+              <p>{context.photoBody} Για υφές ή επιφάνειες με μικρές διακυμάνσεις, χρησιμοποίησε το AREA για πιο σταθερό μέσο χρώμα.</p>
 
               <div className={styles.photoActions}>
                 <label className={styles.photoAction}>
@@ -1110,12 +1118,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       <section className={styles.resultsSection} id="matches" aria-labelledby="color-finder-results">
         <div className={styles.resultsHeader}>
           <div>
-            <span className={styles.eyebrow}>CURATED BY COLOR</span>
-            <h2 id="color-finder-results">Your closest matches</h2>
+            <span className={styles.eyebrow}>{context.resultsEyebrow}</span>
+            <h2 id="color-finder-results">{context.resultsTitle}</h2>
             <p aria-live="polite">
               {visibleMatches.length
-                ? `${visibleMatches.length} από ${matches.length} αξιόπιστα αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
-                : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων για αυτόν τον συνδυασμό φίλτρων.`}
+                ? `${context.resultsBody} ${visibleMatches.length} από ${matches.length} αξιόπιστα αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
+                : `Δεν βρέθηκαν ${context.productPlural} με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων για αυτόν τον συνδυασμό φίλτρων.`}
             </p>
           </div>
           <div className={styles.targetChip}>
@@ -1127,8 +1135,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           </div>
         </div>
 
-        <div className={styles.filters}>
-          <div className={styles.filterGroup}>
+        <div className={[styles.filters, !context.showTypeFilter && !context.showFinishFilter ? styles.filtersCompact : ""].filter(Boolean).join(" ")}>
+          {context.showTypeFilter ? <div className={styles.filterGroup}>
             <span>TYPE</span>
             <div>
               <button type="button" className={productType === "all" ? styles.activeFilter : undefined} onClick={() => setProductType("all")}>
@@ -1143,8 +1151,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 </button>
               ))}
             </div>
-          </div>
-          <div className={styles.filterGroup}>
+          </div> : null}
+          {context.showFinishFilter ? <div className={styles.filterGroup}>
             <span>FINISH</span>
             <div>
               <button type="button" className={finish === "all" ? styles.activeFilter : undefined} onClick={() => setFinish("all")}>
@@ -1159,7 +1167,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 </button>
               ))}
             </div>
-          </div>
+          </div> : null}
           <div className={styles.filterGroup}>
             <span>BRAND</span>
             <select
@@ -1235,7 +1243,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                         <span>{FINISH_LABELS[product.finish]}</span>
                         <strong>{product.price}</strong>
                       </div>
-                      <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>View shade →</Link>
+                      <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>View product →</Link>
                     </div>
                   </div>
                 </article>
@@ -1264,7 +1272,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
               {catalogueState === "loading"
                 ? <>Ο Color Finder είναι ήδη διαθέσιμος. Φορτώνουμε τα χρωματικά προφίλ προϊόντων στο παρασκήνιο.</>
                 : catalogueAvailable
-                  ? <>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</>
+                  ? <>Εμφανίζουμε μόνο {context.productPlural} με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων. Δοκίμασε μια κοντινή απόχρωση{context.showFinishFilter ? " ή διαφορετικό finish" : ""}.</>
                   : <>Μπορείς να συνεχίσεις να διαλέγεις ή να παίρνεις χρώμα από φωτογραφία. Τα προϊόντα θα εμφανιστούν μόλις ανανεωθεί ξανά ο κατάλογος αντιστοίχισης.</>}
             </p>
             {catalogueState === "degraded" ? (
