@@ -156,9 +156,14 @@ test("Symphonya priority stock refresh cannot starve the full stock cursor", () 
   const route = readFileSync(new URL("../src/app/api/cron/symphonya-stock/route.ts", import.meta.url), "utf8");
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
   assert.match(route, /PRIORITY_REFRESH_WINDOW_MINUTES/);
+  assert.match(route, /FULL_CURSOR_BUDGET_MS = 28_000/);
+  assert.match(route, /PRIORITY_BATCH_LIMIT = 200/);
   assert.match(route, /runSymphonyaStockSyncSlice\(\{/);
   assert.match(route, /maxDurationMs: fullCursorBudgetMs/);
+  assert.match(route, /priorityIds = \[\.\.\.new Set\(\[\.\.\.publishedIds, \.\.\.publicationCandidateIds\]\)\]/);
+  assert.equal((route.match(/refreshSymphonyaOfferStockByExternalIds\(priorityIds\)/g) ?? []).length, 1);
   assert.doesNotMatch(route, /publishedIds\.length === 0 && publicationCandidateIds\.length === 0/);
-  assert.match(runtime, /SymphonyaStockSyncSliceOptions/);
+  assert.match(runtime, /const SLICE_MS = 28_000/);
+  assert.match(runtime, /pageStartSafetyMs = timeoutMs\(\)\+6_000/);
   assert.match(runtime, /pages < pageLimit/);
 });
