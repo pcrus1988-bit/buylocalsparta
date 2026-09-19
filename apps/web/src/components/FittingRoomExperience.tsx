@@ -580,6 +580,10 @@ export function FittingRoomExperience({
 
   async function shareCurrentLook() {
     if (!currentLook) return;
+    if (Object.keys(currentLook.slots).length === 0) {
+      setShareStatus("Διάλεξε πρώτα τουλάχιστον ένα κομμάτι.");
+      return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.delete("saved");
     url.searchParams.set("look", encodeShareLook(currentLook));
@@ -602,6 +606,10 @@ export function FittingRoomExperience({
 
   async function saveCurrentLook() {
     if (!currentLook) return;
+    if (Object.keys(currentLook.slots).length === 0) {
+      setSaveStatus("Διάλεξε πρώτα τουλάχιστον ένα κομμάτι.");
+      return;
+    }
     if (!csrfToken) {
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.assign(`/login?next=${encodeURIComponent(next)}`);
