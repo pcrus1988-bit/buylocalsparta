@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
 import { CatalogProductCard } from "./CatalogProductCard";
-import { ColorFinderShortcut } from "./ColorFinderShortcut";
 import { StorefrontColorFinderLauncher } from "./StorefrontColorFinderLauncher";
 
 type AvailabilityFilter = "all" | "available";
@@ -779,14 +778,6 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     : category === "all"
       ? "Όλα τα προϊόντα"
       : categories.find((entry) => entry.value === category)?.label ?? "Επιλεγμένη κατηγορία";
-  const colorFinderCategory = categoryGroup.length
-    ? undefined
-    : category !== "all"
-      ? categories.find((entry) => entry.value === category)
-      : categories.length === 1
-        ? categories[0]
-        : undefined;
-
   const activeChips = [
     ...(category !== "all" || categoryGroup.length ? [{ key: "category", label: activeCategoryLabel, clear: () => { setCategory("all"); setCategoryGroup([]); setCategoryGroupLabel(""); persistGuideSelection("all"); } }] : []),
     ...(brand !== "all" ? [{ key: "brand", label: optionLabel(brands, brand), clear: () => { setBrand("all"); setBrandSearch(""); } }] : []),
@@ -917,16 +908,6 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     <div className="vc-mobile-dock" role="search"><input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Αναζήτηση προϊόντος…" /><button type="button" onClick={() => setFiltersOpen(true)}>Φίλτρα{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>{isGuidedVendor ? <button className="guide" type="button" onClick={reopenGuide}>Οδηγός</button> : null}</div>
 
     {filtersOpen ? <div className="vc-sheet-layer"><button className="vc-backdrop" type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο φίλτρων" /><aside className="vc-sheet" role="dialog" aria-modal="true" aria-label="Φίλτρα προϊόντων"><header><div><span>Κατάλογος</span><strong>Κατηγορίες & φίλτρα</strong></div><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο">×</button></header><div className="vc-sheet-body">{filterPanel(true)}</div><footer style={activeFilterCount ? undefined : { gridTemplateColumns: "1fr" }}>{activeFilterCount ? <button className="vc-footer-reset" type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}<button className="vc-footer-show" type="button" onClick={() => setFiltersOpen(false)}>{totalKnown ? `Προβολή ${total} προϊόντων` : "Προβολή προϊόντων"}</button></footer></aside></div> : null}
-
-    {colorFinderCategory && colors.length > 1 ? (
-      <ColorFinderShortcut
-        categoryCode={colorFinderCategory.value}
-        categoryLabel={colorFinderCategory.label}
-        vendorId={publicVendorId ?? vendorId}
-        vendorName={vendor.name}
-        colorCount={colors.length}
-      />
-    ) : null}
 
     {isGuidedVendor && availableGuideDomains.length && guideOpen ? <div className={`fashion-guide${guideDomain === "beauty" ? " beauty-guide" : ""}`} role="dialog" aria-modal="true" aria-labelledby="fashion-guide-title">
       <div className="fashion-guide-shell">
