@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   ANALYTICS_ID_COOKIE,
   PRIVACY_CONSENT_COOKIE,
@@ -125,17 +125,41 @@ export async function POST(request: Request) {
     const previous = readVerifiedPrivacyConsentReceipt(cookieHeader);
     const decidedAt = Date.now();
     const receiptId = `consent_${randomUUID().replaceAll("-", "")}`;
-    const { expiresAt } = await persistPrivacyConsentReceipt({
-      receiptId,
-      previousReceiptId: previous?.receiptId,
-      source,
-      action,
+    const expiresAt = decidedAt + PRIVACY_CONSENT_MAX_AGE_SECONDS * 1000;
+    const preferences = {
+      version: PRIVACY_CONSENT_VERSION,
       ...decision,
-      decidedAt
+      decidedAt: new Date(decidedAt).toISOString()
+    };
+
+    // Consent itself must not depend on database availability. The signed receipt is
+    // self-verifying, so apply the visitor's choice immediately and persist the
+    // pseudonymous evidence after the response has been sent.
+    after(async () => {
+      try {
+        await persistPrivacyConsentReceipt({
+          receiptId,
+          previousReceiptId: previous?.receiptId,
+          source,
+          action,
+          ...decision,
+          decidedAt
+        });
+      } catch (error) {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "privacy.consent_evidence_persist_failed",
+          receiptId,
+          message: error instanceof Error ? error.message : "privacy_consent_evidence_persist_failed"
+        }));
+      }
     });
 
-    const now = new Date(decidedAt).toISOString();
-    const response = new NextResponse(null, { status: 204 });
+    const now = preferences.decidedAt;
+    const response = NextResponse.json(
+      { consent: preferences, expiresAt },
+      { status: 200 }
+    );
     const secure = effectiveRequestOrigin(request, requestUrl).startsWith("https://");
     response.headers.set("cache-control", "no-store");
     response.headers.set("pragma", "no-cache");
