@@ -73,45 +73,20 @@ export async function getFastVendorDropshipCatalogPage(
 
   const runtime = getProductionPostgresRuntime();
 
-  // The indexed family projection is the primary storefront source. Serve
-  // ordinary pages directly from it and avoid touching the expensive live
-  // supplier fallback unless this page has actually reached the end of the
-  // projection. This keeps large supplier catalogues fast during refresh lag.
-  const stableMarkerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
+  // Blend the indexed catalogue with suppliers that do not have any fresh
+  // projection yet. This keeps the fast path cheap for healthy suppliers while
+  // ensuring newly-onboarded suppliers (for example Symphonya) are represented
+  // from page 1 instead of only after thousands of projected products.
+  const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
-      SELECT ds.id::text AS supplier_id
+      SELECT ds.id,ds.id::text AS supplier_id
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
         AND ds.api_authoritative_availability=true
-    )
-    SELECT
-      fm.dropship_supplier_id AS supplier_id,
-      fm.dropship_external_product_id AS external_product_id
-    FROM public.storefront_dropship_family_read_model fm
-    JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
-    WHERE fm.available_until>now()
-    ORDER BY fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id
-    LIMIT $2 OFFSET $3
-  `, [vendorId, limit + 1, offset]);
-
-  let markerRows = stableMarkerResult.rows;
-  let hasMore = markerRows.length > limit;
-
-  if (!hasMore) {
-    const liveFallbackWindow = Math.min(MAX_LIVE_FALLBACK_WINDOW, offset + limit + 1);
-    const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
-    WITH vendor_suppliers AS MATERIALIZED (
-      SELECT ds.id,ds.id::text AS supplier_id,ds.code
-      FROM dropship_suppliers ds
-      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
-      WHERE v.public_id=$1
-        AND v.status='active'
-        AND ds.active=true
-        AND ds.api_authoritative_availability=true
-    ), stable AS (
+    ), stable AS MATERIALIZED (
       SELECT
         fm.dropship_supplier_id AS supplier_id,
         fm.dropship_external_product_id AS external_product_id,
@@ -119,14 +94,21 @@ export async function getFastVendorDropshipCatalogPage(
       FROM public.storefront_dropship_family_read_model fm
       JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
+    ), missing_suppliers AS MATERIALIZED (
+      SELECT supplier.id,supplier.supplier_id
+      FROM vendor_suppliers supplier
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM stable projected
+        WHERE projected.supplier_id=supplier.supplier_id
+      )
     ), live_fallback AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS supplier_id,
         dso.external_product_id,
         MAX(vo.updated_at) AS newest_at
       FROM dropship_supplier_offers dso
-      JOIN vendor_suppliers supplier
-        ON supplier.id=dso.supplier_id
+      JOIN missing_suppliers supplier ON supplier.id=dso.supplier_id
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN vendor_locations l ON l.id=vo.location_id
@@ -146,34 +128,20 @@ export async function getFastVendorDropshipCatalogPage(
         AND cv.suppressed=false
         AND cv.recalled=false
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-        AND NOT EXISTS (
-          SELECT 1
-          FROM public.storefront_dropship_family_read_model projected
-          WHERE projected.dropship_supplier_id=dso.supplier_id::text
-            AND projected.dropship_external_product_id=dso.external_product_id
-            AND projected.available_until>now()
-        )
       GROUP BY dso.supplier_id,dso.external_product_id
-      ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
-      LIMIT $4
     ), combined AS (
       SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM stable
       UNION ALL
       SELECT supplier_id,external_product_id,newest_at,1::int AS source_priority FROM live_fallback
-    ), deduplicated AS (
-      SELECT DISTINCT ON (supplier_id,external_product_id)
-        supplier_id,external_product_id,newest_at,source_priority
-      FROM combined
-      ORDER BY supplier_id,external_product_id,source_priority,newest_at DESC
     )
     SELECT supplier_id,external_product_id
-    FROM deduplicated
-    ORDER BY source_priority,newest_at DESC,supplier_id,external_product_id
+    FROM combined
+    ORDER BY md5(supplier_id || ':' || external_product_id),source_priority,newest_at DESC
     LIMIT $2 OFFSET $3
-  `, [vendorId, limit + 1, offset, liveFallbackWindow]);
-    markerRows = markerResult.rows;
-    hasMore = markerRows.length > limit;
-  }
+  `, [vendorId, limit + 1, offset]);
+
+  const markerRows = markerResult.rows;
+  const hasMore = markerRows.length > limit;
 
   const selected = markerRows.slice(0, limit);
   if (!selected.length) return { products: [], offset, limit };
