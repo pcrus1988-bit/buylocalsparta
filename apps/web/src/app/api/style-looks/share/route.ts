@@ -4,6 +4,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const look = await createSharedStyleLook({
+      shareToken: body.shareToken,
       name: body.name,
       audience: body.audience,
       source: body.source,
