@@ -1073,7 +1073,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <span>TYPE</span>
             <div>
               <button type="button" className={productType === "all" ? styles.activeFilter : undefined} onClick={() => setProductType("all")}>
-                All <small>{eligibleProducts.filter((product) => finish === "all" || product.finish === finish).length}</small>
+                All <small>{eligibleProducts.filter((product) =>
+                  (finish === "all" || product.finish === finish)
+                  && (brand === "all" || product.brand === brand)
+                ).length}</small>
               </button>
               {availableTypes.map((type) => (
                 <button key={type} type="button" className={productType === type ? styles.activeFilter : undefined} onClick={() => setProductType(type)}>
@@ -1086,7 +1089,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <span>FINISH</span>
             <div>
               <button type="button" className={finish === "all" ? styles.activeFilter : undefined} onClick={() => setFinish("all")}>
-                All <small>{eligibleProducts.filter((product) => productType === "all" || product.productType === productType).length}</small>
+                All <small>{eligibleProducts.filter((product) =>
+                  (productType === "all" || product.productType === productType)
+                  && (brand === "all" || product.brand === brand)
+                ).length}</small>
               </button>
               {availableFinishes.map((item) => (
                 <button key={item} type="button" className={finish === item ? styles.activeFilter : undefined} onClick={() => setFinish(item)}>
