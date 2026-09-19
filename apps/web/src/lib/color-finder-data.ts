@@ -210,7 +210,7 @@ async function loadColorFinderProductsUncached(
 
 const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-contextual-catalogue-v2"],
+  ["color-finder-contextual-catalogue-v3"],
   { revalidate: CACHE_SECONDS }
 );
 
