@@ -167,8 +167,8 @@ function isOnePiece(product: Product | undefined): boolean {
 
 function audiencePenalty(product: Product, audience: Audience): number {
   const text = productText(product);
-  const explicitWomen = /women|woman|womens|female|γυναικ/.test(text);
-  const explicitMen = /men|mens|male|ανδρ/.test(text);
+  const explicitWomen = /(?:^|\\s)(?:women|woman|womens|female)(?:\\s|$)|γυναικ/.test(text);
+  const explicitMen = /(?:^|\\s)(?:men|mens|male)(?:\\s|$)|ανδρ/.test(text);
   if (audience === "women" && explicitMen && !explicitWomen) return -120;
   if (audience === "men" && explicitWomen && !explicitMen) return -120;
   if ((audience === "women" && explicitWomen) || (audience === "men" && explicitMen)) return 16;
@@ -324,6 +324,7 @@ export function FittingRoomExperience({
   const [activeLook, setActiveLook] = useState(0);
   const [editingSlot, setEditingSlot] = useState<SlotKey | null>(null);
   const [loading, setLoading] = useState(false);
+  const [alternativeLoading, setAlternativeLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [shareStatus, setShareStatus] = useState("");
@@ -392,6 +393,25 @@ export function FittingRoomExperience({
   }, [brandSearch, facets.brands]);
 
   const currentLook = looks[activeLook];
+
+  useEffect(() => {
+    if (!editingSlot || products.length || alternativeLoading) return;
+    let active = true;
+    setAlternativeLoading(true);
+    void loadCandidateProducts()
+      .then((candidateProducts) => {
+        if (active) setProducts(candidateProducts);
+      })
+      .catch(() => {
+        if (active) setLoadError("Δεν μπόρεσα να ανανεώσω τις διαθέσιμες εναλλακτικές αυτή τη στιγμή.");
+      })
+      .finally(() => {
+        if (active) setAlternativeLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [editingSlot, products.length]);
 
   const alternatives = useMemo(() => {
     if (!editingSlot || !products.length) return [];
@@ -756,7 +776,8 @@ export function FittingRoomExperience({
               <em>{product.price}</em>
             </button>;
           })}</div>
-          {!alternatives.length ? <p className={styles.drawerEmpty}>Δεν υπάρχουν άλλες διαθέσιμες επιλογές για αυτό το κομμάτι αυτή τη στιγμή.</p> : null}
+          {alternativeLoading ? <p className={styles.drawerEmpty}>Ο stylist φέρνει άλλες επιλογές…</p> : null}
+          {!alternativeLoading && !alternatives.length ? <p className={styles.drawerEmpty}>Δεν υπάρχουν άλλες διαθέσιμες επιλογές για αυτό το κομμάτι αυτή τη στιγμή.</p> : null}
           {SLOT_META[editingSlot].optional ? <button type="button" className={styles.removeButton} onClick={() => removeSlot(editingSlot)}>Αφαίρεσε αυτό το κομμάτι από το look</button> : null}
         </aside>
       </div> : null}
