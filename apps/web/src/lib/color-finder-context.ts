@@ -61,17 +61,17 @@ export function resolveColorFinderContext(
       editionLabel: "NAIL EDITION",
       heroLead: "Find the nail shade",
       heroEmphasis: "you imagined.",
-      heroBody: "Διάλεξε ένα χρώμα ή πάρε το από φωτογραφία και βρες τα πιο κοντινά διαθέσιμα βερνίκια. Κρατάμε το επίσημο όνομα της απόχρωσης του brand και το μετατρέπουμε παράλληλα σε συγκρίσιμο χρωματικό προφίλ.",
+      heroBody: "Διάλεξε ένα χρώμα ή πάρε το από φωτογραφία και ανακάλυψε τα βερνίκια που του ταιριάζουν περισσότερο. Θα βλέπεις και το όνομα της απόχρωσης για να διαλέγεις πιο εύκολα.",
       photoKicker: "PHOTO TO NAIL COLOR · PRIVATE",
       photoTitle: "Capture your next nail shade.",
       photoBody: "Τράβηξε ή ανέβασε μια φωτογραφία και πάτησε πάνω στο χρώμα που θέλεις να φορέσεις στα νύχια σου.",
       resultsEyebrow: "NAIL SHADES BY COLOR",
       resultsTitle: "Your closest nail matches",
-      resultsBody: "Βερνίκια ταξινομημένα με βάση τη χρωματική απόσταση από την απόχρωση που επέλεξες.",
+      resultsBody: "Οι πιο ταιριαστές αποχρώσεις εμφανίζονται πρώτες.",
       productPlural: "βερνίκια",
       shopLabel: "NAIL SHOP",
       shortcutTitle: "Βρες βερνίκι από το χρώμα.",
-      shortcutBody: "Άνοιξε το Nail Studio και ψάξε τα διαθέσιμα βερνίκια αυτής της κατηγορίας με βάση την απόχρωση — όχι μόνο το όνομα προϊόντος.",
+      shortcutBody: "Διάλεξε την απόχρωση που θέλεις και δες ποια βερνίκια της ταιριάζουν περισσότερο.",
       showFinishFilter: true,
       showTypeFilter: true
     };
@@ -82,14 +82,14 @@ export function resolveColorFinderContext(
       key: "lips", categoryCode, categoryLabel,
       studioLabel: "LIP STUDIO", editionLabel: "LIP COLOR EDITION",
       heroLead: "Find the lip color", heroEmphasis: "that feels right.",
-      heroBody: "Ξεκίνα από την απόχρωση που θέλεις και ανακάλυψε κραγιόν και προϊόντα χειλιών με το πιο κοντινό διαθέσιμο χρώμα.",
+      heroBody: "Ξεκίνα από την απόχρωση που θέλεις και ανακάλυψε κραγιόν και προϊόντα χειλιών που της ταιριάζουν περισσότερο.",
       photoKicker: "PHOTO TO LIP COLOR · PRIVATE", photoTitle: "Pick a lip color from real life.",
       photoBody: "Πάρε χρώμα από ρούχο, εικόνα ή αντικείμενο και βρες προϊόντα χειλιών που κινούνται στην ίδια απόχρωση.",
       resultsEyebrow: "LIP COLOR MATCHING", resultsTitle: "Your closest lip colors",
-      resultsBody: "Προϊόντα χειλιών ταξινομημένα με βάση τη χρωματική ομοιότητα.",
+      resultsBody: "Οι πιο ταιριαστές αποχρώσεις για τα χείλη εμφανίζονται πρώτες.",
       productPlural: "προϊόντα χειλιών", shopLabel: "LIP SHOP",
       shortcutTitle: "Βρες το χρώμα χειλιών που ψάχνεις.",
-      shortcutBody: "Το Lip Studio συγκρίνει την απόχρωση που επιλέγεις με τα διαθέσιμα προϊόντα χειλιών της κατηγορίας.",
+      shortcutBody: "Διάλεξε χρώμα και δες ποια προϊόντα χειλιών του ταιριάζουν περισσότερο.",
       showFinishFilter: true, showTypeFilter: false
     };
   }
@@ -99,14 +99,14 @@ export function resolveColorFinderContext(
       key: "eyes", categoryCode, categoryLabel,
       studioLabel: "EYE STUDIO", editionLabel: "EYE COLOR EDITION",
       heroLead: "Find the eye color", heroEmphasis: "you want to create.",
-      heroBody: "Διάλεξε απόχρωση και ανακάλυψε σκιές και χρωματικά προϊόντα ματιών που βρίσκονται πιο κοντά σε αυτήν.",
+      heroBody: "Διάλεξε απόχρωση και ανακάλυψε σκιές και προϊόντα ματιών που ταιριάζουν στο χρώμα σου.",
       photoKicker: "PHOTO TO EYE COLOR · PRIVATE", photoTitle: "Turn inspiration into an eye color.",
       photoBody: "Πάρε μια απόχρωση από φωτογραφία και χρησιμοποίησέ την ως σημείο εκκίνησης για προϊόντα ματιών.",
       resultsEyebrow: "EYE COLOR MATCHING", resultsTitle: "Your closest eye-color matches",
-      resultsBody: "Χρωματικά προϊόντα ματιών ταξινομημένα από το κοντινότερο χρώμα.",
+      resultsBody: "Οι πιο ταιριαστές επιλογές για τα μάτια εμφανίζονται πρώτες.",
       productPlural: "προϊόντα ματιών", shopLabel: "EYE MAKEUP",
       shortcutTitle: "Ψάξε μακιγιάζ ματιών με χρώμα.",
-      shortcutBody: "Το Eye Studio ψάχνει μέσα στην τρέχουσα κατηγορία με βάση την απόχρωση που διάλεξες.",
+      shortcutBody: "Διάλεξε την απόχρωση που θέλεις και δες τις πιο ταιριαστές επιλογές για τα μάτια.",
       showFinishFilter: true, showTypeFilter: false
     };
   }
@@ -116,14 +116,14 @@ export function resolveColorFinderContext(
       key: "makeup", categoryCode, categoryLabel,
       studioLabel: "MAKEUP STUDIO", editionLabel: "MAKEUP COLOR EDITION",
       heroLead: "Start with the color.", heroEmphasis: "Find the product after.",
-      heroBody: "Διάλεξε ή φωτογράφισε μια απόχρωση και άφησε το Color Finder να ψάξει μόνο στα διαθέσιμα προϊόντα αυτής της κατηγορίας.",
+      heroBody: "Διάλεξε ή φωτογράφισε μια απόχρωση και ανακάλυψε προϊόντα μακιγιάζ που της ταιριάζουν.",
       photoKicker: "PHOTO TO MAKEUP COLOR · PRIVATE", photoTitle: "Capture a makeup reference.",
-      photoBody: "Χρησιμοποίησε πραγματικό χρώμα ως αναφορά και δες ποια διαθέσιμα προϊόντα βρίσκονται πιο κοντά.",
+      photoBody: "Πάρε ένα χρώμα από τη φωτογραφία σου και βρες προϊόντα που του ταιριάζουν.",
       resultsEyebrow: "MAKEUP BY COLOR", resultsTitle: "Your closest makeup colors",
-      resultsBody: "Διαθέσιμα προϊόντα μακιγιάζ ταξινομημένα βάσει χρωματικής εγγύτητας.",
+      resultsBody: "Οι πιο ταιριαστές επιλογές μακιγιάζ εμφανίζονται πρώτες.",
       productPlural: "προϊόντα μακιγιάζ", shopLabel: "MAKEUP",
       shortcutTitle: "Ανακάλυψε μακιγιάζ από την απόχρωση.",
-      shortcutBody: "Το Makeup Studio προσαρμόζεται στην κατηγορία που βλέπεις και κρατά μόνο χρωματικά σχετικά προϊόντα.",
+      shortcutBody: "Διάλεξε χρώμα και δες το μακιγιάζ που του ταιριάζει περισσότερο.",
       showFinishFilter: true, showTypeFilter: false
     };
   }
@@ -133,14 +133,14 @@ export function resolveColorFinderContext(
       key: "hair", categoryCode, categoryLabel,
       studioLabel: "HAIR COLOR STUDIO", editionLabel: "HAIR COLOR EDITION",
       heroLead: "Find the hair color", heroEmphasis: "before you commit.",
-      heroBody: "Ξεκίνα από μια απόχρωση και σύγκρινέ την μόνο με διαθέσιμες βαφές, toners και χρωματικά προϊόντα μαλλιών της κατηγορίας.",
+      heroBody: "Ξεκίνα από την απόχρωση που θέλεις και ανακάλυψε βαφές και προϊόντα μαλλιών που της ταιριάζουν.",
       photoKicker: "PHOTO TO HAIR COLOR · PRIVATE", photoTitle: "Capture the hair color you want.",
-      photoBody: "Πάρε μια απόχρωση από φωτογραφία ή πραγματικό δείγμα και χρησιμοποίησέ την ως χρωματική αναφορά πριν δεις τα διαθέσιμα προϊόντα.",
+      photoBody: "Πάρε μια απόχρωση από φωτογραφία και δες ποια προϊόντα μαλλιών της ταιριάζουν.",
       resultsEyebrow: "HAIR COLOR MATCHING", resultsTitle: "Your closest hair-color matches",
-      resultsBody: "Χρωματικά προϊόντα μαλλιών ταξινομημένα με βάση τη χρωματική εγγύτητα προς την επιλογή σου.",
+      resultsBody: "Οι πιο ταιριαστές αποχρώσεις για τα μαλλιά εμφανίζονται πρώτες.",
       productPlural: "χρωματικά προϊόντα μαλλιών", shopLabel: "HAIR COLOR",
       shortcutTitle: "Βρες προϊόντα μαλλιών από την απόχρωση.",
-      shortcutBody: "Το Hair Color Studio ψάχνει μόνο στην τρέχουσα χρωματική κατηγορία και συγκρίνει τις διαθέσιμες αποχρώσεις.",
+      shortcutBody: "Διάλεξε το χρώμα που θέλεις και δες τις πιο ταιριαστές επιλογές για τα μαλλιά.",
       showFinishFilter: false, showTypeFilter: false
     };
   }
@@ -150,14 +150,14 @@ export function resolveColorFinderContext(
       key: "footwear", categoryCode, categoryLabel,
       studioLabel: "SHOE STUDIO", editionLabel: "FOOTWEAR EDITION",
       heroLead: "Find shoes", heroEmphasis: "in your color.",
-      heroBody: "Ξεκίνα από το χρώμα και δες μόνο παπούτσια της τρέχουσας κατηγορίας που πλησιάζουν πραγματικά την απόχρωση που επέλεξες.",
+      heroBody: "Διάλεξε χρώμα και βρες παπούτσια που ταιριάζουν στο στιλ και την απόχρωσή σου.",
       photoKicker: "PHOTO TO SHOE COLOR · PRIVATE", photoTitle: "Match shoes to what you already love.",
       photoBody: "Πάρε χρώμα από ρούχο, τσάντα ή φωτογραφία και βρες παπούτσια που ταιριάζουν χρωματικά.",
       resultsEyebrow: "FOOTWEAR BY COLOR", resultsTitle: "Shoes closest to your color",
-      resultsBody: "Παπούτσια ταξινομημένα με βάση τη χρωματική απόσταση από την επιλογή σου.",
+      resultsBody: "Τα παπούτσια που ταιριάζουν περισσότερο στο χρώμα σου εμφανίζονται πρώτα.",
       productPlural: "παπούτσια", shopLabel: "SHOE SHOP",
       shortcutTitle: "Βρες παπούτσια στο χρώμα σου.",
-      shortcutBody: "Το Shoe Studio χρησιμοποιεί την τρέχουσα κατηγορία και σου δείχνει τις πιο κοντινές διαθέσιμες χρωματικές επιλογές.",
+      shortcutBody: "Διάλεξε χρώμα και δες τα παπούτσια που του ταιριάζουν περισσότερο.",
       showFinishFilter: false, showTypeFilter: false
     };
   }
@@ -167,14 +167,14 @@ export function resolveColorFinderContext(
       key: "bags", categoryCode, categoryLabel,
       studioLabel: "ACCESSORY STUDIO", editionLabel: "BAG & ACCESSORY EDITION",
       heroLead: "Find the accessory", heroEmphasis: "that completes the palette.",
-      heroBody: "Διάλεξε χρώμα και ανακάλυψε τσάντες και αξεσουάρ της κατηγορίας που πλησιάζουν περισσότερο την απόχρωσή σου.",
+      heroBody: "Διάλεξε χρώμα και ανακάλυψε τσάντες και αξεσουάρ που ταιριάζουν στην απόχρωσή σου.",
       photoKicker: "PHOTO TO ACCESSORY COLOR · PRIVATE", photoTitle: "Match an accessory to your look.",
       photoBody: "Πάρε χρώμα από ένα outfit ή αντικείμενο και βρες διαθέσιμα αξεσουάρ στην ίδια χρωματική κατεύθυνση.",
       resultsEyebrow: "ACCESSORIES BY COLOR", resultsTitle: "Your closest accessory colors",
-      resultsBody: "Αξεσουάρ ταξινομημένα από το κοντινότερο διαθέσιμο χρώμα.",
+      resultsBody: "Τα αξεσουάρ που ταιριάζουν περισσότερο εμφανίζονται πρώτα.",
       productPlural: "αξεσουάρ", shopLabel: "ACCESSORIES",
       shortcutTitle: "Βρες αξεσουάρ στο σωστό χρώμα.",
-      shortcutBody: "Το Accessory Studio ψάχνει χρωματικά μόνο μέσα στην κατηγορία που βλέπεις.",
+      shortcutBody: "Διάλεξε χρώμα και βρες το αξεσουάρ που ολοκληρώνει το look σου.",
       showFinishFilter: false, showTypeFilter: false
     };
   }
@@ -184,14 +184,14 @@ export function resolveColorFinderContext(
       key: "fashion", categoryCode, categoryLabel,
       studioLabel: "FASHION STUDIO", editionLabel: "FASHION COLOR EDITION",
       heroLead: "Shop the color", heroEmphasis: "before the product.",
-      heroBody: "Διάλεξε απόχρωση και δες ποια διαθέσιμα προϊόντα μόδας της κατηγορίας βρίσκονται πιο κοντά χρωματικά.",
+      heroBody: "Διάλεξε απόχρωση και ανακάλυψε ρούχα και προϊόντα μόδας που ταιριάζουν στο χρώμα σου.",
       photoKicker: "PHOTO TO FASHION COLOR · PRIVATE", photoTitle: "Build around a color you already have.",
       photoBody: "Χρησιμοποίησε χρώμα από outfit ή φωτογραφία και βρες προϊόντα μόδας που ταιριάζουν.",
       resultsEyebrow: "FASHION BY COLOR", resultsTitle: "Fashion closest to your color",
       resultsBody: "Προϊόντα μόδας ταξινομημένα από την πιο κοντινή χρωματική αντιστοιχία.",
       productPlural: "προϊόντα μόδας", shopLabel: "FASHION",
       shortcutTitle: "Ψάξε τη μόδα με χρώμα.",
-      shortcutBody: "Το Fashion Studio περιορίζεται στην κατηγορία που βλέπεις και ψάχνει με βάση την απόχρωση.",
+      shortcutBody: "Διάλεξε χρώμα και χτίσε το look σου γύρω από αυτό.",
       showFinishFilter: false, showTypeFilter: false
     };
   }
@@ -201,14 +201,14 @@ export function resolveColorFinderContext(
       key: "home", categoryCode, categoryLabel,
       studioLabel: "HOME COLOR STUDIO", editionLabel: "HOME COLOR EDITION",
       heroLead: "Match your space", heroEmphasis: "by color.",
-      heroBody: "Διάλεξε μια απόχρωση από τον χώρο σου και βρες αντικείμενα της κατηγορίας που κινούνται στην ίδια χρωματική παλέτα.",
+      heroBody: "Διάλεξε μια απόχρωση από τον χώρο σου και βρες αντικείμενα που δένουν όμορφα μαζί της.",
       photoKicker: "PHOTO TO HOME COLOR · PRIVATE", photoTitle: "Capture a color from your space.",
       photoBody: "Πάρε χρώμα από τοίχο, ύφασμα ή αντικείμενο και χρησιμοποίησέ το ως αναφορά.",
       resultsEyebrow: "HOME BY COLOR", resultsTitle: "Objects closest to your color",
-      resultsBody: "Αντικείμενα της κατηγορίας ταξινομημένα βάσει χρωματικής εγγύτητας.",
+      resultsBody: "Τα αντικείμενα που ταιριάζουν περισσότερο εμφανίζονται πρώτα.",
       productPlural: "αντικείμενα", shopLabel: "HOME",
       shortcutTitle: "Ταίριαξε αντικείμενα με τον χώρο σου.",
-      shortcutBody: "Το Home Color Studio ψάχνει μόνο στην τρέχουσα κατηγορία με βάση την απόχρωση του χώρου σου.",
+      shortcutBody: "Διάλεξε χρώμα από τον χώρο σου και βρες αντικείμενα που του ταιριάζουν.",
       showFinishFilter: false, showTypeFilter: false
     };
   }
@@ -217,14 +217,14 @@ export function resolveColorFinderContext(
     key: "generic", categoryCode, categoryLabel,
     studioLabel: "COLOR STUDIO", editionLabel: "CATEGORY EDITION",
     heroLead: "Start with a color.", heroEmphasis: "Discover what matches.",
-    heroBody: "Διάλεξε ή πάρε ένα χρώμα από φωτογραφία και ψάξε μόνο μέσα στην κατηγορία που άνοιξες.",
+    heroBody: "Διάλεξε ένα χρώμα ή πάρε το από φωτογραφία και ανακάλυψε προϊόντα που του ταιριάζουν.",
     photoKicker: "PHOTO TO COLOR · PRIVATE", photoTitle: "Capture the color you want.",
     photoBody: "Πάτησε πάνω σε μια απόχρωση της φωτογραφίας και χρησιμοποίησέ την ως σημείο αναφοράς.",
     resultsEyebrow: "CATEGORY BY COLOR", resultsTitle: "Your closest color matches",
-    resultsBody: "Διαθέσιμα προϊόντα της τρέχουσας κατηγορίας ταξινομημένα βάσει χρωματικής εγγύτητας.",
+    resultsBody: "Οι πιο ταιριαστές επιλογές εμφανίζονται πρώτες.",
     productPlural: "προϊόντα", shopLabel: "SHOP",
     shortcutTitle: "Βρες προϊόντα από το χρώμα.",
-    shortcutBody: "Το Color Studio προσαρμόζεται στην κατηγορία που βλέπεις και συγκρίνει μόνο σχετικά διαθέσιμα προϊόντα.",
+    shortcutBody: "Διάλεξε χρώμα και δες τις επιλογές που του ταιριάζουν περισσότερο.",
     showFinishFilter: false, showTypeFilter: false
   };
 }
