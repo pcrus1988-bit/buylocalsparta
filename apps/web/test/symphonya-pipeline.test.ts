@@ -54,6 +54,15 @@ test("validated AI Greek may upgrade only a still-unpublished deterministic fall
   assert.match(migration, /ELSE public\.product_translations\.title/);
 });
 
+test("Symphonya publication batch excludes already-converged rows before LIMIT", () => {
+  const source = readFileSync(new URL("../src/lib/symphonya-auto-publication-runtime.ts", import.meta.url), "utf8");
+  assert.match(source, /JOIN public\.product_families pf ON pf\.id=cv\.family_id/);
+  assert.match(source, /pf\.active=false/);
+  assert.match(source, /COALESCE\(vo\.source_payload->>'publicationState',''\)<>'PUBLISHED'/);
+  assert.match(source, /COALESCE\(vo\.source_payload->>'publishedBy',''\)<>'symphonya_auto_publication'/);
+  assert.match(source, /[\s\S]*publicationState[\s\S]*ORDER BY vo\.id[\s\S]*LIMIT \$2/);
+});
+
 test("API-authoritative checkout live-revalidates Symphonya stock and buying cost", () => {
   const source = readFileSync(new URL("../src/lib/dropship-checkout-runtime.ts", import.meta.url), "utf8");
   assert.match(source, /SYMPHONYA_SUPPLIER_CODE = "symphonya"/);
