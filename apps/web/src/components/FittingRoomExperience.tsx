@@ -49,11 +49,14 @@ type Look = Readonly<{
 type SizeProfile = Readonly<{
   top: string;
   shirt: string;
+  jacket: string;
   waist: string;
   trouser: string;
+  skirt: string;
   shoe: string;
   dress: string;
   bra: string;
+  belt: string;
 }>;
 
 type SavedLookPayload = Readonly<{
@@ -86,6 +89,9 @@ const COLOR_CHOICES = [
   { key: "navy", label: "Navy", hex: "#263651" },
   { key: "blue", label: "Blue", hex: "#526E95" },
   { key: "green", label: "Green", hex: "#52705D" },
+  { key: "grey", label: "Grey", hex: "#898A88" },
+  { key: "yellow", label: "Yellow", hex: "#D2AE4F" },
+  { key: "orange", label: "Orange", hex: "#C9763E" },
   { key: "red", label: "Red", hex: "#A53335" },
   { key: "pink", label: "Pink", hex: "#D58B9E" },
   { key: "purple", label: "Purple", hex: "#755E8C" },
@@ -101,6 +107,9 @@ const COLOR_WORDS: Readonly<Record<string, readonly string[]>> = {
   navy: ["navy", "midnight", "μπλε σκούρο", "σκούρο μπλε"],
   blue: ["blue", "μπλε", "cobalt", "denim"],
   green: ["green", "πράσινο", "πρασινο", "olive", "emerald"],
+  grey: ["grey", "gray", "γκρι", "anthracite"],
+  yellow: ["yellow", "giallo", "κίτρινο", "κιτρινο", "lemon"],
+  orange: ["orange", "arancio", "πορτοκαλί", "πορτοκαλι", "tangerine"],
   red: ["red", "κόκκινο", "κοκκινο", "burgundy", "bordeaux", "wine"],
   pink: ["pink", "ροζ", "rose", "blush", "fuchsia"],
   purple: ["purple", "μωβ", "violet", "plum", "lilac", "lavender"],
@@ -182,16 +191,25 @@ function audiencePenalty(product: Product, audience: Audience): number {
   return audienceAffinity(productText(product), audience);
 }
 
-function selectedSizeFor(slot: SlotKey, sizes: SizeProfile): string {
+function selectedSizeFor(product: Product, slot: SlotKey, sizes: SizeProfile): string {
+  const text = productText(product);
   if (slot === "shoes") return sizes.shoe;
-  if (slot === "bottom") return sizes.trouser || sizes.waist;
-  if (slot === "main") return sizes.dress || sizes.shirt || sizes.top;
-  if (slot === "layer") return sizes.top;
+  if (slot === "layer") return sizes.jacket || sizes.top;
+  if (slot === "bottom") {
+    if (/skirt|φουστ/.test(text)) return sizes.skirt || sizes.trouser || sizes.waist;
+    return sizes.trouser || sizes.waist;
+  }
+  if (slot === "main") {
+    if (/dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ/.test(text)) return sizes.dress || sizes.top;
+    if (/shirt|πουκαμισ/.test(text)) return sizes.shirt || sizes.top;
+    return sizes.top || sizes.shirt;
+  }
+  if (slot === "accessory" && /belt|ζων/.test(text)) return sizes.belt;
   return "";
 }
 
 function matchesSize(product: Product, slot: SlotKey, sizes: SizeProfile): number {
-  const selected = normalize(selectedSizeFor(slot, sizes));
+  const selected = normalize(selectedSizeFor(product, slot, sizes));
   const productSizes = (product.sizes ?? []).map(normalize).filter(Boolean);
   if (!selected || productSizes.length === 0) return 0;
   if (productSizes.some((value) => value === selected || value.includes(selected) || selected.includes(value))) return 30;
@@ -320,7 +338,7 @@ export function FittingRoomExperience({
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState<Step>(0);
   const [audience, setAudience] = useState<Audience>("women");
-  const [sizes, setSizes] = useState<SizeProfile>({ top: "", shirt: "", waist: "", trouser: "", shoe: "", dress: "", bra: "" });
+  const [sizes, setSizes] = useState<SizeProfile>({ top: "", shirt: "", jacket: "", waist: "", trouser: "", skirt: "", shoe: "", dress: "", bra: "", belt: "" });
   const [colors, setColors] = useState<readonly string[]>([]);
   const [budget, setBudget] = useState("");
   const [brands, setBrands] = useState<readonly string[]>([]);
@@ -427,7 +445,7 @@ export function FittingRoomExperience({
       .filter((product) => slotFor(product) === editingSlot && product.id !== selected)
       .map((product) => ({
         product,
-        score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook)
+        score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0)
       }))
       .filter((entry) => entry.score > -40)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
@@ -525,7 +543,13 @@ export function FittingRoomExperience({
       if (!candidateProducts.length) throw new Error("empty");
       const nextLooks = [0, 1, 2].map((personality) => buildLook(candidateProducts, personality));
       if (!nextLooks.some((look) => Object.keys(look.slots).length > 0)) throw new Error("empty");
-      setLooks(nextLooks);
+      const ownLook: Look = {
+        name: "My Edit",
+        mood: "Το δικό σου look · από την αρχή",
+        note: "Διάλεξε εσύ κάθε κομμάτι. Ο stylist κρατά τις επιλογές σου και σου δείχνει διαθέσιμες εναλλακτικές σε κάθε θέση.",
+        slots: {}
+      };
+      setLooks([...nextLooks, ownLook]);
       setActiveLook(0);
       setEditingSlot(null);
     } catch {
@@ -642,11 +666,14 @@ export function FittingRoomExperience({
           <div className={styles.sizeGrid}>
             <label><span>Tops / T-shirts</span><input value={sizes.top} onChange={(event) => setSizes({ ...sizes, top: event.target.value })} placeholder="π.χ. M / 40" /></label>
             <label><span>Shirts</span><input value={sizes.shirt} onChange={(event) => setSizes({ ...sizes, shirt: event.target.value })} placeholder="π.χ. M / 39" /></label>
+            <label><span>Jackets / coats</span><input value={sizes.jacket} onChange={(event) => setSizes({ ...sizes, jacket: event.target.value })} placeholder="π.χ. M / 48" /></label>
             <label><span>Waist</span><input value={sizes.waist} onChange={(event) => setSizes({ ...sizes, waist: event.target.value })} placeholder="π.χ. W32 / 82 cm" /></label>
             <label><span>Trousers</span><input value={sizes.trouser} onChange={(event) => setSizes({ ...sizes, trouser: event.target.value })} placeholder="π.χ. 42 / W32" /></label>
             <label><span>Shoes</span><input value={sizes.shoe} onChange={(event) => setSizes({ ...sizes, shoe: event.target.value })} placeholder="π.χ. EU 42" /></label>
+            {audience === "women" ? <label><span>Skirts</span><input value={sizes.skirt} onChange={(event) => setSizes({ ...sizes, skirt: event.target.value })} placeholder="π.χ. S / 38" /></label> : null}
             {audience === "women" ? <label><span>Dresses</span><input value={sizes.dress} onChange={(event) => setSizes({ ...sizes, dress: event.target.value })} placeholder="π.χ. S / 38" /></label> : null}
             {audience === "women" ? <label><span>Bra</span><input value={sizes.bra} onChange={(event) => setSizes({ ...sizes, bra: event.target.value })} placeholder="π.χ. 75C" /></label> : null}
+            <label><span>Belts</span><input value={sizes.belt} onChange={(event) => setSizes({ ...sizes, belt: event.target.value })} placeholder="π.χ. 90 cm" /></label>
           </div>
         )
       },
@@ -756,13 +783,15 @@ export function FittingRoomExperience({
         </aside>
 
         <div className={styles.lookStage}>
-          {looks.length > 1 ? <div className={styles.lookTabs}>{looks.map((look, index) => <button key={look.name} type="button" className={activeLook === index ? styles.lookTabActive : undefined} onClick={() => { setActiveLook(index); setEditingSlot(null); }}><span>0{index + 1}</span><strong>{look.name}</strong></button>)}</div> : null}
+          {looks.length > 1 ? <div className={styles.lookTabs}>{looks.map((look, index) => <button key={look.name} type="button" className={activeLook === index ? styles.lookTabActive : undefined} onClick={() => { setActiveLook(index); setEditingSlot(null); }}><span>{index < 3 ? `0${index + 1}` : "YOU"}</span><strong>{look.name}</strong></button>)}</div> : null}
 
           <div className={styles.composition}>
             {(Object.keys(SLOT_META) as SlotKey[]).map((slot) => {
               const product = currentLook.slots[slot];
-              if (!product && !SLOT_META[slot].optional) return <div className={styles.emptySlot} key={slot}><span>{SLOT_META[slot].short}</span><strong>{SLOT_META[slot].label}</strong><small>Δεν βρήκα κατάλληλη διαθέσιμη επιλογή ακόμη.</small></div>;
-              if (!product) return null;
+              if (!product) return <button type="button" className={styles.emptySlot} key={slot} onClick={() => setEditingSlot(slot)}>
+                <span>{SLOT_META[slot].short}</span><strong>+ {SLOT_META[slot].label}</strong>
+                <small>{activeLook === 3 ? "Διάλεξε το κομμάτι που θέλεις." : "Πρόσθεσε ή άλλαξε αυτό το σημείο του look."}</small>
+              </button>;
               const image = imageFor(product);
               return <article className={styles.productSlot} key={slot}>
                 <button type="button" className={styles.productButton} onClick={() => setEditingSlot(slot)}>
