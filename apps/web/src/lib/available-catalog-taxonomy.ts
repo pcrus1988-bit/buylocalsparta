@@ -244,7 +244,8 @@ export async function getAvailableStorefrontCategories(_postcode = "23100"): Pro
       JOIN category_tree tree ON tree.id=cv.category_id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id
       JOIN public.vendor_locations l ON l.id=vo.location_id
-      WHERE dso.active=true
+      WHERE false -- Public navigation must use the precomputed storefront facet read model; never rebuild supplier taxonomy during a page request.
+        AND dso.active=true
         AND dso.cached_available=true
         AND COALESCE(dso.cached_quantity,0)>=1
         AND dso.availability_expires_at IS NOT NULL
