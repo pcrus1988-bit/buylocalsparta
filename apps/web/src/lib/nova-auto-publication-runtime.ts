@@ -2,7 +2,7 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const SUPPLIER_CODE = "nova_brandsgateway";
-const CATEGORY_BATCH_SIZE = 500;
+const CATEGORY_BATCH_SIZE = 250;
 const CATEGORY_CURSOR_KEY = "novaAutoCategoryCursorV1";
 const CATEGORY_REPAIR_BATCH_SIZE = 250;
 const PUBLICATION_BATCH_SIZE = 2_000;
