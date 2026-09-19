@@ -150,7 +150,7 @@ function productText(product: Product): string {
 
 function slotFromText(text: string): SlotKey | null {
   if (/nail|polish|lacquer|βερνικ|νυχι/.test(text)) return "nails";
-  if (/lip|makeup|mascara|foundation|concealer|blush|eyeshadow|perfume|fragrance|cosmetic|skincare|serum|cream|beauty|κραγιον|μακιγιαζ|αρωμ|ομορφ|περιποι/.test(text)) return "beauty";
+  if (/lip|makeup|mascara|foundation|concealer|blush|eyeshadow|perfume|fragrance|cosmetic|skincare|serum|cream|beauty|grooming|κραγιον|μακιγιαζ|αρωμ|ομορφ|περιποι/.test(text)) return "beauty";
   if (/shoe|sneaker|trainer|boot|loafer|moccas|sandal|heel|pump|footwear|παπουτ|μποτ|σανδαλ/.test(text)) return "shoes";
   if (/bag|handbag|backpack|clutch|wallet|purse|τσαντ|σακιδ|πορτοφολ/.test(text)) return "bag";
   if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη/.test(text)) return "accessory";
@@ -173,14 +173,17 @@ function isOnePiece(product: Product | undefined): boolean {
   return /dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ/.test(productText(product));
 }
 
-function audiencePenalty(product: Product, audience: Audience): number {
-  const text = productText(product);
+function audienceAffinity(text: string, audience: Audience): number {
   const explicitWomen = /(?:^|\\s)(?:women|woman|womens|female)(?:\\s|$)|γυναικ/.test(text);
   const explicitMen = /(?:^|\\s)(?:men|mens|male)(?:\\s|$)|ανδρ/.test(text);
   if (audience === "women" && explicitMen && !explicitWomen) return -120;
   if (audience === "men" && explicitWomen && !explicitMen) return -120;
   if ((audience === "women" && explicitWomen) || (audience === "men" && explicitMen)) return 16;
   return 0;
+}
+
+function audiencePenalty(product: Product, audience: Audience): number {
+  return audienceAffinity(productText(product), audience);
 }
 
 function selectedSizeFor(slot: SlotKey, sizes: SizeProfile): string {
@@ -473,7 +476,14 @@ export function FittingRoomExperience({
     await fetchGroup([], 60);
 
     const categoryOptions = [...(facets.categories ?? [])]
-      .sort((left, right) => (right.count ?? 0) - (left.count ?? 0));
+      .map((option) => ({
+        option,
+        audienceScore: audienceAffinity(normalize(`${option.value} ${option.label}`), audience)
+      }))
+      .filter((entry) => entry.audienceScore > -100)
+      .sort((left, right) => right.audienceScore - left.audienceScore
+        || (right.option.count ?? 0) - (left.option.count ?? 0))
+      .map((entry) => entry.option);
 
     // Then balance the wardrobe with indexed category queries. This avoids a
     // first-page bias where, for example, nail polish can crowd out shoes.
