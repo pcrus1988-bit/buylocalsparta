@@ -16,6 +16,7 @@ import {
   colorMatchPercent,
   deltaE2000,
   hexToLab,
+  nearestColorName,
   normalizeHex,
   type ColorFinderProduct,
   type ColorFinish,
@@ -29,6 +30,8 @@ type SelectorMode = "picker" | "photo";
 type PhotoRect = Readonly<{ x: number; y: number; width: number; height: number }>;
 type CropBox = Readonly<{ x: number; y: number; size: number }>;
 type HsvColor = Readonly<{ h: number; s: number; v: number }>;
+type PhotoPickMode = "spot" | "area";
+type PhotoSpot = Readonly<{ x: number; y: number; hex: string }>;
 
 const PHOTO_TTL_MS = 15 * 60 * 1000;
 const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
@@ -63,6 +66,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
   const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv("#B52E2E"));
+  const [urlReady, setUrlReady] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
 
   const [photoUrl, setPhotoUrl] = useState<string>();
   const [photoExpiresAt, setPhotoExpiresAt] = useState<number>();
@@ -72,27 +77,103 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [photoReady, setPhotoReady] = useState(false);
   const [photoSampleHex, setPhotoSampleHex] = useState<string>();
   const [photoError, setPhotoError] = useState<string>();
+  const [photoPickMode, setPhotoPickMode] = useState<PhotoPickMode>("spot");
+  const [photoSpot, setPhotoSpot] = useState<PhotoSpot>();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const cropDragRef = useRef(false);
   const pickerDragRef = useRef(false);
+  const photoSpotDragRef = useRef(false);
 
-  const matches = useMemo(() => {
+  const scoredProducts = useMemo(() => {
     const targetLab = hexToLab(selectedHex);
     return products
-      .filter((product) => finish === "all" || product.finish === finish)
-      .filter((product) => productType === "all" || product.productType === productType)
       .map((product) => {
         const deltaE = deltaE2000(targetLab, hexToLab(product.colorHex));
         return { ...product, deltaE, match: colorMatchPercent(deltaE) };
       })
-      .filter((product) => product.match >= MIN_MATCH_PERCENT)
       .sort((left, right) => left.deltaE - right.deltaE || left.priceMinor - right.priceMinor);
-  }, [finish, productType, products, selectedHex]);
+  }, [products, selectedHex]);
+
+  const eligibleProducts = useMemo(
+    () => scoredProducts.filter((product) => product.match >= MIN_MATCH_PERCENT),
+    [scoredProducts]
+  );
+
+  const typeCounts = useMemo(() => {
+    const counts = new Map<ColorProductType, number>();
+    for (const product of eligibleProducts) {
+      if (finish !== "all" && product.finish !== finish) continue;
+      counts.set(product.productType, (counts.get(product.productType) ?? 0) + 1);
+    }
+    return counts;
+  }, [eligibleProducts, finish]);
+
+  const finishCounts = useMemo(() => {
+    const counts = new Map<ColorFinish, number>();
+    for (const product of eligibleProducts) {
+      if (productType !== "all" && product.productType !== productType) continue;
+      counts.set(product.finish, (counts.get(product.finish) ?? 0) + 1);
+    }
+    return counts;
+  }, [eligibleProducts, productType]);
+
+  const matches = useMemo(
+    () => eligibleProducts
+      .filter((product) => finish === "all" || product.finish === finish)
+      .filter((product) => productType === "all" || product.productType === productType),
+    [eligibleProducts, finish, productType]
+  );
 
   const visibleMatches = matches.slice(0, 24);
-  const availableFinishes = useMemo(() => [...new Set(products.map((product) => product.finish))], [products]);
-  const availableTypes = useMemo(() => [...new Set(products.map((product) => product.productType))], [products]);
+  const availableFinishes = useMemo(
+    () => (Object.keys(FINISH_LABELS) as ColorFinish[])
+      .filter((item) => (finishCounts.get(item) ?? 0) > 0 || finish === item),
+    [finish, finishCounts]
+  );
+  const availableTypes = useMemo(
+    () => (Object.keys(TYPE_LABELS) as ColorProductType[])
+      .filter((type) => (typeCounts.get(type) ?? 0) > 0 || productType === type),
+    [productType, typeCounts]
+  );
+  const selectedShade = useMemo(() => nearestColorName(selectedHex), [selectedHex]);
+  const fineTuneColors = useMemo(() => {
+    const candidates = [
+      hsvToHex({ ...pickerHsv, h: pickerHsv.h - 9 }),
+      hsvToHex({ ...pickerHsv, h: pickerHsv.h + 9 }),
+      hsvToHex({ ...pickerHsv, s: clamp(pickerHsv.s - 0.14, 0, 1) }),
+      hsvToHex({ ...pickerHsv, s: clamp(pickerHsv.s + 0.14, 0, 1) }),
+      hsvToHex({ ...pickerHsv, v: clamp(pickerHsv.v - 0.12, 0, 1) }),
+      hsvToHex({ ...pickerHsv, v: clamp(pickerHsv.v + 0.12, 0, 1) })
+    ];
+    return [...new Set(candidates)].filter((hex) => hex !== selectedHex).slice(0, 6);
+  }, [pickerHsv, selectedHex]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const color = normalizeHex(params.get("color") ?? "");
+    const finishParam = params.get("finish");
+    const typeParam = params.get("type");
+
+    if (color) {
+      setSelectedHex(color);
+      setHexDraft(color);
+    }
+    if (finishParam && finishParam in FINISH_LABELS) setFinish(finishParam as ColorFinish);
+    if (typeParam && typeParam in TYPE_LABELS) setProductType(typeParam as ColorProductType);
+    setUrlReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("color", selectedHex.slice(1).toLowerCase());
+    if (finish === "all") url.searchParams.delete("finish");
+    else url.searchParams.set("finish", finish);
+    if (productType === "all") url.searchParams.delete("type");
+    else url.searchParams.set("type", productType);
+    window.history.replaceState(window.history.state, "", url);
+  }, [finish, productType, selectedHex, urlReady]);
 
   useEffect(() => {
     setPickerHsv(hexToHsv(selectedHex));
@@ -250,6 +331,37 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     }
   }
 
+  function handlePickerKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const step = event.shiftKey ? 0.06 : 0.02;
+    if (event.key === "ArrowLeft") updatePickerColor({ ...pickerHsv, s: pickerHsv.s - step });
+    else if (event.key === "ArrowRight") updatePickerColor({ ...pickerHsv, s: pickerHsv.s + step });
+    else if (event.key === "ArrowUp") updatePickerColor({ ...pickerHsv, v: pickerHsv.v + step });
+    else if (event.key === "ArrowDown") updatePickerColor({ ...pickerHsv, v: pickerHsv.v - step });
+    else return;
+    event.preventDefault();
+  }
+
+  function scrollToMatches() {
+    document.getElementById("matches")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function shareSelection() {
+    const url = window.location.href;
+    const title = `KONTA MOY Color Finder · ${selectedShade.label} ${selectedHex}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareStatus("copied");
+      window.setTimeout(() => setShareStatus("idle"), 1800);
+    } catch {
+      setShareStatus("idle");
+    }
+  }
+
   function handlePhotoFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
@@ -273,6 +385,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     setCrop(undefined);
     setPhotoReady(false);
     setPhotoSampleHex(undefined);
+    setPhotoPickMode("spot");
+    setPhotoSpot(undefined);
     setPhotoError(undefined);
   }
 
@@ -283,7 +397,73 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     setCrop(undefined);
     setPhotoReady(false);
     setPhotoSampleHex(undefined);
+    setPhotoSpot(undefined);
     setPhotoError(undefined);
+  }
+
+  function samplePhotoSpot(clientX: number, clientY: number, element: HTMLDivElement) {
+    const canvas = canvasRef.current;
+    if (!canvas || !photoRect || !photoReady) return;
+
+    const bounds = element.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const rawX = (clientX - bounds.left) * (PHOTO_CANVAS_WIDTH / bounds.width);
+    const rawY = (clientY - bounds.top) * (PHOTO_CANVAS_HEIGHT / bounds.height);
+    const x = clamp(rawX, photoRect.x, photoRect.x + photoRect.width - 1);
+    const y = clamp(rawY, photoRect.y, photoRect.y + photoRect.height - 1);
+    const sampleSize = Math.max(12, Math.round(Math.min(photoRect.width, photoRect.height) * 0.035));
+    const sampleX = Math.max(photoRect.x, x - sampleSize / 2);
+    const sampleY = Math.max(photoRect.y, y - sampleSize / 2);
+    const width = Math.max(1, Math.min(sampleSize, photoRect.x + photoRect.width - sampleX));
+    const height = Math.max(1, Math.min(sampleSize, photoRect.y + photoRect.height - sampleY));
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+
+    const imageData = context.getImageData(
+      Math.floor(sampleX),
+      Math.floor(sampleY),
+      Math.max(1, Math.floor(width)),
+      Math.max(1, Math.floor(height))
+    );
+    const detectedHex = representativeHex(imageData.data, Math.max(1, Math.floor(width)), Math.max(1, Math.floor(height)));
+    if (!detectedHex) return;
+
+    setPhotoSpot({ x, y, hex: detectedHex });
+    setPhotoSampleHex(detectedHex);
+    setSelectedHex(detectedHex);
+    setHexDraft(detectedHex);
+    setPhotoError(undefined);
+  }
+
+  function handlePhotoPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!photoReady) return;
+    if (photoPickMode === "area") {
+      handleCropPointerDown(event);
+      return;
+    }
+    photoSpotDragRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    samplePhotoSpot(event.clientX, event.clientY, event.currentTarget);
+  }
+
+  function handlePhotoPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (photoPickMode === "area") {
+      handleCropPointerMove(event);
+      return;
+    }
+    if (!photoSpotDragRef.current) return;
+    samplePhotoSpot(event.clientX, event.clientY, event.currentTarget);
+  }
+
+  function handlePhotoPointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    if (photoPickMode === "area") {
+      handleCropPointerEnd(event);
+      return;
+    }
+    photoSpotDragRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function moveCropToPoint(clientX: number, clientY: number) {
@@ -452,6 +632,9 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 tabIndex={0}
                 aria-label="Διάλεξε απόχρωση και ένταση"
                 aria-valuetext={selectedHex}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                onKeyDown={handlePickerKeyDown}
                 onPointerDown={handlePickerPointerDown}
                 onPointerMove={handlePickerPointerMove}
                 onPointerUp={handlePickerPointerEnd}
@@ -472,7 +655,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 <div className={styles.pickerPreview}>
                   <span style={{ backgroundColor: selectedHex }} aria-hidden="true" />
                   <div>
-                    <small>SELECTED COLOR</small>
+                    <small>{selectedShade.label.toUpperCase()}</small>
                     <strong>{selectedHex}</strong>
                   </div>
                 </div>
@@ -493,23 +676,63 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                   />
                 </label>
 
+                <div className={styles.fineTune}>
+                  <span>FINE TUNE</span>
+                  <div>
+                    {fineTuneColors.map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        aria-label={`Δοκίμασε ${nearestColorName(hex).label} ${hex}`}
+                        title={`${nearestColorName(hex).label} · ${hex}`}
+                        style={{ backgroundColor: hex }}
+                        onClick={() => {
+                          setSelectedHex(hex);
+                          setHexDraft(hex);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.pickerActions}>
+                  <button type="button" onClick={scrollToMatches}>SHOW MATCHES</button>
+                  <button type="button" onClick={shareSelection}>{shareStatus === "copied" ? "LINK COPIED" : "SHARE SHADE"}</button>
+                </div>
+
                 <p className={styles.pickerHint}>Tap or drag anywhere in the color field. No popup, no confirmation.</p>
               </div>
             </div>
           ) : photoUrl ? (
             <div className={styles.photoEditor}>
+              <div className={styles.photoPickSwitch} aria-label="Τρόπος επιλογής από φωτογραφία">
+                <button
+                  type="button"
+                  className={photoPickMode === "spot" ? styles.activePhotoPickMode : undefined}
+                  onClick={() => setPhotoPickMode("spot")}
+                >
+                  TAP / SPOT
+                </button>
+                <button
+                  type="button"
+                  className={photoPickMode === "area" ? styles.activePhotoPickMode : undefined}
+                  onClick={() => setPhotoPickMode("area")}
+                >
+                  AREA
+                </button>
+              </div>
               <div
                 className={styles.photoCanvasWrap}
                 tabIndex={0}
                 aria-label="Μετακίνησε το πλαίσιο πάνω στο χρώμα που θέλεις. Μπορείς επίσης να χρησιμοποιήσεις τα βελάκια."
-                onPointerDown={handleCropPointerDown}
-                onPointerMove={handleCropPointerMove}
-                onPointerUp={handleCropPointerEnd}
-                onPointerCancel={handleCropPointerEnd}
+                onPointerDown={handlePhotoPointerDown}
+                onPointerMove={handlePhotoPointerMove}
+                onPointerUp={handlePhotoPointerEnd}
+                onPointerCancel={handlePhotoPointerEnd}
                 onKeyDown={handleCropKeyDown}
               >
                 <canvas ref={canvasRef} width={PHOTO_CANVAS_WIDTH} height={PHOTO_CANVAS_HEIGHT} />
-                {photoReady && cropStyle ? (
+                {photoReady && photoPickMode === "area" && cropStyle ? (
                   <div className={styles.photoCropBox} style={cropStyle} aria-hidden="true">
                     <i className={styles.cropCorner} />
                     <i className={styles.cropCorner} />
@@ -517,28 +740,44 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                     <i className={styles.cropCorner} />
                   </div>
                 ) : null}
+                {photoReady && photoPickMode === "spot" && photoSpot ? (
+                  <div
+                    className={styles.photoSpotMarker}
+                    style={{
+                      left: `${(photoSpot.x / PHOTO_CANVAS_WIDTH) * 100}%`,
+                      top: `${(photoSpot.y / PHOTO_CANVAS_HEIGHT) * 100}%`,
+                      "--spot-color": photoSpot.hex
+                    } as CSSProperties}
+                    aria-hidden="true"
+                  >
+                    <span />
+                    <strong>{photoSpot.hex}</strong>
+                  </div>
+                ) : null}
               </div>
 
               <div className={styles.photoEditorMeta}>
-                <span>DRAG THE FRAME OVER THE COLOR</span>
+                <span>{photoPickMode === "spot" ? "TAP OR DRAG OVER THE EXACT COLOR" : "DRAG THE FRAME OVER THE COLOR AREA"}</span>
                 <strong>AUTO-CLEAR {formatCountdown(photoSecondsLeft)}</strong>
               </div>
 
               <div className={styles.photoControls}>
-                <label className={styles.cropSizeControl}>
-                  <span>Μέγεθος επιλογής</span>
-                  <input
-                    aria-label="Μέγεθος περιοχής επιλογής"
-                    type="range"
-                    min={MIN_CROP_RATIO * 100}
-                    max={MAX_CROP_RATIO * 100}
-                    step="1"
-                    value={cropPercent}
-                    disabled={!photoReady}
-                    onChange={(event) => resizeCrop(Number(event.target.value))}
-                  />
-                  <strong>{cropPercent}%</strong>
-                </label>
+                {photoPickMode === "area" ? (
+                  <label className={styles.cropSizeControl}>
+                    <span>Μέγεθος επιλογής</span>
+                    <input
+                      aria-label="Μέγεθος περιοχής επιλογής"
+                      type="range"
+                      min={MIN_CROP_RATIO * 100}
+                      max={MAX_CROP_RATIO * 100}
+                      step="1"
+                      value={cropPercent}
+                      disabled={!photoReady}
+                      onChange={(event) => resizeCrop(Number(event.target.value))}
+                    />
+                    <strong>{cropPercent}%</strong>
+                  </label>
+                ) : null}
 
                 {photoSampleHex ? (
                   <div className={styles.detectedColor}>
@@ -554,10 +793,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                   <button
                     type="button"
                     className={styles.photoAction}
-                    disabled={!photoReady}
-                    onClick={useSelectedPhotoColor}
+                    disabled={photoPickMode === "spot" ? !photoSampleHex : !photoReady}
+                    onClick={photoPickMode === "spot" ? scrollToMatches : useSelectedPhotoColor}
                   >
-                    USE THIS COLOR
+                    {photoPickMode === "spot" ? "SHOW MATCHES" : "USE THIS COLOR"}
                   </button>
                   <label className={styles.photoGhostAction}>
                     NEW PHOTO
@@ -673,7 +912,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           </div>
           <div className={styles.targetChip}>
             <span style={{ backgroundColor: selectedHex }} />
-            <strong>{selectedHex}</strong>
+            <div>
+              <small>{selectedShade.label}</small>
+              <strong>{selectedHex}</strong>
+            </div>
           </div>
         </div>
 
@@ -681,10 +923,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           <div className={styles.filterGroup}>
             <span>TYPE</span>
             <div>
-              <button type="button" className={productType === "all" ? styles.activeFilter : undefined} onClick={() => setProductType("all")}>All</button>
+              <button type="button" className={productType === "all" ? styles.activeFilter : undefined} onClick={() => setProductType("all")}>
+                All <small>{eligibleProducts.filter((product) => finish === "all" || product.finish === finish).length}</small>
+              </button>
               {availableTypes.map((type) => (
                 <button key={type} type="button" className={productType === type ? styles.activeFilter : undefined} onClick={() => setProductType(type)}>
-                  {TYPE_LABELS[type]}
+                  {TYPE_LABELS[type]} <small>{typeCounts.get(type) ?? 0}</small>
                 </button>
               ))}
             </div>
@@ -692,10 +936,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           <div className={styles.filterGroup}>
             <span>FINISH</span>
             <div>
-              <button type="button" className={finish === "all" ? styles.activeFilter : undefined} onClick={() => setFinish("all")}>All</button>
+              <button type="button" className={finish === "all" ? styles.activeFilter : undefined} onClick={() => setFinish("all")}>
+                All <small>{eligibleProducts.filter((product) => productType === "all" || product.productType === productType).length}</small>
+              </button>
               {availableFinishes.map((item) => (
                 <button key={item} type="button" className={finish === item ? styles.activeFilter : undefined} onClick={() => setFinish(item)}>
-                  {FINISH_LABELS[item]}
+                  {FINISH_LABELS[item]} <small>{finishCounts.get(item) ?? 0}</small>
                 </button>
               ))}
             </div>
