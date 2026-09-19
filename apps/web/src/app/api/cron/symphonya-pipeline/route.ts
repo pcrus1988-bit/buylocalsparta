@@ -108,7 +108,7 @@ async function publicationCandidateExternalIds(limit: number): Promise<string[]>
            AND COALESCE(vo.source_payload->>'publicationState','')='PUBLISHED'
          )
        )
-       AND COALESCE(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
+       AND COALESCE(vo.source_payload->>'pricingManagedBy','') IN ('symphonya_auto_v1','supplier_defaults_v1')
        AND COALESCE(vo.source_payload->>'pricingPending','true')='false'
        AND dso.supplier_cost_minor>0
        AND vo.customer_price_minor>=dso.supplier_cost_minor

@@ -136,7 +136,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND cv.suppressed=false
            AND cv.recalled=false
            AND vo.status::text IN ('draft','approved','archived')
-           AND COALESCE(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
+           AND COALESCE(vo.source_payload->>'pricingManagedBy','') IN ('symphonya_auto_v1','supplier_defaults_v1')
            AND COALESCE(vo.source_payload->>'pricingPending','true')='false'
            AND dso.supplier_cost_minor>0
            AND vo.customer_price_minor>0
