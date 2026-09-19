@@ -247,14 +247,15 @@ async function applyUpdates(
              source_payload=(COALESCE(vo.source_payload,'{}'::jsonb)-'pricingFlag')
                || jsonb_build_object(
                     'pricingPending',x.selling_price_minor IS NULL,
-                    'pricingManagedBy','symphonya_auto_v1',
+                    'pricingManagedBy',$2::text,
                     'pricingFlag',CASE WHEN x.selling_price_minor IS NULL THEN 'UNPRICED_MISSING_COST' ELSE NULL END,
                     'pricingEngine',jsonb_build_object(
-                      'version',1,
-                      'rule','sym_v1_markup_and_min_contribution',
-                      'markupRate',$2::numeric,
-                      'minimumProfitMinor',$3::int,
-                      'transactionRate',$4::numeric,
+                      'version',2,
+                      'rule',$3::text,
+                      'markupRate',$4::numeric,
+                      'discountRate',$5::numeric,
+                      'minimumProfitMinor',$6::int,
+                      'transactionRate',$7::numeric,
                       'profitMinor',x.profit_minor,
                       'profitPercent',x.profit_percent,
                       'calculatedAt',now()
