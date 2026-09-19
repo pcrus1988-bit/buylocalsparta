@@ -62,6 +62,10 @@ const TYPE_LABELS: Readonly<Record<ColorProductType, string>> = {
 };
 
 export function ColorFinderExperience({ products }: { products: readonly ColorFinderProduct[] }) {
+  const [catalogProducts, setCatalogProducts] = useState<readonly ColorFinderProduct[]>(products);
+  const [catalogueState, setCatalogueState] = useState<"loading" | "ready" | "degraded">(
+    products.length ? "ready" : "loading"
+  );
   const [selectedHex, setSelectedHex] = useState("#B52E2E");
   const [hexDraft, setHexDraft] = useState("#B52E2E");
   const [finish, setFinish] = useState<FinishFilter>("all");
@@ -91,8 +95,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const photoSpotDragRef = useRef(false);
 
   const indexedProducts = useMemo(
-    () => products.map((product) => ({ product, lab: hexToLab(product.colorHex) })),
-    [products]
+    () => catalogProducts.map((product) => ({ product, lab: hexToLab(product.colorHex) })),
+    [catalogProducts]
   );
 
   const scoredProducts = useMemo(() => {
@@ -146,7 +150,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   }, [eligibleProducts, finish, productType, sortMode]);
 
   const visibleMatches = matches.slice(0, visibleLimit);
-  const catalogueAvailable = products.length > 0;
+  const catalogueAvailable = catalogueState === "ready" && catalogProducts.length > 0;
   const availableFinishes = useMemo(
     () => (Object.keys(FINISH_LABELS) as ColorFinish[])
       .filter((item) => (finishCounts.get(item) ?? 0) > 0 || finish === item),
@@ -169,6 +173,39 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     ];
     return [...new Set(candidates)].filter((hex) => hex !== selectedHex).slice(0, 6);
   }, [pickerHsv, selectedHex]);
+
+  useEffect(() => {
+    if (products.length) {
+      setCatalogProducts(products);
+      setCatalogueState("ready");
+      return;
+    }
+
+    const controller = new AbortController();
+
+    void fetch("/api/color-finder/catalog", {
+      method: "GET",
+      signal: controller.signal,
+      headers: { Accept: "application/json" }
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Color Finder catalogue request failed: ${response.status}`);
+        return await response.json() as { products?: ColorFinderProduct[]; degraded?: boolean };
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        const nextProducts = Array.isArray(payload.products) ? payload.products : [];
+        setCatalogProducts(nextProducts);
+        setCatalogueState(payload.degraded || nextProducts.length === 0 ? "degraded" : "ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.warn("Color Finder catalogue load degraded", error);
+        setCatalogueState("degraded");
+      });
+
+    return () => controller.abort();
+  }, [products]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1091,11 +1128,19 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
         ) : (
           <div className={styles.emptyState}>
             <span className={styles.emptySwatch} style={{ backgroundColor: selectedHex }} />
-            <h3>{catalogueAvailable ? "We are still learning this shade." : "Product matching is refreshing."}</h3>
+            <h3>
+              {catalogueState === "loading"
+                ? "Loading color matches…"
+                : catalogueAvailable
+                  ? "We are still learning this shade."
+                  : "Product matching is refreshing."}
+            </h3>
             <p>
-              {catalogueAvailable
-                ? <>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</>
-                : <>Μπορείς να συνεχίσεις να διαλέγεις ή να παίρνεις χρώμα από φωτογραφία. Τα προϊόντα θα εμφανιστούν μόλις ανανεωθεί ξανά ο κατάλογος αντιστοίχισης.</>}
+              {catalogueState === "loading"
+                ? <>Ο Color Finder είναι ήδη διαθέσιμος. Φορτώνουμε τα χρωματικά προφίλ προϊόντων στο παρασκήνιο.</>
+                : catalogueAvailable
+                  ? <>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</>
+                  : <>Μπορείς να συνεχίσεις να διαλέγεις ή να παίρνεις χρώμα από φωτογραφία. Τα προϊόντα θα εμφανιστούν μόλις ανανεωθεί ξανά ο κατάλογος αντιστοίχισης.</>}
             </p>
             {finish !== "all" || productType !== "all" ? (
               <button
