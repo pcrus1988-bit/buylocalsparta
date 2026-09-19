@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { getAccountSession } from "../../lib/account-session";
+import { resolveHubContext } from "../../lib/hub-resolver";
+import { HUB_LOCALITY_COOKIE } from "../../lib/primary-location-gateway";
 import { SiteHeader } from "../../components/SiteHeader";
 import { FittingRoomExperience } from "../../components/FittingRoomExperience";
 import styles from "./page.module.css";
@@ -7,15 +10,14 @@ import styles from "./page.module.css";
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type Props = Readonly<{ searchParams: SearchParams }>;
 
-const DEFAULT_STYLE_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
-
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function safeVendor(value: string | undefined): string {
+function safeVendor(value: string | undefined): string | undefined {
   const candidate = value?.trim() ?? "";
-  return /^[A-Za-z0-9_-]{3,128}$/.test(candidate) ? candidate : DEFAULT_STYLE_VENDOR;
+  if (!candidate) return undefined;
+  return /^[A-Za-z0-9_-]{3,128}$/.test(candidate) ? candidate : undefined;
 }
 
 export const metadata: Metadata = {
@@ -28,6 +30,11 @@ export default async function FittingRoomPage({ searchParams }: Props) {
   const params = await searchParams;
   const vendorId = safeVendor(first(params.vendor));
   const savedLookId = first(params.saved)?.trim();
+  const cookieStore = await cookies();
+  const hub = resolveHubContext({
+    pathname: "/fitting-room",
+    selectedSlug: cookieStore.get(HUB_LOCALITY_COOKIE)?.value
+  }).hub;
   const principal = await getAccountSession();
 
   return (
@@ -36,6 +43,8 @@ export default async function FittingRoomPage({ searchParams }: Props) {
       <SiteHeader />
       <FittingRoomExperience
         vendorId={vendorId}
+        hubSlug={hub.slug}
+        hubName={hub.nameEl}
         csrfToken={principal?.csrfToken}
         savedLookId={savedLookId}
       />

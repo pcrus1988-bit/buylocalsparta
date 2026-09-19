@@ -33,6 +33,7 @@ export const RESERVED_HUB_ROUTE_SEGMENTS = new Set([
   "contact",
   "daily",
   "driver",
+  "fitting-room",
   "join",
   "legal",
   "login",

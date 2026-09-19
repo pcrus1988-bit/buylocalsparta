@@ -507,12 +507,39 @@ function formatTotal(value: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(value / 100);
 }
 
+function facetOptions(values: readonly string[]): readonly FacetOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const raw of values) {
+    const label = raw.trim();
+    if (!label) continue;
+    const key = normalize(label);
+    const current = counts.get(key);
+    if (current) current.count += 1;
+    else counts.set(key, { label, count: 1 });
+  }
+  return [...counts.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((left, right) => (right.count ?? 0) - (left.count ?? 0) || left.label.localeCompare(right.label, "el"));
+}
+
+function facetsFromProducts(products: readonly Product[]): Facets {
+  return {
+    brands: facetOptions(products.flatMap((product) => product.brand ? [product.brand] : [])),
+    colors: facetOptions(products.flatMap((product) => product.color ? [product.color] : [])),
+    sizes: facetOptions(products.flatMap((product) => [...(product.sizes ?? [])]))
+  };
+}
+
 export function FittingRoomExperience({
   vendorId,
+  hubSlug,
+  hubName,
   csrfToken,
   savedLookId
 }: {
-  vendorId: string;
+  vendorId?: string;
+  hubSlug: string;
+  hubName: string;
   csrfToken?: string;
   savedLookId?: string;
 }) {
@@ -531,6 +558,7 @@ export function FittingRoomExperience({
   const [activeLook, setActiveLook] = useState(0);
   const [editingSlot, setEditingSlot] = useState<SlotKey | null>(null);
   const [loading, setLoading] = useState(false);
+  const [prefetching, setPrefetching] = useState(false);
   const [alternativeLoading, setAlternativeLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
@@ -576,23 +604,6 @@ export function FittingRoomExperience({
       document.body.style.overscrollBehavior = previousOverscroll;
     };
   }, [immersive]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch(`/api/catalog/vendor/${encodeURIComponent(vendorId)}?facets=1&facetsOnly=1`, {
-      signal: controller.signal,
-      cache: "default"
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("facets");
-        return response.json() as Promise<{ facets?: Facets | null }>;
-      })
-      .then((payload) => setFacets(payload.facets ?? {}))
-      .catch(() => {
-        if (!controller.signal.aborted) setFacets({});
-      });
-    return () => controller.abort();
-  }, [vendorId]);
 
   useEffect(() => {
     if (!savedLookId || loadedSavedLook) return;
@@ -660,8 +671,30 @@ export function FittingRoomExperience({
 
   useEffect(() => {
     setProducts([]);
+    setFacets({});
     setEditingSlot(null);
-  }, [audience, vendorId]);
+  }, [audience, hubSlug, vendorId]);
+
+  useEffect(() => {
+    if (!started || step !== 5 || products.length || prefetching) return;
+    let active = true;
+    setPrefetching(true);
+    void loadCandidateProducts()
+      .then((candidateProducts) => {
+        if (!active) return;
+        setProducts(candidateProducts);
+        setFacets(facetsFromProducts(candidateProducts));
+      })
+      .catch(() => {
+        if (active) setLoadError("Δεν μπόρεσα να φορτώσω τις διαθέσιμες επιλογές του Style Builder αυτή τη στιγμή.");
+      })
+      .finally(() => {
+        if (active) setPrefetching(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [audience, hubSlug, products.length, started, step, vendorId]);
 
   useEffect(() => {
     if (!editingSlot || products.length || alternativeLoading) return;
@@ -721,6 +754,7 @@ export function FittingRoomExperience({
   async function loadCandidateProducts(): Promise<readonly Product[]> {
     const body = JSON.stringify({
       vendorId,
+      hubSlug,
       audience,
       brands,
       budgetMinor: euroBudget(budget) ?? 0
@@ -981,7 +1015,7 @@ export function FittingRoomExperience({
           <div className={styles.consultantBadge}><span>K</span><div><strong>Ο προσωπικός σου stylist</strong><small>KONTA MOY Fitting Room</small></div></div>
           <p className={styles.eyebrow}>PRIVATE FITTING ROOM</p>
           <h1>Μπες. Πες μου τι σου αρέσει.<br /><em>Θα στήσουμε το look μαζί.</em></h1>
-          <p className={styles.entryLead}>Περίσταση, μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις που σέβονται το dress code και αλλάζουν κομμάτι-κομμάτι.</p>
+          <p className={styles.entryLead}>Περίσταση, μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις {vendorId ? "από το συγκεκριμένο κατάστημα" : `με διαθέσιμα προϊόντα από όλο το HUB ${hubName}`} που αλλάζουν κομμάτι-κομμάτι.</p>
           <button className={styles.primaryButton} type="button" onClick={() => { setStarted(true); enterImmersive(); }}>Μπες στο fitting room <span>→</span></button>
           <div className={styles.entryFoot}><span>3 έτοιμα looks</span><span>Αλλάζεις ό,τι θέλεις</span><span>Save & share</span></div>
         </div>
@@ -1125,7 +1159,7 @@ export function FittingRoomExperience({
               const active = brands.includes(brand);
               return <button type="button" key={brand} className={active ? styles.brandActive : undefined} onClick={() => toggleBrand(brand)}>{brand}</button>;
             })}</div>
-            {!brandOptions.length ? <p className={styles.muted}>Δεν χρειάζεται να επιλέξεις brand για να συνεχίσουμε.</p> : null}
+            {prefetching ? <p className={styles.muted}>{vendorId ? "Βρίσκω τα διαθέσιμα brands του καταστήματος…" : `Βρίσκω διαθέσιμα brands από όλο το HUB ${hubName}…`}</p> : !brandOptions.length ? <p className={styles.muted}>Δεν χρειάζεται να επιλέξεις brand για να συνεχίσουμε.</p> : null}
           </div>
         )
       }
@@ -1226,7 +1260,7 @@ export function FittingRoomExperience({
               return <article className={styles.productSlot} key={slot}>
                 <button type="button" className={styles.productButton} onClick={() => setEditingSlot(slot)}>
                   <div className={styles.productImage}>{image ? <img src={image} alt={product.mediaAlt || product.title} loading="lazy" /> : <span>{product.title.slice(0, 1)}</span>}<b>Αλλαγή</b></div>
-                  <div className={styles.productCopy}><small>{meta.short}</small><strong>{product.title}</strong><span>{product.brand || product.categoryLabel || meta.label}</span><em>{product.price}</em></div>
+                  <div className={styles.productCopy}><small>{meta.short}</small><strong>{product.title}</strong><span>{product.brand || product.categoryLabel || meta.label}{!vendorId && product.vendorName ? ` · ${product.vendorName}` : ""}</span><em>{product.price}</em></div>
                 </button>
                 <Link className={styles.productDetailLink} href={productPublicPath(product)} prefetch={false}>Δες το προϊόν ↗</Link>
               </article>;
@@ -1242,7 +1276,7 @@ export function FittingRoomExperience({
             const image = imageFor(product);
             return <button type="button" key={product.id} className={styles.alternativeCard} onClick={() => replaceSlot(editingSlot, product)}>
               <div>{image ? <img src={image} alt="" loading="lazy" /> : <span>{product.title.slice(0, 1)}</span>}</div>
-              <small>{product.brand || product.categoryLabel || "KONTA MOY"}</small>
+              <small>{product.brand || product.categoryLabel || "KONTA MOY"}{!vendorId && product.vendorName ? ` · ${product.vendorName}` : ""}</small>
               <strong>{product.title}</strong>
               <em>{product.price}</em>
             </button>;

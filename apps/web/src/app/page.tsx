@@ -205,6 +205,7 @@ export default async function Home() {
               <a href="/shop">Όλα τα προϊόντα <span aria-hidden="true">↗</span></a>
               <a href="/shops">Τα καταστήματα <span aria-hidden="true">↗</span></a>
               <a href="/ask-local">Ask Local <span aria-hidden="true">↗</span></a>
+              <a href="/fitting-room">Style Builder <span aria-hidden="true">↗</span></a>
             </div>
           </div>
         </section>
