@@ -66,35 +66,135 @@ async function loadFastAttributeFacets(
 
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<AttributeFacetRow>(`
-      WITH definitions AS MATERIALIZED (
+      WITH RECURSIVE category_tree AS (
+        SELECT c.id,c.parent_id,c.code,c.code AS department_code
+        FROM public.categories c
+        JOIN public.markets m ON m.id=c.market_id
+        WHERE m.code='sparta' AND c.parent_id IS NULL
+
+        UNION ALL
+
+        SELECT child.id,child.parent_id,child.code,parent.department_code
+        FROM public.categories child
+        JOIN category_tree parent ON child.parent_id=parent.id
+      ), definitions AS MATERIALIZED (
         SELECT
           item->>'key' AS key,
           item->>'label' AS label,
           COALESCE(item->'sourceKeys','[]'::jsonb) AS source_keys
         FROM jsonb_array_elements($7::jsonb) item
-      ), raw AS MATERIALIZED (
+      ), stable AS MATERIALIZED (
         SELECT
+          rm.canonical_variant_id,
           rm.category_code,
+          rm.department_code,
           NULLIF(BTRIM(COALESCE(rm.brand_name,'')),'') AS brand,
           NULLIF(BTRIM(COALESCE(rm.color,'')),'') AS color,
           rm.sizes,
-          rm.raw_attributes
+          rm.raw_attributes,
+          rm.search_vector,
+          rm.gtin,
+          rm.mpn
         FROM public.storefront_filter_read_model rm
         WHERE rm.available_until>now()
-          AND (
+      ), hot_symphonya AS MATERIALIZED (
+        SELECT DISTINCT ON (cv.id)
+          cv.id AS canonical_variant_id,
+          c.code AS category_code,
+          tree.department_code,
+          NULLIF(BTRIM(COALESCE(b.name,pfb.name,'')),'') AS brand,
+          NULLIF(BTRIM(COALESCE(
+            el.specifications->>'color',
+            en.specifications->>'color',
+            cv.variant_attributes->>'color',
+            ''
+          )),'') AS color,
+          COALESCE(
+            el.specifications->'sizes',
+            en.specifications->'sizes',
+            cv.variant_attributes->'sizes_observed',
+            '[]'::jsonb
+          ) AS sizes,
+          COALESCE(cv.variant_attributes,'{}'::jsonb)
+            || COALESCE(en.specifications,'{}'::jsonb)
+            || COALESCE(el.specifications,'{}'::jsonb) AS raw_attributes,
+          to_tsvector(
+            'simple',
+            concat_ws(
+              ' ',
+              COALESCE(el.title,en.title,cv.model,cv.slug),
+              COALESCE(b.name,pfb.name,''),
+              COALESCE(cv.gtin,''),
+              COALESCE(cv.mpn,''),
+              c.code,
+              tree.department_code
+            )
+          ) AS search_vector,
+          cv.gtin,
+          cv.mpn
+        FROM public.dropship_supplier_offers dso
+        JOIN public.dropship_suppliers ds
+          ON ds.id=dso.supplier_id
+         AND ds.code='symphonya'
+         AND ds.active=true
+         AND ds.api_authoritative_availability=true
+        JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+        JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+        JOIN public.categories c ON c.id=cv.category_id
+        JOIN category_tree tree ON tree.id=cv.category_id
+        JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+        JOIN public.vendor_locations l ON l.id=vo.location_id
+        LEFT JOIN public.product_families pf ON pf.id=cv.family_id
+        LEFT JOIN public.brands b ON b.id=cv.brand_id
+        LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
+        LEFT JOIN public.product_translations el
+          ON el.canonical_variant_id=cv.id AND el.locale='el'
+        LEFT JOIN public.product_translations en
+          ON en.canonical_variant_id=cv.id AND en.locale='en'
+        WHERE dso.active=true
+          AND dso.cached_available=true
+          AND COALESCE(dso.cached_quantity,0)>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND v.status='active'
+          AND l.active=true
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+          AND NOT EXISTS (
+            SELECT 1 FROM stable projected WHERE projected.canonical_variant_id=cv.id
+          )
+        ORDER BY cv.id,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.id
+      ), combined AS MATERIALIZED (
+        SELECT canonical_variant_id,category_code,department_code,brand,color,sizes,raw_attributes,search_vector,gtin,mpn
+        FROM stable
+        UNION ALL
+        SELECT canonical_variant_id,category_code,department_code,brand,color,sizes,raw_attributes,search_vector,gtin,mpn
+        FROM hot_symphonya
+      ), raw AS MATERIALIZED (
+        SELECT category_code,brand,color,sizes,raw_attributes
+        FROM combined
+        WHERE (
             cardinality($1::text[])=0 OR EXISTS (
               SELECT 1 FROM unnest($1::text[]) prefix
-              WHERE lower(rm.category_code)=prefix
-                 OR lower(rm.category_code) LIKE prefix||'-%'
-                 OR lower(rm.department_code)=prefix
-                 OR lower(rm.department_code) LIKE prefix||'-%'
+              WHERE lower(category_code)=prefix
+                 OR lower(category_code) LIKE prefix||'-%'
+                 OR lower(department_code)=prefix
+                 OR lower(department_code) LIKE prefix||'-%'
             )
           )
           AND (
             $2::text='' OR
-            rm.search_vector @@ plainto_tsquery('simple',$2)
-            OR COALESCE(rm.gtin,'')=$2
-            OR lower(COALESCE(rm.mpn,''))=lower($2)
+            search_vector @@ plainto_tsquery('simple',$2)
+            OR COALESCE(gtin,'')=$2
+            OR lower(COALESCE(mpn,''))=lower($2)
           )
       ), base AS MATERIALIZED (
         SELECT
