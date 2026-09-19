@@ -68,6 +68,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv("#B52E2E"));
   const [urlReady, setUrlReady] = useState(false);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
+  const [visibleLimit, setVisibleLimit] = useState(24);
 
   const [photoUrl, setPhotoUrl] = useState<string>();
   const [photoExpiresAt, setPhotoExpiresAt] = useState<number>();
@@ -125,7 +126,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     [eligibleProducts, finish, productType]
   );
 
-  const visibleMatches = matches.slice(0, 24);
+  const visibleMatches = matches.slice(0, visibleLimit);
   const availableFinishes = useMemo(
     () => (Object.keys(FINISH_LABELS) as ColorFinish[])
       .filter((item) => (finishCounts.get(item) ?? 0) > 0 || finish === item),
@@ -178,6 +179,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   useEffect(() => {
     setPickerHsv(hexToHsv(selectedHex));
   }, [selectedHex]);
+
+  useEffect(() => {
+    setVisibleLimit(24);
+  }, [finish, productType, selectedHex]);
 
   useEffect(() => {
     if (!photoUrl) return undefined;
@@ -953,56 +958,66 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
         </div>
 
         {visibleMatches.length ? (
-          <div className={styles.grid}>
-            {visibleMatches.map((product, index) => (
-              <article className={styles.productCard} key={product.id}>
-                <Link className={styles.imageWrap} href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>
-                  <span className={styles.rank}>#{String(index + 1).padStart(2, "0")}</span>
-                  <img src={product.imageSrc} alt={product.mediaAlt ?? product.title} loading={index < 4 ? "eager" : "lazy"} decoding="async" />
-                </Link>
-                <div className={styles.productBody}>
-                  <div className={styles.brandRow}>
-                    <span>{product.brand ?? "KONTA MOY"}</span>
-                    <strong>{product.match}% <small>{matchQualityLabel(product.match)}</small></strong>
-                  </div>
-                  <h3><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>{product.title}</Link></h3>
-                  {product.brandShade || product.shadeCode ? (
-                    <p className={styles.shadeName}>
-                      {[product.shadeCode, product.brandShade].filter(Boolean).join(" · ")}
-                    </p>
-                  ) : null}
-                  {product.profilePrecision ? (
-                    <p className={styles.profileNote}>
-                      {product.profilePrecision === "exact"
-                        ? "Verified colour profile"
-                        : product.profilePrecision === "canonicalized"
-                          ? "Canonicalized brand shade"
-                          : "Approximate colour family"}
-                      {typeof product.profileConfidence === "number" ? ` · ${Math.round(product.profileConfidence * 100)}% confidence` : ""}
-                    </p>
-                  ) : null}
-                  <div className={styles.swatches}>
-                    <div>
-                      <span style={{ backgroundColor: product.colorHex }} />
-                      <small>{product.profilePrecision === "exact" ? "PRODUCT" : "PROFILE"}</small>
+          <>
+            <div className={styles.grid}>
+              {visibleMatches.map((product, index) => (
+                <article className={styles.productCard} key={product.id}>
+                  <Link className={styles.imageWrap} href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>
+                    <span className={styles.rank}>#{String(index + 1).padStart(2, "0")}</span>
+                    <img src={product.imageSrc} alt={product.mediaAlt ?? product.title} loading={index < 4 ? "eager" : "lazy"} decoding="async" />
+                  </Link>
+                  <div className={styles.productBody}>
+                    <div className={styles.brandRow}>
+                      <span>{product.brand ?? "KONTA MOY"}</span>
+                      <strong>{product.match}% <small>{matchQualityLabel(product.match)}</small></strong>
                     </div>
-                    <div>
-                      <span style={{ backgroundColor: selectedHex }} />
-                      <small>YOUR COLOR</small>
+                    <h3><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>{product.title}</Link></h3>
+                    {product.brandShade || product.shadeCode ? (
+                      <p className={styles.shadeName}>
+                        {[product.shadeCode, product.brandShade].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
+                    {product.profilePrecision ? (
+                      <p className={styles.profileNote}>
+                        {product.profilePrecision === "exact"
+                          ? "Verified colour profile"
+                          : product.profilePrecision === "canonicalized"
+                            ? "Canonicalized brand shade"
+                            : "Approximate colour family"}
+                        {typeof product.profileConfidence === "number" ? ` · ${Math.round(product.profileConfidence * 100)}% confidence` : ""}
+                      </p>
+                    ) : null}
+                    <div className={styles.swatches}>
+                      <div>
+                        <span style={{ backgroundColor: product.colorHex }} />
+                        <small>{product.profilePrecision === "exact" ? "PRODUCT" : "PROFILE"}</small>
+                      </div>
+                      <div>
+                        <span style={{ backgroundColor: selectedHex }} />
+                        <small>YOUR COLOR</small>
+                      </div>
+                      <p>ΔE {product.deltaE.toFixed(1)}</p>
                     </div>
-                    <p>ΔE {product.deltaE.toFixed(1)}</p>
-                  </div>
-                  <div className={styles.cardFooter}>
-                    <div>
-                      <span>{FINISH_LABELS[product.finish]}</span>
-                      <strong>{product.price}</strong>
+                    <div className={styles.cardFooter}>
+                      <div>
+                        <span>{FINISH_LABELS[product.finish]}</span>
+                        <strong>{product.price}</strong>
+                      </div>
+                      <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>View shade →</Link>
                     </div>
-                    <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>View shade →</Link>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+            {visibleMatches.length < matches.length ? (
+              <div className={styles.moreMatches}>
+                <button type="button" onClick={() => setVisibleLimit((current) => current + 24)}>
+                  SHOW MORE MATCHES
+                </button>
+                <span>{matches.length - visibleMatches.length} more ≥ {MIN_MATCH_PERCENT}%</span>
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className={styles.emptyState}>
             <span className={styles.emptySwatch} style={{ backgroundColor: selectedHex }} />
