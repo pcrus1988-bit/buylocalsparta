@@ -686,6 +686,16 @@ function formatTotal(value: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(value / 100);
 }
 
+function createShareToken(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function facetOptions(values: readonly string[]): readonly FacetOption[] {
   const counts = new Map<string, { label: string; count: number }>();
   for (const raw of values) {
@@ -1155,43 +1165,53 @@ export function FittingRoomExperience({
       return;
     }
 
-    setShareStatus("Δημιουργία share link…");
+    const body = currentLookPayload();
+    if (!body) return;
+
     try {
-      const body = currentLookPayload();
-      if (!body) throw new Error("look");
-      const response = await fetch("/api/style-looks/share", {
+      const shareToken = createShareToken();
+      const code = styleLookShareCodeFromToken(shareToken);
+      if (!code) throw new Error("share-code");
+      const url = new URL(`/look/${code}`, window.location.origin).toString();
+
+      setShareStatus("Δημιουργία share link…");
+      const persistence = fetch("/api/style-looks/share", {
         method: "POST",
         headers: { "content-type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({
+          shareToken,
           name: body.name,
           audience: body.audience,
           source: body.source,
           composition: body.composition
         })
+      }).then(async (response) => {
+        const payload = await response.json() as { shareToken?: string; error?: string };
+        if (!response.ok || payload.shareToken !== shareToken) throw new Error(payload.error || "share");
+        return payload;
       });
-      const payload = await response.json() as { shareToken?: string; error?: string };
-      if (!response.ok || !payload.shareToken) throw new Error(payload.error || "share");
-
-      const code = styleLookShareCodeFromToken(payload.shareToken);
-      if (!code) throw new Error("share-code");
-      const url = new URL(`/look/${code}`, window.location.origin).toString();
 
       if (navigator.share) {
         try {
-          await navigator.share({
+          const nativeShare = navigator.share({
             title: `${currentLook.name} · KONTA MOY Style Builder`,
             text: "Δες το look που έφτιαξα στο KONTA MOY.",
             url
           });
-          setShareStatus("Το look είναι έτοιμο να μοιραστεί.");
+          await Promise.all([persistence, nativeShare]);
+          setShareStatus("Το look μοιράστηκε.");
           return;
         } catch (error) {
           if (error instanceof DOMException && error.name === "AbortError") {
+            void persistence.catch(() => undefined);
             setShareStatus("");
             return;
           }
+          await persistence;
         }
+      } else {
+        await persistence;
       }
 
       try {
