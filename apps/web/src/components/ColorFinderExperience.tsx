@@ -32,6 +32,7 @@ type CropBox = Readonly<{ x: number; y: number; size: number }>;
 type HsvColor = Readonly<{ h: number; s: number; v: number }>;
 type PhotoPickMode = "spot" | "area";
 type PhotoSpot = Readonly<{ x: number; y: number; hex: string }>;
+type SortMode = "match" | "price-asc" | "price-desc";
 
 const PHOTO_TTL_MS = 15 * 60 * 1000;
 const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
@@ -64,6 +65,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [hexDraft, setHexDraft] = useState("#B52E2E");
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("match");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
   const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv("#B52E2E"));
   const [urlReady, setUrlReady] = useState(false);
@@ -119,12 +121,19 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     return counts;
   }, [eligibleProducts, productType]);
 
-  const matches = useMemo(
-    () => eligibleProducts
+  const matches = useMemo(() => {
+    const filtered = eligibleProducts
       .filter((product) => finish === "all" || product.finish === finish)
-      .filter((product) => productType === "all" || product.productType === productType),
-    [eligibleProducts, finish, productType]
-  );
+      .filter((product) => productType === "all" || product.productType === productType);
+
+    if (sortMode === "price-asc") {
+      return filtered.sort((left, right) => left.priceMinor - right.priceMinor || left.deltaE - right.deltaE);
+    }
+    if (sortMode === "price-desc") {
+      return filtered.sort((left, right) => right.priceMinor - left.priceMinor || left.deltaE - right.deltaE);
+    }
+    return filtered.sort((left, right) => left.deltaE - right.deltaE || left.priceMinor - right.priceMinor);
+  }, [eligibleProducts, finish, productType, sortMode]);
 
   const visibleMatches = matches.slice(0, visibleLimit);
   const catalogueAvailable = products.length > 0;
@@ -156,6 +165,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     const color = normalizeHex(params.get("color") ?? "");
     const finishParam = params.get("finish");
     const typeParam = params.get("type");
+    const sortParam = params.get("sort");
 
     if (color) {
       setSelectedHex(color);
@@ -163,6 +173,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     }
     if (finishParam && finishParam in FINISH_LABELS) setFinish(finishParam as ColorFinish);
     if (typeParam && typeParam in TYPE_LABELS) setProductType(typeParam as ColorProductType);
+    if (sortParam === "price-asc" || sortParam === "price-desc") setSortMode(sortParam);
     setUrlReady(true);
   }, []);
 
@@ -174,8 +185,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     else url.searchParams.set("finish", finish);
     if (productType === "all") url.searchParams.delete("type");
     else url.searchParams.set("type", productType);
+    if (sortMode === "match") url.searchParams.delete("sort");
+    else url.searchParams.set("sort", sortMode);
     window.history.replaceState(window.history.state, "", url);
-  }, [finish, productType, selectedHex, urlReady]);
+  }, [finish, productType, selectedHex, sortMode, urlReady]);
 
   useEffect(() => {
     setPickerHsv(hexToHsv(selectedHex));
@@ -183,7 +196,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
 
   useEffect(() => {
     setVisibleLimit(24);
-  }, [finish, productType, selectedHex]);
+  }, [finish, productType, selectedHex, sortMode]);
 
   useEffect(() => {
     if (!photoUrl) return undefined;
@@ -916,7 +929,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <h2 id="color-finder-results">Your closest matches</h2>
             <p>
               {visibleMatches.length
-                ? `${visibleMatches.length} από ${matches.length} αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ταξινομημένα από το κοντινότερο χρώμα.`
+                ? `${visibleMatches.length} από ${matches.length} αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
                 : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία για αυτόν τον συνδυασμό φίλτρων.`}
             </p>
           </div>
@@ -954,6 +967,14 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                   {FINISH_LABELS[item]} <small>{finishCounts.get(item) ?? 0}</small>
                 </button>
               ))}
+            </div>
+          </div>
+          <div className={styles.filterGroup}>
+            <span>SORT</span>
+            <div>
+              <button type="button" className={sortMode === "match" ? styles.activeFilter : undefined} onClick={() => setSortMode("match")}>Best match</button>
+              <button type="button" className={sortMode === "price-asc" ? styles.activeFilter : undefined} onClick={() => setSortMode("price-asc")}>Price ↑</button>
+              <button type="button" className={sortMode === "price-desc" ? styles.activeFilter : undefined} onClick={() => setSortMode("price-desc")}>Price ↓</button>
             </div>
           </div>
         </div>
