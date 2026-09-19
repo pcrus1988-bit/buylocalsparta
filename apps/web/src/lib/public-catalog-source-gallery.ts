@@ -4,6 +4,7 @@ import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 type SourceGalleryRow = SqlRow & {
   normalized_payload: unknown;
+  source_image_url: string | null;
   source_code: string | null;
   source_website: string | null;
   source_title: string | null;
@@ -48,7 +49,10 @@ function numericPosition(value: unknown, fallback: number): number {
 
 function sourceImagesFromRow(row: SourceGalleryRow): readonly PublicCatalogSourceImage[] {
   const payload = objectValue(row.normalized_payload);
-  const rawImages = Array.isArray(payload.images) ? payload.images : [];
+  const payloadImages = Array.isArray(payload.images) ? payload.images : [];
+  const rawImages = row.source_image_url
+    ? [{ src: row.source_image_url, position: 0 }, ...payloadImages]
+    : payloadImages;
   const sourceTitle = optionalText(row.source_title);
   const candidates = rawImages
     .map((entry, index) => {
@@ -94,6 +98,7 @@ export async function getPublicCatalogSourceGallery(
       { actorUserId: "public-storefront", marketId: "sparta", platformAccess: true },
       (tx) => tx.query<SourceGalleryRow>(`
         SELECT csp.normalized_payload,
+               csp.source_image_url,
                cs.code AS source_code,
                cs.website AS source_website,
                csp.title AS source_title
@@ -171,6 +176,7 @@ export async function getPublicCatalogSourcePrimaryImages(
           SELECT
             requested.canonical_public_id,
             csp.normalized_payload,
+            csp.source_image_url AS source_image_fallback_url,
             cs.code AS source_code,
             cs.website AS source_website,
             csp.title AS source_title,
@@ -198,7 +204,7 @@ export async function getPublicCatalogSourcePrimaryImages(
             AND cs.active=true
             AND cs.code IN ('nova-brandsgateway','symphonya')
         ), primary_source AS (
-          SELECT canonical_public_id,normalized_payload,source_code,source_website,source_title
+          SELECT canonical_public_id,normalized_payload,source_image_fallback_url,source_code,source_website,source_title
           FROM ranked
           WHERE source_rank=1
         )
@@ -210,7 +216,8 @@ export async function getPublicCatalogSourcePrimaryImages(
           COALESCE(
             primary_image.image->>'src',
             primary_image.image->>'url',
-            primary_image.image->>'image'
+            primary_image.image->>'image',
+            primary_source.source_image_fallback_url
           ) AS source_image_url,
           CASE
             WHEN COALESCE(primary_image.image->>'position','') ~ '^[0-9]+([.][0-9]+)?$'
