@@ -123,7 +123,7 @@ async function oldestPublicationCandidateExternalIds(limit: number, excluded: Re
     WHERE ds.code='symphonya' AND ds.active=true AND ds.api_authoritative_availability=true
       AND cv.category_id IS NOT NULL AND cv.family_id IS NOT NULL AND cv.suppressed=false AND cv.recalled=false
       AND (vo.status::text IN ('draft','approved') OR (vo.status::text='archived' AND COALESCE(vo.source_payload->>'publishedBy','')='symphonya_auto_publication' AND COALESCE(vo.source_payload->>'publicationState','')='PUBLISHED'))
-      AND COALESCE(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
+      AND COALESCE(vo.source_payload->>'pricingManagedBy','') IN ('symphonya_auto_v1','supplier_defaults_v1')
       AND COALESCE(vo.source_payload->>'pricingPending','true')='false'
       AND dso.supplier_cost_minor>0 AND vo.customer_price_minor>=dso.supplier_cost_minor
       AND dso.cached_available=true AND COALESCE(dso.cached_quantity,0)>0
