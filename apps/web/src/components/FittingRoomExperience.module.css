@@ -1,18 +1,9 @@
 .entry,
 .room,
 .lookRoom {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - 92px);
   position: relative;
-}
-
-.entry {
   overflow: hidden;
-}
-
-.room,
-.lookRoom {
-  overflow: visible;
 }
 
 .entry {
@@ -189,9 +180,21 @@
 }
 
 .exit {
+  width: fit-content;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
   color: rgba(255,255,255,.7);
   text-decoration: none;
+  font: inherit;
   font-size: 12px;
+  cursor: pointer;
+}
+
+.exit:hover {
+  background: rgba(255,255,255,.06);
+  color: #fff;
 }
 
 .roomWordmark {
@@ -857,6 +860,65 @@
 .emptySlot small {
   margin-top: 6px;
   line-height: 1.5;
+}
+
+.fullscreenTakeover {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  isolation: isolate;
+  padding:
+    env(safe-area-inset-top)
+    env(safe-area-inset-right)
+    env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  background:
+    radial-gradient(circle at 50% -10%, rgba(229,214,190,.16), transparent 34rem),
+    #0f0e0e;
+  color: #f8f3eb;
+}
+
+.fullscreenTakeover .room,
+.fullscreenTakeover .lookRoom {
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow: visible;
+}
+
+.fullscreenTakeover .roomHeader,
+.fullscreenTakeover .lookTopBar {
+  background: rgba(13,12,11,.94);
+}
+
+.exitGameButton {
+  width: 38px;
+  height: 38px;
+  padding: 0 !important;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50% !important;
+  font-size: 20px !important;
+  line-height: 1;
+}
+
+@media (max-width: 720px) {
+  .fullscreenTakeover {
+    padding-top: max(0px, env(safe-area-inset-top));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+    padding-left: max(0px, env(safe-area-inset-left));
+  }
+
+  .fullscreenTakeover .roomHeader,
+  .fullscreenTakeover .lookTopBar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
 }
 
 .drawerBackdrop {
