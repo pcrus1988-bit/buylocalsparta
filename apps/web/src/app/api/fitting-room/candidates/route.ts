@@ -3,6 +3,7 @@ import type { CatalogCard } from "../../../../lib/catalog-view";
 import { getExpansionHubRuntimeSnapshot } from "../../../../lib/expansion-hub-runtime";
 import { resolveHubSelection, SPARTA_GATEWAY_SLUG } from "../../../../lib/hub-resolver";
 import { getPublishedDropshipCatalogPage } from "../../../../lib/published-dropship-catalog-page";
+import { getPublicProductDetails } from "../../../../lib/public-product-detail";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 import { getShopCatalogPage } from "../../../../lib/shop-catalog-page";
 import { getVendorDropshipCatalogPage } from "../../../../lib/vendor-dropship-catalog-page";
@@ -196,6 +197,25 @@ function uniqueProducts(products: readonly (StyleProduct | undefined)[]): StyleP
   return [...unique.values()];
 }
 
+const loadSourceImageIds = unstable_cache(
+  async (canonicalIds: readonly string[]): Promise<readonly string[]> => {
+    const ids = [...new Set(canonicalIds.map((id) => id.trim()).filter(Boolean))];
+    if (!ids.length) return [];
+    const details = await getPublicProductDetails(ids);
+    return ids.filter((id) => Boolean(details.get(id)?.sourceImageUrl));
+  },
+  ["fitting-room-source-image-fallback-v1"],
+  { revalidate: 900 }
+);
+
+async function withSourceImageFallbacks(products: readonly StyleProduct[]): Promise<readonly StyleProduct[]> {
+  if (!products.length) return products;
+  const sourceImageIds = new Set(await loadSourceImageIds(products.map((product) => product.id)));
+  return products.map((product) => product.sourceImageAvailable || !sourceImageIds.has(product.id)
+    ? product
+    : { ...product, sourceImageAvailable: true });
+}
+
 const loadHubScope = unstable_cache(
   async (hubSlug: string): Promise<Readonly<{
     hubSlug: string;
@@ -327,6 +347,8 @@ export async function POST(request: Request) {
         || left.priceMinor - right.priceMinor;
     });
 
+    const imageAwareProducts = await withSourceImageFallbacks(products);
+
     return Response.json(
       {
         scope: vendorId ? "vendor" : "hub",
@@ -334,7 +356,7 @@ export async function POST(request: Request) {
         hubSlug: hub.hubSlug,
         hubName: hub.hubName,
         audience,
-        products
+        products: imageAwareProducts
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
