@@ -7,7 +7,8 @@ const SUPPLIER_CODE = "nova_brandsgateway";
 const AUTO_PRICING_CURSOR_KEY = "novaAutoPricingCursorV2";
 const DEFAULT_BATCH_SIZE = 1_000;
 const MAX_BATCH_SIZE = 5_000;
-const CATCHUP_BATCH_SIZE = MAX_BATCH_SIZE;
+const DEFAULT_CATCHUP_BATCH_SIZE = 250;
+const MAX_CATCHUP_BATCH_SIZE = 1_000;
 
 export type NovaAutoPricingSliceResult = Readonly<{
   enabled: boolean;
@@ -85,7 +86,7 @@ export async function runNovaAutoPricingSlice(): Promise<NovaAutoPricingSliceRes
     vendorId,
     cursor: null,
     unmanagedOnly: true,
-    limit: CATCHUP_BATCH_SIZE
+    limit: catchupBatchSize()
   });
   const catchingUp = unmanagedRows.rows.length > 0;
   const rows = catchingUp
@@ -348,6 +349,11 @@ async function persistCursor(sourceId: string, cursor: string | null): Promise<v
            updated_at=now()
      WHERE id=$1::uuid
   `, [sourceId, AUTO_PRICING_CURSOR_KEY, cursor]);
+}
+
+function catchupBatchSize(): number {
+  const value = Number(process.env.BLS_NOVA_AUTO_PRICING_CATCHUP_BATCH_SIZE ?? DEFAULT_CATCHUP_BATCH_SIZE);
+  return Number.isSafeInteger(value) && value > 0 ? Math.min(MAX_CATCHUP_BATCH_SIZE, value) : DEFAULT_CATCHUP_BATCH_SIZE;
 }
 
 function batchSize(): number {
