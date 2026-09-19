@@ -127,6 +127,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   );
 
   const visibleMatches = matches.slice(0, visibleLimit);
+  const catalogueAvailable = products.length > 0;
   const availableFinishes = useMemo(
     () => (Object.keys(FINISH_LABELS) as ColorFinish[])
       .filter((item) => (finishCounts.get(item) ?? 0) > 0 || finish === item),
@@ -1021,8 +1022,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
         ) : (
           <div className={styles.emptyState}>
             <span className={styles.emptySwatch} style={{ backgroundColor: selectedHex }} />
-            <h3>We are still learning this shade.</h3>
-            <p>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</p>
+            <h3>{catalogueAvailable ? "We are still learning this shade." : "Product matching is refreshing."}</h3>
+            <p>
+              {catalogueAvailable
+                ? <>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</>
+                : <>Μπορείς να συνεχίσεις να διαλέγεις ή να παίρνεις χρώμα από φωτογραφία. Τα προϊόντα θα εμφανιστούν μόλις ανανεωθεί ξανά ο κατάλογος αντιστοίχισης.</>}
+            </p>
             {finish !== "all" || productType !== "all" ? (
               <button
                 type="button"
