@@ -28,6 +28,7 @@ type ProductTypeFilter = "all" | ColorProductType;
 type SelectorMode = "picker" | "photo";
 type PhotoRect = Readonly<{ x: number; y: number; width: number; height: number }>;
 type CropBox = Readonly<{ x: number; y: number; size: number }>;
+type HsvColor = Readonly<{ h: number; s: number; v: number }>;
 
 const PHOTO_TTL_MS = 15 * 60 * 1000;
 const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
@@ -60,6 +61,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
+  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv("#B52E2E"));
 
   const [photoUrl, setPhotoUrl] = useState<string>();
   const [photoExpiresAt, setPhotoExpiresAt] = useState<number>();
@@ -72,6 +74,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const cropDragRef = useRef(false);
+  const pickerDragRef = useRef(false);
 
   const matches = useMemo(() => {
     const targetLab = hexToLab(selectedHex);
@@ -88,6 +91,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const visibleMatches = matches.slice(0, 24);
   const availableFinishes = useMemo(() => [...new Set(products.map((product) => product.finish))], [products]);
   const availableTypes = useMemo(() => [...new Set(products.map((product) => product.productType))], [products]);
+
+  useEffect(() => {
+    setPickerHsv(hexToHsv(selectedHex));
+  }, [selectedHex]);
 
   useEffect(() => {
     if (!photoUrl) return undefined;
@@ -201,6 +208,44 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     setHexDraft(value);
     const normalized = normalizeHex(value);
     if (normalized) setSelectedHex(normalized);
+  }
+
+  function updatePickerColor(next: HsvColor) {
+    const normalized: HsvColor = {
+      h: ((next.h % 360) + 360) % 360,
+      s: clamp(next.s, 0, 1),
+      v: clamp(next.v, 0, 1)
+    };
+    const hex = hsvToHex(normalized);
+    setPickerHsv(normalized);
+    setSelectedHex(hex);
+    setHexDraft(hex);
+  }
+
+  function movePickerToPoint(clientX: number, clientY: number, element: HTMLDivElement) {
+    const bounds = element.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const saturation = clamp((clientX - bounds.left) / bounds.width, 0, 1);
+    const value = clamp(1 - ((clientY - bounds.top) / bounds.height), 0, 1);
+    updatePickerColor({ ...pickerHsv, s: saturation, v: value });
+  }
+
+  function handlePickerPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    pickerDragRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    movePickerToPoint(event.clientX, event.clientY, event.currentTarget);
+  }
+
+  function handlePickerPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!pickerDragRef.current) return;
+    movePickerToPoint(event.clientX, event.clientY, event.currentTarget);
+  }
+
+  function handlePickerPointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    pickerDragRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function handlePhotoFile(event: ChangeEvent<HTMLInputElement>) {
@@ -397,21 +442,58 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           </div>
 
           {selectorMode === "picker" ? (
-            <label className={styles.colorStage} style={{ "--selected-color": selectedHex } as CSSProperties}>
-              <span className={styles.colorHalo} aria-hidden="true" />
-              <span className={styles.colorDisc} aria-hidden="true" />
-              <span className={styles.pickHint}>Tap to choose a color</span>
-              <input
-                aria-label="Διάλεξε χρώμα"
-                type="color"
-                value={selectedHex}
-                onChange={(event) => {
-                  const value = event.target.value.toUpperCase();
-                  setSelectedHex(value);
-                  setHexDraft(value);
-                }}
-              />
-            </label>
+            <div className={styles.inlinePicker}>
+              <div
+                className={styles.svPicker}
+                style={{ "--picker-hue": `hsl(${pickerHsv.h} 100% 50%)` } as CSSProperties}
+                role="slider"
+                tabIndex={0}
+                aria-label="Διάλεξε απόχρωση και ένταση"
+                aria-valuetext={selectedHex}
+                onPointerDown={handlePickerPointerDown}
+                onPointerMove={handlePickerPointerMove}
+                onPointerUp={handlePickerPointerEnd}
+                onPointerCancel={handlePickerPointerEnd}
+              >
+                <span
+                  className={styles.pickerThumb}
+                  style={{
+                    left: `${pickerHsv.s * 100}%`,
+                    top: `${(1 - pickerHsv.v) * 100}%`,
+                    backgroundColor: selectedHex
+                  }}
+                  aria-hidden="true"
+                />
+              </div>
+
+              <div className={styles.pickerControls}>
+                <div className={styles.pickerPreview}>
+                  <span style={{ backgroundColor: selectedHex }} aria-hidden="true" />
+                  <div>
+                    <small>SELECTED COLOR</small>
+                    <strong>{selectedHex}</strong>
+                  </div>
+                </div>
+
+                <label className={styles.hueControl}>
+                  <span>HUE</span>
+                  <input
+                    aria-label="Hue"
+                    type="range"
+                    min="0"
+                    max="359"
+                    step="1"
+                    value={Math.round(pickerHsv.h)}
+                    onChange={(event) => updatePickerColor({
+                      ...pickerHsv,
+                      h: Number(event.target.value)
+                    })}
+                  />
+                </label>
+
+                <p className={styles.pickerHint}>Tap or drag anywhere in the color field. No popup, no confirmation.</p>
+              </div>
+            </div>
           ) : photoUrl ? (
             <div className={styles.photoEditor}>
               <div
@@ -751,4 +833,55 @@ function formatCountdown(totalSeconds: number): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+
+function hexToHsv(hex: string): HsvColor {
+  const normalized = normalizeHex(hex) ?? "#000000";
+  const red = Number.parseInt(normalized.slice(1, 3), 16) / 255;
+  const green = Number.parseInt(normalized.slice(3, 5), 16) / 255;
+  const blue = Number.parseInt(normalized.slice(5, 7), 16) / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (max === green) hue = 60 * (((blue - red) / delta) + 2);
+    else hue = 60 * (((red - green) / delta) + 4);
+  }
+
+  return {
+    h: hue < 0 ? hue + 360 : hue,
+    s: max === 0 ? 0 : delta / max,
+    v: max
+  };
+}
+
+function hsvToHex(color: HsvColor): string {
+  const hue = ((color.h % 360) + 360) % 360;
+  const saturation = clamp(color.s, 0, 1);
+  const value = clamp(color.v, 0, 1);
+  const chroma = value * saturation;
+  const segment = hue / 60;
+  const x = chroma * (1 - Math.abs((segment % 2) - 1));
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (segment < 1) [red, green] = [chroma, x];
+  else if (segment < 2) [red, green] = [x, chroma];
+  else if (segment < 3) [green, blue] = [chroma, x];
+  else if (segment < 4) [green, blue] = [x, chroma];
+  else if (segment < 5) [red, blue] = [x, chroma];
+  else [red, blue] = [chroma, x];
+
+  const match = value - chroma;
+  return rgbToHex(
+    Math.round((red + match) * 255),
+    Math.round((green + match) * 255),
+    Math.round((blue + match) * 255)
+  );
 }
