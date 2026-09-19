@@ -14,6 +14,12 @@ export type VendorDropshipFacetContext = Readonly<{
 
 type FacetType = "total" | "category" | "brand" | "color" | "size" | "fit" | "material";
 
+// Live supplier overlay used when the hourly materialized storefront projection is
+// stale or empty. Keep it bounded so a supplier spike cannot reintroduce the old
+// large-catalogue timeout path; the stable projection still carries the full set
+// whenever it is healthy.
+const LIVE_SYMPHONYA_FAMILY_CAP = 2_000;
+
 type FacetProjectionRow = Readonly<{
   facet_type: FacetType;
   value: string;
@@ -137,26 +143,167 @@ export async function getContextualVendorDropshipFacets(
 
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
     WITH suppliers AS MATERIALIZED (
-      SELECT ds.id::text AS supplier_id
+      SELECT ds.id,ds.id::text AS supplier_id,ds.code
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
-    ), base AS MATERIALIZED (
+        AND ds.api_authoritative_availability=true
+    ), stable AS MATERIALIZED (
       SELECT fm.*
       FROM public.storefront_dropship_family_filter_read_model_v2 fm
-      JOIN suppliers s ON s.supplier_id=fm.dropship_supplier_id
+      JOIN suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
         AND (
-          $2::text='' OR
-          ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+          supplier.code<>'symphonya'
+          OR EXISTS (
+            SELECT 1
+            FROM dropship_supplier_offers live_dso
+            JOIN vendor_offers live_vo ON live_vo.id=live_dso.vendor_offer_id
+            JOIN canonical_variants live_cv ON live_cv.id=live_vo.canonical_variant_id
+            JOIN vendor_locations live_location ON live_location.id=live_vo.location_id
+            WHERE live_dso.supplier_id=supplier.id
+              AND live_dso.external_product_id=fm.dropship_external_product_id
+              AND live_dso.active=true
+              AND live_dso.cached_available=true
+              AND COALESCE(live_dso.cached_quantity,0)>=1
+              AND live_dso.availability_expires_at IS NOT NULL
+              AND live_dso.availability_expires_at>now()
+              AND live_vo.status='approved'
+              AND live_vo.merchant_visible=true
+              AND live_vo.merchant_pause_active=false
+              AND live_vo.customer_price_minor>0
+              AND (live_vo.cost_ceiling_minor IS NULL OR live_vo.supplier_unit_price_minor<=live_vo.cost_ceiling_minor)
+              AND live_location.active=true
+              AND COALESCE(live_cv.commerce_channel,'normal')='normal'
+              AND live_cv.active=true
+              AND live_cv.suppressed=false
+              AND live_cv.recalled=false
+              AND bls_private.vendor_category_effectively_visible(live_vo.vendor_id,live_cv.category_id)
+          )
         )
+    ), hot_symphonya AS MATERIALIZED (
+      SELECT
+        dso.supplier_id::text AS dropship_supplier_id,
+        dso.external_product_id AS dropship_external_product_id,
+        MAX(dso.availability_expires_at) AS available_until,
+        COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
+        COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
+          FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names_normalized,
+        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )),'')) FILTER (WHERE NULLIF(BTRIM(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )), '') IS NOT NULL),'{}'::text[]) AS colors,
+        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(size_entry.value),''))
+          FILTER (WHERE NULLIF(BTRIM(size_entry.value),'') IS NOT NULL),'{}'::text[]) AS sizes,
+        COALESCE(array_agg(DISTINCT lower(NULLIF(BTRIM(COALESCE(
+          el.specifications->>'fit',
+          en.specifications->>'fit',
+          ''
+        )),''))) FILTER (WHERE NULLIF(BTRIM(COALESCE(
+          el.specifications->>'fit',
+          en.specifications->>'fit',
+          ''
+        )), '') IS NOT NULL),'{}'::text[]) AS fits,
+        '{}'::text[] AS materials,
+        to_tsvector('simple',COALESCE(string_agg(DISTINCT concat_ws(' ',
+          COALESCE(el.title,en.title,cv.model,cv.slug),
+          COALESCE(b.name,pfb.name,''),
+          COALESCE(cv.gtin,''),
+          COALESCE(cv.mpn,''),
+          c.code
+        ),' '),'')) AS search_vector
+      FROM dropship_supplier_offers dso
+      JOIN suppliers supplier
+        ON supplier.id=dso.supplier_id
+       AND supplier.code='symphonya'
+      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN product_families pf ON pf.id=cv.family_id
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN LATERAL unnest(ARRAY[
+        cv.variant_attributes->>'italian_size_men',
+        cv.variant_attributes->>'italian_size_women',
+        cv.variant_attributes->>'shoe_size_women',
+        cv.variant_attributes->>'shoe_size_men',
+        cv.variant_attributes->>'waist_size',
+        cv.variant_attributes->>'belt_size',
+        cv.variant_attributes->>'waist_length_size',
+        cv.variant_attributes->>'hat_size',
+        cv.variant_attributes->>'swimwear_sleepwear_size',
+        cv.variant_attributes->>'shoe_size',
+        cv.variant_attributes->>'earrings_size',
+        cv.variant_attributes->>'bracelets_size',
+        cv.variant_attributes->>'gloves_size_women',
+        cv.variant_attributes->>'ring_size',
+        cv.variant_attributes->>'gloves_size_men',
+        cv.variant_attributes->>'size'
+      ]) AS size_entry(value) ON true
+      WHERE dso.active=true
+        AND dso.cached_available=true
+        AND COALESCE(dso.cached_quantity,0)>=1
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at>now()
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND l.active=true
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM stable projected
+          WHERE projected.dropship_supplier_id=dso.supplier_id::text
+            AND projected.dropship_external_product_id=dso.external_product_id
+        )
+      GROUP BY dso.supplier_id,dso.external_product_id
+      ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
+      LIMIT $10
+    ), base AS MATERIALIZED (
+      SELECT
+        fm.dropship_supplier_id,fm.dropship_external_product_id,
+        fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
+      FROM stable fm
+      WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+      UNION ALL
+      SELECT
+        fm.dropship_supplier_id,fm.dropship_external_product_id,
+        fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
+      FROM hot_symphonya fm
+      WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
     ), label_map AS MATERIALIZED (
       SELECT DISTINCT facets.facet_type,facets.value,facets.label
       FROM public.storefront_dropship_vendor_facets facets
       JOIN suppliers s ON s.supplier_id=facets.supplier_id
       WHERE facets.facet_type IN ('category','brand','color')
+      UNION
+      SELECT
+        'category'::text AS facet_type,
+        c.code AS value,
+        COALESCE(ctel.name,cten.name,c.code) AS label
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id AND m.code='sparta'
+      LEFT JOIN public.category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+      LEFT JOIN public.category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      WHERE c.active=true
     ), matches AS MATERIALIZED (
       SELECT
         b.*,
@@ -255,7 +402,7 @@ export async function getContextualVendorDropshipFacets(
     FROM projected
     WHERE facet_type='total' OR count>0
     ORDER BY facet_type,label,value
-  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix]);
+  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, LIVE_SYMPHONYA_FAMILY_CAP]);
 
   let total = 0;
   const categoriesOut: VendorDropshipFacetOption[] = [];
