@@ -119,7 +119,7 @@ async function publicationCandidateExternalIds(limit: number): Promise<string[]>
          SELECT 1
            FROM public.product_translations pt
           WHERE pt.canonical_variant_id=cv.id
-            AND pt.locale='el'
+            AND pt.locale IN ('el','en')
             AND NULLIF(btrim(pt.title),'') IS NOT NULL
        )
        AND COALESCE((
