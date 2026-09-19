@@ -10,7 +10,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
-const LIVE_FALLBACK_FAMILY_CAP = 50_000;
+const LIVE_FALLBACK_FAMILY_CAP = 0; // Production storefronts must not rebuild missing supplier families inside a customer request.
 
 export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
 
