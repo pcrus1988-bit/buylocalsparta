@@ -5,7 +5,7 @@ import { SiteHeader } from "../../components/SiteHeader";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { CONTROLLER, DATA_ACCESS_EXAMPLES, DATA_RECIPIENTS } from "../../lib/legal-transparency";
 
-const PRIVACY_LAST_UPDATED = "18 Σεπτεμβρίου 2026";
+const PRIVACY_LAST_UPDATED = "19 Σεπτεμβρίου 2026";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/privacy", {
@@ -37,7 +37,8 @@ const plainLanguage = [
   ["Δεν πουλάμε τα δεδομένα σου", "Τα προσωπικά δεδομένα χρησιμοποιούνται για να λειτουργήσει το marketplace, να εκτελεστεί η συναλλαγή, να προστατευτεί η υπηρεσία και για προαιρετικές λειτουργίες που ελέγχεις."],
   ["Τα καταστήματα δεν παίρνουν customer list", "Ένας συνεργάτης βλέπει μόνο ό,τι χρειάζεται για τη συγκεκριμένη παραγγελία, Ask Local απάντηση, pickup ή άλλη εξουσιοδοτημένη εργασία."],
   ["Το Ask Local παραμένει ιδιωτικό", "Η περιγραφή, η φωτογραφία, το barcode και οι ιδιωτικές προσφορές δεν γίνονται δημόσιο feed. Προβάλλονται μόνο στους ρόλους που χρειάζονται για το συγκεκριμένο αίτημα."],
-  ["Τα analytics είναι προαιρετικά", "Google Analytics και το προαιρετικό first-party analytics ενεργοποιούνται μόνο αφού επιλέξεις Analytics στο consent layer."]
+  ["Τα analytics είναι προαιρετικά", "Google Analytics και το προαιρετικό first-party analytics ενεργοποιούνται μόνο αφού επιλέξεις Analytics στο consent layer."],
+  ["Η φωτογραφία του Color Finder μένει στη συσκευή", "Όταν χρησιμοποιείς κάμερα ή upload στο Color Finder, η εικόνα αναλύεται τοπικά στον browser, δεν ανεβαίνει στους servers του ΚΟΝΤΑ ΜΟΥ και διαγράφεται από την προσωρινή μνήμη το αργότερο σε 15 λεπτά ή νωρίτερα αν επιλέξεις διαγραφή."]
 ] as const;
 
 export default function PrivacyPage() {
@@ -64,7 +65,7 @@ export default function PrivacyPage() {
 
     <section className="shell legal-section" aria-labelledby="plain-language">
       <div className="eyebrow">Σε απλά ελληνικά</div>
-      <h2 id="plain-language">Τέσσερα πράγματα που αξίζει να ξέρεις πρώτα.</h2>
+      <h2 id="plain-language">Πέντε πράγματα που αξίζει να ξέρεις πρώτα.</h2>
       <div className="legal-card-grid">
         {plainLanguage.map(([title, body]) => <article key={title}><h3>{title}</h3><p>{body}</p></article>)}
       </div>
@@ -109,6 +110,14 @@ export default function PrivacyPage() {
           <article><h3>Ποιος το βλέπει</h3><p>Το αίτημα εμφανίζεται μόνο στον πελάτη, στους εξουσιοδοτημένους χειριστές και, όταν δρομολογηθεί, στο κατάλληλο κατάστημα που πρέπει να το αξιολογήσει.</p></article>
         </div>
       </div>
+    </section>
+
+    <section className="shell legal-section" aria-labelledby="color-finder-privacy">
+      <div className="eyebrow">Color Finder · τοπική επεξεργασία</div>
+      <h2 id="color-finder-privacy">Η φωτογραφία χρησιμοποιείται για να βρεθεί το χρώμα — όχι για να αποθηκευτεί.</h2>
+      <p>Στο Color Finder, φωτογραφία από κάμερα ή αρχείο αποκωδικοποιείται και αναλύεται <strong>μέσα στον browser της συσκευής σου</strong>. Το αρχείο εικόνας δεν αποστέλλεται στους servers του ΚΟΝΤΑ ΜΟΥ, δεν συνδέεται με λογαριασμό ή παραγγελία και δεν αποθηκεύεται στη βάση δεδομένων ή στα analytics.</p>
+      <p>Η προσωρινή τοπική αναφορά της εικόνας διαγράφεται αυτόματα το αργότερο σε 15 λεπτά, όταν αντικατασταθεί η φωτογραφία, όταν επιλέξεις «DELETE NOW» ή όταν κλείσει η σχετική σελίδα. Από τη φωτογραφία προκύπτει μόνο η επιλεγμένη χρωματική τιμή (π.χ. HEX) που χρησιμοποιείται για την αντιστοίχιση προϊόντων και μπορεί να εμφανίζεται στο URL όταν μοιράζεσαι μια απόχρωση.</p>
+      <p>Αυτό είναι διαφορετικό από φωτογραφίες που ο χρήστης επιλέγει να αποστείλει σε λειτουργίες όπως Ask Local ή support, όπου η εικόνα χρειάζεται να φτάσει στην υπηρεσία για να εκτελεστεί το συγκεκριμένο αίτημα.</p>
     </section>
 
     <section className="shell legal-section" id="gemi" aria-labelledby="gemi-title">
