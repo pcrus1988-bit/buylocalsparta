@@ -176,7 +176,37 @@ async function loadRows(input: Readonly<{
   managedBy: string;
   limit: number;
 }>) {
-  return getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const pool = getProductionPostgresRuntime().sqlPool;
+  if (input.unmanagedOnly) {
+    // The catch-up path is not cursor-driven. Read the small pricing-state
+    // subset first, then join to the supplier offer, rather than walking every
+    // Symphonya offer in public_id order on each pass.
+    return pool.query<SqlRow>(`
+      SELECT dso.public_id cursor,
+             vo.id::text offer_id,
+             vo.vendor_id::text vendor_id,
+             vo.source_payload,
+             CASE
+               WHEN COALESCE(dso.availability_payload->>'priceHeld','false')='true'
+                AND NULLIF(dso.availability_payload->>'pendingSupplierCostMinor','') IS NOT NULL
+               THEN (dso.availability_payload->>'pendingSupplierCostMinor')::bigint
+               ELSE dso.supplier_cost_minor
+             END effective_supplier_cost_minor,
+             COALESCE(dso.availability_payload->>'priceHeld','false')='true' AS price_held
+        FROM public.vendor_offers vo
+        JOIN public.dropship_supplier_offers dso
+          ON dso.vendor_offer_id=vo.id
+         AND dso.supplier_id=$2::uuid
+       WHERE vo.vendor_id=$1::uuid
+         AND vo.source_payload->>'supplierCode'='symphonya'
+         AND COALESCE(vo.source_payload->>'pricingManagedBy','') <> $3
+         AND COALESCE(vo.source_payload->>'pricingManualOverride','false') <> 'true'
+       ORDER BY vo.id
+       LIMIT $4
+    `, [input.vendorId, input.supplierId, input.managedBy, input.limit]);
+  }
+
+  return pool.query<SqlRow>(`
     SELECT dso.public_id cursor,
            vo.id::text offer_id,
            vo.vendor_id::text vendor_id,
@@ -192,18 +222,11 @@ async function loadRows(input: Readonly<{
       JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
      WHERE dso.supplier_id=$1::uuid
        AND vo.vendor_id=$2::uuid
-       AND (
-         ($3::boolean=true
-           AND COALESCE(vo.source_payload->>'pricingManagedBy','') <> $5
-           AND COALESCE(vo.source_payload->>'pricingManualOverride','false') <> 'true')
-         OR
-         ($3::boolean=false AND ($4::text IS NULL OR dso.public_id>$4))
-       )
+       AND ($3::text IS NULL OR dso.public_id>$3)
      ORDER BY dso.public_id
-     LIMIT $6
-  `, [input.supplierId, input.vendorId, input.unmanagedOnly, input.cursor, input.managedBy, input.limit]);
+     LIMIT $4
+  `, [input.supplierId, input.vendorId, input.cursor, input.limit]);
 }
-
 async function applyUpdates(
   updates: readonly PricingUpdate[],
   policy: ActivePricingPolicy
