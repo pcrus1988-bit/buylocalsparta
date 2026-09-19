@@ -645,6 +645,8 @@
 }
 .preset[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--cf-bg), 0 0 0 4px var(--cf-gold); }
 
+.mobileAdvanced { display: none; }
+
 .resultsSection {
   width: min(1440px, calc(100% - 56px));
   margin: 0 auto;
@@ -879,19 +881,136 @@
 }
 @media (max-width: 760px) {
   .hero, .resultsSection { width: min(100% - 28px, 1440px); }
-  .hero { padding: 54px 0 70px; gap: 42px; }
+  .hero { padding: 42px 0 58px; gap: 34px; }
   .hero h1 { font-size: clamp(54px, 17vw, 84px); }
   .selectorCard { border-radius: 22px; }
-  .inlinePicker { padding: 18px 20px 22px; }
-  .svPicker { aspect-ratio: 1.25; border-radius: 18px; }
-  .pickerActions { grid-template-columns: 1fr; }
-  .photoEmpty { min-height: 340px; padding: 36px 24px 26px; }
+
+  /* Mobile picker: one obvious path first, secondary tools only on demand. */
+  .selectorHeading { display: none; }
+  .modeSwitch { margin: 18px 18px 0; }
+  .inlinePicker { padding: 14px 18px 16px; }
+  .svPicker { aspect-ratio: 1.62; border-radius: 18px; }
+  .pickerControls { gap: 12px; padding-top: 13px; }
+  .pickerPreview > span { width: 36px; height: 36px; flex-basis: 36px; }
+  .pickerPreview strong { font-size: 16px; }
+  .inlinePicker .fineTune,
+  .pickerHint,
+  .pickerActions button:nth-child(2) { display: none; }
+  .pickerActions { grid-template-columns: 1fr; margin-top: 2px; }
+  .pickerActions button:first-child { min-height: 50px; font-size: 10px; }
+  .selectorCard > .hexField,
+  .selectorCard > .presetRail { display: none; }
+
+  .mobileAdvanced {
+    display: block;
+    margin: 0 18px 18px;
+    border-top: 1px solid var(--cf-line);
+  }
+  .mobileAdvanced summary {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    list-style: none;
+    color: #8d867e;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    cursor: pointer;
+    user-select: none;
+  }
+  .mobileAdvanced summary::-webkit-details-marker { display: none; }
+  .mobileAdvanced summary::after {
+    content: "+";
+    color: var(--cf-gold);
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .mobileAdvanced[open] summary::after { content: "−"; }
+  .mobileAdvancedBody {
+    display: grid;
+    gap: 18px;
+    padding: 2px 0 5px;
+  }
+  .mobileFineTune {
+    display: grid;
+    gap: 9px;
+  }
+  .mobileFineTune > span,
+  .mobileHexField label {
+    color: #77716a;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .18em;
+  }
+  .mobileFineTune > div,
+  .mobilePresetRail {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 3px 3px 6px;
+    scrollbar-width: none;
+  }
+  .mobileFineTune > div::-webkit-scrollbar,
+  .mobilePresetRail::-webkit-scrollbar { display: none; }
+  .mobileFineTune button,
+  .mobilePresetRail button {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px transparent;
+    cursor: pointer;
+  }
+  .mobilePresetRail button[aria-pressed="true"] {
+    box-shadow: 0 0 0 3px var(--cf-bg), 0 0 0 4px var(--cf-gold);
+  }
+  .mobileHexField {
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 15px;
+    border-top: 1px solid var(--cf-line);
+    border-bottom: 1px solid var(--cf-line);
+  }
+  .mobileHexField input {
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--cf-ivory);
+    font: 600 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .mobileShare {
+    min-height: 46px;
+    border: 1px solid var(--cf-line);
+    border-radius: 999px;
+    background: transparent;
+    color: #b3aca4;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .13em;
+    cursor: pointer;
+  }
+
+  .photoEmpty { min-height: 320px; padding: 32px 22px 24px; }
   .photoEditor { padding: 14px 14px 20px; }
   .resultsHeader { align-items: flex-start; flex-direction: column; }
   .filters { grid-template-columns: 1fr; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 }
 @media (max-width: 520px) {
+  .hero, .resultsSection { width: min(100% - 20px, 1440px); }
+  .modeSwitch { margin-left: 14px; margin-right: 14px; }
+  .inlinePicker { padding-left: 14px; padding-right: 14px; }
+  .mobileAdvanced { margin-left: 14px; margin-right: 14px; }
+  .svPicker { aspect-ratio: 1.72; }
   .photoActions,
   .photoToolbar,
   .photoToolbarSecondary { grid-template-columns: 1fr; }
