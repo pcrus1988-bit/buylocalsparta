@@ -246,7 +246,16 @@ const loadSourceImageIds = unstable_cache(
 
 async function withSourceImageFallbacks(products: readonly StyleProduct[]): Promise<readonly StyleProduct[]> {
   if (!products.length) return products;
-  const sourceImageIds = new Set(await loadSourceImageIds(products.map((product) => product.id)));
+
+  // Most catalogue cards already have a media id or preview image. Only research
+  // source-image fallbacks for the small remainder instead of doing a detail lookup
+  // for the whole candidate set.
+  const missingImageIds = products
+    .filter((product) => !product.mediaId && !product.imageSrc && !product.sourceImageAvailable)
+    .map((product) => product.id);
+  if (!missingImageIds.length) return products;
+
+  const sourceImageIds = new Set(await loadSourceImageIds(missingImageIds));
   return products.map((product) => product.sourceImageAvailable || !sourceImageIds.has(product.id)
     ? product
     : { ...product, sourceImageAvailable: true });
@@ -300,34 +309,36 @@ async function loadHubProducts(
   audience: Audience
 ): Promise<readonly StyleProduct[]> {
   const visitorKey = await getVisitorKey();
-  const products: (StyleProduct | undefined)[] = [];
 
-  for (const group of groupsFor(audience)) {
-    const localPage = await getShopCatalogPage({
-      visitorKey,
-      postcode: hub.postcode,
-      category: group.category,
-      filters: { subcategories: group.subcategories },
-      limit: 24,
-      offset: 0
-    });
-    products.push(...localPage.products.map(compactProduct));
-
-    // The shared dropship projection is currently the live Sparta market projection.
-    // Never leak it into another HUB. Other HUBs still receive their local fair-assigned
-    // catalogue until the core dropship read model becomes market-keyed.
-    if (hub.marketCode === "sparta") {
-      const dropshipPage = await getPublishedDropshipCatalogPage({
+  // Research each fashion/beauty slice concurrently. Previously these six catalogue
+  // reads were effectively serialized, which made the stylist wait unnecessarily.
+  const batches = await Promise.all(groupsFor(audience).map(async (group) => {
+    const [localPage, dropshipPage] = await Promise.all([
+      getShopCatalogPage({
+        visitorKey,
+        postcode: hub.postcode,
         category: group.category,
         filters: { subcategories: group.subcategories },
         limit: 24,
         offset: 0
-      });
-      products.push(...dropshipPage.products.map(compactProduct));
-    }
-  }
+      }),
+      hub.marketCode === "sparta"
+        ? getPublishedDropshipCatalogPage({
+            category: group.category,
+            filters: { subcategories: group.subcategories },
+            limit: 24,
+            offset: 0
+          })
+        : Promise.resolve(undefined)
+    ]);
 
-  return uniqueProducts(products);
+    return [
+      ...localPage.products.map(compactProduct),
+      ...(dropshipPage?.products ?? []).map(compactProduct)
+    ];
+  }));
+
+  return uniqueProducts(batches.flat());
 }
 
 type BrandOption = Readonly<{ value: string; label: string; count: number }>;
@@ -412,24 +423,23 @@ const loadAvailableBrandOptions = unstable_cache(
 );
 
 async function loadVendorProducts(vendorId: string, audience: Audience): Promise<readonly StyleProduct[]> {
-  const products: (StyleProduct | undefined)[] = [];
-
-  // Keep genuine local stock available for local-only vendors.
-  const localProducts = await getVendorLocalCatalogCards(vendorId);
-  const allowedCategories = new Set(groupsFor(audience).flatMap((group) => [...group.subcategories]));
-  products.push(...localProducts.filter((product) => allowedCategories.has(product.categoryCode)).map(compactProduct));
-
-  // Supplier-backed vendor catalogues use the precomputed family filter projection.
-  for (const group of groupsFor(audience)) {
-    const page = await getVendorDropshipCatalogPage(vendorId, {
+  const groups = groupsFor(audience);
+  const [localProducts, dropshipPages] = await Promise.all([
+    getVendorLocalCatalogCards(vendorId),
+    Promise.all(groups.map((group) => getVendorDropshipCatalogPage(vendorId, {
       categories: group.subcategories,
       availableOnly: true,
       sort: "recommended",
       limit: 36,
       offset: 0
-    });
-    products.push(...page.products.map(compactProduct));
-  }
+    })))
+  ]);
+
+  const allowedCategories = new Set(groups.flatMap((group) => [...group.subcategories]));
+  const products: (StyleProduct | undefined)[] = [
+    ...localProducts.filter((product) => allowedCategories.has(product.categoryCode)).map(compactProduct),
+    ...dropshipPages.flatMap((page) => page.products.map(compactProduct))
+  ];
 
   return uniqueProducts(products);
 }

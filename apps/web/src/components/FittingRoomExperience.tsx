@@ -8,7 +8,7 @@ import styles from "./FittingRoomExperience.module.css";
 
 type Audience = "women" | "men";
 type Occasion = "everyday" | "work" | "date" | "dinner" | "wedding" | "formal" | "party" | "travel";
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4;
 type SlotKey = "main" | "bottom" | "layer" | "shoes" | "bag" | "accessory" | "beauty" | "lipstick" | "nails" | "fragrance";
 
 type Product = Readonly<{
@@ -140,19 +140,11 @@ const COLOR_WORDS: Readonly<Record<string, readonly string[]>> = {
   silver: ["silver", "ασημί", "ασημι", "grey", "gray", "γκρι"]
 };
 
-const OCCASIONS: readonly Readonly<{ key: Occasion; icon: string; label: string; copy: string; guidance: string }>[] = [
-  { key: "everyday", icon: "☀", label: "Καθημερινά", copy: "Άνετο αλλά προσεγμένο.", guidance: "Ισορροπεί άνεση και εμφάνιση χωρίς υπερβολή." },
-  { key: "work", icon: "▣", label: "Δουλειά / γραφείο", copy: "Polished και κατάλληλο για επαγγελματικό περιβάλλον.", guidance: "Δίνει προτεραιότητα σε καθαρές γραμμές, tailoring και πιο διακριτικές επιλογές." },
-  { key: "date", icon: "♥", label: "Ραντεβού", copy: "Περιποιημένο, προσωπικό και όχι υπερβολικό.", guidance: "Συνδυάζει πιο κομψά κομμάτια με μία-δύο πιο ιδιαίτερες λεπτομέρειες." },
-  { key: "dinner", icon: "☾", label: "Δείπνο / έξοδος", copy: "Elevated βραδινό look.", guidance: "Προτιμά κομψές γραμμές, πιο refined παπούτσια και ολοκληρωμένο beauty/grooming." },
-  { key: "wedding", icon: "✦", label: "Γάμος / τελετή", copy: "Επίσημο χωρίς να γίνεται υπερβολικά βαρύ.", guidance: "Αποφεύγει πολύ casual κομμάτια και δίνει βάρος σε formal παπούτσια, tailoring και κομψές λεπτομέρειες." },
-  { key: "formal", icon: "◇", label: "Formal / gala", copy: "Η πιο αυστηρή dress-code επιλογή.", guidance: "Αποκλείει εμφανώς casual συνδυασμούς και χτίζει το look γύρω από formal γραμμές." },
-  { key: "party", icon: "★", label: "Party / βραδινό", copy: "Πιο τολμηρό και statement.", guidance: "Επιτρέπει πιο έντονο χρώμα, λάμψη και beauty στοιχεία, διατηρώντας συνοχή." },
-  { key: "travel", icon: "✈", label: "Ταξίδι / city day", copy: "Άνεση για πολλές ώρες, χωρίς να χάνεται το styling.", guidance: "Προτιμά πρακτικά layers, άνετα παπούτσια και λειτουργικά αξεσουάρ." }
-];
-
-function occasionDetails(occasion: Occasion) {
-  return OCCASIONS.find((entry) => entry.key === occasion) ?? OCCASIONS[0];
+function styleOccasion(personality: number): Occasion {
+  // The customer no longer has to choose an occasion. We keep a lightweight
+  // internal styling context so the three edits remain visually distinct:
+  // Clean/City stay versatile, while After Dark may use evening pieces.
+  return personality === 2 ? "party" : "everyday";
 }
 
 const LOOK_PERSONALITIES = [
@@ -735,7 +727,6 @@ export function FittingRoomExperience({
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState<Step>(0);
   const [audience, setAudience] = useState<Audience>("women");
-  const [occasion, setOccasion] = useState<Occasion>("everyday");
   const [sizes, setSizes] = useState<SizeProfile>({ top: "", shirt: "", jacket: "", waist: "", trouser: "", skirt: "", shoe: "", dress: "", bra: "", belt: "" });
   const [colors, setColors] = useState<readonly string[]>([]);
   const [budget, setBudget] = useState("");
@@ -748,6 +739,7 @@ export function FittingRoomExperience({
   const [editingSlot, setEditingSlot] = useState<SlotKey | null>(null);
   const [loading, setLoading] = useState(false);
   const [prefetching, setPrefetching] = useState(false);
+  const [catalogPrefetching, setCatalogPrefetching] = useState(false);
   const [brandsLoaded, setBrandsLoaded] = useState(false);
   const [alternativeLoading, setAlternativeLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -817,7 +809,6 @@ export function FittingRoomExperience({
         }
         if (!Object.keys(slots).length) return;
         setAudience(saved.audience);
-        setOccasion(saved.profile?.occasion ?? "everyday");
         setSizes((current) => ({ ...current, ...(saved.profile?.sizes ?? {}) }));
         setColors((saved.profile?.colours ?? []).slice(0, 3));
         setBrands((saved.profile?.brands ?? []).slice(0, 5));
@@ -867,7 +858,7 @@ export function FittingRoomExperience({
   }, [audience, hubSlug, vendorId]);
 
   useEffect(() => {
-    if (!started || step !== 5 || prefetching || brandsLoaded) return;
+    if (!started || step < 1 || prefetching || brandsLoaded) return;
     let active = true;
     setPrefetching(true);
     void loadBrandOptions()
@@ -888,6 +879,26 @@ export function FittingRoomExperience({
       active = false;
     };
   }, [audience, brandsLoaded, hubSlug, started, step, vendorId]);
+
+  useEffect(() => {
+    if (!started || step < 1 || looks.length || products.length || catalogPrefetching) return;
+    let active = true;
+    setCatalogPrefetching(true);
+    void loadCandidateProducts()
+      .then((candidateProducts) => {
+        if (active && candidateProducts.length) setProducts(candidateProducts);
+      })
+      .catch(() => {
+        // This is intentionally silent: prefetch is an acceleration only.
+        // The final action still retries normally if the background request failed.
+      })
+      .finally(() => {
+        if (active) setCatalogPrefetching(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [audience, catalogPrefetching, hubSlug, looks.length, products.length, started, step, vendorId]);
 
   useEffect(() => {
     if (!editingSlot || products.length || alternativeLoading) return;
@@ -915,13 +926,13 @@ export function FittingRoomExperience({
       .filter((product) => isAudienceCompatible(product, audience) && slotFor(product) === editingSlot && product.id !== selected)
       .map((product) => ({
         product,
-        score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0, occasion, currentLook?.slots ?? {})
+        score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0, styleOccasion(activeLook < 3 ? activeLook : 0), currentLook?.slots ?? {})
       }))
       .filter((entry) => entry.score > 20)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
       .slice(0, 12)
       .map((entry) => entry.product);
-  }, [activeLook, audience, brands, colors, currentLook, editingSlot, occasion, products, sizes]);
+  }, [activeLook, audience, brands, colors, currentLook, editingSlot, products, sizes]);
 
   function toggleColor(key: string) {
     setColors((current) => current.includes(key)
@@ -940,7 +951,7 @@ export function FittingRoomExperience({
   }
 
   function nextStep() {
-    if (step < 5) setStep((step + 1) as Step);
+    if (step < 4) setStep((step + 1) as Step);
     else void createLooks();
   }
 
@@ -974,9 +985,7 @@ export function FittingRoomExperience({
     const body = JSON.stringify({
       vendorId,
       hubSlug,
-      audience,
-      brands,
-      budgetMinor: euroBudget(budget) ?? 0
+      audience
     });
 
     let lastError: unknown;
@@ -1012,6 +1021,7 @@ export function FittingRoomExperience({
 
   function buildLook(candidateProducts: readonly Product[], personality: number): Look {
     const meta = LOOK_PERSONALITIES[personality];
+    const stylingContext = styleOccasion(personality);
     const budgetMinor = euroBudget(budget);
     let remaining = budgetMinor ?? Number.POSITIVE_INFINITY;
     const slots: Partial<Record<SlotKey, Product>> = {};
@@ -1020,7 +1030,7 @@ export function FittingRoomExperience({
       .filter((product) => isAudienceCompatible(product, audience) && slotFor(product) === slot)
       .map((product) => ({
         product,
-        score: productScore(product, slot, audience, sizes, colors, brands, personality, occasion, slots)
+        score: productScore(product, slot, audience, sizes, colors, brands, personality, stylingContext, slots)
       }))
       .filter((entry) => entry.score > 20)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
@@ -1051,11 +1061,10 @@ export function FittingRoomExperience({
     }
     choose("fragrance", personality + 1, true);
 
-    const occasionMeta = occasionDetails(occasion);
     return {
       ...meta,
-      mood: `${meta.mood} · ${occasionMeta.label}`,
-      note: `${meta.note} ${occasionMeta.guidance}`,
+      mood: meta.mood,
+      note: meta.note,
       slots
     };
   }
@@ -1124,8 +1133,7 @@ export function FittingRoomExperience({
         sizes,
         colours: colors,
         budgetMinor: euroBudget(budget),
-        brands,
-        occasion
+        brands
       },
       composition
     };
@@ -1254,7 +1262,7 @@ export function FittingRoomExperience({
           <div className={styles.consultantBadge}><span>K</span><div><strong>Ο προσωπικός σου stylist</strong><small>KONTA MOY Fitting Room</small></div></div>
           <p className={styles.eyebrow}>PRIVATE FITTING ROOM</p>
           <h1>Μπες. Πες μου τι σου αρέσει.<br /><em>Θα στήσουμε το look μαζί.</em></h1>
-          <p className={styles.entryLead}>Περίσταση, μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις {vendorId ? "από το συγκεκριμένο κατάστημα" : `με διαθέσιμα προϊόντα από όλο το HUB ${hubName}`} που αλλάζουν κομμάτι-κομμάτι.</p>
+          <p className={styles.entryLead}>Μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις {vendorId ? "από το συγκεκριμένο κατάστημα" : `με διαθέσιμα προϊόντα από όλο το HUB ${hubName}`} που αλλάζουν κομμάτι-κομμάτι.</p>
           <button className={styles.primaryButton} type="button" onClick={() => { setStarted(true); enterImmersive(); }}>Μπες στο fitting room <span>→</span></button>
           <div className={styles.entryFoot}><span>3 έτοιμα looks</span><span>Αλλάζεις ό,τι θέλεις</span><span>Save & share</span></div>
         </div>
@@ -1324,20 +1332,6 @@ export function FittingRoomExperience({
           <div className={styles.choiceGrid}>
             <button className={audience === "women" ? styles.choiceActive : styles.choice} onClick={() => setAudience("women")} type="button"><span>♀</span><strong>Female styling</strong><small>Fashion · beauty · nails · accessories</small></button>
             <button className={audience === "men" ? styles.choiceActive : styles.choice} onClick={() => setAudience("men")} type="button"><span>♂</span><strong>Male styling</strong><small>Fashion · grooming · shoes · accessories</small></button>
-          </div>
-        )
-      },
-      {
-        title: "Πού θα φορέσεις το look;",
-        copy: "Η περίσταση αλλάζει τα πάντα: τι θεωρείται σωστό, πόσο formal πρέπει να είναι το look και ποια κομμάτια ταιριάζουν πραγματικά μεταξύ τους.",
-        content: (
-          <div className={styles.choiceGrid}>
-            {OCCASIONS.map((entry) => {
-              const active = occasion === entry.key;
-              return <button className={active ? styles.choiceActive : styles.choice} onClick={() => setOccasion(entry.key)} type="button" key={entry.key}>
-                <span>{entry.icon}</span><strong>{entry.label}</strong><small>{entry.copy}</small>
-              </button>;
-            })}
           </div>
         )
       },
@@ -1412,7 +1406,7 @@ export function FittingRoomExperience({
         <div className={styles.roomHeader}>
           <button type="button" className={styles.exit} onClick={leaveImmersive}>× Έξοδος</button>
           <div className={styles.roomWordmark}><strong>FITTING ROOM</strong><span>by KONTA MOY</span></div>
-          <span className={styles.stepCount}>{step + 1} / 6</span>
+          <span className={styles.stepCount}>{step + 1} / 5</span>
         </div>
         <div className={styles.roomBody}>
           <aside className={styles.consultant}>
@@ -1420,14 +1414,14 @@ export function FittingRoomExperience({
             <div><small>YOUR CONSULTANT</small><strong>KONTA MOY Stylist</strong><p>{question.copy}</p></div>
           </aside>
           <div className={styles.questionCard}>
-            <div className={styles.progress}><i style={{ width: `${((step + 1) / 6) * 100}%` }} /></div>
+            <div className={styles.progress}><i style={{ width: `${((step + 1) / 5) * 100}%` }} /></div>
             <p className={styles.questionEyebrow}>STYLE SESSION · STEP {String(step + 1).padStart(2, "0")}</p>
             <h2>{question.title}</h2>
             {question.content}
             {loadError ? <p className={styles.error} role="alert">{loadError}</p> : null}
             <div className={styles.questionActions}>
               {step > 0 ? <button type="button" className={styles.secondaryButton} onClick={() => setStep((step - 1) as Step)}>← Πίσω</button> : <span />}
-              <button type="button" className={styles.primaryButton} disabled={loading} onClick={nextStep}>{loading ? "Ο stylist ετοιμάζει τα looks…" : step === 5 ? "Δείξε μου τα looks →" : "Συνέχεια →"}</button>
+              <button type="button" className={styles.primaryButton} disabled={loading} onClick={nextStep}>{loading ? "Ο stylist ετοιμάζει τα looks…" : step === 4 ? "Δείξε μου τα looks →" : "Συνέχεια →"}</button>
             </div>
           </div>
         </div>
