@@ -130,6 +130,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND ds.active=true
           JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
           JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+          JOIN public.product_families pf ON pf.id=cv.family_id
          WHERE cv.category_id IS NOT NULL
            AND cv.family_id IS NOT NULL
            AND cv.suppressed=false
@@ -164,6 +165,16 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
                FROM public.vendor_product_activation_requests ar
               WHERE ar.offer_id=vo.id
                 AND ar.status='pending'
+           )
+           AND (
+             pf.active=false
+             OR cv.active=false
+             OR dso.active=false
+             OR vo.status::text<>'approved'
+             OR vo.merchant_visible IS DISTINCT FROM true
+             OR vo.merchant_pause_active IS DISTINCT FROM false
+             OR COALESCE(vo.source_payload->>'publicationState','')<>'PUBLISHED'
+             OR COALESCE(vo.source_payload->>'publishedBy','')<>'symphonya_auto_publication'
            )
          ORDER BY vo.id
          LIMIT $2
