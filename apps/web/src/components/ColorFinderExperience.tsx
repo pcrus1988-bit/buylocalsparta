@@ -493,7 +493,7 @@ export function ColorFinderExperience({
 
   async function shareSelection() {
     const url = window.location.href;
-    const title = `KONTA MOY Color Finder · ${selectedShade.label} ${selectedHex}`;
+    const title = `KONTA MOY Color Finder · ${selectedShade.label}`;
 
     try {
       if (navigator.share) {
@@ -743,7 +743,7 @@ export function ColorFinderExperience({
 
         <div className={styles.selectorCard}>
           <div className={styles.selectorHeading}>
-            <span>YOUR COLOR</span>
+            <span>ΤΟ ΧΡΩΜΑ ΣΟΥ</span>
             <strong>{selectedShade.label}</strong>
           </div>
 
@@ -774,7 +774,7 @@ export function ColorFinderExperience({
                 role="slider"
                 tabIndex={0}
                 aria-label="Διάλεξε απόχρωση και ένταση"
-                aria-valuetext={`${selectedShade.label} ${selectedHex}`}
+                aria-valuetext={selectedShade.label}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(pickerHsv.s * 100)}
@@ -800,7 +800,7 @@ export function ColorFinderExperience({
                   <span style={{ backgroundColor: selectedHex }} aria-hidden="true" />
                   <div>
                     <small>{selectedShade.label.toUpperCase()}</small>
-                    <strong>{selectedHex}</strong>
+                    <strong>{selectedShade.label}</strong>
                   </div>
                 </div>
 
@@ -827,8 +827,8 @@ export function ColorFinderExperience({
                       <button
                         key={hex}
                         type="button"
-                        aria-label={`Δοκίμασε ${nearestColorName(hex).label} ${hex}`}
-                        title={`${nearestColorName(hex).label} · ${hex}`}
+                        aria-label={`Δοκίμασε ${nearestColorName(hex).label}`}
+                        title={nearestColorName(hex).label}
                         style={{ backgroundColor: hex }}
                         onClick={() => {
                           setSelectedHex(hex);
@@ -839,8 +839,8 @@ export function ColorFinderExperience({
                 </div>
 
                 <div className={styles.pickerActions}>
-                  <button type="button" onClick={scrollToMatches}>SHOW MATCHES</button>
-                  <button type="button" onClick={shareSelection}>{shareStatus === "copied" ? "LINK COPIED" : "SHARE SHADE"}</button>
+                  <button type="button" onClick={scrollToMatches}>ΔΕΣ ΤΙ ΤΑΙΡΙΑΖΕΙ</button>
+                  <button type="button" onClick={shareSelection}>{shareStatus === "copied" ? "Ο ΣΥΝΔΕΣΜΟΣ ΑΝΤΙΓΡΑΦΗΚΕ" : "ΜΟΙΡΑΣΟΥ ΤΟ ΧΡΩΜΑ"}</button>
                 </div>
 
                 <p className={styles.pickerHint}>Πάτησε ή σύρε πάνω στο χρώμα μέχρι να βρεις αυτό που θέλεις.</p>
@@ -1022,18 +1022,18 @@ export function ColorFinderExperience({
           )}
 
           <details className={styles.mobileAdvanced}>
-            <summary>MORE OPTIONS</summary>
+            <summary>ΠΕΡΙΣΣΟΤΕΡΑ</summary>
             <div className={styles.mobileAdvancedBody}>
               {selectorMode === "picker" ? (
                 <div className={styles.mobileFineTune}>
-                  <span>FINE TUNE</span>
+                  <span>ΠΑΡΑΛΛΑΓΕΣ</span>
                   <div>
                     {fineTuneColors.map((hex) => (
                       <button
                         key={`mobile-${hex}`}
                         type="button"
-                        aria-label={`Δοκίμασε ${nearestColorName(hex).label} ${hex}`}
-                        title={`${nearestColorName(hex).label} · ${hex}`}
+                        aria-label={`Δοκίμασε ${nearestColorName(hex).label}`}
+                        title={nearestColorName(hex).label}
                         style={{ backgroundColor: hex }}
                         onClick={() => {
                           setSelectedHex(hex);
@@ -1061,7 +1061,7 @@ export function ColorFinderExperience({
               </div>
 
               <button type="button" className={styles.mobileShare} onClick={shareSelection}>
-                {shareStatus === "copied" ? "LINK COPIED" : "SHARE SHADE"}
+                {shareStatus === "copied" ? "Ο ΣΥΝΔΕΣΜΟΣ ΑΝΤΙΓΡΑΦΗΚΕ" : "ΜΟΙΡΑΣΟΥ ΤΟ ΧΡΩΜΑ"}
               </button>
             </div>
           </details>
@@ -1099,17 +1099,17 @@ export function ColorFinderExperience({
             <span style={{ backgroundColor: selectedHex }} />
             <div>
               <small>{selectedShade.label}</small>
-              <strong>{selectedHex}</strong>
+              <strong>{selectedShade.label}</strong>
             </div>
           </div>
         </div>
 
         <div className={[styles.filters, !context.showTypeFilter && !context.showFinishFilter ? styles.filtersCompact : ""].filter(Boolean).join(" ")}>
           {context.showTypeFilter ? <div className={styles.filterGroup}>
-            <span>TYPE</span>
+            <span>ΤΥΠΟΣ</span>
             <div>
               <button type="button" className={productType === "all" ? styles.activeFilter : undefined} onClick={() => setProductType("all")}>
-                All <small>{eligibleProducts.filter((product) =>
+                Όλα <small>{eligibleProducts.filter((product) =>
                   (finish === "all" || product.finish === finish)
                   && (brand === "all" || product.brand === brand)
                 ).length}</small>
@@ -1122,10 +1122,10 @@ export function ColorFinderExperience({
             </div>
           </div> : null}
           {context.showFinishFilter ? <div className={styles.filterGroup}>
-            <span>FINISH</span>
+            <span>ΦΙΝΙΡΙΣΜΑ</span>
             <div>
               <button type="button" className={finish === "all" ? styles.activeFilter : undefined} onClick={() => setFinish("all")}>
-                All <small>{eligibleProducts.filter((product) =>
+                Όλα <small>{eligibleProducts.filter((product) =>
                   (productType === "all" || product.productType === productType)
                   && (brand === "all" || product.brand === brand)
                 ).length}</small>
@@ -1138,7 +1138,7 @@ export function ColorFinderExperience({
             </div>
           </div> : null}
           <div className={styles.filterGroup}>
-            <span>BRAND</span>
+            <span>ΜΑΡΚΑ</span>
             <select
               className={styles.filterSelect}
               aria-label="Brand"
@@ -1146,7 +1146,7 @@ export function ColorFinderExperience({
               onChange={(event) => setBrand(event.target.value)}
             >
               <option value="all">
-                All brands ({eligibleProducts.filter((product) =>
+                Όλες οι μάρκες ({eligibleProducts.filter((product) =>
                   (finish === "all" || product.finish === finish)
                   && (productType === "all" || product.productType === productType)
                 ).length})
@@ -1157,11 +1157,11 @@ export function ColorFinderExperience({
             </select>
           </div>
           <div className={styles.filterGroup}>
-            <span>SORT</span>
+            <span>ΤΑΞΙΝΟΜΗΣΗ</span>
             <div>
-              <button type="button" className={sortMode === "match" ? styles.activeFilter : undefined} onClick={() => setSortMode("match")}>Best match</button>
-              <button type="button" className={sortMode === "price-asc" ? styles.activeFilter : undefined} onClick={() => setSortMode("price-asc")}>Price ↑</button>
-              <button type="button" className={sortMode === "price-desc" ? styles.activeFilter : undefined} onClick={() => setSortMode("price-desc")}>Price ↓</button>
+              <button type="button" className={sortMode === "match" ? styles.activeFilter : undefined} onClick={() => setSortMode("match")}>Καλύτερο ταίριασμα</button>
+              <button type="button" className={sortMode === "price-asc" ? styles.activeFilter : undefined} onClick={() => setSortMode("price-asc")}>Τιμή ↑</button>
+              <button type="button" className={sortMode === "price-desc" ? styles.activeFilter : undefined} onClick={() => setSortMode("price-desc")}>Τιμή ↓</button>
             </div>
           </div>
         </div>
@@ -1203,7 +1203,7 @@ export function ColorFinderExperience({
                         <span>{context.showFinishFilter ? FINISH_LABELS[product.finish] : product.colorLabel}</span>
                         <strong>{product.price}</strong>
                       </div>
-                      <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>View product →</Link>
+                      <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>Δες το προϊόν →</Link>
                     </div>
                   </div>
                 </article>
