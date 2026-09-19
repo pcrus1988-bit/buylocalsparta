@@ -1,9 +1,18 @@
 .entry,
 .room,
 .lookRoom {
-  min-height: calc(100vh - 92px);
+  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
+}
+
+.entry {
   overflow: hidden;
+}
+
+.room,
+.lookRoom {
+  overflow: visible;
 }
 
 .entry {
