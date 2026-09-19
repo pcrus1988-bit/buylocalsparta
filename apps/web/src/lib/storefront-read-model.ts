@@ -1,7 +1,7 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { decodeCatalogSizeGroup } from "./catalog-size";
 
-const HOT_SYMPHONYA_FAMILY_CAP = 240;
+const HOT_SYMPHONYA_FAMILY_CAP = 0; // Production serves precomputed read models; never rebuild supplier families on a customer request.
 
 export type StorefrontReadModelFilters = Readonly<{
   subcategory?: string;
