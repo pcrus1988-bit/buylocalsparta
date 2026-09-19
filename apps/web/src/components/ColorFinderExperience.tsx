@@ -1017,6 +1017,65 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             </div>
           )}
 
+          <details className={styles.mobileAdvanced}>
+            <summary>MORE OPTIONS</summary>
+            <div className={styles.mobileAdvancedBody}>
+              {selectorMode === "picker" ? (
+                <div className={styles.mobileFineTune}>
+                  <span>FINE TUNE</span>
+                  <div>
+                    {fineTuneColors.map((hex) => (
+                      <button
+                        key={`mobile-${hex}`}
+                        type="button"
+                        aria-label={`Δοκίμασε ${nearestColorName(hex).label} ${hex}`}
+                        title={`${nearestColorName(hex).label} · ${hex}`}
+                        style={{ backgroundColor: hex }}
+                        onClick={() => {
+                          setSelectedHex(hex);
+                          setHexDraft(hex);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className={styles.mobileHexField}>
+                <label htmlFor="color-finder-hex-mobile">HEX</label>
+                <input
+                  id="color-finder-hex-mobile"
+                  value={hexDraft}
+                  maxLength={7}
+                  spellCheck={false}
+                  onChange={(event) => applyHex(event.target.value)}
+                  onBlur={() => setHexDraft(selectedHex)}
+                />
+              </div>
+
+              <div className={styles.mobilePresetRail} aria-label="Προτεινόμενες αποχρώσεις">
+                {COLOR_FINDER_PRESETS.map((preset) => (
+                  <button
+                    key={`mobile-${preset.hex}`}
+                    type="button"
+                    title={preset.label}
+                    aria-label={preset.label}
+                    aria-pressed={selectedHex === preset.hex}
+                    style={{ backgroundColor: preset.hex }}
+                    onClick={() => {
+                      setSelectedHex(preset.hex);
+                      setHexDraft(preset.hex);
+                    }}
+                  />
+                ))}
+              </div>
+
+              <button type="button" className={styles.mobileShare} onClick={shareSelection}>
+                {shareStatus === "copied" ? "LINK COPIED" : "SHARE SHADE"}
+              </button>
+            </div>
+          </details>
+
           <div className={styles.hexField}>
             <label htmlFor="color-finder-hex">HEX</label>
             <input
