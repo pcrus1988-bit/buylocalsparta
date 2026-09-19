@@ -22,6 +22,8 @@ export type StyleLookItem = Readonly<{
   brand?: string;
   color?: string;
   imageSrc?: string;
+  vendorId?: string;
+  vendorName?: string;
 }>;
 
 export type CustomerStyleLook = Readonly<{
@@ -102,7 +104,9 @@ function safeComposition(value: unknown): readonly StyleLookItem[] {
       categoryCode,
       brand: safeText(raw.brand, 120) || undefined,
       color: safeText(raw.color, 80) || undefined,
-      imageSrc: safeText(raw.imageSrc, 500) || undefined
+      imageSrc: safeText(raw.imageSrc, 500) || undefined,
+      vendorId: safeText(raw.vendorId, 128) || undefined,
+      vendorName: safeText(raw.vendorName, 180) || undefined
     }];
   });
 }
