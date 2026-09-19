@@ -7,7 +7,8 @@ import { styleLookShareCodeFromToken } from "../lib/style-look-share-code";
 import styles from "./FittingRoomExperience.module.css";
 
 type Audience = "women" | "men";
-type Step = 0 | 1 | 2 | 3 | 4;
+type Occasion = "everyday" | "work" | "date" | "dinner" | "wedding" | "formal" | "party" | "travel";
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 type SlotKey = "main" | "bottom" | "layer" | "shoes" | "bag" | "accessory" | "beauty" | "lipstick" | "nails" | "fragrance";
 
 type Product = Readonly<{
@@ -73,6 +74,7 @@ type SavedLookPayload = Readonly<{
     colours?: readonly string[];
     budgetMinor?: number;
     brands?: readonly string[];
+    occasion?: Occasion;
   }>;
   composition: readonly (Product & Readonly<{ slot: string }>)[];
 }>;
@@ -138,6 +140,21 @@ const COLOR_WORDS: Readonly<Record<string, readonly string[]>> = {
   silver: ["silver", "ασημί", "ασημι", "grey", "gray", "γκρι"]
 };
 
+const OCCASIONS: readonly Readonly<{ key: Occasion; icon: string; label: string; copy: string; guidance: string }>[] = [
+  { key: "everyday", icon: "☀", label: "Καθημερινά", copy: "Άνετο αλλά προσεγμένο.", guidance: "Ισορροπεί άνεση και εμφάνιση χωρίς υπερβολή." },
+  { key: "work", icon: "▣", label: "Δουλειά / γραφείο", copy: "Polished και κατάλληλο για επαγγελματικό περιβάλλον.", guidance: "Δίνει προτεραιότητα σε καθαρές γραμμές, tailoring και πιο διακριτικές επιλογές." },
+  { key: "date", icon: "♥", label: "Ραντεβού", copy: "Περιποιημένο, προσωπικό και όχι υπερβολικό.", guidance: "Συνδυάζει πιο κομψά κομμάτια με μία-δύο πιο ιδιαίτερες λεπτομέρειες." },
+  { key: "dinner", icon: "☾", label: "Δείπνο / έξοδος", copy: "Elevated βραδινό look.", guidance: "Προτιμά κομψές γραμμές, πιο refined παπούτσια και ολοκληρωμένο beauty/grooming." },
+  { key: "wedding", icon: "✦", label: "Γάμος / τελετή", copy: "Επίσημο χωρίς να γίνεται υπερβολικά βαρύ.", guidance: "Αποφεύγει πολύ casual κομμάτια και δίνει βάρος σε formal παπούτσια, tailoring και κομψές λεπτομέρειες." },
+  { key: "formal", icon: "◇", label: "Formal / gala", copy: "Η πιο αυστηρή dress-code επιλογή.", guidance: "Αποκλείει εμφανώς casual συνδυασμούς και χτίζει το look γύρω από formal γραμμές." },
+  { key: "party", icon: "★", label: "Party / βραδινό", copy: "Πιο τολμηρό και statement.", guidance: "Επιτρέπει πιο έντονο χρώμα, λάμψη και beauty στοιχεία, διατηρώντας συνοχή." },
+  { key: "travel", icon: "✈", label: "Ταξίδι / city day", copy: "Άνεση για πολλές ώρες, χωρίς να χάνεται το styling.", guidance: "Προτιμά πρακτικά layers, άνετα παπούτσια και λειτουργικά αξεσουάρ." }
+];
+
+function occasionDetails(occasion: Occasion) {
+  return OCCASIONS.find((entry) => entry.key === occasion) ?? OCCASIONS[0];
+}
+
 const LOOK_PERSONALITIES = [
   {
     name: "Clean Edit",
@@ -196,7 +213,7 @@ function slotFromText(text: string): SlotKey | null {
   if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη/.test(text)) return "accessory";
   if (/jacket|coat|blazer|cardigan|overshirt|parka|trench|μπουφαν|παλτο|σακακι|ζακετ/.test(text)) return "layer";
   if (/trouser|pants|jean|skirt|shorts|legging|chino|παντελον|τζιν|φουστ|σορτ/.test(text)) return "bottom";
-  if (/dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
+  if (/dress|jumpsuit|overall|suit|costume|φορεμ|ολόσωμ|ολοσωμ|κοστουμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
   return null;
 }
 
@@ -211,6 +228,20 @@ function slotFor(product: Product): SlotKey | null {
 function isOnePiece(product: Product | undefined): boolean {
   if (!product) return false;
   return /dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ/.test(productText(product));
+}
+
+function isSuitLike(product: Product | undefined): boolean {
+  if (!product) return false;
+  return /(?:^|\s)(?:suit|costume)(?:\s|$)|κοστουμ/.test(productText(product));
+}
+
+function isStandaloneOutfit(product: Product | undefined): boolean {
+  return isOnePiece(product) || isSuitLike(product);
+}
+
+function isBlazerLike(product: Product | undefined): boolean {
+  if (!product) return false;
+  return /blazer|tailor|suit jacket|σακακ/.test(productText(product));
 }
 
 const WOMEN_ONLY_BEAUTY = new Set(["lip-makeup", "face-makeup", "eye-makeup", "nail-care-colour"]);
@@ -282,6 +313,105 @@ function colorAffinity(product: Product, selectedColors: readonly string[]): num
   return selectedColors.some((key) => (COLOR_WORDS[key] ?? [key]).some((word) => text.includes(normalize(word)))) ? 24 : 0;
 }
 
+function etiquetteScore(
+  product: Product,
+  slot: SlotKey,
+  audience: Audience,
+  occasion: Occasion,
+  slots: Readonly<Partial<Record<SlotKey, Product>>>
+): number {
+  const text = productText(product);
+  const main = slots.main;
+  const mainText = productText(main ?? product);
+  const shorts = /shorts|σορτ/.test(text);
+  const hoodie = /hoodie|sweatshirt|φουτερ/.test(text);
+  const sneaker = /sneaker|trainer/.test(text) || /(?:women|men)s sneakers/.test(text);
+  const heel = /heel|pump|stiletto|γόβ|γοβ/.test(text);
+  const formalShoe = heel || /formal shoes|loafer|oxford|derby|monk|moccas/.test(text);
+  const blazer = /blazer|tailor|suit jacket|σακακ/.test(text);
+  const dress = /dress|φορεμ/.test(text);
+  const jumpsuit = /jumpsuit|overall|ολόσωμ|ολοσωμ/.test(text);
+  const suit = /(?:^|\s)(?:suit|costume)(?:\s|$)|κοστουμ/.test(text);
+  const shirt = /shirt|blouse|πουκαμισ/.test(text);
+  const trousers = /trouser|pants|chino|παντελον/.test(text);
+  const jeans = /jean|denim|τζιν/.test(text);
+  const knit = /knit|sweater|cardigan|πλεκ|ζακετ/.test(text);
+  const statement = /sequin|glitter|metallic|satin|velvet|statement|παγιετ|σατεν/.test(text);
+  const backpack = /backpack|σακιδ/.test(text);
+
+  if (slot === "bottom" && isStandaloneOutfit(main)) return -1000;
+  if (slot === "layer" && isSuitLike(main) && blazer) return -1000;
+
+  let score = 0;
+
+  if (main && isOnePiece(main)) {
+    if (slot === "shoes") {
+      if (["date", "dinner", "wedding", "formal", "party"].includes(occasion) && (heel || formalShoe)) score += 34;
+      if (["everyday", "travel"].includes(occasion) && sneaker) score += 24;
+    }
+    if (slot === "layer" && blazer) {
+      score += ["work", "date", "dinner", "wedding", "formal"].includes(occasion) ? 32 : 14;
+    }
+  }
+
+  if (occasion === "formal") {
+    if (shorts || hoodie || sneaker) return -1000;
+    if (slot === "main" && (dress || jumpsuit || suit || shirt)) score += 38;
+    if (slot === "bottom" && trousers) score += 30;
+    if (slot === "layer" && blazer) score += 34;
+    if (slot === "shoes" && formalShoe) score += 38;
+  } else if (occasion === "wedding") {
+    if (shorts || hoodie) return -1000;
+    if (audience === "men" && slot === "shoes" && sneaker) return -1000;
+    if (slot === "main" && (dress || jumpsuit || suit || shirt)) score += 34;
+    if (slot === "bottom" && trousers) score += 24;
+    if (slot === "layer" && blazer) score += 30;
+    if (slot === "shoes" && formalShoe) score += 34;
+  } else if (occasion === "work") {
+    if (shorts) score -= 80;
+    if (hoodie) score -= 55;
+    if (slot === "main" && (shirt || dress || suit || knit)) score += 26;
+    if (slot === "bottom" && (trousers || /skirt|φουστ/.test(text))) score += 24;
+    if (slot === "layer" && blazer) score += 32;
+    if (slot === "shoes" && formalShoe) score += 24;
+    if (slot === "shoes" && sneaker) score -= 18;
+  } else if (occasion === "date") {
+    if (slot === "main" && (dress || jumpsuit || shirt || knit)) score += 22;
+    if (slot === "layer" && (blazer || /leather|δερμα/.test(text))) score += 18;
+    if (slot === "shoes" && (heel || formalShoe)) score += 24;
+    if (slot === "fragrance" || slot === "lipstick") score += 18;
+  } else if (occasion === "dinner") {
+    if (shorts) score -= 35;
+    if (slot === "main" && (dress || jumpsuit || shirt || suit)) score += 26;
+    if (slot === "layer" && blazer) score += 24;
+    if (slot === "shoes" && formalShoe) score += 28;
+    if (slot === "fragrance" || slot === "lipstick") score += 20;
+  } else if (occasion === "party") {
+    if (slot === "main" && (dress || jumpsuit || statement)) score += 28;
+    if (slot === "shoes" && (heel || formalShoe)) score += 24;
+    if (statement) score += 22;
+    if (slot === "beauty" || slot === "lipstick" || slot === "nails" || slot === "fragrance") score += 18;
+  } else if (occasion === "travel") {
+    if (slot === "shoes" && sneaker) score += 34;
+    if (slot === "shoes" && heel) score -= 55;
+    if (slot === "main" && (knit || shirt)) score += 16;
+    if (slot === "layer" && (knit || /jacket|coat|parka|trench|μπουφαν|παλτο/.test(text))) score += 24;
+    if (slot === "bag" && backpack) score += 24;
+  } else {
+    if (slot === "main" && (jeans || knit || shirt || /top|t shirt|t-shirt|μπλουζ/.test(text))) score += 14;
+    if (slot === "bottom" && (jeans || trousers || /skirt|φουστ/.test(text))) score += 14;
+    if (slot === "shoes" && sneaker) score += 20;
+  }
+
+  if (isSuitLike(main)) {
+    if (slot === "shoes" && formalShoe) score += 28;
+    if (slot === "shoes" && sneaker && !["everyday", "travel"].includes(occasion)) score -= 60;
+  }
+
+  if (/dress|φορεμ/.test(mainText) && slot === "bottom") return -1000;
+  return score;
+}
+
 function personalityScore(product: Product, personality: number): number {
   const text = productText(product);
   if (personality === 0) {
@@ -300,13 +430,16 @@ function productScore(
   sizes: SizeProfile,
   colors: readonly string[],
   brands: readonly string[],
-  personality: number
+  personality: number,
+  occasion: Occasion,
+  slots: Readonly<Partial<Record<SlotKey, Product>>>
 ): number {
   let score = 50;
   score += audiencePenalty(product, audience);
   score += matchesSize(product, slot, sizes);
   score += colorAffinity(product, colors);
   score += personalityScore(product, personality);
+  score += etiquetteScore(product, slot, audience, occasion, slots);
   if (product.brand && brands.some((brand) => normalize(brand) === normalize(product.brand))) score += 34;
   if (product.available !== false && (product.availableToSell ?? 1) > 0) score += 8;
   return score;
@@ -386,6 +519,7 @@ export function FittingRoomExperience({
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState<Step>(0);
   const [audience, setAudience] = useState<Audience>("women");
+  const [occasion, setOccasion] = useState<Occasion>("everyday");
   const [sizes, setSizes] = useState<SizeProfile>({ top: "", shirt: "", jacket: "", waist: "", trouser: "", skirt: "", shoe: "", dress: "", bra: "", belt: "" });
   const [colors, setColors] = useState<readonly string[]>([]);
   const [budget, setBudget] = useState("");
@@ -482,6 +616,7 @@ export function FittingRoomExperience({
         }
         if (!Object.keys(slots).length) return;
         setAudience(saved.audience);
+        setOccasion(saved.profile?.occasion ?? "everyday");
         setSizes((current) => ({ ...current, ...(saved.profile?.sizes ?? {}) }));
         setColors((saved.profile?.colours ?? []).slice(0, 3));
         setBrands((saved.profile?.brands ?? []).slice(0, 5));
@@ -554,13 +689,13 @@ export function FittingRoomExperience({
       .filter((product) => isAudienceCompatible(product, audience) && slotFor(product) === editingSlot && product.id !== selected)
       .map((product) => ({
         product,
-        score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0)
+        score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0, occasion, currentLook?.slots ?? {})
       }))
       .filter((entry) => entry.score > -40)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
       .slice(0, 12)
       .map((entry) => entry.product);
-  }, [activeLook, audience, brands, colors, currentLook, editingSlot, products, sizes]);
+  }, [activeLook, audience, brands, colors, currentLook, editingSlot, occasion, products, sizes]);
 
   function toggleColor(key: string) {
     setColors((current) => current.includes(key)
@@ -579,7 +714,7 @@ export function FittingRoomExperience({
   }
 
   function nextStep() {
-    if (step < 4) setStep((step + 1) as Step);
+    if (step < 5) setStep((step + 1) as Step);
     else void createLooks();
   }
 
@@ -632,7 +767,7 @@ export function FittingRoomExperience({
       .filter((product) => isAudienceCompatible(product, audience) && slotFor(product) === slot)
       .map((product) => ({
         product,
-        score: productScore(product, slot, audience, sizes, colors, brands, personality)
+        score: productScore(product, slot, audience, sizes, colors, brands, personality, occasion, slots)
       }))
       .filter((entry) => entry.score > -40)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
@@ -651,7 +786,7 @@ export function FittingRoomExperience({
     };
 
     choose("main", personality);
-    if (!isOnePiece(slots.main)) choose("bottom", personality % 2);
+    if (!isStandaloneOutfit(slots.main)) choose("bottom", personality % 2);
     choose("shoes", personality);
     choose("layer", personality, true);
     choose("bag", personality, true);
@@ -663,7 +798,13 @@ export function FittingRoomExperience({
     }
     choose("fragrance", personality + 1, true);
 
-    return { ...meta, slots };
+    const occasionMeta = occasionDetails(occasion);
+    return {
+      ...meta,
+      mood: `${meta.mood} · ${occasionMeta.label}`,
+      note: `${meta.note} ${occasionMeta.guidance}`,
+      slots
+    };
   }
 
   async function createLooks() {
@@ -694,9 +835,13 @@ export function FittingRoomExperience({
   }
 
   function replaceSlot(slot: SlotKey, product: Product) {
-    setLooks((current) => current.map((look, index) => index === activeLook
-      ? { ...look, slots: { ...look.slots, [slot]: product } }
-      : look));
+    setLooks((current) => current.map((look, index) => {
+      if (index !== activeLook) return look;
+      const next = { ...look.slots, [slot]: product };
+      if (slot === "main" && isStandaloneOutfit(product)) delete next.bottom;
+      if (slot === "main" && isSuitLike(product) && isBlazerLike(next.layer)) delete next.layer;
+      return { ...look, slots: next };
+    }));
     setEditingSlot(null);
     setSaveStatus("");
     setShareStatus("");
@@ -726,7 +871,8 @@ export function FittingRoomExperience({
         sizes,
         colours: colors,
         budgetMinor: euroBudget(budget),
-        brands
+        brands,
+        occasion
       },
       composition
     };
@@ -835,7 +981,7 @@ export function FittingRoomExperience({
           <div className={styles.consultantBadge}><span>K</span><div><strong>Ο προσωπικός σου stylist</strong><small>KONTA MOY Fitting Room</small></div></div>
           <p className={styles.eyebrow}>PRIVATE FITTING ROOM</p>
           <h1>Μπες. Πες μου τι σου αρέσει.<br /><em>Θα στήσουμε το look μαζί.</em></h1>
-          <p className={styles.entryLead}>Μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις που μπορείς να αλλάξεις κομμάτι-κομμάτι.</p>
+          <p className={styles.entryLead}>Περίσταση, μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις που σέβονται το dress code και αλλάζουν κομμάτι-κομμάτι.</p>
           <button className={styles.primaryButton} type="button" onClick={() => { setStarted(true); enterImmersive(); }}>Μπες στο fitting room <span>→</span></button>
           <div className={styles.entryFoot}><span>3 έτοιμα looks</span><span>Αλλάζεις ό,τι θέλεις</span><span>Save & share</span></div>
         </div>
@@ -905,6 +1051,20 @@ export function FittingRoomExperience({
           <div className={styles.choiceGrid}>
             <button className={audience === "women" ? styles.choiceActive : styles.choice} onClick={() => setAudience("women")} type="button"><span>♀</span><strong>Female styling</strong><small>Fashion · beauty · nails · accessories</small></button>
             <button className={audience === "men" ? styles.choiceActive : styles.choice} onClick={() => setAudience("men")} type="button"><span>♂</span><strong>Male styling</strong><small>Fashion · grooming · shoes · accessories</small></button>
+          </div>
+        )
+      },
+      {
+        title: "Πού θα φορέσεις το look;",
+        copy: "Η περίσταση αλλάζει τα πάντα: τι θεωρείται σωστό, πόσο formal πρέπει να είναι το look και ποια κομμάτια ταιριάζουν πραγματικά μεταξύ τους.",
+        content: (
+          <div className={styles.choiceGrid}>
+            {OCCASIONS.map((entry) => {
+              const active = occasion === entry.key;
+              return <button className={active ? styles.choiceActive : styles.choice} onClick={() => setOccasion(entry.key)} type="button" key={entry.key}>
+                <span>{entry.icon}</span><strong>{entry.label}</strong><small>{entry.copy}</small>
+              </button>;
+            })}
           </div>
         )
       },
@@ -979,7 +1139,7 @@ export function FittingRoomExperience({
         <div className={styles.roomHeader}>
           <button type="button" className={styles.exit} onClick={leaveImmersive}>× Έξοδος</button>
           <div className={styles.roomWordmark}><strong>FITTING ROOM</strong><span>by KONTA MOY</span></div>
-          <span className={styles.stepCount}>{step + 1} / 5</span>
+          <span className={styles.stepCount}>{step + 1} / 6</span>
         </div>
         <div className={styles.roomBody}>
           <aside className={styles.consultant}>
@@ -987,14 +1147,14 @@ export function FittingRoomExperience({
             <div><small>YOUR CONSULTANT</small><strong>KONTA MOY Stylist</strong><p>{question.copy}</p></div>
           </aside>
           <div className={styles.questionCard}>
-            <div className={styles.progress}><i style={{ width: `${((step + 1) / 5) * 100}%` }} /></div>
+            <div className={styles.progress}><i style={{ width: `${((step + 1) / 6) * 100}%` }} /></div>
             <p className={styles.questionEyebrow}>STYLE SESSION · STEP {String(step + 1).padStart(2, "0")}</p>
             <h2>{question.title}</h2>
             {question.content}
             {loadError ? <p className={styles.error} role="alert">{loadError}</p> : null}
             <div className={styles.questionActions}>
               {step > 0 ? <button type="button" className={styles.secondaryButton} onClick={() => setStep((step - 1) as Step)}>← Πίσω</button> : <span />}
-              <button type="button" className={styles.primaryButton} disabled={loading} onClick={nextStep}>{loading ? "Ο stylist ετοιμάζει τα looks…" : step === 4 ? "Δείξε μου τα looks →" : "Συνέχεια →"}</button>
+              <button type="button" className={styles.primaryButton} disabled={loading} onClick={nextStep}>{loading ? "Ο stylist ετοιμάζει τα looks…" : step === 5 ? "Δείξε μου τα looks →" : "Συνέχεια →"}</button>
             </div>
           </div>
         </div>
@@ -1055,7 +1215,7 @@ export function FittingRoomExperience({
           {looks.length > 1 ? <div className={styles.lookTabs}>{looks.map((look, index) => <button key={look.name} type="button" className={activeLook === index ? styles.lookTabActive : undefined} onClick={() => { setActiveLook(index); setEditingSlot(null); }}><span>{index < 3 ? `0${index + 1}` : "YOU"}</span><strong>{look.name}</strong></button>)}</div> : null}
 
           <div className={styles.composition}>
-            {slotsForAudience(audience).map((slot) => {
+            {slotsForAudience(audience).filter((slot) => !(slot === "bottom" && isStandaloneOutfit(currentLook.slots.main))).map((slot) => {
               const meta = slotMeta(slot, audience);
               const product = currentLook.slots[slot];
               if (!product) return <button type="button" className={styles.emptySlot} key={slot} onClick={() => setEditingSlot(slot)}>
