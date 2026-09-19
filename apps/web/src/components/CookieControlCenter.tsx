@@ -50,8 +50,13 @@ export function CookieControlCenter() {
         body: JSON.stringify({ personalisation: false, analytics: nextAnalytics, marketing: false, source: "settings" })
       });
       if (!response.ok) throw new Error("save");
-      await refresh();
-      window.dispatchEvent(new Event(PRIVACY_CONSENT_CHANGED_EVENT));
+      const data = await response.json() as StatusResponse;
+      const value = data.consent ?? undefined;
+      if (!value) throw new Error("save_response");
+      setConsent(value);
+      setAnalytics(value.analytics === true);
+      setReady(true);
+      window.dispatchEvent(new CustomEvent(PRIVACY_CONSENT_CHANGED_EVENT, { detail: value }));
       setNotice(nextAnalytics
         ? "Τα Analytics ενεργοποιήθηκαν. Η επιλογή επαληθεύτηκε και αποθηκεύτηκε."
         : "Τα προαιρετικά Analytics απενεργοποιήθηκαν και τα σχετικά analytics identifiers καθαρίζονται.");
