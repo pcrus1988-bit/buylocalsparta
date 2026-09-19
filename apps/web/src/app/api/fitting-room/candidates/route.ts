@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { formatMoney, money } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 
@@ -104,19 +105,9 @@ function safeSizes(value: unknown): readonly string[] {
   }))].slice(0, 40);
 }
 
-export async function POST(request: Request) {
-  if (!productionDatabaseConfigured()) {
-    return Response.json({ products: [] }, { headers: { "Cache-Control": "no-store" } });
-  }
 
-  try {
-    const body = await request.json() as Record<string, unknown>;
-    const vendorId = safeVendorId(body.vendorId);
-    const audience = safeAudience(body.audience);
-    const brands = safeBrands(body.brands);
-    const budgetMinor = safeBudgetMinor(body.budgetMinor);
-    const categories = audience === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
-
+const loadCandidateRows = unstable_cache(
+  async (vendorId: string, audience: Audience): Promise<readonly CandidateRow[]> => {
     const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
       WITH vendor AS MATERIALIZED (
         SELECT id, public_id, trading_name
@@ -166,7 +157,7 @@ export async function POST(request: Request) {
       ), selected_families AS MATERIALIZED (
         SELECT *
         FROM ranked_families
-        WHERE category_rank<=6
+        WHERE category_rank<=10
       )
       SELECT
         representative.canonical_public_id,
@@ -251,9 +242,29 @@ export async function POST(request: Request) {
         LIMIT 1
       ) media ON true
       ORDER BY selected.category_code,selected.category_rank
-    `, [vendorId, [...categories], [...brands], budgetMinor]);
+    `, [vendorId, [...categories], [], 0]);
+    return result.rows;
+  },
+  ["fitting-room-candidate-pool-v2"],
+  { revalidate: 300 }
+);
 
-    const products = result.rows.flatMap((row) => {
+export async function POST(request: Request) {
+  if (!productionDatabaseConfigured()) {
+    return Response.json({ products: [] }, { headers: { "Cache-Control": "no-store" } });
+  }
+
+  try {
+    const body = await request.json() as Record<string, unknown>;
+    const vendorId = safeVendorId(body.vendorId);
+    const audience = safeAudience(body.audience);
+    const brands = safeBrands(body.brands);
+    const budgetMinor = safeBudgetMinor(body.budgetMinor);
+    const categories = audience === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
+
+    const rows = await loadCandidateRows(vendorId, audience);
+
+    const products = rows.flatMap((row) => {
       const priceMinor = Number(row.min_price_minor);
       if (!row.canonical_public_id || !row.slug || !row.title || !row.category_code || !Number.isSafeInteger(priceMinor) || priceMinor <= 0) return [];
       return [{
@@ -275,6 +286,18 @@ export async function POST(request: Request) {
         vendorId: row.vendor_public_id,
         vendorName: row.vendor_name
       }];
+    });
+
+    products.sort((left, right) => {
+      const leftBrand = left.brand?.trim().toLocaleLowerCase("el-GR") ?? "";
+      const rightBrand = right.brand?.trim().toLocaleLowerCase("el-GR") ?? "";
+      const leftBrandRank = brands.length > 0 && brands.includes(leftBrand) ? 0 : 1;
+      const rightBrandRank = brands.length > 0 && brands.includes(rightBrand) ? 0 : 1;
+      const leftBudgetRank = budgetMinor > 0 && left.priceMinor <= budgetMinor ? 0 : 1;
+      const rightBudgetRank = budgetMinor > 0 && right.priceMinor <= budgetMinor ? 0 : 1;
+      return leftBrandRank - rightBrandRank
+        || leftBudgetRank - rightBudgetRank
+        || left.priceMinor - right.priceMinor;
     });
 
     return Response.json(
