@@ -217,7 +217,7 @@ function slotFromText(text: string): SlotKey | null {
   if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη/.test(text)) return "accessory";
   if (/jacket|coat|blazer|cardigan|overshirt|parka|trench|μπουφαν|παλτο|σακακι|ζακετ/.test(text)) return "layer";
   if (/trouser|pants|jean|skirt|shorts|legging|chino|παντελον|τζιν|φουστ|σορτ/.test(text)) return "bottom";
-  if (/dress|jumpsuit|overall|(?:^|\\s)(?:suit|costume)(?:\\s|$)|φορεμ|ολόσωμ|ολοσωμ|κοστουμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
+  if (/dress|jumpsuit|overall|(?:^|\s)(?:suit|costume)(?:\s|$)|φορεμ|ολόσωμ|ολοσωμ|κοστουμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
   return null;
 }
 
