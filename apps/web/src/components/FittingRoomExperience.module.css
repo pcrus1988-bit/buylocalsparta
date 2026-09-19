@@ -648,7 +648,7 @@
 
 .lookTabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 18px;
 }
@@ -822,6 +822,15 @@
   justify-content: end;
   border-style: dashed;
   color: rgba(255,255,255,.46);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.emptySlot:hover {
+  border-color: rgba(211,187,153,.42);
+  background: rgba(211,187,153,.06);
+  color: rgba(255,255,255,.72);
 }
 
 .emptySlot span {
