@@ -25,6 +25,11 @@ type SeoSignalRow = Readonly<{
   duplicate_title_count: number | string;
 }>;
 
+type CanonicalOfferKindsRow = Readonly<{
+  has_dropship_offer: boolean;
+  has_local_offer: boolean;
+}>;
+
 function safeMinor(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error("Invalid catalog price from PostgreSQL");
@@ -115,6 +120,43 @@ const loadProductSeoSignals = cache(async (canonicalVariantId: string, title: st
   return result.rows[0] ?? { offer_available: false, duplicate_title_count: 1 };
 });
 
+const loadCanonicalOfferKinds = cache(async (canonicalVariantId: string): Promise<CanonicalOfferKindsRow> => {
+  if (!productionDatabaseConfigured()) return { has_dropship_offer: false, has_local_offer: false };
+  const result = await getProductionPostgresRuntime().nativePool.query<CanonicalOfferKindsRow>(`
+    SELECT
+      EXISTS (
+        SELECT 1
+        FROM vendor_offers vo
+        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        WHERE vo.canonical_variant_id=cv.id
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND dso.active=true
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+      ) AS has_dropship_offer,
+      EXISTS (
+        SELECT 1
+        FROM vendor_offers vo
+        WHERE vo.canonical_variant_id=cv.id
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND NOT EXISTS (
+            SELECT 1
+            FROM dropship_supplier_offers dso
+            WHERE dso.vendor_offer_id=vo.id
+          )
+      ) AS has_local_offer
+    FROM canonical_variants cv
+    WHERE cv.public_id=$1
+    LIMIT 1
+  `, [canonicalVariantId]);
+  return result.rows[0] ?? { has_dropship_offer: false, has_local_offer: false };
+});
+
 export const getCanonicalProductSummary = cache(async (routeKey: string) => directPublicCanonical(routeKey));
 
 export const getPublicProductSeoSummary = cache(async (routeKey: string): Promise<PublicProductSeoRecord | undefined> => {
@@ -177,6 +219,18 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   if (!productionDatabaseConfigured()) return undefined;
   const canonical = await directPublicCanonical(id);
   if (!canonical) return undefined;
+
+  // Supplier-only products do not participate in local pickup fairness. Going
+  // through publicAssignedCanonical first forces a serializable local-inventory
+  // lookup that can time out as the supplier catalogue grows. Resolve the
+  // supplier projection directly, while preserving the existing local-first
+  // behaviour for canonicals that genuinely have both local and dropship offers.
+  const offerKinds = await loadCanonicalOfferKinds(canonical.id);
+  if (offerKinds.has_dropship_offer && !offerKinds.has_local_offer) {
+    const dropshipProduct = (await getPublishedDropshipCatalogCards("", "", {}, {}, undefined, canonical.id))[0];
+    if (dropshipProduct) return dropshipProduct;
+  }
+
   const runtime = getProductionPostgresRuntime();
   const assigned = await runtime.customerCommerce.publicAssignedCanonical({ canonicalVariantId: canonical.id, visitorKey, postcode, reason: "product_view" });
   if (!assigned || !isPublicCatalogueTitle(assigned.title)) {

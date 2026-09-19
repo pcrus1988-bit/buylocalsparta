@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 export type PublicTechnicalAttribute = Readonly<{
   key: string;
@@ -31,6 +32,7 @@ type ProductDetailRow = SqlRow & {
   source_normalized_payload: unknown;
   source_raw_payload: unknown;
   source_image_url: string | null;
+  source_code: string | null;
   source_website: string | null;
 };
 
@@ -249,22 +251,6 @@ function mergeObject(target: Map<string, unknown>, source: Record<string, unknow
   }
 }
 
-function sameSourceHttpsUrl(sourceWebsite: unknown, candidate: unknown): string | undefined {
-  const website = optionalText(sourceWebsite);
-  const value = optionalText(candidate);
-  if (!website || !value) return undefined;
-  try {
-    const source = new URL(website);
-    const asset = new URL(value, source);
-    if (asset.protocol !== "https:") return undefined;
-    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
-    if (normalizeHost(source.hostname) !== normalizeHost(asset.hostname)) return undefined;
-    return asset.toString();
-  } catch {
-    return undefined;
-  }
-}
-
 function technicalAttributes(
   specifications: Record<string, unknown>,
   canonicalAttributes: Record<string, unknown>,
@@ -334,11 +320,13 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
     ?? optionalText(sourceRaw.description_el)
     ?? optionalText(sourceRaw.description);
   const variantGroupSize = Math.max(1, Math.trunc(numeric(sourceNormalized.variantGroupSize) ?? numeric(sourceRaw.variant_group_size) ?? 1));
-  const sourceImageUrl = sameSourceHttpsUrl(
+  const sourceImageUrl = trustedCatalogSourceHttpsUrl(
+    row.source_code,
     row.source_website,
     row.source_image_url ?? sourceNormalized.imageUrl ?? sourceRaw.image_url
   );
-  const manualUrl = sameSourceHttpsUrl(
+  const manualUrl = trustedCatalogSourceHttpsUrl(
+    row.source_code,
     row.source_website,
     sourceNormalized.manualUrl ?? sourceNormalized.manual_url ?? sourceRaw.manual_url
   );
@@ -388,7 +376,7 @@ export async function getPublicProductDetails(
       SELECT cv.public_id AS canonical_public_id,cv.model,cv.variant_attributes,
              COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
              src.source_supplier_code,src.source_normalized_payload,src.source_raw_payload,
-             src.source_image_url,src.source_website
+             src.source_image_url,src.source_code,src.source_website
       FROM canonical_variants cv
       JOIN markets m ON m.id=cv.market_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
@@ -398,6 +386,7 @@ export async function getPublicProductDetails(
                latest.normalized_payload AS source_normalized_payload,
                latest.raw_payload AS source_raw_payload,
                latest.source_image_url,
+               source.code AS source_code,
                source.website AS source_website
         FROM catalog_source_product_links csl
         JOIN catalog_source_products linked ON linked.id=csl.source_product_id
