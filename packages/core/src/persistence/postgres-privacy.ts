@@ -166,6 +166,7 @@ export class PostgresCustomerPrivacyRepository {
     await this.#uow.withTransaction(input.scope, async (tx) => {
       const uid = await userUuid(tx, input.userId);
       await tx.query("DELETE FROM saved_products WHERE user_id=$1", [uid]);
+      await tx.query("DELETE FROM customer_style_looks WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM saved_vendors WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM recently_viewed_products WHERE user_id=$1", [uid]);
       await tx.query("SELECT set_config('app.privacy_erasure','true',true)");
@@ -205,6 +206,7 @@ export class PostgresCustomerPrivacyRepository {
       const original = String(row.rows[0].email ?? "");
       const hash = createHash("sha256").update(`${input.userId}:${original}`).digest("hex");
       await tx.query("DELETE FROM saved_products WHERE user_id=$1", [uid]);
+      await tx.query("DELETE FROM customer_style_looks WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM saved_vendors WHERE user_id=$1", [uid]);
       await tx.query("DELETE FROM recently_viewed_products WHERE user_id=$1", [uid]);
       await tx.query("SELECT set_config('app.privacy_erasure','true',true)");

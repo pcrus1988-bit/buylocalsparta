@@ -186,6 +186,7 @@ async function disableOptionalProcessing(principal: SessionPrincipal, userId: st
     const uid=text(row.user_uuid);
     if(options.clearPersonalisation){
       await tx.query("DELETE FROM saved_products WHERE user_id=$1::uuid",[uid]);
+      await tx.query("DELETE FROM customer_style_looks WHERE user_id=$1::uuid",[uid]);
       await tx.query("DELETE FROM saved_vendors WHERE user_id=$1::uuid",[uid]);
       await tx.query("DELETE FROM recently_viewed_products WHERE user_id=$1::uuid",[uid]);
       await tx.query("SELECT set_config('app.privacy_erasure','true',true)");
