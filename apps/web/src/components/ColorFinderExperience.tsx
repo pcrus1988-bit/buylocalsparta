@@ -66,6 +66,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [catalogueState, setCatalogueState] = useState<"loading" | "ready" | "degraded">(
     products.length ? "ready" : "loading"
   );
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [selectedHex, setSelectedHex] = useState("#B52E2E");
   const [hexDraft, setHexDraft] = useState("#B52E2E");
   const [finish, setFinish] = useState<FinishFilter>("all");
@@ -182,10 +183,15 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     }
 
     const controller = new AbortController();
+    setCatalogueState("loading");
+    const endpoint = catalogReloadKey
+      ? `/api/color-finder/catalog?retry=${catalogReloadKey}`
+      : "/api/color-finder/catalog";
 
-    void fetch("/api/color-finder/catalog", {
+    void fetch(endpoint, {
       method: "GET",
       signal: controller.signal,
+      cache: catalogReloadKey ? "no-store" : "default",
       headers: { Accept: "application/json" }
     })
       .then(async (response) => {
@@ -205,7 +211,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       });
 
     return () => controller.abort();
-  }, [products]);
+  }, [catalogReloadKey, products]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1142,7 +1148,15 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                   ? <>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</>
                   : <>Μπορείς να συνεχίσεις να διαλέγεις ή να παίρνεις χρώμα από φωτογραφία. Τα προϊόντα θα εμφανιστούν μόλις ανανεωθεί ξανά ο κατάλογος αντιστοίχισης.</>}
             </p>
-            {finish !== "all" || productType !== "all" ? (
+            {catalogueState === "degraded" ? (
+              <button
+                type="button"
+                className={styles.emptyReset}
+                onClick={() => setCatalogReloadKey(Date.now())}
+              >
+                RETRY MATCHES
+              </button>
+            ) : finish !== "all" || productType !== "all" ? (
               <button
                 type="button"
                 className={styles.emptyReset}
