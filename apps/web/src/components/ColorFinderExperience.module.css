@@ -473,6 +473,10 @@
   transform: translateX(-50%);
   box-shadow: 0 5px 20px rgba(0,0,0,.35);
 }
+.photoSpotMarkerUp > strong {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
 .photoCropBox::before,
 .photoCropBox::after {
   content: "";
