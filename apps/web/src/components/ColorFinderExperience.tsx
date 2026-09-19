@@ -42,6 +42,7 @@ const DEFAULT_CROP_RATIO = 0.28;
 const MIN_CROP_RATIO = 0.08;
 const MAX_CROP_RATIO = 0.65;
 const MIN_MATCH_PERCENT = 49;
+const MIN_PROFILE_CONFIDENCE = 0.5;
 
 const FINISH_LABELS: Readonly<Record<ColorFinish, string>> = {
   cream: "Cream",
@@ -105,7 +106,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   }, [indexedProducts, selectedHex]);
 
   const eligibleProducts = useMemo(
-    () => scoredProducts.filter((product) => product.match >= MIN_MATCH_PERCENT),
+    () => scoredProducts.filter((product) =>
+      product.match >= MIN_MATCH_PERCENT
+      && (product.profileConfidence ?? 1) >= MIN_PROFILE_CONFIDENCE
+    ),
     [scoredProducts]
   );
 
@@ -973,8 +977,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <h2 id="color-finder-results">Your closest matches</h2>
             <p aria-live="polite">
               {visibleMatches.length
-                ? `${visibleMatches.length} από ${matches.length} αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
-                : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία για αυτόν τον συνδυασμό φίλτρων.`}
+                ? `${visibleMatches.length} από ${matches.length} αξιόπιστα αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
+                : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων για αυτόν τον συνδυασμό φίλτρων.`}
             </p>
           </div>
           <div className={styles.targetChip}>
