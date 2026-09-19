@@ -14,14 +14,26 @@ export function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function ColorFinderPage() {
+type Props = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
+
+function safeReturnPath(value: string | string[] | undefined): string {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return candidate && candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : "/";
+}
+
+export default async function ColorFinderPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const studio = Array.isArray(params.studio) ? params.studio[0] : params.studio;
+  const nailStudio = studio === "nails";
+  const returnPath = safeReturnPath(params.returnTo);
+
   return (
     <main className={styles.page}>
       <div className={styles.topBar}>
-        <Link href="/" className={styles.back}>← KONTA MOY</Link>
+        <Link href={nailStudio ? returnPath : "/"} className={styles.back}>{nailStudio ? "← ΠΙΣΩ ΣΤΟ ΚΑΤΑΣΤΗΜΑ" : "← KONTA MOY"}</Link>
         <div className={styles.wordmark}>
-          <strong>COLOR FINDER</strong>
-          <span>by KONTA MOY</span>
+          <strong>{nailStudio ? "NAIL STUDIO" : "COLOR FINDER"}</strong>
+          <span>{nailStudio ? "COLOR FINDER by KONTA MOY" : "by KONTA MOY"}</span>
         </div>
         <Link href="/shop?category=beauty" className={styles.shopLink}>BEAUTY SHOP ↗</Link>
       </div>
