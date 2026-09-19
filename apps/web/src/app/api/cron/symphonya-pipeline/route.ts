@@ -4,7 +4,7 @@ import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { runSymphonyaAutoPricingSlice } from "../../../../lib/symphonya-auto-pricing-runtime";
 import { runSymphonyaAutoPublicationSweep } from "../../../../lib/symphonya-auto-publication-runtime";
 import { runSymphonyaCatalogueMaterializationSlice } from "../../../../lib/symphonya-catalogue-materializer";
-import { runSymphonyaEnrichmentPreparationSlice } from "../../../../lib/symphonya-enrichment-runtime";
+import { runSymphonyaDeterministicTranslationPromotionSlice, runSymphonyaEnrichmentPreparationSlice } from "../../../../lib/symphonya-enrichment-runtime";
 import { refreshSymphonyaOfferStockByExternalIds } from "../../../../lib/symphonya-stock-sync-runtime";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token")?.trim();
   const requestedPhase = url.searchParams.get("phase")?.trim() ?? "all";
-  const allowedPhases = new Set(["all","materialization","pricing","enrichment","promotion","stock","publication"]);
+  const allowedPhases = new Set(["all","materialization","pricing","enrichment","fallback","promotion","stock","publication"]);
   const phase = allowedPhases.has(requestedPhase) ? requestedPhase : "all";
   const manualAuthorized = cronAuthorized ? false : await consumeManualToken(token);
 
@@ -41,6 +41,9 @@ export async function GET(request: Request) {
     const materialization = runAll || phase === "materialization" ? await runSymphonyaCatalogueMaterializationSlice() : null;
     const pricing = runAll || phase === "pricing" ? await runSymphonyaAutoPricingSlice() : null;
     const enrichment = runAll || phase === "enrichment" ? await runSymphonyaEnrichmentPreparationSlice() : null;
+    const deterministicTranslationPromotion = runAll || phase === "enrichment" || phase === "fallback"
+      ? await runSymphonyaDeterministicTranslationPromotionSlice()
+      : null;
     const translationPromotion = runAll || phase === "promotion" ? await runCatalogueEnrichmentPromotionSlice() : null;
     // Dedicated stock cron owns automatic supplier I/O. Keeping getStock out of
     // the normal all-phase run prevents the bounded pipeline from spending its
@@ -61,6 +64,7 @@ export async function GET(request: Request) {
       materialization,
       pricing,
       enrichment,
+      deterministicTranslationPromotion,
       translationPromotion,
       stock,
       publication
