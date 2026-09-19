@@ -50,6 +50,22 @@ export async function runProductColorProfileSyncSlice(
 ): Promise<ProductColorProfileSyncResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const candidates = await pool.query<SqlRow>(`
+    WITH candidate_ids AS MATERIALIZED (
+      SELECT cv.id
+      FROM public.categories c
+      JOIN public.canonical_variants cv ON cv.category_id=c.id
+      LEFT JOIN public.product_color_profiles existing
+        ON existing.canonical_variant_id=cv.id
+      WHERE c.code='nail-care-colour'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+      ORDER BY
+        (existing.canonical_variant_id IS NULL) DESC,
+        COALESCE(existing.profiled_at,'epoch'::timestamptz) ASC,
+        cv.id
+      LIMIT $1
+    )
     SELECT
       cv.id::text canonical_variant_id,
       cv.family_id::text family_id,
@@ -66,7 +82,8 @@ export async function runProductColorProfileSyncSlice(
       ce.fact_provenance,
       ce.source_hash enrichment_source_hash,
       existing.source_hash existing_profile_source_hash
-    FROM public.canonical_variants cv
+    FROM candidate_ids selected
+    JOIN public.canonical_variants cv ON cv.id=selected.id
     JOIN public.categories c ON c.id=cv.category_id
     LEFT JOIN public.product_families pf ON pf.id=cv.family_id
     LEFT JOIN public.brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
@@ -77,20 +94,10 @@ export async function runProductColorProfileSyncSlice(
     LEFT JOIN public.catalogue_enrichments ce ON ce.family_id=cv.family_id
     LEFT JOIN public.product_color_profiles existing
       ON existing.canonical_variant_id=cv.id
-    WHERE cv.active=true
-      AND cv.suppressed=false
-      AND cv.recalled=false
-      AND (
-        c.code='nail-care-colour'
-        OR lower(COALESCE(ce.verified_facts->>'productType','')) LIKE '%nail%'
-        OR lower(COALESCE(en.title,el.title,cv.model,'')) LIKE '%nail polish%'
-        OR lower(COALESCE(en.title,el.title,cv.model,'')) LIKE '%nail lacquer%'
-      )
     ORDER BY
       (existing.canonical_variant_id IS NULL) DESC,
       COALESCE(existing.profiled_at,'epoch'::timestamptz) ASC,
       cv.id
-    LIMIT $1
   `, [batchSize(env)]);
 
   let updated = 0;
