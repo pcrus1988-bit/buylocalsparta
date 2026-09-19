@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
 import { CatalogProductCard } from "./CatalogProductCard";
+import { StorefrontColorFinderLauncher } from "./StorefrontColorFinderLauncher";
 
 type AvailabilityFilter = "all" | "available";
 type CatalogSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
@@ -896,6 +897,14 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         </> : <div className="vc-empty"><h3>Δεν βρέθηκε προϊόν.</h3><p>Δοκίμασε διαφορετική επιλογή ή επέστρεψε στον οδηγό.</p><button className="button" type="button" onClick={isGuidedVendor ? reopenGuide : resetAllFilters}>{isGuidedVendor ? "Από την αρχή" : "Καθαρισμός φίλτρων"}</button></div>}
       </div>
     </div>
+
+    <StorefrontColorFinderLauncher
+      vendorId={vendorId}
+      categories={categories}
+      activeCategory={category}
+      activeCategoryGroup={categoryGroup}
+      colorFacetCount={colors.length}
+    />
 
     <div className="vc-mobile-dock" role="search"><input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Αναζήτηση προϊόντος…" /><button type="button" onClick={() => setFiltersOpen(true)}>Φίλτρα{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>{isGuidedVendor ? <button className="guide" type="button" onClick={reopenGuide}>Οδηγός</button> : null}</div>
 
