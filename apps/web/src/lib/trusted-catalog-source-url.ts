@@ -43,7 +43,9 @@ export function trustedCatalogSourceHttpsUrl(
       // valid CDN paths (for example /images/\\_products/...). WHATWG URL
       // parsing turns that into a duplicate slash, so repair only this
       // provider-scoped trusted CDN path after the hostname check.
-      if (code === "symphonya") asset.pathname = asset.pathname.replace(/\/{2,}/g, "/");
+      if (code === "symphonya") {
+        asset.pathname = asset.pathname.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+      }
       return asset.toString();
     }
 
