@@ -132,6 +132,42 @@ function safeAudience(value: unknown): Audience {
   return value === "men" ? "men" : "women";
 }
 
+function normalizeAudienceText(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("el-GR")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function audienceCompatible(product: StyleProduct, audience: Audience): boolean {
+  const text = normalizeAudienceText([
+    product.title,
+    product.categoryCode,
+    product.categoryLabel,
+    product.brand
+  ].filter(Boolean).join(" "));
+
+  const women = /(?:^|\s)(?:women|womens|woman|female|lady|ladies|donna|femme|girl)(?:\s|$)|γυναικ/.test(text);
+  const men = /(?:^|\s)(?:men|mens|man|male|uomo|homme|boy)(?:\s|$)|ανδρ/.test(text);
+
+  if (audience === "men" && women && !men) return false;
+  if (audience === "women" && men && !women) return false;
+  if (audience === "men" && ["lip-makeup","face-makeup","eye-makeup","nail-care-colour"].includes(product.categoryCode)) return false;
+  if (audience === "women" && product.categoryCode === "grooming-care") return false;
+
+  if (product.categoryCode === "fragrance") {
+    const feminine = /pour femme|for women|women s|donna|femme|lady|ladies/.test(text);
+    const masculine = /pour homme|for men|men s|uomo|homme|male|after shave|aftershave/.test(text);
+    if (audience === "women" && masculine && !feminine) return false;
+    if (audience === "men" && feminine && !masculine) return false;
+  }
+
+  return true;
+}
+
 function safeVendorId(value: unknown): string | undefined {
   const candidate = typeof value === "string" ? value.trim() : "";
   if (!candidate) return undefined;
@@ -451,7 +487,8 @@ export async function POST(request: Request) {
 
     const products = [...(vendorId
       ? await loadVendorProducts(vendorId, audience)
-      : await loadHubProducts(hub, audience))];
+      : await loadHubProducts(hub, audience))]
+      .filter((product) => audienceCompatible(product, audience));
 
     products.sort((left, right) => {
       const leftBrand = left.brand?.trim().toLocaleLowerCase("el-GR") ?? "";
