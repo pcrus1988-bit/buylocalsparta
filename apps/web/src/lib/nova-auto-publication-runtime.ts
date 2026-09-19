@@ -33,7 +33,9 @@ export type NovaAutoPublicationResult = Readonly<{
  */
 export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublicationResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
-  const repaired = await runNovaCategoryRepairSweep();
+  // Historical category repair is deliberately decoupled from every publication sweep.
+  // The worker can opt into it explicitly; new imports use the corrected classifier.
+  const repaired = 0;
   const candidates = await pool.query<CategoryCandidate>(`
     SELECT
       cv.id::text AS canonical_id,
