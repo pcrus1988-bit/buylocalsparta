@@ -289,8 +289,8 @@ export const getPublicProductVariantOptions = cache(async (
 
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<VariantOptionRow>(`
-      WITH current_variant AS (
-        SELECT cv.id, cv.family_id
+      WITH current_variant AS MATERIALIZED (
+        SELECT cv.id,cv.family_id
         FROM canonical_variants cv
         JOIN markets m ON m.id=cv.market_id
         WHERE cv.public_id=$1
@@ -300,36 +300,19 @@ export const getPublicProductVariantOptions = cache(async (
           AND cv.recalled=false
         LIMIT 1
       ),
-      current_dropship_product AS (
-        SELECT DISTINCT dso.supplier_id, dso.external_product_id
-        FROM current_variant current
-        JOIN vendor_offers vo ON vo.canonical_variant_id=current.id
-        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-        WHERE dso.active=true
-          AND NULLIF(BTRIM(dso.external_product_id),'') IS NOT NULL
-      ),
-      sibling_candidates AS (
+      sibling_candidates AS MATERIALIZED (
         SELECT sibling.id
         FROM canonical_variants sibling
-        JOIN markets sibling_market ON sibling_market.id=sibling.market_id
         CROSS JOIN current_variant current
-        WHERE sibling_market.code='sparta'
-          AND sibling.active=true
+        WHERE sibling.active=true
           AND sibling.suppressed=false
           AND sibling.recalled=false
           AND (
-            (current.family_id IS NOT NULL AND sibling.family_id=current.family_id)
-            OR EXISTS (
-              SELECT 1
-              FROM vendor_offers sibling_offer
-              JOIN dropship_supplier_offers sibling_dso ON sibling_dso.vendor_offer_id=sibling_offer.id
-              JOIN current_dropship_product current_source
-                ON current_source.supplier_id=sibling_dso.supplier_id
-               AND current_source.external_product_id=sibling_dso.external_product_id
-              WHERE sibling_offer.canonical_variant_id=sibling.id
-                AND sibling_dso.active=true
-            )
+            sibling.id=current.id
+            OR (current.family_id IS NOT NULL AND sibling.family_id=current.family_id)
           )
+        ORDER BY sibling.id
+        LIMIT 100
       )
       SELECT sibling.public_id AS canonical_public_id,
              sibling.slug,
@@ -338,8 +321,8 @@ export const getPublicProductVariantOptions = cache(async (
              (eligible.from_price_minor IS NOT NULL) AS available,
              governed_media.media_public_id,
              governed_media.media_alt_text,
-             source_image.source_image_candidate,
-             source_image.source_website
+             NULL::text AS source_image_candidate,
+             NULL::text AS source_website
       FROM canonical_variants sibling
       JOIN sibling_candidates candidate ON candidate.id=sibling.id
       JOIN markets m ON m.id=sibling.market_id
@@ -407,30 +390,6 @@ export const getPublicProductVariantOptions = cache(async (
                  pm.public_id
         LIMIT 1
       ) governed_media ON true
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(
-                 latest.source_image_url,
-                 latest.normalized_payload->>'imageUrl',
-                 latest.raw_payload->>'image_url'
-               ) AS source_image_candidate,
-               source.website AS source_website
-        FROM catalog_source_product_links csl
-        JOIN catalog_source_products linked ON linked.id=csl.source_product_id
-        JOIN catalog_sources source ON source.id=linked.source_id AND source.active=true
-        JOIN LATERAL (
-          SELECT candidate.*
-          FROM catalog_source_products candidate
-          JOIN catalog_source_snapshots snapshot ON snapshot.id=candidate.snapshot_id
-          WHERE candidate.source_id=linked.source_id
-            AND candidate.source_product_key=linked.source_product_key
-          ORDER BY snapshot.observed_at DESC NULLS LAST,candidate.created_at DESC,candidate.id DESC
-          LIMIT 1
-        ) latest ON true
-        WHERE csl.canonical_variant_id=sibling.id
-          AND csl.link_status='approved'
-        ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
-        LIMIT 1
-      ) source_image ON true
       WHERE m.code='sparta'
         AND sibling.active=true
         AND sibling.suppressed=false
