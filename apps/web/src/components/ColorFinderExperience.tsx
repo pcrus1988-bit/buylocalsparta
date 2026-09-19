@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   COLOR_FINDER_PRESETS,
   colorMatchPercent,
@@ -83,7 +83,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <span>YOUR COLOR</span>
             <strong>{selectedHex}</strong>
           </div>
-          <label className={styles.colorStage} style={{ "--selected-color": selectedHex } as React.CSSProperties}>
+          <label className={styles.colorStage} style={{ "--selected-color": selectedHex } as CSSProperties}>
             <span className={styles.colorHalo} aria-hidden="true" />
             <span className={styles.colorDisc} aria-hidden="true" />
             <span className={styles.pickHint}>Tap to choose a color</span>
