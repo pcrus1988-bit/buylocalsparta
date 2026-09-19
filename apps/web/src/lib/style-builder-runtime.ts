@@ -1,6 +1,7 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type StyleBuilderAudience = "women" | "men";
+export type StyleBuilderOccasion = "everyday" | "work" | "date" | "dinner" | "wedding" | "formal" | "party" | "travel";
 export type StyleLookSource = "user" | "konta";
 
 export type StyleBuilderProfile = Readonly<{
@@ -9,6 +10,7 @@ export type StyleBuilderProfile = Readonly<{
   colours: readonly string[];
   budgetMinor?: number;
   brands: readonly string[];
+  occasion?: StyleBuilderOccasion;
 }>;
 
 export type StyleLookItem = Readonly<{
@@ -63,6 +65,11 @@ function safeAudience(value: unknown): StyleBuilderAudience {
   throw new Error("Χρειάζεται έγκυρη επιλογή styling.");
 }
 
+function safeOccasion(value: unknown): StyleBuilderOccasion | undefined {
+  if (value === "everyday" || value === "work" || value === "date" || value === "dinner" || value === "wedding" || value === "formal" || value === "party" || value === "travel") return value;
+  return undefined;
+}
+
 function safeProfile(value: unknown, audience: StyleBuilderAudience): StyleBuilderProfile {
   const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const rawSizes = raw.sizes && typeof raw.sizes === "object" && !Array.isArray(raw.sizes) ? raw.sizes as Record<string, unknown> : {};
@@ -79,7 +86,8 @@ function safeProfile(value: unknown, audience: StyleBuilderAudience): StyleBuild
     : [];
   const budget = Number(raw.budgetMinor);
   const budgetMinor = Number.isSafeInteger(budget) && budget > 0 && budget <= 10_000_000 ? budget : undefined;
-  return { audience, sizes, colours, brands, budgetMinor };
+  const occasion = safeOccasion(raw.occasion);
+  return { audience, sizes, colours, brands, budgetMinor, occasion };
 }
 
 function safeComposition(value: unknown): readonly StyleLookItem[] {
