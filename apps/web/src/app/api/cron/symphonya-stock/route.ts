@@ -9,16 +9,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Keep the storefront-priority refresh comfortably below the serverless timeout.
-// Symphonya's targeted supplier calls can be slow, so prefer smaller resumable
-// slices over a large batch that repeatedly times out and updates nothing.
-const PUBLISHED_REFRESH_LIMIT = 25;
-const PUBLICATION_CANDIDATE_REFRESH_LIMIT = 25;
+// Keep every invocation comfortably below the serverless timeout and guarantee
+// that the resumable full-catalogue cursor advances before targeted refreshes.
+const PUBLISHED_REFRESH_LIMIT = 8;
+const PUBLICATION_CANDIDATE_REFRESH_LIMIT = 8;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 30;
-const ROUTE_WORK_BUDGET_MS = 50_000;
-const FULL_CURSOR_MIN_BUDGET_MS = 20_000;
-const FULL_CURSOR_MAX_BUDGET_MS = 24_000;
-const FULL_CURSOR_MAX_PAGES = 4;
+const ROUTE_WORK_BUDGET_MS = 43_000;
+const FULL_CURSOR_BUDGET_MS = 18_000;
+const FULL_CURSOR_MAX_PAGES = 2;
+const PRIORITY_MIN_REMAINING_MS = 7_000;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -32,48 +31,48 @@ export async function GET(request: Request) {
 
   try {
     const startedAt = Date.now();
-    // Storefront visibility depends on a short-lived supplier availability TTL.
-    // Refresh published/visible offers first so bulk publication becomes visible
-    // promptly instead of waiting for a full 70k+ supplier stock traversal.
-    const publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
-    const publishedOffersUpdated = publishedIds.length
-      ? await refreshSymphonyaOfferStockByExternalIds(publishedIds)
-      : 0;
 
-    // Next refresh the best publication candidates: Greek-localised products
-    // that already have positive supplier evidence and otherwise satisfy the
-    // automatic publication policy. This prevents a 70k+ full stock traversal
-    // from delaying the first sellable batches for hours.
-    const publicationCandidateIds = await oldestPublicationCandidateExternalIds(
-      PUBLICATION_CANDIDATE_REFRESH_LIMIT,
-      new Set(publishedIds)
-    );
-    const publicationCandidateOffersUpdated = publicationCandidateIds.length
-      ? await refreshSymphonyaOfferStockByExternalIds(publicationCandidateIds)
-      : 0;
+    // Advance the full cursor first. Targeted refreshes are useful for storefront
+    // freshness, but must never consume the whole invocation and starve stale or
+    // cached-unavailable products from being rediscovered.
+    const stock = await runSymphonyaStockSyncSlice({
+      maxDurationMs: FULL_CURSOR_BUDGET_MS,
+      maxPages: FULL_CURSOR_MAX_PAGES
+    });
 
-    // Priority refreshes must never starve the full catalogue cursor. Use the
-    // serverless budget left after targeted calls for a small resumable cursor
-    // slice. If targeted supplier calls were unusually slow, fail safe and let
-    // the next cron invocation continue rather than overrunning maxDuration.
-    const remainingMs = ROUTE_WORK_BUDGET_MS - (Date.now() - startedAt);
-    const fullCursorBudgetMs = Math.min(FULL_CURSOR_MAX_BUDGET_MS, Math.max(0, remainingMs - 2_000));
-    const stock = fullCursorBudgetMs >= FULL_CURSOR_MIN_BUDGET_MS
-      ? await runSymphonyaStockSyncSlice({
-          maxDurationMs: fullCursorBudgetMs,
-          maxPages: FULL_CURSOR_MAX_PAGES
-        })
-      : null;
+    let publishedIds: string[] = [];
+    let publishedOffersUpdated = 0;
+    let publicationCandidateIds: string[] = [];
+    let publicationCandidateOffersUpdated = 0;
+
+    const remainingMs = () => ROUTE_WORK_BUDGET_MS - (Date.now() - startedAt);
+
+    if (remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
+      publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
+      if (publishedIds.length && remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
+        publishedOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(publishedIds);
+      }
+    }
+
+    if (remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
+      publicationCandidateIds = await oldestPublicationCandidateExternalIds(
+        PUBLICATION_CANDIDATE_REFRESH_LIMIT,
+        new Set(publishedIds)
+      );
+      if (publicationCandidateIds.length && remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
+        publicationCandidateOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(publicationCandidateIds);
+      }
+    }
 
     return Response.json({
       ok: true,
       mode: cronAuthorized ? "cron" : "manual_once",
+      stock,
       publishedSelected: publishedIds.length,
       publishedOffersUpdated,
       publicationCandidatesSelected: publicationCandidateIds.length,
       publicationCandidateOffersUpdated,
-      fullCursorBudgetMs,
-      stock
+      elapsedMs: Date.now() - startedAt
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "symphonya_stock_sync_failed";
