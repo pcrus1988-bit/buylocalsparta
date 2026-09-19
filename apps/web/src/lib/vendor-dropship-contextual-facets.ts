@@ -18,7 +18,7 @@ type FacetType = "total" | "category" | "brand" | "color" | "size" | "fit" | "ma
 // stale or empty. It covers every authoritative dropship supplier so a failed
 // projection refresh cannot silently remove Nova/BrandsGateway (or future suppliers)
 // while leaving only the supplier-specific fallback visible.
-const LIVE_FALLBACK_FAMILY_CAP = 50_000;
+const LIVE_FALLBACK_FAMILY_CAP = 0; // Customer requests never rebuild supplier families; background workers own projection refresh.
 
 type FacetProjectionRow = Readonly<{
   facet_type: FacetType;
