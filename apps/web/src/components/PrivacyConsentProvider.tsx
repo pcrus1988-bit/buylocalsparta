@@ -68,10 +68,17 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
   }, [refreshVerifiedConsent]);
 
   useEffect(() => {
-    const listener = () => void refreshVerifiedConsent();
+    const listener = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail as PrivacyConsentPreferences | undefined : undefined;
+      if (detail?.version === PRIVACY_CONSENT_VERSION) {
+        applyVerifiedConsent(detail);
+        return;
+      }
+      void refreshVerifiedConsent();
+    };
     window.addEventListener(PRIVACY_CONSENT_CHANGED_EVENT, listener);
     return () => window.removeEventListener(PRIVACY_CONSENT_CHANGED_EVENT, listener);
-  }, [refreshVerifiedConsent]);
+  }, [applyVerifiedConsent, refreshVerifiedConsent]);
 
   const openSettings = useCallback(() => {
     setDraft(consent ? { personalisation: false, analytics: consent.analytics, marketing: false } : OPTIONAL_OFF);
@@ -98,9 +105,12 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ personalisation: false, analytics: next.analytics, marketing: false, source })
       });
       if (!response.ok) throw new Error("Consent update failed");
-      await refreshVerifiedConsent();
+      const payload = await response.json() as ConsentStatusResponse;
+      const verified = payload.consent?.version === PRIVACY_CONSENT_VERSION ? payload.consent : undefined;
+      if (!verified) throw new Error("Consent update response invalid");
+      applyVerifiedConsent(verified);
       dialogRef.current?.close();
-      window.dispatchEvent(new Event(PRIVACY_CONSENT_CHANGED_EVENT));
+      window.dispatchEvent(new CustomEvent(PRIVACY_CONSENT_CHANGED_EVENT, { detail: verified }));
     } catch {
       setError("Δεν ήταν δυνατή η αποθήκευση των επιλογών σου. Δοκίμασε ξανά.");
     } finally {
