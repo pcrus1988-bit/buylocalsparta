@@ -189,7 +189,8 @@ export async function getFastShopTaxonomy(
           ON ctel.category_id=c.id AND ctel.locale='el'
         LEFT JOIN public.category_translations cten
           ON cten.category_id=c.id AND cten.locale='en'
-        WHERE dso.active=true
+        WHERE false -- Emergency stability: request-time storefront reads must use the precomputed projection only.
+          AND dso.active=true
           AND dso.cached_available=true
           AND COALESCE(dso.cached_quantity,0)>=1
           AND dso.availability_expires_at IS NOT NULL
