@@ -457,33 +457,20 @@ export function FittingRoomExperience({
   }
 
   async function loadCandidateProducts(): Promise<readonly Product[]> {
-    const all: Product[] = [];
-    let nextOffset: number | null = 0;
-
-    // The unfiltered vendor route uses the catalogue's latency-critical indexed
-    // path. Its deterministic hash ordering naturally mixes suppliers/categories
-    // without invoking the heavier contextual filter query.
-    for (let page = 0; page < 4 && nextOffset !== null; page += 1) {
-      const params = new URLSearchParams({ limit: "60", offset: String(nextOffset) });
-      const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(vendorId)}?${params.toString()}`, { cache: "default" });
-      if (!response.ok) throw new Error("catalogue");
-      const payload = await response.json() as { products?: Product[]; nextOffset?: number | null };
-      all.push(...(payload.products ?? []));
-
-      const usable = [...new Map(all.map((product) => [product.id, product] as const)).values()]
-        .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
-      const present = new Set(usable.map((product) => slotFor(product)).filter(Boolean));
-      const coreReady = present.has("main") && present.has("bottom") && present.has("shoes");
-      const detailCount = ["layer", "bag", "accessory", "beauty", "nails"]
-        .filter((slot) => present.has(slot as SlotKey)).length;
-
-      // Two pages is the minimum sample. Continue only when the randomised pool
-      // still lacks the ingredients for a useful head-to-toe composition.
-      if (page >= 1 && coreReady && detailCount >= 2) break;
-      nextOffset = typeof payload.nextOffset === "number" ? payload.nextOffset : null;
-    }
-
-    return [...new Map(all.map((product) => [product.id, product] as const)).values()]
+    const response = await fetch("/api/fitting-room/candidates", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        vendorId,
+        audience,
+        brands,
+        budgetMinor: euroBudget(budget) ?? 0
+      })
+    });
+    if (!response.ok) throw new Error("catalogue");
+    const payload = await response.json() as { products?: Product[] };
+    return [...new Map((payload.products ?? []).map((product) => [product.id, product] as const)).values()]
       .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
   }
 
