@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
+import { runSymphonyaAutoPublicationSweep } from "../../../../lib/symphonya-auto-publication-runtime";
 import {
   refreshSymphonyaOfferStockByExternalIds,
   runSymphonyaStockSyncSlice
@@ -9,22 +10,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Keep one bounded full-catalogue page moving on every run, then spend the
-// remaining wall-clock budget on one batched storefront-priority getStock call.
-// The stock runtime requires enough budget for the provider timeout plus DB
-// persistence/checkpointing, so never give the full cursor a sub-20s slice.
+// Vercel kills this route at 55s. A full-catalogue page and a priority refresh
+// are each bounded supplier calls, but running both sequentially can exceed that
+// wall-clock budget even when the first call succeeds. Alternate cron slots so
+// one invocation performs exactly one supplier workload. Priority slots publish
+// immediately after refreshing near-storefront candidates.
 const PRIORITY_BATCH_LIMIT = 200;
 const PUBLISHED_REFRESH_LIMIT = 120;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
-const ROUTE_WORK_BUDGET_MS = 50_000;
 const FULL_CURSOR_BUDGET_MS = 28_000;
 const FULL_CURSOR_MAX_PAGES = 1;
-const PRIORITY_MIN_REMAINING_MS = 18_000;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const cronAuthorized = Boolean(cronSecret) && request.headers.get("authorization") === `Bearer ${cronSecret}`;
-  const token = new URL(request.url).searchParams.get("token")?.trim();
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token")?.trim();
+  const requestedMode = url.searchParams.get("mode")?.trim();
   const manualAuthorized = cronAuthorized ? false : await consumeManualToken(token);
 
   if (!cronAuthorized && !manualAuthorized) {
@@ -33,19 +35,25 @@ export async function GET(request: Request) {
 
   try {
     const startedAt = Date.now();
-    const remainingMs = () => ROUTE_WORK_BUDGET_MS - (Date.now() - startedAt);
-    const fullCursorBudgetMs = FULL_CURSOR_BUDGET_MS;
-    const stock = await runSymphonyaStockSyncSlice({
-      maxDurationMs: fullCursorBudgetMs,
-      maxPages: FULL_CURSOR_MAX_PAGES
-    });
+    const defaultMode = defaultCronStockMode(new Date(startedAt));
+    const executionMode = requestedMode === "cursor" || requestedMode === "priority"
+      ? requestedMode
+      : defaultMode;
+
+    const stock = executionMode === "cursor"
+      ? await runSymphonyaStockSyncSlice({
+          maxDurationMs: FULL_CURSOR_BUDGET_MS,
+          maxPages: FULL_CURSOR_MAX_PAGES
+        })
+      : null;
 
     let publishedIds: string[] = [];
     let publicationCandidateIds: string[] = [];
     let priorityIds: string[] = [];
     let priorityOffersUpdated = 0;
+    let publication = null;
 
-    if (remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
+    if (executionMode === "priority") {
       publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
       const candidateLimit = Math.max(0, PRIORITY_BATCH_LIMIT - publishedIds.length);
       if (candidateLimit > 0) {
@@ -56,22 +64,26 @@ export async function GET(request: Request) {
       }
 
       priorityIds = [...new Set([...publishedIds, ...publicationCandidateIds])].slice(0, PRIORITY_BATCH_LIMIT);
-      if (priorityIds.length && remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
-        // One provider call (refresh helper chunks at 200) avoids paying the
-        // supplier latency twice for published + near-publication products.
+      if (priorityIds.length) {
+        // refresh helper chunks at 200, so this remains one supplier request.
         priorityOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(priorityIds);
       }
+
+      // Publish immediately after the targeted freshness refresh instead of
+      // waiting for the next hourly pipeline pass.
+      publication = await runSymphonyaAutoPublicationSweep();
     }
 
     return Response.json({
       ok: true,
       mode: cronAuthorized ? "cron" : "manual_once",
+      executionMode,
       stock,
       publishedSelected: publishedIds.length,
       publicationCandidatesSelected: publicationCandidateIds.length,
       prioritySelected: priorityIds.length,
       priorityOffersUpdated,
-      priorityRefreshDeferred: priorityIds.length > 0 && priorityOffersUpdated === 0,
+      publication,
       elapsedMs: Date.now() - startedAt
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
@@ -79,6 +91,12 @@ export async function GET(request: Request) {
     console.error(JSON.stringify({ level: "error", event: "symphonya.stock_cron_failed", message, at: new Date().toISOString() }));
     return Response.json({ error: message }, { status: 500, headers: { "cache-control": "no-store" } });
   }
+}
+
+function defaultCronStockMode(now: Date): "cursor" | "priority" {
+  // Scheduled minutes are 07/17/27/37/47/57. Ten-minute buckets tolerate a
+  // small scheduler delay while preserving deterministic cursor/priority turns.
+  return Math.floor(now.getUTCMinutes() / 10) % 2 === 0 ? "cursor" : "priority";
 }
 
 async function oldestPublishedExternalIds(limit: number): Promise<string[]> {
