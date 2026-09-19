@@ -695,6 +695,9 @@
   gap: 28px;
   padding: 28px 0 34px;
 }
+.filtersCompact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .filterGroup > span {
   display: block;
   margin-bottom: 12px;
