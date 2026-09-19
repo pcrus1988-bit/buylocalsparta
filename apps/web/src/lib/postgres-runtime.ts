@@ -4,9 +4,9 @@ import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionP
 const WEB_EXPECTED_SCHEMA_VERSION = EXPECTED_SCHEMA_VERSION;
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
 const globals = globalThis as typeof globalThis & { [globalKey]?: ProductionPostgresRuntime };
-const WEB_DB_POOL_MAX = "3";
+const WEB_DB_POOL_MAX = "1";
 const WEB_DB_CONNECT_TIMEOUT_MS = "15000";
-const WEB_DB_IDLE_TIMEOUT_MS = "15000";
+const WEB_DB_IDLE_TIMEOUT_MS = "5000";
 
 export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const explicit = env.DATABASE_URL?.trim();
@@ -43,8 +43,10 @@ if (process.env.VERCEL_ENV === "preview"
  * Vercel can create multiple warm Node.js instances under concurrent traffic. The shared
  * PostgreSQL runtime is a singleton only inside one instance, so using the package default
  * of ten connections per instance can multiply into a much larger database connection
- * footprint. Keep the web runtime deliberately small and release idle clients quickly;
- * operators can still override either setting explicitly for a dedicated/pooler-backed DB.
+ * footprint. Supabase transaction-mode pooling is already in front of the database, so
+ * a serverless web instance should contribute only one persistent pg client by default.
+ * Release idle clients quickly; operators can still override either setting explicitly
+ * for a dedicated/pooler-backed deployment after measuring connection demand.
  * Production builds remain schema-gated through EXPECTED_SCHEMA_VERSION and the migration
  * ledger fingerprint before serving traffic.
  */
