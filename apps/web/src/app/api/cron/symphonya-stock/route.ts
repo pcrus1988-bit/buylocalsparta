@@ -9,16 +9,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Production safety: one bounded full-catalogue page must advance on every run.
-// Keep targeted refreshes deliberately tiny until the long-running worker owns
-// this workload; Vercel has repeatedly killed larger slices at 55 seconds.
-const PUBLISHED_REFRESH_LIMIT = 2;
-const PUBLICATION_CANDIDATE_REFRESH_LIMIT = 2;
-const PRIORITY_REFRESH_WINDOW_MINUTES = 30;
-const ROUTE_WORK_BUDGET_MS = 30_000;
-const FULL_CURSOR_BUDGET_MS = 10_000;
+// Keep one bounded full-catalogue page moving on every run, then spend the
+// remaining wall-clock budget on one batched storefront-priority getStock call.
+// The stock runtime requires enough budget for the provider timeout plus DB
+// persistence/checkpointing, so never give the full cursor a sub-20s slice.
+const PRIORITY_BATCH_LIMIT = 200;
+const PUBLISHED_REFRESH_LIMIT = 120;
+const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
+const ROUTE_WORK_BUDGET_MS = 50_000;
+const FULL_CURSOR_BUDGET_MS = 28_000;
 const FULL_CURSOR_MAX_PAGES = 1;
-const PRIORITY_MIN_REMAINING_MS = 5_000;
+const PRIORITY_MIN_REMAINING_MS = 18_000;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -32,31 +33,33 @@ export async function GET(request: Request) {
 
   try {
     const startedAt = Date.now();
+    const remainingMs = () => ROUTE_WORK_BUDGET_MS - (Date.now() - startedAt);
+    const fullCursorBudgetMs = FULL_CURSOR_BUDGET_MS;
     const stock = await runSymphonyaStockSyncSlice({
-      maxDurationMs: FULL_CURSOR_BUDGET_MS,
+      maxDurationMs: fullCursorBudgetMs,
       maxPages: FULL_CURSOR_MAX_PAGES
     });
 
     let publishedIds: string[] = [];
-    let publishedOffersUpdated = 0;
     let publicationCandidateIds: string[] = [];
-    let publicationCandidateOffersUpdated = 0;
-    const remainingMs = () => ROUTE_WORK_BUDGET_MS - (Date.now() - startedAt);
+    let priorityIds: string[] = [];
+    let priorityOffersUpdated = 0;
 
     if (remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
       publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
-      if (publishedIds.length && remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
-        publishedOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(publishedIds);
+      const candidateLimit = Math.max(0, PRIORITY_BATCH_LIMIT - publishedIds.length);
+      if (candidateLimit > 0) {
+        publicationCandidateIds = await oldestPublicationCandidateExternalIds(
+          candidateLimit,
+          new Set(publishedIds)
+        );
       }
-    }
 
-    if (remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
-      publicationCandidateIds = await oldestPublicationCandidateExternalIds(
-        PUBLICATION_CANDIDATE_REFRESH_LIMIT,
-        new Set(publishedIds)
-      );
-      if (publicationCandidateIds.length && remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
-        publicationCandidateOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(publicationCandidateIds);
+      priorityIds = [...new Set([...publishedIds, ...publicationCandidateIds])].slice(0, PRIORITY_BATCH_LIMIT);
+      if (priorityIds.length && remainingMs() >= PRIORITY_MIN_REMAINING_MS) {
+        // One provider call (refresh helper chunks at 200) avoids paying the
+        // supplier latency twice for published + near-publication products.
+        priorityOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(priorityIds);
       }
     }
 
@@ -65,9 +68,10 @@ export async function GET(request: Request) {
       mode: cronAuthorized ? "cron" : "manual_once",
       stock,
       publishedSelected: publishedIds.length,
-      publishedOffersUpdated,
       publicationCandidatesSelected: publicationCandidateIds.length,
-      publicationCandidateOffersUpdated,
+      prioritySelected: priorityIds.length,
+      priorityOffersUpdated,
+      priorityRefreshDeferred: priorityIds.length > 0 && priorityOffersUpdated === 0,
       elapsedMs: Date.now() - startedAt
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
