@@ -93,7 +93,8 @@ test("Symphonya all-phase pipeline leaves automatic supplier stock I/O to the de
 test("Symphonya enrichment prioritizes latest, fresh, untranslated in-stock evidence", () => {
   const preparation = readFileSync(new URL("../src/lib/symphonya-enrichment-runtime.ts", import.meta.url), "utf8");
   const generation = readFileSync(new URL("../src/lib/catalogue-enrichment-generation-runtime.ts", import.meta.url), "utf8");
-  assert.match(preparation, /catalog_source_product_latest/);
+  assert.match(preparation, /FROM public\.catalog_source_products p/);
+  assert.match(preparation, /ORDER BY p\.created_at DESC,p\.id DESC/);
   assert.match(preparation, /dso\.cached_available=true/);
   assert.match(generation, /\$4::text='symphonya'/);
   assert.match(generation, /dso\.cached_available=true/);
@@ -187,7 +188,7 @@ test("Symphonya Vercel crons stay bounded while full catch-up belongs to the lon
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
   assert.equal(catalogue?.schedule, "2 * * * *");
   assert.equal(stock?.schedule, "7,17,27,37,47,57 * * * *");
-  assert.equal(pipeline?.schedule, "9 * * * *");
+  assert.equal(pipeline?.schedule, "28 * * * *");
   assert.equal(materialization, undefined);
 });
 
@@ -245,5 +246,5 @@ test("Symphonya stock cron alternates full-cursor and priority supplier workload
   assert.match(route, /publication = await runSymphonyaAutoPublicationSweep\(\)/);
   assert.match(runtime, /const SLICE_MS = 28_000/);
   assert.match(runtime, /pageStartSafetyMs = timeoutMs\(\)\+6_000/);
-  assert.match(runtime, /pages < pageLimit/);
+  assert.match(runtime, /pages\s*<\s*pageLimit/);
 });
