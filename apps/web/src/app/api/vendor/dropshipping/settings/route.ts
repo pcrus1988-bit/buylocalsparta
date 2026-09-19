@@ -1,6 +1,6 @@
 import { assertDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession } from "../../../../../lib/vendor-session";
-import { applyDropshippingSupplierDefaultsSequential } from "../../../../../lib/vendor-dropshipping-bulk-apply";
+import { applyDropshippingSupplierDefaultsBatch } from "../../../../../lib/vendor-dropshipping-bulk-apply";
 import { saveDropshippingSupplierDefaults } from "../../../../../lib/vendor-dropshipping-service";
 
 function numberValue(body: Record<string, unknown>, key: string): number {
@@ -40,7 +40,8 @@ export async function POST(request: Request) {
     const confirmationCode = typeof body.confirmationCode === "string" ? body.confirmationCode.trim() : "";
     if (!supplierCode) throw new Error("Απαιτείται supplier.");
     if (confirmationCode !== supplierCode) throw new Error("Το supplier-wide catalogue reset απαιτεί επιβεβαίωση με τον ακριβή supplier code.");
-    const result = await applyDropshippingSupplierDefaultsSequential(principal.vendorId, supplierCode);
+    const cursor = typeof body.cursor === "string" && body.cursor.trim() ? body.cursor.trim() : null;
+    const result = await applyDropshippingSupplierDefaultsBatch(principal.vendorId, supplierCode, cursor);
     return Response.json({ ok: true, ...result });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "dropshipping_supplier_apply_failed" }, { status: 400 });

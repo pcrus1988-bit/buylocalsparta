@@ -27,9 +27,24 @@ type PricingUpdate = Readonly<{
   supplierCostMinor: number | null;
   sellingPriceMinor: number | null;
   markupPercent: number | null;
+  discountPercent: number | null;
   profitMinor: number | null;
   profitPercent: number | null;
   priceHeld: boolean;
+}>;
+
+type SupplierPricingDefaults = Readonly<{
+  markupPercent: number;
+  discountPercent: number;
+}>;
+
+type ActivePricingPolicy = Readonly<{
+  managedBy: string;
+  rule: string;
+  markupRate: number;
+  discountRate: number;
+  minimumProfitMinor: number;
+  transactionRate: number;
 }>;
 
 export function symphonyaAutoPricingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -44,6 +59,7 @@ export async function runSymphonyaAutoPricingSlice(): Promise<SymphonyaAutoPrici
     SELECT ds.id::text supplier_id,
            ds.owner_vendor_id::text vendor_id,
            ds.catalog_source_id::text source_id,
+           ds.configuration->'vendorMerchandising' vendor_merchandising,
            cs.metadata->>$2 cursor
       FROM public.dropship_suppliers ds
       JOIN public.catalog_sources cs ON cs.id=ds.catalog_source_id
@@ -61,18 +77,38 @@ export async function runSymphonyaAutoPricingSlice(): Promise<SymphonyaAutoPrici
   const vendorId = requiredText(supplier.vendor_id, "vendor id");
   const sourceId = requiredText(supplier.source_id, "source id");
   const cursor = optionalText(supplier.cursor);
+  const supplierDefaults = parseSupplierPricingDefaults(supplier.vendor_merchandising);
+  const fallbackConfig = symphonyaPricingConfig();
+  const policy: ActivePricingPolicy = supplierDefaults
+    ? {
+        managedBy: "supplier_defaults_v1",
+        rule: "supplier_markup_discount_v1",
+        markupRate: supplierDefaults.markupPercent / 100,
+        discountRate: supplierDefaults.discountPercent / 100,
+        minimumProfitMinor: 0,
+        transactionRate: 0
+      }
+    : {
+        managedBy: "symphonya_auto_v1",
+        rule: "sym_v1_markup_and_min_contribution",
+        markupRate: fallbackConfig.markupRate,
+        discountRate: 0,
+        minimumProfitMinor: fallbackConfig.minimumProfitMinor,
+        transactionRate: fallbackConfig.transactionRate
+      };
 
   const unmanaged = await loadRows({
     supplierId,
     vendorId,
     cursor: null,
     unmanagedOnly: true,
+    managedBy: policy.managedBy,
     limit: batchSize()
   });
   const catchingUp = unmanaged.rows.length > 0;
   const rows = catchingUp
     ? unmanaged
-    : await loadRows({ supplierId, vendorId, cursor, unmanagedOnly: false, limit: batchSize() });
+    : await loadRows({ supplierId, vendorId, cursor, unmanagedOnly: false, managedBy: policy.managedBy, limit: batchSize() });
 
   if (!rows.rows.length) {
     if (cursor) {
@@ -82,7 +118,6 @@ export async function runSymphonyaAutoPricingSlice(): Promise<SymphonyaAutoPrici
     return emptyResult(true, "auto_pricing_source_empty");
   }
 
-  const config = symphonyaPricingConfig();
   const updates: PricingUpdate[] = [];
   let missingCost = 0;
   let manualOverrides = 0;
@@ -98,7 +133,9 @@ export async function runSymphonyaAutoPricingSlice(): Promise<SymphonyaAutoPrici
 
     const supplierCostMinor = nullableMinor(row.effective_supplier_cost_minor);
     const priceHeld = row.price_held === true;
-    const recommendation = calculateSymphonyaRetailPrice(supplierCostMinor, config);
+    const recommendation = supplierDefaults
+      ? calculateSupplierDefaultsPrice(supplierCostMinor, supplierDefaults)
+      : calculateSymphonyaRetailPrice(supplierCostMinor, fallbackConfig);
     if (recommendation.sellingPriceMinor == null || recommendation.markupPercent == null) {
       missingCost += 1;
     }
@@ -107,14 +144,15 @@ export async function runSymphonyaAutoPricingSlice(): Promise<SymphonyaAutoPrici
       vendorId: requiredText(row.vendor_id, "vendor id"),
       supplierCostMinor,
       sellingPriceMinor: recommendation.sellingPriceMinor,
-      markupPercent: recommendation.markupPercent,
+      markupPercent: supplierDefaults ? supplierDefaults.markupPercent : recommendation.markupPercent,
+      discountPercent: supplierDefaults && supplierDefaults.discountPercent > 0 ? supplierDefaults.discountPercent : null,
       profitMinor: recommendation.profitMinor,
       profitPercent: recommendation.profitPercent,
       priceHeld
     });
   }
 
-  if (updates.length) await applyUpdates(updates, config);
+  if (updates.length) await applyUpdates(updates, policy);
   if (lastCursor && !catchingUp) await persistCursor(sourceId, lastCursor);
 
   const priced = updates.filter((item) => item.sellingPriceMinor !== null).length;
@@ -135,6 +173,7 @@ async function loadRows(input: Readonly<{
   vendorId: string;
   cursor: string | null;
   unmanagedOnly: boolean;
+  managedBy: string;
   limit: number;
 }>) {
   return getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
@@ -155,19 +194,19 @@ async function loadRows(input: Readonly<{
        AND vo.vendor_id=$2::uuid
        AND (
          ($3::boolean=true
-           AND COALESCE(vo.source_payload->>'pricingManagedBy','') <> 'symphonya_auto_v1'
+           AND COALESCE(vo.source_payload->>'pricingManagedBy','') <> $5
            AND COALESCE(vo.source_payload->>'pricingManualOverride','false') <> 'true')
          OR
          ($3::boolean=false AND ($4::text IS NULL OR dso.public_id>$4))
        )
      ORDER BY dso.public_id
-     LIMIT $5
-  `, [input.supplierId, input.vendorId, input.unmanagedOnly, input.cursor, input.limit]);
+     LIMIT $6
+  `, [input.supplierId, input.vendorId, input.unmanagedOnly, input.cursor, input.managedBy, input.limit]);
 }
 
 async function applyUpdates(
   updates: readonly PricingUpdate[],
-  config: ReturnType<typeof symphonyaPricingConfig>
+  policy: ActivePricingPolicy
 ): Promise<void> {
   const payload = JSON.stringify(updates.map((item) => ({
     offer_id: item.offerId,
@@ -175,6 +214,7 @@ async function applyUpdates(
     supplier_cost_minor: item.supplierCostMinor,
     selling_price_minor: item.sellingPriceMinor,
     markup_percent: item.markupPercent,
+    discount_percent: item.discountPercent,
     profit_minor: item.profitMinor,
     profit_percent: item.profitPercent,
     price_held: item.priceHeld
@@ -206,14 +246,15 @@ async function applyUpdates(
              source_payload=(COALESCE(vo.source_payload,'{}'::jsonb)-'pricingFlag')
                || jsonb_build_object(
                     'pricingPending',x.selling_price_minor IS NULL,
-                    'pricingManagedBy','symphonya_auto_v1',
+                    'pricingManagedBy',$2::text,
                     'pricingFlag',CASE WHEN x.selling_price_minor IS NULL THEN 'UNPRICED_MISSING_COST' ELSE NULL END,
                     'pricingEngine',jsonb_build_object(
-                      'version',1,
-                      'rule','sym_v1_markup_and_min_contribution',
-                      'markupRate',$2::numeric,
-                      'minimumProfitMinor',$3::int,
-                      'transactionRate',$4::numeric,
+                      'version',2,
+                      'rule',$3::text,
+                      'markupRate',$4::numeric,
+                      'discountRate',$5::numeric,
+                      'minimumProfitMinor',$6::int,
+                      'transactionRate',$7::numeric,
                       'profitMinor',x.profit_minor,
                       'profitPercent',x.profit_percent,
                       'calculatedAt',now()
@@ -224,7 +265,7 @@ async function applyUpdates(
        WHERE vo.id=x.offer_id
          AND vo.vendor_id=x.vendor_id
          AND COALESCE(vo.source_payload->>'pricingManualOverride','false') <> 'true'
-    `, [payload, config.markupRate, config.minimumProfitMinor, config.transactionRate]);
+    `, [payload, policy.managedBy, policy.rule, policy.markupRate, policy.discountRate, policy.minimumProfitMinor, policy.transactionRate]);
 
     await client.query(`
       INSERT INTO public.vendor_offer_pricing_private(
@@ -232,13 +273,16 @@ async function applyUpdates(
         discount_type,discount_value,created_at,updated_at
       )
       SELECT x.offer_id,x.vendor_id,x.supplier_cost_minor,'calculated','percent',x.markup_percent,
-             NULL,NULL,now(),now()
+             CASE WHEN x.discount_percent IS NOT NULL AND x.discount_percent > 0 THEN 'percent' ELSE NULL END,
+             CASE WHEN x.discount_percent IS NOT NULL AND x.discount_percent > 0 THEN x.discount_percent ELSE NULL END,
+             now(),now()
       FROM jsonb_to_recordset($1::jsonb) AS x(
         offer_id uuid,
         vendor_id uuid,
         supplier_cost_minor bigint,
         selling_price_minor bigint,
-        markup_percent numeric
+        markup_percent numeric,
+        discount_percent numeric
       )
       WHERE x.supplier_cost_minor IS NOT NULL
         AND x.selling_price_minor IS NOT NULL
@@ -248,8 +292,8 @@ async function applyUpdates(
         pricing_mode='calculated',
         markup_type='percent',
         markup_value=EXCLUDED.markup_value,
-        discount_type=NULL,
-        discount_value=NULL,
+        discount_type=CASE WHEN EXCLUDED.discount_value IS NOT NULL THEN 'percent' ELSE NULL END,
+        discount_value=EXCLUDED.discount_value,
         updated_at=now()
     `, [payload]);
 
@@ -305,6 +349,61 @@ async function persistCursor(sourceId: string, cursor: string | null): Promise<v
            updated_at=now()
      WHERE id=$1::uuid
   `, [sourceId, CURSOR_KEY, cursor]);
+}
+
+function parseSupplierPricingDefaults(value: unknown): SupplierPricingDefaults | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const markupPercent = Number(raw.markupPercent);
+  const discountPercent = Number(raw.discountPercent);
+  if (Number(raw.version) !== 1) return null;
+  if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) return null;
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) return null;
+  const finalFactor = (1 + markupPercent / 100) * (1 - discountPercent / 100);
+  if (finalFactor < 1) return null;
+  return {
+    markupPercent,
+    discountPercent
+  };
+}
+
+function calculateSupplierDefaultsPrice(
+  supplierCostMinor: number | null,
+  defaults: SupplierPricingDefaults
+) {
+  if (supplierCostMinor == null || !Number.isSafeInteger(supplierCostMinor) || supplierCostMinor <= 0) {
+    return {
+      sellingPriceMinor: null,
+      markupPercent: null,
+      profitMinor: null,
+      profitPercent: null,
+      supplierCostMinor,
+      rule: "supplier_markup_discount_v1"
+    };
+  }
+
+  const afterMarkupMinor = supplierCostMinor
+    + Math.round(supplierCostMinor * defaults.markupPercent / 100);
+  const sellingPriceMinor = Math.max(
+    supplierCostMinor,
+    afterMarkupMinor - Math.round(afterMarkupMinor * defaults.discountPercent / 100)
+  );
+  const profitMinor = sellingPriceMinor - supplierCostMinor;
+  const effectiveMarkupPercent = Math.round(
+    (((sellingPriceMinor - supplierCostMinor) / supplierCostMinor) * 100 + Number.EPSILON) * 100
+  ) / 100;
+  const profitPercent = sellingPriceMinor > 0
+    ? Math.round(((profitMinor / sellingPriceMinor) * 100 + Number.EPSILON) * 100) / 100
+    : null;
+
+  return {
+    sellingPriceMinor,
+    markupPercent: effectiveMarkupPercent,
+    profitMinor,
+    profitPercent,
+    supplierCostMinor,
+    rule: "supplier_markup_discount_v1"
+  };
 }
 
 function batchSize(): number {
