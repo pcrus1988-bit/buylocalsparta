@@ -49,7 +49,29 @@ const MEN_CLOTHING = [
 ] as const;
 const WOMEN_FINISHING = ["womens-sneakers","womens-formal-shoes","womens-sandals","womens-boots","handbags","belts","scarves-hats-gloves","sunglasses"] as const;
 const MEN_FINISHING = ["mens-sneakers","mens-formal-shoes","mens-boots","belts","scarves-hats-gloves","sunglasses","wallets-cardholders"] as const;
-const BEAUTY = ["fragrance","lip-makeup","face-makeup","eye-makeup","nail-care-colour","grooming-care","beauty-tools-accessories"] as const;
+const WOMEN_BEAUTY = ["fragrance","lip-makeup","face-makeup","eye-makeup","nail-care-colour","beauty-tools-accessories"] as const;
+const MEN_BEAUTY = ["fragrance","grooming-care","beauty-tools-accessories"] as const;
+
+function normalizeAudienceText(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("el-GR")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function audienceCompatible(product: BuilderProduct, audience: "women" | "men"): boolean {
+  const text = normalizeAudienceText([product.title, product.categoryCode, product.categoryLabel].filter(Boolean).join(" "));
+  const women = /(?:^|\s)(?:women|womens|woman|female|lady|ladies|donna|femme|girl)(?:\s|$)|γυναικ/.test(text);
+  const men = /(?:^|\s)(?:men|mens|man|male|uomo|homme|boy)(?:\s|$)|ανδρ/.test(text);
+  if (audience === "men" && women && !men) return false;
+  if (audience === "women" && men && !women) return false;
+  if (audience === "men" && ["lip-makeup","face-makeup","eye-makeup","nail-care-colour"].includes(product.categoryCode)) return false;
+  if (audience === "women" && product.categoryCode === "grooming-care") return false;
+  return true;
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -71,7 +93,7 @@ export async function GET(request: Request) {
       }),
       getPublishedDropshipCatalogPage({
         category: "beauty",
-        filters: { subcategories: BEAUTY },
+        filters: { subcategories: audience === "women" ? WOMEN_BEAUTY : MEN_BEAUTY },
         limit: 18,
         sort: "recommended"
       })
@@ -83,7 +105,7 @@ export async function GET(request: Request) {
       .filter((product) => {
         if (seen.has(product.id)) return false;
         seen.add(product.id);
-        return product.priceMinor > 0;
+        return product.priceMinor > 0 && audienceCompatible(product, audience);
       });
 
     return Response.json(
