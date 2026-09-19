@@ -24,6 +24,7 @@ const availabilityRefreshMs = positiveInteger(
   "BLS_NOVA_AVAILABILITY_REFRESH_MS"
 );
 const automaticPublicationEnabled = process.env.BLS_NOVA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
+const categoryRepairEnabled = process.env.BLS_NOVA_CATEGORY_REPAIR_ENABLED?.trim().toLowerCase() === "true";
 const pricingCatchupMaxPasses = 8;
 const materializationCatchupMaxPasses = positiveInteger(
   process.env.BLS_NOVA_MATERIALIZATION_CATCHUP_PASSES,
@@ -49,7 +50,7 @@ process.once("SIGINT", () => requestStop("SIGINT"));
 log("info", "nova.worker_started", {
   workerId, pollMs, availabilityRefreshMs, availabilityTtlHours: 2,
   supplier: "nova_brandsgateway", writesSupplierOrders: false, materializesPublicOffers: false,
-  automaticPublication: automaticPublicationEnabled, automaticPricing: novaAutoPricingEnabled(), pricingCatchupMaxPasses,
+  automaticPublication: automaticPublicationEnabled, automaticPricing: novaAutoPricingEnabled(), categoryRepairEnabled, pricingCatchupMaxPasses,
   materializationCatchupMaxPasses,
   catalogueEnrichment: {
     preparation: "worker",
@@ -63,11 +64,13 @@ log("info", "nova.worker_started", {
 try {
   while (!stopping) {
     try {
-      try {
-        const repaired = await runNovaCategoryRepairSweep();
-        log("info", "nova.category_repair_sweep", { workerId, repaired });
-      } catch (error) {
-        log("error", "nova.category_repair_failed", { workerId, error: safeError(error) });
+      if (categoryRepairEnabled) {
+        try {
+          const repaired = await runNovaCategoryRepairSweep();
+          log("info", "nova.category_repair_sweep", { workerId, repaired });
+        } catch (error) {
+          log("error", "nova.category_repair_failed", { workerId, error: safeError(error) });
+        }
       }
 
       const preRefreshPricingReady = await ensurePricingReadyForPublication("pre_refresh");
