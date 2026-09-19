@@ -125,6 +125,8 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       ? { hex: profile.canonicalHex, label: profile.colorDetail ?? profile.colorFamily ?? profile.canonicalHex }
       : resolveCatalogColor({ color: product.color, title: product.title });
     if (!resolved) continue;
+    const fallbackPrecision = product.color?.trim() ? "canonicalized" as const : "family_estimate" as const;
+    const fallbackConfidence = product.color?.trim() ? 0.68 : 0.42;
 
     const productText = [product.title, product.categoryLabel, product.color].filter(Boolean).join(" ");
     const imageSrc = product.mediaId
@@ -139,8 +141,8 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       brandShade: profile?.brandShadeName ?? product.color,
       shadeCode: profile?.shadeCode,
       colorDetail: profile?.colorDetail ?? profile?.colorFamily,
-      profilePrecision: profile?.matchPrecision,
-      profileConfidence: profile?.confidence,
+      profilePrecision: profile?.matchPrecision ?? fallbackPrecision,
+      profileConfidence: profile?.confidence ?? fallbackConfidence,
       colorHex: resolved.hex,
       colorLabel: resolved.label,
       finish: profile?.finish ?? inferColorFinish(productText),
@@ -157,7 +159,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
 
 export const getColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-nail-products-v3"],
+  ["color-finder-nail-products-v4"],
   { revalidate: CACHE_SECONDS }
 );
 
