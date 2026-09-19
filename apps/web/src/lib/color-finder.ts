@@ -222,3 +222,21 @@ export function deltaE2000(left: LabColor, right: LabColor): number {
 export function colorMatchPercent(deltaE: number): number {
   return Math.max(1, Math.min(100, Math.round(100 * Math.exp(-Math.max(0, deltaE) / 26))));
 }
+
+
+export function nearestColorName(hex: string): Readonly<{ label: string; referenceHex: string; deltaE: number }> {
+  const normalized = normalizeHex(hex);
+  if (!normalized) throw new Error("Invalid HEX color");
+
+  const target = hexToLab(normalized);
+  let best: Readonly<{ label: string; referenceHex: string; deltaE: number }> | undefined;
+
+  for (const [, referenceHex, label] of SHADE_DICTIONARY) {
+    const distance = deltaE2000(target, hexToLab(referenceHex));
+    if (!best || distance < best.deltaE) {
+      best = { label, referenceHex, deltaE: distance };
+    }
+  }
+
+  return best ?? { label: normalized, referenceHex: normalized, deltaE: 0 };
+}
