@@ -104,6 +104,7 @@ export async function runProductColorProfileSyncSlice(
   let unchanged = 0;
   let unresolved = 0;
   const unchangedIds: string[] = [];
+  const pendingUpserts: Array<Record<string, unknown>> = [];
 
   for (const row of candidates.rows) {
     const canonicalVariantId = requiredText(row.canonical_variant_id, "canonical variant id");
@@ -116,17 +117,84 @@ export async function runProductColorProfileSyncSlice(
       continue;
     }
 
+    pendingUpserts.push({
+      canonical_variant_id: canonicalVariantId,
+      family_id: profile.familyId ?? null,
+      supplier_id: profile.supplierId ?? null,
+      external_product_id: profile.externalProductId ?? null,
+      brand_name: profile.brandName ?? null,
+      shade_code: profile.shadeCode ?? null,
+      brand_shade_name: profile.brandShadeName ?? null,
+      color_family: profile.colorFamily ?? null,
+      color_detail: profile.colorDetail ?? null,
+      undertone: profile.undertone ?? null,
+      finish: profile.finish,
+      product_type: profile.productType,
+      canonical_hex: profile.canonicalHex ?? null,
+      lab_l: profile.lab?.l ?? null,
+      lab_a: profile.lab?.a ?? null,
+      lab_b: profile.lab?.b ?? null,
+      match_precision: profile.matchPrecision,
+      confidence: profile.confidence,
+      source_kind: profile.sourceKind,
+      source_hash: profile.sourceHash,
+      provenance: profile.provenance
+    });
+  }
+
+  if (pendingUpserts.length > 0) {
     await pool.query(`
       INSERT INTO public.product_color_profiles(
         canonical_variant_id,family_id,supplier_id,external_product_id,
         brand_name,shade_code,brand_shade_name,color_family,color_detail,undertone,
         finish,product_type,canonical_hex,lab_l,lab_a,lab_b,
         match_precision,confidence,source_kind,source_hash,provenance,profiled_at
-      ) VALUES(
-        $1::uuid,$2::uuid,$3::uuid,$4,
-        $5,$6,$7,$8,$9,$10,
-        $11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21::jsonb,now()
+      )
+      SELECT
+        payload.canonical_variant_id,
+        payload.family_id,
+        payload.supplier_id,
+        payload.external_product_id,
+        payload.brand_name,
+        payload.shade_code,
+        payload.brand_shade_name,
+        payload.color_family,
+        payload.color_detail,
+        payload.undertone,
+        payload.finish,
+        payload.product_type,
+        payload.canonical_hex,
+        payload.lab_l,
+        payload.lab_a,
+        payload.lab_b,
+        payload.match_precision,
+        payload.confidence,
+        payload.source_kind,
+        payload.source_hash,
+        payload.provenance,
+        now()
+      FROM jsonb_to_recordset($1::jsonb) AS payload(
+        canonical_variant_id uuid,
+        family_id uuid,
+        supplier_id uuid,
+        external_product_id text,
+        brand_name text,
+        shade_code text,
+        brand_shade_name text,
+        color_family text,
+        color_detail text,
+        undertone text,
+        finish text,
+        product_type text,
+        canonical_hex text,
+        lab_l double precision,
+        lab_a double precision,
+        lab_b double precision,
+        match_precision text,
+        confidence numeric,
+        source_kind text,
+        source_hash text,
+        provenance jsonb
       )
       ON CONFLICT(canonical_variant_id)
       DO UPDATE SET
@@ -152,30 +220,8 @@ export async function runProductColorProfileSyncSlice(
         provenance=EXCLUDED.provenance,
         profiled_at=now(),
         updated_at=now()
-    `, [
-      canonicalVariantId,
-      profile.familyId ?? null,
-      profile.supplierId ?? null,
-      profile.externalProductId ?? null,
-      profile.brandName ?? null,
-      profile.shadeCode ?? null,
-      profile.brandShadeName ?? null,
-      profile.colorFamily ?? null,
-      profile.colorDetail ?? null,
-      profile.undertone ?? null,
-      profile.finish,
-      profile.productType,
-      profile.canonicalHex ?? null,
-      profile.lab?.l ?? null,
-      profile.lab?.a ?? null,
-      profile.lab?.b ?? null,
-      profile.matchPrecision,
-      profile.confidence,
-      profile.sourceKind,
-      profile.sourceHash,
-      JSON.stringify(profile.provenance)
-    ]);
-    updated += 1;
+    `, [JSON.stringify(pendingUpserts)]);
+    updated = pendingUpserts.length;
   }
 
   if (unchangedIds.length > 0) {
