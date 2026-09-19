@@ -3,12 +3,12 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const SUPPLIER_CODE = "nova_brandsgateway";
 const CATEGORY_BATCH_SIZE = 250;
-const CATEGORY_CURSOR_KEY = "novaAutoCategoryCursorV1";
+const CATEGORY_CURSOR_KEY = "novaAutoCategorySourceCursorV2";
 const CATEGORY_REPAIR_BATCH_SIZE = 250;
 const PUBLICATION_BATCH_SIZE = 2_000;
 
 type CategoryCandidate = Readonly<{
-  canonical_id: string;
+  source_product_key: string;
   title: string;
   normalized_payload: unknown;
 }>;
@@ -37,12 +37,10 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
   // Historical category repair is deliberately decoupled from every publication sweep.
   // The worker can opt into it explicitly; new imports use the corrected classifier.
   const repaired = 0;
-  // Category assignment used to order the entire supplier-offer set by creation
-  // time and then join into the large TOAST-backed source payload table. Once
-  // most offers were categorized, finding the next 500 missing categories could
-  // read tens of thousands of rows on every worker pass. Walk the uncategorized
-  // canonical index instead and persist a lightweight UUID cursor. Unmapped rows
-  // are retried after the cursor wraps rather than blocking every subsequent row.
+  // Classify at supplier-product level, not once per canonical variant. A Nova
+  // product can fan out to many variants, while its taxonomy evidence is shared.
+  // First walk only the compact latest-source index, then detoast payloads solely
+  // for scanned products that still have an uncategorized linked canonical.
   const categoryContext = await pool.query<SqlRow>(`
     SELECT ds.id::text AS supplier_id,
            ds.catalog_source_id::text AS source_id,
@@ -60,60 +58,94 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
   const categorySupplierId = categorySupplier?.supplier_id ? String(categorySupplier.supplier_id) : null;
   const categorySourceId = categorySupplier?.source_id ? String(categorySupplier.source_id) : null;
   const categoryCursor = categorySupplier?.category_cursor ? String(categorySupplier.category_cursor) : null;
-  const candidates = categorySupplierId
-    ? await pool.query<CategoryCandidate>(`
-        SELECT DISTINCT ON (cv.id)
-          cv.id::text AS canonical_id,
-          csp.title,
-          csp.normalized_payload
-        FROM public.canonical_variants cv
-        JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
-        JOIN public.dropship_supplier_offers dso
-          ON dso.vendor_offer_id=vo.id
-         AND dso.supplier_id=$1::uuid
-        JOIN public.catalog_source_products csp ON csp.id=dso.source_product_id
-        WHERE cv.category_id IS NULL
-          AND cv.suppressed=false
-          AND cv.recalled=false
-          AND ($2::uuid IS NULL OR cv.id>$2::uuid)
-        ORDER BY cv.id,dso.updated_at DESC,dso.id DESC
+
+  const sourceScan = categorySourceId
+    ? await pool.query<SqlRow>(`
+        SELECT DISTINCT ON (p.source_product_key)
+          p.id::text AS source_product_id,
+          p.source_product_key
+        FROM public.catalog_source_products p
+        WHERE p.source_id=$1::uuid
+          AND ($2::text IS NULL OR p.source_product_key>$2)
+        ORDER BY p.source_product_key,p.created_at DESC,p.id DESC
         LIMIT $3
-      `,[categorySupplierId,categoryCursor,CATEGORY_BATCH_SIZE])
-    : { rows: [] as readonly CategoryCandidate[], rowCount: 0 };
+      `,[categorySourceId,categoryCursor,CATEGORY_BATCH_SIZE])
+    : { rows: [] as readonly SqlRow[], rowCount: 0 };
 
   let categoryLastCursor: string | null = null;
-  if (candidates.rows.length > 0) {
-    categoryLastCursor = String(candidates.rows[candidates.rows.length - 1]!.canonical_id);
+  let candidates: Readonly<{ rows: readonly CategoryCandidate[]; rowCount: number }> = {
+    rows: [],
+    rowCount: 0
+  };
+
+  if (sourceScan.rows.length > 0 && categorySupplierId) {
+    categoryLastCursor = String(sourceScan.rows[sourceScan.rows.length - 1]!.source_product_key);
+    const sourceProductIds = sourceScan.rows.map((row) => String(row.source_product_id));
+    const sourceProductKeys = sourceScan.rows.map((row) => String(row.source_product_key));
+    candidates = await pool.query<CategoryCandidate>(`
+      WITH scanned AS MATERIALIZED (
+        SELECT *
+        FROM unnest($1::uuid[],$2::text[]) AS scanned(source_product_id,source_product_key)
+      )
+      SELECT
+        scanned.source_product_key,
+        p.title,
+        p.normalized_payload
+      FROM scanned
+      JOIN public.catalog_source_products p ON p.id=scanned.source_product_id
+      WHERE EXISTS (
+        SELECT 1
+        FROM public.dropship_supplier_offers dso
+        JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+        JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+        WHERE dso.supplier_id=$3::uuid
+          AND dso.external_product_id=scanned.source_product_key
+          AND cv.category_id IS NULL
+          AND cv.suppressed=false
+          AND cv.recalled=false
+      )
+    `,[sourceProductIds,sourceProductKeys,categorySupplierId]);
   } else if (categorySourceId && categoryCursor) {
     await persistNovaCategoryCursor(categorySourceId,null);
   }
 
-  const idsByCategory = new Map<string,string[]>();
+  const productKeysByCategory = new Map<string,string[]>();
+  let mappedCandidates = 0;
   for (const row of candidates.rows) {
     const code = resolveNovaCategoryCode(row.normalized_payload,row.title);
     if (!code) continue;
-    const ids = idsByCategory.get(code);
-    if (ids) ids.push(row.canonical_id);
-    else idsByCategory.set(code,[row.canonical_id]);
+    mappedCandidates += 1;
+    const keys = productKeysByCategory.get(code);
+    if (keys) keys.push(row.source_product_key);
+    else productKeysByCategory.set(code,[row.source_product_key]);
   }
 
   let categorized = 0;
-  for (const [code,canonicalIds] of idsByCategory) {
-    const changed = await pool.query<SqlRow>(`
-      UPDATE public.canonical_variants cv
-      SET category_id=c.id,
-          updated_at=now()
-      FROM public.categories c
-      WHERE cv.id=ANY($1::uuid[])
-        AND cv.category_id IS NULL
-        AND c.market_id=cv.market_id
-        AND c.code=$2
-        AND c.active=true
-        AND c.assignable=true
-        AND c.taxonomy_role='product_class'
-      RETURNING cv.id
-    `,[canonicalIds,code]);
-    categorized += changed.rowCount ?? changed.rows.length;
+  if (categorySupplierId) {
+    for (const [code,sourceProductKeys] of productKeysByCategory) {
+      const changed = await pool.query<SqlRow>(`
+        WITH linked AS MATERIALIZED (
+          SELECT DISTINCT vo.canonical_variant_id
+          FROM public.dropship_supplier_offers dso
+          JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+          WHERE dso.supplier_id=$1::uuid
+            AND dso.external_product_id=ANY($2::text[])
+        )
+        UPDATE public.canonical_variants cv
+        SET category_id=c.id,
+            updated_at=now()
+        FROM linked,public.categories c
+        WHERE cv.id=linked.canonical_variant_id
+          AND cv.category_id IS NULL
+          AND c.market_id=cv.market_id
+          AND c.code=$3
+          AND c.active=true
+          AND c.assignable=true
+          AND c.taxonomy_role='product_class'
+        RETURNING cv.id
+      `,[categorySupplierId,sourceProductKeys,code]);
+      categorized += changed.rowCount ?? changed.rows.length;
+    }
   }
 
   if (categorySourceId && categoryLastCursor) {
@@ -215,7 +247,7 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
     categoryCandidates: candidates.rowCount ?? candidates.rows.length,
     categorized,
     repaired,
-    unmapped: Math.max(0,(candidates.rowCount ?? candidates.rows.length)-categorized),
+    unmapped: Math.max(0,(candidates.rowCount ?? candidates.rows.length)-mappedCandidates),
     published: publishedCount
   };
 }
