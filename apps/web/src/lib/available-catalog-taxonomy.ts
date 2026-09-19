@@ -213,9 +213,57 @@ export async function getAvailableCatalogCanonicals(postcode = "23100"): Promise
 export async function getAvailableStorefrontCategories(_postcode = "23100"): Promise<readonly StorefrontCategory[]> {
   if (!productionDatabaseConfigured()) return [];
   const result = await getProductionPostgresRuntime().nativePool.query<AvailableCategoryRow>(`
-    SELECT DISTINCT category_code,department_code
-    FROM public.storefront_facet_read_model
-    WHERE available_until>now()
+    WITH RECURSIVE category_tree AS (
+      SELECT c.id,c.parent_id,c.code,c.code AS department_code
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id
+      WHERE m.code='sparta' AND c.parent_id IS NULL
+
+      UNION ALL
+
+      SELECT child.id,child.parent_id,child.code,parent.department_code
+      FROM public.categories child
+      JOIN category_tree parent ON child.parent_id=parent.id
+    ), available_pairs AS (
+      SELECT DISTINCT category_code,department_code
+      FROM public.storefront_facet_read_model
+      WHERE available_until>now()
+
+      UNION
+
+      SELECT DISTINCT c.code AS category_code,tree.department_code
+      FROM public.dropship_supplier_offers dso
+      JOIN public.dropship_suppliers ds
+        ON ds.id=dso.supplier_id
+       AND ds.code='symphonya'
+       AND ds.active=true
+       AND ds.api_authoritative_availability=true
+      JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN public.categories c ON c.id=cv.category_id
+      JOIN category_tree tree ON tree.id=cv.category_id
+      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+      JOIN public.vendor_locations l ON l.id=vo.location_id
+      WHERE dso.active=true
+        AND dso.cached_available=true
+        AND COALESCE(dso.cached_quantity,0)>=1
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at>now()
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND v.status='active'
+        AND l.active=true
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+    )
+    SELECT category_code,department_code
+    FROM available_pairs
   `);
   return STOREFRONT_CATEGORIES.filter((category) =>
     result.rows.some((row) => categoryCodeMatches(row.category_code, category.slug, row.department_code ?? undefined))
