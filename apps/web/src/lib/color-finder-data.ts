@@ -14,6 +14,13 @@ import {
 
 const CACHE_SECONDS = 900;
 const MAX_CANDIDATES = 2_000;
+const SAFE_SCOPE = /^[a-z0-9][a-z0-9_-]{1,95}$/i;
+const SAFE_VENDOR = /^[A-Za-z0-9_-]{3,128}$/;
+
+export type ColorFinderCatalogueScope = Readonly<{
+  categoryCode?: string;
+  vendorPublicId?: string;
+}>;
 
 type ColorFinderCandidateRow = SqlRow & Readonly<{
   canonical_public_id: string;
@@ -37,11 +44,29 @@ type ColorFinderCandidateRow = SqlRow & Readonly<{
   source_image_url: string | null;
 }>;
 
-async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderProduct[]> {
+async function loadColorFinderProductsUncached(
+  categoryCode: string,
+  vendorPublicId: string
+): Promise<readonly ColorFinderProduct[]> {
   if (!productionDatabaseConfigured()) return [];
 
   const result = await getProductionPostgresRuntime().nativePool.query<ColorFinderCandidateRow>(`
-    WITH live_nail_variants AS MATERIALIZED (
+    WITH RECURSIVE selected_categories AS MATERIALIZED (
+      SELECT c.id
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id
+      WHERE m.code='sparta'
+        AND c.active=true
+        AND (c.code=$1 OR c.slug=$1)
+
+      UNION ALL
+
+      SELECT child.id
+      FROM public.categories child
+      JOIN selected_categories parent ON child.parent_id=parent.id
+      WHERE child.active=true
+    ),
+    live_color_variants AS MATERIALIZED (
       SELECT DISTINCT ON (cv.id)
         cv.id AS canonical_variant_id,
         cv.public_id AS canonical_public_id,
@@ -66,8 +91,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
        AND ds.api_authoritative_availability=true
       JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN public.markets m ON m.id=cv.market_id AND m.code='sparta'
-      JOIN public.categories c ON c.id=cv.category_id AND c.code='nail-care-colour'
+      JOIN selected_categories selected ON selected.id=cv.category_id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
       JOIN public.vendor_locations l ON l.id=vo.location_id AND l.active=true
       LEFT JOIN public.product_families pf ON pf.id=cv.family_id
@@ -85,6 +109,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
         AND COALESCE(dso.cached_quantity,0)>=1
         AND dso.availability_expires_at IS NOT NULL
         AND dso.availability_expires_at>now()
+        AND ($2::text='' OR v.public_id=$2)
         AND vo.status='approved'
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
@@ -101,7 +126,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
         dso.availability_checked_at DESC NULLS LAST,
         vo.updated_at DESC,
         vo.public_id
-      LIMIT $1
+      LIMIT $3
     )
     SELECT
       candidate.canonical_public_id,
@@ -123,11 +148,11 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       candidate.source_code,
       candidate.source_website,
       candidate.source_image_url
-    FROM live_nail_variants candidate
+    FROM live_color_variants candidate
     LEFT JOIN public.product_color_profiles pcp
       ON pcp.canonical_variant_id=candidate.canonical_variant_id
     ORDER BY candidate.customer_price_minor,candidate.canonical_public_id
-  `, [MAX_CANDIDATES]);
+  `, [categoryCode, vendorPublicId, MAX_CANDIDATES]);
 
   return result.rows.flatMap((row) => {
     const id = optionalText(row.canonical_public_id);
@@ -191,11 +216,21 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
   });
 }
 
-export const getColorFinderProducts = unstable_cache(
+const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-authoritative-live-nails-v4"],
+  ["color-finder-contextual-catalogue-v1"],
   { revalidate: CACHE_SECONDS }
 );
+
+export function getColorFinderProducts(
+  scope: ColorFinderCatalogueScope = {}
+): Promise<readonly ColorFinderProduct[]> {
+  const requestedCategory = scope.categoryCode?.trim() ?? "";
+  const requestedVendor = scope.vendorPublicId?.trim() ?? "";
+  const categoryCode = SAFE_SCOPE.test(requestedCategory) ? requestedCategory : "nail-care-colour";
+  const vendorPublicId = SAFE_VENDOR.test(requestedVendor) ? requestedVendor : "";
+  return getCachedColorFinderProducts(categoryCode, vendorPublicId);
+}
 
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
