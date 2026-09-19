@@ -846,7 +846,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
               <span className={styles.photoKicker}>PHOTO TO COLOR · PRIVATE</span>
               <h3>Capture the shade around you.</h3>
               <p>
-                Τράβηξε ή ανέβασε μια φωτογραφία, μετακίνησε το πλαίσιο πάνω στο χρώμα που θέλεις και άφησε τον Color Finder να το μετατρέψει σε χρωματικό στόχο.
+                Τράβηξε ή ανέβασε μια φωτογραφία και πάτησε απευθείας πάνω στο χρώμα που θέλεις. Για υφές ή επιφάνειες με μικρές διακυμάνσεις, χρησιμοποίησε το AREA για πιο σταθερό μέσο χρώμα.
               </p>
 
               <div className={styles.photoActions}>
@@ -873,7 +873,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
 
               {photoError ? <p className={styles.photoError}>{photoError}</p> : null}
               <p className={styles.privacyNote}>
-                Privacy by design: καμία φωτογραφία δεν φεύγει από τη συσκευή. Δεν γίνεται μόνιμη αποθήκευση και το προσωρινό τοπικό αντικείμενο λήγει σε 15 λεπτά ή νωρίτερα αν πατήσεις διαγραφή.
+                Privacy by design: καμία φωτογραφία δεν φεύγει από τη συσκευή. Δεν γίνεται μόνιμη αποθήκευση και το προσωρινό τοπικό αντικείμενο λήγει σε 15 λεπτά ή νωρίτερα αν πατήσεις διαγραφή. Για πιο πιστό χρώμα προτίμησε φυσικό φως και φωτογραφία χωρίς φίλτρα.
               </p>
             </div>
           )}
