@@ -141,6 +141,20 @@ export async function listCustomerStyleLooks(userPublicId: string): Promise<read
   return result.rows.map(rowToLook);
 }
 
+export async function getCustomerStyleLook(userPublicId: string, lookId: string): Promise<CustomerStyleLook | undefined> {
+  if (!productionDatabaseConfigured()) return undefined;
+  const result = await getProductionPostgresRuntime().nativePool.query<StyleLookRow>(`
+    SELECT ${SELECT_FIELDS}
+    FROM public.customer_style_looks l
+    JOIN public.users u ON u.id=l.user_id
+    WHERE l.public_id::text=$1
+      AND (u.public_id=$2 OR u.id::text=$2)
+    LIMIT 1
+  `, [lookId, userPublicId]);
+  const row = result.rows[0];
+  return row ? rowToLook(row) : undefined;
+}
+
 export async function createCustomerStyleLook(input: {
   userPublicId: string;
   name: unknown;
