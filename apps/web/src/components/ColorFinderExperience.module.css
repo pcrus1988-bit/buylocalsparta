@@ -261,6 +261,7 @@
 }
 .productBody h3 a { color: var(--cf-ivory); text-decoration: none; }
 .shadeName { margin: 0; color: #8e8780; font-size: 12px; min-height: 18px; }
+.profileNote { margin: 6px 0 0; color: #706b65; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .swatches {
   margin: 19px 0;
   display: grid;

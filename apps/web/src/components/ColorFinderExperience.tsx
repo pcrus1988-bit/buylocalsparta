@@ -185,11 +185,25 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                     <strong>{product.match}% match</strong>
                   </div>
                   <h3><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>{product.title}</Link></h3>
-                  {product.brandShade ? <p className={styles.shadeName}>{product.brandShade}</p> : null}
+                  {product.brandShade || product.shadeCode ? (
+                    <p className={styles.shadeName}>
+                      {[product.shadeCode, product.brandShade].filter(Boolean).join(" · ")}
+                    </p>
+                  ) : null}
+                  {product.profilePrecision ? (
+                    <p className={styles.profileNote}>
+                      {product.profilePrecision === "exact"
+                        ? "Verified colour profile"
+                        : product.profilePrecision === "canonicalized"
+                          ? "Canonicalized brand shade"
+                          : "Approximate colour family"}
+                      {typeof product.profileConfidence === "number" ? ` · ${Math.round(product.profileConfidence * 100)}% confidence` : ""}
+                    </p>
+                  ) : null}
                   <div className={styles.swatches}>
                     <div>
                       <span style={{ backgroundColor: product.colorHex }} />
-                      <small>PRODUCT</small>
+                      <small>{product.profilePrecision === "exact" ? "PRODUCT" : "PROFILE"}</small>
                     </div>
                     <div>
                       <span style={{ backgroundColor: selectedHex }} />

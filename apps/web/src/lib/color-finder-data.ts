@@ -1,15 +1,32 @@
 import { unstable_cache } from "next/cache";
+import type { SqlRow } from "@buy-local-sparta/core";
 import { getPublishedDropshipCatalogPage } from "./published-dropship-catalog-page";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import {
   inferColorFinish,
   inferColorProductType,
   resolveCatalogColor,
-  type ColorFinderProduct
+  type ColorFinderProduct,
+  type ColorFinish,
+  type ColorProductType
 } from "./color-finder";
 
 const PAGE_SIZE = 36;
-const MAX_WINDOWS = 3;
+const MAX_WINDOWS = 6;
 const CACHE_SECONDS = 300;
+
+type StoredProfile = Readonly<{
+  brandName?: string;
+  shadeCode?: string;
+  brandShadeName?: string;
+  colorFamily?: string;
+  colorDetail?: string;
+  finish?: ColorFinish;
+  productType?: ColorProductType;
+  canonicalHex?: string;
+  matchPrecision?: "exact" | "canonicalized" | "family_estimate";
+  confidence?: number;
+}>;
 
 async function loadCandidatePages() {
   const products: Awaited<ReturnType<typeof getPublishedDropshipCatalogPage>>["products"][number][] = [];
@@ -26,7 +43,6 @@ async function loadCandidatePages() {
 
   if (products.length > 0) return products;
 
-  // Graceful bridge while supplier taxonomy enrichment catches up.
   const fallback = await getPublishedDropshipCatalogPage({
     category: "beauty",
     query: "nail",
@@ -36,8 +52,50 @@ async function loadCandidatePages() {
   return [...fallback.products];
 }
 
+async function loadStoredProfiles(publicIds: readonly string[]): Promise<ReadonlyMap<string, StoredProfile>> {
+  if (!productionDatabaseConfigured() || publicIds.length === 0) return new Map();
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      cv.public_id,
+      pcp.brand_name,
+      pcp.shade_code,
+      pcp.brand_shade_name,
+      pcp.color_family,
+      pcp.color_detail,
+      pcp.finish,
+      pcp.product_type,
+      pcp.canonical_hex,
+      pcp.match_precision,
+      pcp.confidence
+    FROM public.product_color_profiles pcp
+    JOIN public.canonical_variants cv ON cv.id=pcp.canonical_variant_id
+    WHERE cv.public_id=ANY($1::text[])
+  `, [[...new Set(publicIds)]]);
+
+  return new Map(result.rows.map((row) => {
+    const publicId = String(row.public_id);
+    const precision = ["exact","canonicalized","family_estimate"].includes(String(row.match_precision))
+      ? String(row.match_precision) as StoredProfile["matchPrecision"]
+      : undefined;
+    const confidence = Number(row.confidence);
+    return [publicId, {
+      brandName: optionalText(row.brand_name),
+      shadeCode: optionalText(row.shade_code),
+      brandShadeName: optionalText(row.brand_shade_name),
+      colorFamily: optionalText(row.color_family),
+      colorDetail: optionalText(row.color_detail),
+      finish: validFinish(row.finish),
+      productType: validProductType(row.product_type),
+      canonicalHex: optionalText(row.canonical_hex),
+      matchPrecision: precision,
+      confidence: Number.isFinite(confidence) ? confidence : undefined
+    }] as const;
+  }));
+}
+
 async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderProduct[]> {
   const candidates = await loadCandidatePages();
+  const profiles = await loadStoredProfiles(candidates.map((product) => product.id));
   const seen = new Set<string>();
   const products: ColorFinderProduct[] = [];
 
@@ -45,7 +103,10 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
     if (seen.has(product.id)) continue;
     seen.add(product.id);
 
-    const resolved = resolveCatalogColor({ color: product.color, title: product.title });
+    const profile = profiles.get(product.id);
+    const resolved = profile?.canonicalHex
+      ? { hex: profile.canonicalHex, label: profile.colorDetail ?? profile.colorFamily ?? profile.canonicalHex }
+      : resolveCatalogColor({ color: product.color, title: product.title });
     if (!resolved) continue;
 
     const productText = [product.title, product.categoryLabel, product.color].filter(Boolean).join(" ");
@@ -57,12 +118,16 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       id: product.id,
       slug: product.slug,
       title: product.title,
-      brand: product.brand,
-      brandShade: product.color,
+      brand: profile?.brandName ?? product.brand,
+      brandShade: profile?.brandShadeName ?? product.color,
+      shadeCode: profile?.shadeCode,
+      colorDetail: profile?.colorDetail ?? profile?.colorFamily,
+      profilePrecision: profile?.matchPrecision,
+      profileConfidence: profile?.confidence,
       colorHex: resolved.hex,
       colorLabel: resolved.label,
-      finish: inferColorFinish(productText),
-      productType: inferColorProductType(productText),
+      finish: profile?.finish ?? inferColorFinish(productText),
+      productType: profile?.productType ?? inferColorProductType(productText),
       priceMinor: product.priceMinor,
       price: product.price,
       imageSrc,
@@ -75,6 +140,22 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
 
 export const getColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-nail-products-v1"],
+  ["color-finder-nail-products-v2"],
   { revalidate: CACHE_SECONDS }
 );
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function validFinish(value: unknown): ColorFinish | undefined {
+  return ["cream","pearly","shimmer","metallic","glitter","matte","jelly","classic"].includes(String(value))
+    ? String(value) as ColorFinish
+    : undefined;
+}
+
+function validProductType(value: unknown): ColorProductType | undefined {
+  return ["gel","regular","other"].includes(String(value))
+    ? String(value) as ColorProductType
+    : undefined;
+}

@@ -6,6 +6,10 @@ export type ColorFinderProduct = Readonly<{
   title: string;
   brand?: string;
   brandShade?: string;
+  shadeCode?: string;
+  colorDetail?: string;
+  profilePrecision?: "exact" | "canonicalized" | "family_estimate";
+  profileConfidence?: number;
   colorHex: string;
   colorLabel: string;
   finish: ColorFinish;
