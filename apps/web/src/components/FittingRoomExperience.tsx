@@ -759,7 +759,7 @@ export function FittingRoomExperience({
     return () => {
       active = false;
     };
-  }, [audience, brandsLoaded, hubSlug, prefetching, started, step, vendorId]);
+  }, [audience, brandsLoaded, hubSlug, started, step, vendorId]);
 
   useEffect(() => {
     if (!editingSlot || products.length || alternativeLoading) return;
