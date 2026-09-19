@@ -96,6 +96,7 @@ export async function runProductColorProfileSyncSlice(
   let updated = 0;
   let unchanged = 0;
   let unresolved = 0;
+  const unchangedIds: string[] = [];
 
   for (const row of candidates.rows) {
     const canonicalVariantId = requiredText(row.canonical_variant_id, "canonical variant id");
@@ -104,6 +105,7 @@ export async function runProductColorProfileSyncSlice(
 
     if (text(row.existing_profile_source_hash) === profile.sourceHash) {
       unchanged += 1;
+      unchangedIds.push(canonicalVariantId);
       continue;
     }
 
@@ -167,6 +169,14 @@ export async function runProductColorProfileSyncSlice(
       JSON.stringify(profile.provenance)
     ]);
     updated += 1;
+  }
+
+  if (unchangedIds.length > 0) {
+    await pool.query(`
+      UPDATE public.product_color_profiles
+      SET profiled_at=now()
+      WHERE canonical_variant_id=ANY($1::uuid[])
+    `, [unchangedIds]);
   }
 
   return {
