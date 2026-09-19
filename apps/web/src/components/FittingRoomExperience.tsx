@@ -1154,41 +1154,51 @@ export function FittingRoomExperience({
       setShareStatus("Διάλεξε πρώτα τουλάχιστον ένα κομμάτι.");
       return;
     }
-    if (!csrfToken) {
-      setShareStatus("Συνδέσου για να δημιουργήσεις ένα σύντομο, μόνιμο share link.");
-      return;
-    }
 
     setShareStatus("Δημιουργία share link…");
     try {
-      const saved = await persistCurrentLook();
-      let shared = saved;
-      if (!saved.shareEnabled || !saved.shareToken) {
-        const response = await fetch(`/api/account/style-looks/${encodeURIComponent(saved.id)}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-          body: JSON.stringify({ shareEnabled: true })
-        });
-        const payload = await response.json() as { look?: SavedLookPayload; error?: string };
-        if (!response.ok || !payload.look) throw new Error(payload.error || "share");
-        shared = payload.look;
-        setPersistedLook({ id: shared.id, shareEnabled: shared.shareEnabled, shareToken: shared.shareToken });
-      }
+      const body = currentLookPayload();
+      if (!body) throw new Error("look");
+      const response = await fetch("/api/style-looks/share", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          name: body.name,
+          audience: body.audience,
+          source: body.source,
+          composition: body.composition
+        })
+      });
+      const payload = await response.json() as { shareToken?: string; error?: string };
+      if (!response.ok || !payload.shareToken) throw new Error(payload.error || "share");
 
-      const code = shared.shareToken ? styleLookShareCodeFromToken(shared.shareToken) : undefined;
+      const code = styleLookShareCodeFromToken(payload.shareToken);
       if (!code) throw new Error("share-code");
       const url = new URL(`/look/${code}`, window.location.origin).toString();
 
       if (navigator.share) {
-        await navigator.share({
-          title: `${currentLook.name} · KONTA MOY Style Builder`,
-          text: "Δες το look που έφτιαξα στο KONTA MOY.",
-          url
-        });
-        setShareStatus("Το look είναι έτοιμο να μοιραστεί.");
-      } else {
+        try {
+          await navigator.share({
+            title: `${currentLook.name} · KONTA MOY Style Builder`,
+            text: "Δες το look που έφτιαξα στο KONTA MOY.",
+            url
+          });
+          setShareStatus("Το look είναι έτοιμο να μοιραστεί.");
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            setShareStatus("");
+            return;
+          }
+        }
+      }
+
+      try {
         await navigator.clipboard.writeText(url);
         setShareStatus("Το σύντομο link αντιγράφηκε.");
+      } catch {
+        setShareStatus(url);
       }
     } catch {
       setShareStatus("Δεν μπόρεσε να δημιουργηθεί το share link. Δοκίμασε ξανά.");
