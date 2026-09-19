@@ -225,6 +225,7 @@ export function ColorFinderExperience({
     }
 
     const controller = new AbortController();
+    let requestActive = true;
     const timeout = window.setTimeout(() => controller.abort(), CATALOGUE_REQUEST_TIMEOUT_MS);
     setCatalogueState("loading");
     const endpointParams = new URLSearchParams({ category: categoryCode });
@@ -243,22 +244,20 @@ export function ColorFinderExperience({
         return await response.json() as { products?: ColorFinderProduct[]; degraded?: boolean };
       })
       .then((payload) => {
-        if (controller.signal.aborted) return;
+        if (!requestActive || controller.signal.aborted) return;
         const nextProducts = Array.isArray(payload.products) ? payload.products : [];
         if (nextProducts.length > 0) setCatalogProducts(nextProducts);
         setCatalogueState(payload.degraded || nextProducts.length === 0 ? "degraded" : "ready");
       })
       .catch((error) => {
-        if (controller.signal.aborted) {
-          setCatalogueState("degraded");
-          return;
-        }
-        console.warn("Color Finder catalogue load degraded", error);
+        if (!requestActive) return;
+        if (!controller.signal.aborted) console.warn("Color Finder catalogue load degraded", error);
         setCatalogueState("degraded");
       })
       .finally(() => window.clearTimeout(timeout));
 
     return () => {
+      requestActive = false;
       window.clearTimeout(timeout);
       controller.abort();
     };
