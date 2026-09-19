@@ -775,6 +775,31 @@
 .cardFooter span { color: #7e7871; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
 .cardFooter strong { font-size: 18px; }
 .cardFooter a { color: var(--cf-gold); text-decoration: none; font-size: 12px; }
+.moreMatches {
+  padding: 28px 0 0;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.moreMatches button {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid var(--cf-gold);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cf-gold);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  cursor: pointer;
+}
+.moreMatches button:hover { background: var(--cf-gold); color: #17140e; }
+.moreMatches span {
+  color: #6f6962;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
 .emptyState {
   min-height: 360px;
   display: grid;
