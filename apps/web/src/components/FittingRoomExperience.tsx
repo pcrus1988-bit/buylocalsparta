@@ -85,6 +85,18 @@ const SLOT_META: Readonly<Record<SlotKey, Readonly<{ label: string; short: strin
   nails: { label: "Νύχια", short: "NAILS", optional: true }
 };
 
+const WOMEN_SLOTS: readonly SlotKey[] = ["main", "bottom", "layer", "shoes", "bag", "accessory", "beauty", "nails"];
+const MEN_SLOTS: readonly SlotKey[] = ["main", "bottom", "layer", "shoes", "bag", "accessory", "beauty"];
+
+function slotsForAudience(audience: Audience): readonly SlotKey[] {
+  return audience === "men" ? MEN_SLOTS : WOMEN_SLOTS;
+}
+
+function slotMeta(slot: SlotKey, audience: Audience): Readonly<{ label: string; short: string; optional?: boolean }> {
+  if (slot === "beauty" && audience === "men") return { label: "Grooming", short: "GROOMING", optional: true };
+  return SLOT_META[slot];
+}
+
 const COLOR_CHOICES = [
   { key: "black", label: "Black", hex: "#181818" },
   { key: "white", label: "White", hex: "#F0EDE7" },
@@ -182,16 +194,41 @@ function isOnePiece(product: Product | undefined): boolean {
   return /dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ/.test(productText(product));
 }
 
+const WOMEN_ONLY_BEAUTY = new Set(["lip-makeup", "face-makeup", "eye-makeup", "nail-care-colour"]);
+const MEN_ONLY_BEAUTY = new Set(["grooming-care"]);
+
+function hasWomenSignal(text: string): boolean {
+  return /(?:^|\s)(?:women|woman|womens|female|lady|ladies|donna|femme|girl)(?:\s|$)|γυναικ/.test(text);
+}
+
+function hasMenSignal(text: string): boolean {
+  return /(?:^|\s)(?:men|mens|man|male|uomo|homme|boy)(?:\s|$)|ανδρ/.test(text);
+}
+
+function isAudienceCompatible(product: Product, audience: Audience): boolean {
+  const category = normalize(product.categoryCode);
+  if (audience === "men" && WOMEN_ONLY_BEAUTY.has(product.categoryCode)) return false;
+  if (audience === "women" && MEN_ONLY_BEAUTY.has(product.categoryCode)) return false;
+  if (audience === "men" && /(?:^|\s)(?:women|woman|womens|female)(?:\s|$)|γυναικ/.test(category)) return false;
+  if (audience === "women" && /(?:^|\s)(?:men|mens|man|male)(?:\s|$)|ανδρ/.test(category)) return false;
+
+  const text = productText(product);
+  const women = hasWomenSignal(text);
+  const men = hasMenSignal(text);
+  if (audience === "men" && women && !men) return false;
+  if (audience === "women" && men && !women) return false;
+  return true;
+}
+
 function audienceAffinity(text: string, audience: Audience): number {
-  const explicitWomen = /(?:^|\\s)(?:women|woman|womens|female)(?:\\s|$)|γυναικ/.test(text);
-  const explicitMen = /(?:^|\\s)(?:men|mens|male)(?:\\s|$)|ανδρ/.test(text);
-  if (audience === "women" && explicitMen && !explicitWomen) return -120;
-  if (audience === "men" && explicitWomen && !explicitMen) return -120;
+  const explicitWomen = hasWomenSignal(text);
+  const explicitMen = hasMenSignal(text);
   if ((audience === "women" && explicitWomen) || (audience === "men" && explicitMen)) return 16;
   return 0;
 }
 
 function audiencePenalty(product: Product, audience: Audience): number {
+  if (!isAudienceCompatible(product, audience)) return -1000;
   return audienceAffinity(productText(product), audience);
 }
 
@@ -430,7 +467,11 @@ export function FittingRoomExperience({
         if (!saved?.composition?.length) return;
         const slots: Partial<Record<SlotKey, Product>> = {};
         for (const item of saved.composition) {
-          if (item.slot in SLOT_META) slots[item.slot as SlotKey] = item;
+          if (!(item.slot in SLOT_META)) continue;
+          const slot = item.slot as SlotKey;
+          if (!slotsForAudience(saved.audience).includes(slot)) continue;
+          if (!isAudienceCompatible(item, saved.audience)) continue;
+          slots[slot] = item;
         }
         if (!Object.keys(slots).length) return;
         setAudience(saved.audience);
@@ -475,6 +516,11 @@ export function FittingRoomExperience({
   const currentLook = looks[activeLook];
 
   useEffect(() => {
+    setProducts([]);
+    setEditingSlot(null);
+  }, [audience, vendorId]);
+
+  useEffect(() => {
     if (!editingSlot || products.length || alternativeLoading) return;
     let active = true;
     setAlternativeLoading(true);
@@ -497,7 +543,7 @@ export function FittingRoomExperience({
     if (!editingSlot || !products.length) return [];
     const selected = currentLook?.slots[editingSlot]?.id;
     return products
-      .filter((product) => slotFor(product) === editingSlot && product.id !== selected)
+      .filter((product) => isAudienceCompatible(product, audience) && slotFor(product) === editingSlot && product.id !== selected)
       .map((product) => ({
         product,
         score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0)
@@ -556,7 +602,7 @@ export function FittingRoomExperience({
         }
         const payload = await response.json() as { products?: Product[] };
         return [...new Map((payload.products ?? []).map((product) => [product.id, product] as const)).values()]
-          .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
+          .filter((product) => product.priceMinor > 0 && slotFor(product) && isAudienceCompatible(product, audience));
       } catch (error) {
         lastError = error;
         if (attempt === 0) {
@@ -575,7 +621,7 @@ export function FittingRoomExperience({
     const slots: Partial<Record<SlotKey, Product>> = {};
 
     const ranked = (slot: SlotKey) => candidateProducts
-      .filter((product) => slotFor(product) === slot)
+      .filter((product) => isAudienceCompatible(product, audience) && slotFor(product) === slot)
       .map((product) => ({
         product,
         score: productScore(product, slot, audience, sizes, colors, brands, personality)
@@ -603,7 +649,7 @@ export function FittingRoomExperience({
     choose("bag", personality, true);
     choose("accessory", personality + 1, true);
     choose("beauty", personality, true);
-    choose("nails", personality + 1, true);
+    if (audience === "women") choose("nails", personality + 1, true);
 
     return { ...meta, slots };
   }
@@ -889,7 +935,7 @@ export function FittingRoomExperience({
         </div>
         <div className={styles.topActions}>
           <button type="button" className={styles.exitGameButton} onClick={leaveImmersive} aria-label="Έξοδος από την πλήρη οθόνη">×</button>
-          <button type="button" onClick={() => { setLooks([]); setStep(0); setStarted(true); setEditingSlot(null); }}>Νέα συνεδρία</button>
+          <button type="button" onClick={() => { setLooks([]); setProducts([]); setStep(0); setStarted(true); setEditingSlot(null); }}>Νέα συνεδρία</button>
           <button type="button" onClick={() => void shareCurrentLook()}>Share</button>
           <button type="button" className={styles.saveButton} onClick={() => void saveCurrentLook()}>Save look</button>
         </div>
@@ -913,17 +959,18 @@ export function FittingRoomExperience({
           {looks.length > 1 ? <div className={styles.lookTabs}>{looks.map((look, index) => <button key={look.name} type="button" className={activeLook === index ? styles.lookTabActive : undefined} onClick={() => { setActiveLook(index); setEditingSlot(null); }}><span>{index < 3 ? `0${index + 1}` : "YOU"}</span><strong>{look.name}</strong></button>)}</div> : null}
 
           <div className={styles.composition}>
-            {(Object.keys(SLOT_META) as SlotKey[]).map((slot) => {
+            {slotsForAudience(audience).map((slot) => {
+              const meta = slotMeta(slot, audience);
               const product = currentLook.slots[slot];
               if (!product) return <button type="button" className={styles.emptySlot} key={slot} onClick={() => setEditingSlot(slot)}>
-                <span>{SLOT_META[slot].short}</span><strong>+ {SLOT_META[slot].label}</strong>
+                <span>{meta.short}</span><strong>+ {meta.label}</strong>
                 <small>{activeLook === 3 ? "Διάλεξε το κομμάτι που θέλεις." : "Πρόσθεσε ή άλλαξε αυτό το σημείο του look."}</small>
               </button>;
               const image = imageFor(product);
               return <article className={styles.productSlot} key={slot}>
                 <button type="button" className={styles.productButton} onClick={() => setEditingSlot(slot)}>
                   <div className={styles.productImage}>{image ? <img src={image} alt={product.mediaAlt || product.title} loading="lazy" /> : <span>{product.title.slice(0, 1)}</span>}<b>Αλλαγή</b></div>
-                  <div className={styles.productCopy}><small>{SLOT_META[slot].short}</small><strong>{product.title}</strong><span>{product.brand || product.categoryLabel || SLOT_META[slot].label}</span><em>{product.price}</em></div>
+                  <div className={styles.productCopy}><small>{meta.short}</small><strong>{product.title}</strong><span>{product.brand || product.categoryLabel || meta.label}</span><em>{product.price}</em></div>
                 </button>
                 <Link className={styles.productDetailLink} href={productPublicPath(product)} prefetch={false}>Δες το προϊόν ↗</Link>
               </article>;
@@ -933,8 +980,8 @@ export function FittingRoomExperience({
       </div>
 
       {editingSlot ? <div className={styles.drawerBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingSlot(null); }}>
-        <aside className={styles.drawer} aria-label={`Αλλαγή ${SLOT_META[editingSlot].label}`}>
-          <div className={styles.drawerHead}><div><small>KEEP THE LOOK · CHANGE ONE PIECE</small><h3>{SLOT_META[editingSlot].label}</h3></div><button type="button" onClick={() => setEditingSlot(null)}>×</button></div>
+        <aside className={styles.drawer} aria-label={`Αλλαγή ${slotMeta(editingSlot, audience).label}`}>
+          <div className={styles.drawerHead}><div><small>KEEP THE LOOK · CHANGE ONE PIECE</small><h3>{slotMeta(editingSlot, audience).label}</h3></div><button type="button" onClick={() => setEditingSlot(null)}>×</button></div>
           <div className={styles.alternativeGrid}>{alternatives.map((product) => {
             const image = imageFor(product);
             return <button type="button" key={product.id} className={styles.alternativeCard} onClick={() => replaceSlot(editingSlot, product)}>
@@ -946,7 +993,7 @@ export function FittingRoomExperience({
           })}</div>
           {alternativeLoading ? <p className={styles.drawerEmpty}>Ο stylist φέρνει άλλες επιλογές…</p> : null}
           {!alternativeLoading && !alternatives.length ? <p className={styles.drawerEmpty}>Δεν υπάρχουν άλλες διαθέσιμες επιλογές για αυτό το κομμάτι αυτή τη στιγμή.</p> : null}
-          {SLOT_META[editingSlot].optional ? <button type="button" className={styles.removeButton} onClick={() => removeSlot(editingSlot)}>Αφαίρεσε αυτό το κομμάτι από το look</button> : null}
+          {slotMeta(editingSlot, audience).optional ? <button type="button" className={styles.removeButton} onClick={() => removeSlot(editingSlot)}>Αφαίρεσε αυτό το κομμάτι από το look</button> : null}
         </aside>
       </div> : null}
     </section>
