@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import {
   COLOR_FINDER_PRESETS,
   colorMatchPercent,
@@ -16,6 +25,17 @@ import styles from "./ColorFinderExperience.module.css";
 
 type FinishFilter = "all" | ColorFinish;
 type ProductTypeFilter = "all" | ColorProductType;
+type SelectorMode = "picker" | "photo";
+type PhotoRect = Readonly<{ x: number; y: number; width: number; height: number }>;
+type CropBox = Readonly<{ x: number; y: number; size: number }>;
+
+const PHOTO_TTL_MS = 15 * 60 * 1000;
+const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
+const PHOTO_CANVAS_WIDTH = 1200;
+const PHOTO_CANVAS_HEIGHT = 900;
+const DEFAULT_CROP_RATIO = 0.28;
+const MIN_CROP_RATIO = 0.08;
+const MAX_CROP_RATIO = 0.65;
 
 const FINISH_LABELS: Readonly<Record<ColorFinish, string>> = {
   cream: "Cream",
@@ -39,6 +59,19 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [hexDraft, setHexDraft] = useState("#B52E2E");
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
+  const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
+
+  const [photoUrl, setPhotoUrl] = useState<string>();
+  const [photoExpiresAt, setPhotoExpiresAt] = useState<number>();
+  const [photoSecondsLeft, setPhotoSecondsLeft] = useState(0);
+  const [photoRect, setPhotoRect] = useState<PhotoRect>();
+  const [crop, setCrop] = useState<CropBox>();
+  const [photoReady, setPhotoReady] = useState(false);
+  const [photoSampleHex, setPhotoSampleHex] = useState<string>();
+  const [photoError, setPhotoError] = useState<string>();
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cropDragRef = useRef(false);
 
   const matches = useMemo(() => {
     const targetLab = hexToLab(selectedHex);
@@ -56,10 +89,270 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const availableFinishes = useMemo(() => [...new Set(products.map((product) => product.finish))], [products]);
   const availableTypes = useMemo(() => [...new Set(products.map((product) => product.productType))], [products]);
 
+  useEffect(() => {
+    if (!photoUrl) return undefined;
+    return () => URL.revokeObjectURL(photoUrl);
+  }, [photoUrl]);
+
+  useEffect(() => {
+    if (!photoExpiresAt) {
+      setPhotoSecondsLeft(0);
+      return undefined;
+    }
+
+    const updateCountdown = () => {
+      const seconds = Math.max(0, Math.ceil((photoExpiresAt - Date.now()) / 1000));
+      setPhotoSecondsLeft(seconds);
+      if (seconds > 0) return;
+
+      setPhotoUrl(undefined);
+      setPhotoExpiresAt(undefined);
+      setPhotoRect(undefined);
+      setCrop(undefined);
+      setPhotoReady(false);
+      setPhotoSampleHex(undefined);
+      setPhotoError(undefined);
+    };
+
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [photoExpiresAt]);
+
+  useEffect(() => {
+    if (!photoUrl) return undefined;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    setPhotoReady(false);
+    setPhotoError(undefined);
+    setPhotoSampleHex(undefined);
+
+    const image = new Image();
+    image.decoding = "async";
+
+    image.onload = () => {
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context || !image.naturalWidth || !image.naturalHeight) {
+        setPhotoError("Δεν μπορέσαμε να διαβάσουμε αυτή τη φωτογραφία.");
+        return;
+      }
+
+      canvas.width = PHOTO_CANVAS_WIDTH;
+      canvas.height = PHOTO_CANVAS_HEIGHT;
+      context.clearRect(0, 0, PHOTO_CANVAS_WIDTH, PHOTO_CANVAS_HEIGHT);
+      context.fillStyle = "#070708";
+      context.fillRect(0, 0, PHOTO_CANVAS_WIDTH, PHOTO_CANVAS_HEIGHT);
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+
+      const scale = Math.min(
+        PHOTO_CANVAS_WIDTH / image.naturalWidth,
+        PHOTO_CANVAS_HEIGHT / image.naturalHeight
+      );
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const x = Math.round((PHOTO_CANVAS_WIDTH - width) / 2);
+      const y = Math.round((PHOTO_CANVAS_HEIGHT - height) / 2);
+      context.drawImage(image, x, y, width, height);
+
+      const nextRect = { x, y, width, height };
+      const minDimension = Math.min(width, height);
+      const size = Math.max(40, minDimension * DEFAULT_CROP_RATIO);
+      setPhotoRect(nextRect);
+      setCrop({
+        x: x + (width - size) / 2,
+        y: y + (height - size) / 2,
+        size
+      });
+      setPhotoReady(true);
+    };
+
+    image.onerror = () => {
+      setPhotoReady(false);
+      setPhotoError("Η μορφή της φωτογραφίας δεν υποστηρίζεται από αυτόν τον browser.");
+    };
+
+    image.src = photoUrl;
+
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [photoUrl]);
+
+  const cropPercent = useMemo(() => {
+    if (!crop || !photoRect) return Math.round(DEFAULT_CROP_RATIO * 100);
+    return Math.round((crop.size / Math.min(photoRect.width, photoRect.height)) * 100);
+  }, [crop, photoRect]);
+
+  const cropStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!crop) return undefined;
+    return {
+      left: `${(crop.x / PHOTO_CANVAS_WIDTH) * 100}%`,
+      top: `${(crop.y / PHOTO_CANVAS_HEIGHT) * 100}%`,
+      width: `${(crop.size / PHOTO_CANVAS_WIDTH) * 100}%`,
+      height: `${(crop.size / PHOTO_CANVAS_HEIGHT) * 100}%`
+    };
+  }, [crop]);
+
   function applyHex(value: string) {
     setHexDraft(value);
     const normalized = normalizeHex(value);
     if (normalized) setSelectedHex(normalized);
+  }
+
+  function handlePhotoFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    if (file.type && !file.type.startsWith("image/")) {
+      setPhotoError("Επίλεξε αρχείο εικόνας.");
+      return;
+    }
+    if (file.size > PHOTO_MAX_BYTES) {
+      setPhotoError("Η φωτογραφία είναι πολύ μεγάλη. Μέγιστο μέγεθος: 25 MB.");
+      return;
+    }
+
+    const nextUrl = URL.createObjectURL(file);
+    setSelectorMode("photo");
+    setPhotoUrl(nextUrl);
+    setPhotoExpiresAt(Date.now() + PHOTO_TTL_MS);
+    setPhotoSecondsLeft(PHOTO_TTL_MS / 1000);
+    setPhotoRect(undefined);
+    setCrop(undefined);
+    setPhotoReady(false);
+    setPhotoSampleHex(undefined);
+    setPhotoError(undefined);
+  }
+
+  function clearPhoto() {
+    setPhotoUrl(undefined);
+    setPhotoExpiresAt(undefined);
+    setPhotoRect(undefined);
+    setCrop(undefined);
+    setPhotoReady(false);
+    setPhotoSampleHex(undefined);
+    setPhotoError(undefined);
+  }
+
+  function moveCropToPoint(clientX: number, clientY: number) {
+    const canvas = canvasRef.current;
+    if (!canvas || !photoRect) return;
+
+    const bounds = canvas.getBoundingClientRect();
+    const pointX = (clientX - bounds.left) * (PHOTO_CANVAS_WIDTH / bounds.width);
+    const pointY = (clientY - bounds.top) * (PHOTO_CANVAS_HEIGHT / bounds.height);
+
+    setCrop((current) => {
+      if (!current) return current;
+      const x = clamp(pointX - current.size / 2, photoRect.x, photoRect.x + photoRect.width - current.size);
+      const y = clamp(pointY - current.size / 2, photoRect.y, photoRect.y + photoRect.height - current.size);
+      return { ...current, x, y };
+    });
+    setPhotoSampleHex(undefined);
+  }
+
+  function moveCropBy(deltaX: number, deltaY: number) {
+    if (!photoRect) return;
+    setCrop((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        x: clamp(current.x + deltaX, photoRect.x, photoRect.x + photoRect.width - current.size),
+        y: clamp(current.y + deltaY, photoRect.y, photoRect.y + photoRect.height - current.size)
+      };
+    });
+    setPhotoSampleHex(undefined);
+  }
+
+  function handleCropPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!photoReady) return;
+    cropDragRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    moveCropToPoint(event.clientX, event.clientY);
+  }
+
+  function handleCropPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!cropDragRef.current) return;
+    moveCropToPoint(event.clientX, event.clientY);
+  }
+
+  function handleCropPointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    cropDragRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleCropKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!photoReady) return;
+    const distance = event.shiftKey ? 36 : 12;
+    if (event.key === "ArrowLeft") moveCropBy(-distance, 0);
+    else if (event.key === "ArrowRight") moveCropBy(distance, 0);
+    else if (event.key === "ArrowUp") moveCropBy(0, -distance);
+    else if (event.key === "ArrowDown") moveCropBy(0, distance);
+    else return;
+    event.preventDefault();
+  }
+
+  function resizeCrop(percent: number) {
+    if (!photoRect) return;
+    const minDimension = Math.min(photoRect.width, photoRect.height);
+    const size = minDimension * clamp(percent / 100, MIN_CROP_RATIO, MAX_CROP_RATIO);
+
+    setCrop((current) => {
+      if (!current) {
+        return {
+          x: photoRect.x + (photoRect.width - size) / 2,
+          y: photoRect.y + (photoRect.height - size) / 2,
+          size
+        };
+      }
+      const centerX = current.x + current.size / 2;
+      const centerY = current.y + current.size / 2;
+      return {
+        x: clamp(centerX - size / 2, photoRect.x, photoRect.x + photoRect.width - size),
+        y: clamp(centerY - size / 2, photoRect.y, photoRect.y + photoRect.height - size),
+        size
+      };
+    });
+    setPhotoSampleHex(undefined);
+  }
+
+  function useSelectedPhotoColor() {
+    const canvas = canvasRef.current;
+    if (!canvas || !crop || !photoReady) return;
+
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      setPhotoError("Δεν μπορέσαμε να αναλύσουμε το επιλεγμένο χρώμα.");
+      return;
+    }
+
+    try {
+      const x = Math.max(0, Math.floor(crop.x));
+      const y = Math.max(0, Math.floor(crop.y));
+      const width = Math.max(1, Math.min(PHOTO_CANVAS_WIDTH - x, Math.round(crop.size)));
+      const height = Math.max(1, Math.min(PHOTO_CANVAS_HEIGHT - y, Math.round(crop.size)));
+      const imageData = context.getImageData(x, y, width, height);
+      const detectedHex = representativeHex(imageData.data, width, height);
+
+      if (!detectedHex) {
+        setPhotoError("Δεν βρέθηκε αρκετό χρωματικό δείγμα μέσα στο πλαίσιο.");
+        return;
+      }
+
+      setSelectedHex(detectedHex);
+      setHexDraft(detectedHex);
+      setPhotoSampleHex(detectedHex);
+      setPhotoError(undefined);
+    } catch {
+      setPhotoError("Δεν μπορέσαμε να αναλύσουμε το επιλεγμένο σημείο.");
+    }
   }
 
   return (
@@ -69,7 +362,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           <span className={styles.eyebrow}>COLOR FINDER · NAIL EDITION</span>
           <h1>Find the shade<br /><em>you imagined.</em></h1>
           <p>
-            Διάλεξε ένα χρώμα και ανακάλυψε τα πιο κοντινά βερνίκια που μπορείς να αγοράσεις απευθείας στο ΚΟΝΤΑ ΜΟΥ.
+            Διάλεξε ένα χρώμα ή πάρε το από μια φωτογραφία και ανακάλυψε τα πιο κοντινά βερνίκια που μπορείς να αγοράσεις απευθείας στο ΚΟΝΤΑ ΜΟΥ.
           </p>
           <div className={styles.signature}>
             <span>Perceptual matching</span>
@@ -83,21 +376,175 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <span>YOUR COLOR</span>
             <strong>{selectedHex}</strong>
           </div>
-          <label className={styles.colorStage} style={{ "--selected-color": selectedHex } as CSSProperties}>
-            <span className={styles.colorHalo} aria-hidden="true" />
-            <span className={styles.colorDisc} aria-hidden="true" />
-            <span className={styles.pickHint}>Tap to choose a color</span>
-            <input
-              aria-label="Διάλεξε χρώμα"
-              type="color"
-              value={selectedHex}
-              onChange={(event) => {
-                const value = event.target.value.toUpperCase();
-                setSelectedHex(value);
-                setHexDraft(value);
-              }}
-            />
-          </label>
+
+          <div className={styles.modeSwitch} aria-label="Τρόπος επιλογής χρώματος">
+            <button
+              type="button"
+              className={selectorMode === "picker" ? styles.activeMode : undefined}
+              aria-pressed={selectorMode === "picker"}
+              onClick={() => setSelectorMode("picker")}
+            >
+              COLOR
+            </button>
+            <button
+              type="button"
+              className={selectorMode === "photo" ? styles.activeMode : undefined}
+              aria-pressed={selectorMode === "photo"}
+              onClick={() => setSelectorMode("photo")}
+            >
+              PHOTO
+            </button>
+          </div>
+
+          {selectorMode === "picker" ? (
+            <label className={styles.colorStage} style={{ "--selected-color": selectedHex } as CSSProperties}>
+              <span className={styles.colorHalo} aria-hidden="true" />
+              <span className={styles.colorDisc} aria-hidden="true" />
+              <span className={styles.pickHint}>Tap to choose a color</span>
+              <input
+                aria-label="Διάλεξε χρώμα"
+                type="color"
+                value={selectedHex}
+                onChange={(event) => {
+                  const value = event.target.value.toUpperCase();
+                  setSelectedHex(value);
+                  setHexDraft(value);
+                }}
+              />
+            </label>
+          ) : photoUrl ? (
+            <div className={styles.photoEditor}>
+              <div
+                className={styles.photoCanvasWrap}
+                tabIndex={0}
+                aria-label="Μετακίνησε το πλαίσιο πάνω στο χρώμα που θέλεις. Μπορείς επίσης να χρησιμοποιήσεις τα βελάκια."
+                onPointerDown={handleCropPointerDown}
+                onPointerMove={handleCropPointerMove}
+                onPointerUp={handleCropPointerEnd}
+                onPointerCancel={handleCropPointerEnd}
+                onKeyDown={handleCropKeyDown}
+              >
+                <canvas ref={canvasRef} width={PHOTO_CANVAS_WIDTH} height={PHOTO_CANVAS_HEIGHT} />
+                {photoReady && cropStyle ? (
+                  <div className={styles.photoCropBox} style={cropStyle} aria-hidden="true">
+                    <i className={styles.cropCorner} />
+                    <i className={styles.cropCorner} />
+                    <i className={styles.cropCorner} />
+                    <i className={styles.cropCorner} />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className={styles.photoEditorMeta}>
+                <span>DRAG THE FRAME OVER THE COLOR</span>
+                <strong>AUTO-CLEAR {formatCountdown(photoSecondsLeft)}</strong>
+              </div>
+
+              <div className={styles.photoControls}>
+                <label className={styles.cropSizeControl}>
+                  <span>Μέγεθος επιλογής</span>
+                  <input
+                    aria-label="Μέγεθος περιοχής επιλογής"
+                    type="range"
+                    min={MIN_CROP_RATIO * 100}
+                    max={MAX_CROP_RATIO * 100}
+                    step="1"
+                    value={cropPercent}
+                    disabled={!photoReady}
+                    onChange={(event) => resizeCrop(Number(event.target.value))}
+                  />
+                  <strong>{cropPercent}%</strong>
+                </label>
+
+                {photoSampleHex ? (
+                  <div className={styles.detectedColor}>
+                    <span style={{ backgroundColor: photoSampleHex }} />
+                    <div>
+                      <small>DETECTED FROM PHOTO</small>
+                      <strong>{photoSampleHex}</strong>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className={styles.photoToolbar}>
+                  <button
+                    type="button"
+                    className={styles.photoAction}
+                    disabled={!photoReady}
+                    onClick={useSelectedPhotoColor}
+                  >
+                    USE THIS COLOR
+                  </button>
+                  <label className={styles.photoGhostAction}>
+                    NEW PHOTO
+                    <input
+                      className={styles.photoFileInput}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoFile}
+                    />
+                  </label>
+                </div>
+
+                <div className={styles.photoToolbarSecondary}>
+                  <label className={styles.photoGhostAction}>
+                    CAMERA
+                    <input
+                      className={styles.photoFileInput}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handlePhotoFile}
+                    />
+                  </label>
+                  <button type="button" className={styles.photoDeleteAction} onClick={clearPhoto}>
+                    DELETE NOW
+                  </button>
+                </div>
+
+                {photoError ? <p className={styles.photoError}>{photoError}</p> : null}
+                <p className={styles.privacyNote}>
+                  Η φωτογραφία δεν ανεβαίνει στο ΚΟΝΤΑ ΜΟΥ και δεν αποθηκεύεται σε λογαριασμό, βάση δεδομένων ή analytics. Μένει μόνο προσωρινά στον browser και διαγράφεται αυτόματα σε έως 15 λεπτά.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.photoEmpty}>
+              <span className={styles.photoKicker}>PHOTO TO COLOR · PRIVATE</span>
+              <h3>Capture the shade around you.</h3>
+              <p>
+                Τράβηξε ή ανέβασε μια φωτογραφία, μετακίνησε το πλαίσιο πάνω στο χρώμα που θέλεις και άφησε τον Color Finder να το μετατρέψει σε χρωματικό στόχο.
+              </p>
+
+              <div className={styles.photoActions}>
+                <label className={styles.photoAction}>
+                  TAKE A PHOTO
+                  <input
+                    className={styles.photoFileInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoFile}
+                  />
+                </label>
+                <label className={styles.photoGhostAction}>
+                  UPLOAD PHOTO
+                  <input
+                    className={styles.photoFileInput}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoFile}
+                  />
+                </label>
+              </div>
+
+              {photoError ? <p className={styles.photoError}>{photoError}</p> : null}
+              <p className={styles.privacyNote}>
+                Privacy by design: καμία φωτογραφία δεν φεύγει από τη συσκευή. Δεν γίνεται μόνιμη αποθήκευση και το προσωρινό τοπικό αντικείμενο λήγει σε 15 λεπτά ή νωρίτερα αν πατήσεις διαγραφή.
+              </p>
+            </div>
+          )}
+
           <div className={styles.hexField}>
             <label htmlFor="color-finder-hex">HEX</label>
             <input
@@ -232,4 +679,76 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       </section>
     </div>
   );
+}
+
+function representativeHex(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): string | undefined {
+  const sampleTarget = 12_000;
+  const stride = Math.max(1, Math.floor(Math.sqrt((width * height) / sampleTarget)));
+  const samples: Array<readonly [number, number, number]> = [];
+
+  for (let y = 0; y < height; y += stride) {
+    for (let x = 0; x < width; x += stride) {
+      const index = (y * width + x) * 4;
+      if (data[index + 3] < 200) continue;
+      samples.push([data[index], data[index + 1], data[index + 2]]);
+    }
+  }
+
+  if (!samples.length) return undefined;
+
+  const red = samples.map((sample) => sample[0]).sort((a, b) => a - b);
+  const green = samples.map((sample) => sample[1]).sort((a, b) => a - b);
+  const blue = samples.map((sample) => sample[2]).sort((a, b) => a - b);
+  const medianIndex = Math.floor(samples.length / 2);
+  const median = [red[medianIndex], green[medianIndex], blue[medianIndex]] as const;
+
+  let totalRed = 0;
+  let totalGreen = 0;
+  let totalBlue = 0;
+  let accepted = 0;
+  const maxDistanceSquared = 95 * 95;
+
+  for (const [r, g, b] of samples) {
+    const distanceSquared =
+      (r - median[0]) ** 2 +
+      (g - median[1]) ** 2 +
+      (b - median[2]) ** 2;
+    if (distanceSquared > maxDistanceSquared) continue;
+    totalRed += r;
+    totalGreen += g;
+    totalBlue += b;
+    accepted += 1;
+  }
+
+  if (accepted < Math.min(20, Math.ceil(samples.length * 0.04))) {
+    return rgbToHex(median[0], median[1], median[2]);
+  }
+
+  return rgbToHex(
+    Math.round(totalRed / accepted),
+    Math.round(totalGreen / accepted),
+    Math.round(totalBlue / accepted)
+  );
+}
+
+function rgbToHex(red: number, green: number, blue: number): string {
+  return `#${[red, green, blue]
+    .map((channel) => clamp(Math.round(channel), 0, 255).toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase()}`;
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
