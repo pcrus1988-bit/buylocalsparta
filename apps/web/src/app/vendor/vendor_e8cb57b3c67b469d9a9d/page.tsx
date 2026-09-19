@@ -120,7 +120,8 @@ export default async function SpBusinessLabStorefront() {
               </div>
 
               <div className={styles.actions}>
-                <a className="button" href="#products">Δες τη συλλογή</a>
+                <a className="button" href={`/fitting-room?vendor=${encodeURIComponent(VENDOR_ID)}`}>Μπες στο Fitting Room</a>
+                <a className="button button-secondary" href="#products">Δες τη συλλογή</a>
                 <a className="button button-secondary" href="#ask-local">Ρώτησε το κατάστημα</a>
               </div>
             </div>
