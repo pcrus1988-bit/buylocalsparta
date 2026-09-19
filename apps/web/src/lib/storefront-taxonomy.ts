@@ -43,7 +43,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     description: "Αντικείμενα που κάνουν το σπίτι πιο λειτουργικό, πιο όμορφο και πιο προσωπικό — με συμβουλή από ανθρώπους της τοπικής αγοράς.",
     searchHint: "φωτισμός, διακόσμηση, κουζίνα, λευκά είδη",
     artClass: "art-home",
-    aliases: ["home", "home-living", "home-lighting", "lighting", "furniture", "decor", "decoration", "housewares", "kitchen", "drinkware", "bottle", "thermos", "food-storage"],
+    aliases: ["home", "home-living", "home-lighting", "lighting", "furniture", "decor", "decoration", "housewares", "kitchen", "drinkware", "bottle", "thermos", "food-storage", "candles-home-fragrance", "tableware-glassware"],
     queryAliases: ["lamp", "lamps", "lighting", "φωτιστικό", "φωτιστικά", "φωτισμός", "fotistiko", "fotistika", "fwtistiko", "fwtistika", "decor", "decoration", "διακόσμηση", "diakosmisi", "furniture", "έπιπλα", "epipla", "kitchen", "κουζίνα", "kouzina", "housewares", "thermos"]
   },
   {
@@ -56,7 +56,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     description: "Τοπική επιλογή μόδας χωρίς απρόσωπη σύγκριση καταστημάτων. Βρες το προϊόν και, όταν χρειάζεται, μίλα με άνθρωπο που γνωρίζει εφαρμογή και στυλ.",
     searchHint: "ρούχα, παπούτσια, τσάντες, κοσμήματα",
     artClass: "art-fashion",
-    aliases: ["fashion", "clothing", "apparel", "shoes", "footwear", "accessories", "jewellery", "jewelry", "bridal"],
+    aliases: ["fashion", "fashion-personal-accessories", "clothing", "apparel", "shoes", "footwear", "accessories", "jewellery", "jewelry", "bridal", "sunglasses", "handbags", "mens-bags", "unisex-bags", "luggage-travel-bags"],
     queryAliases: ["fashion", "μόδα", "clothing", "clothes", "ρούχα", "rouxa", "shoe", "shoes", "παπούτσι", "παπούτσια", "papoutsi", "papoutsia", "sneaker", "sneakers", "dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata", "bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "school bag", "school bags", "school backpack", "school backpacks", "σχολική τσάντα", "σχολικές τσάντες", "sxoliki tsanta", "sxolikes tsantes", "scholiki tsanta", "scholikes tsantes", "jewelry", "jewellery", "κοσμήματα", "kosmimata"]
   },
   {
@@ -69,8 +69,8 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     description: "Προϊόντα προσωπικής φροντίδας με έμφαση στην ανθρώπινη καθοδήγηση και στη σωστή επιλογή, όχι μόνο στην τιμή.",
     searchHint: "καλλυντικά, περιποίηση, μαλλιά, άρωμα",
     artClass: "art-beauty",
-    aliases: ["beauty", "cosmetics", "personal-care", "hair", "fragrance", "wellness"],
-    queryAliases: ["beauty", "ομορφιά", "cosmetic", "cosmetics", "καλλυντικά", "kallyntika", "kallintika", "skincare", "περιποίηση", "peripoiisi", "haircare", "μαλλιά", "mallia", "shampoo", "fragrance", "perfume", "άρωμα", "aroma"]
+    aliases: ["beauty", "beauty-health-retail", "cosmetics", "cosmetics-perfumery", "personal-care", "makeup", "skincare", "haircare", "hair", "fragrance", "wellness", "face-makeup", "eye-makeup", "lip-makeup", "nail-care-colour", "bath-body-care", "grooming-care", "beauty-tools-accessories", "sun-care", "serums-treatments", "face-moisturisers", "facial-cleansers", "shampoo-conditioner", "hair-styling-products", "hair-treatments"],
+    queryAliases: ["beauty", "ομορφιά", "cosmetic", "cosmetics", "καλλυντικά", "kallyntika", "kallintika", "makeup", "μακιγιάζ", "makigiaz", "mascara", "μάσκαρα", "lipstick", "κραγιόν", "foundation", "skincare", "περιποίηση", "peripoiisi", "haircare", "μαλλιά", "mallia", "shampoo", "fragrance", "perfume", "άρωμα", "aroma"]
   },
   {
     slug: "kids",
@@ -82,7 +82,7 @@ export const STOREFRONT_CATEGORIES: readonly StorefrontCategory[] = [
     description: "Παιχνίδια, δημιουργικές ιδέες και δώρα για παιδιά, με τη δυνατότητα να ζητήσεις πραγματική πρόταση από τοπικό κατάστημα.",
     searchHint: "παιχνίδια, παιδικά, hobby, δημιουργικά δώρα",
     artClass: "art-kids",
-    aliases: ["kids", "kid", "children", "toys", "toy", "baby", "hobbies", "games"],
+    aliases: ["kids", "kid", "children", "toys", "toy", "baby", "hobbies", "games", "construction-toys"],
     queryAliases: ["kid", "kids", "child", "children", "παιδί", "παιδιά", "paidi", "paidia", "toy", "toys", "παιχνίδι", "παιχνίδια", "paixnidi", "paixnidia", "baby", "βρέφος", "vrefos", "game", "games", "hobby"]
   },
   {
@@ -160,9 +160,10 @@ export const STOREFRONT_LEAF_INTENTS: readonly StorefrontLeafIntent[] = [
   { key: "school-bags", categorySlug: "fashion", label: "Σχολικές τσάντες", aliases: ["school bag", "school bags", "school backpack", "school backpacks", "σχολική τσάντα", "σχολικές τσάντες", "sxoliki tsanta", "sxolikes tsantes", "scholiki tsanta", "scholikes tsantes"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["τύπος τσάντας", "ηλικιακή ομάδα", "φύλο", "υλικό", "χωρητικότητα", "διαστάσεις"] },
   { key: "bags", categorySlug: "fashion", label: "Τσάντες", aliases: ["bag", "bags", "τσάντα", "τσάντες", "tsanta", "tsantes", "backpack", "sakidio"], preferredFacets: ["subcategory", "brand", "color", "size"], attributeHints: ["τύπος", "υλικό", "χωρητικότητα", "διαστάσεις"] },
   { key: "dresses", categorySlug: "fashion", label: "Φορέματα", aliases: ["dress", "dresses", "φόρεμα", "φορέματα", "forema", "foremata"], preferredFacets: ["subcategory", "size", "brand", "color", "fit"], attributeHints: ["μέγεθος", "εφαρμογή", "σύνθεση"] },
-  { key: "skincare", categorySlug: "beauty", label: "Περιποίηση προσώπου", aliases: ["skincare", "skin care", "περιποίηση", "peripoiisi"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος δέρματος", "δραστικά συστατικά", "όγκος"] },
-  { key: "haircare", categorySlug: "beauty", label: "Περιποίηση μαλλιών", aliases: ["haircare", "hair care", "shampoo", "μαλλιά", "mallia"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος μαλλιών", "δράση", "όγκος"] },
-  { key: "fragrance", categorySlug: "beauty", label: "Αρώματα", aliases: ["fragrance", "perfume", "άρωμα", "αρώματα", "aroma", "aromata"], preferredFacets: ["subcategory", "brand"], attributeHints: ["συγκέντρωση", "όγκος", "οικογένεια αρώματος"] },
+  { key: "skincare", categorySlug: "beauty", label: "Περιποίηση προσώπου", aliases: ["skincare", "skin care", "περιποίηση", "peripoiisi", "face-moisturisers", "facial-cleansers", "serums-treatments", "sun-care"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος δέρματος", "δραστικά συστατικά", "όγκος", "φύλο"] },
+  { key: "haircare", categorySlug: "beauty", label: "Περιποίηση μαλλιών", aliases: ["haircare", "hair care", "shampoo", "μαλλιά", "mallia", "shampoo-conditioner", "hair-treatments", "hair-styling-products", "hair-accessories"], preferredFacets: ["subcategory", "brand"], attributeHints: ["τύπος μαλλιών", "δράση", "όγκος", "φύλο"] },
+  { key: "fragrance", categorySlug: "beauty", label: "Αρώματα", aliases: ["fragrance", "perfume", "άρωμα", "αρώματα", "aroma", "aromata"], preferredFacets: ["subcategory", "brand"], attributeHints: ["συγκέντρωση", "όγκος", "οικογένεια αρώματος", "φύλο"] },
+  { key: "makeup", categorySlug: "beauty", label: "Μακιγιάζ", aliases: ["makeup", "μακιγιάζ", "makigiaz", "face-makeup", "eye-makeup", "lip-makeup", "nail-care-colour", "mascara", "μάσκαρα", "lipstick", "κραγιόν", "foundation"], preferredFacets: ["subcategory", "brand", "color"], attributeHints: ["είδος μακιγιάζ", "χρώμα", "φύλο"] },
   { key: "toys", categorySlug: "kids", label: "Παιχνίδια", aliases: ["toy", "toys", "παιχνίδι", "παιχνίδια", "paixnidi", "paixnidia", "game", "games"], preferredFacets: ["subcategory", "brand"], attributeHints: ["ηλικία", "τύπος παιχνιδιού", "αριθμός παικτών"] },
   { key: "baby", categorySlug: "kids", label: "Βρεφικά", aliases: ["baby", "infant", "βρέφος", "βρεφικά", "vrefos", "vrefika"], preferredFacets: ["subcategory", "brand", "size"], attributeHints: ["ηλικία", "μέγεθος", "υλικό"] },
   { key: "drills", categorySlug: "tools-diy", label: "Δράπανα", aliases: ["drill", "drills", "δράπανο", "δράπανα", "drapano", "drapana"], preferredFacets: ["subcategory", "brand"], attributeHints: ["ισχύς", "τάση", "τύπος τσοκ", "κρούση", "στροφές"] },
@@ -266,6 +267,22 @@ export function resolveStorefrontSubcategoryIntent(
 
 export function storefrontFacetEnabled(leaf: StorefrontLeafIntent | undefined, facet: StorefrontFacetKey): boolean {
   return !leaf || leaf.preferredFacets.includes(facet);
+}
+
+export function storefrontLeafForSubcategory(
+  categorySlug: string,
+  subcategoryCode: string,
+  subcategoryLabel = ""
+): StorefrontLeafIntent | undefined {
+  const category = normalize(categorySlug);
+  const value = `${subcategoryCode} ${subcategoryLabel}`.trim();
+  if (!category || !value) return undefined;
+  return uniqueBestByAliases(
+    value,
+    STOREFRONT_LEAF_INTENTS
+      .filter((leaf) => leaf.categorySlug === category)
+      .map((leaf) => ({ value: leaf, aliases: leaf.aliases }))
+  )?.value;
 }
 
 export function categoryCodeMatches(
