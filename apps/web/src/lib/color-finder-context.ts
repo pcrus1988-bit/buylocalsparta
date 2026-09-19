@@ -3,6 +3,7 @@ export type ColorFinderContextKey =
   | "lips"
   | "eyes"
   | "makeup"
+  | "hair"
   | "footwear"
   | "bags"
   | "fashion"
@@ -124,6 +125,23 @@ export function resolveColorFinderContext(
       shortcutTitle: "Ανακάλυψε μακιγιάζ από την απόχρωση.",
       shortcutBody: "Το Makeup Studio προσαρμόζεται στην κατηγορία που βλέπεις και κρατά μόνο χρωματικά σχετικά προϊόντα.",
       showFinishFilter: true, showTypeFilter: false
+    };
+  }
+
+  if (/hair[- ]?(?:color|colour|dye)|haircolor|haircolour|βαφ.*μαλλ|μαλλ.*βαφ/.test(signal)) {
+    return {
+      key: "hair", categoryCode, categoryLabel,
+      studioLabel: "HAIR COLOR STUDIO", editionLabel: "HAIR COLOR EDITION",
+      heroLead: "Find the hair color", heroEmphasis: "before you commit.",
+      heroBody: "Ξεκίνα από μια απόχρωση και σύγκρινέ την μόνο με διαθέσιμες βαφές, toners και χρωματικά προϊόντα μαλλιών της κατηγορίας.",
+      photoKicker: "PHOTO TO HAIR COLOR · PRIVATE", photoTitle: "Capture the hair color you want.",
+      photoBody: "Πάρε μια απόχρωση από φωτογραφία ή πραγματικό δείγμα και χρησιμοποίησέ την ως χρωματική αναφορά πριν δεις τα διαθέσιμα προϊόντα.",
+      resultsEyebrow: "HAIR COLOR MATCHING", resultsTitle: "Your closest hair-color matches",
+      resultsBody: "Χρωματικά προϊόντα μαλλιών ταξινομημένα με βάση τη χρωματική εγγύτητα προς την επιλογή σου.",
+      productPlural: "χρωματικά προϊόντα μαλλιών", shopLabel: "HAIR COLOR",
+      shortcutTitle: "Βρες προϊόντα μαλλιών από την απόχρωση.",
+      shortcutBody: "Το Hair Color Studio ψάχνει μόνο στην τρέχουσα χρωματική κατηγορία και συγκρίνει τις διαθέσιμες αποχρώσεις.",
+      showFinishFilter: false, showTypeFilter: false
     };
   }
 
