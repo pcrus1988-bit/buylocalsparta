@@ -294,6 +294,87 @@ async function loadHubProducts(
   return uniqueProducts(products);
 }
 
+type BrandOption = Readonly<{ value: string; label: string; count: number }>;
+
+const loadAvailableBrandOptions = unstable_cache(
+  async (
+    marketId: string,
+    vendorId: string | undefined,
+    categories: readonly string[]
+  ): Promise<readonly BrandOption[]> => {
+    const result = await getProductionPostgresRuntime().nativePool.query<{
+      brand_name: string;
+      product_count: number | string;
+    }>(`
+      SELECT
+        COALESCE(NULLIF(BTRIM(b.name),''),NULLIF(BTRIM(pfb.name),'')) AS brand_name,
+        COUNT(DISTINCT cv.id)::int AS product_count
+      FROM vendor_offers vo
+      JOIN vendor_businesses v ON v.id=vo.vendor_id
+      JOIN vendor_locations l ON l.id=vo.location_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      LEFT JOIN product_families pf ON pf.id=cv.family_id
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
+      WHERE l.market_id=$1::uuid
+        AND ($2::text IS NULL OR v.public_id=$2)
+        AND c.code=ANY($3::text[])
+        AND v.status='active'
+        AND l.active=true
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND COALESCE(NULLIF(BTRIM(b.name),''),NULLIF(BTRIM(pfb.name),'')) IS NOT NULL
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM dropship_supplier_offers dso
+            JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+            WHERE dso.vendor_offer_id=vo.id
+              AND dso.active=true
+              AND ds.active=true
+              AND ds.api_authoritative_availability=true
+              AND dso.cached_available=true
+              AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+              AND dso.availability_expires_at IS NOT NULL
+              AND dso.availability_expires_at>now()
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM inventory_balances ib
+            WHERE ib.offer_id=vo.id
+              AND GREATEST(
+                0,
+                COALESCE(ib.on_hand,0)
+                  - COALESCE(ib.active_reservations,0)
+                  - COALESCE(ib.safety_stock,0)
+                  - COALESCE(ib.blocked,0)
+              )>=1
+              AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds)>now()
+          )
+        )
+      GROUP BY COALESCE(NULLIF(BTRIM(b.name),''),NULLIF(BTRIM(pfb.name),''))
+      ORDER BY product_count DESC,brand_name ASC
+      LIMIT 80
+    `, [marketId, vendorId ?? null, [...categories]]);
+
+    return result.rows.map((row) => ({
+      value: row.brand_name,
+      label: row.brand_name,
+      count: Math.max(0, Number(row.product_count) || 0)
+    }));
+  },
+  ["fitting-room-brand-options-v1"],
+  { revalidate: 300 }
+);
+
 async function loadVendorProducts(vendorId: string, audience: Audience): Promise<readonly StyleProduct[]> {
   const products: (StyleProduct | undefined)[] = [];
 
@@ -330,6 +411,22 @@ export async function POST(request: Request) {
     const brands = safeBrands(body.brands);
     const budgetMinor = safeBudgetMinor(body.budgetMinor);
     const hub = await loadHubScope(hubSlug);
+
+    if (body.mode === "brands") {
+      const categories = [...new Set(groupsFor(audience).flatMap((group) => [...group.subcategories]))];
+      const brandOptions = await loadAvailableBrandOptions(hub.marketId, vendorId, categories);
+      return Response.json(
+        {
+          scope: vendorId ? "vendor" : "hub",
+          vendorId,
+          hubSlug: hub.hubSlug,
+          hubName: hub.hubName,
+          audience,
+          brands: brandOptions
+        },
+        { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=240" } }
+      );
+    }
 
     const products = [...(vendorId
       ? await loadVendorProducts(vendorId, audience)
