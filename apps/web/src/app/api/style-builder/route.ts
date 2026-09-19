@@ -57,7 +57,7 @@ function normalizeAudienceText(value: string | undefined): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("el-GR")
-    .replace(/[_-]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -70,6 +70,14 @@ function audienceCompatible(product: BuilderProduct, audience: "women" | "men"):
   if (audience === "women" && men && !women) return false;
   if (audience === "men" && ["lip-makeup","face-makeup","eye-makeup","nail-care-colour"].includes(product.categoryCode)) return false;
   if (audience === "women" && product.categoryCode === "grooming-care") return false;
+
+  if (product.categoryCode === "fragrance") {
+    const feminine = /pour femme|for women|women s|donna|femme|lady|ladies/.test(text);
+    const masculine = /pour homme|for men|men s|uomo|homme|male|after shave|aftershave/.test(text);
+    if (audience === "women" && masculine && !feminine) return false;
+    if (audience === "men" && feminine && !masculine) return false;
+  }
+
   return true;
 }
 
