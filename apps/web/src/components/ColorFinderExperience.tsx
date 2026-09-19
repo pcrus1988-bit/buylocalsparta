@@ -71,6 +71,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [hexDraft, setHexDraft] = useState("#B52E2E");
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
+  const [brand, setBrand] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("match");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
   const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv("#B52E2E"));
@@ -107,7 +108,11 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
         const deltaE = deltaE2000(targetLab, lab);
         return { ...product, deltaE, match: colorMatchPercent(deltaE) };
       })
-      .sort((left, right) => left.deltaE - right.deltaE || left.priceMinor - right.priceMinor);
+      .sort((left, right) =>
+        left.deltaE - right.deltaE
+        || (right.profileConfidence ?? 0) - (left.profileConfidence ?? 0)
+        || left.priceMinor - right.priceMinor
+      );
   }, [indexedProducts, selectedHex]);
 
   const eligibleProducts = useMemo(
@@ -122,24 +127,38 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     const counts = new Map<ColorProductType, number>();
     for (const product of eligibleProducts) {
       if (finish !== "all" && product.finish !== finish) continue;
+      if (brand !== "all" && product.brand !== brand) continue;
       counts.set(product.productType, (counts.get(product.productType) ?? 0) + 1);
     }
     return counts;
-  }, [eligibleProducts, finish]);
+  }, [brand, eligibleProducts, finish]);
 
   const finishCounts = useMemo(() => {
     const counts = new Map<ColorFinish, number>();
     for (const product of eligibleProducts) {
       if (productType !== "all" && product.productType !== productType) continue;
+      if (brand !== "all" && product.brand !== brand) continue;
       counts.set(product.finish, (counts.get(product.finish) ?? 0) + 1);
     }
     return counts;
-  }, [eligibleProducts, productType]);
+  }, [brand, eligibleProducts, productType]);
+
+  const brandCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of eligibleProducts) {
+      if (!product.brand) continue;
+      if (finish !== "all" && product.finish !== finish) continue;
+      if (productType !== "all" && product.productType !== productType) continue;
+      counts.set(product.brand, (counts.get(product.brand) ?? 0) + 1);
+    }
+    return counts;
+  }, [eligibleProducts, finish, productType]);
 
   const matches = useMemo(() => {
     const filtered = eligibleProducts
       .filter((product) => finish === "all" || product.finish === finish)
-      .filter((product) => productType === "all" || product.productType === productType);
+      .filter((product) => productType === "all" || product.productType === productType)
+      .filter((product) => brand === "all" || product.brand === brand);
 
     if (sortMode === "price-asc") {
       return filtered.sort((left, right) => left.priceMinor - right.priceMinor || left.deltaE - right.deltaE);
@@ -147,8 +166,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     if (sortMode === "price-desc") {
       return filtered.sort((left, right) => right.priceMinor - left.priceMinor || left.deltaE - right.deltaE);
     }
-    return filtered.sort((left, right) => left.deltaE - right.deltaE || left.priceMinor - right.priceMinor);
-  }, [eligibleProducts, finish, productType, sortMode]);
+    return filtered.sort((left, right) =>
+      left.deltaE - right.deltaE
+      || (right.profileConfidence ?? 0) - (left.profileConfidence ?? 0)
+      || left.priceMinor - right.priceMinor
+    );
+  }, [brand, eligibleProducts, finish, productType, sortMode]);
 
   const visibleMatches = matches.slice(0, visibleLimit);
   const catalogueAvailable = catalogueState === "ready" && catalogProducts.length > 0;
@@ -161,6 +184,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     () => (Object.keys(TYPE_LABELS) as ColorProductType[])
       .filter((type) => (typeCounts.get(type) ?? 0) > 0 || productType === type),
     [productType, typeCounts]
+  );
+  const availableBrands = useMemo(
+    () => [...brandCounts.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "el"))
+      .map(([name]) => name),
+    [brandCounts]
   );
   const selectedShade = useMemo(() => nearestColorName(selectedHex), [selectedHex]);
   const fineTuneColors = useMemo(() => {
@@ -218,6 +247,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     const color = normalizeHex(params.get("color") ?? "");
     const finishParam = params.get("finish");
     const typeParam = params.get("type");
+    const brandParam = params.get("brand");
     const sortParam = params.get("sort");
 
     if (color) {
@@ -226,6 +256,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     }
     if (finishParam && finishParam in FINISH_LABELS) setFinish(finishParam as ColorFinish);
     if (typeParam && typeParam in TYPE_LABELS) setProductType(typeParam as ColorProductType);
+    if (brandParam?.trim()) setBrand(brandParam.trim());
     if (sortParam === "price-asc" || sortParam === "price-desc") setSortMode(sortParam);
     setUrlReady(true);
   }, []);
@@ -238,10 +269,12 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     else url.searchParams.set("finish", finish);
     if (productType === "all") url.searchParams.delete("type");
     else url.searchParams.set("type", productType);
+    if (brand === "all") url.searchParams.delete("brand");
+    else url.searchParams.set("brand", brand);
     if (sortMode === "match") url.searchParams.delete("sort");
     else url.searchParams.set("sort", sortMode);
     window.history.replaceState(window.history.state, "", url);
-  }, [finish, productType, selectedHex, sortMode, urlReady]);
+  }, [brand, finish, productType, selectedHex, sortMode, urlReady]);
 
   useEffect(() => {
     setPickerHsv(hexToHsv(selectedHex));
@@ -249,7 +282,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
 
   useEffect(() => {
     setVisibleLimit(24);
-  }, [finish, productType, selectedHex, sortMode]);
+  }, [brand, finish, productType, selectedHex, sortMode]);
 
   useEffect(() => {
     if (!photoUrl) return undefined;
@@ -678,6 +711,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       setHexDraft(detectedHex);
       setPhotoSampleHex(detectedHex);
       setPhotoError(undefined);
+      window.requestAnimationFrame(scrollToMatches);
     } catch {
       setPhotoError("Δεν μπορέσαμε να αναλύσουμε το επιλεγμένο σημείο.");
     }
@@ -910,7 +944,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                     disabled={photoPickMode === "spot" ? !photoSampleHex : !photoReady}
                     onClick={photoPickMode === "spot" ? scrollToMatches : useSelectedPhotoColor}
                   >
-                    {photoPickMode === "spot" ? "SHOW MATCHES" : "USE THIS COLOR"}
+                    {photoPickMode === "spot" ? "SHOW MATCHES" : "USE COLOR & SHOW MATCHES"}
                   </button>
                   <label className={styles.photoGhostAction}>
                     NEW PHOTO
@@ -1061,6 +1095,25 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             </div>
           </div>
           <div className={styles.filterGroup}>
+            <span>BRAND</span>
+            <select
+              className={styles.filterSelect}
+              aria-label="Brand"
+              value={brand}
+              onChange={(event) => setBrand(event.target.value)}
+            >
+              <option value="all">
+                All brands ({eligibleProducts.filter((product) =>
+                  (finish === "all" || product.finish === finish)
+                  && (productType === "all" || product.productType === productType)
+                ).length})
+              </option>
+              {availableBrands.map((name) => (
+                <option value={name} key={name}>{name} ({brandCounts.get(name) ?? 0})</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.filterGroup}>
             <span>SORT</span>
             <div>
               <button type="button" className={sortMode === "match" ? styles.activeFilter : undefined} onClick={() => setSortMode("match")}>Best match</button>
@@ -1156,13 +1209,14 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
               >
                 RETRY MATCHES
               </button>
-            ) : finish !== "all" || productType !== "all" ? (
+            ) : finish !== "all" || productType !== "all" || brand !== "all" ? (
               <button
                 type="button"
                 className={styles.emptyReset}
                 onClick={() => {
                   setFinish("all");
                   setProductType("all");
+                  setBrand("all");
                 }}
               >
                 RESET FILTERS
