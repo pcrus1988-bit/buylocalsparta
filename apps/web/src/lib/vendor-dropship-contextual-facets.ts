@@ -15,10 +15,10 @@ export type VendorDropshipFacetContext = Readonly<{
 type FacetType = "total" | "category" | "brand" | "color" | "size" | "fit" | "material";
 
 // Live supplier overlay used when the hourly materialized storefront projection is
-// stale or empty. Keep it bounded so a supplier spike cannot reintroduce the old
-// large-catalogue timeout path; the stable projection still carries the full set
-// whenever it is healthy.
-const LIVE_SYMPHONYA_FAMILY_CAP = 2_000;
+// stale or empty. It covers every authoritative dropship supplier so a failed
+// projection refresh cannot silently remove Nova/BrandsGateway (or future suppliers)
+// while leaving only the supplier-specific fallback visible.
+const LIVE_FALLBACK_FAMILY_CAP = 50_000;
 
 type FacetProjectionRow = Readonly<{
   facet_type: FacetType;
@@ -183,7 +183,7 @@ export async function getContextualVendorDropshipFacets(
               AND bls_private.vendor_category_effectively_visible(live_vo.vendor_id,live_cv.category_id)
           )
         )
-    ), hot_symphonya AS MATERIALIZED (
+    ), live_fallback AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS dropship_supplier_id,
         dso.external_product_id AS dropship_external_product_id,
@@ -224,7 +224,6 @@ export async function getContextualVendorDropshipFacets(
       FROM dropship_supplier_offers dso
       JOIN suppliers supplier
         ON supplier.id=dso.supplier_id
-       AND supplier.code='symphonya'
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN categories c ON c.id=cv.category_id
@@ -287,7 +286,7 @@ export async function getContextualVendorDropshipFacets(
       SELECT
         fm.dropship_supplier_id,fm.dropship_external_product_id,
         fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
-      FROM hot_symphonya fm
+      FROM live_fallback fm
       WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
     ), label_map AS MATERIALIZED (
       SELECT DISTINCT facets.facet_type,facets.value,facets.label
@@ -402,7 +401,7 @@ export async function getContextualVendorDropshipFacets(
     FROM projected
     WHERE facet_type='total' OR count>0
     ORDER BY facet_type,label,value
-  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, LIVE_SYMPHONYA_FAMILY_CAP]);
+  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, LIVE_FALLBACK_FAMILY_CAP]);
 
   let total = 0;
   const categoriesOut: VendorDropshipFacetOption[] = [];
