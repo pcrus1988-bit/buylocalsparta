@@ -57,6 +57,7 @@ const MEN_CATEGORIES = [
   "fashion-mens-trousers-jeans",
   "fashion-mens-shorts",
   "fashion-mens-jackets-coats",
+  "fashion-mens-suits-formal",
   "mens-sneakers",
   "mens-formal-shoes",
   "mens-boots",
@@ -323,7 +324,7 @@ const loadCandidateRows = unstable_cache(
     `, [vendorId, [...categories]]);
     return result.rows;
   },
-  ["fitting-room-candidate-pool-v5-gender-aware"],
+  ["fitting-room-candidate-pool-v6-occasion-aware"],
   { revalidate: 300 }
 );
 
