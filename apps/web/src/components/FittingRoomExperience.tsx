@@ -203,21 +203,33 @@ function productText(product: Product): string {
   ].filter(Boolean).join(" "));
 }
 
-function slotFromText(text: string): SlotKey | null {
-  // Do not let "swimsuit" accidentally match the generic "suit" token. The current
-  // Style Builder has no beach/swim occasion, so these products are not valid outfit
-  // candidates here even when a supplier taxonomy placed them inside a broad fashion category.
+const MAIN_CATEGORY_CODES = new Set([
+  "fashion-womens-tops","fashion-womens-shirts","fashion-womens-knitwear","fashion-womens-dresses","fashion-womens-jumpsuits",
+  "fashion-mens-tshirts-tops","fashion-mens-shirts","fashion-mens-knitwear","fashion-mens-suits-formal"
+]);
+const BOTTOM_CATEGORY_CODES = new Set([
+  "fashion-womens-trousers-jeans","fashion-womens-skirts","fashion-womens-shorts",
+  "fashion-mens-trousers-jeans","fashion-mens-shorts"
+]);
+const LAYER_CATEGORY_CODES = new Set(["fashion-womens-jackets-coats","fashion-mens-jackets-coats"]);
+const SHOE_CATEGORY_CODES = new Set(["womens-sneakers","womens-formal-shoes","womens-boots","womens-sandals","mens-sneakers","mens-formal-shoes","mens-boots","mens-sandals"]);
+const BAG_CATEGORY_CODES = new Set(["handbags","mens-bags","backpacks"]);
+const ACCESSORY_CATEGORY_CODES = new Set(["sunglasses","belts","scarves-hats-gloves","necklaces","earrings","bracelets","rings","wallets-cardholders","ties-formal-accessories"]);
+
+function explicitFashionSlot(product: Product): SlotKey | null {
+  const text = normalize(product.title);
   if (/swimsuit|swimwear|bikini|tankini|monokini|bathing suit|beachwear|boardshort|swim short|costume da bagno|μαγι|μπικιν/.test(text)) return null;
-  if (/lipstick|lip colour|lip color|lip makeup|κραγιον/.test(text)) return "lipstick";
-  if (/nail|polish|lacquer|βερνικ|νυχι/.test(text)) return "nails";
-  if (/perfume|fragrance|eau de parfum|eau de toilette|αρωμ/.test(text)) return "fragrance";
-  if (/makeup|mascara|foundation|concealer|blush|eyeshadow|cosmetic|skincare|serum|cream|beauty|grooming|μακιγιαζ|ομορφ|περιποι/.test(text)) return "beauty";
-  if (/shoe|sneaker|trainer|boot|loafer|moccas|sandal|heel|pump|footwear|παπουτ|μποτ|σανδαλ/.test(text)) return "shoes";
-  if (/bag|handbag|backpack|clutch|wallet|purse|τσαντ|σακιδ|πορτοφολ/.test(text)) return "bag";
-  if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη/.test(text)) return "accessory";
+
+  // Strong product nouns win over incidental words. This prevents a title such as
+  // "Crystal Gold Belt Lace Sheath Gown Dress" from becoming an accessory merely
+  // because it contains the word "belt".
+  if (/shoe|sneaker|trainer|boot|loafer|moccas|sandal|heel|pump|stiletto|footwear|παπουτ|μποτ|σανδαλ|γοβ/.test(text)) return "shoes";
+  if (/handbag|crossbody|shoulder bag|tote bag|clutch|backpack|purse|τσαντ|σακιδ/.test(text)) return "bag";
+  if (/gown|jumpsuit|overall|cocktail dress|evening dress|sheath dress|midi dress|maxi dress|mini dress|(?:^|\s)dress(?:\s|$)|φορεμ|ολόσωμ|ολοσωμ|(?:^|\s)(?:suit|costume)(?:\s|$)|κοστουμ/.test(text)) return "main";
   if (/jacket|coat|blazer|cardigan|overshirt|parka|trench|μπουφαν|παλτο|σακακι|ζακετ/.test(text)) return "layer";
   if (/trouser|pants|jean|skirt|shorts|legging|chino|παντελον|τζιν|φουστ|σορτ/.test(text)) return "bottom";
-  if (/dress|jumpsuit|overall|(?:^|\s)(?:suit|costume)(?:\s|$)|φορεμ|ολόσωμ|ολοσωμ|κοστουμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
+  if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|wallet|tie|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη|πορτοφολ/.test(text)) return "accessory";
+  if (/shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
   return null;
 }
 
@@ -226,7 +238,19 @@ function slotFor(product: Product): SlotKey | null {
   if (product.categoryCode === "nail-care-colour") return "nails";
   if (product.categoryCode === "fragrance") return "fragrance";
   if (product.categoryCode === "face-makeup" || product.categoryCode === "eye-makeup" || product.categoryCode === "grooming-care" || product.categoryCode === "beauty-tools-accessories") return "beauty";
-  return slotFromText(productText(product));
+
+  const explicit = explicitFashionSlot(product);
+  if (explicit) return explicit;
+
+  // Fall back to the canonical taxonomy only after the title has had a chance to
+  // correct a noisy supplier classification.
+  if (MAIN_CATEGORY_CODES.has(product.categoryCode)) return "main";
+  if (BOTTOM_CATEGORY_CODES.has(product.categoryCode)) return "bottom";
+  if (LAYER_CATEGORY_CODES.has(product.categoryCode)) return "layer";
+  if (SHOE_CATEGORY_CODES.has(product.categoryCode)) return "shoes";
+  if (BAG_CATEGORY_CODES.has(product.categoryCode)) return "bag";
+  if (ACCESSORY_CATEGORY_CODES.has(product.categoryCode)) return "accessory";
+  return null;
 }
 
 function isOnePiece(product: Product | undefined): boolean {
@@ -253,12 +277,13 @@ const ACTIVEWEAR_STYLE = /tracksuit|track pants|jogger|gym|activewear|sports bra
 const FORMAL_CASUAL_STYLE = /hoodie|sweatshirt|shorts|sneaker|trainer|jean|denim|legging|cargo|ripped|distressed|t shirt|t-shirt|tee shirt|crop top|tank top/;
 const BEACH_SHOE_STYLE = /flip flop|flip-flop|pool slide|beach sandal|σαγιοναρ/;
 
+const EVENING_ONLY_STYLE = /gown|evening dress|cocktail dress|prom dress|ball gown|bridal|bridesmaid|wedding dress|black tie|red carpet|crystal embellished|rhinestone|sequin/;
+const CLEAN_EDIT_CONFLICT = /graphic|logo print|all over print|printed|patterned|novelty|musical|instrument|animal print|neon|sequin|glitter|rhinestone|crystal embellished/;
+
 function isOccasionEligible(product: Product, slot: SlotKey, occasion: Occasion): boolean {
   const text = productText(product);
   const outfitSlot = slot === "main" || slot === "bottom" || slot === "layer" || slot === "shoes";
 
-  // Beach/swim, underwear and sleepwear need their own future occasions. Until then
-  // they must never leak into a normal styled look because of noisy supplier taxonomy.
   if (outfitSlot && NON_OUTFIT_STYLE.test(text)) return false;
 
   if (slot === "shoes" && BEACH_SHOE_STYLE.test(text) && ["work", "date", "dinner", "wedding", "formal"].includes(occasion)) {
@@ -273,13 +298,17 @@ function isOccasionEligible(product: Product, slot: SlotKey, occasion: Occasion)
 
   if (occasion === "work") {
     if (outfitSlot && ACTIVEWEAR_STYLE.test(text)) return false;
-    if (slot === "main" && /crop top|bralette|tank top/.test(text)) return false;
-    if (slot === "bottom" && /shorts|ripped|distressed/.test(text)) return false;
+    if (outfitSlot && EVENING_ONLY_STYLE.test(text)) return false;
+    if (slot === "main" && /crop top|bralette|tank top|hoodie|sweatshirt/.test(text)) return false;
+    if (slot === "bottom" && /shorts|ripped|distressed|legging/.test(text)) return false;
+    if (slot === "shoes" && /flip flop|pool slide|beach sandal/.test(text)) return false;
   }
 
-  if ((occasion === "date" || occasion === "dinner") && outfitSlot && ACTIVEWEAR_STYLE.test(text)) {
-    return false;
-  }
+  if ((occasion === "date" || occasion === "dinner") && outfitSlot && ACTIVEWEAR_STYLE.test(text)) return false;
+  if (occasion === "dinner" && slot === "bottom" && /shorts/.test(text)) return false;
+
+  if ((occasion === "everyday" || occasion === "travel") && outfitSlot && EVENING_ONLY_STYLE.test(text)) return false;
+  if (occasion === "travel" && slot === "shoes" && /stiletto|high heel|pump|γόβ|γοβ/.test(text)) return false;
 
   return true;
 }
@@ -295,10 +324,22 @@ function hasMenSignal(text: string): boolean {
   return /(?:^|\s)(?:men|mens|man|male|uomo|homme|boy)(?:\s|$)|ανδρ/.test(text);
 }
 
+const WOMEN_CATEGORY_CODES = new Set([
+  "fashion-womens-tops","fashion-womens-shirts","fashion-womens-knitwear","fashion-womens-dresses","fashion-womens-jumpsuits",
+  "fashion-womens-trousers-jeans","fashion-womens-skirts","fashion-womens-shorts","fashion-womens-jackets-coats",
+  "womens-sneakers","womens-formal-shoes","womens-boots","womens-sandals"
+]);
+const MEN_CATEGORY_CODES = new Set([
+  "fashion-mens-tshirts-tops","fashion-mens-shirts","fashion-mens-knitwear","fashion-mens-trousers-jeans","fashion-mens-shorts",
+  "fashion-mens-jackets-coats","fashion-mens-suits-formal","mens-sneakers","mens-formal-shoes","mens-boots","mens-sandals","mens-bags"
+]);
+
 function isAudienceCompatible(product: Product, audience: Audience): boolean {
   const category = normalize(product.categoryCode);
   if (audience === "men" && WOMEN_ONLY_BEAUTY.has(product.categoryCode)) return false;
   if (audience === "women" && MEN_ONLY_BEAUTY.has(product.categoryCode)) return false;
+  if (audience === "men" && WOMEN_CATEGORY_CODES.has(product.categoryCode)) return false;
+  if (audience === "women" && MEN_CATEGORY_CODES.has(product.categoryCode)) return false;
   if (audience === "men" && /(?:^|\s)(?:women|woman|womens|female)(?:\s|$)|γυναικ/.test(category)) return false;
   if (audience === "women" && /(?:^|\s)(?:men|mens|man|male)(?:\s|$)|ανδρ/.test(category)) return false;
 
@@ -307,6 +348,14 @@ function isAudienceCompatible(product: Product, audience: Audience): boolean {
   const men = hasMenSignal(text);
   if (audience === "men" && women && !men) return false;
   if (audience === "women" && men && !women) return false;
+
+  if (product.categoryCode === "fragrance") {
+    const feminine = /pour femme|for women|women s|donna|femme/.test(text);
+    const masculine = /pour homme|for men|men s|uomo|homme|after shave|aftershave|(?:^|\s)tabac(?:\s+original)?(?:\s|$)/.test(text);
+    if (audience === "women" && masculine && !feminine) return false;
+    if (audience === "men" && feminine && !masculine) return false;
+  }
+
   return true;
 }
 
@@ -455,12 +504,80 @@ function etiquetteScore(
 function personalityScore(product: Product, personality: number): number {
   const text = productText(product);
   if (personality === 0) {
-    return /black|white|beige|navy|cream|classic|basic|minimal|λευκ|μαυρ|μπεζ/.test(text) ? 10 : 0;
+    if (CLEAN_EDIT_CONFLICT.test(text)) return -1000;
+    return /black|white|beige|navy|cream|taupe|grey|gray|classic|basic|minimal|λευκ|μαυρ|μπεζ|γκρι/.test(text) ? 18 : 4;
   }
   if (personality === 1) {
-    return /blazer|leather|denim|loafer|heel|watch|structured|tailor|σακακ|δερμα|τζιν/.test(text) ? 12 : 0;
+    return /blazer|leather|denim|loafer|heel|watch|structured|tailor|σακακ|δερμα|τζιν/.test(text) ? 16 : 4;
   }
-  return /red|pink|purple|gold|silver|metallic|sequin|glitter|statement|burgundy|κοκκιν|ροζ|χρυσ|ασημ/.test(text) ? 16 : 0;
+  return /red|pink|purple|gold|silver|metallic|sequin|glitter|statement|burgundy|velvet|satin|κοκκιν|ροζ|χρυσ|ασημ/.test(text) ? 20 : 4;
+}
+
+function colorFamily(product: Product | undefined): string {
+  if (!product) return "";
+  const text = normalize([product.color, product.title].filter(Boolean).join(" "));
+  if (/black|μαυρ/.test(text)) return "black";
+  if (/white|ivory|cream|λευκ|εκρου/.test(text)) return "white";
+  if (/beige|taupe|camel|μπεζ/.test(text)) return "beige";
+  if (/navy|blue|μπλε/.test(text)) return "blue";
+  if (/grey|gray|γκρι/.test(text)) return "grey";
+  if (/brown|tan|cognac|καφε/.test(text)) return "brown";
+  if (/red|burgundy|wine|κοκκιν|μπορν/.test(text)) return "red";
+  if (/pink|rose|ροζ/.test(text)) return "pink";
+  if (/green|olive|khaki|πρασιν|χακι/.test(text)) return "green";
+  if (/purple|lilac|violet|μοβ|λιλα/.test(text)) return "purple";
+  if (/gold|silver|metallic|χρυσ|ασημ/.test(text)) return "metallic";
+  return "";
+}
+
+function coherenceScore(
+  product: Product,
+  slot: SlotKey,
+  occasion: Occasion,
+  slots: Readonly<Partial<Record<SlotKey, Product>>>
+): number {
+  const main = slots.main;
+  if (!main) return 0;
+
+  const mainText = productText(main);
+  const text = productText(product);
+  let score = 0;
+
+  const mainEvening = EVENING_ONLY_STYLE.test(mainText) || /satin|velvet|tuxedo|formal/.test(mainText);
+  const productCasual = /hoodie|sweatshirt|sneaker|trainer|cargo|ripped|distressed|sport|athletic|backpack/.test(text);
+  if (mainEvening && productCasual && ["layer","shoes","bag","accessory"].includes(slot)) return -1000;
+
+  const mainPatterned = CLEAN_EDIT_CONFLICT.test(mainText);
+  const productStatement = /sequin|glitter|rhinestone|crystal|animal print|neon|all over print|patterned/.test(text);
+  if (mainPatterned && productStatement && ["layer","bag","accessory","shoes"].includes(slot)) score -= 55;
+
+  if (occasion === "work") {
+    if (slot === "bottom" && /trouser|pants|chino|skirt|παντελον|φουστ/.test(text)) score += 18;
+    if (slot === "layer" && /blazer|tailor|cardigan|σακακ|ζακετ/.test(text)) score += 18;
+    if (slot === "bag" && /briefcase|structured|tote|shoulder bag/.test(text)) score += 12;
+    if (slot === "bag" && /backpack|sport/.test(text)) score -= 24;
+  }
+
+  if (isOnePiece(main)) {
+    if (slot === "shoes" && /heel|pump|stiletto|loafer|formal|γοβ/.test(text)) score += 18;
+    if (slot === "bag" && /clutch|shoulder bag|handbag/.test(text)) score += 12;
+  }
+
+  const mainColor = colorFamily(main);
+  const itemColor = colorFamily(product);
+  if (mainColor && itemColor) {
+    const neutrals = new Set(["black","white","beige","grey","brown"]);
+    if (mainColor === itemColor) score += 12;
+    else if (neutrals.has(mainColor) || neutrals.has(itemColor)) score += 8;
+  }
+
+  if ((slot === "lipstick" || slot === "nails") && slots.lipstick && slots.nails) {
+    const lip = colorFamily(slots.lipstick);
+    const nails = colorFamily(slots.nails);
+    if (lip && nails && lip === nails) score += 14;
+  }
+
+  return score;
 }
 
 function productScore(
@@ -481,6 +598,7 @@ function productScore(
   score += colorAffinity(product, colors);
   score += personalityScore(product, personality);
   score += etiquetteScore(product, slot, audience, occasion, slots);
+  score += coherenceScore(product, slot, occasion, slots);
   if (product.brand && brands.some((brand) => normalize(brand) === normalize(product.brand))) score += 34;
   if (product.available !== false && (product.availableToSell ?? 1) > 0) score += 8;
   return score;
@@ -789,7 +907,7 @@ export function FittingRoomExperience({
         product,
         score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook < 3 ? activeLook : 0, occasion, currentLook?.slots ?? {})
       }))
-      .filter((entry) => entry.score > -40)
+      .filter((entry) => entry.score > 20)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
       .slice(0, 12)
       .map((entry) => entry.product);
@@ -894,7 +1012,7 @@ export function FittingRoomExperience({
         product,
         score: productScore(product, slot, audience, sizes, colors, brands, personality, occasion, slots)
       }))
-      .filter((entry) => entry.score > -40)
+      .filter((entry) => entry.score > 20)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
       .map((entry) => entry.product);
 
