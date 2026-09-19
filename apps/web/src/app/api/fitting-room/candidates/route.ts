@@ -117,49 +117,86 @@ const loadCandidateRows = unstable_cache(
           AND status='active'
         LIMIT 1
       ), vendor_suppliers AS MATERIALIZED (
-        SELECT ds.id::text AS supplier_id
+        SELECT ds.id
         FROM dropship_suppliers ds
         WHERE ds.owner_vendor_id=(SELECT id FROM vendor)
           AND ds.active=true
           AND ds.api_authoritative_availability=true
-      ), family_representatives AS MATERIALIZED (
-        SELECT DISTINCT ON (rm.dropship_supplier_id,rm.dropship_external_product_id)
-          rm.canonical_variant_id,
-          rm.canonical_public_id,
-          rm.slug,
-          rm.title,
-          rm.category_code,
-          rm.brand_name,
-          rm.color,
-          rm.fit,
-          rm.min_price_minor,
-          rm.dropship_supplier_id,
-          rm.dropship_external_product_id,
-          rm.source_updated_at
-        FROM storefront_catalog_read_model rm
-        JOIN vendor_suppliers supplier ON supplier.supplier_id=rm.dropship_supplier_id
-        WHERE rm.dropship_sellable=true
-          AND rm.dropship_available_until>now()
-          AND rm.min_price_minor>0
-          AND rm.category_code=ANY($2::text[])
-          AND rm.dropship_external_product_id IS NOT NULL
-        ORDER BY
-          rm.dropship_supplier_id,
-          rm.dropship_external_product_id,
-          rm.min_price_minor ASC,
-          rm.source_updated_at DESC NULLS LAST,
-          rm.canonical_public_id
+      ), live_variants AS MATERIALIZED (
+        SELECT
+          dso.supplier_id,
+          dso.external_product_id,
+          cv.id AS canonical_variant_id,
+          cv.public_id AS canonical_public_id,
+          cv.slug,
+          COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+          c.code AS category_code,
+          COALESCE(b.name,pfb.name) AS brand_name,
+          COALESCE(
+            NULLIF(BTRIM(el.specifications->>'color'),''),
+            NULLIF(BTRIM(en.specifications->>'color'),''),
+            NULLIF(BTRIM(cv.variant_attributes->>'color'),'')
+          ) AS color,
+          COALESCE(
+            NULLIF(BTRIM(el.specifications->>'fit'),''),
+            NULLIF(BTRIM(en.specifications->>'fit'),'')
+          ) AS fit,
+          vo.customer_price_minor AS min_price_minor,
+          vo.updated_at,
+          dso.availability_checked_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY dso.supplier_id,dso.external_product_id
+            ORDER BY
+              vo.customer_price_minor ASC,
+              dso.availability_checked_at DESC NULLS LAST,
+              vo.updated_at DESC,
+              cv.public_id
+          ) AS family_rank
+        FROM dropship_supplier_offers dso
+        JOIN vendor_suppliers supplier ON supplier.id=dso.supplier_id
+        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+        JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+        JOIN categories c ON c.id=cv.category_id
+        JOIN vendor_locations l ON l.id=vo.location_id
+        LEFT JOIN product_families pf ON pf.id=cv.family_id
+        LEFT JOIN brands b ON b.id=cv.brand_id
+        LEFT JOIN brands pfb ON pfb.id=pf.brand_id
+        LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+        LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+        WHERE dso.active=true
+          AND dso.cached_available=true
+          AND COALESCE(dso.cached_quantity,0)>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+          AND vo.vendor_id=(SELECT id FROM vendor)
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND l.active=true
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND c.code=ANY($2::text[])
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+      ), representatives AS MATERIALIZED (
+        SELECT *
+        FROM live_variants
+        WHERE family_rank=1
       ), ranked AS MATERIALIZED (
         SELECT
-          family_representatives.*,
+          representatives.*,
           ROW_NUMBER() OVER (
-            PARTITION BY family_representatives.category_code
+            PARTITION BY representatives.category_code
             ORDER BY
-              family_representatives.source_updated_at DESC NULLS LAST,
-              family_representatives.min_price_minor ASC,
-              family_representatives.canonical_public_id
+              representatives.updated_at DESC,
+              representatives.availability_checked_at DESC NULLS LAST,
+              representatives.min_price_minor ASC,
+              representatives.canonical_public_id
           ) AS category_rank
-        FROM family_representatives
+        FROM representatives
       ), selected AS MATERIALIZED (
         SELECT *
         FROM ranked
@@ -171,7 +208,7 @@ const loadCandidateRows = unstable_cache(
         selected.title,
         selected.category_code,
         selected.brand_name,
-        COALESCE(NULLIF(selected.color,''),NULLIF(cv.variant_attributes->>'color','')) AS color,
+        selected.color,
         selected.fit,
         selected.min_price_minor,
         COALESCE(size_options.sizes,'{}'::text[]) AS sizes,
@@ -180,11 +217,11 @@ const loadCandidateRows = unstable_cache(
         (SELECT public_id FROM vendor) AS vendor_public_id,
         (SELECT trading_name FROM vendor) AS vendor_name
       FROM selected
-      JOIN canonical_variants cv ON cv.id=selected.canonical_variant_id
       LEFT JOIN LATERAL (
         SELECT array_agg(DISTINCT size_value.value ORDER BY size_value.value) AS sizes
-        FROM storefront_catalog_read_model sibling
-        JOIN canonical_variants sibling_cv ON sibling_cv.id=sibling.canonical_variant_id
+        FROM dropship_supplier_offers sibling_dso
+        JOIN vendor_offers sibling_vo ON sibling_vo.id=sibling_dso.vendor_offer_id
+        JOIN canonical_variants sibling_cv ON sibling_cv.id=sibling_vo.canonical_variant_id
         CROSS JOIN LATERAL unnest(ARRAY[
           sibling_cv.variant_attributes->>'italian_size_men',
           sibling_cv.variant_attributes->>'italian_size_women',
@@ -203,10 +240,16 @@ const loadCandidateRows = unstable_cache(
           sibling_cv.variant_attributes->>'gloves_size_men',
           sibling_cv.variant_attributes->>'size'
         ]) size_value(value)
-        WHERE sibling.dropship_supplier_id=selected.dropship_supplier_id
-          AND sibling.dropship_external_product_id=selected.dropship_external_product_id
-          AND sibling.dropship_sellable=true
-          AND sibling.dropship_available_until>now()
+        WHERE sibling_dso.supplier_id=selected.supplier_id
+          AND sibling_dso.external_product_id=selected.external_product_id
+          AND sibling_dso.active=true
+          AND sibling_dso.cached_available=true
+          AND COALESCE(sibling_dso.cached_quantity,0)>=1
+          AND sibling_dso.availability_expires_at>now()
+          AND sibling_vo.status='approved'
+          AND sibling_vo.merchant_visible=true
+          AND sibling_vo.merchant_pause_active=false
+          AND sibling_vo.customer_price_minor>0
           AND NULLIF(BTRIM(size_value.value),'') IS NOT NULL
       ) size_options ON true
       LEFT JOIN LATERAL (
@@ -231,7 +274,7 @@ const loadCandidateRows = unstable_cache(
     `, [vendorId, [...categories]]);
     return result.rows;
   },
-  ["fitting-room-candidate-pool-v3"],
+  ["fitting-room-candidate-pool-v4"],
   { revalidate: 300 }
 );
 
