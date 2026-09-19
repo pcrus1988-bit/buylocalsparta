@@ -269,9 +269,10 @@ export async function getContextualVendorDropshipFacets(
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
         AND NOT EXISTS (
           SELECT 1
-          FROM stable projected
+          FROM public.storefront_dropship_family_filter_read_model_v2 projected
           WHERE projected.dropship_supplier_id=dso.supplier_id::text
             AND projected.dropship_external_product_id=dso.external_product_id
+            AND projected.available_until>now()
         )
       GROUP BY dso.supplier_id,dso.external_product_id
       ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
