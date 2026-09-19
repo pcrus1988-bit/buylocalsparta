@@ -24,6 +24,17 @@ test("accepts Symphonya's explicit CDN subdomain", () => {
   );
 });
 
+test("normalizes Symphonya catalogue backslashes without widening trust", () => {
+  assert.equal(
+    trustedCatalogSourceHttpsUrl(
+      "symphonya",
+      "https://www.symphonya.eu",
+      "https://cdn.symphonya.eu/images/\\_products/example.jpg"
+    ),
+    "https://cdn.symphonya.eu/images/_products/example.jpg"
+  );
+});
+
 test("rejects a foreign host and insecure supplier media", () => {
   assert.equal(
     trustedCatalogSourceHttpsUrl("symphonya", "https://www.symphonya.eu", "https://example.com/image.jpg"),
