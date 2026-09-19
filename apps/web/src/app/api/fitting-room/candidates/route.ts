@@ -12,6 +12,7 @@ type CandidateRow = Readonly<{
   brand_name: string | null;
   color: string | null;
   fit: string | null;
+  target_gender: string | null;
   min_price_minor: number | string;
   sizes: string[] | null;
   media_public_id: string | null;
@@ -68,9 +69,50 @@ const MEN_CATEGORIES = [
   "wallets-cardholders",
   "ties-formal-accessories",
   "fragrance",
-  "grooming-care",
-  "nail-care-colour"
+  "grooming-care"
 ] as const;
+
+const WOMEN_ONLY_BEAUTY = new Set(["lip-makeup", "eye-makeup", "face-makeup", "nail-care-colour"]);
+const MEN_ONLY_BEAUTY = new Set(["grooming-care"]);
+
+function normalizeAudienceText(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("el-GR")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasWomenSignal(value: string): boolean {
+  return /(?:^|\s)(?:women|womens|woman|female|lady|ladies|donna|femme|girl)(?:\s|$)|γυναικ/.test(value);
+}
+
+function hasMenSignal(value: string): boolean {
+  return /(?:^|\s)(?:men|mens|man|male|uomo|homme|boy)(?:\s|$)|ανδρ/.test(value);
+}
+
+function candidateMatchesAudience(row: CandidateRow, audience: Audience): boolean {
+  const category = normalizeAudienceText(row.category_code);
+  if (audience === "men" && WOMEN_ONLY_BEAUTY.has(row.category_code)) return false;
+  if (audience === "women" && MEN_ONLY_BEAUTY.has(row.category_code)) return false;
+  if (audience === "men" && /(?:^|\s)(?:women|womens|woman|female)(?:\s|$)|γυναικ/.test(category)) return false;
+  if (audience === "women" && /(?:^|\s)(?:men|mens|man|male)(?:\s|$)|ανδρ/.test(category)) return false;
+
+  const declared = normalizeAudienceText(row.target_gender);
+  if (declared && !/unisex|neutral|all|ολ/.test(declared)) {
+    if (audience === "men" && hasWomenSignal(declared) && !hasMenSignal(declared)) return false;
+    if (audience === "women" && hasMenSignal(declared) && !hasWomenSignal(declared)) return false;
+  }
+
+  const text = normalizeAudienceText([row.title, row.category_code, row.target_gender].filter(Boolean).join(" "));
+  const women = hasWomenSignal(text);
+  const men = hasMenSignal(text);
+  if (audience === "men" && women && !men) return false;
+  if (audience === "women" && men && !women) return false;
+  return true;
+}
 
 function safeAudience(value: unknown): Audience {
   return value === "men" ? "men" : "women";
@@ -141,6 +183,12 @@ const loadCandidateRows = unstable_cache(
             NULLIF(BTRIM(el.specifications->>'fit'),''),
             NULLIF(BTRIM(en.specifications->>'fit'),'')
           ) AS fit,
+          COALESCE(
+            NULLIF(BTRIM(cv.variant_attributes->>'gender'),''),
+            NULLIF(BTRIM(cv.variant_attributes->>'target_gender'),''),
+            NULLIF(BTRIM(el.specifications->>'gender'),''),
+            NULLIF(BTRIM(en.specifications->>'gender'),'')
+          ) AS target_gender,
           vo.customer_price_minor AS min_price_minor,
           vo.updated_at,
           dso.availability_checked_at,
@@ -210,6 +258,7 @@ const loadCandidateRows = unstable_cache(
         selected.brand_name,
         selected.color,
         selected.fit,
+        selected.target_gender,
         selected.min_price_minor,
         COALESCE(size_options.sizes,'{}'::text[]) AS sizes,
         media.media_public_id,
@@ -274,7 +323,7 @@ const loadCandidateRows = unstable_cache(
     `, [vendorId, [...categories]]);
     return result.rows;
   },
-  ["fitting-room-candidate-pool-v4"],
+  ["fitting-room-candidate-pool-v5-gender-aware"],
   { revalidate: 300 }
 );
 
@@ -293,6 +342,7 @@ export async function POST(request: Request) {
     const rows = await loadCandidateRows(vendorId, audience);
 
     const products = rows.flatMap((row) => {
+      if (!candidateMatchesAudience(row, audience)) return [];
       const priceMinor = Number(row.min_price_minor);
       if (!row.canonical_public_id || !row.slug || !row.title || !row.category_code || !Number.isSafeInteger(priceMinor) || priceMinor <= 0) return [];
       return [{
