@@ -74,10 +74,40 @@
   letter-spacing: .2em;
 }
 .selectorHeading strong { color: var(--cf-ivory); font-size: 12px; }
+
+.modeSwitch {
+  margin: 20px 26px 0;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  border: 1px solid var(--cf-line);
+  border-radius: 999px;
+  background: rgba(0,0,0,.2);
+}
+.modeSwitch button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #827c75;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  cursor: pointer;
+}
+.modeSwitch button:hover { color: var(--cf-ivory); }
+.modeSwitch button.activeMode {
+  background: var(--cf-ivory);
+  color: #161410;
+  box-shadow: 0 6px 24px rgba(0,0,0,.2);
+}
+
 .colorStage {
   --selected-color: #b52e2e;
   position: relative;
-  min-height: 390px;
+  min-height: 360px;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -117,6 +147,250 @@
   letter-spacing: .14em;
   text-transform: uppercase;
 }
+
+.photoEmpty {
+  min-height: 360px;
+  padding: 46px 34px 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(203,178,122,.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.018), rgba(255,255,255,0));
+}
+.photoKicker {
+  color: var(--cf-gold);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .22em;
+}
+.photoEmpty h3 {
+  max-width: 420px;
+  margin: 13px 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1;
+  font-weight: 400;
+  letter-spacing: -.03em;
+}
+.photoEmpty > p {
+  max-width: 460px;
+  margin: 0;
+  color: #9b948c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.photoActions {
+  width: 100%;
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.photoAction,
+.photoGhostAction,
+.photoDeleteAction {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  cursor: pointer;
+  text-align: center;
+}
+.photoAction {
+  border: 1px solid var(--cf-gold);
+  background: var(--cf-gold);
+  color: #17140e;
+}
+.photoGhostAction {
+  border: 1px solid var(--cf-line);
+  background: rgba(255,255,255,.035);
+  color: var(--cf-ivory);
+}
+.photoDeleteAction {
+  border: 1px solid rgba(255,255,255,.08);
+  background: transparent;
+  color: #8a847d;
+}
+.photoFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.privacyNote {
+  margin: 18px 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #6f6962;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: .05em;
+}
+.privacyNote::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: #64876a;
+  box-shadow: 0 0 0 4px rgba(100,135,106,.1);
+}
+.photoError {
+  width: 100%;
+  margin: 14px 0 0;
+  color: #d79a92;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.photoEditor {
+  padding: 18px 18px 22px;
+}
+.photoCanvasWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--cf-line);
+  border-radius: 19px;
+  background: #070708;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+}
+.photoCanvasWrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.photoCropBox {
+  position: absolute;
+  border: 1px solid rgba(255,255,255,.96);
+  box-shadow:
+    0 0 0 9999px rgba(3,3,4,.48),
+    0 0 0 1px rgba(0,0,0,.45) inset,
+    0 8px 35px rgba(0,0,0,.25);
+  pointer-events: none;
+}
+.photoCropBox::before,
+.photoCropBox::after {
+  content: "";
+  position: absolute;
+  background: rgba(255,255,255,.28);
+}
+.photoCropBox::before {
+  left: 33.333%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  box-shadow: calc(100% + 33.333%) 0 0 rgba(255,255,255,.28);
+}
+.photoCropBox::after {
+  left: 0;
+  top: 33.333%;
+  width: 100%;
+  height: 1px;
+  box-shadow: 0 calc(100% + 33.333%) 0 rgba(255,255,255,.28);
+}
+.cropCorner {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border-color: var(--cf-gold);
+  border-style: solid;
+}
+.cropCorner:nth-child(1) { left: -2px; top: -2px; border-width: 2px 0 0 2px; }
+.cropCorner:nth-child(2) { right: -2px; top: -2px; border-width: 2px 2px 0 0; }
+.cropCorner:nth-child(3) { right: -2px; bottom: -2px; border-width: 0 2px 2px 0; }
+.cropCorner:nth-child(4) { left: -2px; bottom: -2px; border-width: 0 0 2px 2px; }
+.photoEditorMeta {
+  padding: 14px 3px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: #6f6962;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+.photoEditorMeta strong {
+  color: #8d867e;
+  font-size: 8px;
+  font-weight: 800;
+}
+.photoControls {
+  padding: 16px 3px 0;
+}
+.cropSizeControl {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  color: #888179;
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+.cropSizeControl strong {
+  color: var(--cf-ivory);
+  font: 700 10px/1 ui-monospace, monospace;
+}
+.cropSizeControl input {
+  width: 100%;
+  accent-color: var(--cf-gold);
+}
+.detectedColor {
+  margin-top: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(203,178,122,.18);
+  border-radius: 13px;
+  background: rgba(203,178,122,.06);
+}
+.detectedColor span {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.18);
+}
+.detectedColor div {
+  display: grid;
+  gap: 2px;
+}
+.detectedColor small {
+  color: #776f66;
+  font-size: 8px;
+  letter-spacing: .14em;
+}
+.detectedColor strong {
+  color: var(--cf-ivory);
+  font: 700 11px/1 ui-monospace, monospace;
+}
+.photoToolbar {
+  margin-top: 15px;
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 9px;
+}
+.photoToolbarSecondary {
+  margin-top: 9px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
 .hexField {
   margin: 0 26px 20px;
   display: grid;
@@ -310,13 +584,21 @@
   .hero { padding: 54px 0 70px; gap: 42px; }
   .hero h1 { font-size: clamp(54px, 17vw, 84px); }
   .selectorCard { border-radius: 22px; }
-  .colorStage { min-height: 330px; }
+  .colorStage { min-height: 320px; }
   .colorDisc { width: 175px; }
+  .photoEmpty { min-height: 340px; padding: 36px 24px 26px; }
+  .photoEditor { padding: 14px 14px 20px; }
   .resultsHeader { align-items: flex-start; flex-direction: column; }
   .filters { grid-template-columns: 1fr; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 }
 @media (max-width: 520px) {
+  .photoActions,
+  .photoToolbar,
+  .photoToolbarSecondary { grid-template-columns: 1fr; }
+  .photoEditorMeta { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .cropSizeControl { grid-template-columns: 1fr auto; }
+  .cropSizeControl input { grid-column: 1 / -1; grid-row: 2; }
   .grid { grid-template-columns: 1fr; }
   .imageWrap { aspect-ratio: 1.12; }
   .productBody h3 { font-size: 23px; }
