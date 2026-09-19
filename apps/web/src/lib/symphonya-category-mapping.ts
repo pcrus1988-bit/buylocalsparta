@@ -50,7 +50,7 @@ export function resolveSymphonyaCategoryCode(payloadValue: unknown, sourceTitle 
     if (scat === "fashion accessories" && containsAny(evidence, ["sunglasses", "sun glasses"])) return "sunglasses";
     if (scat === "fashion accessories" && containsAny(evidence, ["wallet", "cardholder", "card holder"])) return "wallets-cardholders";
     if (scat === "bags & backpacks") {
-      if (containsAny(evidence, ["backpack", "rucksack"])) return "backpacks";
+      if (containsAny(`${sscat} ${title}`, ["backpack", "rucksack"])) return "backpacks";
       if (gender === "male" || gender === "men" || gender === "for men") return "mens-bags";
       if (gender === "female" || gender === "women" || gender === "for women") return "handbags";
       return "unisex-bags";
