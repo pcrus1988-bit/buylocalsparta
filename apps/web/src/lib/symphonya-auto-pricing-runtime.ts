@@ -36,7 +36,6 @@ type PricingUpdate = Readonly<{
 type SupplierPricingDefaults = Readonly<{
   markupPercent: number;
   discountPercent: number;
-  updatedAt: string | null;
 }>;
 
 type ActivePricingPolicy = Readonly<{
@@ -82,7 +81,7 @@ export async function runSymphonyaAutoPricingSlice(): Promise<SymphonyaAutoPrici
   const fallbackConfig = symphonyaPricingConfig();
   const policy: ActivePricingPolicy = supplierDefaults
     ? {
-        managedBy: `symphonya_supplier_defaults_v1:${supplierDefaults.updatedAt ?? "configured"}`,
+        managedBy: "supplier_defaults_v1",
         rule: "supplier_markup_discount_v1",
         markupRate: supplierDefaults.markupPercent / 100,
         discountRate: supplierDefaults.discountPercent / 100,
@@ -364,8 +363,7 @@ function parseSupplierPricingDefaults(value: unknown): SupplierPricingDefaults |
   if (finalFactor < 1) return null;
   return {
     markupPercent,
-    discountPercent,
-    updatedAt: optionalText(raw.updatedAt)
+    discountPercent
   };
 }
 
