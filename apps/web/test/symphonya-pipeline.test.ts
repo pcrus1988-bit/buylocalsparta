@@ -23,10 +23,35 @@ test("Symphonya publication does not depend on automatic supplier-order forwardi
   const source = readFileSync(new URL("../src/lib/symphonya-auto-publication-runtime.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /publicationEnabled\s*=\s*symphonyaAutoPublicationEnabled\(\)\s*&&\s*orderForwardingEnabled/);
   assert.doesNotMatch(source, /AND ds\.order_forwarding_enabled=true/);
-  assert.match(source, /pt\.locale='el'/);
+  assert.match(source, /pt\.locale IN \('el','en'\)/);
   assert.match(source, /vo\.status::text IN \('draft','approved','archived'\)/);
   assert.match(source, /vendor_product_submissions/);
   assert.match(source, /vendor_product_activation_requests ar/);
+});
+
+test("Symphonya deterministic Greek fallback is promoted before AI and does not require enriched status", () => {
+  const enrichment = readFileSync(new URL("../src/lib/symphonya-enrichment-runtime.ts", import.meta.url), "utf8");
+  const pipeline = readFileSync(new URL("../src/app/api/cron/symphonya-pipeline/route.ts", import.meta.url), "utf8");
+  assert.match(enrichment, /runSymphonyaDeterministicTranslationPromotionSlice/);
+  assert.match(enrichment, /ce\.deterministic_fallback->>'titleEl'/);
+  assert.match(enrichment, /INSERT INTO public\.product_translations/);
+  assert.doesNotMatch(enrichment, /ce\.status='enriched'[\s\S]*deterministic_fallback/);
+  const preparation = pipeline.indexOf("runSymphonyaEnrichmentPreparationSlice");
+  const fallback = pipeline.indexOf("runSymphonyaDeterministicTranslationPromotionSlice", preparation);
+  const aiPromotion = pipeline.indexOf("runCatalogueEnrichmentPromotionSlice", fallback);
+  const publication = pipeline.indexOf("runSymphonyaAutoPublicationSweep", aiPromotion);
+  assert.ok(preparation >= 0 && fallback > preparation && aiPromotion > fallback && publication > aiPromotion);
+});
+
+test("validated AI Greek may upgrade only a still-unpublished deterministic fallback", () => {
+  const migration = readFileSync(
+    new URL("../../../supabase/migrations/20260919085000_symphonya_deterministic_greek_fallback_upgrade.sql", import.meta.url),
+    "utf8"
+  );
+  assert.match(migration, /v_fallback_title/);
+  assert.match(migration, /e\.published_at IS NULL/);
+  assert.match(migration, /btrim\(public\.product_translations\.title\)=v_fallback_title/);
+  assert.match(migration, /ELSE public\.product_translations\.title/);
 });
 
 test("API-authoritative checkout live-revalidates Symphonya stock and buying cost", () => {

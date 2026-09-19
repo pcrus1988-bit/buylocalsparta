@@ -9,7 +9,7 @@ import { runSymphonyaAutoPricingSlice } from "../apps/web/src/lib/symphonya-auto
 import { runSymphonyaAutoPublicationSweep } from "../apps/web/src/lib/symphonya-auto-publication-runtime.ts";
 import { runSymphonyaCatalogueMaterializationSlice } from "../apps/web/src/lib/symphonya-catalogue-materializer.ts";
 import { runSymphonyaCatalogueSyncSlice } from "../apps/web/src/lib/symphonya-catalogue-sync-runtime.ts";
-import { runSymphonyaEnrichmentPreparationSlice } from "../apps/web/src/lib/symphonya-enrichment-runtime.ts";
+import { runSymphonyaDeterministicTranslationPromotionSlice, runSymphonyaEnrichmentPreparationSlice } from "../apps/web/src/lib/symphonya-enrichment-runtime.ts";
 import { runSymphonyaPriceAlertSweep } from "../apps/web/src/lib/symphonya-price-alert-runtime.ts";
 import { runSymphonyaStockSyncSlice } from "../apps/web/src/lib/symphonya-stock-sync-runtime.ts";
 
@@ -114,6 +114,13 @@ try {
         log("info", "symphonya.catalogue_enrichment_preparation_slice", { workerId, ...enrichment });
       } catch (error) {
         log("error", "symphonya.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
+      }
+
+      try {
+        const fallback = await runSymphonyaDeterministicTranslationPromotionSlice();
+        log("info", "symphonya.deterministic_translation_promotion_slice", { workerId, ...fallback });
+      } catch (error) {
+        log("error", "symphonya.deterministic_translation_promotion_failed", { workerId, error: safeError(error) });
       }
 
       if (aiEnrichmentEnabled) {
