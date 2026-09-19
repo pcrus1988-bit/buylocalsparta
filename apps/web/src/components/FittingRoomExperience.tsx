@@ -204,6 +204,10 @@ function productText(product: Product): string {
 }
 
 function slotFromText(text: string): SlotKey | null {
+  // Do not let "swimsuit" accidentally match the generic "suit" token. The current
+  // Style Builder has no beach/swim occasion, so these products are not valid outfit
+  // candidates here even when a supplier taxonomy placed them inside a broad fashion category.
+  if (/swimsuit|swimwear|bikini|tankini|monokini|bathing suit|beachwear|boardshort|swim short|costume da bagno|μαγι|μπικιν/.test(text)) return null;
   if (/lipstick|lip colour|lip color|lip makeup|κραγιον/.test(text)) return "lipstick";
   if (/nail|polish|lacquer|βερνικ|νυχι/.test(text)) return "nails";
   if (/perfume|fragrance|eau de parfum|eau de toilette|αρωμ/.test(text)) return "fragrance";
@@ -213,7 +217,7 @@ function slotFromText(text: string): SlotKey | null {
   if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη/.test(text)) return "accessory";
   if (/jacket|coat|blazer|cardigan|overshirt|parka|trench|μπουφαν|παλτο|σακακι|ζακετ/.test(text)) return "layer";
   if (/trouser|pants|jean|skirt|shorts|legging|chino|παντελον|τζιν|φουστ|σορτ/.test(text)) return "bottom";
-  if (/dress|jumpsuit|overall|suit|costume|φορεμ|ολόσωμ|ολοσωμ|κοστουμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
+  if (/dress|jumpsuit|overall|(?:^|\\s)(?:suit|costume)(?:\\s|$)|φορεμ|ολόσωμ|ολοσωμ|κοστουμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
   return null;
 }
 
@@ -242,6 +246,42 @@ function isStandaloneOutfit(product: Product | undefined): boolean {
 function isBlazerLike(product: Product | undefined): boolean {
   if (!product) return false;
   return /blazer|tailor|suit jacket|σακακ/.test(productText(product));
+}
+
+const NON_OUTFIT_STYLE = /swimsuit|swimwear|bikini|tankini|monokini|bathing suit|beachwear|boardshort|swim short|costume da bagno|μαγι|μπικιν|pajama|pyjama|sleepwear|nightwear|nightgown|νυχτικ|πιτζαμ|lingerie|underwear|briefs?|boxers?|εσωρουχ/;
+const ACTIVEWEAR_STYLE = /tracksuit|track pants|jogger|gym|activewear|sports bra|running|training|athletic|yoga|compression|κολαν|φόρμα|φορμα/;
+const FORMAL_CASUAL_STYLE = /hoodie|sweatshirt|shorts|sneaker|trainer|jean|denim|legging|cargo|ripped|distressed|t shirt|t-shirt|tee shirt|crop top|tank top/;
+const BEACH_SHOE_STYLE = /flip flop|flip-flop|pool slide|beach sandal|σαγιοναρ/;
+
+function isOccasionEligible(product: Product, slot: SlotKey, occasion: Occasion): boolean {
+  const text = productText(product);
+  const outfitSlot = slot === "main" || slot === "bottom" || slot === "layer" || slot === "shoes";
+
+  // Beach/swim, underwear and sleepwear need their own future occasions. Until then
+  // they must never leak into a normal styled look because of noisy supplier taxonomy.
+  if (outfitSlot && NON_OUTFIT_STYLE.test(text)) return false;
+
+  if (slot === "shoes" && BEACH_SHOE_STYLE.test(text) && ["work", "date", "dinner", "wedding", "formal"].includes(occasion)) {
+    return false;
+  }
+
+  if (occasion === "formal" || occasion === "wedding") {
+    if (outfitSlot && ACTIVEWEAR_STYLE.test(text)) return false;
+    if (outfitSlot && FORMAL_CASUAL_STYLE.test(text)) return false;
+    if (slot === "layer" && /parka|puffer|track jacket|sports jacket/.test(text)) return false;
+  }
+
+  if (occasion === "work") {
+    if (outfitSlot && ACTIVEWEAR_STYLE.test(text)) return false;
+    if (slot === "main" && /crop top|bralette|tank top/.test(text)) return false;
+    if (slot === "bottom" && /shorts|ripped|distressed/.test(text)) return false;
+  }
+
+  if ((occasion === "date" || occasion === "dinner") && outfitSlot && ACTIVEWEAR_STYLE.test(text)) {
+    return false;
+  }
+
+  return true;
 }
 
 const WOMEN_ONLY_BEAUTY = new Set(["lip-makeup", "face-makeup", "eye-makeup", "nail-care-colour"]);
@@ -434,6 +474,7 @@ function productScore(
   occasion: Occasion,
   slots: Readonly<Partial<Record<SlotKey, Product>>>
 ): number {
+  if (!isOccasionEligible(product, slot, occasion)) return -1000;
   let score = 50;
   score += audiencePenalty(product, audience);
   score += matchesSize(product, slot, sizes);
@@ -445,11 +486,31 @@ function productScore(
   return score;
 }
 
+function imageCandidates(product: Product): readonly string[] {
+  return [...new Set([
+    product.imageSrc,
+    product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined,
+    product.sourceImageAvailable ? `/api/catalog-source-image/${encodeURIComponent(product.id)}` : undefined
+  ].filter((value): value is string => Boolean(value)))];
+}
+
+function ProductArtwork({ product, alt }: { product: Product; alt: string }) {
+  const [imageIndex, setImageIndex] = useState(0);
+  const candidates = imageCandidates(product);
+  useEffect(() => setImageIndex(0), [product.id, product.imageSrc, product.mediaId, product.sourceImageAvailable]);
+  const src = candidates[imageIndex];
+  if (!src) return <span>{product.title.slice(0, 1)}</span>;
+  return <img
+    src={src}
+    alt={alt}
+    loading="lazy"
+    decoding="async"
+    onError={() => setImageIndex((current) => current + 1)}
+  />;
+}
+
 function imageFor(product: Product): string | undefined {
-  if (product.imageSrc) return product.imageSrc;
-  if (product.mediaId) return `/api/media/${encodeURIComponent(product.mediaId)}`;
-  if (product.sourceImageAvailable) return `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
-  return undefined;
+  return imageCandidates(product)[0];
 }
 
 function compactProduct(product: Product): Product {
@@ -1256,10 +1317,9 @@ export function FittingRoomExperience({
                 <span>{meta.short}</span><strong>+ {meta.label}</strong>
                 <small>{activeLook === 3 ? "Διάλεξε το κομμάτι που θέλεις." : "Πρόσθεσε ή άλλαξε αυτό το σημείο του look."}</small>
               </button>;
-              const image = imageFor(product);
               return <article className={styles.productSlot} key={slot}>
                 <button type="button" className={styles.productButton} onClick={() => setEditingSlot(slot)}>
-                  <div className={styles.productImage}>{image ? <img src={image} alt={product.mediaAlt || product.title} loading="lazy" /> : <span>{product.title.slice(0, 1)}</span>}<b>Αλλαγή</b></div>
+                  <div className={styles.productImage}><ProductArtwork product={product} alt={product.mediaAlt || product.title} /><b>Αλλαγή</b></div>
                   <div className={styles.productCopy}><small>{meta.short}</small><strong>{product.title}</strong><span>{product.brand || product.categoryLabel || meta.label}{!vendorId && product.vendorName ? ` · ${product.vendorName}` : ""}</span><em>{product.price}</em></div>
                 </button>
                 <Link className={styles.productDetailLink} href={productPublicPath(product)} prefetch={false}>Δες το προϊόν ↗</Link>
@@ -1273,9 +1333,8 @@ export function FittingRoomExperience({
         <aside className={styles.drawer} aria-label={`Αλλαγή ${slotMeta(editingSlot, audience).label}`}>
           <div className={styles.drawerHead}><div><small>KEEP THE LOOK · CHANGE ONE PIECE</small><h3>{slotMeta(editingSlot, audience).label}</h3></div><button type="button" onClick={() => setEditingSlot(null)}>×</button></div>
           <div className={styles.alternativeGrid}>{alternatives.map((product) => {
-            const image = imageFor(product);
             return <button type="button" key={product.id} className={styles.alternativeCard} onClick={() => replaceSlot(editingSlot, product)}>
-              <div>{image ? <img src={image} alt="" loading="lazy" /> : <span>{product.title.slice(0, 1)}</span>}</div>
+              <div><ProductArtwork product={product} alt="" /></div>
               <small>{product.brand || product.categoryLabel || "KONTA MOY"}{!vendorId && product.vendorName ? ` · ${product.vendorName}` : ""}</small>
               <strong>{product.title}</strong>
               <em>{product.price}</em>
