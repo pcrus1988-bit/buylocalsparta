@@ -42,6 +42,26 @@ export type CustomerStyleLook = Readonly<{
   updatedAt: string;
 }>;
 
+export type SharedStyleLook = Readonly<{
+  name: string;
+  audience: StyleBuilderAudience;
+  source: StyleLookSource;
+  composition: readonly StyleLookItem[];
+  totalMinor: number;
+  shareToken: string;
+  createdAt: string;
+}>;
+
+type SharedStyleLookRow = Readonly<{
+  share_token: string;
+  name: string;
+  audience: StyleBuilderAudience;
+  source: StyleLookSource;
+  composition: readonly StyleLookItem[];
+  total_minor: number | string;
+  created_at: Date | string;
+}>;
+
 type StyleLookRow = Readonly<{
   public_id: string;
   name: string;
@@ -245,14 +265,75 @@ export async function deleteCustomerStyleLook(userPublicId: string, lookId: stri
   return (result.rowCount ?? 0) > 0;
 }
 
-export async function getSharedStyleLook(token: string): Promise<CustomerStyleLook | undefined> {
+export async function createSharedStyleLook(input: {
+  name: unknown;
+  audience: unknown;
+  source: unknown;
+  composition: unknown;
+}): Promise<SharedStyleLook> {
+  if (!productionDatabaseConfigured()) throw new Error("shared_style_look_unavailable");
+  const audience = safeAudience(input.audience);
+  const name = safeText(input.name, 120) || "Shared Look";
+  const source: StyleLookSource = input.source === "konta" ? "konta" : "user";
+  const composition = safeComposition(input.composition);
+  if (!composition.length) throw new Error("Διάλεξε τουλάχιστον ένα προϊόν για το look.");
+  const totalMinor = composition.reduce((sum, item) => sum + item.priceMinor, 0);
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SharedStyleLookRow>(`
+    INSERT INTO public.shared_style_looks(name,audience,source,composition,total_minor)
+    VALUES ($1,$2,$3,$4::jsonb,$5)
+    RETURNING share_token,name,audience,source,composition,total_minor,created_at
+  `, [name, audience, source, JSON.stringify(composition), totalMinor]);
+  const row = result.rows[0];
+  if (!row) throw new Error("shared_style_look_failed");
+  return {
+    name: row.name,
+    audience: row.audience,
+    source: row.source,
+    composition: row.composition,
+    totalMinor: Number(row.total_minor) || 0,
+    shareToken: row.share_token,
+    createdAt: new Date(row.created_at).toISOString()
+  };
+}
+
+export async function getSharedStyleLook(token: string): Promise<SharedStyleLook | undefined> {
   if (!productionDatabaseConfigured() || !/^[0-9a-f-]{36}$/i.test(token)) return undefined;
-  const result = await getProductionPostgresRuntime().nativePool.query<StyleLookRow>(`
+
+  const publicResult = await getProductionPostgresRuntime().nativePool.query<SharedStyleLookRow>(`
+    SELECT share_token,name,audience,source,composition,total_minor,created_at
+    FROM public.shared_style_looks
+    WHERE share_token::text=$1
+    LIMIT 1
+  `, [token]);
+  const shared = publicResult.rows[0];
+  if (shared) {
+    return {
+      name: shared.name,
+      audience: shared.audience,
+      source: shared.source,
+      composition: shared.composition,
+      totalMinor: Number(shared.total_minor) || 0,
+      shareToken: shared.share_token,
+      createdAt: new Date(shared.created_at).toISOString()
+    };
+  }
+
+  const legacyResult = await getProductionPostgresRuntime().nativePool.query<StyleLookRow>(`
     SELECT ${SELECT_FIELDS}
     FROM public.customer_style_looks l
     WHERE l.share_token::text=$1 AND l.share_enabled=true
     LIMIT 1
   `, [token]);
-  const row = result.rows[0];
-  return row ? rowToLook(row) : undefined;
+  const legacy = legacyResult.rows[0];
+  if (!legacy) return undefined;
+  return {
+    name: legacy.name,
+    audience: legacy.audience,
+    source: legacy.source,
+    composition: legacy.composition,
+    totalMinor: Number(legacy.total_minor) || 0,
+    shareToken: legacy.share_token,
+    createdAt: new Date(legacy.created_at).toISOString()
+  };
 }
