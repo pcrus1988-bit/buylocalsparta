@@ -84,6 +84,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
   const [photoSpot, setPhotoSpot] = useState<PhotoSpot>();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const loupeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const cropDragRef = useRef(false);
   const pickerDragRef = useRef(false);
   const photoSpotDragRef = useRef(false);
@@ -207,6 +208,34 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
     if (!photoUrl) return undefined;
     return () => URL.revokeObjectURL(photoUrl);
   }, [photoUrl]);
+
+  useEffect(() => {
+    if (!photoSpot || photoPickMode !== "spot") return;
+    const source = canvasRef.current;
+    const loupe = loupeCanvasRef.current;
+    if (!source || !loupe) return;
+
+    const context = loupe.getContext("2d");
+    if (!context) return;
+    const sourceSize = 24;
+    const half = sourceSize / 2;
+    const sx = clamp(photoSpot.x - half, 0, PHOTO_CANVAS_WIDTH - sourceSize);
+    const sy = clamp(photoSpot.y - half, 0, PHOTO_CANVAS_HEIGHT - sourceSize);
+
+    context.clearRect(0, 0, loupe.width, loupe.height);
+    context.imageSmoothingEnabled = false;
+    context.drawImage(
+      source,
+      Math.floor(sx),
+      Math.floor(sy),
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      loupe.width,
+      loupe.height
+    );
+  }, [photoPickMode, photoSpot]);
 
   useEffect(() => {
     if (!photoExpiresAt) {
@@ -787,7 +816,8 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                     } as CSSProperties}
                     aria-hidden="true"
                   >
-                    <span />
+                    <canvas ref={loupeCanvasRef} width={96} height={96} />
+                    <span className={styles.photoSpotCrosshair} />
                     <strong>{photoSpot.hex}</strong>
                   </div>
                 ) : null}
