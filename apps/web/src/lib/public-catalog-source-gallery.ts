@@ -1,14 +1,17 @@
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 type SourceGalleryRow = SqlRow & {
   normalized_payload: unknown;
+  source_code: string | null;
   source_website: string | null;
   source_title: string | null;
 };
 
 type BatchSourcePrimaryRow = SqlRow & {
   canonical_public_id: string;
+  source_code: string | null;
   source_website: string | null;
   source_title: string | null;
   source_image_url: string | null;
@@ -43,22 +46,6 @@ function numericPosition(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function sameSourceHttpsUrl(sourceWebsite: unknown, candidate: unknown): string | undefined {
-  const website = optionalText(sourceWebsite);
-  const value = optionalText(candidate);
-  if (!website || !value) return undefined;
-  try {
-    const source = new URL(website);
-    const asset = new URL(value, source);
-    if (asset.protocol !== "https:") return undefined;
-    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
-    if (normalizeHost(source.hostname) !== normalizeHost(asset.hostname)) return undefined;
-    return asset.toString();
-  } catch {
-    return undefined;
-  }
-}
-
 function sourceImagesFromRow(row: SourceGalleryRow): readonly PublicCatalogSourceImage[] {
   const payload = objectValue(row.normalized_payload);
   const rawImages = Array.isArray(payload.images) ? payload.images : [];
@@ -66,7 +53,7 @@ function sourceImagesFromRow(row: SourceGalleryRow): readonly PublicCatalogSourc
   const candidates = rawImages
     .map((entry, index) => {
       const image = objectValue(entry);
-      const src = sameSourceHttpsUrl(row.source_website, image.src ?? image.url ?? image.image);
+      const src = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, image.src ?? image.url ?? image.image);
       if (!src) return undefined;
       return {
         sourceIndex: index,
@@ -107,6 +94,7 @@ export async function getPublicCatalogSourceGallery(
       { actorUserId: "public-storefront", marketId: "sparta", platformAccess: true },
       (tx) => tx.query<SourceGalleryRow>(`
         SELECT csp.normalized_payload,
+               cs.code AS source_code,
                cs.website AS source_website,
                csp.title AS source_title
         FROM canonical_variants cv
@@ -123,7 +111,7 @@ export async function getPublicCatalogSourceGallery(
           AND cv.recalled=false
           AND vo.status='approved'
           AND cs.active=true
-          AND cs.code='nova-brandsgateway'
+          AND cs.code IN ('nova-brandsgateway','symphonya')
         ORDER BY CASE WHEN $2::text IS NOT NULL AND vb.public_id=$2 THEN 0 ELSE 1 END,
                  csp.created_at DESC,
                  vo.updated_at DESC
@@ -183,6 +171,7 @@ export async function getPublicCatalogSourcePrimaryImages(
           SELECT
             requested.canonical_public_id,
             csp.normalized_payload,
+            cs.code AS source_code,
             cs.website AS source_website,
             csp.title AS source_title,
             row_number() OVER (
@@ -207,14 +196,15 @@ export async function getPublicCatalogSourcePrimaryImages(
             AND cv.recalled=false
             AND vo.status='approved'
             AND cs.active=true
-            AND cs.code='nova-brandsgateway'
+            AND cs.code IN ('nova-brandsgateway','symphonya')
         ), primary_source AS (
-          SELECT canonical_public_id,normalized_payload,source_website,source_title
+          SELECT canonical_public_id,normalized_payload,source_code,source_website,source_title
           FROM ranked
           WHERE source_rank=1
         )
         SELECT
           primary_source.canonical_public_id,
+          primary_source.source_code,
           primary_source.source_website,
           primary_source.source_title,
           COALESCE(
@@ -252,7 +242,7 @@ export async function getPublicCatalogSourcePrimaryImages(
 
     const primary = new Map<string, PublicCatalogSourceImage>();
     for (const row of result.rows) {
-      const src = sameSourceHttpsUrl(row.source_website, row.source_image_url);
+      const src = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_image_url);
       if (!src) continue;
       primary.set(row.canonical_public_id, {
         index: 0,
