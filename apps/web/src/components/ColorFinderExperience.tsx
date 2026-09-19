@@ -963,7 +963,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 <div className={styles.productBody}>
                   <div className={styles.brandRow}>
                     <span>{product.brand ?? "KONTA MOY"}</span>
-                    <strong>{product.match}% match</strong>
+                    <strong>{product.match}% <small>{matchQualityLabel(product.match)}</small></strong>
                   </div>
                   <h3><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>{product.title}</Link></h3>
                   {product.brandShade || product.shadeCode ? (
@@ -1148,4 +1148,12 @@ function hsvToHex(color: HsvColor): string {
     Math.round((green + match) * 255),
     Math.round((blue + match) * 255)
   );
+}
+
+
+function matchQualityLabel(match: number): string {
+  if (match >= 85) return "EXCELLENT";
+  if (match >= 70) return "VERY CLOSE";
+  if (match >= 60) return "CLOSE";
+  return "MATCH";
 }
