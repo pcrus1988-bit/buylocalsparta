@@ -5,6 +5,7 @@ import {
   deltaE2000,
   hexToLab,
   inferColorFinish,
+  nearestColorName,
   normalizeHex,
   resolveCatalogColor
 } from "./color-finder.ts";
@@ -25,4 +26,11 @@ test("canonicalizes common nail shade vocabulary without treating a search colou
   assert.equal(resolveCatalogColor({ color: "Pearly Pink Bubble" })?.hex, "#D9859B");
   assert.equal(resolveCatalogColor({ title: "Dior Vernis 900 Black Rivoli" })?.hex, "#19191B");
   assert.equal(inferColorFinish("Pearly Pink Bubble"), "pearly");
+});
+
+
+test("names selected colours by the nearest curated shade", () => {
+  assert.equal(nearestColorName("#19191B").label, "Black");
+  assert.equal(nearestColorName("#F2EEE8").label, "White");
+  assert.ok(nearestColorName("#B52E2E").deltaE >= 0);
 });
