@@ -2,6 +2,7 @@ import { formatMoney, money, type SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import {
   inferColorFinish,
   inferColorProductType,
@@ -31,6 +32,9 @@ type ColorFinderCandidateRow = SqlRow & Readonly<{
   canonical_hex: string | null;
   match_precision: string | null;
   confidence: number | string | null;
+  source_code: string | null;
+  source_website: string | null;
+  source_image_url: string | null;
 }>;
 
 async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderProduct[]> {
@@ -51,7 +55,10 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
           cv.variant_attributes->>'color',
           ''
         )), '') AS raw_color,
-        vo.customer_price_minor
+        vo.customer_price_minor,
+        cs.code AS source_code,
+        cs.website AS source_website,
+        csp.source_image_url
       FROM public.dropship_supplier_offers dso
       JOIN public.dropship_suppliers ds
         ON ds.id=dso.supplier_id
@@ -69,6 +76,10 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
         ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN public.product_translations en
         ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN public.catalog_source_products csp
+        ON csp.id=dso.source_product_id
+      LEFT JOIN public.catalog_sources cs
+        ON cs.id=csp.source_id
       WHERE dso.active=true
         AND dso.cached_available=true
         AND COALESCE(dso.cached_quantity,0)>=1
@@ -108,7 +119,10 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       pcp.product_type AS profile_product_type,
       pcp.canonical_hex,
       pcp.match_precision,
-      pcp.confidence
+      pcp.confidence,
+      candidate.source_code,
+      candidate.source_website,
+      candidate.source_image_url
     FROM live_nail_variants candidate
     LEFT JOIN public.product_color_profiles pcp
       ON pcp.canonical_variant_id=candidate.canonical_variant_id
@@ -149,6 +163,11 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       optionalText(row.color_detail),
       optionalText(row.brand_shade_name)
     ].filter(Boolean).join(" ");
+    const directImageSrc = trustedCatalogSourceHttpsUrl(
+      row.source_code,
+      row.source_website,
+      row.source_image_url
+    );
 
     return [{
       id,
@@ -166,7 +185,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       productType: validProductType(row.profile_product_type) ?? inferColorProductType(productText),
       priceMinor,
       price: formatMoney(money(priceMinor, "EUR")),
-      imageSrc: `/api/catalog-source-image/${encodeURIComponent(id)}`,
+      imageSrc: directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(id)}`,
       mediaAlt: title
     } satisfies ColorFinderProduct];
   });
@@ -174,7 +193,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
 
 export const getColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-authoritative-live-nails-v3"],
+  ["color-finder-authoritative-live-nails-v4"],
   { revalidate: CACHE_SECONDS }
 );
 
