@@ -6,7 +6,7 @@ import { getPublishedDropshipCatalogPage } from "../../../../lib/published-drops
 import { getPublicProductDetails } from "../../../../lib/public-product-detail";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 import { getShopCatalogPage } from "../../../../lib/shop-catalog-page";
-import { getVendorDropshipCatalogPage } from "../../../../lib/vendor-dropship-catalog-page";
+import { getVendorDropshipCatalogPage, getVendorDropshipFacets } from "../../../../lib/vendor-dropship-catalog-page";
 import { getVendorLocalCatalogCards } from "../../../../lib/vendor-local-catalog";
 import { getVisitorKey } from "../../../../lib/visitor";
 
@@ -410,15 +410,36 @@ export async function POST(request: Request) {
     const audience = safeAudience(body.audience);
     const brands = safeBrands(body.brands);
     const budgetMinor = safeBudgetMinor(body.budgetMinor);
+
+    if (body.mode === "brands" && vendorId) {
+      const facets = await getVendorDropshipFacets(vendorId);
+      const allowedCategories = new Set(groupsFor(audience).flatMap((group) => [...group.subcategories]));
+      const relevantCategoryCount = (facets.categories ?? [])
+        .filter((entry) => allowedCategories.has(entry.value))
+        .reduce((sum, entry) => sum + (entry.count ?? 0), 0);
+      const brandOptions = relevantCategoryCount > 0
+        ? (facets.brands ?? []).slice(0, 80)
+        : [];
+      return Response.json(
+        {
+          scope: "vendor",
+          vendorId,
+          hubSlug,
+          audience,
+          brands: brandOptions
+        },
+        { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=240" } }
+      );
+    }
+
     const hub = await loadHubScope(hubSlug);
 
     if (body.mode === "brands") {
       const categories = [...new Set(groupsFor(audience).flatMap((group) => [...group.subcategories]))];
-      const brandOptions = await loadAvailableBrandOptions(hub.marketId, vendorId, categories);
+      const brandOptions = await loadAvailableBrandOptions(hub.marketId, undefined, categories);
       return Response.json(
         {
-          scope: vendorId ? "vendor" : "hub",
-          vendorId,
+          scope: "hub",
           hubSlug: hub.hubSlug,
           hubName: hub.hubName,
           audience,
