@@ -8,7 +8,7 @@ import styles from "./FittingRoomExperience.module.css";
 
 type Audience = "women" | "men";
 type Step = 0 | 1 | 2 | 3 | 4;
-type SlotKey = "main" | "bottom" | "layer" | "shoes" | "bag" | "accessory" | "beauty" | "nails";
+type SlotKey = "main" | "bottom" | "layer" | "shoes" | "bag" | "accessory" | "beauty" | "lipstick" | "nails" | "fragrance";
 
 type Product = Readonly<{
   id: string;
@@ -84,12 +84,14 @@ const SLOT_META: Readonly<Record<SlotKey, Readonly<{ label: string; short: strin
   shoes: { label: "Παπούτσια", short: "SHOES" },
   bag: { label: "Τσάντα", short: "BAG", optional: true },
   accessory: { label: "Αξεσουάρ", short: "DETAIL", optional: true },
-  beauty: { label: "Beauty", short: "BEAUTY", optional: true },
-  nails: { label: "Νύχια", short: "NAILS", optional: true }
+  beauty: { label: "Make-up / Beauty", short: "BEAUTY", optional: true },
+  lipstick: { label: "Κραγιόν", short: "LIPSTICK", optional: true },
+  nails: { label: "Βερνίκι νυχιών", short: "NAIL POLISH", optional: true },
+  fragrance: { label: "Άρωμα", short: "FRAGRANCE", optional: true }
 };
 
-const WOMEN_SLOTS: readonly SlotKey[] = ["main", "bottom", "layer", "shoes", "bag", "accessory", "beauty", "nails"];
-const MEN_SLOTS: readonly SlotKey[] = ["main", "bottom", "layer", "shoes", "bag", "accessory", "beauty"];
+const WOMEN_SLOTS: readonly SlotKey[] = ["main", "bottom", "layer", "shoes", "bag", "accessory", "beauty", "lipstick", "nails", "fragrance"];
+const MEN_SLOTS: readonly SlotKey[] = ["main", "bottom", "layer", "shoes", "bag", "accessory", "beauty", "fragrance"];
 
 function slotsForAudience(audience: Audience): readonly SlotKey[] {
   return audience === "men" ? MEN_SLOTS : WOMEN_SLOTS;
@@ -185,8 +187,10 @@ function productText(product: Product): string {
 }
 
 function slotFromText(text: string): SlotKey | null {
+  if (/lipstick|lip colour|lip color|lip makeup|κραγιον/.test(text)) return "lipstick";
   if (/nail|polish|lacquer|βερνικ|νυχι/.test(text)) return "nails";
-  if (/lip|makeup|mascara|foundation|concealer|blush|eyeshadow|perfume|fragrance|cosmetic|skincare|serum|cream|beauty|grooming|κραγιον|μακιγιαζ|αρωμ|ομορφ|περιποι/.test(text)) return "beauty";
+  if (/perfume|fragrance|eau de parfum|eau de toilette|αρωμ/.test(text)) return "fragrance";
+  if (/makeup|mascara|foundation|concealer|blush|eyeshadow|cosmetic|skincare|serum|cream|beauty|grooming|μακιγιαζ|ομορφ|περιποι/.test(text)) return "beauty";
   if (/shoe|sneaker|trainer|boot|loafer|moccas|sandal|heel|pump|footwear|παπουτ|μποτ|σανδαλ/.test(text)) return "shoes";
   if (/bag|handbag|backpack|clutch|wallet|purse|τσαντ|σακιδ|πορτοφολ/.test(text)) return "bag";
   if (/necklace|earring|bracelet|ring|watch|sunglass|eyewear|belt|scarf|hat|jewel|κολιε|σκουλαρ|βραχιολ|δαχτυλ|ρολογ|γυαλ|ζων|κασκολ|καπελ|κοσμη/.test(text)) return "accessory";
@@ -197,6 +201,10 @@ function slotFromText(text: string): SlotKey | null {
 }
 
 function slotFor(product: Product): SlotKey | null {
+  if (product.categoryCode === "lip-makeup") return "lipstick";
+  if (product.categoryCode === "nail-care-colour") return "nails";
+  if (product.categoryCode === "fragrance") return "fragrance";
+  if (product.categoryCode === "face-makeup" || product.categoryCode === "eye-makeup" || product.categoryCode === "grooming-care" || product.categoryCode === "beauty-tools-accessories") return "beauty";
   return slotFromText(productText(product));
 }
 
@@ -466,7 +474,8 @@ export function FittingRoomExperience({
         const slots: Partial<Record<SlotKey, Product>> = {};
         for (const item of saved.composition) {
           if (!(item.slot in SLOT_META)) continue;
-          const slot = item.slot as SlotKey;
+          const savedSlot = item.slot as SlotKey;
+          const slot = savedSlot === "beauty" ? (slotFor(item) ?? savedSlot) : savedSlot;
           if (!slotsForAudience(saved.audience).includes(slot)) continue;
           if (!isAudienceCompatible(item, saved.audience)) continue;
           slots[slot] = item;
@@ -648,7 +657,11 @@ export function FittingRoomExperience({
     choose("bag", personality, true);
     choose("accessory", personality + 1, true);
     choose("beauty", personality, true);
-    if (audience === "women") choose("nails", personality + 1, true);
+    if (audience === "women") {
+      choose("lipstick", personality, true);
+      choose("nails", personality + 1, true);
+    }
+    choose("fragrance", personality + 1, true);
 
     return { ...meta, slots };
   }
