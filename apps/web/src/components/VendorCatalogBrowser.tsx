@@ -446,11 +446,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     const timer = window.setTimeout(async () => {
       setRemoteLoading(true);
       setRemoteError(false);
+      setRemoteTotal(undefined);
       try {
         const payload = await fetchPage(publicVendorId, filters, 0, controller.signal);
         if (serial !== requestSerial.current) return;
         setRemoteProducts(payload.products);
-        setRemoteTotal(typeof payload.total === "number" ? payload.total : payload.products.length);
+        if (typeof payload.total === "number") setRemoteTotal(payload.total);
         setRemoteOffset(payload.offset);
         setRemoteNextOffset(payload.nextOffset);
       } catch (error) {
@@ -686,9 +687,11 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   };
 
   const visibleProducts = remoteProducts ?? products;
-  const total = remoteTotal ?? remoteFacets?.total ?? visibleProducts.length;
+  const totalKnown = remoteTotal !== undefined;
+  const total = remoteTotal ?? visibleProducts.length;
   const currentPage = Math.floor(remoteOffset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasPagination = !demoMode && (remoteOffset > 0 || remoteNextOffset !== null || (totalKnown && total > PAGE_SIZE));
   const activeFilterCount = [category !== "all" || categoryGroup.length > 0, brand !== "all", color !== "all", size !== "all", fit !== "all", material !== "all"].filter(Boolean).length;
   const audienceEntries = guideAudience ? fashionCategories.filter((entry) => audienceFor(entry) === guideAudience) : [];
   const guideGroups = buildGroups(audienceEntries);
@@ -785,7 +788,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       <div className="vc-filter-head">
         <div className="vc-filter-head-copy">
           <strong>Φίλτρα προϊόντων</strong>
-          <span>{facetsLoading ? "Προσαρμόζουμε τις επιλογές…" : `${total} διαθέσιμα προϊόντα στο τρέχον πλαίσιο.`}</span>
+          <span>{facetsLoading ? "Προσαρμόζουμε τις επιλογές…" : totalKnown ? `${total} διαθέσιμα προϊόντα στο τρέχον πλαίσιο.` : remoteNextOffset !== null ? "Υπάρχουν περισσότερα διαθέσιμα προϊόντα." : `${visibleProducts.length} διαθέσιμα προϊόντα.`}</span>
         </div>
         {activeFilterCount ? <button type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}
       </div>
@@ -848,7 +851,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       {mobile ? <section className="vc-filter-card vc-mobile-sort"><SortSelect value={sort} onChange={setSort} compact /></section> : null}
 
       <div className="vc-availability-note"><div><span>ΔΙΑΘΕΣΙΜΟΤΗΤΑ</span><strong>Μόνο διαθέσιμα τώρα</strong></div></div>
-      {mobile ? <div className="vc-mobile-hint">{remoteLoading ? "Ετοιμάζουμε τη βιτρίνα…" : `${total} προϊόντα με τα επιλεγμένα φίλτρα`}</div> : null}
+      {mobile ? <div className="vc-mobile-hint">{remoteLoading ? "Ετοιμάζουμε τη βιτρίνα…" : totalKnown ? `${total} προϊόντα με τα επιλεγμένα φίλτρα` : remoteNextOffset !== null ? "Περισσότερα προϊόντα διαθέσιμα" : `${visibleProducts.length} προϊόντα`}</div> : null}
     </div>
   );
 
@@ -862,12 +865,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
           <SortSelect value={sort} onChange={setSort} />
         </div>
         {activeChips.length ? <div className="vc-result-chips">{activeChips.map((chip) => <button type="button" onClick={chip.clear} key={chip.key}>{chip.label}<span>×</span></button>)}</div> : null}
-        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> προϊόντα στη σελίδα {currentPage} · {total} προϊόντα με το τρέχον πλαίσιο.</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
+        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> προϊόντα στη σελίδα {currentPage}{totalKnown ? <> · {total} προϊόντα με το τρέχον πλαίσιο.</> : remoteNextOffset !== null ? <> · υπάρχουν περισσότερα διαθέσιμα.</> : "."}</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
         {remoteLoading && !visibleProducts.length ? <div className="vc-loading"><span className="vc-spinner" /><strong>Ετοιμάζουμε τη βιτρίνα…</strong><p>Φορτώνουμε μόνο ό,τι χρειάζεται για την επιλογή σου.</p></div> : visibleProducts.length ? <>
           <div className="vc-grid">{visibleProducts.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />)}</div>
-          {!demoMode && total > PAGE_SIZE ? <nav className="vc-pagination" aria-label="Σελιδοποίηση προϊόντων">
+          {hasPagination ? <nav className="vc-pagination" aria-label="Σελιδοποίηση προϊόντων">
             <button type="button" onClick={() => void loadPage(remoteOffset - PAGE_SIZE)} disabled={remoteLoading || remoteOffset === 0}>← Προηγούμενη</button>
-            <span><strong>Σελίδα {currentPage}</strong><small>από {totalPages}</small></span>
+            <span><strong>Σελίδα {currentPage}</strong><small>{totalKnown ? `από ${totalPages}` : "περισσότερα διαθέσιμα"}</small></span>
             <button type="button" onClick={() => remoteNextOffset !== null && void loadPage(remoteNextOffset)} disabled={remoteLoading || remoteNextOffset === null}>{remoteLoading ? "Φόρτωση…" : "Επόμενη →"}</button>
           </nav> : null}
         </> : <div className="vc-empty"><h3>Δεν βρέθηκε προϊόν.</h3><p>Δοκίμασε διαφορετική επιλογή ή επέστρεψε στον οδηγό.</p><button className="button" type="button" onClick={isGuidedVendor ? reopenGuide : resetAllFilters}>{isGuidedVendor ? "Από την αρχή" : "Καθαρισμός φίλτρων"}</button></div>}
@@ -876,7 +879,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
     <div className="vc-mobile-dock" role="search"><input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Αναζήτηση προϊόντος…" /><button type="button" onClick={() => setFiltersOpen(true)}>Φίλτρα{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>{isGuidedVendor ? <button className="guide" type="button" onClick={reopenGuide}>Οδηγός</button> : null}</div>
 
-    {filtersOpen ? <div className="vc-sheet-layer"><button className="vc-backdrop" type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο φίλτρων" /><aside className="vc-sheet" role="dialog" aria-modal="true" aria-label="Φίλτρα προϊόντων"><header><div><span>Κατάλογος</span><strong>Κατηγορίες & φίλτρα</strong></div><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο">×</button></header><div className="vc-sheet-body">{filterPanel(true)}</div><footer style={activeFilterCount ? undefined : { gridTemplateColumns: "1fr" }}>{activeFilterCount ? <button className="vc-footer-reset" type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}<button className="vc-footer-show" type="button" onClick={() => setFiltersOpen(false)}>Προβολή {total} προϊόντων</button></footer></aside></div> : null}
+    {filtersOpen ? <div className="vc-sheet-layer"><button className="vc-backdrop" type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο φίλτρων" /><aside className="vc-sheet" role="dialog" aria-modal="true" aria-label="Φίλτρα προϊόντων"><header><div><span>Κατάλογος</span><strong>Κατηγορίες & φίλτρα</strong></div><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο">×</button></header><div className="vc-sheet-body">{filterPanel(true)}</div><footer style={activeFilterCount ? undefined : { gridTemplateColumns: "1fr" }}>{activeFilterCount ? <button className="vc-footer-reset" type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}<button className="vc-footer-show" type="button" onClick={() => setFiltersOpen(false)}>{totalKnown ? `Προβολή ${total} προϊόντων` : "Προβολή προϊόντων"}</button></footer></aside></div> : null}
 
     {isGuidedVendor && availableGuideDomains.length && guideOpen ? <div className={`fashion-guide${guideDomain === "beauty" ? " beauty-guide" : ""}`} role="dialog" aria-modal="true" aria-labelledby="fashion-guide-title">
       <div className="fashion-guide-shell">
