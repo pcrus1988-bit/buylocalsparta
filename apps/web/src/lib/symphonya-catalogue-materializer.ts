@@ -34,6 +34,7 @@ type SourceVariant = Readonly<{
   sku: string | null;
   barcode: string | null;
   buyingCostMinor: number | null;
+  msrpMinor: number | null;
   available: boolean;
   quantity: number | null;
   stockStatus: string | null;
@@ -459,13 +460,14 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
       ) VALUES(
         $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,'draft',
         $7,'EUR',$8,NULL,ARRAY['shipping'::fulfilment_mode],
-        '{}'::jsonb,$9::jsonb,$10,false,false,NULL,false
+        '{}'::jsonb,$9::jsonb,$10,false,false,$11,false
       )
       ON CONFLICT (vendor_id,location_id,canonical_variant_id,vendor_sku)
       DO UPDATE SET
         source_gtin=COALESCE(EXCLUDED.source_gtin,public.vendor_offers.source_gtin),
         supplier_unit_price_minor=EXCLUDED.supplier_unit_price_minor,
         source_payload=public.vendor_offers.source_payload || EXCLUDED.source_payload,
+        msrp_minor=COALESCE(EXCLUDED.msrp_minor,public.vendor_offers.msrp_minor),
         updated_at=now()
       RETURNING id::text id,(xmax=0) AS inserted
     `, [
@@ -488,7 +490,8 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
         supplierContentSource: "catalog_source_products",
         schemaPolicy: "catalog_identity_v3_simplified"
       }),
-      Math.max(0, variant.buyingCostMinor ?? 0)
+      Math.max(0, variant.buyingCostMinor ?? 0),
+      variant.msrpMinor
     ]);
     const vendorOfferId = requiredText(vendorOffer.rows[0]?.id, "vendor offer id");
 
@@ -698,6 +701,7 @@ function normalizedVariants(payload: Readonly<Record<string, unknown>>): SourceV
       sku: optionalText(row.sku),
       barcode: optionalText(row.barcode),
       buyingCostMinor: nullableMinor(row.buyingCostMinor),
+      msrpMinor: nullableMinor(row.msrpMinor) ?? nullableMinor(record(payload.prices).msrpMinor),
       available: row.available === true,
       quantity: nullableQuantity(row.stockQuantity),
       stockStatus: optionalText(row.stockStatus),
