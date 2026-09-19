@@ -765,7 +765,10 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                 ) : null}
                 {photoReady && photoPickMode === "spot" && photoSpot ? (
                   <div
-                    className={styles.photoSpotMarker}
+                    className={[
+                      styles.photoSpotMarker,
+                      photoSpot.y > PHOTO_CANVAS_HEIGHT * 0.72 ? styles.photoSpotMarkerUp : ""
+                    ].filter(Boolean).join(" ")}
                     style={{
                       left: `${(photoSpot.x / PHOTO_CANVAS_WIDTH) * 100}%`,
                       top: `${(photoSpot.y / PHOTO_CANVAS_HEIGHT) * 100}%`,
@@ -806,7 +809,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
                   <div className={styles.detectedColor}>
                     <span style={{ backgroundColor: photoSampleHex }} />
                     <div>
-                      <small>DETECTED FROM PHOTO</small>
+                      <small>{nearestColorName(photoSampleHex).label.toUpperCase()} · PHOTO</small>
                       <strong>{photoSampleHex}</strong>
                     </div>
                   </div>
