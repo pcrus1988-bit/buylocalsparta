@@ -530,21 +530,42 @@ export function FittingRoomExperience({
   }
 
   async function loadCandidateProducts(): Promise<readonly Product[]> {
-    const response = await fetch("/api/fitting-room/candidates", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({
-        vendorId,
-        audience,
-        brands,
-        budgetMinor: euroBudget(budget) ?? 0
-      })
+    const body = JSON.stringify({
+      vendorId,
+      audience,
+      brands,
+      budgetMinor: euroBudget(budget) ?? 0
     });
-    if (!response.ok) throw new Error("catalogue");
-    const payload = await response.json() as { products?: Product[] };
-    return [...new Map((payload.products ?? []).map((product) => [product.id, product] as const)).values()]
-      .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch("/api/fitting-room/candidates", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          cache: "no-store",
+          body
+        });
+        if (!response.ok) {
+          if (response.status === 503 && attempt === 0) {
+            const retryAfter = Number(response.headers.get("retry-after") ?? "1");
+            await new Promise((resolve) => window.setTimeout(resolve, Math.max(500, Math.min(2000, retryAfter * 1000))));
+            continue;
+          }
+          throw new Error("catalogue");
+        }
+        const payload = await response.json() as { products?: Product[] };
+        return [...new Map((payload.products ?? []).map((product) => [product.id, product] as const)).values()]
+          .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 700));
+          continue;
+        }
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("catalogue");
   }
 
   function buildLook(candidateProducts: readonly Product[], personality: number): Look {
