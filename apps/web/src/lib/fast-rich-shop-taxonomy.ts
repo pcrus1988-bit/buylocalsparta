@@ -151,7 +151,8 @@ async function loadFastAttributeFacets(
           ON el.canonical_variant_id=cv.id AND el.locale='el'
         LEFT JOIN public.product_translations en
           ON en.canonical_variant_id=cv.id AND en.locale='en'
-        WHERE dso.active=true
+        WHERE false -- Emergency stability: request-time storefront reads must use the precomputed projection only.
+          AND dso.active=true
           AND dso.cached_available=true
           AND COALESCE(dso.cached_quantity,0)>=1
           AND dso.availability_expires_at IS NOT NULL
