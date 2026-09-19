@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
+import { styleLookShareCodeFromToken } from "../lib/style-look-share-code";
 import styles from "./FittingRoomExperience.module.css";
 
 type Audience = "women" | "men";
@@ -65,6 +66,8 @@ type SavedLookPayload = Readonly<{
   name: string;
   audience: Audience;
   source: "user" | "konta";
+  shareEnabled?: boolean;
+  shareToken?: string;
   profile?: Readonly<{
     sizes?: Partial<SizeProfile>;
     colours?: readonly string[];
@@ -396,6 +399,7 @@ export function FittingRoomExperience({
   const [loadError, setLoadError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [shareStatus, setShareStatus] = useState("");
+  const [persistedLook, setPersistedLook] = useState<Readonly<{ id: string; shareEnabled?: boolean; shareToken?: string }> | undefined>();
   const [loadedSavedLook, setLoadedSavedLook] = useState(false);
   const [immersive, setImmersive] = useState(false);
 
@@ -486,6 +490,7 @@ export function FittingRoomExperience({
           slots
         }]);
         setActiveLook(0);
+        setPersistedLook({ id: saved.id, shareEnabled: saved.shareEnabled, shareToken: saved.shareToken });
         setStarted(true);
         setLoadedSavedLook(true);
       })
@@ -700,29 +705,97 @@ export function FittingRoomExperience({
     setEditingSlot(null);
   }
 
+  function currentLookPayload() {
+    if (!currentLook) return undefined;
+    const composition = Object.entries(currentLook.slots).flatMap(([slot, value]) =>
+      value ? [{ ...compactProduct(value), slot }] : []
+    );
+    return {
+      name: currentLook.name,
+      audience,
+      source: activeLook < 3 ? "konta" : "user",
+      profile: {
+        audience,
+        sizes,
+        colours: colors,
+        budgetMinor: euroBudget(budget),
+        brands
+      },
+      composition
+    };
+  }
+
+  async function persistCurrentLook(): Promise<SavedLookPayload> {
+    const body = currentLookPayload();
+    if (!body) throw new Error("look");
+
+    if (persistedLook?.id) {
+      const response = await fetch(`/api/account/style-looks/${encodeURIComponent(persistedLook.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken ?? "" },
+        body: JSON.stringify(body)
+      });
+      const payload = await response.json() as { look?: SavedLookPayload; error?: string };
+      if (!response.ok || !payload.look) throw new Error(payload.error || "save");
+      setPersistedLook({ id: payload.look.id, shareEnabled: payload.look.shareEnabled, shareToken: payload.look.shareToken });
+      return payload.look;
+    }
+
+    const response = await fetch("/api/account/style-looks", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-csrf-token": csrfToken ?? "" },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json() as { look?: SavedLookPayload; error?: string };
+    if (!response.ok || !payload.look) throw new Error(payload.error || "save");
+    setPersistedLook({ id: payload.look.id, shareEnabled: payload.look.shareEnabled, shareToken: payload.look.shareToken });
+    return payload.look;
+  }
+
   async function shareCurrentLook() {
     if (!currentLook) return;
     if (Object.keys(currentLook.slots).length === 0) {
       setShareStatus("Διάλεξε πρώτα τουλάχιστον ένα κομμάτι.");
       return;
     }
-    const url = new URL(window.location.href);
-    url.searchParams.delete("saved");
-    url.searchParams.set("look", encodeShareLook(currentLook));
+    if (!csrfToken) {
+      setShareStatus("Συνδέσου για να δημιουργήσεις ένα σύντομο, μόνιμο share link.");
+      return;
+    }
+
+    setShareStatus("Δημιουργία share link…");
     try {
+      const saved = await persistCurrentLook();
+      let shared = saved;
+      if (!saved.shareEnabled || !saved.shareToken) {
+        const response = await fetch(`/api/account/style-looks/${encodeURIComponent(saved.id)}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ shareEnabled: true })
+        });
+        const payload = await response.json() as { look?: SavedLookPayload; error?: string };
+        if (!response.ok || !payload.look) throw new Error(payload.error || "share");
+        shared = payload.look;
+        setPersistedLook({ id: shared.id, shareEnabled: shared.shareEnabled, shareToken: shared.shareToken });
+      }
+
+      const code = shared.shareToken ? styleLookShareCodeFromToken(shared.shareToken) : undefined;
+      if (!code) throw new Error("share-code");
+      const url = new URL(`/look/${code}`, window.location.origin).toString();
+
       if (navigator.share) {
         await navigator.share({
-          title: `${currentLook.name} · KONTA MOY Fitting Room`,
-          text: "Δες το look που έφτιαξα στο KONTA MOY Fitting Room.",
-          url: url.toString()
+          title: `${currentLook.name} · KONTA MOY Style Builder`,
+          text: "Δες το look που έφτιαξα στο KONTA MOY.",
+          url
         });
         setShareStatus("Το look είναι έτοιμο να μοιραστεί.");
       } else {
-        await navigator.clipboard.writeText(url.toString());
-        setShareStatus("Το link αντιγράφηκε.");
+        await navigator.clipboard.writeText(url);
+        setShareStatus("Το σύντομο link αντιγράφηκε.");
       }
     } catch {
-      setShareStatus("");
+      setShareStatus("Δεν μπόρεσε να δημιουργηθεί το share link. Δοκίμασε ξανά.");
     }
   }
 
@@ -739,28 +812,7 @@ export function FittingRoomExperience({
     }
     setSaveStatus("Αποθήκευση…");
     try {
-      const composition = Object.entries(currentLook.slots).flatMap(([slot, value]) =>
-        value ? [{ ...compactProduct(value), slot }] : []
-      );
-      const response = await fetch("/api/account/style-looks", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({
-          name: currentLook.name,
-          audience,
-          source: activeLook < 3 ? "konta" : "user",
-          profile: {
-            audience,
-            sizes,
-            colours: colors,
-            budgetMinor: euroBudget(budget),
-            brands
-          },
-          composition
-        })
-      });
-      const payload = await response.json() as { look?: { id: string }; error?: string };
-      if (!response.ok || !payload.look) throw new Error(payload.error || "save");
+      await persistCurrentLook();
       setSaveStatus("Αποθηκεύτηκε στο account σου.");
     } catch {
       setSaveStatus("Δεν μπόρεσε να αποθηκευτεί. Δοκίμασε ξανά.");
