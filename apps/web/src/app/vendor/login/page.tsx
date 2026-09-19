@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { VendorLoginForm } from "../../../components/VendorLoginForm";
-import { getVendorSession } from "../../../lib/vendor-session";
 import { productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 
 export const metadata: Metadata = { title: "Σύνδεση συνεργάτη", robots: { index: false, follow: false } };
@@ -13,7 +11,6 @@ export default async function VendorLoginPage({ searchParams }: { searchParams: 
   const requestedNext = typeof params.next === "string" ? params.next.trim() : "";
   const validNext = (requestedNext.startsWith("/vendor") || requestedNext.startsWith("/daily")) && !requestedNext.startsWith("//");
   const redirectTo = validNext ? requestedNext : "/vendor";
-  if (await getVendorSession()) redirect(redirectTo);
   const demoEnabled = process.env.NODE_ENV !== "production" && process.env.BLS_ENABLE_DEMO_ACCOUNTS === "true";
   const runtimeEnabled = productionDatabaseConfigured() || process.env.NODE_ENV !== "production" || process.env.BLS_ALLOW_EPHEMERAL_VENDOR_RUNTIME === "true";
 
