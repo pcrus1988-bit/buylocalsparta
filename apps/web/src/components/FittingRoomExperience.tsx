@@ -327,20 +327,6 @@ function compactProduct(product: Product): Product {
   };
 }
 
-function encodeShareLook(look: Look): string {
-  const payload = {
-    v: 1,
-    n: look.name,
-    m: look.mood,
-    x: look.note,
-    s: Object.fromEntries(Object.entries(look.slots).map(([key, value]) => [key, value ? compactProduct(value) : undefined]))
-  };
-  const bytes = new TextEncoder().encode(JSON.stringify(payload));
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
 function decodeShareLook(value: string): Look | undefined {
   try {
     const padded = value.replaceAll("-", "+").replaceAll("_", "/") + "=".repeat((4 - value.length % 4) % 4);
