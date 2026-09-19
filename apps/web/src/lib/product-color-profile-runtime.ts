@@ -11,7 +11,7 @@ import {
   type ColorProductType
 } from "./color-finder";
 
-const DEFAULT_BATCH_SIZE = 500;
+const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 1_000;
 
 export type ProductColorProfileSyncResult = Readonly<{
