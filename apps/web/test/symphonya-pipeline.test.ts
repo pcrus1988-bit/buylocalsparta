@@ -48,12 +48,11 @@ test("paid Symphonya fulfilment uses an at-most-once supplier submission bridge"
   assert.match(source, /status='submission_uncertain'/);
 });
 
-test("Symphonya pipeline refreshes targeted stock after translation promotion and before publication", () => {
+test("Symphonya all-phase pipeline leaves automatic supplier stock I/O to the dedicated cron", () => {
   const source = readFileSync(new URL("../src/app/api/cron/symphonya-pipeline/route.ts", import.meta.url), "utf8");
-  const promotion = source.indexOf("runCatalogueEnrichmentPromotionSlice");
-  const stock = source.indexOf("refreshSymphonyaOfferStockByExternalIds", promotion);
-  const publication = source.indexOf("runSymphonyaAutoPublicationSweep", stock);
-  assert.ok(promotion >= 0 && stock > promotion && publication > stock);
+  assert.match(source, /const stockIds = phase === "stock"/);
+  assert.doesNotMatch(source, /runAll \|\| phase === "stock"/);
+  assert.match(source, /const publication = runAll \|\| phase === "publication"/);
 });
 
 test("Symphonya enrichment prioritizes latest, fresh, untranslated in-stock evidence", () => {
@@ -158,17 +157,19 @@ test("Symphonya stock persistence uses the indexed supplier product id without a
   assert.doesNotMatch(runtime, /dso\.external_product_id=stock\.external_product_id OR/);
 });
 
-test("Symphonya priority stock refresh cannot starve the full stock cursor", () => {
+test("Symphonya stock cron alternates full-cursor and priority supplier workloads", () => {
   const route = readFileSync(new URL("../src/app/api/cron/symphonya-stock/route.ts", import.meta.url), "utf8");
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
   assert.match(route, /PRIORITY_REFRESH_WINDOW_MINUTES/);
   assert.match(route, /FULL_CURSOR_BUDGET_MS = 28_000/);
   assert.match(route, /PRIORITY_BATCH_LIMIT = 200/);
-  assert.match(route, /runSymphonyaStockSyncSlice\(\{/);
-  assert.match(route, /maxDurationMs: fullCursorBudgetMs/);
+  assert.match(route, /defaultCronStockMode/);
+  assert.match(route, /executionMode === "cursor"/);
+  assert.match(route, /if \(executionMode === "priority"\)/);
+  assert.match(route, /maxDurationMs: FULL_CURSOR_BUDGET_MS/);
   assert.match(route, /priorityIds = \[\.\.\.new Set\(\[\.\.\.publishedIds, \.\.\.publicationCandidateIds\]\)\]/);
   assert.equal((route.match(/refreshSymphonyaOfferStockByExternalIds\(priorityIds\)/g) ?? []).length, 1);
-  assert.doesNotMatch(route, /publishedIds\.length === 0 && publicationCandidateIds\.length === 0/);
+  assert.match(route, /publication = await runSymphonyaAutoPublicationSweep\(\)/);
   assert.match(runtime, /const SLICE_MS = 28_000/);
   assert.match(runtime, /pageStartSafetyMs = timeoutMs\(\)\+6_000/);
   assert.match(runtime, /pages < pageLimit/);
