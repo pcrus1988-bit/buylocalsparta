@@ -29,6 +29,7 @@ type Product = Readonly<{
   availableToSell?: number;
   vendorId?: string;
   vendorName?: string;
+  imageSrc?: string;
 }>;
 
 type FacetOption = Readonly<{ value: string; label: string; count?: number }>;
@@ -62,12 +63,15 @@ type SizeProfile = Readonly<{
 type SavedLookPayload = Readonly<{
   id: string;
   name: string;
-  composition: Readonly<{
-    name?: string;
-    mood?: string;
-    note?: string;
-    slots?: Partial<Record<SlotKey, Product>>;
+  audience: Audience;
+  source: "user" | "konta";
+  profile?: Readonly<{
+    sizes?: Partial<SizeProfile>;
+    colours?: readonly string[];
+    budgetMinor?: number;
+    brands?: readonly string[];
   }>;
+  composition: readonly (Product & Readonly<{ slot: string }>)[];
 }>;
 
 const SLOT_META: Readonly<Record<SlotKey, Readonly<{ label: string; short: string; optional?: boolean }>>> = {
@@ -253,6 +257,7 @@ function productScore(
 }
 
 function imageFor(product: Product): string | undefined {
+  if (product.imageSrc) return product.imageSrc;
   if (product.mediaId) return `/api/media/${encodeURIComponent(product.mediaId)}`;
   if (product.sourceImageAvailable) return `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   return undefined;
@@ -277,7 +282,8 @@ function compactProduct(product: Product): Product {
     vendorId: product.vendorId,
     vendorName: product.vendorName,
     available: product.available,
-    availableToSell: product.availableToSell
+    availableToSell: product.availableToSell,
+    imageSrc: imageFor(product)
   };
 }
 
@@ -375,19 +381,29 @@ export function FittingRoomExperience({
   useEffect(() => {
     if (!savedLookId || loadedSavedLook) return;
     const controller = new AbortController();
-    void fetch(`/api/account/saved-looks/${encodeURIComponent(savedLookId)}`, { signal: controller.signal, cache: "no-store" })
+    void fetch(`/api/account/style-looks/${encodeURIComponent(savedLookId)}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("saved-look");
         return response.json() as Promise<{ look?: SavedLookPayload }>;
       })
       .then((payload) => {
-        const composition = payload.look?.composition;
-        if (!composition?.slots) return;
+        const saved = payload.look;
+        if (!saved?.composition?.length) return;
+        const slots: Partial<Record<SlotKey, Product>> = {};
+        for (const item of saved.composition) {
+          if (item.slot in SLOT_META) slots[item.slot as SlotKey] = item;
+        }
+        if (!Object.keys(slots).length) return;
+        setAudience(saved.audience);
+        setSizes((current) => ({ ...current, ...(saved.profile?.sizes ?? {}) }));
+        setColors((saved.profile?.colours ?? []).slice(0, 3));
+        setBrands((saved.profile?.brands ?? []).slice(0, 5));
+        setBudget(saved.profile?.budgetMinor ? String(saved.profile.budgetMinor / 100) : "");
         setLooks([{
-          name: composition.name || payload.look?.name || "Saved Look",
-          mood: composition.mood || "Το δικό σου saved look",
-          note: composition.note || "Άνοιξέ το και άλλαξε οποιοδήποτε κομμάτι θέλεις.",
-          slots: composition.slots
+          name: saved.name || "Saved Look",
+          mood: saved.source === "konta" ? "KONTA MOY edit · saved look" : "Το δικό σου saved look",
+          note: "Άνοιξέ το και άλλαξε οποιοδήποτε κομμάτι θέλεις.",
+          slots
         }]);
         setActiveLook(0);
         setStarted(true);
@@ -617,17 +633,24 @@ export function FittingRoomExperience({
     }
     setSaveStatus("Αποθήκευση…");
     try {
-      const response = await fetch("/api/account/saved-looks", {
+      const composition = Object.entries(currentLook.slots).flatMap(([slot, value]) =>
+        value ? [{ ...compactProduct(value), slot }] : []
+      );
+      const response = await fetch("/api/account/style-looks", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({
           name: currentLook.name,
-          composition: {
-            name: currentLook.name,
-            mood: currentLook.mood,
-            note: currentLook.note,
-            slots: Object.fromEntries(Object.entries(currentLook.slots).map(([key, value]) => [key, value ? compactProduct(value) : undefined]))
-          }
+          audience,
+          source: activeLook < 3 ? "konta" : "user",
+          profile: {
+            audience,
+            sizes,
+            colours: colors,
+            budgetMinor: euroBudget(budget),
+            brands
+          },
+          composition
         })
       });
       const payload = await response.json() as { look?: { id: string }; error?: string };
