@@ -12,7 +12,7 @@ const MAX_WINDOWS = 3;
 const CACHE_SECONDS = 300;
 
 async function loadCandidatePages() {
-  const products = [];
+  const products: Awaited<ReturnType<typeof getPublishedDropshipCatalogPage>>["products"][number][] = [];
   for (let window = 0; window < MAX_WINDOWS; window += 1) {
     const page = await getPublishedDropshipCatalogPage({
       category: "beauty",
