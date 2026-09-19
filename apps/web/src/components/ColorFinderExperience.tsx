@@ -37,6 +37,7 @@ const PHOTO_CANVAS_HEIGHT = 900;
 const DEFAULT_CROP_RATIO = 0.28;
 const MIN_CROP_RATIO = 0.08;
 const MAX_CROP_RATIO = 0.65;
+const MIN_MATCH_PERCENT = 49;
 
 const FINISH_LABELS: Readonly<Record<ColorFinish, string>> = {
   cream: "Cream",
@@ -85,6 +86,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
         const deltaE = deltaE2000(targetLab, hexToLab(product.colorHex));
         return { ...product, deltaE, match: colorMatchPercent(deltaE) };
       })
+      .filter((product) => product.match >= MIN_MATCH_PERCENT)
       .sort((left, right) => left.deltaE - right.deltaE || left.priceMinor - right.priceMinor);
   }, [finish, productType, products, selectedHex]);
 
@@ -666,7 +668,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
             <p>
               {visibleMatches.length
                 ? `${visibleMatches.length} από ${matches.length} διαθέσιμες αντιστοιχίες, ταξινομημένες με βάση την οπτική απόσταση από ${selectedHex}.`
-                : "Δεν υπάρχουν ακόμη προϊόντα με επαρκές χρωματικό προφίλ για αυτόν τον συνδυασμό φίλτρων."}
+                : `Δεν βρέθηκαν προϊόντα με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία για αυτόν τον συνδυασμό φίλτρων.`}
             </p>
           </div>
           <div className={styles.targetChip}>
@@ -755,7 +757,7 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
           <div className={styles.emptyState}>
             <span className={styles.emptySwatch} style={{ backgroundColor: selectedHex }} />
             <h3>We are still learning this shade.</h3>
-            <p>Δοκίμασε διαφορετικό finish ή τύπο προϊόντος. Ο Color Finder θα γίνεται πλουσιότερος όσο εμπλουτίζονται τα χρωματικά δεδομένα του καταλόγου.</p>
+            <p>Εμφανίζουμε μόνο αποτελέσματα με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία. Δοκίμασε μια κοντινή απόχρωση ή διαφορετικό finish/τύπο προϊόντος.</p>
           </div>
         )}
       </section>
