@@ -11,6 +11,7 @@ import { runNovaAvailabilityRefreshSweep } from "../apps/web/src/lib/nova-availa
 import { runNovaCatalogueSyncSlice } from "../apps/web/src/lib/nova-catalogue-sync-runtime.ts";
 import { runNovaCatalogueMaterializationSlice } from "../apps/web/src/lib/nova-catalogue-materializer.ts";
 import { runNovaMediaMaterializationSlice } from "../apps/web/src/lib/nova-media-materialization-runtime.ts";
+import { runProductColorProfileSyncSlice } from "../apps/web/src/lib/product-color-profile-runtime.ts";
 import { assertNovaRuntimeInvariants } from "../apps/web/src/lib/nova-runtime-invariants.ts";
 import { runNovaSellabilitySafetySweep } from "../apps/web/src/lib/nova-sellability-safety.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
@@ -22,6 +23,11 @@ const availabilityRefreshMs = positiveInteger(
   process.env.BLS_NOVA_AVAILABILITY_REFRESH_MS,
   60 * 60 * 1_000,
   "BLS_NOVA_AVAILABILITY_REFRESH_MS"
+);
+const colorProfileIntervalMs = positiveInteger(
+  process.env.BLS_COLOR_PROFILE_INTERVAL_MS,
+  15 * 60 * 1_000,
+  "BLS_COLOR_PROFILE_INTERVAL_MS"
 );
 const automaticPublicationEnabled = process.env.BLS_NOVA_AUTO_PUBLICATION_ENABLED?.trim().toLowerCase() === "true";
 const categoryRepairEnabled = process.env.BLS_NOVA_CATEGORY_REPAIR_ENABLED?.trim().toLowerCase() === "true";
@@ -39,6 +45,7 @@ await assertNovaRuntimeInvariants();
 
 let stopping = false;
 let nextAvailabilityRefreshAt = 0;
+let nextColorProfileAt = 0;
 const requestStop = (signal: string) => {
   if (stopping) return;
   stopping = true;
@@ -48,7 +55,7 @@ process.once("SIGTERM", () => requestStop("SIGTERM"));
 process.once("SIGINT", () => requestStop("SIGINT"));
 
 log("info", "nova.worker_started", {
-  workerId, pollMs, availabilityRefreshMs, availabilityTtlHours: 2,
+  workerId, pollMs, availabilityRefreshMs, colorProfileIntervalMs, availabilityTtlHours: 2,
   supplier: "nova_brandsgateway", writesSupplierOrders: false, materializesPublicOffers: false,
   automaticPublication: automaticPublicationEnabled, automaticPricing: novaAutoPricingEnabled(), categoryRepairEnabled, pricingCatchupMaxPasses,
   materializationCatchupMaxPasses,
@@ -140,6 +147,21 @@ try {
         log("info", "nova.catalogue_enrichment_preparation_slice", { workerId, ...enrichmentPreparation });
       } catch (error) {
         log("error", "nova.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
+      }
+
+      if (Date.now() >= nextColorProfileAt) {
+        const startedAt = Date.now();
+        try {
+          const colorProfiles = await runProductColorProfileSyncSlice({
+            ...process.env,
+            BLS_COLOR_PROFILE_BATCH_SIZE: process.env.BLS_COLOR_PROFILE_BATCH_SIZE?.trim() || "100"
+          });
+          log("info", "nova.product_color_profile_sync_slice", { workerId, ...colorProfiles });
+        } catch (error) {
+          log("error", "nova.product_color_profile_sync_failed", { workerId, error: safeError(error) });
+        } finally {
+          nextColorProfileAt = startedAt + colorProfileIntervalMs;
+        }
       }
 
       // Greek copy is authored and validated by the ChatGPT Catalogue Agent, not by an
