@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getAccountSession } from "../../lib/account-session";
+import { SiteHeader } from "../../components/SiteHeader";
 import { FittingRoomExperience } from "../../components/FittingRoomExperience";
 import styles from "./page.module.css";
 
@@ -31,6 +32,8 @@ export default async function FittingRoomPage({ searchParams }: Props) {
 
   return (
     <main className={styles.page}>
+      <div className={styles.announcement}>KONTA MOY FITTING ROOM · Your look, your choices.</div>
+      <SiteHeader />
       <FittingRoomExperience
         vendorId={vendorId}
         csrfToken={principal?.csrfToken}
