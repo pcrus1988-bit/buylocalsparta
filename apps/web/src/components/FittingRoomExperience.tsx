@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { productPublicPath } from "../lib/product-url";
 import styles from "./FittingRoomExperience.module.css";
 
 type Audience = "women" | "men";
@@ -758,6 +759,7 @@ export function FittingRoomExperience({
                   <div className={styles.productImage}>{image ? <img src={image} alt={product.mediaAlt || product.title} loading="lazy" /> : <span>{product.title.slice(0, 1)}</span>}<b>Αλλαγή</b></div>
                   <div className={styles.productCopy}><small>{SLOT_META[slot].short}</small><strong>{product.title}</strong><span>{product.brand || product.categoryLabel || SLOT_META[slot].label}</span><em>{product.price}</em></div>
                 </button>
+                <Link className={styles.productDetailLink} href={productPublicPath(product)} prefetch={false}>Δες το προϊόν ↗</Link>
               </article>;
             })}
           </div>
