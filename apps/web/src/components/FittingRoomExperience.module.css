@@ -1238,3 +1238,210 @@
     transition: none;
   }
 }
+
+
+/* Full-screen wait state after the final Style Builder step. */
+.loadingRoom {
+  position: relative;
+  width: 100%;
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #0d0907;
+  isolation: isolate;
+}
+
+.loadingSlides {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #0d0907;
+}
+
+.loadingSlide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(1.02);
+  animation: fittingLoadingSlide 8s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.loadingSlide::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(8,6,5,.06) 0%, rgba(8,6,5,0) 50%, rgba(8,6,5,.72) 100%);
+}
+
+.loadingBackdrop,
+.loadingArtwork {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.loadingBackdrop {
+  z-index: 0;
+  object-fit: cover;
+  transform: scale(1.14);
+  filter: blur(26px) brightness(.38) saturate(.9);
+  opacity: .82;
+}
+
+.loadingArtwork {
+  z-index: 1;
+  object-fit: contain;
+  object-position: center;
+  filter: drop-shadow(0 22px 46px rgba(0,0,0,.24));
+}
+
+.loadingStatus {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 14px));
+  width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+  padding: 18px 20px 16px;
+  border: 1px solid rgba(238,222,199,.18);
+  border-radius: 22px;
+  background: rgba(16,12,10,.72);
+  box-shadow: 0 20px 60px rgba(0,0,0,.34);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  text-align: center;
+}
+
+.loadingEyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #d6bc97;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .18em;
+}
+
+.loadingStatus strong {
+  display: block;
+  font-family: Georgia, serif;
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 400;
+  letter-spacing: -.015em;
+}
+
+.loadingStatus p {
+  margin: 7px 0 13px;
+  color: rgba(255,255,255,.66);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.loadingBar {
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+}
+
+.loadingBar i {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #e1c69d 32%, #f5e7d1 68%, transparent);
+  animation: fittingLoadingBar 1.45s ease-in-out infinite;
+}
+
+.loadingExit {
+  position: absolute;
+  z-index: 6;
+  top: max(16px, calc(env(safe-area-inset-top) + 10px));
+  right: max(16px, calc(env(safe-area-inset-right) + 10px));
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 50%;
+  background: rgba(13,10,8,.58);
+  color: #fff;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@keyframes fittingLoadingSlide {
+  0% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  6% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.055);
+  }
+  31% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes fittingLoadingBar {
+  0% {
+    transform: translateX(-115%);
+  }
+  100% {
+    transform: translateX(255%);
+  }
+}
+
+@media (max-width: 720px) {
+  .loadingStatus {
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 10px));
+    width: min(420px, calc(100% - 20px));
+    padding: 15px 16px 13px;
+    border-radius: 18px;
+  }
+
+  .loadingStatus p {
+    margin-bottom: 11px;
+    font-size: 11px;
+  }
+
+  .loadingBackdrop {
+    filter: blur(20px) brightness(.34) saturate(.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingSlide {
+    display: none;
+    animation: none;
+  }
+
+  .loadingSlide:first-child {
+    display: block;
+    opacity: 1;
+    transform: none;
+  }
+
+  .loadingBar i {
+    width: 100%;
+    animation: none;
+    background: #d6bc97;
+    opacity: .7;
+  }
+}

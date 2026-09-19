@@ -154,6 +154,14 @@ const LOOK_PERSONALITIES = [
   }
 ] as const;
 
+const LOADING_SLIDES = {
+  fitting: "/fitting-room/loading/fitting-room.webp",
+  curated: "/fitting-room/loading/curated-looks.webp",
+  men: "/fitting-room/loading/male-styling.webp",
+  women: "/fitting-room/loading/female-styling.webp",
+  ready: "/fitting-room/loading/stylist-ready.webp"
+} as const;
+
 function normalize(value: string | undefined): string {
   return (value ?? "")
     .normalize("NFD")
@@ -839,6 +847,43 @@ export function FittingRoomExperience({
   }
 
   if (started && !looks.length) {
+    if (loading) {
+      const loadingSlides = [
+        LOADING_SLIDES.fitting,
+        audience === "men" ? LOADING_SLIDES.men : LOADING_SLIDES.women,
+        LOADING_SLIDES.curated,
+        LOADING_SLIDES.ready
+      ];
+
+      return (
+        <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-label="KONTA MOY Fitting Room">
+          <section className={styles.loadingRoom}>
+            <div className={styles.loadingSlides} aria-hidden="true">
+              {loadingSlides.map((src, index) => (
+                <div
+                  className={styles.loadingSlide}
+                  key={src}
+                  style={{ animationDelay: `${index * 2}s` }}
+                >
+                  <img className={styles.loadingBackdrop} src={src} alt="" loading="eager" decoding="async" />
+                  <img className={styles.loadingArtwork} src={src} alt="" loading="eager" decoding="async" />
+                </div>
+              ))}
+            </div>
+
+            <button className={styles.loadingExit} type="button" onClick={leaveImmersive} aria-label="Έξοδος από το fitting room">×</button>
+
+            <div className={styles.loadingStatus} role="status" aria-live="polite">
+              <span className={styles.loadingEyebrow}>KONTA MOY · FITTING ROOM</span>
+              <strong>Ο stylist χτίζει το look σου…</strong>
+              <p>Λίγο ακόμη — διαλέγουμε τα κομμάτια που ταιριάζουν σε σένα.</p>
+              <div className={styles.loadingBar} aria-hidden="true"><i /></div>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     const questions = [
       {
         title: "Για ποιο styling ψάχνουμε;",
