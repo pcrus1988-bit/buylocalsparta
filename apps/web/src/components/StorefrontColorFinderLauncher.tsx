@@ -311,7 +311,7 @@ export function StorefrontColorFinderLauncher({
             </h2>
             <p>
               {showGateway
-                ? "Αυτό το κατάστημα έχει κατηγορίες όπου το χρώμα είναι ουσιαστικό μέρος της επιλογής. Διάλεξε πού θέλεις να ψάξεις και το Color Finder θα ανοίξει ήδη περιορισμένο εκεί."
+                ? "Διάλεξε τι ψάχνεις και άφησε το Color Finder να σε οδηγήσει στις αποχρώσεις που σου ταιριάζουν."
                 : <><strong>{context.category.label}</strong> · {context.presentation.shortcutBody}</>}
             </p>
 
@@ -337,9 +337,9 @@ export function StorefrontColorFinderLauncher({
             ) : null}
 
             <div className={styles.info}>
-              <span>{showGateway ? "Επιλεγμένο Color Finder" : "Προσαρμοσμένο στην κατηγορία"}</span>
+              <span>{showGateway ? "Η επιλογή σου" : "Για σένα τώρα"}</span>
               <strong>{context.presentation.studioLabel}</strong>
-              <small>{context.presentation.photoTitle} Αντιστοιχίζουμε μόνο προϊόντα της επιλεγμένης κατηγορίας με αξιόπιστα χρωματικά δεδομένα και όριο 49% και πάνω.</small>
+              <small>{context.presentation.photoTitle} Διάλεξε χρώμα ή πάρε το από φωτογραφία και δες τις πιο ταιριαστές επιλογές.</small>
             </div>
             <div className={styles.actions}>
               <button className={styles.secondary} type="button" onClick={() => setOpen(false)}>Συνέχισε στο κατάστημα</button>
