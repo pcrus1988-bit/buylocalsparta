@@ -147,11 +147,7 @@ export function StorefrontColorFinderLauncher({
     () => activeFinderContext(categories, activeCategory, activeCategoryGroup, vendorId, colorFacetCount),
     [activeCategory, activeCategoryGroup, categories, colorFacetCount, vendorId]
   );
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const context = activeContext
-    ?? candidates.find((entry) => entry.category.value === selectedCategory)
-    ?? candidates[0]
-    ?? null;
+  const context = activeContext ?? candidates[0] ?? null;
 
   useEffect(() => {
     try {
@@ -192,10 +188,6 @@ export function StorefrontColorFinderLauncher({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
-
-  useEffect(() => {
-    if (activeContext) setSelectedCategory(activeContext.category.value);
-  }, [activeContext]);
 
   if (!context || !storageReady || hidden) return null;
 
@@ -316,37 +308,41 @@ export function StorefrontColorFinderLauncher({
             </p>
 
             {showGateway ? (
-              <div className={styles.choices} role="group" aria-label="Επιλογή Color Finder κατηγορίας">
-                {visibleCandidates.map((candidate) => {
-                  const selected = candidate.category.value === context.category.value;
-                  return (
+              <>
+                <div className={styles.choices} role="group" aria-label="Άνοιγμα Color Finder Studio">
+                  {visibleCandidates.map((candidate) => (
                     <button
                       type="button"
-                      className={selected ? styles.choiceActive : styles.choice}
-                      onClick={() => setSelectedCategory(candidate.category.value)}
-                      aria-pressed={selected}
+                      className={styles.choice}
+                      onClick={() => window.location.assign(candidate.route)}
+                      aria-label={`Άνοιγμα ${candidate.presentation.studioLabel} για ${candidate.category.label}`}
                       key={candidate.category.value}
                     >
                       <span>{candidate.presentation.studioLabel}</span>
                       <strong>{candidate.category.label}</strong>
-                      <small>{candidate.category.count} προϊόντα</small>
+                      <small>{candidate.category.count} προϊόντα · Άνοιγμα →</small>
                     </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            <div className={styles.info}>
-              <span>{showGateway ? "Η επιλογή σου" : "Για σένα τώρα"}</span>
-              <strong>{context.presentation.studioLabel}</strong>
-              <small>{context.presentation.photoTitle} Διάλεξε χρώμα ή πάρε το από φωτογραφία και δες τις πιο ταιριαστές επιλογές.</small>
-            </div>
-            <div className={styles.actions}>
-              <button className={styles.secondary} type="button" onClick={() => setOpen(false)}>Συνέχισε στο κατάστημα</button>
-              <button className={styles.primary} type="button" onClick={() => window.location.assign(context.route)}>
-                Άνοιγμα {context.presentation.studioLabel} →
-              </button>
-            </div>
+                  ))}
+                </div>
+                <div className={styles.actions}>
+                  <button className={styles.secondary} type="button" onClick={() => setOpen(false)}>Κλείσιμο</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.info}>
+                  <span>Για σένα τώρα</span>
+                  <strong>{context.presentation.studioLabel}</strong>
+                  <small>{context.presentation.photoTitle} Διάλεξε χρώμα ή πάρε το από φωτογραφία και δες τις πιο ταιριαστές επιλογές.</small>
+                </div>
+                <div className={styles.actions}>
+                  <button className={styles.secondary} type="button" onClick={() => setOpen(false)}>Συνέχισε στο κατάστημα</button>
+                  <button className={styles.primary} type="button" onClick={() => window.location.assign(context.route)}>
+                    Άνοιγμα {context.presentation.studioLabel} →
+                  </button>
+                </div>
+              </>
+            )}
           </section>
         </div>
       ) : null}
