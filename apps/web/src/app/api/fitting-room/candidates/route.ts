@@ -108,6 +108,7 @@ function safeSizes(value: unknown): readonly string[] {
 
 const loadCandidateRows = unstable_cache(
   async (vendorId: string, audience: Audience): Promise<readonly CandidateRow[]> => {
+    const categories = audience === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
     const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
       WITH vendor AS MATERIALIZED (
         SELECT id, public_id, trading_name
@@ -260,7 +261,6 @@ export async function POST(request: Request) {
     const audience = safeAudience(body.audience);
     const brands = safeBrands(body.brands);
     const budgetMinor = safeBudgetMinor(body.budgetMinor);
-    const categories = audience === "men" ? MEN_CATEGORIES : WOMEN_CATEGORIES;
 
     const rows = await loadCandidateRows(vendorId, audience);
 
