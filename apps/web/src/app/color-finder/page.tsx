@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ColorFinderExperience } from "../../components/ColorFinderExperience";
 import { SiteFooter } from "../../components/SiteFooter";
-import { getColorFinderProducts } from "../../lib/color-finder-data";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./page.module.css";
 
@@ -15,9 +14,7 @@ export function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default async function ColorFinderPage() {
-  const products = await getColorFinderProducts();
-
+export default function ColorFinderPage() {
   return (
     <main className={styles.page}>
       <div className={styles.topBar}>
@@ -29,7 +26,7 @@ export default async function ColorFinderPage() {
         <Link href="/shop?category=beauty" className={styles.shopLink}>BEAUTY SHOP ↗</Link>
       </div>
 
-      <ColorFinderExperience products={products} />
+      <ColorFinderExperience products={[]} />
 
       <section className={styles.manifesto} aria-label="Σχετικά με το Color Finder">
         <span>01</span>
