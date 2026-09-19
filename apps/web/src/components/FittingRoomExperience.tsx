@@ -620,6 +620,7 @@ export function FittingRoomExperience({
   const [editingSlot, setEditingSlot] = useState<SlotKey | null>(null);
   const [loading, setLoading] = useState(false);
   const [prefetching, setPrefetching] = useState(false);
+  const [brandsLoaded, setBrandsLoaded] = useState(false);
   const [alternativeLoading, setAlternativeLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
@@ -733,29 +734,32 @@ export function FittingRoomExperience({
   useEffect(() => {
     setProducts([]);
     setFacets({});
+    setBrandsLoaded(false);
     setEditingSlot(null);
   }, [audience, hubSlug, vendorId]);
 
   useEffect(() => {
-    if (!started || step !== 5 || products.length || prefetching) return;
+    if (!started || step !== 5 || prefetching || brandsLoaded) return;
     let active = true;
     setPrefetching(true);
-    void loadCandidateProducts()
-      .then((candidateProducts) => {
+    void loadBrandOptions()
+      .then((brandOptions) => {
         if (!active) return;
-        setProducts(candidateProducts);
-        setFacets(facetsFromProducts(candidateProducts));
+        setFacets((current) => ({ ...current, brands: brandOptions }));
       })
       .catch(() => {
-        if (active) setLoadError("Δεν μπόρεσα να φορτώσω τις διαθέσιμες επιλογές του Style Builder αυτή τη στιγμή.");
+        // Brand preference is optional. A slow facet lookup must never block the
+        // session or trigger a second full catalogue request when the user continues.
       })
       .finally(() => {
-        if (active) setPrefetching(false);
+        if (!active) return;
+        setBrandsLoaded(true);
+        setPrefetching(false);
       });
     return () => {
       active = false;
     };
-  }, [audience, hubSlug, products.length, started, step, vendorId]);
+  }, [audience, brandsLoaded, hubSlug, prefetching, started, step, vendorId]);
 
   useEffect(() => {
     if (!editingSlot || products.length || alternativeLoading) return;
@@ -810,6 +814,32 @@ export function FittingRoomExperience({
   function nextStep() {
     if (step < 5) setStep((step + 1) as Step);
     else void createLooks();
+  }
+
+  async function loadBrandOptions(): Promise<readonly FacetOption[]> {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch("/api/fitting-room/candidates", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        cache: "no-store",
+        signal: controller.signal,
+        body: JSON.stringify({
+          mode: "brands",
+          vendorId,
+          hubSlug,
+          audience
+        })
+      });
+      if (!response.ok) throw new Error("brands");
+      const payload = await response.json() as { brands?: FacetOption[] };
+      return (payload.brands ?? [])
+        .filter((entry) => entry?.label?.trim())
+        .slice(0, 80);
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
 
   async function loadCandidateProducts(): Promise<readonly Product[]> {
@@ -1220,7 +1250,7 @@ export function FittingRoomExperience({
               const active = brands.includes(brand);
               return <button type="button" key={brand} className={active ? styles.brandActive : undefined} onClick={() => toggleBrand(brand)}>{brand}</button>;
             })}</div>
-            {prefetching ? <p className={styles.muted}>{vendorId ? "Βρίσκω τα διαθέσιμα brands του καταστήματος…" : `Βρίσκω διαθέσιμα brands από όλο το HUB ${hubName}…`}</p> : !brandOptions.length ? <p className={styles.muted}>Δεν χρειάζεται να επιλέξεις brand για να συνεχίσουμε.</p> : null}
+            {prefetching ? <p className={styles.muted}>{vendorId ? "Βρίσκω τα διαθέσιμα brands του καταστήματος…" : `Βρίσκω διαθέσιμα brands από όλο το HUB ${hubName}…`}</p> : brandsLoaded && !brandOptions.length ? <p className={styles.muted}>Δεν χρειάζεται να επιλέξεις brand για να συνεχίσουμε.</p> : null}
           </div>
         )
       }
