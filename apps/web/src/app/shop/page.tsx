@@ -15,7 +15,8 @@ import {
   inferStorefrontTaxonomyIntent,
   resolveStorefrontSubcategoryIntent,
   storefrontCategoryBySlug,
-  storefrontFacetEnabled
+  storefrontFacetEnabled,
+  storefrontLeafForSubcategory
 } from "../../lib/storefront-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { enrichCatalogCardsWithLocalProof, type LocalCommerceProof } from "../../lib/local-commerce-proof";
@@ -92,15 +93,17 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const requestedCategory = valueOf(params.category);
   const taxonomyIntent = inferStorefrontTaxonomyIntent(taxonomySeedQuery);
   const inferredCategory = requestedCategory ? undefined : taxonomyIntent?.category;
-  const activeLeaf = taxonomyIntent && (!requestedCategory || taxonomyIntent.category.slug === requestedCategory)
+  const category = requestedCategory || inferredCategory?.slug || "";
+  const requestedSubcategory = valueOf(params.subcategory);
+  const intentLeaf = taxonomyIntent && (!requestedCategory || taxonomyIntent.category.slug === requestedCategory)
     ? taxonomyIntent.leaf
     : undefined;
+  const activeLeaf = intentLeaf
+    ?? (requestedSubcategory ? storefrontLeafForSubcategory(category, requestedSubcategory) : undefined);
   const naturalAttributeQuery = extractStorefrontAttributeQuery(taxonomySeedQuery, activeLeaf?.key);
   const catalogQuery = naturalAttributeQuery.text;
-  const category = requestedCategory || inferredCategory?.slug || "";
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
-  const requestedSubcategory = valueOf(params.subcategory);
   const requestedGuideSubcategories = category === "fashion"
     ? valuesOf(params.subcategory_any).map((entry) => entry.slice(0, 120)).slice(0, 64)
     : [];
