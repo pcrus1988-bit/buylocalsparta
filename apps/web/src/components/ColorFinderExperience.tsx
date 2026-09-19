@@ -80,7 +80,6 @@ export function ColorFinderExperience({
   );
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [selectedHex, setSelectedHex] = useState("#B52E2E");
-  const [hexDraft, setHexDraft] = useState("#B52E2E");
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
   const [brand, setBrand] = useState("all");
@@ -273,7 +272,6 @@ export function ColorFinderExperience({
 
     if (color) {
       setSelectedHex(color);
-      setHexDraft(color);
     }
     if (context.showFinishFilter && finishParam && finishParam in FINISH_LABELS) setFinish(finishParam as ColorFinish);
     if (context.showTypeFilter && typeParam && typeParam in TYPE_LABELS) setProductType(typeParam as ColorProductType);
@@ -442,12 +440,6 @@ export function ColorFinderExperience({
     };
   }, [crop]);
 
-  function applyHex(value: string) {
-    setHexDraft(value);
-    const normalized = normalizeHex(value);
-    if (normalized) setSelectedHex(normalized);
-  }
-
   function updatePickerColor(next: HsvColor) {
     const normalized: HsvColor = {
       h: ((next.h % 360) + 360) % 360,
@@ -457,7 +449,6 @@ export function ColorFinderExperience({
     const hex = hsvToHex(normalized);
     setPickerHsv(normalized);
     setSelectedHex(hex);
-    setHexDraft(hex);
   }
 
   function movePickerToPoint(clientX: number, clientY: number, element: HTMLDivElement) {
@@ -586,7 +577,6 @@ export function ColorFinderExperience({
     setPhotoSpot({ x, y, hex: detectedHex });
     setPhotoSampleHex(detectedHex);
     setSelectedHex(detectedHex);
-    setHexDraft(detectedHex);
     setPhotoError(undefined);
   }
 
@@ -729,7 +719,6 @@ export function ColorFinderExperience({
       }
 
       setSelectedHex(detectedHex);
-      setHexDraft(detectedHex);
       setPhotoSampleHex(detectedHex);
       setPhotoError(undefined);
       window.requestAnimationFrame(scrollToMatches);
@@ -746,16 +735,16 @@ export function ColorFinderExperience({
           <h1>{context.heroLead}<br /><em>{context.heroEmphasis}</em></h1>
           <p>{context.heroBody}</p>
           <div className={styles.signature}>
-            <span>Perceptual matching</span>
+            <span>Διάλεξε το χρώμα σου</span>
             <span aria-hidden="true">·</span>
-            <span>CIE LAB / ΔE2000</span>
+            <span>Βρες αυτό που σου ταιριάζει</span>
           </div>
         </div>
 
         <div className={styles.selectorCard}>
           <div className={styles.selectorHeading}>
             <span>YOUR COLOR</span>
-            <strong>{selectedHex}</strong>
+            <strong>{selectedShade.label}</strong>
           </div>
 
           <div className={styles.modeSwitch} aria-label="Τρόπος επιλογής χρώματος">
@@ -816,7 +805,7 @@ export function ColorFinderExperience({
                 </div>
 
                 <label className={styles.hueControl}>
-                  <span>HUE</span>
+                  <span>ΑΠΟΧΡΩΣΗ</span>
                   <input
                     aria-label="Hue"
                     type="range"
@@ -832,7 +821,7 @@ export function ColorFinderExperience({
                 </label>
 
                 <div className={styles.fineTune}>
-                  <span>FINE TUNE</span>
+                  <span>ΠΑΡΑΛΛΑΓΕΣ</span>
                   <div>
                     {fineTuneColors.map((hex) => (
                       <button
@@ -843,7 +832,6 @@ export function ColorFinderExperience({
                         style={{ backgroundColor: hex }}
                         onClick={() => {
                           setSelectedHex(hex);
-                          setHexDraft(hex);
                         }}
                       />
                     ))}
@@ -855,7 +843,7 @@ export function ColorFinderExperience({
                   <button type="button" onClick={shareSelection}>{shareStatus === "copied" ? "LINK COPIED" : "SHARE SHADE"}</button>
                 </div>
 
-                <p className={styles.pickerHint}>Tap or drag anywhere in the color field. No popup, no confirmation.</p>
+                <p className={styles.pickerHint}>Πάτησε ή σύρε πάνω στο χρώμα μέχρι να βρεις αυτό που θέλεις.</p>
               </div>
             </div>
           ) : photoUrl ? (
@@ -869,7 +857,7 @@ export function ColorFinderExperience({
                     setPhotoSampleHex(photoSpot?.hex);
                   }}
                 >
-                  TAP / SPOT
+                  ΔΙΑΛΕΞΕ ΣΗΜΕΙΟ
                 </button>
                 <button
                   type="button"
@@ -879,7 +867,7 @@ export function ColorFinderExperience({
                     setPhotoSampleHex(undefined);
                   }}
                 >
-                  AREA
+                  ΠΕΡΙΟΧΗ
                 </button>
               </div>
               <div
@@ -918,14 +906,14 @@ export function ColorFinderExperience({
                   >
                     <canvas ref={loupeCanvasRef} width={96} height={96} />
                     <span className={styles.photoSpotCrosshair} />
-                    <strong>{photoSpot.hex}</strong>
+                    <strong>{nearestColorName(photoSpot.hex).label}</strong>
                   </div>
                 ) : null}
               </div>
 
               <div className={styles.photoEditorMeta}>
-                <span>{photoPickMode === "spot" ? "TAP OR DRAG OVER THE EXACT COLOR" : "DRAG THE FRAME OVER THE COLOR AREA"}</span>
-                <strong>AUTO-CLEAR {formatCountdown(photoSecondsLeft)}</strong>
+                <span>{photoPickMode === "spot" ? "Πάτησε πάνω στο χρώμα που θέλεις" : "Μετακίνησε το πλαίσιο στο χρώμα που θέλεις"}</span>
+                <strong>Η φωτογραφία σβήνει σε {formatCountdown(photoSecondsLeft)}</strong>
               </div>
 
               <div className={styles.photoControls}>
@@ -942,7 +930,7 @@ export function ColorFinderExperience({
                       disabled={!photoReady}
                       onChange={(event) => resizeCrop(Number(event.target.value))}
                     />
-                    <strong>{cropPercent}%</strong>
+                    <strong>↔</strong>
                   </label>
                 ) : null}
 
@@ -950,8 +938,8 @@ export function ColorFinderExperience({
                   <div className={styles.detectedColor}>
                     <span style={{ backgroundColor: photoSampleHex }} />
                     <div>
-                      <small>{nearestColorName(photoSampleHex).label.toUpperCase()} · PHOTO</small>
-                      <strong>{photoSampleHex}</strong>
+                      <small>ΧΡΩΜΑ ΑΠΟ ΦΩΤΟΓΡΑΦΙΑ</small>
+                      <strong>{nearestColorName(photoSampleHex).label}</strong>
                     </div>
                   </div>
                 ) : null}
@@ -963,10 +951,10 @@ export function ColorFinderExperience({
                     disabled={photoPickMode === "spot" ? !photoSampleHex : !photoReady}
                     onClick={photoPickMode === "spot" ? scrollToMatches : useSelectedPhotoColor}
                   >
-                    {photoPickMode === "spot" ? "SHOW MATCHES" : "USE COLOR & SHOW MATCHES"}
+                    {photoPickMode === "spot" ? "ΔΕΣ ΤΙ ΤΑΙΡΙΑΖΕΙ" : "ΧΡΗΣΙΜΟΠΟΙΗΣΕ ΤΟ ΧΡΩΜΑ"}
                   </button>
                   <label className={styles.photoGhostAction}>
-                    NEW PHOTO
+                    ΑΛΛΗ ΦΩΤΟΓΡΑΦΙΑ
                     <input
                       className={styles.photoFileInput}
                       type="file"
@@ -978,7 +966,7 @@ export function ColorFinderExperience({
 
                 <div className={styles.photoToolbarSecondary}>
                   <label className={styles.photoGhostAction}>
-                    CAMERA
+                    ΚΑΜΕΡΑ
                     <input
                       className={styles.photoFileInput}
                       type="file"
@@ -988,13 +976,13 @@ export function ColorFinderExperience({
                     />
                   </label>
                   <button type="button" className={styles.photoDeleteAction} onClick={clearPhoto}>
-                    DELETE NOW
+                    ΔΙΑΓΡΑΦΗ
                   </button>
                 </div>
 
                 {photoError ? <p className={styles.photoError}>{photoError}</p> : null}
                 <p className={styles.privacyNote}>
-                  Η φωτογραφία δεν ανεβαίνει στο ΚΟΝΤΑ ΜΟΥ και δεν αποθηκεύεται σε λογαριασμό, βάση δεδομένων ή analytics. Μένει μόνο προσωρινά στον browser και διαγράφεται αυτόματα σε έως 15 λεπτά.
+                  Η φωτογραφία μένει μόνο στη συσκευή σου και διαγράφεται αυτόματα σε έως 15 λεπτά.
                 </p>
               </div>
             </div>
@@ -1002,11 +990,11 @@ export function ColorFinderExperience({
             <div className={styles.photoEmpty}>
               <span className={styles.photoKicker}>{context.photoKicker}</span>
               <h3>{context.photoTitle}</h3>
-              <p>{context.photoBody} Για υφές ή επιφάνειες με μικρές διακυμάνσεις, χρησιμοποίησε το AREA για πιο σταθερό μέσο χρώμα.</p>
+              <p>{context.photoBody} Αν θέλεις, μπορείς να επιλέξεις ένα μικρό σημείο ή μια μεγαλύτερη περιοχή της φωτογραφίας.</p>
 
               <div className={styles.photoActions}>
                 <label className={styles.photoAction}>
-                  TAKE A PHOTO
+                  ΒΓΑΛΕ ΦΩΤΟΓΡΑΦΙΑ
                   <input
                     className={styles.photoFileInput}
                     type="file"
@@ -1016,7 +1004,7 @@ export function ColorFinderExperience({
                   />
                 </label>
                 <label className={styles.photoGhostAction}>
-                  UPLOAD PHOTO
+                  ΑΝΕΒΑΣΕ ΦΩΤΟΓΡΑΦΙΑ
                   <input
                     className={styles.photoFileInput}
                     type="file"
@@ -1028,7 +1016,7 @@ export function ColorFinderExperience({
 
               {photoError ? <p className={styles.photoError}>{photoError}</p> : null}
               <p className={styles.privacyNote}>
-                Privacy by design: καμία φωτογραφία δεν φεύγει από τη συσκευή. Δεν γίνεται μόνιμη αποθήκευση και το προσωρινό τοπικό αντικείμενο λήγει σε 15 λεπτά ή νωρίτερα αν πατήσεις διαγραφή. Για πιο πιστό χρώμα προτίμησε φυσικό φως και φωτογραφία χωρίς φίλτρα.
+                Η φωτογραφία μένει μόνο στη συσκευή σου και διαγράφεται αυτόματα σε έως 15 λεπτά. Για πιο φυσικό αποτέλεσμα, προτίμησε καλό φως και φωτογραφία χωρίς φίλτρα.
               </p>
             </div>
           )}
@@ -1049,25 +1037,12 @@ export function ColorFinderExperience({
                         style={{ backgroundColor: hex }}
                         onClick={() => {
                           setSelectedHex(hex);
-                          setHexDraft(hex);
                         }}
                       />
                     ))}
                   </div>
                 </div>
               ) : null}
-
-              <div className={styles.mobileHexField}>
-                <label htmlFor="color-finder-hex-mobile">HEX</label>
-                <input
-                  id="color-finder-hex-mobile"
-                  value={hexDraft}
-                  maxLength={7}
-                  spellCheck={false}
-                  onChange={(event) => applyHex(event.target.value)}
-                  onBlur={() => setHexDraft(selectedHex)}
-                />
-              </div>
 
               <div className={styles.mobilePresetRail} aria-label="Προτεινόμενες αποχρώσεις">
                 {COLOR_FINDER_PRESETS.map((preset) => (
@@ -1080,7 +1055,6 @@ export function ColorFinderExperience({
                     style={{ backgroundColor: preset.hex }}
                     onClick={() => {
                       setSelectedHex(preset.hex);
-                      setHexDraft(preset.hex);
                     }}
                   />
                 ))}
@@ -1091,18 +1065,6 @@ export function ColorFinderExperience({
               </button>
             </div>
           </details>
-
-          <div className={styles.hexField}>
-            <label htmlFor="color-finder-hex">HEX</label>
-            <input
-              id="color-finder-hex"
-              value={hexDraft}
-              maxLength={7}
-              spellCheck={false}
-              onChange={(event) => applyHex(event.target.value)}
-              onBlur={() => setHexDraft(selectedHex)}
-            />
-          </div>
           <div className={styles.presetRail} aria-label="Προτεινόμενες αποχρώσεις">
             {COLOR_FINDER_PRESETS.map((preset) => (
               <button
@@ -1115,7 +1077,6 @@ export function ColorFinderExperience({
                 style={{ backgroundColor: preset.hex }}
                 onClick={() => {
                   setSelectedHex(preset.hex);
-                  setHexDraft(preset.hex);
                 }}
               />
             ))}
@@ -1130,8 +1091,8 @@ export function ColorFinderExperience({
             <h2 id="color-finder-results">{context.resultsTitle}</h2>
             <p aria-live="polite">
               {visibleMatches.length
-                ? `${context.resultsBody} ${visibleMatches.length} από ${matches.length} αξιόπιστα αποτελέσματα με τουλάχιστον ${MIN_MATCH_PERCENT}% αντιστοιχία, ${sortMode === "match" ? "ταξινομημένα από το κοντινότερο χρώμα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
-                : `Δεν βρέθηκαν ${context.productPlural} με τουλάχιστον ${MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων για αυτόν τον συνδυασμό φίλτρων.`}
+                ? `${context.resultsBody} ${visibleMatches.length} από ${matches.length} επιλογές, ${sortMode === "match" ? "με τα πιο κοντινά χρώματα πρώτα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
+                : `Δεν βρήκαμε ακόμα κάτι αρκετά κοντά σε αυτό το χρώμα. Δοκίμασε μια λίγο διαφορετική απόχρωση.`}
             </p>
           </div>
           <div className={styles.targetChip}>
@@ -1217,7 +1178,7 @@ export function ColorFinderExperience({
                   <div className={styles.productBody}>
                     <div className={styles.brandRow}>
                       <span>{product.brand ?? "KONTA MOY"}</span>
-                      <strong>{product.match}% <small>{matchQualityLabel(product.match)}</small></strong>
+                      <strong><small>{matchQualityLabel(product.match)}</small></strong>
                     </div>
                     <h3><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>{product.title}</Link></h3>
                     {product.brandShade || product.shadeCode ? (
@@ -1225,28 +1186,17 @@ export function ColorFinderExperience({
                         {[product.shadeCode, product.brandShade].filter(Boolean).join(" · ")}
                       </p>
                     ) : null}
-                    {product.profilePrecision ? (
-                      <p className={styles.profileNote}>
-                        {product.profilePrecision === "exact"
-                          ? "Verified colour profile"
-                          : product.profilePrecision === "canonicalized"
-                            ? ["nails", "lips", "eyes", "makeup", "hair"].includes(context.key)
-                              ? "Canonicalized brand shade"
-                              : "Canonicalized product color"
-                            : "Approximate colour family"}
-                        {typeof product.profileConfidence === "number" ? ` · ${Math.round(product.profileConfidence * 100)}% confidence` : ""}
-                      </p>
-                    ) : null}
+
                     <div className={styles.swatches}>
                       <div>
                         <span style={{ backgroundColor: product.colorHex }} />
-                        <small>{product.profilePrecision === "exact" ? "PRODUCT" : "PROFILE"}</small>
+                        <small>ΠΡΟΪΟΝ</small>
                       </div>
                       <div>
                         <span style={{ backgroundColor: selectedHex }} />
-                        <small>YOUR COLOR</small>
+                        <small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small>
                       </div>
-                      <p>ΔE {product.deltaE.toFixed(1)}</p>
+
                     </div>
                     <div className={styles.cardFooter}>
                       <div>
@@ -1262,9 +1212,9 @@ export function ColorFinderExperience({
             {visibleMatches.length < matches.length ? (
               <div className={styles.moreMatches}>
                 <button type="button" onClick={() => setVisibleLimit((current) => current + 24)}>
-                  SHOW MORE MATCHES
+                  ΔΕΣ ΠΕΡΙΣΣΟΤΕΡΑ
                 </button>
-                <span>{matches.length - visibleMatches.length} more ≥ {MIN_MATCH_PERCENT}%</span>
+                <span>{matches.length - visibleMatches.length} ακόμη επιλογές</span>
               </div>
             ) : null}
           </>
@@ -1273,17 +1223,17 @@ export function ColorFinderExperience({
             <span className={styles.emptySwatch} style={{ backgroundColor: selectedHex }} />
             <h3>
               {catalogueState === "loading"
-                ? "Loading color matches…"
+                ? "Βρίσκουμε τις καλύτερες επιλογές…"
                 : catalogueAvailable
-                  ? `We are still learning this color in ${context.categoryLabel}.`
-                  : `${context.studioLabel} matching is refreshing.`}
+                  ? `Δεν βρήκαμε ακόμη αρκετά κοντινή επιλογή σε ${context.categoryLabel}.`
+                  : `Το ${context.studioLabel} ετοιμάζει ξανά τις επιλογές σου.`}
             </h3>
             <p>
               {catalogueState === "loading"
-                ? <>Ο Color Finder είναι ήδη διαθέσιμος. Φορτώνουμε τα χρωματικά προφίλ προϊόντων στο παρασκήνιο.</>
+                ? <>Μια στιγμή — βρίσκουμε τις πιο ταιριαστές επιλογές για το χρώμα σου.</>
                 : catalogueAvailable
-                  ? <>Εμφανίζουμε μόνο {context.productPlural} με τουλάχιστον {MIN_MATCH_PERCENT}% χρωματική αντιστοιχία και επαρκή ποιότητα χρωματικών δεδομένων. Δοκίμασε μια κοντινή απόχρωση{context.showFinishFilter ? " ή διαφορετικό finish" : ""}.</>
-                  : <>Μπορείς να συνεχίσεις να διαλέγεις ή να παίρνεις χρώμα από φωτογραφία. Τα προϊόντα θα εμφανιστούν μόλις ανανεωθεί ξανά ο κατάλογος αντιστοίχισης.</>}
+                  ? <>Δοκίμασε μια λίγο πιο ανοιχτή ή πιο σκούρα απόχρωση{context.showFinishFilter ? " ή διαφορετικό φινίρισμα" : ""}.</>
+                  : <>Μπορείς να συνεχίσεις να διαλέγεις χρώμα ή να το πάρεις από φωτογραφία και να δοκιμάσεις ξανά σε λίγο.</>}
             </p>
             {catalogueState === "degraded" ? (
               <button
@@ -1291,7 +1241,7 @@ export function ColorFinderExperience({
                 className={styles.emptyReset}
                 onClick={() => setCatalogReloadKey(Date.now())}
               >
-                RETRY MATCHES
+                ΔΟΚΙΜΑΣΕ ΞΑΝΑ
               </button>
             ) : finish !== "all" || productType !== "all" || brand !== "all" ? (
               <button
@@ -1303,7 +1253,7 @@ export function ColorFinderExperience({
                   setBrand("all");
                 }}
               >
-                RESET FILTERS
+                ΚΑΘΑΡΙΣΜΟΣ ΦΙΛΤΡΩΝ
               </button>
             ) : null}
           </div>
@@ -1438,8 +1388,8 @@ function hsvToHex(color: HsvColor): string {
 
 
 function matchQualityLabel(match: number): string {
-  if (match >= 85) return "EXCELLENT";
-  if (match >= 70) return "VERY CLOSE";
-  if (match >= 60) return "CLOSE";
-  return "MATCH";
+  if (match >= 85) return "ΕΞΑΙΡΕΤΙΚΟ ΤΑΙΡΙΑΣΜΑ";
+  if (match >= 70) return "ΠΟΛΥ ΚΟΝΤΑ";
+  if (match >= 60) return "ΚΟΝΤΑ";
+  return "ΤΑΙΡΙΑΖΕΙ";
 }
