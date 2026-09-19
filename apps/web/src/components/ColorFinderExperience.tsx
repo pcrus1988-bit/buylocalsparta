@@ -185,12 +185,13 @@ export function ColorFinderExperience({ products }: { products: readonly ColorFi
       .filter((type) => (typeCounts.get(type) ?? 0) > 0 || productType === type),
     [productType, typeCounts]
   );
-  const availableBrands = useMemo(
-    () => [...brandCounts.entries()]
+  const availableBrands = useMemo(() => {
+    const names = [...brandCounts.entries()]
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "el"))
-      .map(([name]) => name),
-    [brandCounts]
-  );
+      .map(([name]) => name);
+    if (brand !== "all" && !names.includes(brand)) names.unshift(brand);
+    return names;
+  }, [brand, brandCounts]);
   const selectedShade = useMemo(() => nearestColorName(selectedHex), [selectedHex]);
   const fineTuneColors = useMemo(() => {
     const candidates = [
