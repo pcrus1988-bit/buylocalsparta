@@ -158,14 +158,8 @@ export async function buildPrivacyReportSnapshot(actorUserId:string,userId:strin
       FROM saved_vendors sv JOIN vendor_businesses v ON v.id=sv.vendor_id WHERE sv.user_id=$1::uuid ORDER BY sv.saved_at DESC`,[uid]);
     const savedLooks=await tx.query<SqlRow>(`
       SELECT public_id::text AS public_id,name,composition,created_at,updated_at,
-        'style_builder'::text AS storage_model,audience,source,profile,total_minor,share_enabled
+        audience,source,profile,total_minor,share_enabled
       FROM customer_style_looks
-      WHERE user_id=$1::uuid
-      UNION ALL
-      SELECT public_id::text AS public_id,name,composition,created_at,updated_at,
-        'legacy_fitting_room'::text AS storage_model,NULL::text AS audience,NULL::text AS source,
-        NULL::jsonb AS profile,NULL::integer AS total_minor,NULL::boolean AS share_enabled
-      FROM customer_saved_looks
       WHERE user_id=$1::uuid
       ORDER BY updated_at DESC`,[uid]);
     const recent=await tx.query<SqlRow>(`SELECT rv.public_id,cv.public_id AS canonical_variant_public_id,rv.viewed_at,rv.expires_at
