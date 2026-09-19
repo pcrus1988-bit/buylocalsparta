@@ -148,8 +148,7 @@ function productText(product: Product): string {
   ].filter(Boolean).join(" "));
 }
 
-function slotFor(product: Product): SlotKey | null {
-  const text = productText(product);
+function slotFromText(text: string): SlotKey | null {
   if (/nail|polish|lacquer|βερνικ|νυχι/.test(text)) return "nails";
   if (/lip|makeup|mascara|foundation|concealer|blush|eyeshadow|perfume|fragrance|cosmetic|skincare|serum|cream|beauty|κραγιον|μακιγιαζ|αρωμ|ομορφ|περιποι/.test(text)) return "beauty";
   if (/shoe|sneaker|trainer|boot|loafer|moccas|sandal|heel|pump|footwear|παπουτ|μποτ|σανδαλ/.test(text)) return "shoes";
@@ -159,6 +158,14 @@ function slotFor(product: Product): SlotKey | null {
   if (/trouser|pants|jean|skirt|shorts|legging|chino|παντελον|τζιν|φουστ|σορτ/.test(text)) return "bottom";
   if (/dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ|shirt|t shirt|t-shirt|top|blouse|sweater|knit|hoodie|polo|πουκαμισ|μπλουζ|πλεκ|φουτερ/.test(text)) return "main";
   return null;
+}
+
+function slotFor(product: Product): SlotKey | null {
+  return slotFromText(productText(product));
+}
+
+function slotForFacet(option: FacetOption): SlotKey | null {
+  return slotFromText(normalize(`${option.value} ${option.label}`));
 }
 
 function isOnePiece(product: Product | undefined): boolean {
@@ -451,15 +458,38 @@ export function FittingRoomExperience({
 
   async function loadCandidateProducts(): Promise<readonly Product[]> {
     const all: Product[] = [];
-    let nextOffset: number | null = 0;
-    for (let page = 0; page < 2 && nextOffset !== null; page += 1) {
-      const params = new URLSearchParams({ limit: "60", offset: String(nextOffset) });
+
+    const fetchGroup = async (categories: readonly string[], limit = 60) => {
+      const params = new URLSearchParams({ limit: String(limit), offset: "0" });
+      for (const category of categories) params.append("category", category);
       const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(vendorId)}?${params.toString()}`, { cache: "default" });
       if (!response.ok) throw new Error("catalogue");
-      const payload = await response.json() as { products?: Product[]; nextOffset?: number | null };
+      const payload = await response.json() as { products?: Product[] };
       all.push(...(payload.products ?? []));
-      nextOffset = typeof payload.nextOffset === "number" ? payload.nextOffset : null;
+    };
+
+    // One fast recommended page gives the consultant a useful baseline without
+    // pulling thousands of products into the browser.
+    await fetchGroup([], 60);
+
+    const categoryOptions = [...(facets.categories ?? [])]
+      .sort((left, right) => (right.count ?? 0) - (left.count ?? 0));
+
+    // Then balance the wardrobe with indexed category queries. This avoids a
+    // first-page bias where, for example, nail polish can crowd out shoes.
+    const fashionSlots = new Set<SlotKey>(["main", "bottom", "layer", "shoes"]);
+    const detailSlots = new Set<SlotKey>(["bag", "accessory", "beauty", "nails"]);
+
+    for (const wantedSlots of [fashionSlots, detailSlots]) {
+      const picked = new Map<SlotKey, string>();
+      for (const option of categoryOptions) {
+        const slot = slotForFacet(option);
+        if (!slot || !wantedSlots.has(slot) || picked.has(slot)) continue;
+        picked.set(slot, option.value);
+      }
+      if (picked.size) await fetchGroup([...picked.values()], 60);
     }
+
     return [...new Map(all.map((product) => [product.id, product] as const)).values()]
       .filter((product) => product.priceMinor > 0 && slotFor(product));
   }
