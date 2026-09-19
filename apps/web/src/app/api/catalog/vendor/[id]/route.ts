@@ -48,7 +48,19 @@ async function optionalFacets(vendorId: string, context: VendorDropshipFacetCont
   // Contextual facets are still used once the customer narrows the catalogue.
   if (emptyFacetContext(context)) {
     try {
-      return await getVendorDropshipFacets(vendorId);
+      const preaggregated = await getVendorDropshipFacets(vendorId);
+      // A successful query is not necessarily a healthy projection. During a
+      // delayed/failed materialized-view refresh the table can be legitimately
+      // empty while live supplier offers are available. Fall through to the live
+      // contextual path instead of presenting an empty category/filter UI.
+      if (preaggregated.total > 0 || preaggregated.categories.length > 0) {
+        return preaggregated;
+      }
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "storefront.vendor_catalog_facets_preaggregated_empty",
+        vendorId
+      }));
     } catch (error) {
       console.error(JSON.stringify({
         level: "warn",
