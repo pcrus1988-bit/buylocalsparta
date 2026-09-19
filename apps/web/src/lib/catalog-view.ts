@@ -44,8 +44,9 @@ function visitorHash(visitorKey: string): string {
  * Product routes resolve exactly one canonical. Department membership is projected
  * by the storefront read model when available, avoiding a second taxonomy query.
  */
-const directPublicCanonical = cache(async (routeKey: string) => {
-  if (!productionDatabaseConfigured()) return undefined;
+type ProductRedirectRow = Readonly<{ to_path: string }>;
+
+async function loadDirectPublicCanonical(routeKey: string) {
   const result = await getProductionPostgresRuntime().nativePool.query<DirectCanonicalRow>(`
     SELECT cv.public_id AS id,
            cv.slug,
@@ -91,6 +92,43 @@ const directPublicCanonical = cache(async (routeKey: string) => {
     categoryCode: String(row.category_code),
     departmentCode: row.department_code ? String(row.department_code) : undefined
   } as const;
+}
+
+async function legacyProductRedirectTarget(routeKey: string): Promise<string | undefined> {
+  const result = await getProductionPostgresRuntime().nativePool.query<ProductRedirectRow>(`
+    SELECT r.to_path
+    FROM public.cms_redirects r
+    JOIN public.markets m ON m.id=r.market_id
+    WHERE m.code='sparta'
+      AND r.active=true
+      AND r.status_code IN (301,308)
+      AND r.from_path=$1
+    ORDER BY r.created_at DESC,r.id DESC
+    LIMIT 1
+  `, [`/product/${encodeURIComponent(routeKey)}`]);
+  const toPath = result.rows[0]?.to_path?.trim();
+  if (!toPath?.startsWith("/product/")) return undefined;
+  const encodedTarget = toPath.slice("/product/".length);
+  if (!encodedTarget) return undefined;
+  try {
+    return decodeURIComponent(encodedTarget);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Product routes stay on the indexed direct lookup. Historical slugs only touch
+ * the redirect table after a miss, and the page then emits the permanent redirect.
+ */
+const directPublicCanonical = cache(async (routeKey: string) => {
+  if (!productionDatabaseConfigured()) return undefined;
+  const direct = await loadDirectPublicCanonical(routeKey);
+  if (direct) return direct;
+
+  const redirectedRouteKey = await legacyProductRedirectTarget(routeKey);
+  if (!redirectedRouteKey || redirectedRouteKey === routeKey) return undefined;
+  return loadDirectPublicCanonical(redirectedRouteKey);
 });
 
 const loadSingleCatalogMetadata = cache(async (canonicalVariantId: string) =>

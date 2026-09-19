@@ -1,6 +1,7 @@
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { resolveSymphonyaCategoryCode } from "./symphonya-category-mapping";
+import { canonicalSymphonyaSlug } from "./symphonya-canonical-slug";
 
 const SUPPLIER_CODE = "symphonya";
 const EXPECTED_OWNER_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
@@ -359,7 +360,7 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
     }
 
     if (!canonicalVariantId) {
-      const slug = canonicalSlug(source.title, source.sourceProductKey, variant.externalVariantId);
+      const slug = canonicalSymphonyaSlug(source.title, source.sourceProductKey, variant.externalVariantId);
       const created = await pool.query<SqlRow>(`
         INSERT INTO public.canonical_variants(
           market_id,family_id,brand_id,category_id,slug,gtin,mpn,model,condition,
@@ -738,14 +739,6 @@ function validGtin(value: string): boolean {
     sum += digit * (offset % 2 === 0 ? 3 : 1);
   }
   return (10 - (sum % 10)) % 10 === check;
-}
-
-function canonicalSlug(title: string, productId: string, variantId: string): string {
-  const base = title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 72) || "symphonya-product";
-  const product = productId.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-16) || "product";
-  const variant = variantId.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-16) || "variant";
-  return `${base}-sym-${product}-${variant}`.slice(0, 140);
 }
 
 function productModel(payload: Readonly<Record<string, unknown>>): string | null {
