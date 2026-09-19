@@ -44,6 +44,7 @@ const MIN_CROP_RATIO = 0.08;
 const MAX_CROP_RATIO = 0.65;
 const MIN_MATCH_PERCENT = 49;
 const MIN_PROFILE_CONFIDENCE = 0.5;
+const CATALOGUE_REQUEST_TIMEOUT_MS = 7_000;
 
 const FINISH_LABELS: Readonly<Record<ColorFinish, string>> = {
   cream: "Cream",
@@ -224,6 +225,7 @@ export function ColorFinderExperience({
     }
 
     const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), CATALOGUE_REQUEST_TIMEOUT_MS);
     setCatalogueState("loading");
     const endpointParams = new URLSearchParams({ category: categoryCode });
     if (vendorId) endpointParams.set("vendor", vendorId);
@@ -243,16 +245,23 @@ export function ColorFinderExperience({
       .then((payload) => {
         if (controller.signal.aborted) return;
         const nextProducts = Array.isArray(payload.products) ? payload.products : [];
-        setCatalogProducts(nextProducts);
+        if (nextProducts.length > 0) setCatalogProducts(nextProducts);
         setCatalogueState(payload.degraded || nextProducts.length === 0 ? "degraded" : "ready");
       })
       .catch((error) => {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          setCatalogueState("degraded");
+          return;
+        }
         console.warn("Color Finder catalogue load degraded", error);
         setCatalogueState("degraded");
-      });
+      })
+      .finally(() => window.clearTimeout(timeout));
 
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [catalogReloadKey, categoryCode, products, vendorId]);
 
   useEffect(() => {
@@ -1222,7 +1231,7 @@ export function ColorFinderExperience({
                         {product.profilePrecision === "exact"
                           ? "Verified colour profile"
                           : product.profilePrecision === "canonicalized"
-                            ? ["nails", "lips", "eyes", "makeup"].includes(context.key)
+                            ? ["nails", "lips", "eyes", "makeup", "hair"].includes(context.key)
                               ? "Canonicalized brand shade"
                               : "Canonicalized product color"
                             : "Approximate colour family"}
