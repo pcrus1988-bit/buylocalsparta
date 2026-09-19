@@ -11,6 +11,7 @@ const SOURCE_CODE = "symphonya";
 const SUPPLIER_CODE = "symphonya";
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 250;
+const FALLBACK_PROMOTION_BATCH_SIZE = 2_000;
 
 export type SymphonyaEnrichmentPreparationSliceResult = Readonly<{
   scanned: number;
@@ -222,6 +223,98 @@ async function prepareSymphonyaEnrichment(input: Readonly<{
     JSON.stringify(bazaar),
     JSON.stringify(identifiers)
   ]);
+}
+
+export type SymphonyaDeterministicTranslationPromotionResult = Readonly<{
+  scanned: number;
+  promoted: number;
+}>;
+
+/**
+ * Promote the deterministic Greek presentation immediately after preparation.
+ *
+ * This is deliberately independent of AI generation: verified supplier facts can
+ * produce a safe Greek serving title synchronously, while AI enrichment remains an
+ * asynchronous quality upgrade. Existing non-empty translations are preserved.
+ */
+export async function runSymphonyaDeterministicTranslationPromotionSlice(): Promise<SymphonyaDeterministicTranslationPromotionResult> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const result = await pool.query<SqlRow>(`
+    WITH candidates AS MATERIALIZED (
+      SELECT ce.id enrichment_id,
+             cv.id canonical_variant_id,
+             NULLIF(btrim(ce.deterministic_fallback->>'titleEl'),'') title,
+             NULLIF(btrim(ce.deterministic_fallback->>'shortDescriptionEl'),'') description,
+             CASE
+               WHEN jsonb_typeof(ce.deterministic_fallback->'specificationsEl')='object'
+               THEN ce.deterministic_fallback->'specificationsEl'
+               ELSE '{}'::jsonb
+             END specifications
+        FROM public.catalogue_enrichments ce
+        JOIN public.dropship_suppliers ds
+          ON ds.id=ce.supplier_id
+         AND ds.code=$1
+         AND ds.active=true
+        JOIN public.canonical_variants cv
+          ON cv.family_id=ce.family_id
+        JOIN public.vendor_offers vo
+          ON vo.canonical_variant_id=cv.id
+        JOIN public.dropship_supplier_offers dso
+          ON dso.vendor_offer_id=vo.id
+         AND dso.supplier_id=ds.id
+         AND dso.external_product_id=ce.external_product_id
+        LEFT JOIN public.product_translations pt
+          ON pt.canonical_variant_id=cv.id
+         AND pt.locale='el'
+       WHERE ce.family_id IS NOT NULL
+         AND ce.deterministic_fallback IS NOT NULL
+         AND NULLIF(btrim(ce.deterministic_fallback->>'titleEl'),'') IS NOT NULL
+         AND cv.suppressed=false
+         AND cv.recalled=false
+         AND vo.merchant_pause_active=false
+         AND COALESCE(vo.source_payload->>'pricingManagedBy','')='symphonya_auto_v1'
+         AND (pt.canonical_variant_id IS NULL OR NULLIF(btrim(pt.title),'') IS NULL)
+       ORDER BY (
+                  dso.cached_available=true
+                  AND COALESCE(dso.cached_quantity,0)>0
+                  AND dso.availability_expires_at>now()
+                  AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
+                ) DESC,
+                ce.updated_at,
+                ce.id,
+                cv.id
+       LIMIT $2
+    ),
+    upserted AS (
+      INSERT INTO public.product_translations(
+        canonical_variant_id,locale,title,description,specifications,seo_title,seo_description
+      )
+      SELECT canonical_variant_id,
+             'el',
+             title,
+             description,
+             specifications,
+             title,
+             description
+        FROM candidates
+      ON CONFLICT(canonical_variant_id,locale)
+      DO UPDATE SET
+        title=COALESCE(NULLIF(btrim(public.product_translations.title),''),EXCLUDED.title),
+        description=COALESCE(NULLIF(btrim(public.product_translations.description),''),EXCLUDED.description),
+        specifications=EXCLUDED.specifications || COALESCE(public.product_translations.specifications,'{}'::jsonb),
+        seo_title=COALESCE(NULLIF(btrim(public.product_translations.seo_title),''),EXCLUDED.seo_title),
+        seo_description=COALESCE(NULLIF(btrim(public.product_translations.seo_description),''),EXCLUDED.seo_description)
+      RETURNING canonical_variant_id
+    )
+    SELECT (SELECT count(*)::int FROM candidates) scanned,
+           count(*)::int promoted
+      FROM upserted
+  `, [SUPPLIER_CODE, FALLBACK_PROMOTION_BATCH_SIZE]);
+
+  return {
+    scanned: Number(result.rows[0]?.scanned ?? 0),
+    promoted: Number(result.rows[0]?.promoted ?? 0)
+  };
 }
 
 function batchSize(): number {
