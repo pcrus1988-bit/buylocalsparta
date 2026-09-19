@@ -1,0 +1,49 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ColorFinderExperience } from "../../components/ColorFinderExperience";
+import { SiteFooter } from "../../components/SiteFooter";
+import { getColorFinderProducts } from "../../lib/color-finder-data";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
+import styles from "./page.module.css";
+
+export const revalidate = 300;
+
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/color-finder", {
+    title: "Color Finder",
+    description: "Διάλεξε ένα χρώμα και βρες τις πιο κοντινές διαθέσιμες αποχρώσεις nail polish στο ΚΟΝΤΑ ΜΟΥ."
+  });
+}
+
+export default async function ColorFinderPage() {
+  const products = await getColorFinderProducts();
+
+  return (
+    <main className={styles.page}>
+      <div className={styles.topBar}>
+        <Link href="/" className={styles.back}>← KONTA MOY</Link>
+        <div className={styles.wordmark}>
+          <strong>COLOR FINDER</strong>
+          <span>by KONTA MOY</span>
+        </div>
+        <Link href="/shop?category=beauty" className={styles.shopLink}>BEAUTY SHOP ↗</Link>
+      </div>
+
+      <ColorFinderExperience products={products} />
+
+      <section className={styles.manifesto} aria-label="Σχετικά με το Color Finder">
+        <span>01</span>
+        <div>
+          <p>THE IDEA</p>
+          <h2>Color first.<br />Product second.</h2>
+        </div>
+        <p>
+          Αντί να ψάχνεις εκατοντάδες ονόματα αποχρώσεων, ξεκινάς από το χρώμα που θέλεις.
+          Το εργαλείο συγκρίνει την επιλεγμένη απόχρωση με τα χρωματικά προφίλ των διαθέσιμων προϊόντων και σου δείχνει πρώτα τα πιο κοντινά.
+        </p>
+      </section>
+
+      <SiteFooter />
+    </main>
+  );
+}
