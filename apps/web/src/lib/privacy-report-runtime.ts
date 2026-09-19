@@ -156,8 +156,18 @@ export async function buildPrivacyReportSnapshot(actorUserId:string,userId:strin
       FROM saved_products sp JOIN canonical_variants cv ON cv.id=sp.canonical_variant_id WHERE sp.user_id=$1::uuid ORDER BY sp.saved_at DESC`,[uid]);
     const savedVendors=await tx.query<SqlRow>(`SELECT sv.public_id,v.public_id AS vendor_public_id,sv.saved_at
       FROM saved_vendors sv JOIN vendor_businesses v ON v.id=sv.vendor_id WHERE sv.user_id=$1::uuid ORDER BY sv.saved_at DESC`,[uid]);
-    const savedLooks=await tx.query<SqlRow>(`SELECT public_id,name,composition,created_at,updated_at
-      FROM customer_saved_looks WHERE user_id=$1::uuid ORDER BY updated_at DESC`,[uid]);
+    const savedLooks=await tx.query<SqlRow>(`
+      SELECT public_id::text AS public_id,name,composition,created_at,updated_at,
+        'style_builder'::text AS storage_model,audience,source,profile,total_minor,share_enabled
+      FROM customer_style_looks
+      WHERE user_id=$1::uuid
+      UNION ALL
+      SELECT public_id::text AS public_id,name,composition,created_at,updated_at,
+        'legacy_fitting_room'::text AS storage_model,NULL::text AS audience,NULL::text AS source,
+        NULL::jsonb AS profile,NULL::integer AS total_minor,NULL::boolean AS share_enabled
+      FROM customer_saved_looks
+      WHERE user_id=$1::uuid
+      ORDER BY updated_at DESC`,[uid]);
     const recent=await tx.query<SqlRow>(`SELECT rv.public_id,cv.public_id AS canonical_variant_public_id,rv.viewed_at,rv.expires_at
       FROM recently_viewed_products rv JOIN canonical_variants cv ON cv.id=rv.canonical_variant_id WHERE rv.user_id=$1::uuid ORDER BY rv.viewed_at DESC`,[uid]);
     const searches=await tx.query<SqlRow>(`SELECT public_id,name,query,alerts_enabled,seen_canonical_public_ids,last_observed_count,last_observed_at,created_at,updated_at
