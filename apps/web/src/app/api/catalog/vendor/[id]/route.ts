@@ -123,14 +123,26 @@ export async function GET(request: Request, { params }: RouteContext) {
   try {
     if (facetsOnly) {
       const facets = await optionalFacets(id, facetContext);
+      if (!facets) {
+        return Response.json(
+          { error: "catalogue_facets_unavailable" },
+          {
+            status: 503,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": "1"
+            }
+          }
+        );
+      }
       return Response.json({
         vendorId: id,
         products: [],
-        total: facets?.total,
+        total: facets.total,
         offset: 0,
         limit: 0,
         nextOffset: null,
-        facets: facets ?? null
+        facets
       }, { headers: publicCacheHeaders(true) });
     }
 

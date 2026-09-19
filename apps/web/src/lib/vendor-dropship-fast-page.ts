@@ -139,7 +139,7 @@ export async function getFastVendorDropshipCatalogPage(
     )
     SELECT supplier_id,external_product_id
     FROM deduplicated
-    ORDER BY newest_at DESC,supplier_id,external_product_id
+    ORDER BY md5(supplier_id || ':' || external_product_id),supplier_id,external_product_id
     LIMIT $2 OFFSET $3
   `, [vendorId, limit + 1, offset, liveFallbackWindow]);
 

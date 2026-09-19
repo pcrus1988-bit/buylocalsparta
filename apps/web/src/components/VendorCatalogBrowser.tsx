@@ -409,6 +409,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
   const [remoteLoading, setRemoteLoading] = useState(!demoVendorId);
   const [facetsLoading, setFacetsLoading] = useState(false);
+  const [facetsError, setFacetsError] = useState(false);
   const [remoteError, setRemoteError] = useState(false);
   const [publicVendorId, setPublicVendorId] = useState<string | undefined>(() => vendorId && VENDOR_ID_PATTERN.test(vendorId) ? vendorId : undefined);
   const initialGuideHandled = useRef(false);
@@ -477,6 +478,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setFacetsLoading(true);
+      setFacetsError(false);
       try {
         const params = pageParams(filters, 0);
         params.delete("offset");
@@ -484,15 +486,31 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         params.delete("sort");
         params.set("facets", "1");
         params.set("facetsOnly", "1");
-        const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?${params.toString()}`, { signal: controller.signal, cache: "default" });
-        if (!response.ok) throw new Error(`Facet request failed with ${response.status}`);
-        const payload = await response.json() as VendorCatalogApiResponse;
-        if (serial === facetRequestSerial.current && payload.facets) {
+        const requestUrl = `/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?${params.toString()}`;
+        let payload: VendorCatalogApiResponse | undefined;
+        let lastStatus = 0;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const response = await fetch(requestUrl, { signal: controller.signal, cache: "no-store" });
+          lastStatus = response.status;
+          if (response.ok) {
+            const candidate = await response.json() as VendorCatalogApiResponse;
+            if (candidate.facets) {
+              payload = candidate;
+              break;
+            }
+          }
+          if (attempt === 0) await new Promise((resolve) => window.setTimeout(resolve, 650));
+        }
+        if (!payload?.facets) throw new Error(`Facet request unavailable (${lastStatus || "no response"})`);
+        if (serial === facetRequestSerial.current) {
           setRemoteFacets(payload.facets);
           setRemoteTotal(payload.facets.total);
         }
       } catch (error) {
-        if (!controller.signal.aborted) console.error("Vendor catalogue facets failed", error);
+        if (!controller.signal.aborted) {
+          setFacetsError(true);
+          console.error("Vendor catalogue facets failed", error);
+        }
       } finally {
         if (serial === facetRequestSerial.current) setFacetsLoading(false);
       }
@@ -528,8 +546,9 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     () => remoteFacets?.materials.length ? remoteFacets.materials : fallbackMaterialOptions(facetFallbackProducts),
     [facetFallbackProducts, remoteFacets]
   );
-  const fashionCategories = categories.filter(isFashionCategory);
-  const beautyCategories = categories.filter(isBeautyCategory);
+  const guideCategories = isGuidedVendor ? (remoteFacets?.categories ?? []) : categories;
+  const fashionCategories = guideCategories.filter(isFashionCategory);
+  const beautyCategories = guideCategories.filter(isBeautyCategory);
   const availableGuideDomains = ([
     ...(fashionCategories.length ? ["fashion" as const] : []),
     ...(beautyCategories.length ? ["beauty" as const] : [])
@@ -549,14 +568,14 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   }, [brand, brandSearch, brands]);
 
   useEffect(() => {
-    if (!isGuidedVendor || initialGuideHandled.current || facetsLoading || !categories.length) return;
+    if (!isGuidedVendor || initialGuideHandled.current || facetsLoading || facetsError || !remoteFacets || !guideCategories.length) return;
     if (!availableGuideDomains.length) return;
     initialGuideHandled.current = true;
     const url = new URL(window.location.href);
     const grouped = (url.searchParams.get("guideCategories") ?? url.searchParams.get("fashionCategories") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
-    const validGrouped = grouped.filter((value) => categories.some((entry) => entry.value === value));
+    const validGrouped = grouped.filter((value) => guideCategories.some((entry) => entry.value === value));
     if (validGrouped.length) {
-      const first = categories.find((entry) => entry.value === validGrouped[0]);
+      const first = guideCategories.find((entry) => entry.value === validGrouped[0]);
       setGuideDomain(first ? guideDomainFor(first) : null);
       setCategory("all");
       setCategoryGroup(validGrouped);
@@ -565,7 +584,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     }
     const requested = url.searchParams.get("guideCategory") ?? url.searchParams.get("fashionCategory");
     if (requested) {
-      const requestedEntry = categories.find((entry) => entry.value === requested);
+      const requestedEntry = guideCategories.find((entry) => entry.value === requested);
       if (requestedEntry) {
         setGuideDomain(guideDomainFor(requestedEntry));
         setCategory(requested);
@@ -575,7 +594,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     }
     setGuideDomain(availableGuideDomains.length === 1 ? availableGuideDomains[0] : null);
     setGuideOpen(true);
-  }, [availableGuideDomains, categories, facetsLoading, isGuidedVendor]);
+  }, [availableGuideDomains, facetsError, facetsLoading, guideCategories, isGuidedVendor, remoteFacets]);
 
   useEffect(() => {
     if (!guideOpen && !filtersOpen) return;
@@ -793,6 +812,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         {activeFilterCount ? <button type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}
       </div>
 
+      {isGuidedVendor && facetsLoading && !remoteFacets ? <button className="vc-guide-trigger" type="button" disabled><span><small>ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ</small><strong>Οργανώνουμε τον πλήρη κατάλογο…</strong></span><b>…</b></button> : null}
       {isGuidedVendor && availableGuideDomains.length ? <button className="vc-guide-trigger" type="button" onClick={reopenGuide}><span><small>ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ</small><strong>{guideTriggerLabel}</strong></span><b>→</b></button> : null}
 
       {activeChips.length ? <div className="vc-active-filters" aria-label="Ενεργά φίλτρα">
