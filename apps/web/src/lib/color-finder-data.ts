@@ -126,13 +126,23 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
 
     const storedHex = optionalText(row.canonical_hex);
     const storedResolved = storedHex ? resolveCatalogColor({ color: storedHex }) : undefined;
-    const resolved = storedResolved ?? resolveCatalogColor({ color: rawColor, title });
-    if (!resolved) return [];
-
     const storedPrecision = storedResolved ? validPrecision(row.match_precision) : undefined;
     const storedConfidence = storedResolved ? boundedConfidence(row.confidence) : undefined;
-    const fallbackPrecision = rawColor ? "canonicalized" as const : "family_estimate" as const;
-    const fallbackConfidence = rawColor ? 0.68 : 0.42;
+    const storedUsable = Boolean(
+      storedResolved
+      && storedPrecision
+      && storedPrecision !== "family_estimate"
+      && (storedConfidence ?? 0) >= 0.5
+    );
+    const resolved = storedUsable && storedResolved
+      ? storedResolved
+      : rawColor
+        ? resolveCatalogColor({ color: rawColor })
+        : undefined;
+    if (!resolved) return [];
+
+    const profilePrecision = storedUsable && storedPrecision ? storedPrecision : "canonicalized" as const;
+    const profileConfidence = storedUsable && storedConfidence !== undefined ? storedConfidence : 0.68;
     const productText = [
       title,
       rawColor,
@@ -148,8 +158,8 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
       brandShade: optionalText(row.brand_shade_name) ?? rawColor,
       shadeCode: optionalText(row.shade_code),
       colorDetail: optionalText(row.color_detail) ?? optionalText(row.color_family),
-      profilePrecision: storedPrecision ?? fallbackPrecision,
-      profileConfidence: storedConfidence ?? fallbackConfidence,
+      profilePrecision,
+      profileConfidence,
       colorHex: resolved.hex,
       colorLabel: optionalText(row.color_detail) ?? optionalText(row.color_family) ?? resolved.label,
       finish: validFinish(row.profile_finish) ?? inferColorFinish(productText),
@@ -164,7 +174,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
 
 export const getColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-authoritative-live-nails-v2"],
+  ["color-finder-authoritative-live-nails-v3"],
   { revalidate: CACHE_SECONDS }
 );
 
