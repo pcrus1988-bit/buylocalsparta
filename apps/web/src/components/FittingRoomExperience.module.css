@@ -799,6 +799,21 @@
   color: #e6d2b6;
 }
 
+.productDetailLink {
+  display: block;
+  margin: -4px 15px 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  color: #d8c09f;
+  font-size: 10px;
+  letter-spacing: .03em;
+  text-decoration: none;
+}
+
+.productDetailLink:hover {
+  color: #fff;
+}
+
 .emptySlot {
   min-height: 210px;
   padding: 22px;
