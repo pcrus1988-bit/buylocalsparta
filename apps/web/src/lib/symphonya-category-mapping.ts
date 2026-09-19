@@ -8,18 +8,14 @@ export function resolveSymphonyaCategoryCode(payloadValue: unknown, sourceTitle 
   const evidence = `${cat} ${scat} ${sscat} ${title}`;
 
   if (cat === "fragrance") return "fragrance";
-  if (cat === "room scents") {
-    return containsAny(evidence, ["candle", "home fragrance", "room spray", "diffuser"])
-      ? "candles-home-fragrance"
-      : null;
-  }
+  if (cat === "room scents") return "candles-home-fragrance";
 
   if (cat === "makeup") {
     if (scat === "lips") return "lip-makeup";
     if (scat === "eyes" || scat === "eyebrows") return "eye-makeup";
     if (scat === "nails") return "nail-care-colour";
     if (scat === "face" || scat === "cheeks") return "face-makeup";
-    if (scat.includes("brush") || scat.includes("applicator")) return "beauty-tools-accessories";
+    if (scat.includes("brush") || scat.includes("applicator") || scat === "tools & accessories") return "beauty-tools-accessories";
     return null;
   }
 
@@ -36,6 +32,8 @@ export function resolveSymphonyaCategoryCode(payloadValue: unknown, sourceTitle 
     if (scat === "hair accessories") return "hair-accessories";
     if (scat === "hair styling") return "hair-styling-products";
     if (scat === "hair colouring") return "hair-treatments";
+    if (scat === "beard grooming") return "grooming-care";
+    if (scat === "hairdressing tools" || scat === "electrical" || scat === "salon supplies") return "beauty-tools-accessories";
     if (containsAny(evidence, ["shampoo", "conditioner"])) return "shampoo-conditioner";
     if (scat === "hair care" || scat === "hair care sets") return "hair-treatments";
     return null;
@@ -45,6 +43,26 @@ export function resolveSymphonyaCategoryCode(payloadValue: unknown, sourceTitle 
     if (scat === "sun & tan" || containsAny(evidence, ["sunscreen", "sun protection", "spf"])) return "sun-care";
     if (containsAny(evidence, ["shaving", "beard", "after-shave", "aftershave"])) return "grooming-care";
     return "bath-body-care";
+  }
+
+  if (cat === "fashion") {
+    const gender = normalize(optionalText(record(payload.gender).name) ?? "");
+    if (scat === "fashion accessories" && containsAny(evidence, ["sunglasses", "sun glasses"])) return "sunglasses";
+    if (scat === "fashion accessories" && containsAny(evidence, ["wallet", "cardholder", "card holder"])) return "wallets-cardholders";
+    if (scat === "bags & backpacks") {
+      if (containsAny(evidence, ["backpack", "rucksack"])) return "backpacks";
+      if (gender === "male" || gender === "men" || gender === "for men") return "mens-bags";
+      if (gender === "female" || gender === "women" || gender === "for women") return "handbags";
+      return "unisex-bags";
+    }
+  }
+
+  if (cat === "home" && scat === "kitchen" && containsAny(evidence, ["glass", "goblet", "tumbler"])) {
+    return "tableware-glassware";
+  }
+
+  if (cat === "toys" && containsAny(evidence, ["construction set", "building set", "building blocks"])) {
+    return "construction-toys";
   }
 
   if (containsAny(evidence, ["perfume", "eau de parfum", "eau de toilette", "parfum"])) return "fragrance";
