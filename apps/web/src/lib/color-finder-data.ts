@@ -30,6 +30,7 @@ type StoredProfile = Readonly<{
 
 async function loadCandidatePages() {
   const products: Awaited<ReturnType<typeof getPublishedDropshipCatalogPage>>["products"][number][] = [];
+  let primaryError: unknown;
 
   for (let window = 0; window < MAX_WINDOWS; window += 1) {
     try {
@@ -42,6 +43,7 @@ async function loadCandidatePages() {
       products.push(...page.products);
       if (!page.hasMore) break;
     } catch (error) {
+      primaryError = error;
       warnColorFinderDataFailure("catalogue_window", error, { window });
       break;
     }
@@ -59,7 +61,7 @@ async function loadCandidatePages() {
     return [...fallback.products];
   } catch (error) {
     warnColorFinderDataFailure("catalogue_fallback", error);
-    return products;
+    throw primaryError ?? error;
   }
 }
 
@@ -159,7 +161,7 @@ async function loadColorFinderProductsUncached(): Promise<readonly ColorFinderPr
 
 export const getColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-nail-products-v4"],
+  ["color-finder-nail-products-v5"],
   { revalidate: CACHE_SECONDS }
 );
 
