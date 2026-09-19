@@ -94,7 +94,10 @@ export function resolveColorFinderContext(
     };
   }
 
-  if (code === "eye-makeup" || /eye-makeup|σκια|ματι/.test(signal)) {
+  if (
+    code === "eye-makeup"
+    || /(?:^|[\s/_-])(?:eye[- ]?makeup|eye[- ]?shadow|eyeshadow|σκια|σκιες|ματι|ματια|ματιων)(?:$|[\s/_-])/.test(signal)
+  ) {
     return {
       key: "eyes", categoryCode, categoryLabel,
       studioLabel: "EYE STUDIO", editionLabel: "EYE COLOR EDITION",
@@ -196,7 +199,7 @@ export function resolveColorFinderContext(
     };
   }
 
-  if (/tableware|glassware|home|decor|σπιτι|διακοσμ/.test(signal)) {
+  if (/tableware|glassware|home|decor|candle|home[- ]?fragrance|room[- ]?fragrance|σπιτι|διακοσμ|κερι|αρωματικ.*χωρ/.test(signal)) {
     return {
       key: "home", categoryCode, categoryLabel,
       studioLabel: "HOME COLOR STUDIO", editionLabel: "HOME COLOR EDITION",
