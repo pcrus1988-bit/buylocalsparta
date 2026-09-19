@@ -1222,7 +1222,9 @@ export function ColorFinderExperience({
                         {product.profilePrecision === "exact"
                           ? "Verified colour profile"
                           : product.profilePrecision === "canonicalized"
-                            ? "Canonicalized brand shade"
+                            ? ["nails", "lips", "eyes", "makeup"].includes(context.key)
+                              ? "Canonicalized brand shade"
+                              : "Canonicalized product color"
                             : "Approximate colour family"}
                         {typeof product.profileConfidence === "number" ? ` · ${Math.round(product.profileConfidence * 100)}% confidence` : ""}
                       </p>
@@ -1240,7 +1242,7 @@ export function ColorFinderExperience({
                     </div>
                     <div className={styles.cardFooter}>
                       <div>
-                        <span>{FINISH_LABELS[product.finish]}</span>
+                        <span>{context.showFinishFilter ? FINISH_LABELS[product.finish] : product.colorLabel}</span>
                         <strong>{product.price}</strong>
                       </div>
                       <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>View product →</Link>
@@ -1265,8 +1267,8 @@ export function ColorFinderExperience({
               {catalogueState === "loading"
                 ? "Loading color matches…"
                 : catalogueAvailable
-                  ? "We are still learning this shade."
-                  : "Product matching is refreshing."}
+                  ? `We are still learning this color in ${context.categoryLabel}.`
+                  : `${context.studioLabel} matching is refreshing.`}
             </h3>
             <p>
               {catalogueState === "loading"
