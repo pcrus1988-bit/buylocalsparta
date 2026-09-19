@@ -164,10 +164,6 @@ function slotFor(product: Product): SlotKey | null {
   return slotFromText(productText(product));
 }
 
-function slotForFacet(option: FacetOption): SlotKey | null {
-  return slotFromText(normalize(`${option.value} ${option.label}`));
-}
-
 function isOnePiece(product: Product | undefined): boolean {
   if (!product) return false;
   return /dress|jumpsuit|overall|φορεμ|ολόσωμ|ολοσωμ/.test(productText(product));
@@ -433,6 +429,7 @@ export function FittingRoomExperience({
         product,
         score: productScore(product, editingSlot, audience, sizes, colors, brands, activeLook)
       }))
+      .filter((entry) => entry.score > -40)
       .sort((left, right) => right.score - left.score || left.product.priceMinor - right.product.priceMinor)
       .slice(0, 12)
       .map((entry) => entry.product);
@@ -461,47 +458,33 @@ export function FittingRoomExperience({
 
   async function loadCandidateProducts(): Promise<readonly Product[]> {
     const all: Product[] = [];
+    let nextOffset: number | null = 0;
 
-    const fetchGroup = async (categories: readonly string[], limit = 60) => {
-      const params = new URLSearchParams({ limit: String(limit), offset: "0" });
-      for (const category of categories) params.append("category", category);
+    // The unfiltered vendor route uses the catalogue's latency-critical indexed
+    // path. Its deterministic hash ordering naturally mixes suppliers/categories
+    // without invoking the heavier contextual filter query.
+    for (let page = 0; page < 4 && nextOffset !== null; page += 1) {
+      const params = new URLSearchParams({ limit: "60", offset: String(nextOffset) });
       const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(vendorId)}?${params.toString()}`, { cache: "default" });
       if (!response.ok) throw new Error("catalogue");
-      const payload = await response.json() as { products?: Product[] };
+      const payload = await response.json() as { products?: Product[]; nextOffset?: number | null };
       all.push(...(payload.products ?? []));
-    };
 
-    // One fast recommended page gives the consultant a useful baseline without
-    // pulling thousands of products into the browser.
-    await fetchGroup([], 60);
+      const usable = [...new Map(all.map((product) => [product.id, product] as const)).values()]
+        .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
+      const present = new Set(usable.map((product) => slotFor(product)).filter(Boolean));
+      const coreReady = present.has("main") && present.has("bottom") && present.has("shoes");
+      const detailCount = ["layer", "bag", "accessory", "beauty", "nails"]
+        .filter((slot) => present.has(slot as SlotKey)).length;
 
-    const categoryOptions = [...(facets.categories ?? [])]
-      .map((option) => ({
-        option,
-        audienceScore: audienceAffinity(normalize(`${option.value} ${option.label}`), audience)
-      }))
-      .filter((entry) => entry.audienceScore > -100)
-      .sort((left, right) => right.audienceScore - left.audienceScore
-        || (right.option.count ?? 0) - (left.option.count ?? 0))
-      .map((entry) => entry.option);
-
-    // Then balance the wardrobe with indexed category queries. This avoids a
-    // first-page bias where, for example, nail polish can crowd out shoes.
-    const fashionSlots = new Set<SlotKey>(["main", "bottom", "layer", "shoes"]);
-    const detailSlots = new Set<SlotKey>(["bag", "accessory", "beauty", "nails"]);
-
-    for (const wantedSlots of [fashionSlots, detailSlots]) {
-      const picked = new Map<SlotKey, string>();
-      for (const option of categoryOptions) {
-        const slot = slotForFacet(option);
-        if (!slot || !wantedSlots.has(slot) || picked.has(slot)) continue;
-        picked.set(slot, option.value);
-      }
-      if (picked.size) await fetchGroup([...picked.values()], 60);
+      // Two pages is the minimum sample. Continue only when the randomised pool
+      // still lacks the ingredients for a useful head-to-toe composition.
+      if (page >= 1 && coreReady && detailCount >= 2) break;
+      nextOffset = typeof payload.nextOffset === "number" ? payload.nextOffset : null;
     }
 
     return [...new Map(all.map((product) => [product.id, product] as const)).values()]
-      .filter((product) => product.priceMinor > 0 && slotFor(product));
+      .filter((product) => product.priceMinor > 0 && slotFor(product) && audiencePenalty(product, audience) > -100);
   }
 
   function buildLook(candidateProducts: readonly Product[], personality: number): Look {
