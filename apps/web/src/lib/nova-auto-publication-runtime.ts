@@ -3,6 +3,7 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 const SUPPLIER_CODE = "nova_brandsgateway";
 const CATEGORY_BATCH_SIZE = 500;
+const CATEGORY_CURSOR_KEY = "novaAutoCategoryCursorV1";
 const CATEGORY_REPAIR_BATCH_SIZE = 250;
 const PUBLICATION_BATCH_SIZE = 2_000;
 
@@ -36,25 +37,56 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
   // Historical category repair is deliberately decoupled from every publication sweep.
   // The worker can opt into it explicitly; new imports use the corrected classifier.
   const repaired = 0;
-  const candidates = await pool.query<CategoryCandidate>(`
-    SELECT
-      cv.id::text AS canonical_id,
-      csp.title,
-      csp.normalized_payload
-    FROM public.dropship_supplier_offers dso
-    JOIN public.dropship_suppliers ds
-      ON ds.id=dso.supplier_id
-     AND ds.code=$1
-     AND ds.active=true
-    JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
-    JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-    JOIN public.catalog_source_products csp ON csp.id=dso.source_product_id
-    WHERE cv.category_id IS NULL
-      AND cv.suppressed=false
-      AND cv.recalled=false
-    ORDER BY dso.created_at,dso.id
-    LIMIT $2
-  `,[SUPPLIER_CODE,CATEGORY_BATCH_SIZE]);
+  // Category assignment used to order the entire supplier-offer set by creation
+  // time and then join into the large TOAST-backed source payload table. Once
+  // most offers were categorized, finding the next 500 missing categories could
+  // read tens of thousands of rows on every worker pass. Walk the uncategorized
+  // canonical index instead and persist a lightweight UUID cursor. Unmapped rows
+  // are retried after the cursor wraps rather than blocking every subsequent row.
+  const categoryContext = await pool.query<SqlRow>(`
+    SELECT ds.id::text AS supplier_id,
+           ds.catalog_source_id::text AS source_id,
+           cs.metadata->>$2 AS category_cursor
+      FROM public.dropship_suppliers ds
+      JOIN public.catalog_sources cs ON cs.id=ds.catalog_source_id
+     WHERE ds.code=$1
+       AND ds.active=true
+       AND ds.catalogue_sync_enabled=true
+       AND ds.catalog_source_id IS NOT NULL
+     LIMIT 1
+  `,[SUPPLIER_CODE,CATEGORY_CURSOR_KEY]);
+
+  const categorySupplier = categoryContext.rows[0];
+  const categorySupplierId = categorySupplier?.supplier_id ? String(categorySupplier.supplier_id) : null;
+  const categorySourceId = categorySupplier?.source_id ? String(categorySupplier.source_id) : null;
+  const categoryCursor = categorySupplier?.category_cursor ? String(categorySupplier.category_cursor) : null;
+  const candidates = categorySupplierId
+    ? await pool.query<CategoryCandidate>(`
+        SELECT DISTINCT ON (cv.id)
+          cv.id::text AS canonical_id,
+          csp.title,
+          csp.normalized_payload
+        FROM public.canonical_variants cv
+        JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
+        JOIN public.dropship_supplier_offers dso
+          ON dso.vendor_offer_id=vo.id
+         AND dso.supplier_id=$1::uuid
+        JOIN public.catalog_source_products csp ON csp.id=dso.source_product_id
+        WHERE cv.category_id IS NULL
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND ($2::uuid IS NULL OR cv.id>$2::uuid)
+        ORDER BY cv.id,dso.updated_at DESC,dso.id DESC
+        LIMIT $3
+      `,[categorySupplierId,categoryCursor,CATEGORY_BATCH_SIZE])
+    : { rows: [] as readonly CategoryCandidate[], rowCount: 0 };
+
+  let categoryLastCursor: string | null = null;
+  if (candidates.rows.length > 0) {
+    categoryLastCursor = String(candidates.rows[candidates.rows.length - 1]!.canonical_id);
+  } else if (categorySourceId && categoryCursor) {
+    await persistNovaCategoryCursor(categorySourceId,null);
+  }
 
   const idsByCategory = new Map<string,string[]>();
   for (const row of candidates.rows) {
@@ -82,6 +114,10 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
       RETURNING cv.id
     `,[canonicalIds,code]);
     categorized += changed.rowCount ?? changed.rows.length;
+  }
+
+  if (categorySourceId && categoryLastCursor) {
+    await persistNovaCategoryCursor(categorySourceId,categoryLastCursor);
   }
 
   const published = await pool.query<SqlRow>(`
@@ -182,6 +218,30 @@ export async function runNovaAutoPublicationSweep(): Promise<NovaAutoPublication
     unmapped: Math.max(0,(candidates.rowCount ?? candidates.rows.length)-categorized),
     published: publishedCount
   };
+}
+
+async function persistNovaCategoryCursor(sourceId: string, cursor: string | null): Promise<void> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  if (cursor === null) {
+    await pool.query(`
+      UPDATE public.catalog_sources
+         SET metadata=COALESCE(metadata,'{}'::jsonb)-$2,
+             updated_at=now()
+       WHERE id=$1::uuid
+    `,[sourceId,CATEGORY_CURSOR_KEY]);
+    return;
+  }
+  await pool.query(`
+    UPDATE public.catalog_sources
+       SET metadata=jsonb_set(
+             COALESCE(metadata,'{}'::jsonb),
+             ARRAY[$2]::text[],
+             to_jsonb($3::text),
+             true
+           ),
+           updated_at=now()
+     WHERE id=$1::uuid
+  `,[sourceId,CATEGORY_CURSOR_KEY,cursor]);
 }
 
 type CategoryRepairCandidate = Readonly<{
