@@ -1,15 +1,1 @@
-import { join } from "node:path";
-import { loadManifest, loadMigrations, migrationDirectoryFrom, verifyMigrationManifest } from "./migration-lib.ts";
-
-const directory = migrationDirectoryFrom(import.meta.url);
-const manifestPath = join(directory, "checksums.json");
-const migrations = await loadMigrations(directory);
-const manifest = await loadManifest(manifestPath);
-verifyMigrationManifest(migrations, manifest);
-
-const runtimeHardening = migrations.find((migration) => migration.filename === "0002_runtime_hardening.sql");
-if (!runtimeHardening?.sql.includes("order_lines_fulfilled_quantity_nonnegative_check") ||
-    !runtimeHardening.sql.includes("order_lines_refunded_quantity_nonnegative_check")) {
-  throw new Error("Migration 0002 must use distinct names for nonnegative quantity checks");
-}
-console.log(`Migration integrity OK: ${migrations.length} immutable migrations verified.`);
+import { readFile } from "node:fs/promises";\nimport { join } from "node:path";\nimport { loadManifest, loadMigrations, migrationDirectoryFrom, verifyMigrationManifest } from "./migration-lib.ts";\n\nconst directory = migrationDirectoryFrom(import.meta.url);\nconst manifestPath = join(directory, "checksums.json");\nconst migrations = await loadMigrations(directory);\nconst manifest = await loadManifest(manifestPath);\nverifyMigrationManifest(migrations, manifest);\n\nconst runtimeHardening = migrations.find((migration) => migration.filename === "0002_runtime_hardening.sql");\nif (!runtimeHardening?.sql.includes("order_lines_fulfilled_quantity_nonnegative_check") ||\n    !runtimeHardening.sql.includes("order_lines_refunded_quantity_nonnegative_check")) {\n  throw new Error("Migration 0002 must use distinct names for nonnegative quantity checks");\n}\n\nconst postgresRuntimeSource = await readFile(\n  join(directory, "..", "..", "packages", "postgres-runtime", "src", "index.ts"),\n  "utf8"\n);\nconst expectedSchemaMatch = postgresRuntimeSource.match(\n  /export const EXPECTED_SCHEMA_VERSION\s*=\s*(\d+)\s*;/\n);\nif (!expectedSchemaMatch) {\n  throw new Error("Unable to resolve EXPECTED_SCHEMA_VERSION from packages/postgres-runtime/src/index.ts");\n}\n\nconst expectedSchemaVersion = Number(expectedSchemaMatch[1]);\nconst latestMigrationVersion = migrations.at(-1)?.version ?? 0;\nif (expectedSchemaVersion !== latestMigrationVersion) {\n  throw new Error(\n    `Runtime schema gate mismatch: EXPECTED_SCHEMA_VERSION=${expectedSchemaVersion}, latest migration=${latestMigrationVersion}. ` +\n    "Update the runtime schema gate in the same commit as the migration so web and Railway workers cannot deploy against different schema expectations."\n  );\n}\n\nconsole.log(\n  `Migration integrity OK: ${migrations.length} immutable migrations verified; runtime schema gate is ${expectedSchemaVersion}.`\n);\n
