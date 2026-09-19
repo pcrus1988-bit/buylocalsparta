@@ -92,6 +92,21 @@ try {
         log("error", "nova.auto_publication_skipped_unpriced", { workerId, phase: "pre_refresh" });
       }
 
+      if (Date.now() >= nextColorProfileAt) {
+        const startedAt = Date.now();
+        try {
+          const colorProfiles = await runProductColorProfileSyncSlice({
+            ...process.env,
+            BLS_COLOR_PROFILE_BATCH_SIZE: process.env.BLS_COLOR_PROFILE_BATCH_SIZE?.trim() || "100"
+          });
+          log("info", "nova.product_color_profile_sync_slice", { workerId, ...colorProfiles });
+        } catch (error) {
+          log("error", "nova.product_color_profile_sync_failed", { workerId, error: safeError(error) });
+        } finally {
+          nextColorProfileAt = startedAt + colorProfileIntervalMs;
+        }
+      }
+
       if (Date.now() >= nextAvailabilityRefreshAt) {
         const sweepStartedAt = Date.now();
         try {
@@ -147,21 +162,6 @@ try {
         log("info", "nova.catalogue_enrichment_preparation_slice", { workerId, ...enrichmentPreparation });
       } catch (error) {
         log("error", "nova.catalogue_enrichment_preparation_failed", { workerId, error: safeError(error) });
-      }
-
-      if (Date.now() >= nextColorProfileAt) {
-        const startedAt = Date.now();
-        try {
-          const colorProfiles = await runProductColorProfileSyncSlice({
-            ...process.env,
-            BLS_COLOR_PROFILE_BATCH_SIZE: process.env.BLS_COLOR_PROFILE_BATCH_SIZE?.trim() || "100"
-          });
-          log("info", "nova.product_color_profile_sync_slice", { workerId, ...colorProfiles });
-        } catch (error) {
-          log("error", "nova.product_color_profile_sync_failed", { workerId, error: safeError(error) });
-        } finally {
-          nextColorProfileAt = startedAt + colorProfileIntervalMs;
-        }
       }
 
       // Greek copy is authored and validated by the ChatGPT Catalogue Agent, not by an
