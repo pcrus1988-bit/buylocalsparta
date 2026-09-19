@@ -10,6 +10,7 @@ import {
   normalizeHex,
   resolveCatalogColor
 } from "./color-finder.ts";
+import { resolveColorFinderContext } from "./color-finder-context.ts";
 
 test("normalizes short and full HEX colours", () => {
   assert.equal(normalizeHex("#abc"), "#AABBCC");
@@ -49,4 +50,16 @@ test("infers nail product type and finish independently", () => {
   assert.equal(inferColorProductType("Semi permanent gel polish"), "gel");
   assert.equal(inferColorProductType("Classic nail lacquer"), "regular");
   assert.equal(inferColorFinish("EN850 Pearly Pink Bubble"), "pearly");
+});
+
+
+test("does not confuse home fragrance with eye makeup", () => {
+  const context = resolveColorFinderContext("candles-home-fragrance", "Κεριά & αρωματικά χώρου");
+  assert.equal(context.key, "home");
+  assert.equal(context.studioLabel, "HOME COLOR STUDIO");
+});
+
+test("keeps genuine eye makeup categories in Eye Studio", () => {
+  assert.equal(resolveColorFinderContext("eye-makeup", "Μακιγιάζ ματιών").key, "eyes");
+  assert.equal(resolveColorFinderContext("beauty-eyes", "Σκιές ματιών").studioLabel, "EYE STUDIO");
 });
