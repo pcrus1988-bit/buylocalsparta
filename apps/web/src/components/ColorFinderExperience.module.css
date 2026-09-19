@@ -104,48 +104,130 @@
   box-shadow: 0 6px 24px rgba(0,0,0,.2);
 }
 
-.colorStage {
-  --selected-color: #b52e2e;
+.inlinePicker {
+  padding: 22px 26px 24px;
+}
+.svPicker {
+  --picker-hue: hsl(0 100% 50%);
   position: relative;
-  min-height: 360px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  overflow: hidden;
-}
-.colorStage input {
-  position: absolute;
-  inset: 0;
   width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+  aspect-ratio: 1.42;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 22px;
+  background:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #fff, var(--picker-hue));
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.16), 0 18px 50px rgba(0,0,0,.22);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
 }
-.colorHalo {
+.svPicker:focus-visible {
+  outline: 2px solid var(--cf-gold);
+  outline-offset: 3px;
+}
+.pickerThumb {
   position: absolute;
-  width: 310px;
-  aspect-ratio: 1;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #fff;
   border-radius: 50%;
-  background: var(--selected-color);
-  filter: blur(65px);
-  opacity: .26;
+  box-shadow: 0 2px 12px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.15);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
-.colorDisc {
-  width: 210px;
-  aspect-ratio: 1;
+.pickerControls {
+  padding-top: 16px;
+  display: grid;
+  gap: 16px;
+}
+.pickerPreview {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.pickerPreview > span {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
   border-radius: 50%;
-  background: var(--selected-color);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 20px 70px rgba(0,0,0,.34);
-  z-index: 1;
+  border: 1px solid rgba(255,255,255,.18);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
 }
-.pickHint {
-  position: absolute;
-  bottom: 28px;
-  z-index: 2;
-  color: #9d978f;
-  font-size: 11px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
+.pickerPreview > div {
+  display: grid;
+  gap: 5px;
+}
+.pickerPreview small {
+  color: #78716a;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+.pickerPreview strong {
+  color: var(--cf-ivory);
+  font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .04em;
+}
+.hueControl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+.hueControl > span {
+  color: #77716a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+.hueControl input {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+.hueControl input::-webkit-slider-runnable-track {
+  height: 14px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%, #00f 66.66%, #f0f 83.33%, #f00 100%);
+}
+.hueControl input::-moz-range-track {
+  height: 14px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%, #00f 66.66%, #f0f 83.33%, #f00 100%);
+}
+.hueControl input::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  margin-top: -6px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.hueControl input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.pickerHint {
+  margin: -2px 0 0;
+  color: #6f6962;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: .04em;
 }
 
 .photoEmpty {
@@ -584,8 +666,8 @@
   .hero { padding: 54px 0 70px; gap: 42px; }
   .hero h1 { font-size: clamp(54px, 17vw, 84px); }
   .selectorCard { border-radius: 22px; }
-  .colorStage { min-height: 320px; }
-  .colorDisc { width: 175px; }
+  .inlinePicker { padding: 18px 20px 22px; }
+  .svPicker { aspect-ratio: 1.25; border-radius: 18px; }
   .photoEmpty { min-height: 340px; padding: 36px 24px 26px; }
   .photoEditor { padding: 14px 14px 20px; }
   .resultsHeader { align-items: flex-start; flex-direction: column; }
