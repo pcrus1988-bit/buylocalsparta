@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
 import styles from "./FittingRoomExperience.module.css";
 
@@ -360,6 +360,45 @@ export function FittingRoomExperience({
   const [saveStatus, setSaveStatus] = useState("");
   const [shareStatus, setShareStatus] = useState("");
   const [loadedSavedLook, setLoadedSavedLook] = useState(false);
+  const [immersive, setImmersive] = useState(false);
+
+  const requestNativeFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (!document.fullscreenElement && root.requestFullscreen) {
+      void root.requestFullscreen().catch(() => undefined);
+    }
+  }, []);
+
+  const exitNativeFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    if (document.fullscreenElement && document.exitFullscreen) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  }, []);
+
+  const enterImmersive = useCallback(() => {
+    setImmersive(true);
+    requestNativeFullscreen();
+  }, [requestNativeFullscreen]);
+
+  const leaveImmersive = useCallback(() => {
+    setImmersive(false);
+    setEditingSlot(null);
+    exitNativeFullscreen();
+  }, [exitNativeFullscreen]);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [immersive]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -671,8 +710,24 @@ export function FittingRoomExperience({
           <p className={styles.eyebrow}>PRIVATE FITTING ROOM</p>
           <h1>Μπες. Πες μου τι σου αρέσει.<br /><em>Θα στήσουμε το look μαζί.</em></h1>
           <p className={styles.entryLead}>Μέγεθος, χρώμα, budget και brands. Μετά θα σου δείξω τρεις ολοκληρωμένες προτάσεις που μπορείς να αλλάξεις κομμάτι-κομμάτι.</p>
-          <button className={styles.primaryButton} type="button" onClick={() => setStarted(true)}>Μπες στο fitting room <span>→</span></button>
+          <button className={styles.primaryButton} type="button" onClick={() => { setStarted(true); enterImmersive(); }}>Μπες στο fitting room <span>→</span></button>
           <div className={styles.entryFoot}><span>3 έτοιμα looks</span><span>Αλλάζεις ό,τι θέλεις</span><span>Save & share</span></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (started && !looks.length && !immersive) {
+    return (
+      <section className={styles.entry}>
+        <div className={styles.curtainLeft} aria-hidden="true" />
+        <div className={styles.curtainRight} aria-hidden="true" />
+        <div className={styles.entryInner}>
+          <div className={styles.consultantBadge}><span>K</span><div><strong>Ο προσωπικός σου stylist</strong><small>KONTA MOY Fitting Room</small></div></div>
+          <p className={styles.eyebrow}>STYLE SESSION IN PROGRESS</p>
+          <h1>Η συνεδρία σου είναι εδώ.<br /><em>Συνέχισε από εκεί που σταμάτησες.</em></h1>
+          <p className={styles.entryLead}>Οι επιλογές σου παραμένουν όπως τις άφησες. Το Fitting Room θα ανοίξει ξανά σε πλήρη οθόνη.</p>
+          <button className={styles.primaryButton} type="button" onClick={enterImmersive}>Συνέχισε σε full screen <span>→</span></button>
         </div>
       </section>
     );
@@ -756,9 +811,10 @@ export function FittingRoomExperience({
     const question = questions[step];
 
     return (
+      <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-label="KONTA MOY Fitting Room">
       <section className={styles.room}>
         <div className={styles.roomHeader}>
-          <Link href="/" className={styles.exit}>← Έξοδος</Link>
+          <button type="button" className={styles.exit} onClick={leaveImmersive}>× Έξοδος</button>
           <div className={styles.roomWordmark}><strong>FITTING ROOM</strong><span>by KONTA MOY</span></div>
           <span className={styles.stepCount}>{step + 1} / 5</span>
         </div>
@@ -780,12 +836,30 @@ export function FittingRoomExperience({
           </div>
         </div>
       </section>
+      </div>
     );
   }
 
   if (!currentLook) return null;
 
+  if (!immersive) {
+    return (
+      <section className={styles.entry}>
+        <div className={styles.curtainLeft} aria-hidden="true" />
+        <div className={styles.curtainRight} aria-hidden="true" />
+        <div className={styles.entryInner}>
+          <div className={styles.consultantBadge}><span>K</span><div><strong>Το look σου σε περιμένει</strong><small>KONTA MOY Fitting Room</small></div></div>
+          <p className={styles.eyebrow}>YOUR FITTING ROOM</p>
+          <h1>{currentLook.name}<br /><em>Συνέχισε σε πλήρη οθόνη.</em></h1>
+          <p className={styles.entryLead}>Το look και οι αλλαγές σου έχουν μείνει ακριβώς όπως ήταν.</p>
+          <button className={styles.primaryButton} type="button" onClick={enterImmersive}>Άνοιξε το fitting room <span>→</span></button>
+        </div>
+      </section>
+    );
+  }
+
   return (
+    <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-label="KONTA MOY Fitting Room">
     <section className={styles.lookRoom}>
       <div className={styles.lookTopBar}>
         <div>
@@ -793,6 +867,7 @@ export function FittingRoomExperience({
           <strong>FITTING ROOM</strong>
         </div>
         <div className={styles.topActions}>
+          <button type="button" className={styles.exitGameButton} onClick={leaveImmersive} aria-label="Έξοδος από την πλήρη οθόνη">×</button>
           <button type="button" onClick={() => { setLooks([]); setStep(0); setStarted(true); setEditingSlot(null); }}>Νέα συνεδρία</button>
           <button type="button" onClick={() => void shareCurrentLook()}>Share</button>
           <button type="button" className={styles.saveButton} onClick={() => void saveCurrentLook()}>Save look</button>
@@ -854,5 +929,6 @@ export function FittingRoomExperience({
         </aside>
       </div> : null}
     </section>
+  </div>
   );
 }
