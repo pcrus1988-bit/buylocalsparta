@@ -500,7 +500,8 @@ export async function getVendorDropshipCatalogPage(
 
 async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
   if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] };
-  const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
+  const pool = getProductionPostgresRuntime().nativePool;
+  const result = await pool.query<FacetProjectionRow>(`
     WITH suppliers AS MATERIALIZED (
       SELECT ds.id::text AS supplier_id
       FROM dropship_suppliers ds
@@ -520,12 +521,123 @@ async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshi
     ORDER BY facets.facet_type,label,facets.value
   `, [vendorId]);
 
+  let facetRows = result.rows;
+  if (!facetRows.length) {
+    const fallback = await pool.query<FacetProjectionRow>(`
+      WITH suppliers AS MATERIALIZED (
+        SELECT ds.id,ds.id::text AS supplier_id
+        FROM dropship_suppliers ds
+        JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+        WHERE v.public_id=$1
+          AND v.status='active'
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+      ), stable AS MATERIALIZED (
+        SELECT
+          fm.dropship_supplier_id AS supplier_id,
+          fm.dropship_external_product_id AS external_product_id,
+          fm.category_codes,
+          fm.brand_names AS brand_names,
+          fm.colors
+        FROM public.storefront_dropship_family_read_model fm
+        JOIN suppliers s ON s.supplier_id=fm.dropship_supplier_id
+        WHERE fm.available_until>now()
+      ), missing_suppliers AS MATERIALIZED (
+        SELECT s.id,s.supplier_id
+        FROM suppliers s
+        WHERE NOT EXISTS (
+          SELECT 1 FROM stable projected WHERE projected.supplier_id=s.supplier_id
+        )
+      ), live_missing AS MATERIALIZED (
+        SELECT
+          dso.supplier_id::text AS supplier_id,
+          dso.external_product_id,
+          COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
+          COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
+            FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names,
+          '{}'::text[] AS colors
+        FROM dropship_supplier_offers dso
+        JOIN missing_suppliers supplier ON supplier.id=dso.supplier_id
+        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+        JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+        JOIN categories c ON c.id=cv.category_id
+        JOIN vendor_locations l ON l.id=vo.location_id
+        LEFT JOIN product_families pf ON pf.id=cv.family_id
+        LEFT JOIN brands b ON b.id=cv.brand_id
+        LEFT JOIN brands pfb ON pfb.id=pf.brand_id
+        WHERE dso.active=true
+          AND dso.cached_available=true
+          AND COALESCE(dso.cached_quantity,0)>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND l.active=true
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        GROUP BY dso.supplier_id,dso.external_product_id
+      ), base AS MATERIALIZED (
+        SELECT supplier_id,external_product_id,category_codes,brand_names,colors FROM stable
+        UNION ALL
+        SELECT supplier_id,external_product_id,category_codes,brand_names,colors FROM live_missing
+      ), totals AS (
+        SELECT 'total'::text AS facet_type,'*'::text AS value,'*'::text AS label,COUNT(*)::bigint AS count
+        FROM base
+      ), category_values AS (
+        SELECT
+          'category'::text AS facet_type,
+          category_code.value AS value,
+          COALESCE(MAX(NULLIF(ctel.name,'')),MAX(NULLIF(cten.name,'')),category_code.value) AS label,
+          COUNT(*)::bigint AS count
+        FROM base b
+        CROSS JOIN LATERAL unnest(b.category_codes) AS category_code(value)
+        LEFT JOIN public.markets m ON m.code='sparta'
+        LEFT JOIN public.categories c ON c.market_id=m.id AND c.code=category_code.value
+        LEFT JOIN public.category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+        LEFT JOIN public.category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+        GROUP BY category_code.value
+      ), brand_values AS (
+        SELECT
+          'brand'::text AS facet_type,
+          brand.value AS value,
+          brand.value AS label,
+          COUNT(*)::bigint AS count
+        FROM base b
+        CROSS JOIN LATERAL unnest(b.brand_names) AS brand(value)
+        WHERE btrim(brand.value)<>''
+        GROUP BY brand.value
+      ), color_values AS (
+        SELECT
+          'color'::text AS facet_type,
+          color.value AS value,
+          color.value AS label,
+          COUNT(*)::bigint AS count
+        FROM base b
+        CROSS JOIN LATERAL unnest(b.colors) AS color(value)
+        WHERE btrim(color.value)<>''
+        GROUP BY color.value
+      )
+      SELECT * FROM totals
+      UNION ALL SELECT * FROM category_values
+      UNION ALL SELECT * FROM brand_values
+      UNION ALL SELECT * FROM color_values
+      ORDER BY facet_type,label,value
+    `, [vendorId]);
+    facetRows = fallback.rows;
+  }
+
   let total = 0;
   const categories: VendorDropshipFacetOption[] = [];
   const brands: VendorDropshipFacetOption[] = [];
   const colors: VendorDropshipFacetOption[] = [];
   const sizes: VendorDropshipFacetOption[] = [];
-  for (const row of result.rows) {
+  for (const row of facetRows) {
     const entry = { value: row.value, label: row.label || row.value, count: safePositiveInt(row.count, 0) };
     if (row.facet_type === "total") total = entry.count;
     else if (row.facet_type === "category") categories.push(entry);
@@ -538,7 +650,7 @@ async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshi
 
 const cachedVendorDropshipFacets = unstable_cache(
   readVendorDropshipFacets,
-  ["vendor-dropship-storefront-preaggregated-facets-v3"],
+  ["vendor-dropship-storefront-preaggregated-facets-v4"],
   { revalidate: 300 }
 );
 
