@@ -238,7 +238,7 @@ export default async function ColorFinderPage({ searchParams }: Props) {
                     quality={90}
                     priority={index < 3}
                     loading={index < 3 ? "eager" : "lazy"}
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    sizes="(max-width: 760px) 50vw, (max-width: 1100px) 33vw, 25vw"
                     className={styles.studioImage}
                   />
                 </div>
