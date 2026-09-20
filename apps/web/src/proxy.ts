@@ -9,6 +9,7 @@ const VISITOR_HEADER = "x-bls-visitor";
 const MARKETPLACE_RETENTION_SECONDS = 31 * 24 * 60 * 60;
 const SAFE_VISITOR_KEY = /^[A-Za-z0-9_-]{16,128}$/;
 const DATABASE_RECOVERY_MODE = process.env.BLS_DATABASE_RECOVERY_MODE === "true";
+const STATIC_ASSET_PATH = /\.[A-Za-z0-9]{2,8}$/;
 const DATABASE_RECOVERY_CRON_PATHS = [
   "/api/cron/symphonya-",
   "/api/cron/catalogue-crawler",
@@ -62,6 +63,7 @@ function allowsContentRedirect(request: NextRequest): boolean {
   if (request.method !== "GET" && request.method !== "HEAD") return false;
   const pathname = request.nextUrl.pathname;
   if (pathname === "/") return false;
+  if (STATIC_ASSET_PATH.test(pathname)) return false;
   if (CMS_REDIRECT_BYPASS_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`))) return false;
   return !REDIRECT_PROTECTED_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
@@ -182,6 +184,8 @@ function productPrefetchResponse(request: NextRequest): NextResponse | undefined
 }
 
 export async function proxy(request: NextRequest) {
+  if (STATIC_ASSET_PATH.test(request.nextUrl.pathname)) return NextResponse.next();
+
   const prefetch = productPrefetchResponse(request);
   if (prefetch) return prefetch;
 
