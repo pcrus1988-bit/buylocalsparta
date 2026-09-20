@@ -25,6 +25,105 @@
 .wordmark { display: grid; justify-items: center; gap: 2px; }
 .wordmark strong { font: 700 14px/1 system-ui, sans-serif; letter-spacing: .25em; }
 .wordmark span { color: #8e877e; font: 500 9px/1.2 system-ui, sans-serif; letter-spacing: .16em; }
+.studioHub {
+  width: min(1440px, calc(100% - 56px));
+  margin: 0 auto;
+  padding: 76px 0 110px;
+}
+.studioHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr);
+  gap: 28px 64px;
+  align-items: end;
+  padding-bottom: 54px;
+}
+.studioHero > span {
+  grid-column: 1 / -1;
+  color: #cbb27a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .22em;
+}
+.studioHero h1 {
+  margin: 0;
+  font: 400 clamp(56px, 7.6vw, 116px)/.86 Georgia, serif;
+  letter-spacing: -.065em;
+}
+.studioHero p {
+  margin: 0 0 8px;
+  max-width: 620px;
+  color: #aaa39a;
+  font-size: 17px;
+  line-height: 1.7;
+}
+.studioGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(255,255,255,.12);
+  border-left: 1px solid rgba(255,255,255,.12);
+}
+.studioCard {
+  min-height: 238px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #f3eee5;
+  text-decoration: none;
+  border-right: 1px solid rgba(255,255,255,.12);
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  background:
+    radial-gradient(circle at 88% 12%, rgba(203,178,122,.14), transparent 34%),
+    rgba(255,255,255,.015);
+  transition: transform .22s ease, background-color .22s ease, border-color .22s ease;
+}
+.studioCard:hover {
+  transform: translateY(-3px);
+  background-color: rgba(255,255,255,.045);
+  border-color: rgba(203,178,122,.42);
+}
+.studioCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6d6861;
+  font-size: 10px;
+  letter-spacing: .16em;
+}
+.studioCardTop small {
+  color: #aaa39a;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+.studioCard strong {
+  display: block;
+  font: 700 clamp(20px, 2vw, 30px)/1 system-ui, sans-serif;
+  letter-spacing: .08em;
+}
+.studioCard p {
+  margin: 14px 0 0;
+  color: #aaa39a;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.studioHubNote {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 720px);
+  gap: 28px;
+  padding: 44px 0 0;
+  color: #8e877e;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.studioHubNote span {
+  color: #cbb27a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+.studioHubNote p { margin: 0; }
+
 .manifesto {
   width: min(1440px, calc(100% - 56px));
   margin: 0 auto;
@@ -39,7 +138,14 @@
 .manifesto h2 { margin: 0; font: 400 clamp(42px, 4vw, 64px)/.98 Georgia, serif; letter-spacing: -.04em; }
 .manifesto > p { margin: 0; max-width: 690px; color: #aaa39a; font-size: 17px; line-height: 1.75; }
 @media (max-width: 760px) {
-  .topBar, .manifesto { width: min(100% - 28px, 1440px); }
+  .topBar, .manifesto, .studioHub { width: min(100% - 28px, 1440px); }
+  .studioHub { padding: 48px 0 76px; }
+  .studioHero { gap: 18px; padding-bottom: 34px; }
+  .studioHero h1 { font-size: clamp(52px, 16vw, 78px); }
+  .studioHero p { font-size: 15px; }
+  .studioGrid { grid-template-columns: 1fr; }
+  .studioCard { min-height: 190px; padding: 20px; }
+  .studioHubNote { grid-template-columns: 1fr; gap: 12px; padding-top: 32px; }
   .topBar { grid-template-columns: auto 1fr auto; min-height: 68px; }
   .back, .shopLink { font-size: 9px; }
   .wordmark strong { font-size: 11px; }
@@ -48,4 +154,10 @@
 @media (max-width: 470px) {
   .wordmark span { display: none; }
   .shopLink { max-width: 70px; text-align: right; line-height: 1.2; }
+}
+
+@media (max-width: 980px) {
+  .studioGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studioHero { grid-template-columns: 1fr; align-items: start; }
+  .studioHero > span { grid-column: auto; }
 }
