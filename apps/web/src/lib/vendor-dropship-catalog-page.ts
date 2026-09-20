@@ -13,7 +13,6 @@ const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
 const LIVE_FALLBACK_FAMILY_CAP = 0; // Production storefronts must not rebuild missing supplier families inside a customer request.
 const LIVE_DEGRADED_FALLBACK_SEED_CAP = 2_000; // Bounded indexed recovery used only when the projection returns no matches.
-const LIVE_DEGRADED_FACET_SEED_CAP = 1_500;
 
 export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
 
@@ -727,6 +726,11 @@ function mergeFacetProjectionRows(
 async function readLiveVendorFacetSupplement(vendorId: string): Promise<FacetProjectionRow[]> {
   if (!productionDatabaseConfigured()) return [];
   const pool = getProductionPostgresRuntime().nativePool;
+
+  // Repair only the supplier families missing from the secondary facet projection.
+  // The primary family read model already carries governed availability/category/brand
+  // evidence. Join the immutable source payload set-wise for color/size attributes
+  // instead of re-validating thousands of raw offers inside a customer request.
   const result = await pool.query<FacetProjectionRow>(`
     WITH suppliers AS MATERIALIZED (
       SELECT ds.id,ds.id::text AS supplier_id
@@ -736,93 +740,41 @@ async function readLiveVendorFacetSupplement(vendorId: string): Promise<FacetPro
         AND v.status='active'
         AND ds.active=true
         AND ds.api_authoritative_availability=true
-    ), live_seed AS MATERIALIZED (
+    ), missing_families AS MATERIALIZED (
       SELECT
-        supplier.supplier_id,
-        candidate.external_product_id,
-        candidate.vendor_offer_id
-      FROM suppliers supplier
-      JOIN LATERAL (
-        SELECT dso.external_product_id,dso.vendor_offer_id
-        FROM dropship_supplier_offers dso
-        JOIN vendor_offers seed_vo ON seed_vo.id=dso.vendor_offer_id
-        JOIN canonical_variants seed_cv ON seed_cv.id=seed_vo.canonical_variant_id
-        JOIN vendor_locations seed_location ON seed_location.id=seed_vo.location_id
-        WHERE dso.supplier_id=supplier.id
-          AND dso.active=true
-          AND dso.cached_available=true
-          AND COALESCE(dso.cached_quantity,0)>=1
-          AND dso.availability_expires_at IS NOT NULL
-          AND dso.availability_expires_at>now()
-          AND seed_vo.status='approved'
-          AND seed_vo.merchant_visible=true
-          AND seed_vo.merchant_pause_active=false
-          AND seed_vo.customer_price_minor>0
-          AND (seed_vo.cost_ceiling_minor IS NULL OR seed_vo.supplier_unit_price_minor<=seed_vo.cost_ceiling_minor)
-          AND seed_location.active=true
-          AND COALESCE(seed_cv.commerce_channel,'normal')='normal'
-          AND seed_cv.active=true
-          AND seed_cv.suppressed=false
-          AND seed_cv.recalled=false
-          AND bls_private.vendor_category_effectively_visible(seed_vo.vendor_id,seed_cv.category_id)
-          AND NOT EXISTS (
-            SELECT 1
-            FROM public.storefront_dropship_family_filter_read_model projected
-            WHERE projected.dropship_supplier_id=supplier.supplier_id
-              AND projected.dropship_external_product_id=dso.external_product_id
-              AND projected.available_until>now()
-          )
-        ORDER BY dso.updated_at DESC,dso.id DESC
-        LIMIT $2
-      ) candidate ON true
+        fm.dropship_supplier_id AS supplier_id,
+        fm.dropship_external_product_id AS external_product_id,
+        fm.category_codes,
+        fm.brand_names
+      FROM public.storefront_dropship_family_read_model fm
+      JOIN suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
+      WHERE fm.available_until>now()
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.storefront_dropship_family_filter_read_model projected
+          WHERE projected.dropship_supplier_id=fm.dropship_supplier_id
+            AND projected.dropship_external_product_id=fm.dropship_external_product_id
+            AND projected.available_until>now()
+        )
     ), base AS MATERIALIZED (
-      SELECT
-        seed.supplier_id,
-        seed.external_product_id,
-        COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
-        COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
-          FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names,
-        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )),'')) FILTER (WHERE NULLIF(BTRIM(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )), '') IS NOT NULL),'{}'::text[]) AS colors,
-        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(size_entry.value),''))
-          FILTER (WHERE NULLIF(BTRIM(size_entry.value),'') IS NOT NULL),'{}'::text[]) AS sizes
-      FROM live_seed seed
-      JOIN vendor_offers vo ON vo.id=seed.vendor_offer_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN categories c ON c.id=cv.category_id
-      LEFT JOIN product_families pf ON pf.id=cv.family_id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
-      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN LATERAL unnest(ARRAY[
-        cv.variant_attributes->>'italian_size_men',
-        cv.variant_attributes->>'italian_size_women',
-        cv.variant_attributes->>'shoe_size_women',
-        cv.variant_attributes->>'shoe_size_men',
-        cv.variant_attributes->>'waist_size',
-        cv.variant_attributes->>'belt_size',
-        cv.variant_attributes->>'waist_length_size',
-        cv.variant_attributes->>'hat_size',
-        cv.variant_attributes->>'swimwear_sleepwear_size',
-        cv.variant_attributes->>'shoe_size',
-        cv.variant_attributes->>'earrings_size',
-        cv.variant_attributes->>'bracelets_size',
-        cv.variant_attributes->>'gloves_size_women',
-        cv.variant_attributes->>'ring_size',
-        cv.variant_attributes->>'gloves_size_men',
-        cv.variant_attributes->>'size'
-      ]) AS size_entry(value) ON true
-      GROUP BY seed.supplier_id,seed.external_product_id
+      SELECT DISTINCT ON (family.supplier_id,family.external_product_id)
+        family.supplier_id,
+        family.external_product_id,
+        family.category_codes,
+        family.brand_names,
+        source.normalized_payload
+      FROM missing_families family
+      JOIN suppliers supplier ON supplier.supplier_id=family.supplier_id
+      JOIN dropship_supplier_offers dso
+        ON dso.supplier_id=supplier.id
+       AND dso.external_product_id=family.external_product_id
+       AND dso.source_product_id IS NOT NULL
+      JOIN catalog_source_products source ON source.id=dso.source_product_id
+      ORDER BY
+        family.supplier_id,
+        family.external_product_id,
+        dso.updated_at DESC,
+        dso.id DESC
     ), totals AS (
       SELECT 'total'::text AS facet_type,'*'::text AS value,'*'::text AS label,COUNT(*)::bigint AS count
       FROM base
@@ -834,36 +786,85 @@ async function readLiveVendorFacetSupplement(vendorId: string): Promise<FacetPro
         COUNT(*)::bigint AS count
       FROM base b
       CROSS JOIN LATERAL unnest(b.category_codes) AS category_code(value)
-      LEFT JOIN public.markets m ON m.code='sparta'
-      LEFT JOIN public.categories c ON c.market_id=m.id AND c.code=category_code.value
-      LEFT JOIN public.category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-      LEFT JOIN public.category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      LEFT JOIN public.markets market ON market.code='sparta'
+      LEFT JOIN public.categories category
+        ON category.market_id=market.id
+       AND category.code=category_code.value
+      LEFT JOIN public.category_translations ctel
+        ON ctel.category_id=category.id
+       AND ctel.locale='el'
+      LEFT JOIN public.category_translations cten
+        ON cten.category_id=category.id
+       AND cten.locale='en'
       GROUP BY category_code.value
     ), brand_values AS (
-      SELECT 'brand'::text AS facet_type,brand.value AS value,brand.value AS label,COUNT(*)::bigint AS count
+      SELECT
+        'brand'::text AS facet_type,
+        brand.value AS value,
+        brand.value AS label,
+        COUNT(*)::bigint AS count
       FROM base b
       CROSS JOIN LATERAL unnest(b.brand_names) AS brand(value)
-      WHERE btrim(brand.value)<>''
+      WHERE BTRIM(brand.value)<>''
       GROUP BY brand.value
     ), color_values AS (
-      SELECT 'color'::text AS facet_type,color.value AS value,color.value AS label,COUNT(*)::bigint AS count
+      SELECT
+        'color'::text AS facet_type,
+        option.value AS value,
+        option.value AS label,
+        COUNT(DISTINCT (b.supplier_id,b.external_product_id))::bigint AS count
       FROM base b
-      CROSS JOIN LATERAL unnest(b.colors) AS color(value)
-      WHERE btrim(color.value)<>''
-      GROUP BY color.value
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(b.normalized_payload->'attributes')='array'
+            THEN b.normalized_payload->'attributes'
+          ELSE '[]'::jsonb
+        END
+      ) attribute
+      CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE
+          WHEN jsonb_typeof(attribute->'options')='array'
+            THEN attribute->'options'
+          ELSE '[]'::jsonb
+        END
+      ) option(value)
+      WHERE lower(COALESCE(attribute->>'name',''))='color'
+        AND BTRIM(option.value)<>''
+      GROUP BY option.value
     ), size_values AS (
-      SELECT 'size'::text AS facet_type,size_value.value AS value,size_value.value AS label,COUNT(*)::bigint AS count
+      SELECT
+        'size'::text AS facet_type,
+        option.value AS value,
+        option.value AS label,
+        COUNT(DISTINCT (b.supplier_id,b.external_product_id))::bigint AS count
       FROM base b
-      CROSS JOIN LATERAL unnest(b.sizes) AS size_value(value)
-      WHERE btrim(size_value.value)<>''
-      GROUP BY size_value.value
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(b.normalized_payload->'variants')='array'
+            THEN b.normalized_payload->'variants'
+          ELSE '[]'::jsonb
+        END
+      ) variant
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(variant->'attributes')='array'
+            THEN variant->'attributes'
+          ELSE '[]'::jsonb
+        END
+      ) attribute
+      CROSS JOIN LATERAL (
+        SELECT NULLIF(BTRIM(attribute->>'option'),'') AS value
+      ) option
+      WHERE lower(COALESCE(attribute->>'name','')) LIKE '%size%'
+        AND option.value IS NOT NULL
+      GROUP BY option.value
     )
     SELECT * FROM totals
     UNION ALL SELECT * FROM category_values
     UNION ALL SELECT * FROM brand_values
     UNION ALL SELECT * FROM color_values
     UNION ALL SELECT * FROM size_values
-  `, [vendorId,LIVE_DEGRADED_FACET_SEED_CAP]);
+  `, [vendorId]);
   return result.rows;
 }
 
