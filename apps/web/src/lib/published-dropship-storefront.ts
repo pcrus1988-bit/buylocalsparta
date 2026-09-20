@@ -24,6 +24,7 @@ type PublishedDropshipRow = Readonly<{
   title: string;
   category_code: string;
   customer_price_minor: number | string;
+  msrp_minor: number | string | null;
   cached_quantity: number | string | null;
   currently_available: boolean;
   vendor_public_id: string;
@@ -99,6 +100,7 @@ export async function getPublishedDropshipCatalogCards(
           vo.location_id,
           vo.canonical_variant_id,
           vo.customer_price_minor,
+          vo.msrp_minor,
           vo.cost_ceiling_minor,
           vo.supplier_unit_price_minor,
           vo.updated_at,
@@ -130,6 +132,7 @@ export async function getPublishedDropshipCatalogCards(
         COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
         c.code AS category_code,
         scope.customer_price_minor,
+        scope.msrp_minor,
         scope.cached_quantity,
         (
           scope.cached_available=true
@@ -173,6 +176,7 @@ export async function getPublishedDropshipCatalogCards(
         COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
         c.code AS category_code,
         vo.customer_price_minor,
+        vo.msrp_minor,
         dso.cached_quantity,
         (
           dso.cached_available=true
@@ -225,6 +229,7 @@ export async function getPublishedDropshipCatalogCards(
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
+    const msrpMinor = safeMinor(row.msrp_minor);
     if (!priceMinor || !isPublicCatalogueTitle(row.title)) return [];
     const presentation = resolveDropshipPublicFields(
       parseDropshipPresentationConfig(row.vendor_presentation),
@@ -240,6 +245,7 @@ export async function getPublishedDropshipCatalogCards(
       title: row.title,
       categoryCode: row.category_code,
       priceMinor,
+      msrpMinor: msrpMinor !== undefined && msrpMinor > priceMinor ? msrpMinor : null,
       available,
       availableToSell: available ? safeQuantity(row.cached_quantity) : 0,
       vendorId: row.vendor_public_id,
