@@ -14,12 +14,6 @@ export type VendorDropshipFacetContext = Readonly<{
 
 type FacetType = "total" | "category" | "brand" | "color" | "size" | "fit" | "material";
 
-// Live supplier overlay used when the hourly materialized storefront projection is
-// stale or empty. It covers every authoritative dropship supplier so a failed
-// projection refresh cannot silently remove Nova/BrandsGateway (or future suppliers)
-// while leaving only the supplier-specific fallback visible.
-const LIVE_FALLBACK_FAMILY_CAP = 0; // Customer requests never rebuild supplier families; background workers own projection refresh.
-
 type FacetProjectionRow = Readonly<{
   facet_type: FacetType;
   value: string;
@@ -155,105 +149,28 @@ export async function getContextualVendorDropshipFacets(
       FROM public.storefront_dropship_family_filter_read_model_v2 fm
       JOIN suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
-        -- Facets are navigational counts, not the purchase authority. Use the
-        -- bounded family read model here and leave live supplier revalidation to
-        -- the page query/checkout path. Per-family live checks made every filter
-        -- change unnecessarily expensive and could starve the page request of a
-        -- DB connection.
-    ), live_fallback AS MATERIALIZED (
-      SELECT
-        dso.supplier_id::text AS dropship_supplier_id,
-        dso.external_product_id AS dropship_external_product_id,
-        MAX(dso.availability_expires_at) AS available_until,
-        COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
-        COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
-          FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names_normalized,
-        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )),'')) FILTER (WHERE NULLIF(BTRIM(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )), '') IS NOT NULL),'{}'::text[]) AS colors,
-        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(size_entry.value),''))
-          FILTER (WHERE NULLIF(BTRIM(size_entry.value),'') IS NOT NULL),'{}'::text[]) AS sizes,
-        COALESCE(array_agg(DISTINCT lower(NULLIF(BTRIM(COALESCE(
-          el.specifications->>'fit',
-          en.specifications->>'fit',
-          ''
-        )),''))) FILTER (WHERE NULLIF(BTRIM(COALESCE(
-          el.specifications->>'fit',
-          en.specifications->>'fit',
-          ''
-        )), '') IS NOT NULL),'{}'::text[]) AS fits,
-        '{}'::text[] AS materials,
-        to_tsvector('simple',COALESCE(string_agg(DISTINCT concat_ws(' ',
-          COALESCE(el.title,en.title,cv.model,cv.slug),
-          COALESCE(b.name,pfb.name,''),
-          COALESCE(cv.gtin,''),
-          COALESCE(cv.mpn,''),
-          c.code
-        ),' '),'')) AS search_vector
-      FROM dropship_supplier_offers dso
-      JOIN suppliers supplier
-        ON supplier.id=dso.supplier_id
-      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN categories c ON c.id=cv.category_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN product_families pf ON pf.id=cv.family_id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
-      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN LATERAL unnest(ARRAY[
-        cv.variant_attributes->>'italian_size_men',
-        cv.variant_attributes->>'italian_size_women',
-        cv.variant_attributes->>'shoe_size_women',
-        cv.variant_attributes->>'shoe_size_men',
-        cv.variant_attributes->>'waist_size',
-        cv.variant_attributes->>'belt_size',
-        cv.variant_attributes->>'waist_length_size',
-        cv.variant_attributes->>'hat_size',
-        cv.variant_attributes->>'swimwear_sleepwear_size',
-        cv.variant_attributes->>'shoe_size',
-        cv.variant_attributes->>'earrings_size',
-        cv.variant_attributes->>'bracelets_size',
-        cv.variant_attributes->>'gloves_size_women',
-        cv.variant_attributes->>'ring_size',
-        cv.variant_attributes->>'gloves_size_men',
-        cv.variant_attributes->>'size'
-      ]) AS size_entry(value) ON true
-      WHERE dso.active=true
-        AND dso.cached_available=true
-        AND COALESCE(dso.cached_quantity,0)>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND l.active=true
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
         AND NOT EXISTS (
           SELECT 1
-          FROM public.storefront_dropship_family_filter_read_model_v2 projected
-          WHERE projected.dropship_supplier_id=dso.supplier_id::text
-            AND projected.dropship_external_product_id=dso.external_product_id
-            AND projected.available_until>now()
+          FROM bls_private.storefront_dropship_live_family live_shadow
+          WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+            AND live_shadow.external_product_id=fm.dropship_external_product_id
+            AND live_shadow.available_until>now()
         )
-      GROUP BY dso.supplier_id,dso.external_product_id
-      ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
-      LIMIT $10
+    ), live_overlay AS MATERIALIZED (
+      SELECT
+        lf.supplier_id::text AS dropship_supplier_id,
+        lf.external_product_id AS dropship_external_product_id,
+        lf.category_codes,
+        lf.brand_names_normalized,
+        lf.colors,
+        lf.sizes,
+        lf.fits,
+        lf.materials,
+        lf.search_vector
+      FROM bls_private.storefront_dropship_live_family lf
+      JOIN suppliers supplier ON supplier.id=lf.supplier_id
+      WHERE lf.sellable=true
+        AND lf.available_until>now()
     ), base AS MATERIALIZED (
       SELECT
         fm.dropship_supplier_id,fm.dropship_external_product_id,
@@ -264,7 +181,7 @@ export async function getContextualVendorDropshipFacets(
       SELECT
         fm.dropship_supplier_id,fm.dropship_external_product_id,
         fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
-      FROM live_fallback fm
+      FROM live_overlay fm
       WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
     ), label_map AS MATERIALIZED (
       SELECT DISTINCT facets.facet_type,facets.value,facets.label
@@ -379,7 +296,7 @@ export async function getContextualVendorDropshipFacets(
     FROM projected
     WHERE facet_type='total' OR count>0
     ORDER BY facet_type,label,value
-  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, LIVE_FALLBACK_FAMILY_CAP]);
+  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix]);
 
   let total = 0;
   const categoriesOut: VendorDropshipFacetOption[] = [];
