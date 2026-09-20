@@ -1,7 +1,7 @@
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 import { PRODUCT_SITEMAP_SHARD_COUNT } from "../../lib/product-sitemap-inventory";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 900;
 
 function escapeXml(value: string): string {
   return value
