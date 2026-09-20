@@ -46,6 +46,7 @@ type DropshipOfferRow = Readonly<{
   supplier_cost_minor: number | string | null;
   ean: string | null;
   cached_quantity: number | string | null;
+  availability_checked_at: Date | string | null;
 }>;
 
 type ValidatedLine = Readonly<{
@@ -53,6 +54,7 @@ type ValidatedLine = Readonly<{
   quantity: number;
   supplierCostMinor: number;
   revalidatedAt: number;
+  availabilityValidation: "live" | "fresh_cache";
 }>;
 
 function hash(value: string): string {
@@ -128,7 +130,8 @@ export async function checkoutApiAuthoritativeDropship(
       dso.external_variant_id,
       dso.supplier_cost_minor,
       dso.ean,
-      dso.cached_quantity
+      dso.cached_quantity,
+      dso.availability_checked_at
     FROM vendor_offers vo
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     JOIN markets m ON m.id=cv.market_id
@@ -189,6 +192,7 @@ export async function checkoutApiAuthoritativeDropship(
     }
     let supplierCostMinor: number;
     let revalidatedAt: number;
+    let availabilityValidation: "live" | "fresh_cache" = "live";
 
     if (row.supplier_code === NOVA_SUPPLIER_CODE) {
       novaClient ??= new NovaV1Client({ apiKey: novaApiKeyFromEnvironment() });
@@ -207,29 +211,52 @@ export async function checkoutApiAuthoritativeDropship(
       supplierCostMinor = evidence.supplierCostMinor;
       revalidatedAt = evidence.checkedAt;
     } else if (row.supplier_code === SYMPHONYA_SUPPLIER_CODE) {
-      const symphonyaRuntimeEnabled = process.env.SYMPHONYA_ENABLED?.trim().toLowerCase() === "true";
-      // Checkout and payment are intentionally independent from automatic supplier-order
-      // forwarding. Until forwarding is enabled, paid Symphonya orders remain in the
-      // normal fulfilment workflow for manual supplier submission.
-      if (!symphonyaRuntimeEnabled) {
-        throw new Error("Η ζωντανή επιβεβαίωση διαθεσιμότητας Symphonya είναι προσωρινά μη διαθέσιμη. Δοκίμασε ξανά σε λίγο.");
-      }
-      symphonyaClient ??= new SymphonyaHttpTransport({
-        apiKey: symphonyaApiKeyFromEnvironment(),
-        baseUrl: process.env.SYMPHONYA_API_BASE_URL,
-        requestTimeoutMs: symphonyaRequestTimeoutMs()
-      });
-      const stockRows = await symphonyaClient.getStock({ productIds: [row.external_product_id] });
-      const stock = stockRows.find((candidate) => Boolean(row.ean) && candidate.ean === row.ean)
-        ?? stockRows.find((candidate) => candidate.productId === row.external_product_id);
-      if (!stock || !stock.permitted || stock.priceHeld === true || stock.quantity < item.quantity) {
+      // Symphonya customer checkout must stay available while automatic supplier-order
+      // forwarding is unfinished. Prefer a live stock/price confirmation when the web
+      // runtime has the API key; otherwise (or on a transport failure) use only the
+      // already-fresh supplier cache admitted by the discovery query above.
+      const cachedQuantity = row.cached_quantity == null ? null : safeInt(row.cached_quantity, "Symphonya cached quantity");
+      const cachedSupplierCostMinor = row.supplier_cost_minor == null ? null : safeInt(row.supplier_cost_minor, "Symphonya cached supplier cost");
+      if (cachedQuantity !== null && cachedQuantity < item.quantity) {
         throw new Error("Η διαθεσιμότητα του προμηθευτή άλλαξε. Ανανέωσε το προϊόν και δοκίμασε ξανά.");
       }
-      if (stock.wholesaleCostMinor == null || !Number.isSafeInteger(stock.wholesaleCostMinor) || stock.wholesaleCostMinor <= 0) {
-        throw new Error("Ο προμηθευτής δεν επέστρεψε έγκυρη τιμή αγοράς. Η παραγγελία δεν δημιουργήθηκε.");
+
+      const apiKey = process.env.SYMPHONYA_API_KEY?.trim();
+      let stockRows: Awaited<ReturnType<SymphonyaHttpTransport["getStock"]>> | null = null;
+      if (apiKey) {
+        try {
+          symphonyaClient ??= new SymphonyaHttpTransport({
+            apiKey,
+            baseUrl: process.env.SYMPHONYA_API_BASE_URL,
+            requestTimeoutMs: symphonyaRequestTimeoutMs()
+          });
+          stockRows = await symphonyaClient.getStock({ productIds: [row.external_product_id] });
+        } catch {
+          stockRows = null;
+        }
       }
-      supplierCostMinor = stock.wholesaleCostMinor;
-      revalidatedAt = Date.now();
+
+      if (stockRows) {
+        const stock = stockRows.find((candidate) => Boolean(row.ean) && candidate.ean === row.ean)
+          ?? stockRows.find((candidate) => candidate.productId === row.external_product_id);
+        if (!stock || !stock.permitted || stock.priceHeld === true || stock.quantity < item.quantity) {
+          throw new Error("Η διαθεσιμότητα του προμηθευτή άλλαξε. Ανανέωσε το προϊόν και δοκίμασε ξανά.");
+        }
+        if (stock.wholesaleCostMinor == null || !Number.isSafeInteger(stock.wholesaleCostMinor) || stock.wholesaleCostMinor <= 0) {
+          throw new Error("Ο προμηθευτής δεν επέστρεψε έγκυρη τιμή αγοράς. Η παραγγελία δεν δημιουργήθηκε.");
+        }
+        supplierCostMinor = stock.wholesaleCostMinor;
+        revalidatedAt = Date.now();
+        availabilityValidation = "live";
+      } else {
+        if (cachedSupplierCostMinor == null || cachedSupplierCostMinor <= 0) {
+          throw new Error("Η τελευταία επιβεβαιωμένη τιμή προμήθειας Symphonya δεν είναι διαθέσιμη. Ανανέωσε το προϊόν και δοκίμασε ξανά.");
+        }
+        supplierCostMinor = cachedSupplierCostMinor;
+        const checkedAt = row.availability_checked_at == null ? NaN : new Date(row.availability_checked_at).getTime();
+        revalidatedAt = Number.isFinite(checkedAt) ? checkedAt : input.now;
+        availabilityValidation = "fresh_cache";
+      }
     } else {
       throw new Error(`Unsupported API-authoritative dropship supplier ${row.supplier_code}`);
     }
@@ -238,15 +265,19 @@ export async function checkoutApiAuthoritativeDropship(
     if (ceiling !== null && supplierCostMinor > ceiling) {
       throw new Error("Η τιμή του προμηθευτή άλλαξε και η πώληση δεν περνά πλέον τον κανόνα κερδοφορίας. Η παραγγελία δεν δημιουργήθηκε.");
     }
-    validated.push({ row, quantity: item.quantity, supplierCostMinor, revalidatedAt });
+    validated.push({ row, quantity: item.quantity, supplierCostMinor, revalidatedAt, availabilityValidation });
   }
 
   const symphonyaLines = validated.filter((line) => line.row.supplier_code === SYMPHONYA_SUPPLIER_CODE);
-  if (symphonyaLines.length) {
+  // The supplier's per-order procurement minimum belongs to automatic forwarding.
+  // While forwarding is manual, customer orders may be accumulated into a later
+  // supplier purchase and therefore must not be blocked at checkout by that minimum.
+  const autoForwardedSymphonyaLines = symphonyaLines.filter((line) => line.row.order_forwarding_enabled);
+  if (autoForwardedSymphonyaLines.length) {
     const minimumProcurementMinor = Math.max(
-      ...symphonyaLines.map((line) => safeInt(line.row.minimum_procurement_minor ?? 9900, "Symphonya minimum procurement"))
+      ...autoForwardedSymphonyaLines.map((line) => safeInt(line.row.minimum_procurement_minor ?? 9900, "Symphonya minimum procurement"))
     );
-    const supplierProcurementMinor = symphonyaLines.reduce(
+    const supplierProcurementMinor = autoForwardedSymphonyaLines.reduce(
       (sum, line) => sum + line.supplierCostMinor * line.quantity,
       0
     );
@@ -362,7 +393,7 @@ export async function checkoutApiAuthoritativeDropship(
         taxRateBps,
         lineTax,
         line.supplierCostMinor,
-        JSON.stringify({ postcode: input.postcode, mode: supplierFulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString(), supplierOrderForwarding: row.order_forwarding_enabled ? "automatic" : "manual" }),
+        JSON.stringify({ postcode: input.postcode, mode: supplierFulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString(), availabilityValidation: line.availabilityValidation, supplierOrderForwarding: row.order_forwarding_enabled ? "automatic" : "manual" }),
         JSON.stringify({ assignedOfferId: row.offer_public_id, vendorId: row.vendor_public_id, fairness: "api_authoritative_dropship" }),
         createdAt
       ]);
@@ -456,12 +487,6 @@ export async function freshDropshipCartOffer(
   };
 }
 
-
-function symphonyaApiKeyFromEnvironment(): string {
-  const value = process.env.SYMPHONYA_API_KEY?.trim();
-  if (!value) throw new Error("SYMPHONYA_API_KEY is required for Symphonya checkout revalidation");
-  return value;
-}
 
 function symphonyaRequestTimeoutMs(): number {
   const value = Number(process.env.SYMPHONYA_REQUEST_TIMEOUT_MS ?? 20_000);
