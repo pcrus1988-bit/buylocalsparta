@@ -1,7 +1,7 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { decodeCatalogSizeGroup } from "./catalog-size";
 
-const HOT_SYMPHONYA_FAMILY_CAP = 0; // Production serves precomputed read models; never rebuild supplier families on a customer request.
+const HOT_SYMPHONYA_FAMILY_CAP = 0; // Preserve the pre-existing dormant fallback; Nova freshness uses the incremental live projection.
 
 export type StorefrontReadModelFilters = Readonly<{
   subcategory?: string;
@@ -188,18 +188,42 @@ export async function getDropshipStorefrontReadModelWindow(
 
   if (!hasFilters) {
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
-      WITH total AS MATERIALIZED (
-        SELECT COUNT(*)::bigint AS total_families
-        FROM public.storefront_dropship_family_read_model
-        WHERE available_until>now()
+      WITH stable AS MATERIALIZED (
+        SELECT
+          fm.dropship_supplier_id,
+          fm.dropship_external_product_id,
+          fm.available_until,
+          fm.newest_at,
+          fm.min_price_minor
+        FROM public.storefront_dropship_family_read_model fm
+        WHERE fm.available_until>now()
+          AND NOT EXISTS (
+            SELECT 1
+            FROM bls_private.storefront_dropship_live_family live_shadow
+            WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+              AND live_shadow.external_product_id=fm.dropship_external_product_id
+              AND live_shadow.available_until>now()
+          )
+      ), live AS MATERIALIZED (
+        SELECT
+          lf.supplier_id::text AS dropship_supplier_id,
+          lf.external_product_id AS dropship_external_product_id,
+          lf.available_until,
+          lf.newest_at,
+          lf.min_price_minor
+        FROM bls_private.storefront_dropship_live_family lf
+        WHERE lf.sellable=true
+          AND lf.available_until>now()
+      ), combined AS (
+        SELECT * FROM stable
+        UNION ALL
+        SELECT * FROM live
       )
       SELECT
         fm.dropship_supplier_id AS supplier_id,
         fm.dropship_external_product_id AS external_product_id,
-        total.total_families
-      FROM public.storefront_dropship_family_read_model fm
-      CROSS JOIN total
-      WHERE fm.available_until>now()
+        COUNT(*) OVER() AS total_families
+      FROM combined fm
       ORDER BY ${orderBy}
       LIMIT $1 OFFSET $2
     `, [input.limit, input.offset]);
@@ -249,6 +273,13 @@ export async function getDropshipStorefrontReadModelWindow(
         fm.search_vector
       FROM public.storefront_dropship_family_read_model fm
       WHERE fm.available_until>now()
+        AND NOT EXISTS (
+          SELECT 1
+          FROM bls_private.storefront_dropship_live_family live_shadow
+          WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+            AND live_shadow.external_product_id=fm.dropship_external_product_id
+            AND live_shadow.available_until>now()
+        )
     ), filtered_hot_symphonya AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS dropship_supplier_id,
@@ -365,6 +396,23 @@ export async function getDropshipStorefrontReadModelWindow(
       GROUP BY dso.supplier_id,dso.external_product_id
       ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
       LIMIT $12
+    ), filtered_live AS MATERIALIZED (
+      SELECT
+        lf.supplier_id::text AS dropship_supplier_id,
+        lf.external_product_id AS dropship_external_product_id,
+        lf.available_until,
+        lf.newest_at,
+        lf.min_price_minor,
+        lf.category_codes,
+        lf.department_codes,
+        lf.brand_names,
+        lf.colors,
+        lf.fits,
+        lf.sizes_text,
+        lf.search_vector
+      FROM bls_private.storefront_dropship_live_family lf
+      WHERE lf.sellable=true
+        AND lf.available_until>now()
     ), filtered_combined AS (
       SELECT
         dropship_supplier_id,
@@ -397,6 +445,23 @@ export async function getDropshipStorefrontReadModelWindow(
         sizes_text,
         search_vector
       FROM filtered_hot_symphonya
+
+      UNION ALL
+
+      SELECT
+        dropship_supplier_id,
+        dropship_external_product_id,
+        available_until,
+        newest_at,
+        min_price_minor,
+        category_codes,
+        department_codes,
+        brand_names,
+        colors,
+        fits,
+        sizes_text,
+        search_vector
+      FROM filtered_live
     ), filtered_matching AS MATERIALIZED (
       SELECT fm.*
       FROM filtered_combined fm
