@@ -23,7 +23,8 @@ export {
   type XmlElement,
   type XmlElementSpec
 } from "./xml.ts";
-export { retryAfterDelayMs } from "./retry-after.ts";\nexport { allocateSinglePurposeVoucherRedemption, splitVatInclusiveGross, type SpvRedemptionAllocation, type SpvRedemptionLine } from "./spv.ts";
+export { retryAfterDelayMs } from "./retry-after.ts";
+export { allocateSinglePurposeVoucherRedemption, splitVatInclusiveGross, type SpvRedemptionAllocation, type SpvRedemptionLine } from "./spv.ts";
 
 export type MyDataEnvironment = "test" | "production";
 export type MyDataFetch = typeof fetch;
