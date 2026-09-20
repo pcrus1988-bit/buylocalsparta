@@ -8,6 +8,11 @@ const PUBLIC_TEXT_ATTRIBUTES = ["aria-label", "title", "placeholder", "alt"] as 
 
 export function sanitizePublicPartnerTerminology(value: string): string {
   return value
+    .replace(/BrandsGateway\s*\/\s*(?:NOVA|Nova)(?:\s*V2)?/gi, "συνεργαζόμενος προμηθευτής")
+    .replace(/(?:NOVA|Nova)(?:\s*V2)?\s*\/\s*BrandsGateway/gi, "συνεργαζόμενος προμηθευτής")
+    .replace(/Brands\s*Gateway/gi, "συνεργαζόμενος προμηθευτής")
+    .replace(/BrandsGateway/gi, "συνεργαζόμενος προμηθευτής")
+    .replace(/Symphonya/gi, "συνεργαζόμενος προμηθευτής")
     .replace(/dropshipping\s+προϊόντων/gi, "προϊόντων συνεργαζόμενου προμηθευτή")
     .replace(/dropshipping\s+προϊόντα/gi, "προϊόντα συνεργαζόμενου προμηθευτή")
     .replace(/dropshipping\s+products?/gi, "partner-supplied products")
