@@ -42,6 +42,8 @@ type ColorFinderCandidateRow = SqlRow & Readonly<{
   source_code: string | null;
   source_website: string | null;
   source_image_url: string | null;
+  source_title: string | null;
+  source_color: string | null;
 }>;
 
 async function loadColorFinderProductsUncached(
@@ -74,7 +76,23 @@ async function loadColorFinderProductsUncached(
         vo.customer_price_minor,
         cs.code AS source_code,
         cs.website AS source_website,
-        csp.source_image_url
+        csp.source_image_url,
+        csp.title AS source_title,
+        (
+          SELECT COALESCE(
+            NULLIF(btrim(source_attr->>'value'), ''),
+            NULLIF(btrim(source_attr->'options'->>0), '')
+          )
+          FROM jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(csp.normalized_payload->'attributes')='array'
+                THEN csp.normalized_payload->'attributes'
+              ELSE '[]'::jsonb
+            END
+          ) AS source_attr
+          WHERE lower(COALESCE(source_attr->>'name','')) IN ('color','colour')
+          LIMIT 1
+        ) AS source_color
       FROM public.dropship_supplier_offers dso
       JOIN public.dropship_suppliers ds
         ON ds.id=dso.supplier_id
@@ -155,7 +173,9 @@ async function loadColorFinderProductsUncached(
       pcp.confidence,
       candidate.source_code,
       candidate.source_website,
-      candidate.source_image_url
+      candidate.source_image_url,
+      candidate.source_title,
+      candidate.source_color
     FROM live_color_variants candidate
     LEFT JOIN public.product_color_profiles pcp
       ON pcp.canonical_variant_id=candidate.canonical_variant_id
@@ -181,17 +201,32 @@ async function loadColorFinderProductsUncached(
       && storedPrecision !== "family_estimate"
       && (storedConfidence ?? 0) >= 0.5
     );
+    const sourceColor = optionalText(row.source_color);
+    const sourceTitle = optionalText(row.source_title);
+    const profileBrand = optionalText(row.profile_brand_name);
+    const canonicalBrand = optionalText(row.brand_name);
+    const brand = profileBrand ?? canonicalBrand;
+    const inferenceTitle = stripLeadingBrand(sourceTitle ?? title, brand);
     const resolved = storedUsable && storedResolved
       ? storedResolved
-      : rawColor
-        ? resolveCatalogColor({ color: rawColor })
-        : undefined;
+      : resolveCatalogColor({
+          color: sourceColor ?? rawColor,
+          title: inferenceTitle
+        });
     if (!resolved) return [];
 
     const profilePrecision = storedUsable && storedPrecision ? storedPrecision : "canonicalized" as const;
-    const profileConfidence = storedUsable && storedConfidence !== undefined ? storedConfidence : 0.68;
+    const profileConfidence = storedUsable && storedConfidence !== undefined
+      ? storedConfidence
+      : sourceColor
+        ? 0.86
+        : rawColor
+          ? 0.74
+          : 0.62;
     const productText = [
+      sourceTitle,
       title,
+      sourceColor,
       rawColor,
       optionalText(row.color_detail),
       optionalText(row.brand_shade_name)
@@ -206,7 +241,7 @@ async function loadColorFinderProductsUncached(
       id,
       slug,
       title,
-      brand: optionalText(row.profile_brand_name) ?? optionalText(row.brand_name),
+      brand,
       brandShade: optionalText(row.brand_shade_name) ?? rawColor,
       shadeCode: optionalText(row.shade_code),
       colorDetail: optionalText(row.color_detail) ?? optionalText(row.color_family),
@@ -226,7 +261,7 @@ async function loadColorFinderProductsUncached(
 
 const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-contextual-catalogue-v4"],
+  ["color-finder-contextual-catalogue-v5"],
   { revalidate: CACHE_SECONDS }
 );
 
@@ -238,6 +273,15 @@ export function getColorFinderProducts(
   const categoryCode = SAFE_SCOPE.test(requestedCategory) ? requestedCategory : "nail-care-colour";
   const vendorPublicId = SAFE_VENDOR.test(requestedVendor) ? requestedVendor : "";
   return getCachedColorFinderProducts(categoryCode, vendorPublicId);
+}
+
+function stripLeadingBrand(value: string, brand?: string): string {
+  if (!brand) return value;
+  const cleanValue = value.trim();
+  const cleanBrand = brand.trim();
+  if (!cleanBrand) return cleanValue;
+  if (!cleanValue.toLocaleLowerCase("en").startsWith(cleanBrand.toLocaleLowerCase("en"))) return cleanValue;
+  return cleanValue.slice(cleanBrand.length).replace(/^[\s,.:;|/\\\-–—]+/, "").trim();
 }
 
 function optionalText(value: unknown): string | undefined {
