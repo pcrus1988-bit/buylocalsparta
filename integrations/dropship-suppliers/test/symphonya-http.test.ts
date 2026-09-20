@@ -35,6 +35,7 @@ test("getProducts follows official path, pagination, oos and description contrac
         type: "Eau de parfum",
         cat: "perfumes",
         price: "10.50",
+        rrp: "18.90",
         stock: 4,
         warehouse: "Warehouse 1",
         image: "https://img.test/main.jpg",
@@ -48,6 +49,7 @@ test("getProducts follows official path, pagination, oos and description contrac
   assert.equal(page.products.length, 1);
   assert.equal(page.products[0]?.productId, "12345");
   assert.equal(page.products[0]?.wholesaleCostMinor, 1050);
+  assert.equal(page.products[0]?.rrpMinor, 1890);
   assert.equal(page.products[0]?.descriptionEn, "Short");
   assert.deepEqual(page.products[0]?.images, ["https://img.test/main.jpg", "https://img.test/1.jpg"]);
 
