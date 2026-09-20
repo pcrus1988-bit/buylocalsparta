@@ -885,7 +885,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
           <SortSelect value={sort} onChange={setSort} />
         </div>
         {activeChips.length ? <div className="vc-result-chips">{activeChips.map((chip) => <button type="button" onClick={chip.clear} key={chip.key}>{chip.label}<span>×</span></button>)}</div> : null}
-        <div className="vc-meta"><span><strong>{visibleProducts.length}</strong> προϊόντα στη σελίδα {currentPage}{totalKnown ? <> · {total} προϊόντα με το τρέχον πλαίσιο.</> : remoteNextOffset !== null ? <> · υπάρχουν περισσότερα διαθέσιμα.</> : "."}</span>{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
+        <div className="vc-meta">{remoteLoading && !visibleProducts.length ? <span><strong>Φόρτωση</strong> προϊόντων…</span> : <span><strong>{visibleProducts.length}</strong> προϊόντα στη σελίδα {currentPage}{totalKnown ? <> · {total} προϊόντα με το τρέχον πλαίσιο.</> : remoteNextOffset !== null ? <> · υπάρχουν περισσότερα διαθέσιμα.</> : "."}</span>}{remoteError ? <span>Υπήρξε προσωρινό πρόβλημα φόρτωσης. Μπορείς να αλλάξεις φίλτρα ή να δοκιμάσεις ξανά.</span> : null}</div>
         {remoteLoading && !visibleProducts.length ? <div className="vc-loading"><span className="vc-spinner" /><strong>Ετοιμάζουμε τη βιτρίνα…</strong><p>Φορτώνουμε μόνο ό,τι χρειάζεται για την επιλογή σου.</p></div> : visibleProducts.length ? <>
           <div className="vc-grid">{visibleProducts.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />)}</div>
           {hasPagination ? <nav className="vc-pagination" aria-label="Σελιδοποίηση προϊόντων">
