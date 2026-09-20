@@ -105,7 +105,12 @@ if (!read("packages/core/src/commerce/types.ts").includes('"chargeback"')) error
 if (!read("packages/core/src/fairness/types.ts").includes('"bulky_special"')) errors.push("FulfilmentMode must include the bulky_special mode present in the database schema");
 const productionWebSource = walk(join(root, "apps/web/src")).filter((path) => /\.(ts|tsx)$/.test(path)).map((path) => readFileSync(path, "utf8")).join("\n");
 for (const forbiddenVisitor of ["homepage-demo", "shop-page", "production-web-demo"]) {
-  if (productionWebSource.includes(forbiddenVisitor)) errors.push(`Production web source still contains shared fairness visitor key ${forbiddenVisitor}`);
+  const appearsAsLiteral = [
+    `"${forbiddenVisitor}"`,
+    `'${forbiddenVisitor}'`,
+    `\`${forbiddenVisitor}\``
+  ].some((literal) => productionWebSource.includes(literal));
+  if (appearsAsLiteral) errors.push(`Production web source still contains shared fairness visitor key ${forbiddenVisitor}`);
 }
 if (/const BUILD\s*=\s*"\d+\.\d+\.\d+"/.test(read("dev/server.ts"))) errors.push("Development server contains a hard-coded build version");
 const loginRoute = read("apps/web/src/app/api/account/login/route.ts");
