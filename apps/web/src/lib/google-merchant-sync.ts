@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getGoogleMerchantAccessToken } from "./google-merchant-auth";
 import {
   buildGoogleMerchantProductInput,
@@ -22,7 +22,8 @@ const IMAGE_BATCH_SIZE = 40;
 const WRITE_CONCURRENCY = 12;
 const CLEANUP_PAGE_SIZE = 1000;
 const CLEANUP_SETTINGS_KEY = "merchant.google.cleanup.v1";
-const ADVISORY_LOCK_KEY = "kontamou:google-merchant-sync:v2";
+const GOOGLE_MERCHANT_SYNC_JOB = "google-merchant-catalogue-sync";
+const GOOGLE_MERCHANT_SYNC_LEASE_MS = 2 * 60_000;
 const REFRESH_AFTER_MS = 26 * 24 * 60 * 60 * 1000;
 
 type CandidateRow = Readonly<{
@@ -290,15 +291,34 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
   if (!productionDatabaseConfigured()) return { status: "skipped", ...empty };
 
   const pool = getProductionPostgresRuntime().nativePool;
-  const lockClient = await pool.connect();
-  let lockHeld = false;
+  const leaseOwner = `merchant:${randomUUID()}`;
+  const lease = await pool.query<{ lock_owner: string }>(`
+    INSERT INTO public.scheduled_jobs(
+      name,next_run_at,lock_owner,locked_until,last_started_at,last_succeeded_at,
+      consecutive_failures,last_error,updated_at
+    )
+    VALUES($1,$2,$3,$4,$2,NULL,0,NULL,$2)
+    ON CONFLICT(name) DO UPDATE SET
+      lock_owner=EXCLUDED.lock_owner,
+      locked_until=EXCLUDED.locked_until,
+      last_started_at=EXCLUDED.last_started_at,
+      updated_at=EXCLUDED.updated_at
+    WHERE scheduled_jobs.locked_until IS NULL
+       OR scheduled_jobs.locked_until <= EXCLUDED.last_started_at
+    RETURNING lock_owner
+  `, [
+    GOOGLE_MERCHANT_SYNC_JOB,
+    new Date(now),
+    leaseOwner,
+    new Date(now + GOOGLE_MERCHANT_SYNC_LEASE_MS)
+  ]);
+  if (lease.rows[0]?.lock_owner !== leaseOwner) return { status: "skipped", ...empty };
+
+  let completed = false;
+  let failureMessage: string | undefined;
   const run = await pool.query<{ id: string }>(`INSERT INTO public.merchant_sync_runs(run_type,status,shard,shard_count) VALUES('catalogue_sync','running',$1,$2) RETURNING id`, [shard, config.shardCount]);
   const runId = run.rows[0]?.id;
   try {
-    const lock = await lockClient.query<{ locked: boolean }>("SELECT pg_try_advisory_lock(hashtext($1)) AS locked", [ADVISORY_LOCK_KEY]);
-    lockHeld = Boolean(lock.rows[0]?.locked);
-    if (!lockHeld) return { status: "skipped", ...empty };
-
     const accessToken = await getGoogleMerchantAccessToken();
     const rows = await loadCandidates(shard, config.shardCount);
     const imageById = await productImages(rows);
@@ -342,12 +362,29 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
 
     const status = failed > 0 || cleanup.failed > 0 ? "partial" : "synced" as const;
     if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status=$2,queued_count=$3,attempted_count=$4,submitted_count=$5,unchanged_count=$6,deleted_count=$7,failed_count=$8,metadata=$9::jsonb,finished_at=now() WHERE id=$1`, [runId,status,rows.length,changed.length,submitted,unchanged,cleanup.deleted,failed+cleanup.failed,JSON.stringify({ skippedNoImage, cleanupExamined: cleanup.examined, errors })]);
+    completed = true;
     return { status, shard, shardCount: config.shardCount, candidates: rows.length, submitted, unchanged, skippedNoImage, failed, cleanupExamined: cleanup.examined, cleanupDeleted: cleanup.deleted, cleanupFailed: cleanup.failed, errors };
   } catch (error) {
-    if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status='failed',failed_count=failed_count+1,metadata=jsonb_build_object('error',$2),finished_at=now() WHERE id=$1`, [runId,errorText(error)]).catch(() => undefined);
+    failureMessage = errorText(error);
+    if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status='failed',failed_count=failed_count+1,metadata=jsonb_build_object('error',$2),finished_at=now() WHERE id=$1`, [runId,failureMessage]).catch(() => undefined);
     throw error;
   } finally {
-    if (lockHeld) { try { await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [ADVISORY_LOCK_KEY]); } catch { /* released with connection */ } }
-    lockClient.release();
+    const finishedAt = new Date();
+    await pool.query(`
+      UPDATE public.scheduled_jobs
+      SET lock_owner=NULL,
+          locked_until=NULL,
+          last_succeeded_at=CASE WHEN $4::boolean THEN $2 ELSE last_succeeded_at END,
+          consecutive_failures=CASE WHEN $4::boolean THEN 0 ELSE consecutive_failures+1 END,
+          last_error=CASE WHEN $4::boolean THEN NULL ELSE $3 END,
+          updated_at=$2
+      WHERE name=$1 AND lock_owner=$5
+    `, [
+      GOOGLE_MERCHANT_SYNC_JOB,
+      finishedAt,
+      failureMessage?.slice(0, 1000) ?? null,
+      completed,
+      leaseOwner
+    ]).catch(() => undefined);
   }
 }
