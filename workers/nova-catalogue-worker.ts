@@ -16,7 +16,7 @@ import { assertNovaRuntimeInvariants } from "../apps/web/src/lib/nova-runtime-in
 import { runNovaSellabilitySafetySweep } from "../apps/web/src/lib/nova-sellability-safety.ts";
 import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/src/nova-v1.ts";
 
-// Railway deployment marker: BrandsGateway availability recovery; force watched production rebuild 2026-09-20.
+// Railway deployment marker: BrandsGateway availability recovery; watched production rebuild 2026-09-20-r2.
 const workerId = process.env.BLS_NOVA_WORKER_ID?.trim() || `nova-catalogue-worker:${hostname()}:${process.pid}`;
 const runOnce = environmentFlag(process.env.BLS_NOVA_RUN_ONCE, false);
 const runOnceAvailabilityRefresh = environmentFlag(process.env.BLS_NOVA_RUN_AVAILABILITY_REFRESH, false);
