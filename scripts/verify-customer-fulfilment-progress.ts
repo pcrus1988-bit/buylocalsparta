@@ -19,7 +19,7 @@ for (const contract of [
   "const customerActions = fulfilments.filter",
   "const problems = fulfilments.filter",
   "toneFor(item.status, fulfilmentMode)",
-  "nextStep(item.status, fulfilmentMode)",
+  "nextStep(item.status, fulfilmentMode, item.manualSupplier)",
   "statusLabel(item.status, fulfilmentMode)",
   "<progress",
   "`${completed} από ${fulfilments.length} τμήματα ολοκληρώθηκαν`",

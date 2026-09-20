@@ -77,7 +77,7 @@ for (const contract of [
   "CustomerLifecycle",
   "/api/account/support",
   "/api/account/support/${encodeURIComponent(caseId)}/messages",
-  "Οι εσωτερικές σημειώσεις της ομάδας παραμένουν εσωτερικές",
+  "Ομάδα ΚΟΝΤΑ ΜΟΥ",
   "referenceNumber",
   "Χρειάζεται απάντησή σου"
 ]) expect(customerClient.includes(contract), `Customer support UI is missing ${contract}`);
