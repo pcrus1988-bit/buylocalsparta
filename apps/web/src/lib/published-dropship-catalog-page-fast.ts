@@ -129,30 +129,68 @@ export async function getPublishedDropshipCatalogPage(
   const externalProductIds = familyWindow.map((row) => row.external_product_id);
 
   const result = await pool.query<PublishedDropshipPageRow>(`
-    WITH selected_families AS MATERIALIZED (
+    WITH RECURSIVE selected_families AS MATERIALIZED (
       SELECT supplier_id,external_product_id,ordinality
       FROM unnest($1::uuid[],$2::text[]) WITH ORDINALITY
         AS selected(supplier_id,external_product_id,ordinality)
+    ), category_tree AS MATERIALIZED (
+      SELECT c.id,c.parent_id,c.code,c.code AS department_code
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id
+      WHERE m.code='sparta'
+        AND c.parent_id IS NULL
+
+      UNION ALL
+
+      SELECT child.id,child.parent_id,child.code,parent.department_code
+      FROM public.categories child
+      JOIN category_tree parent ON child.parent_id=parent.id
     ), base AS MATERIALIZED (
-      SELECT DISTINCT ON (rm.canonical_variant_id)
+      SELECT DISTINCT ON (cv.id)
         selected.ordinality AS sort_ordinal,
-        rm.canonical_public_id,
-        rm.family_id::text AS family_id,
+        cv.public_id AS canonical_public_id,
+        cv.family_id::text AS family_id,
         dso.supplier_id::text AS supplier_id,
         dso.external_product_id,
         vo.public_id AS offer_public_id,
-        rm.slug,
-        rm.title,
-        rm.description,
-        rm.category_code,
-        rm.department_code,
-        rm.brand_name,
-        rm.color,
-        rm.sizes,
-        rm.fit,
-        rm.search_vector,
-        rm.gtin,
-        rm.mpn,
+        cv.slug,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        COALESCE(el.description,en.description,'') AS description,
+        c.code AS category_code,
+        tree.department_code,
+        COALESCE(b.name,pfb.name) AS brand_name,
+        lower(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )) AS color,
+        COALESCE(
+          el.specifications->'sizes',
+          en.specifications->'sizes',
+          cv.variant_attributes->'sizes_observed',
+          '[]'::jsonb
+        ) AS sizes,
+        lower(COALESCE(
+          el.specifications->>'fit',
+          en.specifications->>'fit',
+          ''
+        )) AS fit,
+        to_tsvector(
+          'simple',
+          concat_ws(
+            ' ',
+            COALESCE(el.title,en.title,cv.model,cv.slug),
+            COALESCE(el.description,en.description,''),
+            COALESCE(b.name,pfb.name,''),
+            COALESCE(cv.gtin,''),
+            COALESCE(cv.mpn,''),
+            c.code,
+            tree.department_code
+          )
+        ) AS search_vector,
+        cv.gtin,
+        cv.mpn,
         vo.customer_price_minor,
         vo.msrp_minor,
         dso.cached_quantity,
@@ -162,21 +200,28 @@ export async function getPublishedDropshipCatalogPage(
         dso.availability_checked_at,
         vo.updated_at
       FROM selected_families selected
-      JOIN dropship_supplier_offers dso
+      JOIN public.dropship_supplier_offers dso
         ON dso.supplier_id=selected.supplier_id
        AND dso.external_product_id=selected.external_product_id
-      JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
-      JOIN public.storefront_catalog_read_model rm
-        ON rm.canonical_variant_id=vo.canonical_variant_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN vendor_businesses v ON v.id=vo.vendor_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      WHERE rm.dropship_sellable=true
-        AND rm.dropship_available_until>now()
-        AND dso.active=true
+      JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+      JOIN public.vendor_offers vo
+        ON vo.id=dso.vendor_offer_id
+       AND vo.vendor_id=ds.owner_vendor_id
+      JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN public.categories c ON c.id=cv.category_id
+      JOIN category_tree tree ON tree.id=cv.category_id
+      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+      JOIN public.vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
+      LEFT JOIN public.brands b ON b.id=cv.brand_id
+      LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
+      LEFT JOIN public.product_translations el
+        ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN public.product_translations en
+        ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE dso.active=true
         AND dso.cached_available=true
-        AND COALESCE(dso.cached_quantity,0)>=1
+        AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
         AND dso.availability_expires_at IS NOT NULL
         AND dso.availability_expires_at>now()
         AND ds.active=true
@@ -192,8 +237,8 @@ export async function getPublishedDropshipCatalogPage(
         AND cv.recalled=false
         AND v.status='active'
         AND l.active=true
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,rm.category_id)
-      ORDER BY rm.canonical_variant_id,
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+      ORDER BY cv.id,
                vo.customer_price_minor ASC,
                dso.availability_checked_at DESC NULLS LAST,
                vo.updated_at DESC,
