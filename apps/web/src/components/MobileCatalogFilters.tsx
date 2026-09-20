@@ -11,10 +11,22 @@ function isCatalogPath(pathname: string): boolean {
 
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
+function activeFilterCountFromLocation(): number {
+  const params = new URLSearchParams(window.location.search);
+  const active = new Set<string>();
+  for (const [key, rawValue] of params.entries()) {
+    const value = rawValue.trim();
+    if (!value || key === "q" || key === "sort" || key === "page" || key === "guideLabel") continue;
+    active.add(key === "subcategory_any" ? `${key}:${value}` : key);
+  }
+  return active.size;
+}
+
 export function MobileCatalogFilters() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [resultLabel, setResultLabel] = useState("");
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const visible = isCatalogPath(pathname);
 
@@ -30,11 +42,13 @@ export function MobileCatalogFilters() {
   useEffect(() => {
     if (!visible) {
       setResultLabel("");
+      setActiveFilterCount(0);
       return;
     }
     const update = () => {
       const text = document.querySelector<HTMLElement>(".catalog-results .results-toolbar strong")?.textContent?.trim() ?? "";
       setResultLabel(text);
+      setActiveFilterCount(activeFilterCountFromLocation());
     };
     update();
     const results = document.querySelector<HTMLElement>(".catalog-results");
@@ -142,11 +156,12 @@ export function MobileCatalogFilters() {
         type="button"
         aria-expanded={open}
         aria-controls="km-catalog-filter-panel"
+        aria-label={resultLabel ? `Φίλτρα προϊόντων · ${resultLabel}` : "Φίλτρα προϊόντων"}
         onClick={() => open ? close(false) : setOpen(true)}
       >
         <span aria-hidden="true">☷</span>
         <span>{open ? "Κλείσιμο" : "Φίλτρα"}</span>
-        {!open && resultLabel ? <small className="km-mobile-filter-count">{resultLabel}</small> : null}
+        {!open && activeFilterCount > 0 ? <small className="km-mobile-filter-count" aria-label={`${activeFilterCount} ενεργά φίλτρα`}>{activeFilterCount}</small> : null}
       </button>
       {open ? (
         <button className="km-mobile-filter-close" type="button" onClick={() => close()} aria-label="Κλείσιμο φίλτρων">×</button>
