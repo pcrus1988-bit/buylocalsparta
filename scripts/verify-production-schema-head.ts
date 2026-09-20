@@ -20,17 +20,86 @@ async function verifyProductionSchemaHead(): Promise<void> {
   }
 
   const connectionString = resolveProductionDatabaseUrl();
-  if (connectionString) {
-    await verifyDirectDatabase(connectionString, migrations);
-    return;
+
+  // In Vercel production, prefer the already-running production runtime as the
+  // schema authority. This avoids creating an extra build-time Postgres client
+  // during connection-pressure incidents while still validating the complete
+  // migration ledger fingerprint. A direct DB check remains the fail-safe
+  // fallback and any genuine drift still blocks the deployment.
+  if (productionOnly && process.env.VERCEL_ENV === "production") {
+    try {
+      await retryTransientSchemaVerification(
+        () => verifyThroughProductionRuntime(migrations),
+        "production runtime fingerprint",
+      );
+      return;
+    } catch (runtimeError) {
+      if (!connectionString) throw runtimeError;
+      console.warn(
+        `Production runtime schema verification unavailable; falling back to direct database: ${errorMessage(runtimeError)}`,
+      );
+      await retryTransientSchemaVerification(
+        () => verifyDirectDatabase(connectionString, migrations),
+        "direct production database",
+      );
+      return;
+    }
   }
 
-  if (productionOnly && process.env.VERCEL_ENV === "production") {
-    await verifyThroughProductionRuntime(migrations);
+  if (connectionString) {
+    await retryTransientSchemaVerification(
+      () => verifyDirectDatabase(connectionString, migrations),
+      "direct production database",
+    );
     return;
   }
 
   throw new Error("DATABASE_URL or POSTGRES_URL is required for the production schema gate outside Vercel production builds");
+}
+
+const TRANSIENT_SCHEMA_RETRY_DELAYS_MS = [500, 1_500, 3_000] as const;
+
+async function retryTransientSchemaVerification(
+  verify: () => Promise<void>,
+  source: string,
+): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await verify();
+      return;
+    } catch (error) {
+      if (!isTransientSchemaVerificationError(error) || attempt >= TRANSIENT_SCHEMA_RETRY_DELAYS_MS.length) {
+        throw error;
+      }
+      const delay = TRANSIENT_SCHEMA_RETRY_DELAYS_MS[attempt]!;
+      console.warn(
+        `Transient ${source} failure (attempt ${attempt + 1}); retrying after ${delay}ms: ${errorMessage(error)}`,
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+function isTransientSchemaVerificationError(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase();
+  return [
+    "timeout",
+    "timed out",
+    "econn",
+    "emaxconn",
+    "connection",
+    "fetch failed",
+    "network",
+    "http 429",
+    "http 500",
+    "http 502",
+    "http 503",
+    "http 504",
+  ].some((fragment) => message.includes(fragment));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function verifyDirectDatabase(connectionString: string, migrations: readonly MigrationFile[]): Promise<void> {
@@ -47,6 +116,7 @@ async function verifyDirectDatabase(connectionString: string, migrations: readon
     connectionString,
     max: 1,
     application_name: "buy-local-sparta-production-schema-gate",
+    connectionTimeoutMillis: 5_000,
   });
 
   try {
