@@ -518,22 +518,27 @@ export async function runNovaAvailabilityRefreshSlice(
       perPage = DEFAULT_FULL_SWEEP_PAGE_SIZE;
     }
 
-    const startPage = page;
     const storeId = await resolveNovaStoreId(db);
     const client = createNovaAvailabilityClient();
-    let pagesProcessed = 0;
-    let attemptedProducts = 0;
-    let refreshedProducts = 0;
-    let updatedOffers = 0;
-    let cycleCompleted = false;
 
-    while (pagesProcessed < maxPages) {
+    for (;;) {
+      const startPage = page;
+      const pageNumbers = Array.from({ length: maxPages }, (_, index) => page + index);
       await renewNovaAvailabilityLease(db, leaseOwner);
-      let result;
+
+      let results: NovaPage<NovaProduct>[];
       try {
-        result = await listProductsWithRateLimitBackoff(client, storeId, page, perPage);
+        results = await Promise.all(
+          pageNumbers.map((currentPage) =>
+            listProductsWithRateLimitBackoff(client, storeId, currentPage, perPage)
+          )
+        );
       } catch (error) {
-        if (perPage > FALLBACK_FULL_SWEEP_PAGE_SIZE && error instanceof NovaV1ApiError && error.status === 422) {
+        if (
+          perPage > FALLBACK_FULL_SWEEP_PAGE_SIZE
+          && error instanceof NovaV1ApiError
+          && error.status === 422
+        ) {
           const zeroBasedOffset = (page - 1) * perPage;
           perPage = FALLBACK_FULL_SWEEP_PAGE_SIZE;
           page = Math.floor(zeroBasedOffset / perPage) + 1;
@@ -542,39 +547,48 @@ export async function runNovaAvailabilityRefreshSlice(
         throw error;
       }
 
-      if (result.items.length === 0) {
-        page = 1;
-        cycleCompleted = true;
-        await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, db);
-        break;
+      const terminalIndex = results.findIndex((result, index) =>
+        result.items.length < perPage
+        || (result.totalPages !== null && pageNumbers[index]! >= result.totalPages)
+      );
+      const accepted = terminalIndex >= 0 ? results.slice(0, terminalIndex + 1) : results;
+      const products = accepted.flatMap((result) => [...result.items]);
+      const pagesProcessed = accepted.length;
+
+      if (products.length === 0) {
+        await persistNovaAvailabilityFailoverCursor(1, perPage, true, db);
+        return {
+          claimed: true,
+          startPage,
+          nextPage: 1,
+          pageSize: perPage,
+          pagesProcessed,
+          attemptedProducts: 0,
+          refreshedProducts: 0,
+          updatedOffers: 0,
+          cycleCompleted: true
+        };
       }
 
-      attemptedProducts += result.items.length;
       const checkedAt = new Date();
-      updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt, db);
-      refreshedProducts += result.items.length;
-      pagesProcessed += 1;
+      const updatedOffers = await refreshNovaAvailabilityPage(products, storeId, checkedAt, db);
+      const lastAcceptedPage = pageNumbers[Math.max(0, pagesProcessed - 1)] ?? startPage;
+      const cycleCompleted = terminalIndex >= 0;
+      const nextPage = cycleCompleted ? 1 : lastAcceptedPage + 1;
+      await persistNovaAvailabilityFailoverCursor(nextPage, perPage, cycleCompleted, db);
 
-      const pageComplete = result.items.length < perPage
-        || (result.totalPages !== null && page >= result.totalPages);
-
-      page = pageComplete ? 1 : page + 1;
-      cycleCompleted = pageComplete;
-      await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, db);
-      if (pageComplete) break;
+      return {
+        claimed: true,
+        startPage,
+        nextPage,
+        pageSize: perPage,
+        pagesProcessed,
+        attemptedProducts: products.length,
+        refreshedProducts: products.length,
+        updatedOffers,
+        cycleCompleted
+      };
     }
-
-    return {
-      claimed: true,
-      startPage,
-      nextPage: page,
-      pageSize: perPage,
-      pagesProcessed,
-      attemptedProducts,
-      refreshedProducts,
-      updatedOffers,
-      cycleCompleted
-    };
   } finally {
     await releaseNovaAvailabilityLease(db, leaseOwner).catch(() => undefined);
   }
