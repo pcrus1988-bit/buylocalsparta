@@ -187,8 +187,8 @@
 
 .studioGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .studioCard {
@@ -196,21 +196,53 @@
   --tone-b: #6f4435;
   --tone-c: #d9b8a7;
   position: relative;
-  min-height: 390px;
-  padding: 20px;
+  min-height: 318px;
+  padding: 16px;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr auto;
   color: #171714;
   text-decoration: none;
-  border: 1px solid rgba(23,23,20,.1);
-  border-radius: 24px;
-  background: rgba(255,255,255,.72);
-  box-shadow: 0 14px 40px rgba(40,32,20,.055);
+  border: 1px solid color-mix(in srgb, var(--tone-a) 23%, rgba(23,23,20,.08));
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 80% 22%, color-mix(in srgb, var(--tone-a) 21%, transparent) 0, transparent 38%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--tone-c) 24%, #fff) 0%,
+      rgba(255,255,255,.94) 48%,
+      color-mix(in srgb, var(--tone-a) 10%, #fff) 100%
+    );
+  box-shadow:
+    0 12px 30px color-mix(in srgb, var(--tone-b) 8%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.72);
   transition:
     transform .22s ease,
     box-shadow .22s ease,
     border-color .22s ease;
+}
+
+.studioCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--tone-a), var(--tone-b));
+  opacity: .92;
+}
+
+.studioCard::after {
+  content: "";
+  position: absolute;
+  width: 130px;
+  height: 130px;
+  right: -30px;
+  top: -34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tone-c) 48%, transparent);
+  filter: blur(34px);
+  opacity: .7;
+  pointer-events: none;
 }
 
 .studioCard[data-tone="nail"] {
@@ -260,9 +292,11 @@
 }
 
 .studioCard:hover {
-  transform: translateY(-5px);
-  border-color: rgba(23,23,20,.2);
-  box-shadow: 0 22px 58px rgba(40,32,20,.11);
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--tone-a) 48%, rgba(23,23,20,.12));
+  box-shadow:
+    0 18px 42px color-mix(in srgb, var(--tone-b) 15%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.82);
 }
 
 .studioCard:focus-visible {
@@ -276,40 +310,60 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #6f685f;
-  font: 700 9px/1 system-ui, sans-serif;
-  letter-spacing: .14em;
+  color: color-mix(in srgb, var(--tone-b) 76%, #5d574f);
+  font: 750 8px/1 system-ui, sans-serif;
+  letter-spacing: .13em;
 }
 
 .studioCardTop small {
-  color: #6f685f;
-  font-size: 9px;
+  color: color-mix(in srgb, var(--tone-b) 78%, #5d574f);
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: .13em;
+  letter-spacing: .11em;
 }
 
 .studioArt {
   position: relative;
-  height: clamp(190px, 17vw, 250px);
-  min-height: 190px;
-  margin: 14px 0 18px;
+  height: clamp(132px, 12vw, 172px);
+  min-height: 132px;
+  margin: 10px 0 10px;
   display: grid;
   place-items: center;
   overflow: visible;
   isolation: isolate;
 }
 
+.studioArt::before {
+  content: "";
+  position: absolute;
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--tone-c) 45%, rgba(255,255,255,.1)) 0%,
+    color-mix(in srgb, var(--tone-a) 14%, transparent) 45%,
+    transparent 72%
+  );
+  filter: blur(7px);
+  opacity: .8;
+}
+
 .studioImage {
   object-fit: contain;
   object-position: center;
-  padding: 8px 24px 0;
-  filter: drop-shadow(0 18px 26px color-mix(in srgb, var(--tone-b) 18%, transparent));
+  padding: 4px 12px 0;
+  filter:
+    saturate(1.08)
+    drop-shadow(0 13px 20px color-mix(in srgb, var(--tone-b) 16%, transparent));
   transition: transform .28s ease, filter .28s ease;
 }
 
 .studioCard:hover .studioImage {
-  transform: translateY(-2px) scale(1.025);
-  filter: drop-shadow(0 24px 34px color-mix(in srgb, var(--tone-b) 24%, transparent));
+  transform: translateY(-2px) scale(1.035);
+  filter:
+    saturate(1.13)
+    drop-shadow(0 19px 27px color-mix(in srgb, var(--tone-b) 22%, transparent));
 }
 
 .studioSwatches {
@@ -341,40 +395,41 @@
 
 .studioCardCopy h3 {
   margin: 0;
-  color: #171714;
-  font: 750 clamp(27px, 2.5vw, 38px)/.98 system-ui, sans-serif;
-  letter-spacing: -.045em;
+  color: color-mix(in srgb, var(--tone-b) 58%, #171714);
+  font: 760 clamp(22px, 1.75vw, 30px)/.98 system-ui, sans-serif;
+  letter-spacing: -.042em;
 }
 
 .studioCardCopy p {
-  min-height: 44px;
-  margin: 12px 0 22px;
-  max-width: 360px;
-  color: #6f685f;
-  font-size: 14px;
-  line-height: 1.55;
+  min-height: 38px;
+  margin: 8px 0 14px;
+  max-width: 320px;
+  color: color-mix(in srgb, var(--tone-b) 35%, #6f685f);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .studioCta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 15px;
-  border-top: 1px solid rgba(23,23,20,.11);
-  color: #28241f;
-  font-size: 12px;
+  padding-top: 11px;
+  border-top: 1px solid color-mix(in srgb, var(--tone-a) 22%, rgba(23,23,20,.1));
+  color: color-mix(in srgb, var(--tone-b) 78%, #28241f);
+  font-size: 10px;
   font-weight: 800;
 }
 
 .studioCta b {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 27px;
+  height: 27px;
   border-radius: 50%;
-  background: #171714;
+  background: linear-gradient(135deg, var(--tone-a), var(--tone-b));
+  box-shadow: 0 5px 13px color-mix(in srgb, var(--tone-b) 25%, transparent);
   color: #fff;
-  font-size: 15px;
+  font-size: 13px;
   transition: transform .2s ease;
 }
 
@@ -470,7 +525,7 @@
   }
 
   .studioGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -531,27 +586,50 @@
   }
 
   .studioGrid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .studioCard {
-    min-height: 330px;
-    border-radius: 20px;
+    min-height: 258px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .studioCard::before {
+    width: 3px;
   }
 
   .studioArt {
-    height: 180px;
-    min-height: 180px;
+    height: 112px;
+    min-height: 112px;
+    margin: 8px 0;
   }
 
   .studioImage {
-    padding: 6px 20px 0;
+    padding: 2px 4px 0;
   }
 
+  .studioCardCopy h3 {
+    font-size: clamp(18px, 5.2vw, 24px);
+  }
 
   .studioCardCopy p {
-    min-height: 0;
+    min-height: 34px;
+    margin: 6px 0 10px;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .studioCta {
+    padding-top: 8px;
+    font-size: 9px;
+  }
+
+  .studioCta b {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
   }
 
   .studioHubNote {
@@ -581,14 +659,38 @@
   }
 
   .studioCard {
-    min-height: 310px;
-    padding: 18px;
+    min-height: 238px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .studioCardTop {
+    font-size: 7px;
   }
 
   .studioCardTop small {
-    max-width: 160px;
+    max-width: 92px;
     text-align: right;
-    line-height: 1.25;
+    font-size: 7px;
+    line-height: 1.2;
+  }
+
+  .studioArt {
+    height: 96px;
+    min-height: 96px;
+  }
+
+  .studioCardCopy h3 {
+    font-size: clamp(17px, 5vw, 22px);
+  }
+
+  .studioCardCopy p {
+    min-height: 31px;
+    font-size: 9px;
+  }
+
+  .studioCta {
+    font-size: 8px;
   }
 }
 
