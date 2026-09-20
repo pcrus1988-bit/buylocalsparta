@@ -151,39 +151,49 @@ export async function runPendingPaymentLifecycle(now = Date.now()): Promise<Pend
   let reminder22hQueued = 0;
   let cancelled = 0;
   let deferred = 0;
-  const client = await runtime.nativePool.connect();
-  try {
-    for (const order of candidates.rows) {
-      const age = orderAgeMs(order, now);
-      if (age >= PAYMENT_WINDOW_MS) {
-        try {
-          if (molliePaymentsEnabled()) {
-            await requireMolliePayments().prepareOrderCancellation({ orderId: order.order_id, reason: "payment_window_expired", now });
-          } else {
-            const payment = await client.query(`SELECT provider,provider_payment_id,provider_transaction_id FROM payments WHERE order_id=$1 LIMIT 1`, [order.order_uuid]);
-            const row = payment.rows[0];
-            if (row?.provider === "mollie" && (row.provider_payment_id || row.provider_transaction_id)) {
-              deferred += 1;
-              continue;
-            }
-          }
-          if (await cancelPendingOrder(client, order, now)) cancelled += 1;
-        } catch (error) {
-          deferred += 1;
-          console.error(JSON.stringify({ level: "error", event: "pending_payment.cancellation_deferred", orderId: order.order_id, message: error instanceof Error ? error.message : String(error) }));
-        }
-        continue;
-      }
 
+  for (const order of candidates.rows) {
+    const age = orderAgeMs(order, now);
+    if (age >= PAYMENT_WINDOW_MS) {
+      try {
+        // Do not hold a pool client while Mollie cancellation runs. The Mollie service
+        // opens its own governed transaction; holding the only/last available client here
+        // can self-deadlock a serverless instance.
+        if (molliePaymentsEnabled()) {
+          await requireMolliePayments().prepareOrderCancellation({ orderId: order.order_id, reason: "payment_window_expired", now });
+        } else {
+          const payment = await runtime.nativePool.query(`SELECT provider,provider_payment_id,provider_transaction_id FROM payments WHERE order_id=$1 LIMIT 1`, [order.order_uuid]);
+          const row = payment.rows[0];
+          if (row?.provider === "mollie" && (row.provider_payment_id || row.provider_transaction_id)) {
+            deferred += 1;
+            continue;
+          }
+        }
+
+        const client = await runtime.nativePool.connect();
+        try {
+          if (await cancelPendingOrder(client, order, now)) cancelled += 1;
+        } finally {
+          client.release();
+        }
+      } catch (error) {
+        deferred += 1;
+        console.error(JSON.stringify({ level: "error", event: "pending_payment.cancellation_deferred", orderId: order.order_id, message: error instanceof Error ? error.message : String(error) }));
+      }
+      continue;
+    }
+
+    const client = await runtime.nativePool.connect();
+    try {
       if (!(await hasPayableReservation(client, order.order_uuid, now))) continue;
       if (age >= TWENTY_TWO_HOURS_MS) {
         if (await queueReminder(client, order, "22h", now)) reminder22hQueued += 1;
       } else if (age >= TWO_HOURS_MS) {
         if (await queueReminder(client, order, "2h", now)) reminder2hQueued += 1;
       }
+    } finally {
+      client.release();
     }
-  } finally {
-    client.release();
   }
 
   return {
