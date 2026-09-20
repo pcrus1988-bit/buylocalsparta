@@ -12,6 +12,7 @@ const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
 const LIVE_FALLBACK_FAMILY_CAP = 0; // Production storefronts must not rebuild missing supplier families inside a customer request.
 const LIVE_DEGRADED_FALLBACK_SEED_CAP = 2_000; // Bounded indexed recovery used only when the projection returns no matches.
+const LIVE_DEGRADED_FACET_SEED_CAP = 1_500;
 
 export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
 
@@ -696,6 +697,171 @@ export async function getVendorDropshipCatalogPage(
   };
 }
 
+
+function mergeFacetProjectionRows(
+  base: readonly FacetProjectionRow[],
+  supplement: readonly FacetProjectionRow[]
+): FacetProjectionRow[] {
+  const merged = new Map<string, FacetProjectionRow>();
+  for (const row of [...base, ...supplement]) {
+    const key = \`\${row.facet_type}\\u0000\${row.value}\`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...row, count: safePositiveInt(row.count, 0) });
+      continue;
+    }
+    merged.set(key, {
+      ...existing,
+      label: existing.label || row.label,
+      count: safePositiveInt(existing.count, 0) + safePositiveInt(row.count, 0)
+    });
+  }
+  return [...merged.values()];
+}
+
+async function readLiveVendorFacetSupplement(vendorId: string): Promise<FacetProjectionRow[]> {
+  if (!productionDatabaseConfigured()) return [];
+  const pool = getProductionPostgresRuntime().nativePool;
+  const result = await pool.query<FacetProjectionRow>(\`
+    WITH suppliers AS MATERIALIZED (
+      SELECT ds.id,ds.id::text AS supplier_id
+      FROM dropship_suppliers ds
+      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+      WHERE v.public_id=$1
+        AND v.status='active'
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+    ), live_seed AS MATERIALIZED (
+      SELECT
+        supplier.supplier_id,
+        candidate.external_product_id,
+        candidate.vendor_offer_id
+      FROM suppliers supplier
+      JOIN LATERAL (
+        SELECT dso.external_product_id,dso.vendor_offer_id
+        FROM dropship_supplier_offers dso
+        JOIN vendor_offers seed_vo ON seed_vo.id=dso.vendor_offer_id
+        JOIN canonical_variants seed_cv ON seed_cv.id=seed_vo.canonical_variant_id
+        JOIN vendor_locations seed_location ON seed_location.id=seed_vo.location_id
+        WHERE dso.supplier_id=supplier.id
+          AND dso.active=true
+          AND dso.cached_available=true
+          AND COALESCE(dso.cached_quantity,0)>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+          AND seed_vo.status='approved'
+          AND seed_vo.merchant_visible=true
+          AND seed_vo.merchant_pause_active=false
+          AND seed_vo.customer_price_minor>0
+          AND (seed_vo.cost_ceiling_minor IS NULL OR seed_vo.supplier_unit_price_minor<=seed_vo.cost_ceiling_minor)
+          AND seed_location.active=true
+          AND COALESCE(seed_cv.commerce_channel,'normal')='normal'
+          AND seed_cv.active=true
+          AND seed_cv.suppressed=false
+          AND seed_cv.recalled=false
+          AND bls_private.vendor_category_effectively_visible(seed_vo.vendor_id,seed_cv.category_id)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.storefront_dropship_family_filter_read_model projected
+            WHERE projected.dropship_supplier_id=supplier.supplier_id
+              AND projected.dropship_external_product_id=dso.external_product_id
+              AND projected.available_until>now()
+          )
+        ORDER BY dso.updated_at DESC,dso.id DESC
+        LIMIT $2
+      ) candidate ON true
+    ), base AS MATERIALIZED (
+      SELECT
+        seed.supplier_id,
+        seed.external_product_id,
+        COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
+        COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
+          FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names,
+        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )),'')) FILTER (WHERE NULLIF(BTRIM(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )), '') IS NOT NULL),'{}'::text[]) AS colors,
+        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(size_entry.value),''))
+          FILTER (WHERE NULLIF(BTRIM(size_entry.value),'') IS NOT NULL),'{}'::text[]) AS sizes
+      FROM live_seed seed
+      JOIN vendor_offers vo ON vo.id=seed.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      LEFT JOIN product_families pf ON pf.id=cv.family_id
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN LATERAL unnest(ARRAY[
+        cv.variant_attributes->>'italian_size_men',
+        cv.variant_attributes->>'italian_size_women',
+        cv.variant_attributes->>'shoe_size_women',
+        cv.variant_attributes->>'shoe_size_men',
+        cv.variant_attributes->>'waist_size',
+        cv.variant_attributes->>'belt_size',
+        cv.variant_attributes->>'waist_length_size',
+        cv.variant_attributes->>'hat_size',
+        cv.variant_attributes->>'swimwear_sleepwear_size',
+        cv.variant_attributes->>'shoe_size',
+        cv.variant_attributes->>'earrings_size',
+        cv.variant_attributes->>'bracelets_size',
+        cv.variant_attributes->>'gloves_size_women',
+        cv.variant_attributes->>'ring_size',
+        cv.variant_attributes->>'gloves_size_men',
+        cv.variant_attributes->>'size'
+      ]) AS size_entry(value) ON true
+      GROUP BY seed.supplier_id,seed.external_product_id
+    ), totals AS (
+      SELECT 'total'::text AS facet_type,'*'::text AS value,'*'::text AS label,COUNT(*)::bigint AS count
+      FROM base
+    ), category_values AS (
+      SELECT
+        'category'::text AS facet_type,
+        category_code.value AS value,
+        COALESCE(MAX(NULLIF(ctel.name,'')),MAX(NULLIF(cten.name,'')),category_code.value) AS label,
+        COUNT(*)::bigint AS count
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.category_codes) AS category_code(value)
+      LEFT JOIN public.markets m ON m.code='sparta'
+      LEFT JOIN public.categories c ON c.market_id=m.id AND c.code=category_code.value
+      LEFT JOIN public.category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+      LEFT JOIN public.category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      GROUP BY category_code.value
+    ), brand_values AS (
+      SELECT 'brand'::text AS facet_type,brand.value AS value,brand.value AS label,COUNT(*)::bigint AS count
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.brand_names) AS brand(value)
+      WHERE btrim(brand.value)<>''
+      GROUP BY brand.value
+    ), color_values AS (
+      SELECT 'color'::text AS facet_type,color.value AS value,color.value AS label,COUNT(*)::bigint AS count
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.colors) AS color(value)
+      WHERE btrim(color.value)<>''
+      GROUP BY color.value
+    ), size_values AS (
+      SELECT 'size'::text AS facet_type,size_value.value AS value,size_value.value AS label,COUNT(*)::bigint AS count
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.sizes) AS size_value(value)
+      WHERE btrim(size_value.value)<>''
+      GROUP BY size_value.value
+    )
+    SELECT * FROM totals
+    UNION ALL SELECT * FROM category_values
+    UNION ALL SELECT * FROM brand_values
+    UNION ALL SELECT * FROM color_values
+    UNION ALL SELECT * FROM size_values
+  \`, [vendorId,LIVE_DEGRADED_FACET_SEED_CAP]);
+  return result.rows;
+}
+
 async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
   if (!productionDatabaseConfigured()) return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] };
   const pool = getProductionPostgresRuntime().nativePool;
@@ -720,6 +886,17 @@ async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshi
   `, [vendorId]);
 
   let facetRows = result.rows;
+  try {
+    const supplement = await readLiveVendorFacetSupplement(vendorId);
+    if (supplement.length) facetRows = mergeFacetProjectionRows(facetRows, supplement);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "storefront.vendor_catalog_live_facet_supplement_failed",
+      vendorId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
   if (!facetRows.length) {
     const fallback = await pool.query<FacetProjectionRow>(`
       WITH suppliers AS MATERIALIZED (
@@ -848,7 +1025,7 @@ async function readVendorDropshipFacets(vendorId: string): Promise<VendorDropshi
 
 const cachedVendorDropshipFacets = unstable_cache(
   readVendorDropshipFacets,
-  ["vendor-dropship-storefront-preaggregated-facets-v4"],
+  ["vendor-dropship-storefront-preaggregated-facets-v5"],
   { revalidate: 300 }
 );
 
