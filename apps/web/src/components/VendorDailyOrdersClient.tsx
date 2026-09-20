@@ -17,6 +17,12 @@ type Fulfilment = {
   createdAt: number;
   merchandiseSubtotal: string;
   deliveryCharge: string;
+  manualSupplier: boolean;
+  supplierName?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  shipmentStatus?: string;
+  deliveryNote?: string;
   lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>;
   actions: ReadonlyArray<string>;
 };
@@ -104,6 +110,7 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
   const [contactBusy, setContactBusy] = useState("");
   const [deliveryContacts, setDeliveryContacts] = useState<Record<string, DeliveryContact | undefined>>({});
   const [error, setError] = useState("");
+  const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; deliveryNote: string }>>({});
 
   const orderReceived = sla.notifications.filter((item) => item.eventType === "vendor.order_received");
   const received = useMemo(() => new Set(
@@ -156,6 +163,31 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η ενημέρωση απέτυχε.");
     } finally { setBusy(""); }
+  }
+
+  async function saveShipment(item: Fulfilment) {
+    const draft = shipmentDrafts[item.id] ?? { carrier: item.carrier ?? "", trackingNumber: item.trackingNumber ?? "", deliveryNote: item.deliveryNote ?? "" };
+    if (!draft.carrier.trim() || !draft.trackingNumber.trim()) {
+      setError("Συμπλήρωσε μεταφορέα και αριθμό αποστολής.");
+      return;
+    }
+    const key = `${item.id}:shipment`;
+    setBusy(key);
+    setError("");
+    try {
+      const response = await fetch("/api/daily/fulfilments/shipment", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": dashboard.csrfToken },
+        body: JSON.stringify({ fulfilmentId: item.id, ...draft })
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση της αποστολής απέτυχε.");
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Η αποθήκευση της αποστολής απέτυχε.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function revealDeliveryContact(fulfilmentId: string) {
@@ -237,7 +269,16 @@ export function VendorDailyOrdersClient({ dashboard, sla }: { dashboard: Dashboa
                 </> : <div className={styles.deliveryRevealHead}><div><strong>Χρειάζεσαι τα στοιχεία παράδοσης;</strong><small>Δεν φορτώνονται αυτόματα. Εμφανίζονται ανά παραγγελία μόνο μετά την αποδοχή.</small></div><button type="button" className={styles.revealButton} disabled={contactBusy === item.id} onClick={() => void revealDeliveryContact(item.id)}>{contactBusy === item.id ? "Φόρτωση…" : "Εμφάνιση"}</button></div>}
               </div>}
 
-              {selected === "ready" ? <Link href="/daily/scan" className={styles.scanButton}>{item.mode === "local_delivery" ? "Σάρωση QR οδηγού" : "Σάρωση QR παραλαβής"}</Link> :
+              {item.manualSupplier && item.status !== "awaiting_acceptance" && <div className={styles.shipmentForm}>
+                <strong>Χειροκίνητη αποστολή συνεργάτη</strong>
+                <small>{item.supplierName ?? "Συνεργαζόμενος προμηθευτής"} · live tracking ΚΟΝΤΑ ΜΟΥ ανενεργό.</small>
+                <input placeholder="Μεταφορέας / courier" value={shipmentDrafts[item.id]?.carrier ?? item.carrier ?? ""} onChange={(e) => setShipmentDrafts((current) => ({ ...current, [item.id]: { carrier: e.target.value, trackingNumber: current[item.id]?.trackingNumber ?? item.trackingNumber ?? "", deliveryNote: current[item.id]?.deliveryNote ?? item.deliveryNote ?? "" } }))} />
+                <input placeholder="Tracking number" value={shipmentDrafts[item.id]?.trackingNumber ?? item.trackingNumber ?? ""} onChange={(e) => setShipmentDrafts((current) => ({ ...current, [item.id]: { carrier: current[item.id]?.carrier ?? item.carrier ?? "", trackingNumber: e.target.value, deliveryNote: current[item.id]?.deliveryNote ?? item.deliveryNote ?? "" } }))} />
+                <textarea placeholder="Σημείωση παράδοσης (προαιρετική)" rows={2} value={shipmentDrafts[item.id]?.deliveryNote ?? item.deliveryNote ?? ""} onChange={(e) => setShipmentDrafts((current) => ({ ...current, [item.id]: { carrier: current[item.id]?.carrier ?? item.carrier ?? "", trackingNumber: current[item.id]?.trackingNumber ?? item.trackingNumber ?? "", deliveryNote: e.target.value } }))} />
+                <button type="button" className={styles.revealButton} disabled={Boolean(busy)} onClick={() => void saveShipment(item)}>{busy === `${item.id}:shipment` ? "Αποθήκευση…" : item.trackingNumber ? "Ενημέρωση αποστολής" : "Καταχώριση αποστολής"}</button>
+              </div>}
+
+              {selected === "ready" && !item.manualSupplier ? <Link href="/daily/scan" className={styles.scanButton}>{item.mode === "local_delivery" ? "Σάρωση QR οδηγού" : "Σάρωση QR παραλαβής"}</Link> :
                 item.actions.length > 0 ? <div className={styles.actions}>{item.actions.map((action) => <button key={action} type="button" disabled={Boolean(busy)}
                   className={action === "reject" ? styles.secondary : styles.primary} onClick={() => void act(item, action)}>
                   {busy === `${item.id}:${action}` ? "Ενημέρωση…" : action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? action}

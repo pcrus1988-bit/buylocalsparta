@@ -17,6 +17,12 @@ type Fulfilment = {
   customerIdentified: boolean;
   merchandiseSubtotal: string;
   deliveryCharge: string;
+  manualSupplier: boolean;
+  supplierName?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  shipmentStatus?: string;
+  deliveryNote?: string;
   lines: ReadonlyArray<{ id: string; title: string; quantity: number; status: string }>;
   actions: readonly string[];
 };
@@ -90,6 +96,7 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
   const [contactBusy, setContactBusy] = useState("");
   const [deliveryContacts, setDeliveryContacts] = useState<Record<string, DeliveryContact | undefined>>({});
   const [error, setError] = useState("");
+  const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; deliveryNote: string }>>({});
 
   async function act(fulfilmentId: string, action: string) {
     if (action === "reject" && !window.confirm("Να δηλωθεί ότι το κατάστημά σου δεν μπορεί να εξυπηρετήσει αυτή την παραγγελία;")) return;
@@ -115,6 +122,31 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν μπορέσαμε να ενημερώσουμε την παραγγελία.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveShipment(item: Fulfilment) {
+    const draft = shipmentDrafts[item.id] ?? { carrier: item.carrier ?? "", trackingNumber: item.trackingNumber ?? "", deliveryNote: item.deliveryNote ?? "" };
+    if (!draft.carrier.trim() || !draft.trackingNumber.trim()) {
+      setError("Συμπλήρωσε μεταφορέα και αριθμό αποστολής.");
+      return;
+    }
+    const key = `${item.id}:shipment`;
+    setBusy(key);
+    setError("");
+    try {
+      const response = await fetch("/api/vendor/fulfilments/shipment", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": data.csrfToken },
+        body: JSON.stringify({ fulfilmentId: item.id, ...draft })
+      });
+      const payload = await response.json() as Dashboard & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Δεν μπορέσαμε να αποθηκεύσουμε την αποστολή.");
+      setData(payload);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν μπορέσαμε να αποθηκεύσουμε την αποστολή.");
     } finally {
       setBusy("");
     }
@@ -205,6 +237,17 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
                 <p><strong>{deliveryContact.recipientName}</strong><br />{deliveryContact.line1}{deliveryContact.line2 ? ` · ${deliveryContact.line2}` : ""}<br />{deliveryContact.postcode} {deliveryContact.locality}{deliveryContact.region ? ` · ${deliveryContact.region}` : ""} · {deliveryContact.countryCode}{deliveryContact.phone ? <><br />Τηλέφωνο: {deliveryContact.phone}</> : null}</p>
                 <small>Χρήση αποκλειστικά για την παράδοση της συγκεκριμένης παραγγελίας. Δεν επιτρέπεται αντιγραφή σε CRM, λίστα marketing ή άλλη ανεξάρτητη χρήση.</small>
               </> : <div className="account-card-head"><div><strong>Χρειάζεσαι τη διεύθυνση για την παράδοση;</strong><small>Δεν φορτώνεται μαζί με τη λίστα παραγγελιών. Η αποκάλυψη είναι ανά παραγγελία και καταγράφεται.</small></div><button type="button" className="button button-secondary" disabled={contactBusy === item.id} onClick={() => void revealDeliveryContact(item.id)}>{contactBusy === item.id ? "Φόρτωση…" : "Εμφάνιση στοιχείων παράδοσης"}</button></div>}
+            </div>}
+
+            {item.manualSupplier && !stopped && <div className="fairness-note" style={{ marginTop: 12 }}>
+              <div className="account-card-head"><div><strong>Χειροκίνητη αποστολή συνεργάτη</strong><small>{item.supplierName ?? "Συνεργαζόμενος προμηθευτής"} · το live tracking ΚΟΝΤΑ ΜΟΥ είναι ανενεργό σε αυτή τη ροή.</small></div></div>
+              {item.status === "awaiting_acceptance" ? <p style={{ marginBottom: 0 }}>Πρώτα επίλεξε <strong>«Αποδοχή παραγγελίας»</strong>. Ο πελάτης θα ενημερωθεί ότι η παραγγελία επιβεβαιώθηκε.</p> : <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                <label><span>Μεταφορέας / courier</span><input style={{ width: "100%", marginTop: 4 }} aria-label="Μεταφορέας" placeholder="π.χ. ACS, DHL, ELTA Courier" value={shipmentDrafts[item.id]?.carrier ?? item.carrier ?? ""} onChange={(e) => setShipmentDrafts((current) => ({ ...current, [item.id]: { carrier: e.target.value, trackingNumber: current[item.id]?.trackingNumber ?? item.trackingNumber ?? "", deliveryNote: current[item.id]?.deliveryNote ?? item.deliveryNote ?? "" } }))} /></label>
+                <label><span>Αριθμός αποστολής / tracking</span><input style={{ width: "100%", marginTop: 4 }} aria-label="Αριθμός αποστολής" placeholder="Tracking number" value={shipmentDrafts[item.id]?.trackingNumber ?? item.trackingNumber ?? ""} onChange={(e) => setShipmentDrafts((current) => ({ ...current, [item.id]: { carrier: current[item.id]?.carrier ?? item.carrier ?? "", trackingNumber: e.target.value, deliveryNote: current[item.id]?.deliveryNote ?? item.deliveryNote ?? "" } }))} /></label>
+                <label><span>Σημείωση παράδοσης</span><textarea style={{ width: "100%", marginTop: 4 }} aria-label="Σημείωση παράδοσης" placeholder="Προαιρετική σημείωση προς τον πελάτη" rows={2} value={shipmentDrafts[item.id]?.deliveryNote ?? item.deliveryNote ?? ""} onChange={(e) => setShipmentDrafts((current) => ({ ...current, [item.id]: { carrier: current[item.id]?.carrier ?? item.carrier ?? "", trackingNumber: current[item.id]?.trackingNumber ?? item.trackingNumber ?? "", deliveryNote: e.target.value } }))} /></label>
+                {item.trackingNumber && <small>Τρέχουσα αποστολή: {item.carrier ?? "Μεταφορέας"} · <strong>{item.trackingNumber}</strong></small>}
+                <button type="button" className="button" disabled={Boolean(busy)} onClick={() => void saveShipment(item)}>{busy === `${item.id}:shipment` ? "Αποθήκευση…" : item.trackingNumber ? "Ενημέρωση στοιχείων αποστολής" : "Καταχώριση αποστολής"}</button>
+              </div>}
             </div>}
 
             <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη">
