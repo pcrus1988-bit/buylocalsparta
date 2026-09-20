@@ -82,7 +82,7 @@ async function loadColorFinderProductsUncached(
        AND ds.api_authoritative_availability=true
       JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN public.categories c ON c.id=cv.category_id AND c.code=$1
+      JOIN public.categories c ON c.id=cv.category_id
       JOIN public.markets m ON m.id=cv.market_id AND m.code='sparta'
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
       JOIN public.vendor_locations l ON l.id=vo.location_id AND l.active=true
@@ -101,6 +101,22 @@ async function loadColorFinderProductsUncached(
         AND COALESCE(dso.cached_quantity,0)>=1
         AND dso.availability_expires_at IS NOT NULL
         AND dso.availability_expires_at>now()
+        AND (
+          ($1='studio-nails' AND c.code='nail-care-colour')
+          OR ($1='studio-lips' AND c.code='lip-makeup')
+          OR ($1='studio-eye-makeup' AND c.code='eye-makeup')
+          OR ($1='studio-makeup' AND c.code IN ('face-makeup','makeup'))
+          OR ($1='studio-hair-color' AND c.code ~* 'hair')
+          OR ($1='studio-shoes' AND c.code ~* '(shoe|footwear|sneaker|boot|sandal|loafer)')
+          OR ($1='studio-bags' AND c.code ~* '(bag|handbag|backpack|wallet|luggage)')
+          OR (
+            $1='studio-fashion'
+            AND c.code ~* '(fashion|dress|top|shirt|trouser|jean|jacket|coat|short|skirt|activewear|clothing|apparel|belt|scarf|hat|glove|sunglass|jewell|earring|necklace|bracelet|ring|watch)'
+            AND c.code !~* '(shoe|footwear|sneaker|boot|sandal|loafer|bag|handbag|backpack|wallet|luggage)'
+          )
+          OR ($1='studio-home' AND c.code ~* '(home|decor|candle|tableware|glassware|kitchen|furniture|lighting|houseware)')
+          OR ($1 NOT LIKE 'studio-%' AND c.code=$1)
+        )
         ${vendorPredicate}
         AND vo.status='approved'
         AND vo.merchant_visible=true
@@ -210,7 +226,7 @@ async function loadColorFinderProductsUncached(
 
 const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-contextual-catalogue-v3"],
+  ["color-finder-contextual-catalogue-v4"],
   { revalidate: CACHE_SECONDS }
 );
 
