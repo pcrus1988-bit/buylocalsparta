@@ -4,7 +4,7 @@ import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionP
 const WEB_EXPECTED_SCHEMA_VERSION = EXPECTED_SCHEMA_VERSION;
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
 const globals = globalThis as typeof globalThis & { [globalKey]?: ProductionPostgresRuntime };
-const WEB_DB_POOL_MAX = "1";
+const WEB_DB_POOL_MAX = "2";
 const WEB_DB_CONNECT_TIMEOUT_MS = "15000";
 const WEB_DB_IDLE_TIMEOUT_MS = "5000";
 
