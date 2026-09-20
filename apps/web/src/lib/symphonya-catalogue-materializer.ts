@@ -8,6 +8,8 @@ const SUPPLIER_CODE = "symphonya";
 const EXPECTED_OWNER_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
 const SOURCE_MARKER = "symphonya_api_v1";
 const CURSOR_KEY = "symphonyaMaterializationCursor";
+const FASHION_PRIORITY_CURSOR_KEY = "symphonyaFashionMaterializationCursorV1";
+const PRIORITY_COMPLETE_SENTINEL = "~done";
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 250;
 const DEFAULT_TAX_RATE_BPS = 2400;
@@ -21,6 +23,7 @@ type SupplierContext = Readonly<{
   locationId: string;
   marketId: string;
   cursor: string | null;
+  fashionPriorityCursor: string | null;
 }>;
 
 type SourceProduct = Readonly<{
@@ -72,7 +75,8 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
            vb.public_id vendor_public_id,
            ds.owner_location_id::text location_id,
            ds.market_id::text market_id,
-           cs.metadata->>$2 cursor
+           cs.metadata->>$2 cursor,
+           cs.metadata->>$3 fashion_priority_cursor
       FROM public.dropship_suppliers ds
       JOIN public.catalog_sources cs ON cs.id=ds.catalog_source_id
       JOIN public.vendor_businesses vb ON vb.id=ds.owner_vendor_id
@@ -82,7 +86,7 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
        AND ds.catalogue_sync_enabled=true
        AND vl.active=true
      LIMIT 1
-  `, [SUPPLIER_CODE, CURSOR_KEY]);
+  `, [SUPPLIER_CODE, CURSOR_KEY, FASHION_PRIORITY_CURSOR_KEY]);
 
   const row = contextResult.rows[0];
   if (!row) return emptyResult(false, "supplier_disabled_or_missing_location");
@@ -94,7 +98,8 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
     vendorPublicId: requiredText(row.vendor_public_id, "vendor public id"),
     locationId: requiredText(row.location_id, "location id"),
     marketId: requiredText(row.market_id, "market id"),
-    cursor: optionalText(row.cursor)
+    cursor: optionalText(row.cursor),
+    fashionPriorityCursor: optionalText(row.fashion_priority_cursor)
   };
   if (context.vendorPublicId !== EXPECTED_OWNER_VENDOR) {
     throw new Error(`Symphonya supplier owner mismatch: ${context.vendorPublicId}`);
@@ -104,26 +109,52 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
   if (!leaseClaimed) return emptyResult(true, "materialization_busy");
 
   try {
-    const candidates = await pool.query<SqlRow>(`
-      SELECT p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload
-        FROM public.catalog_source_product_latest p
-       WHERE p.source_id=$1::uuid
-         AND ($2::text IS NULL OR p.source_product_key>$2)
-       ORDER BY p.source_product_key
-       LIMIT $3
-    `, [context.sourceId, context.cursor, batchSize()]);
+    let priorityBatch = false;
+    let candidateRows: readonly SqlRow[] = [];
 
-    if (!candidates.rows.length) {
-      if (context.cursor) {
-        await persistCursor(context.sourceId, null);
-        return emptyResult(true, "materialization_cursor_wrapped");
+    // Run the fashion/clothing catch-up before resuming the full supplier cursor.
+    if (context.fashionPriorityCursor !== PRIORITY_COMPLETE_SENTINEL) {
+      const priorityCandidates = await pool.query<SqlRow>(`
+        SELECT p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload
+          FROM public.catalog_source_product_latest p
+         WHERE p.source_id=$1::uuid
+           AND ($2::text IS NULL OR p.source_product_key>$2)
+           AND lower(COALESCE(p.normalized_payload #>> '{categoryDetails,cat}','')) IN ('fashion','clothing')
+         ORDER BY p.source_product_key
+         LIMIT $3
+      `, [context.sourceId, context.fashionPriorityCursor, batchSize()]);
+
+      if (priorityCandidates.rows.length) {
+        priorityBatch = true;
+        candidateRows = priorityCandidates.rows;
+      } else {
+        await persistNamedCursor(context.sourceId, FASHION_PRIORITY_CURSOR_KEY, PRIORITY_COMPLETE_SENTINEL);
       }
-      return emptyResult(true, "materialization_source_empty");
+    }
+
+    if (!candidateRows.length) {
+      const candidates = await pool.query<SqlRow>(`
+        SELECT p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload
+          FROM public.catalog_source_product_latest p
+         WHERE p.source_id=$1::uuid
+           AND ($2::text IS NULL OR p.source_product_key>$2)
+         ORDER BY p.source_product_key
+         LIMIT $3
+      `, [context.sourceId, context.cursor, batchSize()]);
+      candidateRows = candidates.rows;
+
+      if (!candidateRows.length) {
+        if (context.cursor) {
+          await persistCursor(context.sourceId, null);
+          return emptyResult(true, "materialization_cursor_wrapped");
+        }
+        return emptyResult(true, "materialization_source_empty");
+      }
     }
 
     const totals = {
       enabled: true,
-      scanned: candidates.rowCount ?? candidates.rows.length,
+      scanned: candidateRows.length,
       variants: 0,
       canonicalsCreated: 0,
       familiesCreated: 0,
@@ -133,8 +164,7 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
       blockedUnmapped: 0
     };
 
-    let lastKey: string | null = null;
-    for (const raw of candidates.rows) {
+    for (const raw of candidateRows) {
       const source: SourceProduct = {
         id: requiredText(raw.id, "source product id"),
         snapshotId: requiredText(raw.snapshot_id, "snapshot id"),
@@ -142,7 +172,6 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
         title: requiredText(raw.title, "source title"),
         normalizedPayload: record(raw.normalized_payload)
       };
-      lastKey = source.sourceProductKey;
       const outcome = await materializeProduct(context, source);
       totals.variants += outcome.variants;
       totals.canonicalsCreated += outcome.canonicalsCreated;
@@ -152,10 +181,15 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
       totals.blockedAmbiguous += outcome.blockedAmbiguous;
       totals.blockedUnmapped += outcome.blockedUnmapped;
 
-      // Checkpoint each fully processed source product. If Vercel terminates a
-      // later product, the next run resumes after the last completed immutable
-      // source key instead of repeating the whole batch.
-      await persistCursor(context.sourceId, source.sourceProductKey);
+      // Fashion/clothing gets a one-time priority catch-up cursor so those
+      // products do not wait behind tens of thousands of beauty rows. The
+      // normal full-catalogue cursor remains untouched and will still visit
+      // every source product in canonical order later.
+      await persistNamedCursor(
+        context.sourceId,
+        priorityBatch ? FASHION_PRIORITY_CURSOR_KEY : CURSOR_KEY,
+        source.sourceProductKey
+      );
     }
 
     return totals;
@@ -836,6 +870,10 @@ function batchSize(): number {
 }
 
 async function persistCursor(sourceId: string, cursor: string | null): Promise<void> {
+  return persistNamedCursor(sourceId, CURSOR_KEY, cursor);
+}
+
+async function persistNamedCursor(sourceId: string, key: string, cursor: string | null): Promise<void> {
   const pool = getProductionPostgresRuntime().sqlPool;
   if (cursor === null) {
     await pool.query(`
@@ -843,14 +881,14 @@ async function persistCursor(sourceId: string, cursor: string | null): Promise<v
          SET metadata=COALESCE(metadata,'{}'::jsonb)-$2,
              updated_at=now()
        WHERE id=$1::uuid
-    `, [sourceId, CURSOR_KEY]);
+    `, [sourceId, key]);
   } else {
     await pool.query(`
       UPDATE public.catalog_sources
          SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),ARRAY[$2]::text[],to_jsonb($3::text),true),
              updated_at=now()
        WHERE id=$1::uuid
-    `, [sourceId, CURSOR_KEY, cursor]);
+    `, [sourceId, key, cursor]);
   }
 }
 
