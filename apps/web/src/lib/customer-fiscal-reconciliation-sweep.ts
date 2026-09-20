@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { deliverAcceptedCustomerTaxDocumentById } from "./customer-tax-delivery";
 import { finalizeCapturedCustomerPayment } from "./customer-payment-finalization";
+import { finalizePendingGiftCardSpvIssues } from "./gift-card-fiscalization";
 import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
@@ -80,6 +81,8 @@ export async function runCustomerFiscalReconciliationSweep(
     let emailFailed = 0;
     let backfilled = 0;
     let backfillFailed = 0;
+
+    await finalizePendingGiftCardSpvIssues(limit, now);
 
     const missingFiscalOrders = await db.query<{ order_id: string }>(`
       SELECT o.public_id AS order_id
