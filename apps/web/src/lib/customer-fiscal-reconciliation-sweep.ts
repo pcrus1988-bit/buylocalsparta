@@ -127,6 +127,7 @@ export async function runCustomerFiscalReconciliationSweep(
       JOIN payments p ON p.order_id=o.id
       WHERE o.status IN ('confirmed','partially_fulfilled','fulfilled','completed')
         AND p.status IN ('captured','partially_refunded','refunded')
+        AND COALESCE(p.provider_payload->>'spvRedemptionFiscalStatus','')<>'not_separate_transaction'
         AND (
           p.captured_minor
           + COALESCE((
