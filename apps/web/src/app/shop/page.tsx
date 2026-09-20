@@ -51,6 +51,14 @@ function positivePage(value: string): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
+function euroPriceMinor(value: string): number | undefined {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return undefined;
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+  return Math.round(parsed * 100);
+}
+
 function purchasablePublicProduct(product: ShopCard): boolean {
   return product.available && product.availableToSell > 0 && product.priceMinor > 0 && Boolean(product.vendorId);
 }
@@ -104,6 +112,12 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const catalogQuery = naturalAttributeQuery.text;
   const availability = valueOf(params.availability);
   const sort = valueOf(params.sort);
+  const minPriceInput = valueOf(params.minPrice).trim();
+  const maxPriceInput = valueOf(params.maxPrice).trim();
+  const explicitMinPriceMinor = euroPriceMinor(minPriceInput);
+  const explicitMaxPriceMinor = euroPriceMinor(maxPriceInput);
+  const minPriceMinor = explicitMinPriceMinor ?? searchIntent.minPriceMinor;
+  const maxPriceMinor = explicitMaxPriceMinor ?? searchIntent.maxPriceMinor;
   const requestedGuideSubcategories = category === "fashion"
     ? valuesOf(params.subcategory_any).map((entry) => entry.slice(0, 120)).slice(0, 64)
     : [];
@@ -180,8 +194,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         category,
         filters: productFilters,
         attributeFilters,
-        minPriceMinor: searchIntent.minPriceMinor,
-        maxPriceMinor: searchIntent.maxPriceMinor,
+        minPriceMinor,
+        maxPriceMinor,
         sort,
         limit: remaining,
         offset: 0
@@ -197,8 +211,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       category,
       filters: productFilters,
       attributeFilters,
-      minPriceMinor: searchIntent.minPriceMinor,
-      maxPriceMinor: searchIntent.maxPriceMinor,
+      minPriceMinor,
+      maxPriceMinor,
       sort,
       limit: SHOP_PAGE_SIZE,
       offset: pageOffset
@@ -216,8 +230,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         category,
         filters: productFilters,
         attributeFilters,
-        minPriceMinor: searchIntent.minPriceMinor,
-        maxPriceMinor: searchIntent.maxPriceMinor,
+        minPriceMinor,
+        maxPriceMinor,
         sort,
         limit: Math.max(1, dropshipSlots),
         offset: dropshipOffset
@@ -238,8 +252,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
   if (fit) products = products.filter((product) => product.fit === fit);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
-  if (searchIntent.minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= searchIntent.minPriceMinor!);
-  if (searchIntent.maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= searchIntent.maxPriceMinor!);
+  if (minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= minPriceMinor);
+  if (maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= maxPriceMinor);
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
 
@@ -258,8 +272,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         fit: fit || undefined,
         availability: availability || searchIntent.availability || undefined,
         sort: sort || undefined,
-        interpretedMaxPriceMinor: searchIntent.maxPriceMinor,
-        interpretedMinPriceMinor: searchIntent.minPriceMinor,
+        minPriceMinor,
+        maxPriceMinor,
         interpretedAttributeCount: naturalAttributeQuery.intents.length || undefined,
         page,
         ...Object.fromEntries(Object.entries(attributeFilters).map(([key, value]) => [`attr_${key}`, value]))
@@ -278,7 +292,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     });
   }
 
-  const hasDetailedFilters = Boolean(subcategory || groupedSubcategories.length || brand || color || size || fit || Object.keys(attributeFilters).length);
+  const hasDetailedFilters = Boolean(subcategory || groupedSubcategories.length || brand || color || size || fit || minPriceMinor !== undefined || maxPriceMinor !== undefined || Object.keys(attributeFilters).length);
   const activeSubcategoryLabel = groupedSubcategories.length
     ? requestedGuideLabel || "Ομαδοποιημένη επιλογή"
     : facets.subcategories.find((item) => item.value === subcategory)?.label ?? inferredSubcategory?.label;
@@ -299,8 +313,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     ...selectedAttributeLabels,
     ...unresolvedAttributeLabels,
     searchIntent.identifier ? `Κωδικός: ${searchIntent.identifier}` : undefined,
-    searchIntent.minPriceMinor !== undefined ? `Από €${(searchIntent.minPriceMinor / 100).toFixed(2)}` : undefined,
-    searchIntent.maxPriceMinor !== undefined ? `Έως €${(searchIntent.maxPriceMinor / 100).toFixed(2)}` : undefined,
+    minPriceMinor !== undefined ? `Από €${(minPriceMinor / 100).toFixed(2)}` : undefined,
+    maxPriceMinor !== undefined ? `Έως €${(maxPriceMinor / 100).toFixed(2)}` : undefined,
     searchIntent.availability === "in_stock" ? "Σε απόθεμα" : undefined,
     searchIntent.availability === "pickup_today" ? "Παραλαβή σήμερα · μόνο με σημερινή επιβεβαίωση αποθέματος" : undefined
   ].filter((label): label is string => Boolean(label));
@@ -397,6 +411,27 @@ export default async function ShopPage({ searchParams }: ShopProps) {
                 {facet.options.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
               </select>
             </div>)}
+
+            <fieldset className="catalog-price-range">
+              <legend>Εύρος τιμής</legend>
+              <div className="catalog-price-range-fields">
+                <label className="catalog-price-field" htmlFor="minPrice">
+                  <span>Από</span>
+                  <span className="catalog-price-input">
+                    <input id="minPrice" name="minPrice" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0" defaultValue={minPriceInput} />
+                    <b aria-hidden="true">€</b>
+                  </span>
+                </label>
+                <span className="catalog-price-separator" aria-hidden="true">—</span>
+                <label className="catalog-price-field" htmlFor="maxPrice">
+                  <span>Έως</span>
+                  <span className="catalog-price-input">
+                    <input id="maxPrice" name="maxPrice" type="number" inputMode="decimal" min="0" step="0.01" placeholder="χωρίς όριο" defaultValue={maxPriceInput} />
+                    <b aria-hidden="true">€</b>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
 
             <label htmlFor="sort">Ταξινόμηση</label>
             <select id="sort" name="sort" defaultValue={sort}>
