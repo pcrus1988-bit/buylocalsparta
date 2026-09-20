@@ -16,7 +16,7 @@ jobs:
     env:
       NODE_ENV: production
       VERCEL: "1"
-      VERCEL_ENV: preview
+      VERCEL_ENV: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +24,8 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts --include=dev
-      - name: Typecheck Next build without production prebuild gate
+      - name: Verify production schema head via live runtime
+        run: node --experimental-strip-types scripts/verify-production-schema-head.ts --vercel-production-only
+      - name: Build Next application without payment-config prebuild
         working-directory: apps/web
         run: npx next build
