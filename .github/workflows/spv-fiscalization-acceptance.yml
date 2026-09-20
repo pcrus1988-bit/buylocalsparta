@@ -1,0 +1,34 @@
+name: SPV Fiscalization Acceptance
+
+on:
+  push:
+    branches:
+      - fix/mollie-aade-spv-redemption
+  pull_request:
+    paths:
+      - "packages/aade-mydata/**"
+      - "apps/web/src/lib/admin-fiscal-preparation.ts"
+      - "apps/web/src/lib/customer-fiscal-runtime.ts"
+      - "apps/web/src/lib/customer-fiscal-reconciliation-sweep.ts"
+      - "apps/web/src/lib/gift-card-fiscalization.ts"
+      - "apps/web/src/lib/gift-card-service.ts"
+      - "apps/web/src/lib/vendor-gift-card-service.ts"
+      - "vercel.json"
+      - ".github/workflows/spv-fiscalization-acceptance.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Test AADE SPV VAT allocation
+        run: npm run test:mydata
+      - name: Typecheck AADE adapter
+        run: npm run typecheck:mydata
+      - name: Typecheck web
+        run: npx tsc --noEmit -p apps/web/tsconfig.json

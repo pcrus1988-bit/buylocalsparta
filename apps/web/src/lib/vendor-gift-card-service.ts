@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { fiscalizeVendorPhysicalSpvIssue, type SpvIssueFiscalization } from "./gift-card-fiscalization";
 
 export type VendorGiftCardAccess = Readonly<{
   vendorId: string;
@@ -27,6 +28,7 @@ export type VendorPhysicalGiftCardIssueResult = Readonly<{
   card: VendorPhysicalGiftCardView;
   code: string;
   vendor: VendorGiftCardAccess;
+  fiscal: SpvIssueFiscalization;
 }>;
 
 export type VendorPhysicalGiftCardLookup = Readonly<{
@@ -190,7 +192,7 @@ export async function issueVendorPhysicalGiftCard(principal: SessionPrincipal, i
   const publicId = `gift_${randomUUID()}`;
   const now = input.now ?? Date.now();
 
-  return uow().withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
+  const issued = await uow().withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const context = await vendorContext(principal, tx);
     const inserted = await tx.query<SqlRow>(`
       INSERT INTO gift_cards(
@@ -235,6 +237,12 @@ export async function issueVendorPhysicalGiftCard(principal: SessionPrincipal, i
       vendor: { vendorId: context.vendorId, vendorName: context.vendorName, vendorEmail: context.vendorEmail, activeLocations: context.activeLocations }
     };
   }, { isolation: "serializable" });
+  const fiscal = await fiscalizeVendorPhysicalSpvIssue(issued.card.id, now).catch((error): SpvIssueFiscalization => ({
+    giftCardId: issued.card.id,
+    fiscalStatus: "manual_review",
+    error: error instanceof Error ? error.message : "SPV fiscalization failed"
+  }));
+  return { ...issued, fiscal };
 }
 
 export async function lookupVendorPhysicalGiftCard(principal: SessionPrincipal, rawCode: string): Promise<VendorPhysicalGiftCardLookup> {

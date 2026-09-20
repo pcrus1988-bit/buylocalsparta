@@ -106,15 +106,52 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
       client.query(`SELECT ol.public_id,ol.quantity,ol.retail_unit_price_minor,ol.tax_rate_bps,ol.tax_minor,
               ol.discount_allocation_minor,ol.product_snapshot
          FROM order_lines ol WHERE ol.order_id=$1::uuid ORDER BY ol.created_at,ol.id`, [row.order_uuid]),
-      client.query<{ gift_card_id: string; code_suffix: string; amount_minor: string | number }>(`
-        SELECT gc.public_id AS gift_card_id,gc.code_suffix,ABS(gcl.amount_minor) AS amount_minor
+      client.query<{ gift_card_id: string; code_suffix: string; amount_minor: string | number; voucher_type:string; voucher_vat_rate_bps:number; voucher_tax_country:string; issue_aade_mark:string|null; issue_transmission_status:string|null }>(`
+        SELECT gc.public_id AS gift_card_id,gc.code_suffix,ABS(gcl.amount_minor) AS amount_minor,
+               gc.voucher_type,gc.voucher_vat_rate_bps,gc.voucher_tax_country::text,
+               issue.aade_mark AS issue_aade_mark,issue.transmission_status AS issue_transmission_status
         FROM gift_card_ledger gcl
         JOIN gift_cards gc ON gc.id=gcl.gift_card_id
+        LEFT JOIN LATERAL (
+          SELECT td.aade_mark,td.transmission_status
+          FROM tax_documents td
+          WHERE td.gift_card_id=gc.id
+          ORDER BY CASE WHEN td.transmission_status='accepted' THEN 0 ELSE 1 END,td.created_at DESC
+          LIMIT 1
+        ) issue ON true
         WHERE gcl.order_public_id=$1 AND gcl.entry_type='redeem'
         ORDER BY gcl.created_at
       `, [row.order_public_id])
     ]);
     const totalMinor = integer(row.total_minor);
+    const giftCardRedeemedMinor=integer(row.gift_card_redeemed_minor);
+    const fullSpvRedemption=String(row.provider)==="gift_card"&&giftCardRedeemedMinor>=totalMinor;
+    if(fullSpvRedemption){
+      const governed=giftCards.rows.length>0&&giftCards.rows.every((giftCard)=>
+        giftCard.voucher_type==="single_purpose"
+        && integer(giftCard.voucher_vat_rate_bps)===2400
+        && giftCard.voucher_tax_country.trim()==="GR"
+        && giftCard.issue_transmission_status==="accepted"
+        && Boolean(giftCard.issue_aade_mark)
+      );
+      if(!governed){
+        await client.query("ROLLBACK");
+        return { captured:false };
+      }
+      await client.query(`UPDATE payments
+          SET provider_payload=provider_payload||$2::jsonb,updated_at=$3
+        WHERE public_id=$1`,[
+          row.payment_id,
+          JSON.stringify({
+            spvRedemptionFiscalStatus:"not_separate_transaction",
+            spvRedeemedMinor:giftCardRedeemedMinor,
+            spvIssueAadeMarks:giftCards.rows.map((giftCard)=>giftCard.issue_aade_mark)
+          }),
+          new Date(now)
+        ]);
+      await client.query("COMMIT");
+      return { captured:false };
+    }
     const taxMinor = integer(row.tax_minor);
     if (taxMinor < 0 || taxMinor > totalMinor) throw new Error("Invalid captured order tax totals");
     const payload = {
@@ -141,8 +178,8 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
         transactionId: row.provider_transaction_id,
         orderCode: row.provider_order_code,
         capturedMinor: integer(row.captured_minor),
-        giftCardRedeemedMinor: integer(row.gift_card_redeemed_minor),
-        totalTenderedMinor: integer(row.captured_minor) + integer(row.gift_card_redeemed_minor),
+        giftCardRedeemedMinor,
+        totalTenderedMinor: integer(row.captured_minor) + giftCardRedeemedMinor,
         giftCards: giftCards.rows.map((giftCard) => ({
           id: giftCard.gift_card_id,
           codeSuffix: giftCard.code_suffix,
