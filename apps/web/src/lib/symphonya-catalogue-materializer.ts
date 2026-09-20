@@ -109,7 +109,7 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
 
   try {
     let priorityBatch = false;
-    let candidateRows: SqlRow[] = [];
+    let candidateRows: readonly SqlRow[] = [];
 
     if (context.fashionPriorityCursor !== PRIORITY_COMPLETE_SENTINEL) {
       const priorityCandidates = await pool.query<SqlRow>(`
