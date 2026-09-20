@@ -347,6 +347,27 @@ export async function getVendorDropshipCatalogPage(
       FROM public.storefront_dropship_family_filter_read_model_v2 fm
       JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
+        -- Push the active storefront filters into the indexed family projection
+        -- before the supplier live-check. Previously Symphonya availability was
+        -- revalidated for the entire catalogue and only filtered afterwards,
+        -- which made narrow selections such as "mens-sneakers" contend for DB
+        -- connections and time out.
+        AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
+        AND ($4::text='' OR fm.brand_names_normalized @> ARRAY[lower($4)]::text[])
+        AND ($5::text='' OR EXISTS (
+          SELECT 1 FROM unnest(fm.colors) candidate(value)
+          WHERE lower(candidate.value)=lower($5)
+        ))
+        AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
+        AND ($7::text='' OR EXISTS (
+          SELECT 1 FROM unnest(fm.fits) candidate(value)
+          WHERE lower(candidate.value)=lower($7)
+        ))
+        AND ($8::text='' OR fm.materials @> ARRAY[lower($8)]::text[])
+        AND (
+          $2::text='' OR
+          ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+        )
         AND (
           supplier.code<>'symphonya'
           OR EXISTS (
