@@ -43,9 +43,10 @@ const pricingCatchupPasses = positiveInteger(
   4,
   "BLS_SYMPHONYA_PRICING_CATCHUP_PASSES"
 );
+const databaseReadinessRetryMs = 5_000;
+const databaseReadinessTimeoutMs = 10 * 60_000;
 
-const readiness = await productionDatabaseReadiness();
-if (!readiness.ok) throw new Error(`Symphonya worker refused to start: ${readiness.message}`);
+await waitForDatabaseReadiness();
 
 let stopping = false;
 let nextStockSyncAt = 0;
@@ -184,6 +185,43 @@ try {
 } finally {
   await getProductionPostgresRuntime().close();
   log("info", "symphonya.worker_stopped", { workerId });
+}
+
+async function waitForDatabaseReadiness(): Promise<void> {
+  const startedAt = Date.now();
+  let attempt = 0;
+  let lastMessage = "database readiness not checked";
+
+  while (Date.now() - startedAt < databaseReadinessTimeoutMs) {
+    attempt += 1;
+    try {
+      const readiness = await productionDatabaseReadiness();
+      log(readiness.ok ? "info" : "error", "symphonya.database_readiness", {
+        ok: readiness.ok,
+        attempt,
+        waitedMs: Date.now() - startedAt,
+        appliedSchemaVersion: readiness.appliedSchemaVersion,
+        expectedSchemaVersion: readiness.expectedSchemaVersion,
+        message: readiness.message
+      });
+      if (readiness.ok) return;
+      lastMessage = readiness.message;
+    } catch (error) {
+      lastMessage = safeError(error);
+      log("error", "symphonya.database_readiness", {
+        ok: false,
+        attempt,
+        waitedMs: Date.now() - startedAt,
+        message: lastMessage
+      });
+    }
+
+    const remainingMs = databaseReadinessTimeoutMs - (Date.now() - startedAt);
+    if (remainingMs <= 0) break;
+    await delay(Math.min(databaseReadinessRetryMs, remainingMs));
+  }
+
+  throw new Error(`Symphonya worker refused to start after waiting for database readiness: ${lastMessage}`);
 }
 
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
