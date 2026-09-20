@@ -1,0 +1,77 @@
+name: Import homepage discovery photography
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/import-home-discovery-images.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download staged image originals
+        shell: bash
+        env:
+          STYLE_URL: "https://lh7-rt.googleusercontent.com/slidesz/AGV_vUdoND4HvM62F1Ak4twKkbXbw_az4PzWT3dqtT8rqQAdQQTP-I2n-BBfzig3dEAQFQwQUBuEyaXtqM_i34NgopXXZ2s2ijZWnNz-Docox3-4RrKSGMHY6whHQ54OsQfWemrutc510jrrILFkiLIOERSgdEzxWhAYCrgcwfbkxH5RZw=nw?key=Jze_KlVvwCebV91CY6YKsg"
+          COLOR_URL: "https://lh7-rt.googleusercontent.com/slidesz/AGV_vUcO110xDd3-eTGzn59eS4lMvYzrX58Oxuc3EhOrEIklsOr4VWwzkAB6YLd1k0u_ZORz3ZBKhkA9RCgsYqP4wbkw4tMbFY9FJA7YgZrSjy77tNQRxF_I9pIUErKgy7xEYCWZxC7-1VOCcunofz6z0zxIqE-SWRgG=nw?key=Jze_KlVvwCebV91CY6YKsg"
+          BAZAAR_URL: "https://lh7-rt.googleusercontent.com/slidesz/AGV_vUdUoQzjRPyccvgZivP0T0O5RTTODMIaMH1jZx4WjYUFmgoYTC8nSX4YgN_o-R5b8nhD1fayOcLvyX4ppPt_A8xeJXT_B3ytjrq_r4FpnvfEajJhjETnPWU-_ZHuw8jzrFUtRNOGEkUix22TIJDaMs6a1KK2ozRsGTNMSKHl3gZagQ=nw?key=Jze_KlVvwCebV91CY6YKsg"
+          ASK_URL: "https://lh7-rt.googleusercontent.com/slidesz/AGV_vUc-nkUZJE1fUxp7wimLfK9OrjjCqgGY27CUKi6lGoo0RtNY4JrdkRpxI7ucY3UWFES7zFQJixeDNEmADzPpjbTlwPLvdtgtXhrk94PE89LWJo_T-qe-TrKoAHR_1Xubd4IbKFv7HR1aAOC8j9teR_UCoA_Fc6tSxX37RZKrfeMzvQ=nw?key=Jze_KlVvwCebV91CY6YKsg"
+          MARKET_URL: "https://lh7-rt.googleusercontent.com/slidesz/AGV_vUee448FIybA3SVSmXx67hGI-twGSiIclkKQrwtjL1OCDXwty8kjeWkq8QYGGtfi3nUQgADGLzOFe-M2cF3BldP_9F3P-7yC2VI-OJbvxzCEaBu6dhPTi2pi165psh0p2w5XEzFjnKsq4WoBi83kOMAjPe_-Y575ohgN5h8janaQ2A=nw?key=Jze_KlVvwCebV91CY6YKsg"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kontamou-home
+          curl --fail --location --retry 2 "$STYLE_URL" -o /tmp/kontamou-home/style.png
+          curl --fail --location --retry 2 "$COLOR_URL" -o /tmp/kontamou-home/color.png
+          curl --fail --location --retry 2 "$BAZAAR_URL" -o /tmp/kontamou-home/bazaar.png
+          curl --fail --location --retry 2 "$ASK_URL" -o /tmp/kontamou-home/ask.png
+          curl --fail --location --retry 2 "$MARKET_URL" -o /tmp/kontamou-home/market.png
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Optimize for high-DPI homepage cards
+        run: |
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          out = Path("apps/web/public/home-discovery")
+          out.mkdir(parents=True, exist_ok=True)
+          assets = [
+              ("style.png", "style-builder.jpg"),
+              ("color.png", "color-finder.jpg"),
+              ("bazaar.png", "bazaar.jpg"),
+              ("ask.png", "ask-local.jpg"),
+              ("market.png", "marketplace-discovery.jpg"),
+          ]
+          for src_name, dst_name in assets:
+              image = Image.open(Path("/tmp/kontamou-home") / src_name).convert("RGB")
+              width = 960
+              height = round(image.height * width / image.width)
+              image = image.resize((width, height), Image.Resampling.LANCZOS)
+              image.save(out / dst_name, "JPEG", quality=86, optimize=True, progressive=True, subsampling="4:2:0")
+          PY
+
+      - name: Commit optimized photography
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/public/home-discovery
+          if git diff --cached --quiet; then
+            echo "No asset changes"
+            exit 0
+          fi
+          git commit -m "feat(home): add discovery stage photography"
+          git push origin HEAD:main
