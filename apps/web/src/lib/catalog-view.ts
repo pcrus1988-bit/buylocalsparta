@@ -45,8 +45,10 @@ function visitorHash(visitorKey: string): string {
  * by the storefront read model when available, avoiding a second taxonomy query.
  */
 type ProductRedirectRow = Readonly<{ to_path: string }>;
+type DirectCanonicalLookup = "public_id" | "id" | "slug";
 
-async function loadDirectPublicCanonical(routeKey: string) {
+async function queryDirectPublicCanonical(routeKey: string, lookup: DirectCanonicalLookup): Promise<DirectCanonicalRow | undefined> {
+  const predicate = lookup === "public_id" ? "cv.public_id=$1" : lookup === "id" ? "cv.id::text=$1" : "cv.slug=$1";
   const result = await getProductionPostgresRuntime().nativePool.query<DirectCanonicalRow>(`
     SELECT cv.public_id AS id,
            cv.slug,
@@ -60,7 +62,7 @@ async function loadDirectPublicCanonical(routeKey: string) {
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
-    WHERE (cv.public_id=$1 OR cv.id::text=$1 OR cv.slug=$1)
+    WHERE ${predicate}
       AND m.code='sparta'
       AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND cv.active=true
@@ -80,7 +82,16 @@ async function loadDirectPublicCanonical(routeKey: string) {
       )
     LIMIT 1
   `, [routeKey]);
-  const row = result.rows[0];
+  return result.rows[0];
+}
+
+async function loadDirectPublicCanonical(routeKey: string) {
+  const key = routeKey.trim();
+  if (!key) return undefined;
+  const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key);
+  const row = looksLikeUuid
+    ? await queryDirectPublicCanonical(key, "public_id") ?? await queryDirectPublicCanonical(key, "id")
+    : await queryDirectPublicCanonical(key, "slug");
   if (!row || !isPublicCatalogueTitle(String(row.title))) return undefined;
   const priceMinor = safeMinor(row.price_minor);
   return {
