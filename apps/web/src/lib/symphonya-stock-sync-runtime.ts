@@ -86,11 +86,17 @@ export async function refreshSymphonyaOfferStockByExternalIds(productIds: readon
 async function persistStockRows(stockRows: readonly SymphonyaStockRow[]):Promise<number>{
   if(!stockRows.length)return 0;
   const payload=stockRows.map((row)=>({external_product_id:row.productId,ean:row.ean??null,quantity:Math.max(0,Math.floor(row.quantity)),warehouse_code:row.warehouse??null,supplier_cost_minor:row.wholesaleCostMinor??null,supplier_currency:row.currency??"EUR",supplier_permitted:row.permitted,price_held:row.priceHeld===true,raw:row.raw}));
-  const updated=await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const runtime=getProductionPostgresRuntime();
+  const updated=await runtime.sqlPool.query<SqlRow>(`
     WITH stock AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(external_product_id text,ean text,quantity integer,warehouse_code text,supplier_cost_minor bigint,supplier_currency text,supplier_permitted boolean,price_held boolean,raw jsonb)), supplier AS (SELECT id FROM public.dropship_suppliers WHERE code=$2 LIMIT 1)
     UPDATE public.dropship_supplier_offers dso SET ean=COALESCE(stock.ean,dso.ean),warehouse_code=COALESCE(stock.warehouse_code,dso.warehouse_code),supplier_cost_minor=CASE WHEN COALESCE(dso.availability_payload->>'priceHeld','false')='true' THEN dso.supplier_cost_minor ELSE COALESCE(stock.supplier_cost_minor,dso.supplier_cost_minor) END,supplier_currency=COALESCE(stock.supplier_currency,dso.supplier_currency),cached_available=(stock.quantity>0 AND stock.supplier_permitted AND stock.price_held=false AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'),cached_quantity=CASE WHEN stock.supplier_permitted=false OR stock.price_held=true OR COALESCE(dso.availability_payload->>'priceHeld','false')='true' THEN 0 ELSE stock.quantity END,availability_checked_at=now(),availability_expires_at=now()+make_interval(mins=>$3::int),availability_payload=COALESCE(dso.availability_payload,'{}'::jsonb)||jsonb_build_object('source','symphonya_getStock','supplierPermitted',stock.supplier_permitted,'stockQuantity',stock.quantity,'warehouse',stock.warehouse_code,'stockPayload',stock.raw,'stockCheckedAt',now()),updated_at=now()
       FROM stock,supplier WHERE dso.supplier_id=supplier.id AND dso.external_product_id=stock.external_product_id RETURNING dso.id
   `,[JSON.stringify(payload),SUPPLIER_CODE,AVAILABILITY_TTL_MINUTES]);
+  const touchedProductIds=[...new Set(payload.map((row)=>row.external_product_id))];
+  await runtime.sqlPool.query(
+    `SELECT bls_private.refresh_symphonya_storefront_live_families($1::text[])`,
+    [touchedProductIds]
+  );
   return updated.rowCount??updated.rows.length;
 }
 async function saveState(sourceId:string,state:StockSyncState):Promise<void>{await getProductionPostgresRuntime().sqlPool.query(`UPDATE public.catalog_sources SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{symphonyaStockSync}',$2::jsonb,true),updated_at=now() WHERE id=$1::uuid`,[sourceId,JSON.stringify(state)]);}
