@@ -1,8 +1,6 @@
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { decodeCatalogSizeGroup } from "./catalog-size";
 
-const HOT_SYMPHONYA_FAMILY_CAP = 0; // Production serves precomputed read models; never rebuild supplier families on a customer request.
-
 export type StorefrontReadModelFilters = Readonly<{
   subcategory?: string;
   subcategories?: readonly string[];
@@ -188,18 +186,42 @@ export async function getDropshipStorefrontReadModelWindow(
 
   if (!hasFilters) {
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
-      WITH total AS MATERIALIZED (
-        SELECT COUNT(*)::bigint AS total_families
-        FROM public.storefront_dropship_family_read_model
-        WHERE available_until>now()
+      WITH stable AS MATERIALIZED (
+        SELECT
+          fm.dropship_supplier_id,
+          fm.dropship_external_product_id,
+          fm.available_until,
+          fm.newest_at,
+          fm.min_price_minor
+        FROM public.storefront_dropship_family_read_model fm
+        WHERE fm.available_until>now()
+          AND NOT EXISTS (
+            SELECT 1
+            FROM bls_private.storefront_dropship_live_family live_shadow
+            WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+              AND live_shadow.external_product_id=fm.dropship_external_product_id
+              AND live_shadow.available_until>now()
+          )
+      ), live AS MATERIALIZED (
+        SELECT
+          lf.supplier_id::text AS dropship_supplier_id,
+          lf.external_product_id AS dropship_external_product_id,
+          lf.available_until,
+          lf.newest_at,
+          lf.min_price_minor
+        FROM bls_private.storefront_dropship_live_family lf
+        WHERE lf.sellable=true
+          AND lf.available_until>now()
+      ), combined AS (
+        SELECT * FROM stable
+        UNION ALL
+        SELECT * FROM live
       )
       SELECT
         fm.dropship_supplier_id AS supplier_id,
         fm.dropship_external_product_id AS external_product_id,
-        total.total_families
-      FROM public.storefront_dropship_family_read_model fm
-      CROSS JOIN total
-      WHERE fm.available_until>now()
+        COUNT(*) OVER() AS total_families
+      FROM combined fm
       ORDER BY ${orderBy}
       LIMIT $1 OFFSET $2
     `, [input.limit, input.offset]);
@@ -209,8 +231,7 @@ export async function getDropshipStorefrontReadModelWindow(
   const familyFilterParameters = [
     ...parameters(input).slice(0, 9),
     input.limit,
-    input.offset,
-    HOT_SYMPHONYA_FAMILY_CAP
+    input.offset
   ];
   const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
     WITH RECURSIVE category_tree AS (
@@ -249,122 +270,30 @@ export async function getDropshipStorefrontReadModelWindow(
         fm.search_vector
       FROM public.storefront_dropship_family_read_model fm
       WHERE fm.available_until>now()
-    ), filtered_hot_symphonya AS MATERIALIZED (
-      SELECT
-        dso.supplier_id::text AS dropship_supplier_id,
-        dso.external_product_id AS dropship_external_product_id,
-        MAX(dso.availability_expires_at) AS available_until,
-        MAX(vo.updated_at) AS newest_at,
-        MIN(vo.customer_price_minor) AS min_price_minor,
-        COALESCE(
-          array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),
-          '{}'::text[]
-        ) AS category_codes,
-        COALESCE(
-          array_agg(DISTINCT tree.department_code) FILTER (WHERE tree.department_code IS NOT NULL),
-          '{}'::text[]
-        ) AS department_codes,
-        COALESCE(
-          array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
-            FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),
-          '{}'::text[]
-        ) AS brand_names,
-        COALESCE(
-          array_agg(DISTINCT lower(NULLIF(btrim(COALESCE(
-            el.specifications->>'color',
-            en.specifications->>'color',
-            cv.variant_attributes->>'color',
-            ''
-          )),'')))
-            FILTER (WHERE NULLIF(btrim(COALESCE(
-              el.specifications->>'color',
-              en.specifications->>'color',
-              cv.variant_attributes->>'color',
-              ''
-            )), '') IS NOT NULL),
-          '{}'::text[]
-        ) AS colors,
-        COALESCE(
-          array_agg(DISTINCT lower(NULLIF(btrim(COALESCE(
-            el.specifications->>'fit',
-            en.specifications->>'fit',
-            ''
-          )),'')))
-            FILTER (WHERE NULLIF(btrim(COALESCE(
-              el.specifications->>'fit',
-              en.specifications->>'fit',
-              ''
-            )), '') IS NOT NULL),
-          '{}'::text[]
-        ) AS fits,
-        string_agg(
-          DISTINCT COALESCE(
-            el.specifications->'sizes',
-            en.specifications->'sizes',
-            cv.variant_attributes->'sizes_observed',
-            '[]'::jsonb
-          )::text,
-          ' '
-        ) AS sizes_text,
-        to_tsvector(
-          'simple',
-          COALESCE(string_agg(DISTINCT concat_ws(
-            ' ',
-            COALESCE(el.title,en.title,cv.model,cv.slug),
-            COALESCE(b.name,pfb.name,''),
-            COALESCE(cv.gtin,''),
-            COALESCE(cv.mpn,''),
-            c.code,
-            tree.department_code
-          ), ' '), '')
-        ) AS search_vector
-      FROM public.dropship_supplier_offers dso
-      JOIN public.dropship_suppliers ds
-        ON ds.id=dso.supplier_id
-       AND ds.code='symphonya'
-       AND ds.active=true
-       AND ds.api_authoritative_availability=true
-      JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
-      JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN public.categories c ON c.id=cv.category_id
-      JOIN category_tree tree ON tree.id=cv.category_id
-      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
-      JOIN public.vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
-      LEFT JOIN public.brands b ON b.id=cv.brand_id
-      LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
-      LEFT JOIN public.product_translations el
-        ON el.canonical_variant_id=cv.id
-       AND el.locale='el'
-      LEFT JOIN public.product_translations en
-        ON en.canonical_variant_id=cv.id
-       AND en.locale='en'
-      WHERE dso.active=true
-        AND dso.cached_available=true
-        AND COALESCE(dso.cached_quantity,0)>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND v.status='active'
-        AND l.active=true
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
         AND NOT EXISTS (
           SELECT 1
-          FROM filtered_stable projected
-          WHERE projected.dropship_supplier_id=dso.supplier_id::text
-            AND projected.dropship_external_product_id=dso.external_product_id
+          FROM bls_private.storefront_dropship_live_family live_shadow
+          WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+            AND live_shadow.external_product_id=fm.dropship_external_product_id
+            AND live_shadow.available_until>now()
         )
-      GROUP BY dso.supplier_id,dso.external_product_id
-      ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
-      LIMIT $12
+    ), filtered_live AS MATERIALIZED (
+      SELECT
+        lf.supplier_id::text AS dropship_supplier_id,
+        lf.external_product_id AS dropship_external_product_id,
+        lf.available_until,
+        lf.newest_at,
+        lf.min_price_minor,
+        lf.category_codes,
+        lf.department_codes,
+        lf.brand_names,
+        lf.colors,
+        lf.fits,
+        lf.sizes_text,
+        lf.search_vector
+      FROM bls_private.storefront_dropship_live_family lf
+      WHERE lf.sellable=true
+        AND lf.available_until>now()
     ), filtered_combined AS (
       SELECT
         dropship_supplier_id,
@@ -396,7 +325,7 @@ export async function getDropshipStorefrontReadModelWindow(
         fits,
         sizes_text,
         search_vector
-      FROM filtered_hot_symphonya
+      FROM filtered_live
     ), filtered_matching AS MATERIALIZED (
       SELECT fm.*
       FROM filtered_combined fm
