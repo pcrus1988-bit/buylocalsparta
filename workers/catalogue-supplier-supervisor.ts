@@ -15,6 +15,7 @@ const nodeArgs = [
   "./scripts/resolve-typescript-extension.mjs"
 ];
 
+// Keep supplier workers gated on the exact production schema before spawning.
 const DATABASE_READINESS_RETRY_MS = 5_000;
 const DATABASE_READINESS_TIMEOUT_MS = 10 * 60_000;
 
