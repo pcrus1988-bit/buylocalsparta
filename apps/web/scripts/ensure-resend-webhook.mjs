@@ -16,33 +16,42 @@ const headers = {
   "user-agent": "buy-local-sparta-vercel-build/1.0"
 };
 
-const listResponse = await fetch(`${baseUrl}/webhooks`, { headers });
-const listPayload = await listResponse.json().catch(() => ({}));
-if (!listResponse.ok) throw new Error(`Resend webhook list failed (${listResponse.status}): ${String(listPayload?.message || "unexpected response")}`);
-const rows = Array.isArray(listPayload.data) ? listPayload.data : [];
-const existing = rows.find((row) => row && typeof row === "object" && row.endpoint === endpoint);
-
-if (existing?.id) {
-  const sameEvents = Array.isArray(existing.events) && events.every((event) => existing.events.includes(event)) && existing.events.length === events.length;
-  if (existing.status !== "enabled" || !sameEvents) {
-    const response = await fetch(`${baseUrl}/webhooks/${encodeURIComponent(existing.id)}`, {
-      method: "PATCH",
+try {
+  const listResponse = await fetch(`${baseUrl}/webhooks`, { headers });
+  const listPayload = await listResponse.json().catch(() => ({}));
+  if (!listResponse.ok) throw new Error(`Resend webhook list failed (${listResponse.status}): ${String(listPayload?.message || "unexpected response")}`);
+  const rows = Array.isArray(listPayload.data) ? listPayload.data : [];
+  const existing = rows.find((row) => row && typeof row === "object" && row.endpoint === endpoint);
+  
+  if (existing?.id) {
+    const sameEvents = Array.isArray(existing.events) && events.every((event) => existing.events.includes(event)) && existing.events.length === events.length;
+    if (existing.status !== "enabled" || !sameEvents) {
+      const response = await fetch(`${baseUrl}/webhooks/${encodeURIComponent(existing.id)}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ endpoint, events, status: "enabled" })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(`Resend webhook update failed (${response.status}): ${String(body?.message || "unexpected response")}`);
+      console.log(`Resend webhook ${existing.id} updated for Buy Local Sparta.`);
+    } else {
+      console.log(`Resend webhook ${existing.id} already configured for Buy Local Sparta.`);
+    }
+  } else {
+    const response = await fetch(`${baseUrl}/webhooks`, {
+      method: "POST",
       headers,
-      body: JSON.stringify({ endpoint, events, status: "enabled" })
+      body: JSON.stringify({ endpoint, events })
     });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`Resend webhook update failed (${response.status}): ${String(body?.message || "unexpected response")}`);
-    console.log(`Resend webhook ${existing.id} updated for Buy Local Sparta.`);
-  } else {
-    console.log(`Resend webhook ${existing.id} already configured for Buy Local Sparta.`);
+    if (!response.ok || typeof body?.id !== "string") throw new Error(`Resend webhook creation failed (${response.status}): ${String(body?.message || "unexpected response")}`);
+    console.log(`Resend webhook ${body.id} created for Buy Local Sparta.`);
   }
-} else {
-  const response = await fetch(`${baseUrl}/webhooks`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ endpoint, events })
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || typeof body?.id !== "string") throw new Error(`Resend webhook creation failed (${response.status}): ${String(body?.message || "unexpected response")}`);
-  console.log(`Resend webhook ${body.id} created for Buy Local Sparta.`);
+  
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  // Email webhook reconciliation is operational housekeeping, not a build-time
+  // correctness boundary for checkout/fiscal code. Keep production deployable
+  // during transient Resend API/network failures and surface the problem clearly.
+  console.warn(`Resend webhook bootstrap deferred: ${message}`);
 }
