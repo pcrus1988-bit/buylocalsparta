@@ -1,0 +1,31 @@
+name: Debug production schema and Next build
+
+on:
+  push:
+    branches:
+      - debug/production-build-post-manifest-20260921
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: production
+      VERCEL: "1"
+      VERCEL_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts --include=dev
+      - name: Verify production schema head via live runtime
+        run: node --experimental-strip-types scripts/verify-production-schema-head.ts --vercel-production-only
+      - name: Build Next application without payment-config prebuild
+        working-directory: apps/web
+        run: npx next build
