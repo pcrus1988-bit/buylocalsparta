@@ -37,7 +37,7 @@ if (component.includes("verify email") || component.includes("Επιβεβαίω
 
 for (const contract of [
   "customerAccountSetup",
-  "Promise.all([accountDashboard(principal), customerAccountSetup(principal)])",
+  "Promise.all([accountHomeDashboard(principal), customerAccountSetup(principal)])",
   "<CustomerAccountSetupChecklist setup={setup} />",
   "<AccountDashboardClient initial={dashboard} />"
 ]) if (!page.includes(contract)) failures.push(`Account page onboarding integration is missing ${contract}`);
