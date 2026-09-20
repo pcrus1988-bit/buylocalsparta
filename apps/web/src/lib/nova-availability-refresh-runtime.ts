@@ -261,8 +261,10 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
     return await runNovaAvailabilityRefreshSweepUnlocked();
   } finally {
     if (claimed) {
-      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", ["kontamou:nova-availability-refresh"])
-        .catch(() => undefined);
+      await lockClient.query(
+        "SELECT pg_advisory_unlock(hashtext($1))",
+        ["kontamou:nova-availability-refresh"]
+      ).catch(() => undefined);
     }
     lockClient.release();
   }
@@ -311,7 +313,6 @@ async function runNovaAvailabilityRefreshSweepUnlocked(): Promise<NovaAvailabili
   };
 }
 
-
 /**
  * Vercel-safe failover for the NOVA availability worker.
  *
@@ -353,135 +354,19 @@ export async function runNovaAvailabilityRefreshSlice(
     const cursorResult = await runtime.sqlPool.query<SqlRow>(`
       SELECT
         CASE
-          WHEN COALESCE(metadata #>> '{novaAvailabilityFailover,nextPage}', '') ~ '^[0-9]+
- * Intended for vendor-initiated recovery of missing/stale availability telemetry without running
- * a full catalogue sweep inside a web request. The owner id scopes the database write to the
- * authenticated vendor's supplier. This function does not publish products, change prices, place
- * supplier orders, or touch local inventory.
- */
-export async function runNovaAvailabilityRefreshForProduct(
-  externalProductId: string,
-  ownerVendorId: string
-): Promise<NovaProductAvailabilityRefreshResult> {
-  const normalizedProductId = externalProductId.trim();
-  const normalizedOwnerVendorId = ownerVendorId.trim();
-  if (!normalizedProductId) throw new Error("NOVA_EXTERNAL_PRODUCT_ID_REQUIRED");
-  if (!normalizedOwnerVendorId) throw new Error("NOVA_OWNER_VENDOR_ID_REQUIRED");
-  const storeId = await resolveNovaStoreId();
-  return refreshNovaAvailabilityProductWithClient(
-    createNovaAvailabilityClient(),
-    storeId,
-    normalizedProductId,
-    normalizedOwnerVendorId,
-    "vendor_targeted_refresh_2h_ttl_rate_limited"
-  );
-}
-
-function availabilityVariants(value: unknown): readonly AvailabilityVariant[] {
-  if (!Array.isArray(value)) return [];
-  const variants: AvailabilityVariant[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const externalVariantId = text(record.externalVariantId);
-    if (!externalVariantId || typeof record.available !== "boolean") continue;
-    variants.push({
-      externalVariantId,
-      sku: text(record.sku),
-      stockQuantity: typeof record.stockQuantity === "number" && Number.isFinite(record.stockQuantity)
-        ? record.stockQuantity
-        : null,
-      available: record.available
-    });
-  }
-  return variants;
-}
-
-function text(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function safeError(error: unknown): string {
-  if (error instanceof NovaV1ApiError) {
-    return `${error.name}:${error.status}:${error.message}`.slice(0, 500);
-  }
-  return (error instanceof Error ? `${error.name}:${error.message}` : String(error)).slice(0, 500);
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
+          WHEN COALESCE(metadata #>> '{novaAvailabilityFailover,nextPage}', '') ~ '^[0-9]+$'
             THEN GREATEST(1, (metadata #>> '{novaAvailabilityFailover,nextPage}')::int)
           ELSE 1
         END AS next_page,
         CASE
-          WHEN COALESCE(metadata #>> '{novaAvailabilityFailover,pageSize}', '') ~ '^[0-9]+
- * Intended for vendor-initiated recovery of missing/stale availability telemetry without running
- * a full catalogue sweep inside a web request. The owner id scopes the database write to the
- * authenticated vendor's supplier. This function does not publish products, change prices, place
- * supplier orders, or touch local inventory.
- */
-export async function runNovaAvailabilityRefreshForProduct(
-  externalProductId: string,
-  ownerVendorId: string
-): Promise<NovaProductAvailabilityRefreshResult> {
-  const normalizedProductId = externalProductId.trim();
-  const normalizedOwnerVendorId = ownerVendorId.trim();
-  if (!normalizedProductId) throw new Error("NOVA_EXTERNAL_PRODUCT_ID_REQUIRED");
-  if (!normalizedOwnerVendorId) throw new Error("NOVA_OWNER_VENDOR_ID_REQUIRED");
-  const storeId = await resolveNovaStoreId();
-  return refreshNovaAvailabilityProductWithClient(
-    createNovaAvailabilityClient(),
-    storeId,
-    normalizedProductId,
-    normalizedOwnerVendorId,
-    "vendor_targeted_refresh_2h_ttl_rate_limited"
-  );
-}
-
-function availabilityVariants(value: unknown): readonly AvailabilityVariant[] {
-  if (!Array.isArray(value)) return [];
-  const variants: AvailabilityVariant[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const externalVariantId = text(record.externalVariantId);
-    if (!externalVariantId || typeof record.available !== "boolean") continue;
-    variants.push({
-      externalVariantId,
-      sku: text(record.sku),
-      stockQuantity: typeof record.stockQuantity === "number" && Number.isFinite(record.stockQuantity)
-        ? record.stockQuantity
-        : null,
-      available: record.available
-    });
-  }
-  return variants;
-}
-
-function text(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function safeError(error: unknown): string {
-  if (error instanceof NovaV1ApiError) {
-    return `${error.name}:${error.status}:${error.message}`.slice(0, 500);
-  }
-  return (error instanceof Error ? `${error.name}:${error.message}` : String(error)).slice(0, 500);
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
+          WHEN COALESCE(metadata #>> '{novaAvailabilityFailover,pageSize}', '') ~ '^[0-9]+$'
             THEN GREATEST(1, (metadata #>> '{novaAvailabilityFailover,pageSize}')::int)
           ELSE $2::int
         END AS page_size
       FROM public.catalog_sources
       WHERE code=$1
       LIMIT 1
-    `, ["nova-brandsgateway", DEFAULT_FULL_SWEEP_PAGE_SIZE]);
+    `, [NOVA_SUPPLIER_CODE.replace("_", "-"), DEFAULT_FULL_SWEEP_PAGE_SIZE]);
 
     if (cursorResult.rowCount !== 1) throw new Error("NOVA_CATALOG_SOURCE_NOT_FOUND");
 
@@ -549,8 +434,10 @@ function delay(ms: number): Promise<void> {
     };
   } finally {
     if (claimed) {
-      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", ["kontamou:nova-availability-refresh"])
-        .catch(() => undefined);
+      await lockClient.query(
+        "SELECT pg_advisory_unlock(hashtext($1))",
+        ["kontamou:nova-availability-refresh"]
+      ).catch(() => undefined);
     }
     lockClient.release();
   }
