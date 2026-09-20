@@ -3,10 +3,13 @@ import { getPublicCatalogSourceImageAtIndex } from "../../../../lib/public-catal
 type Context = { params: Promise<{ id: string }> };
 
 const EMPTY_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"></svg>`;
-const SOURCE_REDIRECT_BROWSER_CACHE = "public, max-age=900";
-const SOURCE_REDIRECT_CDN_CACHE = "max-age=3600, stale-while-revalidate=86400";
+// Supplier image locations are effectively immutable for a canonical source row.
+// Keep browsers reasonably fresh while letting the edge absorb repeated product-card
+// image lookups instead of re-opening PostgreSQL for every short CDN expiry.
+const SOURCE_REDIRECT_BROWSER_CACHE = "public, max-age=3600";
+const SOURCE_REDIRECT_CDN_CACHE = "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=604800";
 const EMPTY_BROWSER_CACHE = "public, max-age=120";
-const EMPTY_CDN_CACHE = "max-age=300, stale-while-revalidate=3600";
+const EMPTY_CDN_CACHE = "public, s-maxage=900, stale-while-revalidate=86400, stale-if-error=86400";
 
 export async function GET(request: Request, context: Context) {
   const { id } = await context.params;
