@@ -33,7 +33,7 @@ export async function finalizeGiftCardSpvIssue(giftCardId: string, now = Date.no
   const config = await myDataAdminRuntimeConfig();
   if (!config.issuanceEnabled) return { ...resultFromSnapshot(giftCardId, snapshot), status: "disabled" };
 
-  if (snapshot.backfill && !snapshot.documentNumber) {
+  // Backfilled historical SPV issues are captured for audit but never auto-numbered retroactively;\n  // newly issued paid SPVs are captured by the database trigger and continue through AADE automatically.\n  if (snapshot.backfill && !snapshot.documentNumber) {
     const review = "Historical paid SPV issuance captured after the original issue date; accountant review is required before assigning an AADE fiscal number.";
     await markManualReview(snapshot.documentId, review);
     return { giftCardId, documentId: snapshot.documentId, status: "manual_review", error: review };
