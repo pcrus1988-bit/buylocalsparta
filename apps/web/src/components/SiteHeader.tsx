@@ -108,6 +108,47 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
         .header-actions > button.cart-button { font: inherit; cursor: pointer; }
         .site-header > .flash-sale-shortcut { display: none; }
 
+        @media (min-width: 1321px) {
+          .site-header {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-rows: auto auto;
+            align-items: center;
+            column-gap: 24px;
+            row-gap: 0;
+            min-height: 118px;
+            padding-top: 8px;
+            padding-bottom: 10px;
+          }
+          .site-header > .brand {
+            grid-column: 1;
+            grid-row: 1;
+            align-self: center;
+          }
+          .site-header > .public-menu-toggle {
+            display: none;
+          }
+          .site-header > .nav {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 28px;
+            min-width: 0;
+            padding-top: 4px;
+            white-space: nowrap;
+          }
+          .site-header > .header-actions {
+            grid-column: 3;
+            grid-row: 1;
+            justify-self: end;
+            min-width: 0;
+          }
+          .site-header > .header-actions .header-location {
+            display: none;
+          }
+        }
+
         @keyframes konta-header-flash {
           0%, 68%, 80%, 100% {
             background: #111;
