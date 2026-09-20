@@ -294,28 +294,81 @@
   margin: 18px 0 16px;
 }
 
-.studioGlow {
+.studioSymbol {
   position: absolute;
-  width: 164px;
-  height: 164px;
-  right: 7%;
+  width: min(220px, 57%);
+  height: auto;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 36% 30%, rgba(255,255,255,.92) 0 6%, transparent 7%),
-    radial-gradient(circle at 38% 35%, var(--tone-c), var(--tone-a) 48%, var(--tone-b) 100%);
-  box-shadow:
-    0 24px 46px color-mix(in srgb, var(--tone-b) 25%, transparent),
-    inset -18px -22px 38px rgba(0,0,0,.14);
+  overflow: visible;
+  filter: drop-shadow(0 18px 24px color-mix(in srgb, var(--tone-b) 18%, transparent));
+  transition: transform .28s ease, filter .28s ease;
 }
 
-.studioGlow::after {
-  content: "";
-  position: absolute;
-  inset: 15%;
-  border: 1px solid rgba(255,255,255,.38);
-  border-radius: 50%;
+.symbolPrimary {
+  fill: var(--tone-a);
+}
+
+.symbolSecondary {
+  fill: var(--tone-c);
+}
+
+.symbolSoft {
+  fill: color-mix(in srgb, var(--tone-c) 52%, #fff);
+  opacity: .58;
+}
+
+.symbolDark {
+  fill: var(--tone-b);
+}
+
+.symbolHighlight {
+  fill: none;
+  stroke: rgba(255,255,255,.88);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.symbolLine {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tone-b) 72%, #171714);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .72;
+}
+
+.symbolLineWide {
+  fill: none;
+  stroke: var(--tone-b);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .86;
+}
+
+.hairBack {
+  fill: var(--tone-b);
+  opacity: .96;
+}
+
+.hairMid {
+  fill: var(--tone-a);
+}
+
+.symbolLineHair {
+  fill: none;
+  stroke: var(--tone-c);
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: .9;
+}
+
+.studioCard:hover .studioSymbol {
+  transform: translateY(-50%) scale(1.035) rotate(-1deg);
+  filter: drop-shadow(0 22px 30px color-mix(in srgb, var(--tone-b) 24%, transparent));
 }
 
 .studioSwatches {
@@ -550,9 +603,8 @@
     min-height: 108px;
   }
 
-  .studioGlow {
-    width: 128px;
-    height: 128px;
+  .studioSymbol {
+    width: min(172px, 54%);
   }
 
   .studioCardCopy p {
