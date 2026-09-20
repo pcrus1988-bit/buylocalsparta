@@ -172,14 +172,25 @@ h3 { font-size:27px; line-height:1.04; margin:11px 0; }
 .mollie-powered-label{font-size:8px!important;line-height:1.15!important;margin:0!important;color:#d8d8d8!important;text-transform:uppercase;letter-spacing:.07em}
 .mollie-more{font-size:9px!important;line-height:1.15!important;margin:0!important;color:#fff!important;font-weight:800}
 .mollie-overlay{position:fixed;inset:0;z-index:1200;background:rgba(10,20,16,.72);backdrop-filter:blur(6px);display:grid;place-items:center;padding:22px}
-.mollie-modal{position:relative;width:min(980px,100%);height:min(780px,92vh);display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.16);border-radius:22px;background:var(--white);box-shadow:0 30px 100px rgba(0,0,0,.35);overflow:hidden}
+.mollie-modal{position:relative;width:min(860px,100%);max-height:min(760px,92vh);display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.16);border-radius:22px;background:var(--white);box-shadow:0 30px 100px rgba(0,0,0,.35);overflow:hidden}
 .mollie-modal-head{display:flex;align-items:center;gap:14px;padding:18px 56px 16px 18px;border-bottom:1px solid var(--line);background:#f7f4ec}
 .mollie-modal-head img{width:90px;height:auto;border-radius:6px}
 .mollie-modal-head strong,.mollie-modal-head span{display:block}
 .mollie-modal-head span{margin-top:4px;font-size:11px;color:var(--ink-soft);line-height:1.45}
 .mollie-modal-close{position:absolute;right:14px;top:14px;z-index:2;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;background:#fff;display:grid;place-items:center;cursor:pointer;font-size:22px;line-height:1}
-.mollie-modal-frame{flex:1;min-height:0;background:#fff}
-.mollie-modal-frame iframe{width:100%;height:100%;border:0;background:#fff}
-.mollie-modal-fallback{margin:0;padding:11px 18px;border-top:1px solid var(--line);background:#f7f4ec;color:var(--ink-soft);font-size:10px;line-height:1.45}
-.mollie-modal-fallback a{text-decoration:underline;font-weight:800;color:var(--ink)}
-@media(max-width:620px){.payment-option-heading{align-items:flex-start;flex-direction:column}.payment-method-marks{margin-left:0}.payment-trust-row{align-items:stretch;flex-direction:column}.mollie-logo-button{width:100%;grid-template-columns:auto 1fr}.mollie-overlay{padding:10px}.mollie-modal{height:94vh;border-radius:16px}.mollie-modal-head{padding:14px 48px 13px 14px}.mollie-modal-head img{width:76px}.mollie-modal-fallback{padding:9px 12px}}
+.mollie-modal-content{padding:28px;overflow:auto}
+.mollie-trust-intro{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;padding:22px;border:1px solid var(--line);border-radius:18px;background:#f7f4ec}
+.mollie-lock{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:#fff;border:1px solid var(--line);font-size:20px}
+.mollie-trust-intro h3{margin:0 0 9px;font-family:Georgia,'Times New Roman',serif;font-size:25px;line-height:1.08}
+.mollie-trust-intro p{margin:0;color:var(--ink-soft);font-size:12px;line-height:1.65}
+.mollie-trust-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.mollie-trust-grid>div{padding:18px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.mollie-trust-grid>div>span{display:block;margin-bottom:18px;font-size:10px;font-weight:900;letter-spacing:.14em;color:var(--olive)}
+.mollie-trust-grid strong{display:block;font-size:13px}
+.mollie-trust-grid p{margin:7px 0 0;color:var(--ink-soft);font-size:10px;line-height:1.55}
+.mollie-official{display:flex;align-items:center;justify-content:space-between;gap:22px;margin-top:14px;padding:18px;border-radius:16px;background:var(--ink);color:#fff}
+.mollie-official strong,.mollie-official span{display:block}
+.mollie-official span{margin-top:5px;color:#cfd8d1;font-size:10px}
+.mollie-official-link{flex:0 0 auto;background:#fff;border-color:#fff;color:var(--ink);white-space:nowrap}
+@media(max-width:720px){.mollie-trust-grid{grid-template-columns:1fr}.mollie-official{align-items:stretch;flex-direction:column}.mollie-official-link{width:100%}}
+@media(max-width:620px){.payment-option-heading{align-items:flex-start;flex-direction:column}.payment-method-marks{margin-left:0}.payment-trust-row{align-items:stretch;flex-direction:column}.mollie-logo-button{width:100%;grid-template-columns:auto 1fr}.mollie-overlay{padding:10px}.mollie-modal{max-height:94vh;border-radius:16px}.mollie-modal-head{padding:14px 48px 13px 14px}.mollie-modal-head img{width:76px}.mollie-modal-content{padding:16px}.mollie-trust-intro{grid-template-columns:1fr;padding:18px}.mollie-trust-intro h3{font-size:21px}}
