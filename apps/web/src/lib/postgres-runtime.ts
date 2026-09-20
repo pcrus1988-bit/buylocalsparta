@@ -56,7 +56,11 @@ export function buildWebPostgresRuntimeEnv(sourceEnv: NodeJS.ProcessEnv = proces
   const connectionString = resolveDatabaseUrlFromEnv(sourceEnv);
   const env: NodeJS.ProcessEnv = connectionString ? { ...sourceEnv, DATABASE_URL: connectionString } : { ...sourceEnv };
   if (connectionString) {
-    if (!env.BLS_DB_POOL_MAX?.trim()) env.BLS_DB_POOL_MAX = WEB_DB_POOL_MAX;
+    // Vercel's horizontal concurrency multiplies every per-instance pg pool. Enforce the
+    // serverless ceiling even if an older project-level variable still carries a larger
+    // worker-era value. Dedicated non-Vercel runtimes may continue to override it.
+    if (env.VERCEL === "1" || env.VERCEL_ENV?.trim()) env.BLS_DB_POOL_MAX = WEB_DB_POOL_MAX;
+    else if (!env.BLS_DB_POOL_MAX?.trim()) env.BLS_DB_POOL_MAX = WEB_DB_POOL_MAX;
     if (!env.BLS_DB_CONNECT_TIMEOUT_MS?.trim()) env.BLS_DB_CONNECT_TIMEOUT_MS = WEB_DB_CONNECT_TIMEOUT_MS;
     if (!env.BLS_DB_IDLE_TIMEOUT_MS?.trim()) env.BLS_DB_IDLE_TIMEOUT_MS = WEB_DB_IDLE_TIMEOUT_MS;
   }
