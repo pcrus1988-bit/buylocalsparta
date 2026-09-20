@@ -8,7 +8,7 @@ import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarProductNoticeSummary, bazaarProductNoticeTitle, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
 import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
-import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
+import { publicBrandLogoUrl } from "../../../../lib/brand-logo";\nimport { publicDescriptionText } from "../../../../lib/public-description-text";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
@@ -16,49 +16,11 @@ function euro(minor: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 }
 
-function decodeHtmlEntity(entity: string): string {
-  if (/^#x[0-9a-f]+$/i.test(entity)) {
-    const code = Number.parseInt(entity.slice(2), 16);
-    return Number.isFinite(code) ? String.fromCodePoint(code) : `&${entity};`;
-  }
-  if (/^#\d+$/.test(entity)) {
-    const code = Number.parseInt(entity.slice(1), 10);
-    return Number.isFinite(code) ? String.fromCodePoint(code) : `&${entity};`;
-  }
-  const named: Record<string, string> = {
-    amp: "&",
-    apos: "'",
-    quot: "\"",
-    lt: "<",
-    gt: ">",
-    nbsp: " ",
-    ndash: "–",
-    mdash: "—",
-    hellip: "…"
-  };
-  return named[entity.toLowerCase()] ?? `&${entity};`;
-}
-
-function plainSupplierDescription(value: string | undefined): string | undefined {
-  if (!value?.trim()) return undefined;
-  const text = value
-    .replace(/<\s*br\s*\/?>/gi, "\n")
-    .replace(/<\s*\/\s*(?:p|div|li|ul|ol|h[1-6])\s*>/gi, "\n")
-    .replace(/<\s*li(?:\s[^>]*)?>/gi, "• ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&([#a-z0-9]+);/gi, (_match, entity: string) => decodeHtmlEntity(entity))
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return text || undefined;
-}
-
 export async function generateMetadata({ params }: BazaarProductPageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = await getBazaarProductBySlug(decodeURIComponent(slug));
   if (!product) return { title: "BAZAAR | KONTA MOY", robots: { index: false, follow: true } };
-  const description = plainSupplierDescription(product.description);
+  const description = publicDescriptionText(product.description);
   return {
     title: `${product.title} · BAZAAR | KONTA MOY`,
     description: description ?? `${bazaarDisplayConditionLabel(product.condition, product.bazaarSource)} στο Greece-wide BAZAAR του KONTA MOY.`,
@@ -73,7 +35,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const defectLike = product.condition === "preowned_defect" || product.condition === "open_box" || product.bazaarSource === "supplier_tester";
-  const description = plainSupplierDescription(product.description);
+  const description = publicDescriptionText(product.description);
   const available = product.availableToSell > 0;
   const price = euro(product.priceMinor);
   const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
