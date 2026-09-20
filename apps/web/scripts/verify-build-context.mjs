@@ -56,6 +56,22 @@ const mollieKeyEnvironment = !mollieCredential
         ? configuredAccessEnvironment || (vercelProduction ? "live" : vercelPreview ? "test" : "unknown")
         : "invalid";
 const mollieProfileConfigured = Boolean(process.env.MOLLIE_PROFILE_ID?.trim());
+const molliePublicBaseUrl = process.env.MOLLIE_PUBLIC_BASE_URL?.trim();
+
+if (vercelProduction && molliePublicBaseUrl) {
+  let hostname;
+  try {
+    hostname = new URL(molliePublicBaseUrl).hostname.toLowerCase();
+  } catch {
+    throw new Error("Production MOLLIE_PUBLIC_BASE_URL must be an absolute https URL.");
+  }
+  if (!molliePublicBaseUrl.startsWith("https://")) {
+    throw new Error("Production MOLLIE_PUBLIC_BASE_URL must use https.");
+  }
+  if (hostname.endsWith(".vercel.app")) {
+    throw new Error("Production MOLLIE_PUBLIC_BASE_URL must use the branded customer domain, not a vercel.app hostname.");
+  }
+}
 
 if (legacyVivaKeys.length) {
   const message = `Legacy Viva environment variables remain configured: ${legacyVivaKeys.join(", ")}`;
