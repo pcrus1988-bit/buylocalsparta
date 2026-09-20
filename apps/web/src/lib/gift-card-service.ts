@@ -123,6 +123,26 @@ export async function redeemGiftCardForOrder(principal: SessionPrincipal, input:
     if (String(order.provider) !== "pending_psp" || order.provider_order_code || !["created", "failed"].includes(String(order.payment_status))) throw new Error("Η πληρωμή της παραγγελίας έχει ήδη ξεκινήσει με άλλο τρόπο");
     if (String(card.status) !== "active") throw new Error("Η δωροκάρτα δεν είναι ενεργή");
     if (card.expires_at && new Date(String(card.expires_at)).getTime() <= now) throw new Error("Η δωροκάρτα έχει λήξει");
+    if(String(card.voucher_type)==="single_purpose"){
+      const voucherVatRateBps=asInt(card.voucher_vat_rate_bps);
+      const incompatible=await tx.query<SqlRow>(`
+        SELECT 1 AS hit FROM order_lines
+        WHERE order_id=$1::uuid
+          AND tax_rate_bps<>$2
+        LIMIT 1
+      `,[order.order_uuid,voucherVatRateBps]);
+      if(incompatible.rowCount)throw new Error("Η Gift Card είναι ΚΣΣ/SPV και μπορεί να χρησιμοποιηθεί μόνο σε προϊόντα με τον ίδιο συντελεστή ΦΠΑ.");
+      if(String(card.issue_channel)==="vendor_physical"){
+        const fiscalIssue=await tx.query<SqlRow>(`
+          SELECT 1 AS hit FROM tax_documents
+          WHERE gift_card_id=$1::uuid
+            AND transmission_status='accepted'
+            AND aade_mark IS NOT NULL
+          LIMIT 1
+        `,[card.id]);
+        if(!fiscalIssue.rowCount)throw new Error("Η έκδοση της Gift Card δεν έχει ακόμη ολοκληρωθεί φορολογικά. Δοκίμασε ξανά όταν ολοκληρωθεί η διαβίβαση στην ΑΑΔΕ.");
+      }
+    }
     if (totalMinor <= 0) throw new Error("Η παραγγελία δεν έχει έγκυρο τελικό ποσό");
 
     const balanceMinor = asInt(card.balance_minor);
