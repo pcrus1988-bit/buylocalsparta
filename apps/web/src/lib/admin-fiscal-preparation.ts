@@ -47,7 +47,7 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
           td.payload_snapshot,o.shipping_minor,o.discount_minor,o.confirmed_at,p.provider AS payment_provider,p.provider_transaction_id,p.provider_payload,p.captured_minor AS captured_payment_minor
         FROM tax_documents td
         JOIN customer_orders o ON o.id=td.order_id
-        LEFT JOIN LATERAL (SELECT p.provider,p.provider_transaction_id,p.provider_payload FROM payments p WHERE p.order_id=o.id AND p.status IN ('captured','partially_refunded','refunded') ORDER BY p.updated_at DESC LIMIT 1) p ON true
+        LEFT JOIN LATERAL (SELECT p.provider,p.provider_transaction_id,p.provider_payload,p.captured_minor FROM payments p WHERE p.order_id=o.id AND p.status IN ('captured','partially_refunded','refunded') ORDER BY p.updated_at DESC LIMIT 1) p ON true
         WHERE td.public_id=$1 FOR UPDATE OF td,o`,[documentId]);
     if(!document.rowCount)throw new Error("Tax document not found");
     const d=document.rows[0]!;
