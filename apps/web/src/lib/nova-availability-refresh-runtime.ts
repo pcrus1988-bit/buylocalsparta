@@ -366,7 +366,7 @@ export async function runNovaAvailabilityRefreshSlice(
       FROM public.catalog_sources
       WHERE code=$1
       LIMIT 1
-    `, [NOVA_SUPPLIER_CODE.replace("_", "-"), DEFAULT_FULL_SWEEP_PAGE_SIZE]);
+    `, ["nova-brandsgateway", DEFAULT_FULL_SWEEP_PAGE_SIZE]);
 
     if (cursorResult.rowCount !== 1) throw new Error("NOVA_CATALOG_SOURCE_NOT_FOUND");
 
@@ -434,10 +434,8 @@ export async function runNovaAvailabilityRefreshSlice(
     };
   } finally {
     if (claimed) {
-      await lockClient.query(
-        "SELECT pg_advisory_unlock(hashtext($1))",
-        ["kontamou:nova-availability-refresh"]
-      ).catch(() => undefined);
+      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", ["kontamou:nova-availability-refresh"])
+        .catch(() => undefined);
     }
     lockClient.release();
   }
