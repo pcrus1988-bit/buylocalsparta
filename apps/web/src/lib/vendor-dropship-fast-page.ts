@@ -73,11 +73,15 @@ export async function getFastVendorDropshipCatalogPage(
   if (!productionDatabaseConfigured()) return { products: [], offset, limit };
 
   const runtime = getProductionPostgresRuntime();
+  const requiredStableRows = Math.min(
+    MAX_LIVE_FALLBACK_WINDOW,
+    Math.max(1_000, offset + limit + 1)
+  );
 
-  // Blend the indexed catalogue with suppliers that do not have any fresh
-  // projection yet. This keeps the fast path cheap for healthy suppliers while
-  // ensuring newly-onboarded suppliers (for example Symphonya) are represented
-  // from page 1 instead of only after thousands of projected products.
+  // Blend the indexed catalogue with suppliers whose projection is missing or
+  // materially under-populated. A partially refreshed materialized view can
+  // contain only a handful of rows; treating that as healthy makes an entire
+  // supplier effectively disappear from deterministic first-page mixing.
   const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id,ds.id::text AS supplier_id
@@ -95,21 +99,22 @@ export async function getFastVendorDropshipCatalogPage(
       FROM public.storefront_dropship_family_read_model fm
       JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
-    ), missing_suppliers AS MATERIALIZED (
+    ), stable_counts AS MATERIALIZED (
+      SELECT supplier_id,COUNT(*)::int AS stable_count
+      FROM stable
+      GROUP BY supplier_id
+    ), fallback_suppliers AS MATERIALIZED (
       SELECT supplier.id,supplier.supplier_id
       FROM vendor_suppliers supplier
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM stable projected
-        WHERE projected.supplier_id=supplier.supplier_id
-      )
+      LEFT JOIN stable_counts counts ON counts.supplier_id=supplier.supplier_id
+      WHERE COALESCE(counts.stable_count,0)<$4
     ), live_fallback AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS supplier_id,
         dso.external_product_id,
         MAX(vo.updated_at) AS newest_at
       FROM dropship_supplier_offers dso
-      JOIN missing_suppliers supplier ON supplier.id=dso.supplier_id
+      JOIN fallback_suppliers supplier ON supplier.id=dso.supplier_id
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN vendor_locations l ON l.id=vo.location_id
@@ -134,12 +139,17 @@ export async function getFastVendorDropshipCatalogPage(
       SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM stable
       UNION ALL
       SELECT supplier_id,external_product_id,newest_at,1::int AS source_priority FROM live_fallback
+    ), deduplicated AS (
+      SELECT DISTINCT ON (supplier_id,external_product_id)
+        supplier_id,external_product_id,newest_at,source_priority
+      FROM combined
+      ORDER BY supplier_id,external_product_id,source_priority,newest_at DESC
     )
     SELECT supplier_id,external_product_id
-    FROM combined
+    FROM deduplicated
     ORDER BY md5(supplier_id || ':' || external_product_id),source_priority,newest_at DESC
     LIMIT $2 OFFSET $3
-  `, [vendorId, limit + 1, offset]);
+  `, [vendorId, limit + 1, offset, requiredStableRows]);
 
   const markerRows = markerResult.rows;
   const hasMore = markerRows.length > limit;
