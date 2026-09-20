@@ -99,13 +99,14 @@ async function liveCollectionProducts(slug: string, visitorKey: string, readOnly
 
     // A collection should stay on-theme even when one leaf temporarily thins out.
     // If needed, top up only from its first curated leaf rather than from the whole catalogue.
-    if (products.length < 6 && collection.searches[0]) {
+    const fallbackSearch = collection.searches[0];
+    if (products.length < 6 && fallbackSearch) {
       const remaining = PRODUCT_LIMIT - products.length;
       const fallback = await boundedCollectionSlice(
         visitorKey,
         readOnlyCrawler,
-        collection.searches[0].query ?? "",
-        collection.searches[0].category,
+        fallbackSearch.query ?? "",
+        fallbackSearch.category,
         remaining
       );
       products = uniqueProducts([...products, ...fallback]);
