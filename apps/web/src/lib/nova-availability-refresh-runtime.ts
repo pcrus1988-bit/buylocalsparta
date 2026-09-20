@@ -6,6 +6,7 @@ import {
   NovaV1ApiError,
   NovaV1Client,
   novaApiKeyFromEnvironment,
+  type NovaPage,
   type NovaProduct
 } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
 
@@ -176,7 +177,7 @@ async function listProductsWithRateLimitBackoff(
   storeId: string,
   page: number,
   perPage: number
-) {
+): Promise<NovaPage<NovaProduct>> {
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await client.listProducts(storeId, { page, per_page: perPage, lang: "en" });
@@ -350,13 +351,13 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
 
     // Fetch page 1 alone so we can learn Nova's total-page headers and safely
     // fall back from 100 -> 50 products/page if this account rejects 100.
-    const batchWidth = page === 1 ? 1 : pageConcurrency;
-    const lastPage = totalPages === null
+    const batchWidth: number = page === 1 ? 1 : pageConcurrency;
+    const lastPage: number = totalPages === null
       ? page + batchWidth - 1
       : Math.min(totalPages, page + batchWidth - 1);
-    const pageNumbers = Array.from({ length: lastPage - page + 1 }, (_, index) => page + index);
+    const pageNumbers: number[] = Array.from({ length: lastPage - page + 1 }, (_, index) => page + index);
 
-    let results;
+    let results: NovaPage<NovaProduct>[];
     try {
       results = await Promise.all(
         pageNumbers.map((currentPage) =>
@@ -378,7 +379,7 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
     }
 
     if (results.length === 0) break;
-    const firstReportedTotalPages = results.find((result) => result.totalPages !== null)?.totalPages ?? null;
+    const firstReportedTotalPages: number | null = results.find((result) => result.totalPages !== null)?.totalPages ?? null;
     if (firstReportedTotalPages !== null) totalPages = firstReportedTotalPages;
 
     const terminalIndex = results.findIndex((result, index) =>
