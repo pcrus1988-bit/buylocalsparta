@@ -180,14 +180,14 @@ test("Symphonya materialization uses latest immutable evidence with a supplier-s
   assert.match(source, /historical_source_link_collision/);
 });
 
-test("Symphonya Vercel crons stay bounded while full catch-up belongs to the long-running worker", () => {
+test("Symphonya Vercel stock cron completes full freshness cycles inside the TTL", () => {
   const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
   const catalogue = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-catalogue");
   const stock = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-stock");
   const pipeline = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-pipeline");
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
   assert.equal(catalogue?.schedule, "2 * * * *");
-  assert.equal(stock?.schedule, "7,17,27,37,47,57 * * * *");
+  assert.equal(stock?.schedule, "*/5 * * * *");
   assert.equal(pipeline?.schedule, "28 * * * *");
   assert.equal(materialization, undefined);
 });
@@ -231,20 +231,20 @@ test("Symphonya stock persistence uses the indexed supplier product id without a
   assert.doesNotMatch(runtime, /dso\.external_product_id=stock\.external_product_id OR/);
 });
 
-test("Symphonya stock cron alternates full-cursor and priority supplier workloads", () => {
+test("Symphonya stock cron uses concurrent cursor bursts while retaining manual priority recovery", () => {
   const route = readFileSync(new URL("../src/app/api/cron/symphonya-stock/route.ts", import.meta.url), "utf8");
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
   assert.match(route, /PRIORITY_REFRESH_WINDOW_MINUTES/);
-  assert.match(route, /FULL_CURSOR_BUDGET_MS = 28_000/);
+  assert.match(route, /FULL_CURSOR_MAX_PAGES = 3/);
   assert.match(route, /PRIORITY_BATCH_LIMIT = 200/);
-  assert.match(route, /defaultCronStockMode/);
+  assert.match(route, /runSymphonyaStockSyncBurst\(FULL_CURSOR_MAX_PAGES\)/);
   assert.match(route, /executionMode === "cursor"/);
   assert.match(route, /if \(executionMode === "priority"\)/);
-  assert.match(route, /maxDurationMs: FULL_CURSOR_BUDGET_MS/);
+  assert.doesNotMatch(route, /defaultCronStockMode/);
   assert.match(route, /priorityIds = \[\.\.\.new Set\(\[\.\.\.publishedIds, \.\.\.publicationCandidateIds\]\)\]/);
   assert.equal((route.match(/refreshSymphonyaOfferStockByExternalIds\(priorityIds\)/g) ?? []).length, 1);
   assert.match(route, /publication = await runSymphonyaAutoPublicationSweep\(\)/);
-  assert.match(runtime, /const SLICE_MS = 28_000/);
-  assert.match(runtime, /pageStartSafetyMs = timeoutMs\(\)\+6_000/);
-  assert.match(runtime, /pages\s*<\s*pageLimit/);
+  assert.match(runtime, /runSymphonyaStockSyncBurst/);
+  assert.match(runtime, /Promise\.all\(/);
+  assert.match(runtime, /Math\.min\(4, positiveIntegerValue\(requestedMaxPages, 3\)\)/);
 });
