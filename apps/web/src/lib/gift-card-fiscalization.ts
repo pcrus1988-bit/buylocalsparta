@@ -82,6 +82,8 @@ export async function backfillVendorPhysicalSpvIssues(limit=5,now=Date.now()):Pr
        AND NOT EXISTS (
          SELECT 1 FROM tax_documents td
          WHERE td.gift_card_id=gc.id
+           AND td.transmission_status='accepted'
+           AND td.aade_mark IS NOT NULL
        )
      ORDER BY gc.issued_at ASC
      LIMIT $1
