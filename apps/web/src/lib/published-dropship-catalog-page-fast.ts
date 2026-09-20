@@ -94,18 +94,6 @@ function subcategoryValues(filters: CatalogFilters & Readonly<{ fit?: string; su
   return [...new Set((filters.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
 }
 
-const HIDDEN_CATEGORY_CLOSURE_SQL = `
-  hidden_categories(vendor_id,category_id) AS (
-    SELECT vendor_id,category_id
-    FROM vendor_category_visibility
-    WHERE visible=false
-    UNION
-    SELECT hidden.vendor_id,child.id
-    FROM hidden_categories hidden
-    JOIN categories child ON child.parent_id=hidden.category_id
-  )
-`;
-
 /**
  * Dropship source families are selected from the compact read model. Only the
  * selected page is then hydrated from authoritative supplier/offer tables.
@@ -141,39 +129,30 @@ export async function getPublishedDropshipCatalogPage(
   const externalProductIds = familyWindow.map((row) => row.external_product_id);
 
   const result = await pool.query<PublishedDropshipPageRow>(`
-    WITH RECURSIVE category_tree AS MATERIALIZED (
-      SELECT c.id,c.parent_id,c.code,c.code AS department_code
-      FROM categories c
-      JOIN markets m ON m.id=c.market_id
-      WHERE m.code='sparta' AND c.parent_id IS NULL
-      UNION ALL
-      SELECT child.id,child.parent_id,child.code,parent.department_code
-      FROM categories child
-      JOIN category_tree parent ON child.parent_id=parent.id
-    ),
-    ${HIDDEN_CATEGORY_CLOSURE_SQL},
-    selected_families AS (
+    WITH selected_families AS MATERIALIZED (
       SELECT supplier_id,external_product_id,ordinality
       FROM unnest($1::uuid[],$2::text[]) WITH ORDINALITY
         AS selected(supplier_id,external_product_id,ordinality)
-    ), base AS (
-      SELECT DISTINCT ON (cv.id)
+    ), base AS MATERIALIZED (
+      SELECT DISTINCT ON (rm.canonical_variant_id)
         selected.ordinality AS sort_ordinal,
-        cv.public_id AS canonical_public_id,
-        cv.family_id::text AS family_id,
+        rm.canonical_public_id,
+        rm.family_id::text AS family_id,
         dso.supplier_id::text AS supplier_id,
         dso.external_product_id,
         vo.public_id AS offer_public_id,
-        cv.slug,
-        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        COALESCE(el.description,en.description,'') AS description,
-        c.code AS category_code,
-        tree.department_code,
-        b.name AS brand_name,
-        COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
-        cv.variant_attributes,
-        cv.gtin,
-        cv.mpn,
+        rm.slug,
+        rm.title,
+        rm.description,
+        rm.category_code,
+        rm.department_code,
+        rm.brand_name,
+        rm.color,
+        rm.sizes,
+        rm.fit,
+        rm.search_vector,
+        rm.gtin,
+        rm.mpn,
         vo.customer_price_minor,
         vo.msrp_minor,
         dso.cached_quantity,
@@ -188,42 +167,37 @@ export async function getPublishedDropshipCatalogPage(
        AND dso.external_product_id=selected.external_product_id
       JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      JOIN public.storefront_catalog_read_model rm
+        ON rm.canonical_variant_id=vo.canonical_variant_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN markets m ON m.id=cv.market_id
-      JOIN categories c ON c.id=cv.category_id
-      JOIN category_tree tree ON tree.id=cv.category_id
-      LEFT JOIN product_families family ON family.id=cv.family_id
-      LEFT JOIN brands b ON b.id=COALESCE(cv.brand_id,family.brand_id)
       JOIN vendor_businesses v ON v.id=vo.vendor_id
       JOIN vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      WHERE m.code='sparta'
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
+      WHERE rm.dropship_sellable=true
+        AND rm.dropship_available_until>now()
+        AND dso.active=true
+        AND dso.cached_available=true
+        AND COALESCE(dso.cached_quantity,0)>=1
+        AND dso.availability_expires_at IS NOT NULL
+        AND dso.availability_expires_at>now()
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
         AND vo.status='approved'
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
         AND v.status='active'
         AND l.active=true
-        AND dso.active=true
-        AND ds.active=true
-        AND ds.api_authoritative_availability=true
-        AND dso.cached_available=true
-        AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND NOT EXISTS (
-          SELECT 1
-          FROM hidden_categories hidden
-          WHERE hidden.vendor_id=vo.vendor_id
-            AND hidden.category_id=cv.category_id
-        )
-      ORDER BY cv.id,vo.customer_price_minor ASC,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.public_id
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,rm.category_id)
+      ORDER BY rm.canonical_variant_id,
+               vo.customer_price_minor ASC,
+               dso.availability_checked_at DESC NULLS LAST,
+               vo.updated_at DESC,
+               vo.public_id
     )
     SELECT
       canonical_public_id,
@@ -252,14 +226,14 @@ export async function getPublishedDropshipCatalogPage(
         ))
         AND (cardinality($4::text[])=0 OR category_code=ANY($4::text[]))
         AND ($5::text='' OR lower(COALESCE(brand_name,''))=lower($5))
-        AND ($6::text='' OR lower(COALESCE(specifications->>'color',variant_attributes->>'color',''))=lower($6))
-        AND ($7::text='' OR COALESCE(specifications->'sizes','[]'::jsonb) ? $7 OR COALESCE(variant_attributes->'sizes_observed','[]'::jsonb) ? $7)
-        AND ($8::text='' OR lower(COALESCE(specifications->>'fit',''))=lower($8))
+        AND ($6::text='' OR lower(COALESCE(color,''))=lower($6))
+        AND ($7::text='' OR COALESCE(sizes,'[]'::jsonb) ? $7)
+        AND ($8::text='' OR lower(COALESCE(fit,''))=lower($8))
         AND ($9::bigint IS NULL OR customer_price_minor>=$9)
         AND ($10::bigint IS NULL OR customer_price_minor<=$10)
         AND (
           $11::text='' OR
-          to_tsvector('simple',concat_ws(' ',title,description,COALESCE(brand_name,''),COALESCE(gtin,''),COALESCE(mpn,''),category_code)) @@ plainto_tsquery('simple',$11)
+          search_vector @@ plainto_tsquery('simple',$11)
           OR COALESCE(gtin,'')=$11
           OR lower(COALESCE(mpn,''))=lower($11)
         )
