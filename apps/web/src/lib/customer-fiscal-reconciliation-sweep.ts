@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { deliverAcceptedCustomerTaxDocumentById } from "./customer-tax-delivery";
 import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -14,7 +15,8 @@ export type CustomerFiscalReconciliationSweep = Readonly<{
 const MIN_RECONCILIATION_AGE_MS = 4 * 60_000;
 const DEFAULT_SWEEP_LIMIT = 5;
 const MAX_SWEEP_LIMIT = 20;
-const RECONCILIATION_LOCK_ID = 7283401001;
+const CUSTOMER_FISCAL_RECONCILIATION_JOB = "customer-fiscal-reconciliation";
+const RECONCILIATION_LEASE_MS = 5 * 60_000;
 
 export async function runCustomerFiscalReconciliationSweep(
   now = Date.now(),
@@ -26,13 +28,32 @@ export async function runCustomerFiscalReconciliationSweep(
   }
 
   const db = getProductionPostgresRuntime().nativePool;
-  const lockClient = await db.connect();
-  let locked = false;
-  try {
-    const lock = await lockClient.query<{ locked: boolean }>("SELECT pg_try_advisory_lock($1) AS locked", [RECONCILIATION_LOCK_ID]);
-    locked = lock.rows[0]?.locked === true;
-    if (!locked) return emptySweep();
+  const leaseOwner = `fiscal:${randomUUID()}`;
+  const lease = await db.query<{ lock_owner: string }>(`
+    INSERT INTO scheduled_jobs(
+      name,next_run_at,lock_owner,locked_until,last_started_at,last_succeeded_at,
+      consecutive_failures,last_error,updated_at
+    )
+    VALUES($1,$2,$3,$4,$2,NULL,0,NULL,$2)
+    ON CONFLICT(name) DO UPDATE SET
+      lock_owner=EXCLUDED.lock_owner,
+      locked_until=EXCLUDED.locked_until,
+      last_started_at=EXCLUDED.last_started_at,
+      updated_at=EXCLUDED.updated_at
+    WHERE scheduled_jobs.locked_until IS NULL
+       OR scheduled_jobs.locked_until <= EXCLUDED.last_started_at
+    RETURNING lock_owner
+  `, [
+    CUSTOMER_FISCAL_RECONCILIATION_JOB,
+    new Date(now),
+    leaseOwner,
+    new Date(now + RECONCILIATION_LEASE_MS)
+  ]);
+  if (lease.rows[0]?.lock_owner !== leaseOwner) return emptySweep();
 
+  let completed = false;
+  let failureMessage: string | undefined;
+  try {
     const cutoff = new Date(now - MIN_RECONCILIATION_AGE_MS);
     const candidates = await db.query<{ public_id: string }>(
       `SELECT td.public_id
@@ -124,10 +145,29 @@ export async function runCustomerFiscalReconciliationSweep(
       }
     }
 
+    completed = true;
     return { checked, accepted, emailed, pending, failed, emailFailed };
+  } catch (error) {
+    failureMessage = error instanceof Error ? error.message : String(error);
+    throw error;
   } finally {
-    if (locked) await lockClient.query("SELECT pg_advisory_unlock($1)", [RECONCILIATION_LOCK_ID]).catch(() => undefined);
-    lockClient.release();
+    const finishedAt = new Date();
+    await db.query(`
+      UPDATE scheduled_jobs
+      SET lock_owner=NULL,
+          locked_until=NULL,
+          last_succeeded_at=CASE WHEN $4::boolean THEN $2 ELSE last_succeeded_at END,
+          consecutive_failures=CASE WHEN $4::boolean THEN 0 ELSE consecutive_failures+1 END,
+          last_error=CASE WHEN $4::boolean THEN NULL ELSE $3 END,
+          updated_at=$2
+      WHERE name=$1 AND lock_owner=$5
+    `, [
+      CUSTOMER_FISCAL_RECONCILIATION_JOB,
+      finishedAt,
+      failureMessage?.slice(0, 1000) ?? null,
+      completed,
+      leaseOwner
+    ]).catch(() => undefined);
   }
 }
 
