@@ -299,8 +299,8 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
                  availability_payload=COALESCE(availability_payload,'{}'::jsonb)
                    || jsonb_build_object(
                      'channelTransitionRetired',true,
-                     'previousCommerceChannel',$3,
-                     'targetCommerceChannel',$4,
+                     'previousCommerceChannel',$3::text,
+                     'targetCommerceChannel',$4::text,
                      'retiredAt',now()
                    ),
                  updated_at=now()
