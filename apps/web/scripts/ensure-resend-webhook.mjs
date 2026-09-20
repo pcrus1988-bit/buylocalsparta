@@ -50,7 +50,7 @@ try {
   
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  // Email webhook reconciliation is operational housekeeping, not a build-time
+  // Preview diagnostic: exact main application code. Email webhook reconciliation is operational housekeeping, not a build-time
   // correctness boundary for checkout/fiscal code. Keep production deployable
   // during transient Resend API/network failures and surface the problem clearly.
   console.warn(`Resend webhook bootstrap deferred: ${message}`);
