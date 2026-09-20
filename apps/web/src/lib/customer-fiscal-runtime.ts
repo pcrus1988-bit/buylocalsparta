@@ -106,8 +106,9 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
       client.query(`SELECT ol.public_id,ol.quantity,ol.retail_unit_price_minor,ol.tax_rate_bps,ol.tax_minor,
               ol.discount_allocation_minor,ol.product_snapshot
          FROM order_lines ol WHERE ol.order_id=$1::uuid ORDER BY ol.created_at,ol.id`, [row.order_uuid]),
-      client.query<{ gift_card_id: string; code_suffix: string; amount_minor: string | number }>(`
-        SELECT gc.public_id AS gift_card_id,gc.code_suffix,ABS(gcl.amount_minor) AS amount_minor
+      client.query<{ gift_card_id: string; code_suffix: string; amount_minor: string | number; voucher_type: string; voucher_vat_rate_bps: number; voucher_tax_country: string }>(`
+        SELECT gc.public_id AS gift_card_id,gc.code_suffix,ABS(gcl.amount_minor) AS amount_minor,
+               gc.voucher_type,gc.voucher_vat_rate_bps,gc.voucher_tax_country
         FROM gift_card_ledger gcl
         JOIN gift_cards gc ON gc.id=gcl.gift_card_id
         WHERE gcl.order_public_id=$1 AND gcl.entry_type='redeem'
@@ -115,8 +116,28 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
       `, [row.order_public_id])
     ]);
     const totalMinor = integer(row.total_minor);
-    const taxMinor = integer(row.tax_minor);
-    if (taxMinor < 0 || taxMinor > totalMinor) throw new Error("Invalid captured order tax totals");
+    const orderTaxMinor = integer(row.tax_minor);
+    const giftCardRedeemedMinor = integer(row.gift_card_redeemed_minor);
+    if (orderTaxMinor < 0 || orderTaxMinor > totalMinor) throw new Error("Invalid captured order tax totals");
+
+    let spvVatRateBps = 0;
+    if (giftCardRedeemedMinor > 0) {
+      const rates = new Set(giftCards.rows.map((giftCard) => {
+        if (giftCard.voucher_type !== "single_purpose" || giftCard.voucher_tax_country !== "GR") {
+          throw new Error("Gift-card redemption is missing a Greek single-purpose voucher tax profile");
+        }
+        return integer(giftCard.voucher_vat_rate_bps);
+      }));
+      if (rates.size !== 1) throw new Error("A single order cannot mix Gift Cards with different SPV VAT rates");
+      spvVatRateBps = [...rates][0]!;
+    }
+
+    const fiscalGrossMinor = Math.max(0, totalMinor - giftCardRedeemedMinor);
+    const redeemedVatMinor = giftCardRedeemedMinor > 0 ? vatFromGross(giftCardRedeemedMinor, spvVatRateBps) : 0;
+    const fiscalTaxMinor = Math.max(0, orderTaxMinor - redeemedVatMinor);
+    const fiscalNetMinor = fiscalGrossMinor - fiscalTaxMinor;
+    if (fiscalTaxMinor > fiscalGrossMinor || fiscalNetMinor < 0) throw new Error("SPV-adjusted fiscal totals are invalid");
+
     const payload = {
       lifecycle: "pending_accounting_mapping",
       capturedFrom: "verified_payment",
@@ -128,7 +149,7 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
         subtotalMinor: integer(row.subtotal_minor),
         shippingMinor: integer(row.shipping_minor),
         discountMinor: integer(row.discount_minor),
-        taxMinor,
+        taxMinor: orderTaxMinor,
         totalMinor,
         placedAt: row.created_at.toISOString(),
         confirmedAt: row.confirmed_at?.toISOString(),
@@ -141,21 +162,54 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
         transactionId: row.provider_transaction_id,
         orderCode: row.provider_order_code,
         capturedMinor: integer(row.captured_minor),
-        giftCardRedeemedMinor: integer(row.gift_card_redeemed_minor),
-        totalTenderedMinor: integer(row.captured_minor) + integer(row.gift_card_redeemed_minor),
+        giftCardRedeemedMinor,
+        totalTenderedMinor: integer(row.captured_minor) + giftCardRedeemedMinor,
+        fiscalAtRedemption: {
+          grossMinor: fiscalGrossMinor,
+          netMinor: fiscalNetMinor,
+          taxMinor: fiscalTaxMinor,
+          spvVatRateBps,
+          spvVatAlreadyRecognizedMinor: redeemedVatMinor,
+          rule: "single_purpose_voucher_taxed_on_transfer"
+        },
         giftCards: giftCards.rows.map((giftCard) => ({
           id: giftCard.gift_card_id,
           codeSuffix: giftCard.code_suffix,
-          amountMinor: integer(giftCard.amount_minor)
+          amountMinor: integer(giftCard.amount_minor),
+          voucherType: giftCard.voucher_type,
+          voucherVatRateBps: integer(giftCard.voucher_vat_rate_bps),
+          voucherTaxCountry: giftCard.voucher_tax_country
         }))
       },
       lines: lines.rows
     };
+    if (fiscalGrossMinor === 0) {
+      await client.query(`
+        UPDATE tax_documents
+           SET transmission_status='cancelled',status='cancelled',
+               last_error='SPV redemption created no independent taxable transaction; VAT was recognized at voucher issuance'
+         WHERE order_id=$1::uuid
+           AND type='pending_customer_sale'
+           AND document_number IS NULL
+           AND aade_mark IS NULL
+      `, [row.order_uuid]);
+      await client.query("COMMIT");
+      return { captured: true };
+    }
+
     const inserted = await client.query<{ public_id: string }>(`INSERT INTO tax_documents(
           market_id,order_id,type,document_number,provider,currency,net_minor,tax_minor,gross_minor,status,payload_snapshot,transmission_status,created_at)
         VALUES($1::uuid,$2::uuid,'pending_customer_sale',NULL,'aade_mydata',$3,$4,$5,$6,'pending',$7::jsonb,'not_ready',$8)
         ON CONFLICT (order_id) WHERE order_id IS NOT NULL AND type IN ('pending_customer_sale','retail_receipt','customer_invoice')
-        DO NOTHING RETURNING public_id`, [row.market_id,row.order_uuid,row.currency,totalMinor-taxMinor,taxMinor,totalMinor,JSON.stringify(payload),new Date(now)]);
+        DO UPDATE SET
+          net_minor=EXCLUDED.net_minor,
+          tax_minor=EXCLUDED.tax_minor,
+          gross_minor=EXCLUDED.gross_minor,
+          payload_snapshot=EXCLUDED.payload_snapshot,
+          transmission_status='not_ready',
+          last_error=NULL
+        WHERE tax_documents.document_number IS NULL AND tax_documents.aade_mark IS NULL
+        RETURNING public_id`, [row.market_id,row.order_uuid,row.currency,fiscalNetMinor,fiscalTaxMinor,fiscalGrossMinor,JSON.stringify(payload),new Date(now)]);
     const existing = inserted.rowCount ? inserted.rows[0]!.public_id : (await client.query<{ public_id: string }>(
       `SELECT public_id FROM tax_documents WHERE order_id=$1::uuid AND type = ANY($2::text[]) ORDER BY created_at LIMIT 1`,
       [row.order_uuid, [...PRIMARY_CUSTOMER_TYPES]]
