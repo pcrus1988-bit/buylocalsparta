@@ -6,6 +6,7 @@ import { projectDropshipFamilies } from "./dropship-family-projection";
 import { parseDropshipPresentationConfig, resolveDropshipPublicFields } from "./dropship-presentation-policy";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { approvedCatalogImages } from "./public-media-service";
+import { getPublicCatalogSourcePrimaryImages } from "./public-catalog-source-gallery";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const DEFAULT_PAGE_SIZE = 36;
@@ -636,26 +637,29 @@ export async function getVendorDropshipCatalogPage(
   const projections = projectDropshipFamilies(enriched, matchingIds);
   const representatives = projections.map((projection) => projection.representative);
 
-  let imageByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
-  try {
-    const images = await approvedCatalogImages(representatives.map((record) => ({
-      canonicalVariantId: record.id,
-      preferredVendorId: record.vendorId
-    })));
-    imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image]));
-  } catch (error) {
-    console.error(JSON.stringify({
-      level: "error",
-      event: "storefront.vendor_dropship_page_media_failed",
-      vendorId,
-      message: error instanceof Error ? error.message : String(error)
-    }));
-  }
+  const imageRequests = representatives.map((record) => ({
+    canonicalVariantId: record.id,
+    preferredVendorId: record.vendorId
+  }));
+  const [approvedImages, sourcePrimaryImages] = await Promise.all([
+    approvedCatalogImages(imageRequests).catch((error) => {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.vendor_dropship_page_media_failed",
+        vendorId,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      return [];
+    }),
+    getPublicCatalogSourcePrimaryImages(imageRequests)
+  ]);
+  const imageByCanonical = new Map(approvedImages.map((image) => [image.canonicalVariantId, image] as const));
 
   const products = projections.map((projection) => {
     const record = projection.representative;
     const details = metadata.get(record.id);
     const image = imageByCanonical.get(record.id);
+    const sourceImage = sourcePrimaryImages.get(record.id);
     const {
       publicFields,
       familyId: _familyId,
@@ -683,9 +687,10 @@ export async function getVendorDropshipCatalogPage(
       composition: technicalAttributesVisible ? details?.composition : undefined,
       madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
       mediaId: image?.mediaId,
-      mediaAlt: image?.altText,
+      mediaAlt: image?.altText ?? sourceImage?.altText,
+      previewImageSrc: image?.mediaId ? undefined : sourceImage?.src,
       supplierFulfilled: true
-    } satisfies CatalogCard & Readonly<{ supplierFulfilled: true }>;
+    } satisfies CatalogCard & Readonly<{ supplierFulfilled: true; previewImageSrc?: string }>;
   });
 
   return {
