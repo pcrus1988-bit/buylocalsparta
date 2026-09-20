@@ -33,10 +33,11 @@ export async function finalizeGiftCardSpvIssue(giftCardId: string, now = Date.no
   const config = await myDataAdminRuntimeConfig();
   if (!config.issuanceEnabled) return { ...resultFromSnapshot(giftCardId, snapshot), status: "disabled" };
 
-  // Backfilled historical SPV issues are captured for audit but never auto-numbered retroactively;
-  // newly issued paid SPVs are captured by the database trigger and continue through AADE automatically.
-  if (snapshot.backfill && !snapshot.documentNumber) {
-    const review = "Historical paid SPV issuance captured after the original issue date; accountant review is required before assigning an AADE fiscal number.";
+  // Backfills from a prior Athens fiscal date must never be auto-numbered retroactively.
+  // A same-day capture is safe to continue through the normal issuance path because the
+  // document keeps the same fiscal date as the underlying paid SPV issuance.
+  if (snapshot.backfill && !snapshot.documentNumber && athensDate(snapshot.createdAt) !== athensDate(now)) {
+    const review = "Historical paid SPV issuance captured after the original fiscal date; accountant review is required before assigning an AADE fiscal number.";
     await markManualReview(snapshot.documentId, review);
     return { giftCardId, documentId: snapshot.documentId, status: "manual_review", error: review };
   }
@@ -263,13 +264,14 @@ type Snapshot = Readonly<{
   aadeMark: string | null;
   lastError: string | null;
   backfill: boolean;
+  createdAt: number;
 }>;
 
 async function loadGiftCardDocument(giftCardId: string): Promise<Snapshot | undefined> {
   const result = await getProductionPostgresRuntime().nativePool.query<{
-    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>;
+    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>; created_at: Date;
   }>(`
-    SELECT td.public_id,td.document_number,td.transmission_status,td.aade_mark,td.last_error,td.payload_snapshot
+    SELECT td.public_id,td.document_number,td.transmission_status,td.aade_mark,td.last_error,td.payload_snapshot,td.created_at
       FROM tax_documents td
       JOIN gift_cards gc ON gc.id=td.gift_card_id
      WHERE gc.public_id=$1 AND td.type='gift_card_spv_issue'
@@ -283,14 +285,15 @@ async function loadGiftCardDocument(giftCardId: string): Promise<Snapshot | unde
     transmissionStatus: row.transmission_status,
     aadeMark: row.aade_mark,
     lastError: row.last_error,
-    backfill: record(row.payload_snapshot).capturedFrom === "gift_card_issue_ledger_backfill"
+    backfill: record(row.payload_snapshot).capturedFrom === "gift_card_issue_ledger_backfill",
+    createdAt: row.created_at.getTime()
   };
 }
 
 async function loadDocumentSnapshot(documentId: string): Promise<Snapshot> {
   const result = await getProductionPostgresRuntime().nativePool.query<{
-    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>;
-  }>("SELECT public_id,document_number,transmission_status,aade_mark,last_error,payload_snapshot FROM tax_documents WHERE public_id=$1 LIMIT 1", [documentId]);
+    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>; created_at: Date;
+  }>("SELECT public_id,document_number,transmission_status,aade_mark,last_error,payload_snapshot,created_at FROM tax_documents WHERE public_id=$1 LIMIT 1", [documentId]);
   const row = result.rows[0];
   if (!row) throw new Error("SPV tax document not found");
   return {
@@ -299,7 +302,8 @@ async function loadDocumentSnapshot(documentId: string): Promise<Snapshot> {
     transmissionStatus: row.transmission_status,
     aadeMark: row.aade_mark,
     lastError: row.last_error,
-    backfill: record(row.payload_snapshot).capturedFrom === "gift_card_issue_ledger_backfill"
+    backfill: record(row.payload_snapshot).capturedFrom === "gift_card_issue_ledger_backfill",
+    createdAt: row.created_at.getTime()
   };
 }
 
