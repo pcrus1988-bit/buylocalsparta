@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import type { CatalogCard } from "../../../lib/catalog-view";
 import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
-import { EDITORIAL_COLLECTIONS, editorialCollectionBySlug } from "../../../lib/editorial-collections";
+import { EDITORIAL_COLLECTIONS, editorialCollectionBySlug, legacyEditorialCollectionRedirect } from "../../../lib/editorial-collections";
 import { getPublishedDropshipCatalogPage } from "../../../lib/published-dropship-catalog-page";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { getShopCatalogPage } from "../../../lib/shop-catalog-page";
@@ -83,20 +83,33 @@ async function liveCollectionProducts(slug: string, visitorKey: string, readOnly
   if (!collection) return [];
 
   let products: CatalogCard[] = [];
-  const append = async (query: string, category: string) => {
-    const remaining = PRODUCT_LIMIT - products.length;
-    if (remaining <= 0) return;
-    const next = await boundedCollectionSlice(visitorKey, readOnlyCrawler, query, category, remaining);
-    products = uniqueProducts([...products, ...next]);
-  };
-
   try {
-    await append(collection.query, collection.primaryCategory);
-    for (const category of collection.fallbackCategories) {
-      if (products.length >= PRODUCT_LIMIT) break;
-      await append("", category);
+    for (const search of collection.searches) {
+      const remaining = PRODUCT_LIMIT - products.length;
+      if (remaining <= 0) break;
+      const next = await boundedCollectionSlice(
+        visitorKey,
+        readOnlyCrawler,
+        search.query ?? "",
+        search.category,
+        Math.min(search.limit, remaining)
+      );
+      products = uniqueProducts([...products, ...next]);
     }
-    if (products.length < 6) await append("", "");
+
+    // A collection should stay on-theme even when one leaf temporarily thins out.
+    // If needed, top up only from its first curated leaf rather than from the whole catalogue.
+    if (products.length < 6 && collection.searches[0]) {
+      const remaining = PRODUCT_LIMIT - products.length;
+      const fallback = await boundedCollectionSlice(
+        visitorKey,
+        readOnlyCrawler,
+        collection.searches[0].query ?? "",
+        collection.searches[0].category,
+        remaining
+      );
+      products = uniqueProducts([...products, ...fallback]);
+    }
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
@@ -111,7 +124,11 @@ async function liveCollectionProducts(slug: string, visitorKey: string, readOnly
 export default async function EditorialCollectionPage({ params }: Props) {
   const { slug } = await params;
   const collection = editorialCollectionBySlug(slug);
-  if (!collection) notFound();
+  if (!collection) {
+    const legacyTarget = legacyEditorialCollectionRedirect(slug);
+    if (legacyTarget) redirect(legacyTarget);
+    notFound();
+  }
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
   const products = await liveCollectionProducts(collection.slug, visitorKey, readOnlyCrawler);
@@ -143,7 +160,7 @@ export default async function EditorialCollectionPage({ params }: Props) {
 
   return <main className={`${styles.page} ${accentClass}`}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
-    <div className="announcement">Μικρές ιστορίες αγορών, από την πραγματική τοπική αγορά της Σπάρτης.</div>
+    <div className="announcement">Ιδέες που ξεκινούν από όσα είναι πραγματικά διαθέσιμα τώρα στο ΚΟΝΤΑ ΜΟΥ.</div>
     <SiteHeader />
 
     <section className={styles.hero}>
@@ -166,8 +183,8 @@ export default async function EditorialCollectionPage({ params }: Props) {
     <section className={styles.products}>
       <div className="shell">
         <div className={styles.heading}>
-          <div><span className={styles.kicker}>Από καταστήματα κοντά σου</span><h2>Πραγματικές επιλογές για αυτή τη στιγμή.</h2></div>
-          <p>Η συλλογή χρησιμοποιεί μόνο προϊόντα με ενεργή τιμή, διαθέσιμο απόθεμα και επιλέξιμο τοπικό κατάστημα. Η σύνθεση μπορεί να αλλάζει καθώς αλλάζει η αγορά.</p>
+          <div><span className={styles.kicker}>Διαθέσιμα τώρα</span><h2>Πραγματικές επιλογές για αυτή τη στιγμή.</h2></div>
+          <p>Η συλλογή χρησιμοποιεί μόνο προϊόντα με ενεργή τιμή και διαθέσιμη αγορά. Η σύνθεση ανανεώνεται μαζί με τον κατάλογο, ώστε η ιδέα να οδηγεί σε προϊόντα που υπάρχουν πραγματικά.</p>
         </div>
         {products.length ? <div className={styles.grid}>{products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}</div> : <div className={styles.empty}><div className="eyebrow">Η συλλογή ενημερώνεται</div><h2>Δεν υπάρχουν αρκετές διαθέσιμες επιλογές αυτή τη στιγμή.</h2><p>Πες μας τι ψάχνεις και το Ask Local θα το δρομολογήσει σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ρώτησε τοπικά</a></div>}
       </div>
@@ -175,7 +192,7 @@ export default async function EditorialCollectionPage({ params }: Props) {
 
     <section className={styles.ask}>
       <div className={`shell ${styles.askInner}`}>
-        <div><h2>Θες κάτι πιο συγκεκριμένο;</h2><p>Η συλλογή είναι αφετηρία, όχι κατάλογος χωρίς τέλος. Περιέγραψε την περίσταση και ρώτησε πραγματικό τοπικό κατάστημα.</p></div>
+        <div><h2>Θες κάτι πιο συγκεκριμένο;</h2><p>Η συλλογή είναι αφετηρία, όχι κατάλογος χωρίς τέλος. Περιέγραψε τι ψάχνεις και το Ask Local μπορεί να σε βοηθήσει να το περιορίσεις.</p></div>
         <a className="button" href="/ask-local">Ask Local</a>
       </div>
     </section>
