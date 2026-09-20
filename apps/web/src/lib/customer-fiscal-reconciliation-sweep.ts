@@ -3,6 +3,7 @@ import { deliverAcceptedCustomerTaxDocumentById } from "./customer-tax-delivery"
 import { finalizeCapturedCustomerPayment } from "./customer-payment-finalization";
 import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { backfillVendorPhysicalSpvIssues } from "./gift-card-fiscalization";
 
 export type CustomerFiscalReconciliationSweep = Readonly<{
   checked: number;
@@ -13,6 +14,9 @@ export type CustomerFiscalReconciliationSweep = Readonly<{
   emailFailed: number;
   backfilled: number;
   backfillFailed: number;
+  spvIssueChecked: number;
+  spvIssueAccepted: number;
+  spvIssueFailed: number;
 }>;
 
 const MIN_RECONCILIATION_AGE_MS = 4 * 60_000;
@@ -80,6 +84,7 @@ export async function runCustomerFiscalReconciliationSweep(
     let emailFailed = 0;
     let backfilled = 0;
     let backfillFailed = 0;
+    const spvIssue = await backfillVendorPhysicalSpvIssues(limit, now);
 
     const missingFiscalOrders = await db.query<{ order_id: string }>(`
       SELECT o.public_id AS order_id
@@ -192,7 +197,7 @@ export async function runCustomerFiscalReconciliationSweep(
     }
 
     completed = true;
-    return { checked, accepted, emailed, pending, failed, emailFailed, backfilled, backfillFailed };
+    return { checked, accepted, emailed, pending, failed, emailFailed, backfilled, backfillFailed, spvIssueChecked: spvIssue.checked, spvIssueAccepted: spvIssue.accepted, spvIssueFailed: spvIssue.failed };
   } catch (error) {
     failureMessage = error instanceof Error ? error.message : String(error);
     throw error;
@@ -218,5 +223,5 @@ export async function runCustomerFiscalReconciliationSweep(
 }
 
 function emptySweep(): CustomerFiscalReconciliationSweep {
-  return { checked: 0, accepted: 0, emailed: 0, pending: 0, failed: 0, emailFailed: 0, backfilled: 0, backfillFailed: 0 };
+  return { checked: 0, accepted: 0, emailed: 0, pending: 0, failed: 0, emailFailed: 0, backfilled: 0, backfillFailed: 0, spvIssueChecked: 0, spvIssueAccepted: 0, spvIssueFailed: 0 };
 }
