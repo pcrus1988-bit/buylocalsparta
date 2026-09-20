@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -222,7 +223,12 @@ async function readSeoEntityOverridesSnapshot(): Promise<SeoEntityOverridesSnaps
   }
 }
 
-export const getSeoEntityOverridesSnapshot = cache(readSeoEntityOverridesSnapshot);
+const getSeoEntityOverridesPersistedSnapshot = unstable_cache(
+  readSeoEntityOverridesSnapshot,
+  ["seo-entity-overrides-snapshot-v1"],
+  { revalidate: 60, tags: ["seo-entity-overrides"] }
+);
+export const getSeoEntityOverridesSnapshot = cache(getSeoEntityOverridesPersistedSnapshot);
 
 function editableState(value: SeoEntityOverride | SeoEntityOverrideDraft | undefined): Record<string, unknown> | null {
   if (!value) return null;

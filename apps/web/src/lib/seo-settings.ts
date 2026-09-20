@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -269,7 +270,12 @@ async function readSeoGlobalSettingsSnapshot(): Promise<SeoSettingsSnapshot> {
 
 // React cache deduplicates the root metadata/page/sitemap reads inside one render
 // without turning this operational setting into a process-global stale singleton.
-export const getSeoGlobalSettingsSnapshot = cache(readSeoGlobalSettingsSnapshot);
+const getSeoGlobalSettingsPersistedSnapshot = unstable_cache(
+  readSeoGlobalSettingsSnapshot,
+  ["seo-global-settings-snapshot-v1"],
+  { revalidate: 60, tags: ["seo-global-settings"] }
+);
+export const getSeoGlobalSettingsSnapshot = cache(getSeoGlobalSettingsPersistedSnapshot);
 
 function flattenSettings(value: SeoGlobalSettings): Record<string, unknown> {
   return {
