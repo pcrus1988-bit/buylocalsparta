@@ -200,6 +200,7 @@ function memoryVendorDashboard(principal: SessionPrincipal) {
   }));
   const fulfilments = commerceRuntime.commerce.orders().flatMap((order) => order.fulfilments.filter((fulfilment) => fulfilment.vendorId === vendorId).map((fulfilment) => ({
     id: fulfilment.id, orderId: order.id, orderReference: order.id, orderStatus: order.status, status: fulfilment.status, mode: order.fulfilmentMode, postcode: order.postcode, createdAt: order.createdAt, customerIdentified: Boolean(order.customerId), merchandiseSubtotal: formatMoney(fulfilment.merchandiseSubtotal), deliveryCharge: formatMoney(fulfilment.deliveryCharge),
+    manualSupplier: false, supplierName: undefined, carrier: undefined, trackingNumber: undefined, shipmentStatus: undefined, deliveryNote: undefined,
     lines: fulfilment.lineIds.flatMap((lineId) => { const line = order.lines.find((entry) => entry.id === lineId); return line ? [{ id: line.id, title: line.titleSnapshot, quantity: line.quantity, status: line.status }] : []; }), actions: fulfilmentActions(order.status, order.fulfilmentMode, fulfilment.status)
   }))).sort((a, b) => b.createdAt - a.createdAt);
   const ownLines = commerceRuntime.commerce.orders().flatMap((order) => order.lines.filter((line) => line.vendorId === vendorId));
