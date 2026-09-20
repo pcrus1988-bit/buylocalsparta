@@ -75,8 +75,10 @@ if (vercelProduction && molliePublicBaseUrl) {
 
 if (legacyVivaKeys.length) {
   const message = `Legacy Viva environment variables remain configured: ${legacyVivaKeys.join(", ")}`;
-  if (vercelProduction) throw new Error(`${message}. Production is Mollie-only; remove these variables before deployment.`);
-  console.warn(`${message}. They are ignored by the Mollie runtime and must be removed before production cutover.`);
+  // Viva is no longer a runtime payment provider. Stale environment variables are
+  // inert and should be removed from Vercel, but they must not prevent a Mollie-only
+  // production release. The live-Mollie checks below remain fail-closed.
+  console.warn(`${message}. They are ignored by the Mollie-only runtime and should be removed from Vercel.`);
 }
 
 if (vercelProduction) {
