@@ -71,6 +71,7 @@ type PageRow = Readonly<{
   category_code: string;
   department_code: string | null;
   customer_price_minor: number | string;
+  msrp_minor: number | string | null;
   cached_quantity: number | string | null;
   vendor_public_id: string;
   vendor_name: string;
@@ -359,6 +360,7 @@ export async function getVendorDropshipCatalogPage(
       c.code AS category_code,
       rm.department_code,
       vo.customer_price_minor,
+      vo.msrp_minor,
       dso.cached_quantity,
       (SELECT public_id FROM vendor) AS vendor_public_id,
       (SELECT trading_name FROM vendor) AS vendor_name,
@@ -404,6 +406,7 @@ export async function getVendorDropshipCatalogPage(
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
+    const msrpMinor = safeMinor(row.msrp_minor);
     if (!priceMinor || !isPublicCatalogueTitle(row.title)) return [];
     const presentation = resolveDropshipPublicFields(
       parseDropshipPresentationConfig(row.vendor_presentation),
@@ -419,6 +422,7 @@ export async function getVendorDropshipCatalogPage(
       categoryCode: row.category_code,
       departmentCode: row.department_code ?? undefined,
       priceMinor,
+      msrpMinor: msrpMinor !== undefined && msrpMinor > priceMinor ? msrpMinor : null,
       available: true,
       availableToSell: safeQuantity(row.cached_quantity),
       vendorId: row.vendor_public_id,
