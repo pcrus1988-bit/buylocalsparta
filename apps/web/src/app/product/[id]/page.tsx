@@ -269,8 +269,6 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
         : detail?.sourceImageUrl
-          ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
-          : undefined
     },
     entityEligible: quality.blockingReasons.length === 0,
     defaultIndexAllowed: quality.eligible
@@ -376,9 +374,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? [{ canonicalVariantId: product.id, mediaId: product.mediaId, altText: product.mediaAlt }]
       : [];
   const primaryImage = mediaGallery[0];
-  const supplierImageSrc = primaryImage || !detail?.sourceImageUrl
-    ? undefined
-    : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  // getPublicProductDetail already validates supplier URLs through
+  // trustedCatalogSourceHttpsUrl. Reuse that governed URL directly instead of
+  // making the browser open a second DB-backed image-redirect request.
+  const supplierImageSrc = primaryImage ? undefined : detail?.sourceImageUrl;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
@@ -487,7 +486,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredImages = mediaGallery.length
     ? mediaGallery.map((image) => `${origin}/api/media/${encodeURIComponent(image.mediaId)}`)
-    : supplierImageSrc ? [`${origin}${supplierImageSrc}`] : undefined;
+    : supplierImageSrc ? [supplierImageSrc] : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
