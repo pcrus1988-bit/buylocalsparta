@@ -22,6 +22,7 @@ type FastPageRow = Readonly<{
   category_code: string;
   department_code: string | null;
   customer_price_minor: number | string;
+  msrp_minor: number | string | null;
   cached_quantity: number | string | null;
   currently_available: boolean;
   vendor_public_id: string;
@@ -169,6 +170,7 @@ export async function getFastVendorDropshipCatalogPage(
       c.code AS category_code,
       rm.department_code,
       vo.customer_price_minor,
+      vo.msrp_minor,
       dso.cached_quantity,
       true AS currently_available,
       (SELECT public_id FROM vendor) AS vendor_public_id,
@@ -215,6 +217,7 @@ export async function getFastVendorDropshipCatalogPage(
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
+    const msrpMinor = safeMinor(row.msrp_minor);
     if (!priceMinor || !isPublicCatalogueTitle(row.title)) return [];
     const presentation = resolveDropshipPublicFields(
       parseDropshipPresentationConfig(row.vendor_presentation),
@@ -231,6 +234,7 @@ export async function getFastVendorDropshipCatalogPage(
       categoryCode: row.category_code,
       departmentCode: row.department_code ?? undefined,
       priceMinor,
+      msrpMinor: msrpMinor !== undefined && msrpMinor > priceMinor ? msrpMinor : null,
       available,
       availableToSell: available ? safeQuantity(row.cached_quantity) : 0,
       vendorId: row.vendor_public_id,
