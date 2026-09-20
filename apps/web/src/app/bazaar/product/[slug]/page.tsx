@@ -6,7 +6,7 @@ import { BazaarImageGallery } from "../../../../components/BazaarImageGallery";
 import { ProductPurchaseInfoDialogs } from "../../../../components/ProductPurchaseInfoDialogs";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
-import { bazaarDisplayConditionLabel, bazaarProductDisclosure, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarProductNoticeSummary, bazaarProductNoticeTitle, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
 import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
 import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
 
@@ -77,7 +77,9 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
   const available = product.availableToSell > 0;
   const price = euro(product.priceMinor);
   const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
-  const testerDisclosure = bazaarProductDisclosure(product.bazaarSource);
+  const productDisclosure = bazaarProductDisclosure(product.bazaarSource);
+  const productNoticeTitle = bazaarProductNoticeTitle(product.bazaarSource);
+  const productNoticeSummary = bazaarProductNoticeSummary(product.bazaarSource);
 
   let galleryMedia: Awaited<ReturnType<typeof getBazaarMediaGallery>> = [];
   try {
@@ -134,7 +136,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
           {product.savingsPercent ? <span style={{ fontWeight: 900 }}>Κερδίζεις {product.savingsPercent}% έναντι ΠΛΤ</span> : null}
         </div>
 
-        {testerDisclosure ? <details style={{
+        {productDisclosure && productNoticeTitle ? <details style={{
           borderRadius: 14,
           border: "1px solid rgba(22,55,45,.45)",
           background: "#fff8ea",
@@ -149,10 +151,11 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
             listStyle: "none",
             fontSize: ".88rem"
           }}>
-            <strong>TESTER · Ανοιγμένο προϊόν</strong>
+            <strong>{productNoticeTitle}</strong>
             <span style={{ fontSize: ".8rem", textDecoration: "underline", whiteSpace: "nowrap" }}>Περισσότερα</span>
           </summary>
-          <p style={{ margin: "10px 0 2px", lineHeight: 1.4, fontSize: ".88rem" }}>{testerDisclosure}</p>
+          {productNoticeSummary ? <p style={{ margin: "8px 0 0", lineHeight: 1.35, fontSize: ".84rem", fontWeight: 700 }}>{productNoticeSummary}</p> : null}
+          <p style={{ margin: "7px 0 2px", lineHeight: 1.4, fontSize: ".88rem" }}>{productDisclosure}</p>
         </details> : null}
 
         <AddToCartButton product={{
@@ -178,9 +181,9 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
         <ProductPurchaseInfoDialogs supplierFulfilled={product.supplierFulfilled} />
 
-        {product.bazaarSource === "supplier_tester"
+        {product.bazaarSource === "supplier_tester" || product.bazaarSource === "supplier_sample"
           ? <div style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.55)", fontSize: ".88rem" }}>
-              <strong>Κατάσταση: TESTER</strong>
+              <strong>Κατάσταση: {bazaarDisplayConditionLabel(product.condition, product.bazaarSource)}</strong>
             </div>
           : <div style={{ padding: 18, borderRadius: 18, background: defectLike ? "#fff1d9" : "rgba(255,255,255,.65)" }}>
               <strong>Κατάσταση: {bazaarDisplayConditionLabel(product.condition, product.bazaarSource)}</strong>

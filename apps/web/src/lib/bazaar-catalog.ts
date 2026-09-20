@@ -7,6 +7,7 @@ export type BazaarSource =
   | "supplier_preloved"
   | "supplier_preowned_defect"
   | "supplier_tester"
+  | "supplier_sample"
   | "customer_return"
   | "open_box"
   | "display_stock"
@@ -66,6 +67,7 @@ const BAZAAR_SOURCES: readonly BazaarSource[] = [
   "supplier_preloved",
   "supplier_preowned_defect",
   "supplier_tester",
+  "supplier_sample",
   "customer_return",
   "open_box",
   "display_stock",
@@ -270,6 +272,7 @@ export function bazaarSourceLabel(source: BazaarSource): string {
     case "supplier_preloved": return "Supplier Preloved";
     case "supplier_preowned_defect": return "Supplier Preowned / Defect";
     case "supplier_tester": return "Tester προμηθευτή";
+    case "supplier_sample": return "Sample προμηθευτή";
     case "customer_return": return "Επιστροφή πελάτη";
     case "open_box": return "Open box";
     case "display_stock": return "Εκθεσιακό τεμάχιο";
@@ -279,10 +282,29 @@ export function bazaarSourceLabel(source: BazaarSource): string {
 }
 
 export function bazaarDisplayConditionLabel(condition: BazaarCondition, source?: BazaarSource): string {
-  return source === "supplier_tester" ? "TESTER" : bazaarConditionLabel(condition);
+  if (source === "supplier_tester") return "TESTER";
+  if (source === "supplier_sample") return "SAMPLE";
+  return bazaarConditionLabel(condition);
 }
 
 export function bazaarProductDisclosure(source?: BazaarSource): string | undefined {
-  if (source !== "supplier_tester") return undefined;
-  return "Προϊόν TESTER: έχει ανοιχτεί για δοκιμή και ενδέχεται να έχει χρησιμοποιηθεί ελαφρά. Η πραγματική ποσότητα μπορεί να είναι μικρότερη από την ονομαστική αναγραφόμενη ποσότητα.";
+  if (source === "supplier_tester") {
+    return "Προϊόν TESTER: έχει ανοιχτεί για δοκιμή και ενδέχεται να έχει χρησιμοποιηθεί ελαφρά. Η πραγματική ποσότητα μπορεί να είναι μικρότερη από την ονομαστική αναγραφόμενη ποσότητα.";
+  }
+  if (source === "supplier_sample") {
+    return "Προϊόν SAMPLE: πρόκειται για μικρό δείγμα του αρχικού προϊόντος, σε μικρότερη συσκευασία ή ποσότητα από την κανονική εμπορική έκδοση.";
+  }
+  return undefined;
+}
+
+export function bazaarProductNoticeTitle(source?: BazaarSource): string | undefined {
+  if (source === "supplier_tester") return "TESTER · Ανοιγμένο προϊόν";
+  if (source === "supplier_sample") return "SAMPLE · Μικρό δείγμα προϊόντος";
+  return undefined;
+}
+
+export function bazaarProductNoticeSummary(source?: BazaarSource): string | undefined {
+  if (source === "supplier_tester") return "Ανοιγμένο προϊόν · πιθανή απόκλιση από την ονομαστική ποσότητα.";
+  if (source === "supplier_sample") return "Μικρό δείγμα της κανονικής εμπορικής έκδοσης.";
+  return undefined;
 }

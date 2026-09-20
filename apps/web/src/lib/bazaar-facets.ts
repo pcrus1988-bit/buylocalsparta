@@ -22,6 +22,7 @@ const VALID_SOURCES = new Set<BazaarSource>([
   "supplier_preloved",
   "supplier_preowned_defect",
   "supplier_tester",
+  "supplier_sample",
   "customer_return",
   "open_box",
   "display_stock",
@@ -97,6 +98,6 @@ async function loadBazaarFacets(): Promise<BazaarFacets> {
 
 export const getCachedBazaarFacets = unstable_cache(
   loadBazaarFacets,
-  ["bazaar-facets-v3-sellable-dropship-tester-source"],
+  ["bazaar-facets-v4-sellable-dropship-sample-source"],
   { revalidate: 300 }
 );

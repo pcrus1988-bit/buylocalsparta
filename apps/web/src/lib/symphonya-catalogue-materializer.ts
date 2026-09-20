@@ -498,6 +498,7 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
           externalProductId: source.sourceProductKey,
           externalVariantId: variant.externalVariantId,
           supplierTester: commercePolicy.supplierTester,
+          supplierSample: commercePolicy.supplierSample,
           commerceChannel: commercePolicy.commerceChannel,
           ...(commercePolicy.bazaarSource ? { bazaarSource: commercePolicy.bazaarSource } : {})
         }),
@@ -607,9 +608,14 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
         supplierContentSource: "catalog_source_products",
         schemaPolicy: "catalog_identity_v3_simplified",
         supplierTester: commercePolicy.supplierTester,
+        supplierSample: commercePolicy.supplierSample,
         commerceChannel: commercePolicy.commerceChannel,
         bazaarSource: commercePolicy.bazaarSource,
-        catalogueRouting: commercePolicy.supplierTester ? "symphonya_tester_bazaar_v1" : "symphonya_normal_v1"
+        catalogueRouting: commercePolicy.supplierTester
+          ? "symphonya_tester_bazaar_v1"
+          : commercePolicy.supplierSample
+            ? "symphonya_sample_bazaar_v1"
+            : "symphonya_normal_v1"
       }),
       Math.max(0, variant.buyingCostMinor ?? 0),
       variant.msrpMinor
