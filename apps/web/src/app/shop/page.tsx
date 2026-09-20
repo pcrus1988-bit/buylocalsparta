@@ -327,6 +327,13 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
       <section className="shell catalog-layout">
         <aside className="catalog-sidebar">
+          <div className="catalog-filter-heading">
+            <div>
+              <strong>Φίλτρα</strong>
+              <small>Διάλεξε ό,τι σε ενδιαφέρει</small>
+            </div>
+            {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός</a> : null}
+          </div>
           <form className="filter-form" action="/shop">
             {availability === "available" ? <input type="hidden" name="availability" value="available" /> : null}
             {groupedSubcategories.map((value) => <input type="hidden" name="subcategory_any" value={value} key={value} />)}
@@ -397,8 +404,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               <option value="price-asc">Τιμή: χαμηλά → υψηλά</option>
               <option value="price-desc">Τιμή: υψηλά → χαμηλά</option>
             </select>
-            <button className="button" type="submit">Εφαρμογή</button>
-            {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός φίλτρων</a> : null}
+            <div className="catalog-filter-actions">
+              <button className="button" type="submit">Προβολή αποτελεσμάτων</button>
+              {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός φίλτρων</a> : null}
+            </div>
           </form>
           <div className="fairness-note"><strong>Τοπική αγορά, χωρίς θόρυβο</strong><p>Κάθε προϊόν εμφανίζεται μία φορά, με πραγματική διαθέσιμη επιλογή από ενεργό τοπικό κατάστημα.</p><a className="text-link" href="/fairness">Πώς λειτουργεί →</a></div>
         </aside>
