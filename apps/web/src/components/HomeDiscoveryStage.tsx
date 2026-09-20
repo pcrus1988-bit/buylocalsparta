@@ -139,11 +139,6 @@ export function HomeDiscoveryStage({
 
   return (
     <aside className={styles.discoveryStage} aria-label="KONTA MOY discovery">
-      <div className={styles.discoveryStageTopline}>
-        <span>Τώρα κοντά σου</span>
-        <span>{String(active + 1).padStart(2, "0")} / 05</span>
-      </div>
-
       <div className={styles.discoveryStageViewport} key={active}>
         {slide}
       </div>
