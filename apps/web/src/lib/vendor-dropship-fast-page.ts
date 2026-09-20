@@ -108,22 +108,34 @@ export async function getFastVendorDropshipCatalogPage(
       FROM vendor_suppliers supplier
       LEFT JOIN stable_counts counts ON counts.supplier_id=supplier.supplier_id
       WHERE COALESCE(counts.stable_count,0)<$4
+    ), live_seed AS MATERIALIZED (
+      SELECT
+        supplier.supplier_id,
+        candidate.external_product_id,
+        candidate.vendor_offer_id
+      FROM fallback_suppliers supplier
+      JOIN LATERAL (
+        SELECT dso.external_product_id,dso.vendor_offer_id
+        FROM dropship_supplier_offers dso
+        WHERE dso.supplier_id=supplier.id
+          AND dso.active=true
+          AND dso.cached_available=true
+          AND COALESCE(dso.cached_quantity,0)>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+        ORDER BY dso.updated_at DESC,dso.id DESC
+        LIMIT 1000
+      ) candidate ON true
     ), live_fallback AS MATERIALIZED (
       SELECT
-        dso.supplier_id::text AS supplier_id,
-        dso.external_product_id,
+        seed.supplier_id,
+        seed.external_product_id,
         MAX(vo.updated_at) AS newest_at
-      FROM dropship_supplier_offers dso
-      JOIN fallback_suppliers supplier ON supplier.id=dso.supplier_id
-      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+      FROM live_seed seed
+      JOIN vendor_offers vo ON vo.id=seed.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN vendor_locations l ON l.id=vo.location_id
-      WHERE dso.active=true
-        AND dso.cached_available=true
-        AND COALESCE(dso.cached_quantity,0)>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND vo.status='approved'
+      WHERE vo.status='approved'
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
@@ -134,7 +146,7 @@ export async function getFastVendorDropshipCatalogPage(
         AND cv.suppressed=false
         AND cv.recalled=false
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-      GROUP BY dso.supplier_id,dso.external_product_id
+      GROUP BY seed.supplier_id,seed.external_product_id
     ), combined AS (
       SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM stable
       UNION ALL
