@@ -276,10 +276,12 @@ export async function reconcileMolliePaymentSafely(input: {
   return requireMolliePayments().reconcilePayment({ ...input, now });
 }
 
-export async function verifiedMollieProcessorMethod(paymentId: string): Promise<"CARD"> {
+export async function verifiedMollieProcessorMethod(paymentId: string): Promise<"CREDITCARD"> {
   const payment = await new MolliePaymentsClient(mollieConfigFromEnv()).retrievePayment(paymentId);
   if (payment.status !== "paid") throw new Error("Mollie payment is not in a paid state");
   if (payment.amountCurrency !== "EUR") throw new Error("Only EUR Mollie payments can be fiscalized automatically");
-  if (payment.method === "creditcard") return "CARD";
+  // Keep the runtime key identical to the accountant-approved
+  // mydata_payment_mappings.processor_method value.
+  if (payment.method === "creditcard") return "CREDITCARD";
   throw new Error(`Mollie payment method ${payment.method ?? "unknown"} has no approved automatic fiscal mapping`);
 }
