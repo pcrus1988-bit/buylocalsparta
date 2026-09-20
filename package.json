@@ -12,6 +12,7 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "build": "npm --workspace @buy-local-sparta/web run build",
     "test:core": "node --experimental-strip-types --test packages/core/test/*.test.ts",
     "test:dropship-suppliers": "npm --workspace @buy-local-sparta/dropship-suppliers test",
     "typecheck:dropship-suppliers": "npm --workspace @buy-local-sparta/dropship-suppliers run typecheck",
