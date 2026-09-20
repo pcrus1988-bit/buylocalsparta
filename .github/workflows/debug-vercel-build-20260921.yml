@@ -23,6 +23,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Reproduce Vercel build
-        run: npm --workspace @buy-local-sparta/web run build
+      - run: npm ci --ignore-scripts --include=dev
+      - name: Typecheck Next build without production prebuild gate
+        working-directory: apps/web
+        run: npx next build
