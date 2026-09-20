@@ -1,4 +1,4 @@
-import type { SqlRow } from "@buy-local-sparta/core";
+import type { SqlExecutor, SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
 import { normalizeNovaProduct } from "../../../../integrations/dropship-suppliers/src/nova-normalize.ts";
 import {
@@ -61,8 +61,10 @@ export function novaAvailabilityRequestsPerMinute(env: NodeJS.ProcessEnv = proce
     : DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE;
 }
 
-async function resolveNovaStoreId(): Promise<string> {
-  const source = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+async function resolveNovaStoreId(
+  db: SqlExecutor = getProductionPostgresRuntime().sqlPool
+): Promise<string> {
+  const source = await db.query<SqlRow>(`
     SELECT COALESCE(
       metadata #>> '{novaSync,storeId}',
       metadata ->> 'storeId',
@@ -180,7 +182,8 @@ async function refreshNovaAvailabilityProductWithClient(
 async function refreshNovaAvailabilityPage(
   products: readonly NovaProduct[],
   storeId: string,
-  checkedAt: Date
+  checkedAt: Date,
+  db: SqlExecutor = getProductionPostgresRuntime().sqlPool
 ): Promise<number> {
   const rows: AvailabilityPageRow[] = products.flatMap((product) => {
     const normalized = normalizeNovaProduct(product, storeId);
@@ -194,7 +197,7 @@ async function refreshNovaAvailabilityPage(
   });
   if (rows.length === 0) return 0;
 
-  const update = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const update = await db.query<SqlRow>(`
     UPDATE public.dropship_supplier_offers dso
     SET cached_available=x.cached_available,
         cached_quantity=x.cached_quantity,
@@ -258,7 +261,7 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
     if (!claimed) {
       return { attemptedProducts: 0, refreshedProducts: 0, failedProducts: 0, updatedOffers: 0 };
     }
-    return await runNovaAvailabilityRefreshSweepUnlocked();
+    return await runNovaAvailabilityRefreshSweepUnlocked(lockClient);
   } finally {
     if (claimed) {
       await lockClient.query(
@@ -270,8 +273,10 @@ export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilit
   }
 }
 
-async function runNovaAvailabilityRefreshSweepUnlocked(): Promise<NovaAvailabilityRefreshResult> {
-  const storeId = await resolveNovaStoreId();
+async function runNovaAvailabilityRefreshSweepUnlocked(
+  db: SqlExecutor
+): Promise<NovaAvailabilityRefreshResult> {
+  const storeId = await resolveNovaStoreId(db);
   const client = createNovaAvailabilityClient();
   let page = 1;
   let perPage = DEFAULT_FULL_SWEEP_PAGE_SIZE;
@@ -296,7 +301,7 @@ async function runNovaAvailabilityRefreshSweepUnlocked(): Promise<NovaAvailabili
     if (result.items.length === 0) break;
     attemptedProducts += result.items.length;
     const checkedAt = new Date();
-    updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt);
+    updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt, db);
     refreshedProducts += result.items.length;
 
     const pageComplete = result.items.length < perPage
@@ -351,7 +356,7 @@ export async function runNovaAvailabilityRefreshSlice(
       };
     }
 
-    const cursorResult = await runtime.sqlPool.query<SqlRow>(`
+    const cursorResult = await lockClient.query<SqlRow>(`
       SELECT
         CASE
           WHEN COALESCE(metadata #>> '{novaAvailabilityFailover,nextPage}', '') ~ '^[0-9]+$'
@@ -377,7 +382,7 @@ export async function runNovaAvailabilityRefreshSlice(
     }
 
     const startPage = page;
-    const storeId = await resolveNovaStoreId();
+    const storeId = await resolveNovaStoreId(lockClient);
     const client = createNovaAvailabilityClient();
     let pagesProcessed = 0;
     let attemptedProducts = 0;
@@ -402,13 +407,13 @@ export async function runNovaAvailabilityRefreshSlice(
       if (result.items.length === 0) {
         page = 1;
         cycleCompleted = true;
-        await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted);
+        await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, lockClient);
         break;
       }
 
       attemptedProducts += result.items.length;
       const checkedAt = new Date();
-      updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt);
+      updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt, lockClient);
       refreshedProducts += result.items.length;
       pagesProcessed += 1;
 
@@ -417,7 +422,7 @@ export async function runNovaAvailabilityRefreshSlice(
 
       page = pageComplete ? 1 : page + 1;
       cycleCompleted = pageComplete;
-      await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted);
+      await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, lockClient);
       if (pageComplete) break;
     }
 
@@ -444,9 +449,10 @@ export async function runNovaAvailabilityRefreshSlice(
 async function persistNovaAvailabilityFailoverCursor(
   nextPage: number,
   pageSize: number,
-  cycleCompleted: boolean
+  cycleCompleted: boolean,
+  db: SqlExecutor = getProductionPostgresRuntime().sqlPool
 ): Promise<void> {
-  await getProductionPostgresRuntime().sqlPool.query(`
+  await db.query(`
     UPDATE public.catalog_sources
     SET metadata=jsonb_set(
           COALESCE(metadata, '{}'::jsonb),
