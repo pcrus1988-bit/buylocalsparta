@@ -68,6 +68,114 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
   } catch(error){ state.lastError=safeError(error); state.leaseUntil=null; await saveState(sourceId,state).catch(()=>undefined); throw error; }
 }
 
+
+/**
+ * Vercel production burst path.
+ *
+ * Fetch a few contiguous stock pages concurrently, then persist them in-order.
+ * The shared DB lease keeps this mutually exclusive with any legacy cursor call.
+ * With three 500-row pages every five minutes, the current ~18.5k catalogue
+ * completes a full authoritative cycle comfortably inside the 120-minute TTL.
+ */
+export async function runSymphonyaStockSyncBurst(
+  requestedMaxPages = 3
+): Promise<SymphonyaStockSyncResult> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const maxPages = Math.max(1, Math.min(4, positiveIntegerValue(requestedMaxPages, 3)));
+  const claimed = await pool.query<SqlRow>(`
+    UPDATE public.catalog_sources cs
+       SET metadata=jsonb_set(
+             COALESCE(cs.metadata,'{}'::jsonb),
+             '{symphonyaStockSync}',
+             COALESCE(cs.metadata->'symphonyaStockSync','{}'::jsonb)
+               || jsonb_build_object('leaseUntil',now()+interval '55 seconds','lastAttemptAt',now()),
+             true
+           ),
+           updated_at=now()
+     WHERE cs.code=$1
+       AND cs.active=true
+       AND EXISTS (
+         SELECT 1
+           FROM public.dropship_suppliers ds
+          WHERE ds.catalog_source_id=cs.id
+            AND ds.code=$2
+            AND ds.active=true
+            AND ds.api_authoritative_availability=true
+       )
+       AND (
+         NULLIF(cs.metadata #>> '{symphonyaStockSync,leaseUntil}','') IS NULL
+         OR (cs.metadata #>> '{symphonyaStockSync,leaseUntil}')::timestamptz < now()
+       )
+    RETURNING cs.id,cs.metadata
+  `, [SOURCE_CODE, SUPPLIER_CODE]);
+
+  const claimedRow = claimed.rows[0];
+  if (!claimedRow) {
+    return { claimed:false,pages:0,rows:0,offersUpdated:0,cycleComplete:false,message:"disabled_or_busy" };
+  }
+
+  const sourceId = String(claimedRow.id);
+  const state = parseState((claimedRow.metadata as Record<string,unknown>|undefined)?.symphonyaStockSync);
+  state.leaseUntil = new Date(Date.now()+LEASE_MS).toISOString();
+  state.lastError = null;
+
+  const transport = new SymphonyaHttpTransport({
+    apiKey:apiKey(),
+    baseUrl:process.env.SYMPHONYA_API_BASE_URL,
+    requestTimeoutMs:timeoutMs()
+  });
+  const pageNumbers = Array.from({ length:maxPages }, (_, index) => state.nextPage + index);
+
+  try {
+    const fetched = await Promise.all(
+      pageNumbers.map((page) => transport.getStock({ page, limit:state.limit }))
+    );
+    const terminalIndex = fetched.findIndex((page) => page.length < state.limit);
+    const accepted = terminalIndex >= 0 ? fetched.slice(0, terminalIndex + 1) : fetched;
+
+    let rows = 0;
+    let offersUpdated = 0;
+    let cycleComplete = false;
+
+    for (let index = 0; index < accepted.length; index += 1) {
+      const page = accepted[index]!;
+      const pageNumber = pageNumbers[index]!;
+      offersUpdated += await persistStockRows(page);
+      rows += page.length;
+      state.pagesCompleted += 1;
+      state.rowsObserved += page.length;
+      state.lastSuccessfulAt = new Date().toISOString();
+      state.lastSuccessfulPage = pageNumber;
+      state.nextPage = pageNumber + 1;
+
+      if (page.length < state.limit) {
+        cycleComplete = true;
+        state.lastCycleCompletedAt = state.lastSuccessfulAt;
+        state.nextPage = 1;
+        state.cycleStartedAt = new Date().toISOString();
+        state.pagesCompleted = 0;
+        state.rowsObserved = 0;
+        break;
+      }
+    }
+
+    state.leaseUntil = null;
+    await saveState(sourceId,state);
+    return {
+      claimed:true,
+      pages:accepted.length,
+      rows,
+      offersUpdated,
+      cycleComplete
+    };
+  } catch (error) {
+    state.lastError = safeError(error);
+    state.leaseUntil = null;
+    await saveState(sourceId,state).catch(()=>undefined);
+    throw error;
+  }
+}
+
 /** Checkout/pre-fulfilment targeted validation path. */
 export async function refreshSymphonyaOfferStockByExternalIds(productIds: readonly string[]): Promise<number> {
   const ids=[...new Set(productIds.map((value)=>value.trim()).filter(Boolean))];
